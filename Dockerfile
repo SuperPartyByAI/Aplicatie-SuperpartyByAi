@@ -47,3 +47,4 @@ EXPOSE 8080
 
 # Start the application
 CMD ["npm", "start"]
+# Force rebuild Fri Dec 26 23:18:15 UTC 2025
