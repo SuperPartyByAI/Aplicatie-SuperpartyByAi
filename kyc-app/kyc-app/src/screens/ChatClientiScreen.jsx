@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import io from 'socket.io-client';
 
 // Backend Railway URL
@@ -59,7 +60,8 @@ const USE_MOCK_DATA = true; // Setează false când backend-ul este deploiat
 
 function ChatClientiScreen() {
   const navigate = useNavigate();
-  const currentUser = auth.currentUser;
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const isAdmin = currentUser?.email === 'ursache.andrei1995@gmail.com';
 
   const [clients, setClients] = useState([]);
@@ -70,6 +72,18 @@ function ChatClientiScreen() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // Wait for auth to load
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
+
     if (!isAdmin) {
       alert('⛔ Acces interzis! Doar administratorul poate accesa această pagină.');
       navigate('/home');
@@ -96,9 +110,11 @@ function ChatClientiScreen() {
     });
 
     return () => {
-      newSocket.disconnect();
+      if (newSocket) {
+        newSocket.disconnect();
+      }
     };
-  }, [isAdmin, navigate]);
+  }, [authLoading, isAdmin, navigate]);
 
   const loadClients = async () => {
     setLoading(true);
@@ -172,6 +188,22 @@ function ChatClientiScreen() {
       alert('❌ Eroare la actualizarea statusului');
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="page-container">
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          height: '100vh',
+          color: 'white'
+        }}>
+          Se încarcă...
+        </div>
+      </div>
+    );
+  }
 
   if (!isAdmin) {
     return null;
