@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "postinstall": "node node_modules/puppeteer/install.js || echo 'Puppeteer install skipped'"
   },
   "keywords": ["whatsapp", "backend", "multi-account"],
   "author": "SuperParty",
