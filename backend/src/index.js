@@ -95,6 +95,48 @@ app.post('/api/accounts/:accountId/send', async (req, res) => {
   }
 });
 
+// Client management endpoints
+app.get('/api/clients', async (req, res) => {
+  try {
+    const clients = await whatsappManager.getAllClients();
+    res.json({ success: true, clients });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/clients/:clientId/messages', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const messages = await whatsappManager.getClientMessages(clientId);
+    res.json({ success: true, messages });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/clients/:clientId/messages', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { message } = req.body;
+    const sentMessage = await whatsappManager.sendClientMessage(clientId, message);
+    res.json({ success: true, message: sentMessage });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.patch('/api/clients/:clientId/status', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { status } = req.body;
+    await whatsappManager.updateClientStatus(clientId, status);
+    res.json({ success: true, message: 'Status updated' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Socket.IO
 io.on('connection', (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);

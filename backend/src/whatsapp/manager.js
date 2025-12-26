@@ -255,6 +255,83 @@ class WhatsAppManager {
     this.clients.clear();
     this.accounts.clear();
   }
+
+  // Client management methods
+  async getAllClients() {
+    const allClients = [];
+    
+    for (const [accountId, client] of this.clients.entries()) {
+      try {
+        const chats = await client.getChats();
+        
+        for (const chat of chats) {
+          if (!chat.isGroup) {
+            const contact = await chat.getContact();
+            allClients.push({
+              id: chat.id._serialized,
+              accountId,
+              name: contact.pushname || contact.number || 'Unknown',
+              phone: contact.number,
+              status: 'available',
+              unreadCount: chat.unreadCount,
+              lastMessage: chat.timestamp,
+              lastMessageText: chat.lastMessage?.body || ''
+            });
+          }
+        }
+      } catch (error) {
+        console.error(`❌ [${accountId}] Failed to get clients:`, error);
+      }
+    }
+    
+    return allClients;
+  }
+
+  async getClientMessages(clientId) {
+    for (const [accountId, client] of this.clients.entries()) {
+      try {
+        const chat = await client.getChatById(clientId);
+        const messages = await chat.fetchMessages({ limit: 100 });
+        
+        return messages.map(msg => ({
+          id: msg.id._serialized,
+          text: msg.body,
+          fromClient: !msg.fromMe,
+          timestamp: msg.timestamp * 1000
+        }));
+      } catch (error) {
+        continue;
+      }
+    }
+    
+    throw new Error('Client not found');
+  }
+
+  async sendClientMessage(clientId, message) {
+    for (const [accountId, client] of this.clients.entries()) {
+      try {
+        await client.sendMessage(clientId, message);
+        
+        return {
+          id: `msg_${Date.now()}`,
+          text: message,
+          fromClient: false,
+          timestamp: Date.now()
+        };
+      } catch (error) {
+        continue;
+      }
+    }
+    
+    throw new Error('Failed to send message');
+  }
+
+  async updateClientStatus(clientId, status) {
+    // Store client status in memory or database
+    // For now, just emit event
+    this.io.emit('client:status_updated', { clientId, status });
+    return { success: true };
+  }
 }
 
 module.exports = WhatsAppManager;
