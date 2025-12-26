@@ -9,7 +9,7 @@ const MOCK_CLIENTS = [
   { id: '3', name: 'Andrei Georgescu', phone: '+40723456789', unreadCount: 1 }
 ];
 
-const USE_MOCK_DATA = true;
+const USE_MOCK_DATA = false; // Backend deploiat pe Railway!
 
 function ChatClienti() {
   const [clients, setClients] = useState([]);

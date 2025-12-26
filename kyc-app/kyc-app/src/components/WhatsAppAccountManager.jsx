@@ -10,7 +10,7 @@ const MOCK_ACCOUNTS = [
   { id: 'acc3', name: 'Marketing', status: 'qr_ready', phone: null }
 ];
 
-const USE_MOCK_DATA = true;
+const USE_MOCK_DATA = false; // Backend deploiat pe Railway!
 
 function WhatsAppAccountManager() {
   const [accounts, setAccounts] = useState([]);

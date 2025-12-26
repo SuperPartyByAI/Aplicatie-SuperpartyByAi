@@ -7,7 +7,7 @@ import io from 'socket.io-client';
 // Backend Railway URL
 const BACKEND_URL = 'https://aplicatie-superpartybyai-production.up.railway.app';
 
-// Mock data pentru testare (până când backend-ul este deploiat)
+// Mock data pentru testare
 const MOCK_CLIENTS = [
   {
     id: '1',
@@ -56,7 +56,7 @@ const MOCK_CLIENTS = [
   }
 ];
 
-const USE_MOCK_DATA = true; // Setează false când backend-ul este deploiat
+const USE_MOCK_DATA = false; // Backend deploiat pe Railway!
 
 function ChatClientiScreen() {
   const navigate = useNavigate();
