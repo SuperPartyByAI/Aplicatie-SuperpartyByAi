@@ -1,0 +1,42 @@
+name: Deploy Frontend to Firebase
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'kyc-app/**'
+      - '.github/workflows/deploy-frontend.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: kyc-app/kyc-app/package-lock.json
+          
+      - name: Install dependencies
+        run: |
+          cd kyc-app/kyc-app
+          npm ci
+          
+      - name: Build
+        run: |
+          cd kyc-app/kyc-app
+          npm run build
+          
+      - name: Deploy to Firebase
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_SUPERPARTY_FRONTEND }}'
+          channelId: live
+          projectId: superparty-frontend
+          entryPoint: ./kyc-app/kyc-app
