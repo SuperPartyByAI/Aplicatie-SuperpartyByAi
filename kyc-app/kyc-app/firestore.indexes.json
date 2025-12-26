@@ -1,0 +1,46 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "evenimente",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "data", "order": "ASCENDING" },
+        { "fieldPath": "locatie", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "evenimente",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "staffAlocat", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "data", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "aiConversations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "disponibilitate",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "data", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

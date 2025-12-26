@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# Git Hook: Pre-Commit
+# Rulează automat înainte de fiecare commit
+# Verifică că codul e valid și testele trec
+
+set -e
+
+echo "🔍 Pre-Commit Hook: Verificare cod..."
+
+# 1. Verifică că nu există console.log în cod (doar warning)
+echo "📝 Verificare console.log..."
+if git diff --cached --name-only | grep -E '\.(js|jsx|ts|tsx)$' | xargs grep -n "console\.log" 2>/dev/null; then
+  echo "⚠️  WARNING: Ai console.log în cod. Consideră să le ștergi."
+  echo "   (Nu blochează commit-ul, doar te avertizează)"
+fi
+
+# 2. Verifică că nu există debugger statements
+echo "🐛 Verificare debugger..."
+if git diff --cached --name-only | grep -E '\.(js|jsx|ts|tsx)$' | xargs grep -n "debugger" 2>/dev/null; then
+  echo "❌ ERROR: Ai 'debugger' statements în cod!"
+  echo "   Șterge-le înainte de commit."
+  exit 1
+fi
+
+# 3. Verifică că nu există TODO-uri critice
+echo "📋 Verificare TODO-uri critice..."
+if git diff --cached --name-only | grep -E '\.(js|jsx|ts|tsx)$' | xargs grep -n "TODO.*CRITICAL\|FIXME.*URGENT" 2>/dev/null; then
+  echo "❌ ERROR: Ai TODO-uri CRITICAL/URGENT nerezolvate!"
+  echo "   Rezolvă-le înainte de commit."
+  exit 1
+fi
+
+# 4. Verifică că nu există API keys hardcodate
+echo "🔑 Verificare API keys..."
+if git diff --cached --name-only | grep -E '\.(js|jsx|ts|tsx)$' | xargs grep -nE "api[_-]?key.*=.*['\"][a-zA-Z0-9]{20,}['\"]|secret.*=.*['\"][a-zA-Z0-9]{20,}['\"]" 2>/dev/null; then
+  echo "❌ ERROR: Posibil API key hardcodat detectat!"
+  echo "   Mută-l în .env sau Firebase config."
+  exit 1
+fi
+
+# 5. Verifică formatare fișiere (basic)
+echo "📐 Verificare formatare..."
+if git diff --cached --name-only | grep -E '\.(js|jsx|ts|tsx)$' | xargs grep -l $'\t' 2>/dev/null; then
+  echo "⚠️  WARNING: Unele fișiere folosesc tab-uri în loc de spații."
+  echo "   (Nu blochează commit-ul)"
+fi
+
+echo "✅ Pre-Commit verificări complete!"
+echo ""

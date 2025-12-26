@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isApproved() {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved';
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // KYC Submissions
+    match /kycSubmissions/{submissionId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.uid) || isAdmin());
+      allow create: if isAuthenticated() && isOwner(request.resource.data.uid);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Staff Profiles
+    match /staffProfiles/{profileId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(profileId);
+      allow update: if isOwner(profileId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Evenimente
+    match /evenimente/{eventId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Disponibilitate
+    match /disponibilitate/{availId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(request.resource.data.uid);
+      allow update: if isOwner(resource.data.uid) || isAdmin();
+      allow delete: if isOwner(resource.data.uid) || isAdmin();
+    }
+    
+    // AI Conversations (oricine autentificat poate citi pentru GM Mode)
+    match /aiConversations/{convId} {
+      allow read: if isAuthenticated(); // Permite citire pentru GM Mode
+      allow create: if false; // Doar Cloud Functions pot crea
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+    
+    // AI Corrections (oricine autentificat poate crea și edita corecții)
+    match /aiCorrections/{correctionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated(); // Permite crearea de corecții
+      allow update: if isAuthenticated(); // Permite editarea corecțiilor
+      allow delete: if isAdmin();
+    }
+    
+    // Settings (doar admin)
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Image Validations (AI Manager)
+    match /imageValidations/{validationId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if false; // Doar Cloud Functions pot crea
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Performance Metrics
+    match /performanceMetrics/{metricId} {
+      allow read: if isAuthenticated() && (metricId.matches('^' + request.auth.uid + '_.*') || isAdmin());
+      allow create: if false; // Doar Cloud Functions pot crea
+      allow update: if false; // Doar Cloud Functions pot actualiza
+      allow delete: if isAdmin();
+    }
+    
+    // Performance Alerts
+    match /performanceAlerts/{alertId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if false; // Doar Cloud Functions pot crea
+      allow update: if isOwner(resource.data.userId) || isAdmin(); // User poate marca ca acknowledged
+      allow delete: if isAdmin();
+    }
+    
+    // AI Manager Logs (doar admin)
+    match /aiManagerLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if false; // Doar Cloud Functions pot crea
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+    
+    // Evenimente Alocate
+    match /evenimenteAlocate/{allocationId} {
+      allow read: if isAuthenticated() && (isOwner(resource.data.staffId) || isAdmin());
+      allow create: if isAdmin();
+      allow update: if isOwner(resource.data.staffId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Daily Reports (doar admin)
+    match /dailyReports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if false; // Doar Cloud Functions pot crea
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+    
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

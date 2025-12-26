@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# Git Hook: Pre-Push
+# Rulează automat înainte de fiecare push
+# Verifică că testele trec și codul e deployment-ready
+
+set -e
+
+echo "🚀 Pre-Push Hook: Verificare deployment-ready..."
+
+# 1. Verifică că suntem în directorul corect
+if [ ! -d "kyc-app/kyc-app" ]; then
+  echo "⚠️  Nu găsesc directorul kyc-app/kyc-app"
+  echo "   Rulează din root-ul repository-ului"
+  exit 1
+fi
+
+# 2. Rulează testele
+echo "🧪 Rulare teste..."
+cd kyc-app/kyc-app
+
+if ! npm test -- --run 2>&1 | tee /tmp/test-output.log; then
+  echo ""
+  echo "❌ ERROR: Testele au FAILED!"
+  echo "   Fix testele înainte de push."
+  echo ""
+  echo "📋 Teste failed:"
+  grep "FAIL" /tmp/test-output.log || true
+  exit 1
+fi
+
+# 3. Verifică că package.json e valid
+echo "📦 Verificare package.json..."
+if ! node -e "JSON.parse(require('fs').readFileSync('package.json', 'utf8'))"; then
+  echo "❌ ERROR: package.json invalid!"
+  exit 1
+fi
+
+# 4. Verifică că nu există dependențe vulnerabile (opțional, poate fi lent)
+# echo "🔒 Verificare vulnerabilități..."
+# npm audit --audit-level=high || echo "⚠️  Vulnerabilități detectate (nu blochează push-ul)"
+
+# 5. Verifică că branch-ul e up-to-date cu remote
+echo "🔄 Verificare sync cu remote..."
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if git fetch origin "$BRANCH" 2>/dev/null; then
+  LOCAL=$(git rev-parse @)
+  REMOTE=$(git rev-parse @{u} 2>/dev/null || echo "")
+  
+  if [ -n "$REMOTE" ] && [ "$LOCAL" != "$REMOTE" ]; then
+    echo "⚠️  WARNING: Branch-ul tău nu e sync cu remote"
+    echo "   Consideră să faci git pull înainte de push"
+  fi
+fi
+
+cd ../..
+
+echo "✅ Pre-Push verificări complete!"
+echo "✅ Codul e deployment-ready!"
+echo ""

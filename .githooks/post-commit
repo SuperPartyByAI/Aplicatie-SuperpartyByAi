@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# Git Hook: Post-Commit
+# Rulează automat DUPĂ fiecare commit
+# Salvează automat conversația și context
+
+set -e
+
+echo ""
+echo "💾 Post-Commit Hook: Auto-save sesiune..."
+
+# Verifică dacă există fișiere de salvat
+if [ ! -f "CURRENT_SESSION.md" ] && [ ! -f "SNAPSHOT.json" ]; then
+  echo "⚠️  Niciun fișier de salvat (CURRENT_SESSION.md sau SNAPSHOT.json lipsesc)"
+  echo "   Skip auto-save"
+  exit 0
+fi
+
+# Creează timestamp
+TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+DATE=$(date +"%Y-%m-%d")
+
+# Salvează conversația dacă există
+if [ -f "CURRENT_SESSION.md" ]; then
+  mkdir -p .ai-memory/conversations
+  cp CURRENT_SESSION.md .ai-memory/conversations/${DATE}_auto-save.md
+  echo "✅ Conversație salvată: ${DATE}_auto-save.md"
+fi
+
+# Salvează snapshot dacă există
+if [ -f "SNAPSHOT.json" ]; then
+  mkdir -p .ai-memory/snapshots
+  cp SNAPSHOT.json .ai-memory/snapshots/${DATE}_${TIMESTAMP}.json
+  cp SNAPSHOT.json .ai-memory/snapshots/latest.json
+  echo "✅ Snapshot salvat: ${DATE}_${TIMESTAMP}.json"
+fi
+
+# Salvează context curent
+if [ -f "TODO.md" ]; then
+  mkdir -p .ai-memory/context
+  cp TODO.md .ai-memory/context/pending-tasks.md
+  echo "✅ TODO salvat"
+fi
+
+# Actualizează index
+mkdir -p .ai-memory/conversations
+cat > .ai-memory/conversations/index.json <<EOF
+{
+  "last_updated": "$TIMESTAMP",
+  "total_sessions": $(ls -1 .ai-memory/conversations/*.md 2>/dev/null | wc -l),
+  "latest_session": "$(ls -1t .ai-memory/conversations/*.md 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo 'none')"
+}
+EOF
+
+echo "✅ Auto-save complet!"
+echo ""
