@@ -37,24 +37,31 @@ class WhatsAppManager {
 
     this.accounts.set(accountId, account);
 
+    const puppeteerConfig = {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu'
+      ]
+    };
+
+    // Use system Chromium on Railway
+    if (process.env.RAILWAY_ENVIRONMENT) {
+      puppeteerConfig.executablePath = '/usr/bin/chromium';
+    }
+
     const client = new Client({
       authStrategy: new LocalAuth({
         clientId: accountId,
         dataPath: this.sessionsPath
       }),
-      puppeteer: {
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-gpu'
-        ]
-      }
+      puppeteer: puppeteerConfig
     });
 
     this.setupClientEvents(accountId, client);
