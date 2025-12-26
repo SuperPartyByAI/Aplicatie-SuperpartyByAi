@@ -3,6 +3,15 @@ import io from 'socket.io-client';
 
 const BACKEND_URL = 'https://aplicatie-superpartybyai-production.up.railway.app';
 
+// Mock data pentru testare
+const MOCK_ACCOUNTS = [
+  { id: 'acc1', name: 'Support 1', status: 'connected', phone: '+40721111111' },
+  { id: 'acc2', name: 'Vânzări', status: 'connected', phone: '+40722222222' },
+  { id: 'acc3', name: 'Marketing', status: 'qr_ready', phone: null }
+];
+
+const USE_MOCK_DATA = true;
+
 function WhatsAppAccountManager() {
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState(null);
@@ -51,13 +60,19 @@ function WhatsAppAccountManager() {
   const loadAccounts = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/accounts`);
-      const data = await response.json();
-      if (data.success) {
-        setAccounts(data.accounts);
+      if (USE_MOCK_DATA) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        setAccounts(MOCK_ACCOUNTS);
+      } else {
+        const response = await fetch(`${BACKEND_URL}/api/accounts`);
+        const data = await response.json();
+        if (data.success) {
+          setAccounts(data.accounts);
+        }
       }
     } catch (error) {
       console.error('Failed to load accounts:', error);
+      setAccounts(MOCK_ACCOUNTS);
     } finally {
       setLoading(false);
     }

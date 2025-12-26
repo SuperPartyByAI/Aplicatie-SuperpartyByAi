@@ -6,6 +6,57 @@ import io from 'socket.io-client';
 // Backend Railway URL
 const BACKEND_URL = 'https://aplicatie-superpartybyai-production.up.railway.app';
 
+// Mock data pentru testare (până când backend-ul este deploiat)
+const MOCK_CLIENTS = [
+  {
+    id: '1',
+    name: 'Ion Popescu',
+    phone: '+40721234567',
+    status: 'available',
+    unreadCount: 2,
+    lastMessage: Date.now() - 300000,
+    lastMessageText: 'Bună ziua, aș dori să rezerv...'
+  },
+  {
+    id: '2',
+    name: 'Maria Ionescu',
+    phone: '+40722345678',
+    status: 'available',
+    unreadCount: 0,
+    lastMessage: Date.now() - 600000,
+    lastMessageText: 'Mulțumesc pentru informații!'
+  },
+  {
+    id: '3',
+    name: 'Andrei Georgescu',
+    phone: '+40723456789',
+    status: 'reserved',
+    unreadCount: 1,
+    lastMessage: Date.now() - 900000,
+    lastMessageText: 'Când pot veni să plătesc?'
+  },
+  {
+    id: '4',
+    name: 'Elena Dumitrescu',
+    phone: '+40724567890',
+    status: 'reserved',
+    unreadCount: 0,
+    lastMessage: Date.now() - 1200000,
+    lastMessageText: 'Am făcut plata'
+  },
+  {
+    id: '5',
+    name: 'Mihai Popa',
+    phone: '+40725678901',
+    status: 'lost',
+    unreadCount: 0,
+    lastMessage: Date.now() - 86400000,
+    lastMessageText: 'Nu mai sunt interessat'
+  }
+];
+
+const USE_MOCK_DATA = true; // Setează false când backend-ul este deploiat
+
 function ChatClientiScreen() {
   const navigate = useNavigate();
   const currentUser = auth.currentUser;
@@ -52,13 +103,21 @@ function ChatClientiScreen() {
   const loadClients = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/clients`);
-      const data = await response.json();
-      if (data.success) {
-        setClients(data.clients);
+      if (USE_MOCK_DATA) {
+        // Folosește date mock pentru testare
+        await new Promise(resolve => setTimeout(resolve, 500)); // Simulează delay
+        setClients(MOCK_CLIENTS);
+      } else {
+        const response = await fetch(`${BACKEND_URL}/api/clients`);
+        const data = await response.json();
+        if (data.success) {
+          setClients(data.clients);
+        }
       }
     } catch (error) {
       console.error('Failed to load clients:', error);
+      // Fallback la mock data dacă backend-ul nu răspunde
+      setClients(MOCK_CLIENTS);
     } finally {
       setLoading(false);
     }
@@ -79,6 +138,19 @@ function ChatClientiScreen() {
 
   const moveClient = async (clientId, newStatus) => {
     try {
+      if (USE_MOCK_DATA) {
+        // Simulează actualizare pentru mock data
+        await new Promise(resolve => setTimeout(resolve, 300));
+        setClients(prev => prev.map(c => 
+          c.id === clientId ? { ...c, status: newStatus } : c
+        ));
+        
+        if (selectedClient?.id === clientId) {
+          setSelectedClient(prev => ({ ...prev, status: newStatus }));
+        }
+        return;
+      }
+
       const response = await fetch(`${BACKEND_URL}/api/clients/${clientId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -87,12 +159,10 @@ function ChatClientiScreen() {
       
       const data = await response.json();
       if (data.success) {
-        // Update local state
         setClients(prev => prev.map(c => 
           c.id === clientId ? { ...c, status: newStatus } : c
         ));
         
-        // If selected client was moved, update selection
         if (selectedClient?.id === clientId) {
           setSelectedClient(prev => ({ ...prev, status: newStatus }));
         }

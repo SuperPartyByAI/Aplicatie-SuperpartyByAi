@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 
-const BACKEND_URL = 'https://superparty-production.up.railway.app';
+const BACKEND_URL = 'https://aplicatie-superpartybyai-production.up.railway.app';
+
+// Mock data pentru testare
+const MOCK_CLIENTS = [
+  { id: '1', name: 'Ion Popescu', phone: '+40721234567', unreadCount: 2 },
+  { id: '2', name: 'Maria Ionescu', phone: '+40722345678', unreadCount: 0 },
+  { id: '3', name: 'Andrei Georgescu', phone: '+40723456789', unreadCount: 1 }
+];
+
+const USE_MOCK_DATA = true;
 
 function ChatClienti() {
   const [clients, setClients] = useState([]);
@@ -30,13 +39,19 @@ function ChatClienti() {
 
   const loadClients = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/clients`);
-      const data = await response.json();
-      if (data.success) {
-        setClients(data.clients);
+      if (USE_MOCK_DATA) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        setClients(MOCK_CLIENTS);
+      } else {
+        const response = await fetch(`${BACKEND_URL}/api/clients`);
+        const data = await response.json();
+        if (data.success) {
+          setClients(data.clients);
+        }
       }
     } catch (error) {
       console.error('Failed to load clients:', error);
+      setClients(MOCK_CLIENTS);
     } finally {
       setLoading(false);
     }
@@ -44,10 +59,19 @@ function ChatClienti() {
 
   const loadMessages = async (clientId) => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/clients/${clientId}/messages`);
-      const data = await response.json();
-      if (data.success) {
-        setMessages(data.messages);
+      if (USE_MOCK_DATA) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        setMessages([
+          { id: '1', text: 'Bună ziua!', fromClient: true, timestamp: Date.now() - 600000 },
+          { id: '2', text: 'Bună! Cu ce vă pot ajuta?', fromClient: false, timestamp: Date.now() - 500000 },
+          { id: '3', text: 'Aș dori să rezerv pentru sâmbătă', fromClient: true, timestamp: Date.now() - 400000 }
+        ]);
+      } else {
+        const response = await fetch(`${BACKEND_URL}/api/clients/${clientId}/messages`);
+        const data = await response.json();
+        if (data.success) {
+          setMessages(data.messages);
+        }
       }
     } catch (error) {
       console.error('Failed to load messages:', error);
@@ -58,16 +82,28 @@ function ChatClienti() {
     if (!newMessage.trim() || !selectedClient) return;
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/clients/${selectedClient.id}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: newMessage })
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setMessages(prev => [...prev, data.message]);
+      if (USE_MOCK_DATA) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        const msg = {
+          id: `msg_${Date.now()}`,
+          text: newMessage,
+          fromClient: false,
+          timestamp: Date.now()
+        };
+        setMessages(prev => [...prev, msg]);
         setNewMessage('');
+      } else {
+        const response = await fetch(`${BACKEND_URL}/api/clients/${selectedClient.id}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: newMessage })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          setMessages(prev => [...prev, data.message]);
+          setNewMessage('');
+        }
       }
     } catch (error) {
       console.error('Failed to send message:', error);
