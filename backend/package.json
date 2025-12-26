@@ -5,7 +5,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "postinstall": "echo 'Skipping Puppeteer Chromium download - using system Chromium'"
   },
   "keywords": ["whatsapp", "backend", "multi-account"],
   "author": "SuperParty",

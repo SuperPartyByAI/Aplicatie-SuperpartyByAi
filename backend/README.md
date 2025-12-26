@@ -13,7 +13,7 @@ Backend Node.js pentru gestionarea a 20 conturi WhatsApp simultan.
 
 ---
 
-## 🚂 Deploy pe Railway (3 minute)
+## 🚂 Deploy pe Railway (5 minute)
 
 ### Pasul 1: Login
 1. Mergi pe [railway.app](https://railway.app)
@@ -24,21 +24,45 @@ Backend Node.js pentru gestionarea a 20 conturi WhatsApp simultan.
 1. Click **"New Project"**
 2. Selectează **"Deploy from GitHub repo"**
 3. Caută și selectează **`Aplicatie-SuperpartyByAi`**
-4. Selectează folderul **`/backend`** (important!)
 
-### Pasul 3: Configure
+### Pasul 3: Configure Root Directory
+**IMPORTANT:** Railway trebuie să știe că backend-ul este în subfolder!
+
+1. După ce proiectul este creat, click pe **Settings** (iconița roată dințată)
+2. Scroll la **"Root Directory"**
+3. Setează: **`backend`**
+4. Click **"Save"**
+
+### Pasul 4: Deploy
 Railway va detecta automat:
-- ✅ `package.json`
-- ✅ `railway.json`
-- ✅ Node.js environment
+- ✅ `nixpacks.toml` - Instalează Chromium și dependențe
+- ✅ `package.json` - Instalează npm packages
+- ✅ `railway.json` - Configurație deploy
 
-Click **"Deploy"** și gata! ✅
+Click **"Deploy"** și așteaptă 3-5 minute (prima dată durează mai mult pentru Chromium).
 
-### Pasul 4: Get URL
-După deploy (2-3 minute):
-1. Click pe proiect
-2. Settings → **Generate Domain**
-3. Copiază URL-ul (ex: `https://your-app.railway.app`)
+### Pasul 5: Get URL
+După deploy success:
+1. Click pe **Settings**
+2. Scroll la **"Domains"**
+3. Click **"Generate Domain"**
+4. Copiază URL-ul (ex: `https://aplicatie-superpartybyai-production.up.railway.app`)
+
+### ⚠️ Troubleshooting Deploy
+
+**Eroare: `libgobject-2.0.so.0: cannot open shared object file`**
+- **Cauză:** Chromium dependencies lipsesc
+- **Soluție:** Verifică că `nixpacks.toml` există în `backend/`
+- **Fix:** Redeploy după ce ai verificat fișierul
+
+**Eroare: `Failed to launch the browser process`**
+- **Cauză:** Puppeteer nu găsește Chromium
+- **Soluție:** Verifică că `PUPPETEER_EXECUTABLE_PATH=chromium` în `railway.json`
+- **Fix:** Redeploy
+
+**Deploy durează mult (5+ minute)**
+- **Normal:** Prima dată Nixpacks instalează Chromium (~200MB)
+- **Următoarele deploy-uri:** 1-2 minute (cache)
 
 ---
 

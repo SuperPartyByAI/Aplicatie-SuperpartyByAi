@@ -51,9 +51,10 @@ class WhatsAppManager {
       ]
     };
 
-    // Use system Chromium on Railway
-    if (process.env.RAILWAY_ENVIRONMENT) {
-      puppeteerConfig.executablePath = '/usr/bin/chromium';
+    // Use system Chromium on Railway (Nixpacks installs it)
+    if (process.env.RAILWAY_ENVIRONMENT || process.env.NIXPACKS_METADATA) {
+      // Nixpacks puts chromium in PATH, so we can use 'chromium' directly
+      puppeteerConfig.executablePath = 'chromium';
     }
 
     const client = new Client({
