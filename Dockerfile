@@ -4,7 +4,6 @@ FROM node:18-slim
 # Install Chromium and dependencies
 RUN apt-get update && apt-get install -y \
     chromium \
-    chromium-sandbox \
     libgbm1 \
     libnss3 \
     libnspr4 \
@@ -21,10 +20,10 @@ RUN apt-get update && apt-get install -y \
     libcairo2 \
     libasound2 \
     libglib2.0-0 \
-    libgobject-2.0-0 \
     fonts-liberation \
     libappindicator3-1 \
     xdg-utils \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Chromium path for Puppeteer
