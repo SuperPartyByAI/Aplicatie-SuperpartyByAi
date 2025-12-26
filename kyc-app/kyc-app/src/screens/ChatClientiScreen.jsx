@@ -1,15 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
+import io from 'socket.io-client';
+
+// Backend Railway URL
+const BACKEND_URL = 'https://aplicatie-superpartybyai-production.up.railway.app';
 
 function ChatClientiScreen() {
   const navigate = useNavigate();
   const currentUser = auth.currentUser;
   const isAdmin = currentUser?.email === 'ursache.andrei1995@gmail.com';
 
-  const [accounts, setAccounts] = useState([]);
-  const [selectedAccount, setSelectedAccount] = useState(null);
-  const [showAddAccount, setShowAddAccount] = useState(false);
+  const [clients, setClients] = useState([]);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [activeTab, setActiveTab] = useState('available');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [socket, setSocket] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -18,47 +25,81 @@ function ChatClientiScreen() {
       return;
     }
 
-    // Load saved accounts from localStorage
-    loadAccounts();
+    // Connect to backend
+    const newSocket = io(BACKEND_URL);
+    setSocket(newSocket);
+
+    // Load clients from backend
+    loadClients();
+
+    // Setup WebSocket listeners
+    newSocket.on('whatsapp:message', (data) => {
+      console.log('💬 New message received');
+      loadClients(); // Reload clients to update unread count
+    });
+
+    newSocket.on('client:status_updated', (data) => {
+      console.log('📊 Client status updated:', data);
+      loadClients();
+      setQrCode(null);
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
   }, [isAdmin, navigate]);
 
-  const loadAccounts = () => {
-    const saved = localStorage.getItem('whatsapp-accounts');
-    if (saved) {
-      setAccounts(JSON.parse(saved));
+  const loadClients = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/clients`);
+      const data = await response.json();
+      if (data.success) {
+        setClients(data.clients);
+      }
+    } catch (error) {
+      console.error('Failed to load clients:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const saveAccounts = (newAccounts) => {
-    localStorage.setItem('whatsapp-accounts', JSON.stringify(newAccounts));
-    setAccounts(newAccounts);
+  const getFilteredClients = () => {
+    return clients
+      .filter(client => client.status === activeTab)
+      .filter(client => {
+        if (!searchQuery) return true;
+        const query = searchQuery.toLowerCase();
+        return (
+          client.name.toLowerCase().includes(query) ||
+          client.phone.toLowerCase().includes(query)
+        );
+      });
   };
 
-  const addAccount = (phoneNumber, name) => {
-    const newAccount = {
-      id: Date.now().toString(),
-      phoneNumber,
-      name: name || phoneNumber,
-      addedAt: new Date().toISOString(),
-      webViewKey: `whatsapp-${Date.now()}`
-    };
-
-    const updated = [...accounts, newAccount];
-    saveAccounts(updated);
-    setShowAddAccount(false);
-    setSelectedAccount(newAccount);
-  };
-
-  const removeAccount = (accountId) => {
-    if (!confirm('Sigur vrei să ștergi acest cont WhatsApp? Vei trebui să scanezi QR din nou.')) {
-      return;
-    }
-
-    const updated = accounts.filter(acc => acc.id !== accountId);
-    saveAccounts(updated);
-    
-    if (selectedAccount?.id === accountId) {
-      setSelectedAccount(null);
+  const moveClient = async (clientId, newStatus) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/clients/${clientId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        // Update local state
+        setClients(prev => prev.map(c => 
+          c.id === clientId ? { ...c, status: newStatus } : c
+        ));
+        
+        // If selected client was moved, update selection
+        if (selectedClient?.id === clientId) {
+          setSelectedClient(prev => ({ ...prev, status: newStatus }));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update client status:', error);
+      alert('❌ Eroare la actualizarea statusului');
     }
   };
 
@@ -72,7 +113,7 @@ function ChatClientiScreen() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h1>💬 Chat Clienti</h1>
-            <p className="page-subtitle">Gestionare {accounts.length} conturi WhatsApp</p>
+            <p className="page-subtitle">{clients.length} clienți</p>
           </div>
           <button onClick={() => navigate('/home')} className="btn-secondary">
             ← Înapoi
@@ -80,136 +121,322 @@ function ChatClientiScreen() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '1rem', height: 'calc(100vh - 200px)' }}>
-        {/* Sidebar cu lista conturi */}
-        <div style={{
-          width: '300px',
-          background: '#1f2937',
-          borderRadius: '8px',
-          padding: '1rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem'
-        }}>
+      {/* Tabs */}
+      <div style={{
+        display: 'flex',
+        gap: '0.5rem',
+        padding: '0 1rem',
+        marginBottom: '1rem'
+      }}>
+        {['available', 'reserved', 'lost'].map(tab => (
           <button
-            onClick={() => setShowAddAccount(true)}
+            key={tab}
+            onClick={() => setActiveTab(tab)}
             style={{
-              padding: '1rem',
-              background: '#10b981',
-              color: 'white',
+              padding: '0.75rem 1.5rem',
+              background: activeTab === tab ? '#3b82f6' : '#374151',
+              color: activeTab === tab ? 'white' : '#9ca3af',
               border: 'none',
               borderRadius: '8px',
               cursor: 'pointer',
               fontSize: '1rem',
               fontWeight: '600',
+              transition: 'all 0.2s',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
               gap: '0.5rem'
             }}
           >
-            ➕ Adaugă Cont WhatsApp
+            {tab === 'available' && '✅ Disponibili'}
+            {tab === 'reserved' && '⏳ În Rezervare'}
+            {tab === 'lost' && '❌ Pierduți'}
+            <span style={{
+              background: activeTab === tab ? 'rgba(255,255,255,0.2)' : 'rgba(156,163,175,0.2)',
+              padding: '0.125rem 0.5rem',
+              borderRadius: '12px',
+              fontSize: '0.75rem'
+            }}>
+              {getFilteredClients().length}
+            </span>
           </button>
+        ))}
+      </div>
 
+      <div style={{ display: 'flex', gap: '1rem', height: 'calc(100vh - 250px)' }}>
+        {/* Client list */}
+        <div style={{
+          width: '350px',
+          background: '#1f2937',
+          borderRadius: '8px',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
+        }}>
+          {/* Search */}
+          <div style={{ padding: '1rem', borderBottom: '1px solid #374151' }}>
+            <input
+              type="text"
+              placeholder="🔍 Caută client..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                background: '#374151',
+                border: '1px solid #4b5563',
+                borderRadius: '8px',
+                color: 'white',
+                fontSize: '0.875rem'
+              }}
+            />
+          </div>
+
+          {/* Client list */}
           <div style={{
             flex: 1,
             overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.5rem'
+            padding: '0.5rem'
           }}>
-            {accounts.length === 0 ? (
+            {getFilteredClients().length === 0 ? (
               <div style={{
                 padding: '2rem',
                 textAlign: 'center',
                 color: '#9ca3af'
               }}>
-                <p>📱 Niciun cont adăugat</p>
-                <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
-                  Apasă butonul de mai sus pentru a adăuga primul cont WhatsApp
+                <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
+                  {activeTab === 'available' && '✅'}
+                  {activeTab === 'reserved' && '⏳'}
+                  {activeTab === 'lost' && '❌'}
                 </p>
+                <p>Niciun client în această categorie</p>
               </div>
             ) : (
-              accounts.map(account => (
+              getFilteredClients().map(client => (
                 <div
-                  key={account.id}
-                  onClick={() => setSelectedAccount(account)}
+                  key={client.id}
+                  onClick={() => setSelectedClient(client)}
                   style={{
                     padding: '1rem',
-                    background: selectedAccount?.id === account.id ? '#3b82f6' : '#374151',
+                    background: selectedClient?.id === client.id ? '#3b82f6' : '#374151',
                     borderRadius: '8px',
                     cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    position: 'relative'
+                    marginBottom: '0.5rem',
+                    transition: 'all 0.2s'
                   }}
                   onMouseEnter={(e) => {
-                    if (selectedAccount?.id !== account.id) {
+                    if (selectedClient?.id !== client.id) {
                       e.currentTarget.style.background = '#4b5563';
                     }
                   }}
                   onMouseLeave={(e) => {
-                    if (selectedAccount?.id !== account.id) {
+                    if (selectedClient?.id !== client.id) {
                       e.currentTarget.style.background = '#374151';
                     }
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ 
-                        fontSize: '1rem', 
-                        fontWeight: '600', 
-                        color: 'white',
-                        marginBottom: '0.25rem'
-                      }}>
-                        📱 {account.name}
-                      </div>
-                      <div style={{ 
-                        fontSize: '0.875rem', 
-                        color: selectedAccount?.id === account.id ? '#e0e7ff' : '#9ca3af'
-                      }}>
-                        {account.phoneNumber}
-                      </div>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'start',
+                    marginBottom: '0.5rem'
+                  }}>
+                    <div style={{ fontWeight: '600', color: 'white' }}>
+                      {client.name}
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeAccount(account.id);
-                      }}
-                      style={{
-                        background: 'rgba(239, 68, 68, 0.2)',
-                        color: '#ef4444',
-                        border: 'none',
-                        borderRadius: '4px',
-                        padding: '0.25rem 0.5rem',
-                        cursor: 'pointer',
-                        fontSize: '0.75rem'
-                      }}
-                    >
-                      🗑️
-                    </button>
+                    <div style={{
+                      fontSize: '0.75rem',
+                      color: selectedClient?.id === client.id ? '#e0e7ff' : '#9ca3af'
+                    }}>
+                      {new Date(client.lastMessage).toLocaleTimeString('ro-RO', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </div>
                   </div>
+                  <div style={{
+                    fontSize: '0.875rem',
+                    color: selectedClient?.id === client.id ? '#e0e7ff' : '#9ca3af',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {client.phone}
+                  </div>
+                  {client.unreadCount > 0 && (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      display: 'inline-block',
+                      background: '#ef4444',
+                      color: 'white',
+                      padding: '0.125rem 0.5rem',
+                      borderRadius: '12px',
+                      fontSize: '0.75rem',
+                      fontWeight: '600'
+                    }}>
+                      {client.unreadCount} nou{client.unreadCount > 1 ? 'e' : ''}
+                    </div>
+                  )}
                 </div>
               ))
             )}
           </div>
         </div>
 
-        {/* Main content area */}
+        {/* Chat area */}
         <div style={{
           flex: 1,
           background: '#1f2937',
           borderRadius: '8px',
-          overflow: 'hidden',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          overflow: 'hidden'
         }}>
-          {showAddAccount ? (
-            <AddAccountModal
-              onAdd={addAccount}
-              onCancel={() => setShowAddAccount(false)}
-            />
-          ) : selectedAccount ? (
-            <WhatsAppWebView account={selectedAccount} />
+          {selectedClient ? (
+            <>
+              {/* Chat header */}
+              <div style={{
+                padding: '1rem',
+                borderBottom: '1px solid #374151',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div>
+                  <div style={{ fontWeight: '600', fontSize: '1.125rem' }}>
+                    {selectedClient.name}
+                  </div>
+                  <div style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
+                    {selectedClient.phone}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {activeTab === 'available' && (
+                    <button
+                      onClick={() => moveClient(selectedClient.id, 'reserved')}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        background: '#f59e0b',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '0.875rem',
+                        fontWeight: '600'
+                      }}
+                    >
+                      ⏳ Marchează În Rezervare
+                    </button>
+                  )}
+                  {activeTab === 'reserved' && (
+                    <>
+                      <button
+                        onClick={() => moveClient(selectedClient.id, 'available')}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          background: '#10b981',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '0.875rem',
+                          fontWeight: '600'
+                        }}
+                      >
+                        ✅ Marchează Disponibil
+                      </button>
+                      <button
+                        onClick={() => moveClient(selectedClient.id, 'lost')}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          background: '#ef4444',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '0.875rem',
+                          fontWeight: '600'
+                        }}
+                      >
+                        ❌ Marchează Pierdut
+                      </button>
+                    </>
+                  )}
+                  {activeTab === 'lost' && (
+                    <button
+                      onClick={() => moveClient(selectedClient.id, 'available')}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        background: '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '0.875rem',
+                        fontWeight: '600'
+                      }}
+                    >
+                      ✅ Reactivează
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Messages */}
+              <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '1rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem'
+              }}>
+                <div style={{
+                  textAlign: 'center',
+                  color: '#9ca3af',
+                  fontSize: '0.875rem',
+                  padding: '1rem'
+                }}>
+                  Conversație cu {selectedClient.name}
+                </div>
+                {/* Messages will be rendered here */}
+              </div>
+
+              {/* Message input */}
+              <div style={{
+                padding: '1rem',
+                borderTop: '1px solid #374151',
+                display: 'flex',
+                gap: '0.5rem'
+              }}>
+                <input
+                  type="text"
+                  placeholder="Scrie un mesaj..."
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    background: '#374151',
+                    border: '1px solid #4b5563',
+                    borderRadius: '8px',
+                    color: 'white',
+                    fontSize: '1rem'
+                  }}
+                />
+                <button
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    background: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontSize: '1rem',
+                    fontWeight: '600'
+                  }}
+                >
+                  Trimite
+                </button>
+              </div>
+            </>
           ) : (
             <div style={{
               flex: 1,
@@ -221,245 +448,13 @@ function ChatClientiScreen() {
               gap: '1rem'
             }}>
               <div style={{ fontSize: '4rem' }}>💬</div>
-              <p style={{ fontSize: '1.25rem' }}>Selectează un cont WhatsApp</p>
+              <p style={{ fontSize: '1.25rem' }}>Selectează un client</p>
               <p style={{ fontSize: '0.875rem' }}>
-                sau adaugă un cont nou pentru a începe
+                pentru a vedea conversația
               </p>
             </div>
           )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-// Modal pentru adăugare cont
-function AddAccountModal({ onAdd, onCancel }) {
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [name, setName] = useState('');
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!phoneNumber.trim()) {
-      alert('Te rog introdu numărul de telefon');
-      return;
-    }
-    onAdd(phoneNumber, name);
-  };
-
-  return (
-    <div style={{
-      flex: 1,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '2rem'
-    }}>
-      <div style={{
-        background: '#374151',
-        borderRadius: '12px',
-        padding: '2rem',
-        maxWidth: '500px',
-        width: '100%'
-      }}>
-        <h2 style={{ marginBottom: '1.5rem', color: 'white' }}>
-          ➕ Adaugă Cont WhatsApp
-        </h2>
-
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '0.5rem', 
-              color: '#d1d5db',
-              fontSize: '0.875rem'
-            }}>
-              Nume cont (opțional)
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ex: Support 1, Vânzări, etc."
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                background: '#1f2937',
-                border: '1px solid #4b5563',
-                borderRadius: '8px',
-                color: 'white',
-                fontSize: '1rem'
-              }}
-            />
-          </div>
-
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '0.5rem', 
-              color: '#d1d5db',
-              fontSize: '0.875rem'
-            }}>
-              Număr telefon *
-            </label>
-            <input
-              type="text"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              placeholder="+40 721 XXX XXX"
-              required
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                background: '#1f2937',
-                border: '1px solid #4b5563',
-                borderRadius: '8px',
-                color: 'white',
-                fontSize: '1rem'
-              }}
-            />
-            <p style={{ 
-              fontSize: '0.75rem', 
-              color: '#9ca3af', 
-              marginTop: '0.5rem' 
-            }}>
-              Acest număr va fi folosit pentru identificare
-            </p>
-          </div>
-
-          <div style={{ 
-            display: 'flex', 
-            gap: '1rem',
-            justifyContent: 'flex-end'
-          }}>
-            <button
-              type="button"
-              onClick={onCancel}
-              style={{
-                padding: '0.75rem 1.5rem',
-                background: '#4b5563',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '1rem'
-              }}
-            >
-              Anulează
-            </button>
-            <button
-              type="submit"
-              style={{
-                padding: '0.75rem 1.5rem',
-                background: '#10b981',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                fontWeight: '600'
-              }}
-            >
-              Continuă →
-            </button>
-          </div>
-        </form>
-
-        <div style={{
-          marginTop: '1.5rem',
-          padding: '1rem',
-          background: '#1f2937',
-          borderRadius: '8px',
-          fontSize: '0.875rem',
-          color: '#9ca3af'
-        }}>
-          <p style={{ fontWeight: '600', marginBottom: '0.5rem', color: '#d1d5db' }}>
-            ℹ️ Următorii pași:
-          </p>
-          <ol style={{ paddingLeft: '1.5rem', margin: 0 }}>
-            <li>Vei vedea un QR code</li>
-            <li>Deschide WhatsApp pe telefon</li>
-            <li>Apasă "Linked Devices" → "Link a Device"</li>
-            <li>Scanează QR code-ul</li>
-            <li>Gata! Contul e conectat</li>
-          </ol>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Component pentru WhatsApp Web
-function WhatsAppWebView({ account }) {
-  const [isLoading, setIsLoading] = useState(true);
-
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
-      <div style={{
-        padding: '1rem',
-        background: '#374151',
-        borderBottom: '1px solid #4b5563',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '1rem'
-      }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '1.125rem', fontWeight: '600', color: 'white' }}>
-            📱 {account.name}
-          </div>
-          <div style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
-            {account.phoneNumber}
-          </div>
-        </div>
-        <div style={{
-          padding: '0.5rem 1rem',
-          background: '#10b981',
-          borderRadius: '6px',
-          fontSize: '0.875rem',
-          color: 'white',
-          fontWeight: '600'
-        }}>
-          ✓ Conectat
-        </div>
-      </div>
-
-      {/* WhatsApp Web iframe */}
-      <div style={{ flex: 1, position: 'relative' }}>
-        {isLoading && (
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: '#1f2937',
-            zIndex: 10
-          }}>
-            <div style={{ textAlign: 'center' }}>
-              <div className="spinner" style={{ margin: '0 auto 1rem' }}></div>
-              <p style={{ color: '#9ca3af' }}>Se încarcă WhatsApp Web...</p>
-              <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '0.5rem' }}>
-                Dacă vezi QR code, scanează-l cu telefonul
-              </p>
-            </div>
-          </div>
-        )}
-        
-        <iframe
-          key={account.webViewKey}
-          src="https://web.whatsapp.com"
-          style={{
-            width: '100%',
-            height: '100%',
-            border: 'none'
-          }}
-          onLoad={() => setIsLoading(false)}
-          title={`WhatsApp - ${account.name}`}
-        />
       </div>
     </div>
   );

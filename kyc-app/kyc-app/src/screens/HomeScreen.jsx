@@ -4,6 +4,8 @@ import { auth, db, storage, callChatWithAI, callAIManager } from '../firebase';
 import { doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
+import ChatClienti from '../components/ChatClienti';
+import WhatsAppAccountManager from '../components/WhatsAppAccountManager';
 
 function HomeScreen() {
   const navigate = useNavigate();
@@ -11,6 +13,7 @@ function HomeScreen() {
   const [staffProfile, setStaffProfile] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatClientiOpen, setChatClientiOpen] = useState(false);
   const [adminMode, setAdminMode] = useState(false); // Toggle admin mode
   const [gmMode, setGmMode] = useState(false); // Toggle GM mode
   const [currentView, setCurrentView] = useState('dashboard'); // dashboard, admin-kyc, admin-conversations, gm-overview, gm-analytics
@@ -1715,6 +1718,14 @@ ${perf.tasksOverdue > 0 ? `⚠️ Ai ${perf.tasksOverdue} task-uri în întârzi
                       </div>
                     )}
                   </div>
+
+                  {/* WhatsApp Account Manager */}
+                  <div style={{ marginTop: '2rem' }}>
+                    <h3 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1rem' }}>
+                      📱 Gestionare Conturi WhatsApp
+                    </h3>
+                    <WhatsAppAccountManager />
+                  </div>
                 </>
               )}
             </div>
@@ -2020,6 +2031,11 @@ ${perf.tasksOverdue > 0 ? `⚠️ Ai ${perf.tasksOverdue} task-uri în întârzi
                     <span className="action-title">Șoferi</span>
                     <span className="action-subtitle">Management șoferi</span>
                   </button>
+                  <button onClick={() => setChatClientiOpen(true)} className="action-card">
+                    <span className="action-icon">💬</span>
+                    <span className="action-title">Chat Clienți</span>
+                    <span className="action-subtitle">Conversații cu clienții</span>
+                  </button>
                 </div>
               </div>
             </>
@@ -2300,6 +2316,63 @@ ${perf.tasksOverdue > 0 ? `⚠️ Ai ${perf.tasksOverdue} task-uri în întârzi
           </div>
         )}
       </div>
+
+      {/* Chat Clienți Modal */}
+      {chatClientiOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '2rem'
+        }}>
+          <div style={{
+            background: '#1f2937',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '1200px',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderBottom: '1px solid #374151',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: '#374151'
+            }}>
+              <h3 style={{ margin: 0, color: 'white', fontSize: '1.25rem' }}>
+                💬 Chat Clienți
+              </h3>
+              <button
+                onClick={() => setChatClientiOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#9ca3af',
+                  fontSize: '1.5rem',
+                  cursor: 'pointer',
+                  padding: '0.25rem 0.5rem'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <ChatClienti />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
