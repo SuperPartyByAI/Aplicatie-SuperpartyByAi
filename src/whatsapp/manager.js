@@ -274,12 +274,12 @@ class WhatsAppManager {
         
         for (const chat of chats) {
           if (!chat.isGroup) {
-            const contact = await chat.getContact();
+            // Avoid getContact() which causes errors - use chat data directly
             allClients.push({
               id: chat.id._serialized,
               accountId,
-              name: contact.pushname || contact.number || 'Unknown',
-              phone: contact.number,
+              name: chat.name || chat.id.user || 'Unknown',
+              phone: chat.id.user,
               status: 'available',
               unreadCount: chat.unreadCount,
               lastMessage: chat.timestamp,
