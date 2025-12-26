@@ -85,7 +85,9 @@ function ChatClientiScreen() {
     if (authLoading) return;
 
     if (!isAdmin) {
-      alert('⛔ Acces interzis! Doar administratorul poate accesa această pagină.');
+      console.log('Current user email:', currentUser?.email);
+      console.log('Expected admin email: ursache.andrei1995@gmail.com');
+      alert(`⛔ Acces interzis!\n\nEmail-ul tău: ${currentUser?.email}\nEmail admin necesar: ursache.andrei1995@gmail.com`);
       navigate('/home');
       return;
     }
