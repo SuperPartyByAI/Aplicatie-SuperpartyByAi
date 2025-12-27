@@ -11,6 +11,7 @@ class WhatsAppManager {
     this.clients = new Map();
     this.accounts = new Map();
     this.chatsCache = new Map(); // Manual cache for chats
+    this.messagesCache = new Map(); // Manual cache for messages per chat
     this.sessionsPath = path.join(__dirname, '../../.baileys_auth');
     this.maxAccounts = 20;
     this.messageQueue = [];
@@ -116,6 +117,7 @@ class WhatsAppManager {
 
     this.clients.set(accountId, sock);
     this.chatsCache.set(accountId, new Map()); // Initialize chat cache for this account
+    this.messagesCache.set(accountId, new Map()); // Initialize messages cache for this account
     this.setupBaileysEvents(accountId, sock, saveCreds, phoneNumber);
   }
 
@@ -222,6 +224,29 @@ class WhatsAppManager {
           });
         }
         
+        // Update messages cache
+        const messagesMap = this.messagesCache.get(accountId);
+        if (messagesMap && chatId) {
+          if (!messagesMap.has(chatId)) {
+            messagesMap.set(chatId, []);
+          }
+          const chatMessages = messagesMap.get(chatId);
+          chatMessages.push({
+            id: message.key.id,
+            from: chatId,
+            to: chatId,
+            body: message.message?.conversation || message.message?.extendedTextMessage?.text || '',
+            timestamp: message.messageTimestamp,
+            fromMe: message.key.fromMe,
+            hasMedia: !!message.message?.imageMessage || !!message.message?.videoMessage
+          });
+          
+          // Keep only last 100 messages per chat
+          if (chatMessages.length > 100) {
+            messagesMap.set(chatId, chatMessages.slice(-100));
+          }
+        }
+        
         if (this.messageQueue.length > 1000) {
           console.warn(`⚠️ Message queue too large (${this.messageQueue.length}), dropping oldest`);
           this.messageQueue = this.messageQueue.slice(-500);
@@ -290,17 +315,19 @@ class WhatsAppManager {
     if (!sock) throw new Error('Account not found');
 
     try {
-      const messages = await sock.fetchMessagesFromWA(chatId, limit);
+      console.log(`📋 [${accountId}] Getting messages for ${chatId} from cache...`);
       
-      return messages.map(msg => ({
-        id: msg.key.id,
-        from: msg.key.remoteJid,
-        to: msg.key.remoteJid,
-        body: msg.message?.conversation || msg.message?.extendedTextMessage?.text || '',
-        timestamp: msg.messageTimestamp,
-        fromMe: msg.key.fromMe,
-        hasMedia: !!msg.message?.imageMessage || !!msg.message?.videoMessage
-      }));
+      // Get messages from cache
+      const messagesMap = this.messagesCache.get(accountId);
+      if (!messagesMap) {
+        console.log(`⚠️ [${accountId}] No messages cache found`);
+        return [];
+      }
+      
+      const messages = messagesMap.get(chatId) || [];
+      console.log(`✅ [${accountId}] Returning ${messages.length} messages for ${chatId}`);
+      
+      return messages.slice(-limit);
     } catch (error) {
       console.error(`❌ [${accountId}] Failed to get messages:`, error);
       return [];
