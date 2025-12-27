@@ -220,7 +220,7 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
       const gather = twiml.gather({
         input: 'speech',
         language: 'ro-RO',
-        speechTimeout: 'auto',
+        speechTimeout: 2, // 2 seconds pause after user stops speaking
         action: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/ai-conversation`,
         method: 'POST'
       });
@@ -294,7 +294,7 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
         const gather = twiml.gather({
           input: 'speech',
           language: 'ro-RO',
-          speechTimeout: 'auto',
+          speechTimeout: 2, // 2 seconds pause after user stops speaking
           action: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/ai-conversation`,
           method: 'POST'
         });
