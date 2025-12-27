@@ -208,15 +208,10 @@ STIL CONVERSAȚIONAL:
         .replace(/\[COMPLETE\]/g, '')
         .trim();
 
-      // Generate natural speech with ElevenLabs
+      // Skip ElevenLabs for faster responses - use Polly.Ioana-Neural directly
+      // ElevenLabs adds 1-2 seconds latency
       let audioUrl = null;
-      if (this.elevenLabs.isConfigured()) {
-        console.log('[VoiceAI] Using ElevenLabs for TTS');
-        audioUrl = await this.elevenLabs.textToSpeech(cleanResponse);
-        console.log('[VoiceAI] ElevenLabs audio URL:', audioUrl);
-      } else {
-        console.log('[VoiceAI] ElevenLabs not configured - using fallback voice');
-      }
+      console.log('[VoiceAI] Using Polly.Ioana-Neural for fast responses');
 
       return {
         response: cleanResponse,

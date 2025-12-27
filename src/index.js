@@ -225,20 +225,13 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
         method: 'POST'
       });
       
-      // Generate first message with ElevenLabs
-      const firstMessage = 'Bună ziua! SuperParty. Cu ce vă pot ajuta?';
-      const audioUrl = await voiceAI.elevenLabs.textToSpeech(firstMessage);
-      
-      if (audioUrl) {
-        console.log('[Voice AI] Using ElevenLabs for first message');
-        gather.play(`${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}${audioUrl}`);
-      } else {
-        console.log('[Voice AI] ElevenLabs failed, using fallback');
-        gather.say({
-          voice: 'Polly.Ioana-Neural',
-          language: 'ro-RO'
-        }, firstMessage);
-      }
+      // Use Polly.Ioana-Neural directly for fast response (no ElevenLabs delay)
+      const firstMessage = 'Bună ziua, SuperParty. Cu ce vă pot ajuta?';
+      console.log('[Voice AI] Using Polly.Ioana-Neural for fast response');
+      gather.say({
+        voice: 'Polly.Ioana-Neural',
+        language: 'ro-RO'
+      }, firstMessage);
       
     } else {
       // Process conversation with AI

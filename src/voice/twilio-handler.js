@@ -43,30 +43,29 @@ class TwilioHandler {
       console.error('[Twilio] Error saving call:', err);
     });
 
-    // Generate TwiML response with IVR menu
+    // Start recording immediately
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const client = require('twilio')(accountSid, authToken);
+    
+    client.calls(CallSid)
+      .recordings
+      .create({
+        recordingStatusCallback: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/recording-status`,
+        recordingStatusCallbackMethod: 'POST'
+      })
+      .then(recording => {
+        console.log('[Twilio] Recording started:', recording.sid);
+      })
+      .catch(err => {
+        console.error('[Twilio] Failed to start recording:', err);
+      });
+
+    // Redirect directly to Voice AI (no IVR menu)
     const twiml = new VoiceResponse();
-    
-    // Gather user input (1 or 2)
-    const gather = twiml.gather({
-      numDigits: 1,
-      action: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/ivr-response`,
-      method: 'POST',
-      timeout: 5
-    });
-    
-    // IVR greeting
-    gather.say({
-      voice: 'Google.ro-RO-Wavenet-A',
-      language: 'ro-RO'
-    }, 'Buna ziua! Ati sunat la SuperParty. Pentru rezervare rapida, apasati tasta 1. Pentru operator, apasati tasta 2.');
-    
-    // If no input, repeat
-    twiml.say({
-      voice: 'Google.ro-RO-Wavenet-A',
-      language: 'ro-RO'
-    }, 'Nu am primit nicio selectie. Va rugam sa sunati din nou.');
-    
-    twiml.hangup();
+    twiml.redirect({
+      method: 'POST'
+    }, `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/ai-conversation?CallSid=${CallSid}&From=${From}`);
 
     res.type('text/xml');
     res.send(twiml.toString());
