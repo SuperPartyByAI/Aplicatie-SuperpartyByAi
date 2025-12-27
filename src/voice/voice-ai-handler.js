@@ -36,18 +36,11 @@ REGULI:
 - NU inventa informații
 - NU pune întrebări despre buget sau preț
 
-FORMAT RĂSPUNS:
-Când ai toate informațiile, răspunde cu JSON:
-{
-  "completed": true,
-  "data": {
-    "date": "data evenimentului",
-    "guests": "număr persoane",
-    "eventType": "tip eveniment",
-    "preferences": "preferințe animator",
-    "clientName": "nume client"
-  }
-}`;
+TRACKING:
+Ține evidența informațiilor colectate în fiecare răspuns folosind format JSON la final:
+[DATA: {"date": "...", "guests": "...", "eventType": "...", "preferences": "...", "clientName": "..."}]
+
+Când ai toate cele 5 informații, adaugă [COMPLETE] la final.`;
   }
 
   /**
@@ -95,14 +88,31 @@ Când ai toate informațiile, răspunde cu JSON:
       let completed = false;
       let reservationData = null;
 
-      if (assistantMessage.includes('"completed": true') || assistantMessage.includes('WhatsApp')) {
-        completed = true;
-        // Extract data from conversation
-        reservationData = this.extractReservationData(conversation.messages);
+      // Extract data from [DATA: {...}] marker
+      const dataMatch = assistantMessage.match(/\[DATA:\s*({[^}]+})\]/);
+      if (dataMatch) {
+        try {
+          const extractedData = JSON.parse(dataMatch[1]);
+          conversation.data = { ...conversation.data, ...extractedData };
+        } catch (e) {
+          console.error('[VoiceAI] Failed to parse data:', e);
+        }
       }
 
+      // Check for completion marker
+      if (assistantMessage.includes('[COMPLETE]') || assistantMessage.includes('WhatsApp')) {
+        completed = true;
+        reservationData = conversation.data;
+      }
+
+      // Clean response (remove markers)
+      const cleanResponse = assistantMessage
+        .replace(/\[DATA:.*?\]/g, '')
+        .replace(/\[COMPLETE\]/g, '')
+        .trim();
+
       return {
-        response: assistantMessage,
+        response: cleanResponse,
         completed,
         data: reservationData
       };
@@ -118,28 +128,16 @@ Când ai toate informațiile, răspunde cu JSON:
   }
 
   /**
-   * Extract reservation data from conversation
+   * Get full conversation transcript
    */
-  extractReservationData(messages) {
-    const data = {
-      date: null,
-      guests: null,
-      eventType: null,
-      preferences: null,
-      clientName: null
-    };
+  getConversationTranscript(callSid) {
+    const conversation = this.conversations.get(callSid);
+    if (!conversation) return null;
 
-    // Simple extraction from conversation
-    const conversationText = messages
-      .filter(m => m.role === 'user')
-      .map(m => m.content)
-      .join(' ');
-
-    // This is a simple extraction - GPT-4o should ideally return structured data
-    // For now, we'll store the full conversation and let admin review
-    data.conversationSummary = conversationText;
-
-    return data;
+    return conversation.messages
+      .filter(m => m.role !== 'system')
+      .map(m => `${m.role === 'user' ? 'Client' : 'AI'}: ${m.content}`)
+      .join('\n');
   }
 
   /**
