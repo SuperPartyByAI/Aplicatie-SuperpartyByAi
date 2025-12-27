@@ -43,24 +43,6 @@ class TwilioHandler {
       console.error('[Twilio] Error saving call:', err);
     });
 
-    // Start recording immediately
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const client = require('twilio')(accountSid, authToken);
-    
-    client.calls(CallSid)
-      .recordings
-      .create({
-        recordingStatusCallback: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/recording-status`,
-        recordingStatusCallbackMethod: 'POST'
-      })
-      .then(recording => {
-        console.log('[Twilio] Recording started:', recording.sid);
-      })
-      .catch(err => {
-        console.error('[Twilio] Failed to start recording:', err);
-      });
-
     // Redirect directly to Voice AI (no IVR menu)
     const twiml = new VoiceResponse();
     twiml.redirect({

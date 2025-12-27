@@ -205,13 +205,14 @@ app.post('/api/voice/ivr-response', (req, res) => {
 // Voice AI conversation handler
 app.post('/api/voice/ai-conversation', async (req, res) => {
   try {
-    const { CallSid, From, SpeechResult, Digits } = req.body;
+    const { CallSid, From, SpeechResult, Digits, CallStatus } = req.body;
     
     console.log('[Voice AI] Processing:', {
       callSid: CallSid,
       from: From,
       speech: SpeechResult,
-      digits: Digits
+      digits: Digits,
+      status: CallStatus
     });
 
     const twiml = new VoiceResponse();
@@ -220,7 +221,25 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
     const userInput = SpeechResult || Digits || '';
     
     if (!userInput) {
-      // First interaction - greet and ask first question with ElevenLabs
+      // First interaction - start recording and greet
+      // Start recording using Twilio API (call is now in-progress)
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      const twilioClient = require('twilio')(accountSid, authToken);
+      
+      twilioClient.calls(CallSid)
+        .recordings
+        .create({
+          recordingStatusCallback: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/recording-status`,
+          recordingStatusCallbackMethod: 'POST'
+        })
+        .then(recording => {
+          console.log('[Voice AI] Recording started:', recording.sid);
+        })
+        .catch(err => {
+          console.error('[Voice AI] Failed to start recording:', err.message);
+        });
+      
       const gather = twiml.gather({
         input: 'speech',
         language: 'ro-RO',
