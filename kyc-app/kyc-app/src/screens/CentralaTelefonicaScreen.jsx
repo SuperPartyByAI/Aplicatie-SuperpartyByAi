@@ -31,7 +31,8 @@ export default function CentralaTelefonicaScreen() {
   const initializeTwilioDevice = async () => {
     try {
       // Get access token from backend
-      const identity = auth.currentUser?.uid || 'operator-' + Date.now();
+      // Use fixed identity 'operator' to match TwiML dial.client()
+      const identity = 'operator';
       const response = await fetch(`${BACKEND_URL}/api/voice/token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

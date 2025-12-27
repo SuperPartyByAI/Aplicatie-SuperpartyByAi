@@ -42,25 +42,24 @@ class TwilioHandler {
       console.error('[Twilio] Error saving call:', err);
     });
 
-    // Generate TwiML response
+    // Generate TwiML response to connect to Twilio Device
     const twiml = new VoiceResponse();
     
-    // Play ringing sound while waiting for answer
-    twiml.say({ 
-      voice: 'Polly.Carmen',
-      language: 'ro-RO' 
-    }, 'Va rugam asteptati, va conectam cu un operator.');
+    // Dial to the registered Twilio Device (operator's browser)
+    const dial = twiml.dial({
+      timeout: 30,
+      callerId: callData.from
+    });
     
-    // Pause for 30 seconds (waiting for operator to answer)
-    twiml.pause({ length: 30 });
+    // Connect to any available operator
+    // The Device identity should match what's registered in frontend
+    dial.client('operator');
     
-    // If no answer, play message and hangup
+    // If no answer after timeout, play message
     twiml.say({ 
       voice: 'Polly.Carmen',
       language: 'ro-RO' 
     }, 'Ne pare rau, toti operatorii sunt ocupati. Va rugam sa sunati mai tarziu.');
-    
-    twiml.hangup();
 
     res.type('text/xml');
     res.send(twiml.toString());
