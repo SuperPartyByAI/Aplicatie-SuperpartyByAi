@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ro">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#dc2626" />
+    <meta name="description" content="SuperParty - Platformă de management evenimente și staff cu AI" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SuperParty" />
+    
+    <!-- Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Icons -->
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    
+    <title>SuperParty - Management Evenimente</title>
+    <script type="module" crossorigin src="/assets/index-BdPRXwj2.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/react-vendor-BCVUYfxV.js">
+    <link rel="modulepreload" crossorigin href="/assets/firebase-CZFSqwcK.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-C5uUzP1w.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', async () => {
+          try {
+            // Unregister old service workers first
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (let registration of registrations) {
+              await registration.unregister();
+              console.log('Old SW unregistered');
+            }
+            
+            // Register new service worker
+            const reg = await navigator.serviceWorker.register('/sw.js');
+            console.log('✅ SW registered:', reg);
+            
+            // Force update on page load
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'activated') {
+                  console.log('🔄 New SW activated, reloading...');
+                  window.location.reload();
+                }
+              });
+            });
+          } catch (err) {
+            console.log('❌ SW registration failed:', err);
+          }
+        });
+      }
+    </script>
+  </body>
+</html>
