@@ -1,5 +1,5 @@
 // Service Worker pentru PWA
-const CACHE_NAME = 'superparty-v1';
+const CACHE_NAME = 'superparty-v2'; // Updated to force cache refresh
 const urlsToCache = [
   '/',
   '/index.html',
