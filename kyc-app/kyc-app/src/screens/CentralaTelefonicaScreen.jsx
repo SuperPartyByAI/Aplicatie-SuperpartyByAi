@@ -131,8 +131,13 @@ export default function CentralaTelefonicaScreen() {
       if (incomingCall?.callId === callData.callId) {
         setIncomingCall(null);
       }
-      // Refresh recent calls
+      // Refresh recent calls immediately
       fetchRecentCalls();
+      // Refresh again after 15 seconds to get recording info
+      setTimeout(() => {
+        fetchRecentCalls();
+        fetchCallStats();
+      }, 15000);
     });
 
     return () => {
@@ -140,10 +145,18 @@ export default function CentralaTelefonicaScreen() {
     };
   }, []);
 
-  // Fetch call statistics
+  // Fetch call statistics and setup auto-refresh
   useEffect(() => {
     fetchCallStats();
     fetchRecentCalls();
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchRecentCalls();
+      fetchCallStats();
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const fetchCallStats = async () => {
