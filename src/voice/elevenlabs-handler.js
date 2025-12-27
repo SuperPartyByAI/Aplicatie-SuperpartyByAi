@@ -34,9 +34,9 @@ class ElevenLabsHandler {
         text: text,
         model_id: 'eleven_multilingual_v2', // Suportă română
         voice_settings: {
-          stability: 0.5, // Balans între consistență și expresivitate
-          similarity_boost: 0.75, // Păstrează caracteristicile vocii
-          style: 0.5, // Stil moderat
+          stability: 0.45, // Setare optimizată pentru naturalețe
+          similarity_boost: 0.80, // Clarity/Similarity - păstrează caracteristicile vocii
+          style: 0.15, // Style/Expressiveness - ton calm, nu dramatic
           use_speaker_boost: true // Îmbunătățește claritatea
         }
       });
