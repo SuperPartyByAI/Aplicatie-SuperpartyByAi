@@ -4,6 +4,7 @@ const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
 const pino = require('pino');
+const firestore = require('../firebase/firestore');
 
 class WhatsAppManager {
   constructor(io) {
@@ -19,6 +20,9 @@ class WhatsAppManager {
     
     this.ensureSessionsDir();
     this.startMessageProcessor();
+    
+    // Initialize Firebase
+    firestore.initialize();
   }
   
   ensureSessionsDir() {
@@ -226,26 +230,36 @@ class WhatsAppManager {
         
         // Update messages cache
         const messagesMap = this.messagesCache.get(accountId);
+        const messageData = {
+          id: message.key.id,
+          from: chatId,
+          to: chatId,
+          body: message.message?.conversation || message.message?.extendedTextMessage?.text || '',
+          timestamp: message.messageTimestamp,
+          fromMe: message.key.fromMe,
+          hasMedia: !!message.message?.imageMessage || !!message.message?.videoMessage
+        };
+        
         if (messagesMap && chatId) {
           if (!messagesMap.has(chatId)) {
             messagesMap.set(chatId, []);
           }
           const chatMessages = messagesMap.get(chatId);
-          chatMessages.push({
-            id: message.key.id,
-            from: chatId,
-            to: chatId,
-            body: message.message?.conversation || message.message?.extendedTextMessage?.text || '',
-            timestamp: message.messageTimestamp,
-            fromMe: message.key.fromMe,
-            hasMedia: !!message.message?.imageMessage || !!message.message?.videoMessage
-          });
+          chatMessages.push(messageData);
           
           // Keep only last 100 messages per chat
           if (chatMessages.length > 100) {
             messagesMap.set(chatId, chatMessages.slice(-100));
           }
         }
+        
+        // Save to Firestore
+        await firestore.saveMessage(accountId, chatId, messageData);
+        await firestore.saveChat(accountId, chatId, {
+          name: message.pushName || chatId.split('@')[0],
+          lastMessage: messageData.body,
+          lastMessageTimestamp: messageData.timestamp
+        });
         
         if (this.messageQueue.length > 1000) {
           console.warn(`⚠️ Message queue too large (${this.messageQueue.length}), dropping oldest`);
@@ -315,17 +329,24 @@ class WhatsAppManager {
     if (!sock) throw new Error('Account not found');
 
     try {
-      console.log(`📋 [${accountId}] Getting messages for ${chatId} from cache...`);
+      console.log(`📋 [${accountId}] Getting messages for ${chatId}...`);
       
-      // Get messages from cache
+      // Try Firestore first (persistent)
+      const firestoreMessages = await firestore.getMessages(accountId, chatId, limit);
+      if (firestoreMessages.length > 0) {
+        console.log(`✅ [${accountId}] Returning ${firestoreMessages.length} messages from Firestore`);
+        return firestoreMessages;
+      }
+      
+      // Fallback to cache
       const messagesMap = this.messagesCache.get(accountId);
       if (!messagesMap) {
-        console.log(`⚠️ [${accountId}] No messages cache found`);
+        console.log(`⚠️ [${accountId}] No messages found`);
         return [];
       }
       
       const messages = messagesMap.get(chatId) || [];
-      console.log(`✅ [${accountId}] Returning ${messages.length} messages for ${chatId}`);
+      console.log(`✅ [${accountId}] Returning ${messages.length} messages from cache`);
       
       return messages.slice(-limit);
     } catch (error) {
