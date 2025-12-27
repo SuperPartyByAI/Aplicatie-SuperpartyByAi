@@ -165,12 +165,12 @@ STIL CONVERSAȚIONAL:
         content: userMessage
       });
 
-      // Call GPT-4o
+      // Call GPT-4o with optimized settings for speed
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini', // Faster model
         messages: conversation.messages,
         temperature: 0.7,
-        max_tokens: 150
+        max_tokens: 100 // Shorter responses = faster
       });
 
       const assistantMessage = response.choices[0].message.content;
