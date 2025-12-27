@@ -3,7 +3,6 @@ const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
 const cors = require('cors');
-const WhatsAppManager = require('./whatsapp/manager');
 const TwilioHandler = require('./voice/twilio-handler');
 const CallStorage = require('./voice/call-storage');
 
@@ -23,8 +22,17 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // For Twilio webhooks
 
-// Initialize managers
-const whatsappManager = new WhatsAppManager(io);
+// Initialize WhatsApp Manager (optional - only if dependencies available)
+let whatsappManager = null;
+try {
+  const WhatsAppManager = require('./whatsapp/manager');
+  whatsappManager = new WhatsAppManager(io);
+  console.log('✅ WhatsApp Manager initialized');
+} catch (error) {
+  console.log('⚠️  WhatsApp Manager disabled (dependencies not installed)');
+}
+
+// Initialize Voice managers
 const callStorage = new CallStorage();
 const twilioHandler = new TwilioHandler(io, callStorage);
 
@@ -32,15 +40,19 @@ const twilioHandler = new TwilioHandler(io, callStorage);
 app.get('/', (req, res) => {
   res.json({
     status: 'online',
-    service: 'SuperParty WhatsApp Backend + Voice',
-    accounts: whatsappManager.getAccounts().length,
+    service: 'SuperParty Backend - WhatsApp + Voice',
+    accounts: whatsappManager ? whatsappManager.getAccounts().length : 0,
     maxAccounts: 20,
-    activeCalls: twilioHandler.getActiveCalls().length
+    activeCalls: twilioHandler.getActiveCalls().length,
+    whatsappEnabled: whatsappManager !== null
   });
 });
 
-// API Routes
+// WhatsApp API Routes (only if WhatsApp is enabled)
 app.get('/api/accounts', (req, res) => {
+  if (!whatsappManager) {
+    return res.status(503).json({ success: false, error: 'WhatsApp not available' });
+  }
   try {
     const accounts = whatsappManager.getAccounts();
     res.json({ success: true, accounts });
