@@ -162,30 +162,9 @@ function ChatClienti() {
           padding: '1rem',
           borderBottom: '1px solid #374151',
           fontWeight: '600',
-          color: 'white',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
+          color: 'white'
         }}>
-          <span>💬 Clienți ({clients.length})</span>
-          <button
-            onClick={() => {
-              setLoading(true);
-              loadClients();
-            }}
-            style={{
-              background: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '0.5rem',
-              cursor: 'pointer',
-              fontSize: '1rem'
-            }}
-            title="Reîmprospătează lista"
-          >
-            🔄
-          </button>
+          💬 Clienți ({clients.length})
         </div>
         <div style={{
           flex: 1,
