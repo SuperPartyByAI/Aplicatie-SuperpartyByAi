@@ -1,5 +1,5 @@
 const makeWASocket = require('@whiskeysockets/baileys').default;
-const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeInMemoryStore } = require('@whiskeysockets/baileys');
 const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
@@ -10,6 +10,7 @@ class WhatsAppManager {
     this.io = io;
     this.clients = new Map();
     this.accounts = new Map();
+    this.stores = new Map();
     this.sessionsPath = path.join(__dirname, '../../.baileys_auth');
     this.maxAccounts = 20;
     this.messageQueue = [];
@@ -105,6 +106,10 @@ class WhatsAppManager {
     const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
     const { version } = await fetchLatestBaileysVersion();
 
+    // Create store for this account
+    const store = makeInMemoryStore({ logger: pino({ level: 'silent' }) });
+    this.stores.set(accountId, store);
+
     const sock = makeWASocket({
       version,
       auth: state,
@@ -112,6 +117,9 @@ class WhatsAppManager {
       logger: pino({ level: 'silent' }),
       browser: ['SuperParty', 'Chrome', '1.0.0']
     });
+
+    // Bind store to socket
+    store.bind(sock.ev);
 
     this.clients.set(accountId, sock);
     this.setupBaileysEvents(accountId, sock, saveCreds, phoneNumber);
@@ -327,26 +335,39 @@ class WhatsAppManager {
       try {
         const account = this.accounts.get(accountId);
         if (!account || account.status !== 'connected') {
-          console.log(`⏭️ [${accountId}] Skipping - not connected`);
+          console.log(`⏭️ [${accountId}] Skipping - not connected (${account?.status})`);
           continue;
         }
         
-        const chats = await sock.groupFetchAllParticipating();
+        console.log(`📋 [${accountId}] Fetching chats...`);
         
-        for (const [jid, chat] of Object.entries(chats)) {
-          if (!jid.includes('@g.us')) {
+        // Get all chats from store
+        const store = this.stores.get(accountId);
+        if (!store) {
+          console.log(`⚠️ [${accountId}] No store found`);
+          continue;
+        }
+        
+        const chats = store.chats.all();
+        console.log(`📋 [${accountId}] Found ${chats.length} chats`);
+        
+        for (const chat of chats) {
+          // Only individual chats (not groups, not broadcast)
+          if (chat.id && !chat.id.includes('@g.us') && !chat.id.includes('@broadcast')) {
             allClients.push({
-              id: jid,
+              id: chat.id,
               accountId,
-              name: chat.subject || jid.split('@')[0],
-              phone: jid.split('@')[0],
+              name: chat.name || chat.id.split('@')[0],
+              phone: chat.id.split('@')[0],
               status: 'available',
-              unreadCount: 0,
-              lastMessage: Date.now(),
+              unreadCount: chat.unreadCount || 0,
+              lastMessage: chat.conversationTimestamp || Date.now(),
               lastMessageText: ''
             });
           }
         }
+        
+        console.log(`✅ [${accountId}] Returning ${allClients.length} clients`);
       } catch (error) {
         console.error(`❌ [${accountId}] Failed to get clients:`, error.message);
       }
