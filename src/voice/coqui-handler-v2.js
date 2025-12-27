@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 /**
  * Coqui Handler with Circuit Breaker Pattern
- * Auto-fallback to ElevenLabs if Coqui fails
+ * Auto-fallback to AWS Polly if Coqui fails
  */
 class CoquiHandler {
   constructor() {

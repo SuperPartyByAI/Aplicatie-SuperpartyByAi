@@ -1,0 +1,18 @@
+{
+  "name": "superparty-extreme-monitor",
+  "version": "2.0.0",
+  "description": "Extreme monitoring with 99.99% uptime (4 min downtime/month)",
+  "main": "extreme-monitor.js",
+  "scripts": {
+    "start": "node extreme-monitor.js",
+    "start:normal": "node ultra-fast-monitor.js",
+    "start:extreme": "node extreme-monitor.js",
+    "test": "node test-recovery.js"
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

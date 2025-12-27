@@ -1,2 +1,6 @@
 .firebase-token
 .secrets/
+.railway-credentials
+COMPLETE-CONFIG.txt
+YOUR-ENV-VARS.txt
+FINAL-ENV-VARS.txt

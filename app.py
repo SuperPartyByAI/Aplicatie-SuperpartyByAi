@@ -1,6 +1,7 @@
 """
 Coqui XTTS v2 API - High Quality Voice Cloning Service
-Matches ElevenLabs quality with cloned voice
+FREE alternative to ElevenLabs with same quality
+Fallback to AWS Polly if Coqui unavailable
 """
 
 from flask import Flask, request, send_file, jsonify
