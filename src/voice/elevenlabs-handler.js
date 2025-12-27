@@ -6,8 +6,8 @@ class ElevenLabsHandler {
   constructor() {
     this.client = null;
     this.apiKey = null;
-    // Voce masculină română - Harry (Fierce Warrior)
-    this.voiceId = process.env.ELEVENLABS_VOICE_ID || 'SOYHLrjzK2X1ezoPC6cr'; // Harry
+    // Voce feminină română - Jane (Professional Audiobook Reader)
+    this.voiceId = process.env.ELEVENLABS_VOICE_ID || 'QtObtrglHRaER8xlDZsr'; // Jane
     
     if (process.env.ELEVENLABS_API_KEY) {
       this.apiKey = process.env.ELEVENLABS_API_KEY;
