@@ -3259,10 +3259,25 @@
                 const audioUrl = `${BACKEND_URL}/api/voice/calls/${callId}/recording/audio`;
                 console.log('Playing recording from:', audioUrl);
                 
-                const audio = new Audio(audioUrl);
+                // First check if recording exists
+                const checkResponse = await fetch(audioUrl, { method: 'HEAD' });
+                if (!checkResponse.ok) {
+                    throw new Error(`Recording not available (HTTP ${checkResponse.status})`);
+                }
+                
+                const audio = new Audio();
                 currentAudio = audio;
                 
+                audio.onloadstart = () => {
+                    console.log('Audio loading started...');
+                };
+                
+                audio.oncanplay = () => {
+                    console.log('Audio can play');
+                };
+                
                 audio.onended = () => {
+                    console.log('Audio playback ended');
                     playingCallId = null;
                     currentAudio = null;
                     loadVoiceCalls(); // Refresh to show play button
@@ -3270,13 +3285,47 @@
                 
                 audio.onerror = (e) => {
                     console.error('Audio playback error:', e);
-                    alert('Eroare la redarea înregistrării. Verifică că înregistrarea este disponibilă.');
+                    console.error('Audio error details:', {
+                        error: audio.error,
+                        code: audio.error?.code,
+                        message: audio.error?.message
+                    });
+                    
+                    let errorMsg = 'Eroare la redarea înregistrării.';
+                    if (audio.error) {
+                        switch(audio.error.code) {
+                            case 1: errorMsg = 'Încărcare anulată'; break;
+                            case 2: errorMsg = 'Eroare de rețea'; break;
+                            case 3: errorMsg = 'Eroare de decodare audio'; break;
+                            case 4: errorMsg = 'Format audio nesuportat'; break;
+                        }
+                    }
+                    
+                    alert(errorMsg + '\n\nVerifică console-ul pentru detalii.');
                     playingCallId = null;
                     currentAudio = null;
                     loadVoiceCalls();
                 };
                 
-                await audio.play();
+                // Set source and load
+                audio.src = audioUrl;
+                audio.load();
+                
+                // Try to play
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.error('Play promise rejected:', error);
+                        if (error.name === 'NotAllowedError') {
+                            alert('Browser-ul blochează redarea automată. Click din nou pe buton.');
+                        } else {
+                            alert('Eroare la pornirea redării: ' + error.message);
+                        }
+                        playingCallId = null;
+                        currentAudio = null;
+                        loadVoiceCalls();
+                    });
+                }
             } catch (error) {
                 console.error('Error playing recording:', error);
                 alert('Eroare la redarea înregistrării: ' + error.message);
