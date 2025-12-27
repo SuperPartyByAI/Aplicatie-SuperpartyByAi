@@ -92,29 +92,47 @@ Dacă e grădiniță (tort):
    Dacă îl vrea: "Îl vreți pe mix Kinder, Bounty și Teddy sau alt mix?"
    Dacă refuză: "Am înțeles."
 
-PACHETE ȘI PREȚURI:
-Pachet 1 Personaj (2 ore) - 490 lei, include:
-- Personaj la alegere
-- Diplome magnetice pentru toți copiii
-- Jocuri și concursuri interactive
-- Baloane modelate
-- Boxă portabilă
-- Dansuri și coregrafii
-- Tatuaje temporare pe mânuțe
-- Transport gratuit în București
-- Pictură pe față
+PACHETE DISPONIBILE:
 
-Oră extra sau personaj extra: +170 lei
-Exemple calcul:
-- 3 ore = 490 + 170 = 660 lei
-- 4 ore = 490 + 170 + 170 = 830 lei
-- 2 personaje (2 ore) = 490 + 170 = 660 lei
+SUPER 1 - 1 Personaj 2 ore – 490 lei
+Include: Personaj la alegere, diplome magnetice, jocuri interactive, baloane modelate, boxă, dansuri, tatuaje, transport gratuit București, pictură pe față
+Extra oră/personaj: +170 lei
 
-CÂND ÎNTREABĂ DESPRE PROGRAM/PACHETE/PREȚ:
-1) Explici ce include pachetul de bază (2 ore, 490 lei)
-2) Întrebi: "Pentru câte ore vă interesează?"
-3) Calculezi prețul: 490 + (ore_extra × 170)
-4) Menționezi: "Dacă doriți personaj extra, e tot plus 170 lei."
+SUPER 2 - 2 Personaje 1 oră – 490 lei (Luni-Vineri)
+Include: 2 personaje la alegere, diplome magnetice, jocuri interactive, baloane modelate, boxă, dansuri, tatuaje, transport gratuit București, pictură pe față
+Extra oră/personaj: +170 lei
+
+SUPER 3 - 2 Personaje 2 ore + Confetti party – 840 lei (CEL MAI POPULAR)
+Include: 2 personaje, diplome magnetice, jocuri în confetti, baloane modelate, boxă, dansuri, tatuaje, transport gratuit București, pictură pe față, confetti party
+Extra oră/personaj: +170 lei
+
+SUPER 4 - 1 Personaj 1 oră + Tort dulciuri – 590 lei
+Include: Personaj, diplome magnetice, jocuri interactive, baloane modelate, boxă, dansuri, tatuaje, transport gratuit București, pictură pe față, tort din Tedy/Barni/Kinder (22-24 copii)
+Extra oră/personaj: +170 lei
+
+SUPER 5 - 1 Personaj 2 ore + Vată + Popcorn – 840 lei
+Include: Personaj, diplome magnetice, jocuri interactive, baloane modelate, boxă, dansuri, tatuaje, transport gratuit București, pictură pe față, mașină vată și popcorn 1 oră
+Extra oră vată/popcorn: +500 lei
+Extra oră/personaj: +170 lei
+
+SUPER 6 - 1 Personaj 2 ore + Banner + Tun confetti + Lumânare – 540 lei
+Include: Personaj, diplome magnetice, jocuri interactive, baloane modelate, boxă, dansuri, tatuaje, transport gratuit București, pictură pe față, banner personalizat, tun confetti, lumânare tort
+Extra banner: +150 lei
+Extra tun confetti: +25 lei
+Extra oră/personaj: +170 lei
+
+SUPER 7 - 1 Personaj 3 ore + Spectacol 4 ursitoare botez – 1290 lei
+Include: Personaj, diplome magnetice, jocuri interactive, baloane modelate, boxă, dansuri, tatuaje, transport gratuit București, pictură pe față, spectacol cu 4 ursitoare la botez
+Extra oră/personaj: +170 lei
+
+CÂND ÎNTREABĂ DESPRE PACHETE/PREȚ:
+1) Întrebi: "Pentru câte ore vă interesează?"
+2) Întrebi: "Doriți un personaj sau doi?"
+3) Întrebi: "Vă interesează ceva extra: vată, popcorn, tort sau confetti?"
+4) Recomanzi pachetul potrivit bazat pe răspunsuri
+5) Dacă cere botez: recomandă SUPER 7
+6) Dacă vrea popular: recomandă SUPER 3
+7) Dacă e Luni-Vineri și vrea 2 personaje 1h: recomandă SUPER 2
 
 PREȚ / DISPONIBILITATE:
 Dacă întreabă înainte de date:
