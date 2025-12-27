@@ -233,9 +233,9 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
         console.log('[Voice AI] Using ElevenLabs for first message');
         gather.play(`${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}${audioUrl}`);
       } else {
-        console.log('[Voice AI] ElevenLabs failed, using Google Wavenet');
+        console.log('[Voice AI] ElevenLabs failed, using Azure Neural TTS');
         gather.say({
-          voice: 'Google.ro-RO-Wavenet-A',
+          voice: 'Polly.Ioana-Neural', // Azure Neural - voce feminină română naturală
           language: 'ro-RO'
         }, firstMessage);
       }
@@ -277,12 +277,12 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
           console.error('[Voice AI] Error saving reservation:', error);
         }
         
-        // Use ElevenLabs if available, fallback to Google Wavenet
+        // Use ElevenLabs if available, fallback to Azure Neural TTS
         if (result.audioUrl) {
           twiml.play(`${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}${result.audioUrl}`);
         } else {
           twiml.say({
-            voice: 'Google.ro-RO-Wavenet-A',
+            voice: 'Polly.Ioana-Neural', // Azure Neural - voce feminină română naturală
             language: 'ro-RO'
           }, `Multumesc! Rezervarea dumneavoastra a fost inregistrata. Veti primi o confirmare pe WhatsApp. O zi buna!`);
         }
@@ -299,12 +299,12 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
           method: 'POST'
         });
         
-        // Use ElevenLabs if available, fallback to Google Wavenet
+        // Use ElevenLabs if available, fallback to Azure Neural TTS
         if (result.audioUrl) {
           gather.play(`${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}${result.audioUrl}`);
         } else {
           gather.say({
-            voice: 'Google.ro-RO-Wavenet-A',
+            voice: 'Polly.Ioana-Neural', // Azure Neural - voce feminină română naturală
             language: 'ro-RO'
           }, result.response);
         }

@@ -133,11 +133,17 @@ export default function CentralaTelefonicaScreen() {
       }
       // Refresh recent calls immediately
       fetchRecentCalls();
-      // Refresh again after 15 seconds to get recording info
+      // Refresh multiple times to get recording info (Twilio processes recordings in 30-60s)
+      setTimeout(() => {
+        fetchRecentCalls();
+      }, 15000);
+      setTimeout(() => {
+        fetchRecentCalls();
+      }, 30000);
       setTimeout(() => {
         fetchRecentCalls();
         fetchCallStats();
-      }, 15000);
+      }, 60000);
     });
 
     return () => {
