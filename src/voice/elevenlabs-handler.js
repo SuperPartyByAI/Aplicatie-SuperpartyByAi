@@ -6,8 +6,8 @@ class ElevenLabsHandler {
   constructor() {
     this.client = null;
     this.apiKey = null;
-    // Voce feminină română - Andreea
-    this.voiceId = process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL'; // Andreea (Rachel)
+    // Voce feminină română - Jane (Professional Audiobook Reader)
+    this.voiceId = process.env.ELEVENLABS_VOICE_ID || 'QtObtrglHRaER8xlDZsr'; // Jane
     
     if (process.env.ELEVENLABS_API_KEY) {
       this.apiKey = process.env.ELEVENLABS_API_KEY;
@@ -36,9 +36,9 @@ class ElevenLabsHandler {
         text: text,
         model_id: 'eleven_multilingual_v2',
         voice_settings: {
-          stability: 0.45, // Setare ta: 45
-          similarity_boost: 0.80, // Setare ta: 80 (Clarity)
-          style: 0.15 // Setare ta: 15 (Expressiveness)
+          stability: 0.50, // More stable (slider la mijloc)
+          similarity_boost: 0.75, // High clarity
+          style: 0.0 // None exaggerated
         }
       });
 
