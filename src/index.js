@@ -701,10 +701,50 @@ io.on('connection', (socket) => {
   });
 });
 
+// Generate voice sample endpoint (for Coqui training)
+app.post('/api/voice/generate-sample', async (req, res) => {
+  try {
+    const { text } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({ success: false, error: 'Text required' });
+    }
+    
+    console.log('[Sample] Generating voice sample...');
+    
+    // Use ElevenLabs to generate sample
+    const ElevenLabsHandler = require('./voice/elevenlabs-handler');
+    const elevenlabs = new ElevenLabsHandler();
+    
+    if (!elevenlabs.isConfigured()) {
+      return res.status(503).json({ success: false, error: 'ElevenLabs not configured' });
+    }
+    
+    const audioPath = await elevenlabs.generateSpeech(text);
+    
+    if (!audioPath) {
+      return res.status(500).json({ success: false, error: 'Failed to generate audio' });
+    }
+    
+    // Return audio file
+    res.download(audioPath, 'kasya-voice-sample.mp3', (err) => {
+      if (err) {
+        console.error('[Sample] Error sending file:', err);
+      }
+    });
+    
+  } catch (error) {
+    console.error('[Sample] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('🛑 SIGTERM received, shutting down gracefully...');
-  await whatsappManager.destroy();
+  if (whatsappManager) {
+    await whatsappManager.destroy();
+  }
   server.close(() => {
     console.log('✅ Server closed');
     process.exit(0);
