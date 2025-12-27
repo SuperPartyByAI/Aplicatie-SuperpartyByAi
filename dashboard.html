@@ -811,7 +811,7 @@
                 </div>
                 
                 <!-- Filters -->
-                <div style="display: flex; gap: 15px; margin-bottom: 20px; align-items: center;">
+                <div style="display: flex; gap: 15px; margin-bottom: 20px; align-items: center; flex-wrap: wrap;">
                     <button onclick="loadVoiceCalls()" style="background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;">
                         🔄 Reîmprospătează
                     </button>
@@ -821,6 +821,14 @@
                         <option value="50">Ultimele 50</option>
                         <option value="100">Ultimele 100</option>
                     </select>
+                    <select id="callsFilter" onchange="loadVoiceCalls()" style="padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                        <option value="all">Toate apelurile</option>
+                        <option value="recorded">Doar cu înregistrări</option>
+                        <option value="completed">Doar finalizate</option>
+                    </select>
+                    <button onclick="exportCallsToCSV()" style="background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                        📥 Export CSV
+                    </button>
                 </div>
                 
                 <!-- Calls Table -->
@@ -3143,8 +3151,11 @@
         let currentAudio = null;
         let playingCallId = null;
         
+        let allCalls = []; // Store for filtering and export
+        
         async function loadVoiceCalls() {
             const limit = document.getElementById('callsLimit').value;
+            const filter = document.getElementById('callsFilter').value;
             const tbody = document.getElementById('callsTableBody');
             
             tbody.innerHTML = '<tr><td colspan="5" style="padding: 40px; text-align: center; color: #9ca3af;">Se încarcă...</td></tr>';
@@ -3157,7 +3168,15 @@
                     throw new Error(data.error || 'Eroare la încărcare');
                 }
                 
-                const calls = data.calls || [];
+                let calls = data.calls || [];
+                allCalls = calls; // Store for export
+                
+                // Apply filters
+                if (filter === 'recorded') {
+                    calls = calls.filter(c => c.recordingSid);
+                } else if (filter === 'completed') {
+                    calls = calls.filter(c => c.status === 'completed');
+                }
                 
                 // Update stats
                 document.getElementById('totalCallsCount').textContent = calls.length;
@@ -3342,6 +3361,38 @@
             }
             playingCallId = null;
             loadVoiceCalls(); // Refresh to show play button
+        }
+        
+        function exportCallsToCSV() {
+            if (allCalls.length === 0) {
+                alert('Nu există apeluri de exportat');
+                return;
+            }
+            
+            // CSV headers
+            let csv = 'Data,Număr,Durată (sec),Status,Are înregistrare\n';
+            
+            // CSV rows
+            allCalls.forEach(call => {
+                const date = formatCallDate(call.createdAt);
+                const number = call.from || 'N/A';
+                const duration = call.duration || 0;
+                const status = call.status || 'unknown';
+                const hasRecording = call.recordingSid ? 'Da' : 'Nu';
+                
+                csv += `"${date}","${number}",${duration},"${status}","${hasRecording}"\n`;
+            });
+            
+            // Download CSV
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `apeluri_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
         
         function showPage(pageId) {

@@ -243,9 +243,10 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
       const gather = twiml.gather({
         input: 'speech',
         language: 'ro-RO',
-        speechTimeout: 0.5, // 0.5 second pause (minimum)
+        speechTimeout: 2.5, // 2.5 seconds for natural conversation
         action: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/ai-conversation`,
-        method: 'POST'
+        method: 'POST',
+        bargeIn: true // Allow interruption
       });
       
       // Use Polly.Ioana-Neural directly for fast response (no ElevenLabs delay)
@@ -318,9 +319,10 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
         const gather = twiml.gather({
           input: 'speech',
           language: 'ro-RO',
-          speechTimeout: 0.5, // 0.5 second pause (minimum)
+          speechTimeout: 2.5, // 2.5 seconds for natural conversation
           action: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/ai-conversation`,
-          method: 'POST'
+          method: 'POST',
+          bargeIn: true // Allow interruption
         });
         
         // Use ElevenLabs if available, fallback to Azure Neural TTS

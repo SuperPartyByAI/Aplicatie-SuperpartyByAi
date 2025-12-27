@@ -22,14 +22,17 @@ class TwilioHandler {
       status: CallStatus
     });
 
-    // Create call record
+    // Create call record with analytics
     const callData = {
       callId: CallSid,
       from: From,
       to: To,
       direction: 'inbound',
       status: CallStatus,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      aiEnabled: true,
+      converted: false, // Will be updated if reservation is made
+      abandonReason: null
     };
 
     // Store in memory

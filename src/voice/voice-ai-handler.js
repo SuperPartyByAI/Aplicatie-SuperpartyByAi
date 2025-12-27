@@ -187,9 +187,12 @@ Dacă nu ai prins: "Scuze, nu am prins; repetați, vă rog?"
 Dacă e confuz: "Ca să fie clar, pentru ce dată e evenimentul?"
 
 CONFIRMARE FINALĂ:
-"Ca să fiu sigur: am notat data, locația și tipul evenimentului; e corect?"
-Dacă da:
-"Perfect, revenim cu oferta; o zi bună."
+Rezumă clar și concis ce ai notat:
+"Perfect! Am notat [data] în [locație], [tip eveniment], [pachet ales] la [preț] lei."
+"Vă sun înapoi cu confirmare în cel mai scurt timp. Mulțumesc și o zi bună!"
+
+Exemplu complet:
+"Perfect! Am notat 15 ianuarie în Sector 3, zi de naștere pentru Andrei 5 ani, pachet cu 2 personaje 2 ore și confetti party la 840 lei. Vă sun înapoi cu confirmare în cel mai scurt timp. Mulțumesc și o zi bună!"
 
 TRACKING (INTERN - nu afișa în răspuns vocal):
 După fiecare răspuns al clientului, actualizează mental:
@@ -285,10 +288,18 @@ STIL CONVERSAȚIONAL:
         .replace(/\[COMPLETE\]/g, '')
         .trim();
 
-      // Skip ElevenLabs for faster responses - use Polly.Ioana-Neural directly
-      // ElevenLabs adds 1-2 seconds latency
+      // Use ElevenLabs for natural voice (with caching for speed)
       let audioUrl = null;
-      console.log('[VoiceAI] Using Polly.Ioana-Neural for fast responses');
+      try {
+        if (this.elevenLabs.isConfigured()) {
+          audioUrl = await this.elevenLabs.generateSpeech(cleanResponse);
+          console.log('[VoiceAI] Using ElevenLabs for natural voice');
+        } else {
+          console.log('[VoiceAI] ElevenLabs not configured, using Polly.Ioana-Neural');
+        }
+      } catch (error) {
+        console.error('[VoiceAI] ElevenLabs error, falling back to Polly:', error.message);
+      }
 
       return {
         response: cleanResponse,
@@ -299,10 +310,21 @@ STIL CONVERSAȚIONAL:
 
     } catch (error) {
       console.error('[VoiceAI] Error processing conversation:', error);
+      
+      // Fallback: try to collect phone number for callback
+      const conversation = this.conversations.get(callSid);
+      if (conversation && !conversation.data.phoneNumber) {
+        return {
+          response: 'Ne pare rău, am o problemă tehnică. Îmi lăsați numărul de telefon să vă sun înapoi?',
+          completed: false,
+          data: null
+        };
+      }
+      
       return {
-        response: 'Ne pare rău, am întâmpinat o problemă tehnică. Vă rugăm să sunați din nou.',
+        response: 'Am notat. Vă sun înapoi în cel mai scurt timp. Mulțumesc!',
         completed: true,
-        data: null
+        data: conversation?.data || null
       };
     }
   }
