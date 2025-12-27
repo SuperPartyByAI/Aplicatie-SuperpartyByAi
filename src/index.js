@@ -467,6 +467,44 @@ app.get('/api/voice/calls/:callId/recording', async (req, res) => {
   }
 });
 
+// Proxy endpoint to stream recording audio
+app.get('/api/voice/calls/:callId/recording/audio', async (req, res) => {
+  try {
+    const { callId } = req.params;
+    const call = await callStorage.getCall(callId);
+    
+    if (!call || !call.recordingUrl) {
+      return res.status(404).send('Recording not found');
+    }
+
+    // Fetch recording from Twilio with auth
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const recordingUrl = call.recordingUrl + '.mp3';
+    
+    const fetch = require('node-fetch');
+    const response = await fetch(recordingUrl, {
+      headers: {
+        'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64')
+      }
+    });
+
+    if (!response.ok) {
+      console.error('[Recording] Failed to fetch from Twilio:', response.status);
+      return res.status(response.status).send('Failed to fetch recording');
+    }
+
+    // Stream audio to client
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', `inline; filename="recording-${callId}.mp3"`);
+    response.body.pipe(res);
+    
+  } catch (error) {
+    console.error('[Recording] Error streaming audio:', error);
+    res.status(500).send('Error streaming recording');
+  }
+});
+
 app.post('/api/voice/calls/:callId/answer', (req, res) => {
   try {
     const { callId } = req.params;

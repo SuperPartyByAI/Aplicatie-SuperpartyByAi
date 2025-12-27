@@ -244,32 +244,22 @@ export default function CentralaTelefonicaScreen() {
     try {
       setPlayingRecording(uniqueId || callId);
       
-      const response = await fetch(`${BACKEND_URL}/api/voice/calls/${callId}/recording`);
-      const data = await response.json();
-      
-      if (!data.success) {
-        console.error('Recording not available:', data.error);
-        alert('Înregistrarea nu este disponibilă încă. Așteaptă câteva secunde după încheierea apelului.');
-        setPlayingRecording(null);
-        return;
-      }
-      
-      console.log('Playing recording:', data.recordingUrl);
+      // Use proxy endpoint that handles Twilio auth
+      const audioUrl = `${BACKEND_URL}/api/voice/calls/${callId}/recording/audio`;
+      console.log('Playing recording from:', audioUrl);
 
-      // Create audio element with Basic Auth
+      // Create audio element
       const audio = new Audio();
       audioRef.current = audio;
-      
-      // Twilio requires Basic Auth for recording URLs
-      const authUrl = data.recordingUrl.replace('https://', `https://${data.auth.username}:${data.auth.password}@`);
-      audio.src = authUrl;
+      audio.src = audioUrl;
       
       audio.onended = () => {
         setPlayingRecording(null);
       };
       
-      audio.onerror = () => {
-        alert('Eroare la redarea înregistrării');
+      audio.onerror = (e) => {
+        console.error('Audio playback error:', e);
+        alert('Eroare la redarea înregistrării. Verifică că înregistrarea este disponibilă.');
         setPlayingRecording(null);
       };
       
@@ -299,21 +289,37 @@ export default function CentralaTelefonicaScreen() {
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     
-    // Handle Firestore Timestamp format
-    let date;
-    if (dateString._seconds) {
-      date = new Date(dateString._seconds * 1000);
-    } else {
-      date = new Date(dateString);
+    try {
+      // Handle Firestore Timestamp format
+      let date;
+      if (typeof dateString === 'object' && dateString._seconds) {
+        // Firestore Timestamp
+        date = new Date(dateString._seconds * 1000);
+      } else if (typeof dateString === 'string' || typeof dateString === 'number') {
+        // ISO string or timestamp
+        date = new Date(dateString);
+      } else {
+        console.error('Unknown date format:', dateString);
+        return '-';
+      }
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        console.error('Invalid date:', dateString);
+        return '-';
+      }
+      
+      return date.toLocaleString('ro-RO', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error, dateString);
+      return '-';
     }
-    
-    return date.toLocaleString('ro-RO', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
   };
 
   return (
