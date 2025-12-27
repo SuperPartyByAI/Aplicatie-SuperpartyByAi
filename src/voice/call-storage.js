@@ -58,10 +58,9 @@ class CallStorage {
     }
     
     try {
-      // Find most recent call with this CallSid
+      // Find most recent call with this CallSid (without orderBy to avoid index requirement)
       const snapshot = await this.callsCollection
         .where('callId', '==', callId)
-        .orderBy('createdAt', 'desc')
         .limit(1)
         .get();
       
@@ -98,10 +97,9 @@ class CallStorage {
     }
     
     try {
-      // Find most recent call with this CallSid
+      // Find most recent call with this CallSid (without orderBy to avoid index requirement)
       const snapshot = await this.callsCollection
         .where('callId', '==', callId)
-        .orderBy('createdAt', 'desc')
         .limit(1)
         .get();
       
