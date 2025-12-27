@@ -35,7 +35,10 @@ const io = socketIO(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"]
-  }
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ['websocket', 'polling']
 });
 
 const PORT = process.env.PORT || 5000;
@@ -63,8 +66,9 @@ const voiceAI = new VoiceAIHandler();
 const twilioHandler = new TwilioHandler(io, callStorage, voiceAI);
 const tokenGenerator = new TokenGenerator();
 
-// Serve ElevenLabs audio files
+// Serve static files
 app.use('/audio', express.static(path.join(__dirname, '../temp')));
+app.use('/src', express.static(path.join(__dirname, '.')));
 
 // Health check
 app.get('/', (req, res) => {
@@ -623,27 +627,46 @@ app.post('/api/reservations/:reservationId/resend-whatsapp', async (req, res) =>
 // Socket.IO
 io.on('connection', (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);
+  
+  // Send initial connection confirmation
+  socket.emit('connected', { 
+    message: 'Connected to SuperParty Backend',
+    timestamp: new Date().toISOString()
+  });
 
   // Handle call answer from client
   socket.on('call:answer', ({ callId, operatorId }) => {
+    console.log(`[Socket] Call answer: ${callId} by ${operatorId}`);
     try {
       twilioHandler.answerCall(callId, operatorId);
     } catch (error) {
+      console.error(`[Socket] Error answering call:`, error);
       socket.emit('call:error', { error: error.message });
     }
   });
 
   // Handle call reject from client
   socket.on('call:reject', ({ callId, reason }) => {
+    console.log(`[Socket] Call reject: ${callId}, reason: ${reason}`);
     try {
       twilioHandler.rejectCall(callId, reason);
     } catch (error) {
+      console.error(`[Socket] Error rejecting call:`, error);
       socket.emit('call:error', { error: error.message });
     }
   });
+  
+  // Ping/pong for keep-alive
+  socket.on('ping', () => {
+    socket.emit('pong');
+  });
 
-  socket.on('disconnect', () => {
-    console.log(`🔌 Client disconnected: ${socket.id}`);
+  socket.on('disconnect', (reason) => {
+    console.log(`🔌 Client disconnected: ${socket.id}, reason: ${reason}`);
+  });
+  
+  socket.on('error', (error) => {
+    console.error(`[Socket] Error on ${socket.id}:`, error);
   });
 });
 
