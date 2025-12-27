@@ -233,8 +233,11 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
         language: 'ro-RO'
       }, firstMessage);
       
+      console.log('[Voice AI] First message TwiML ready');
+      
     } else {
       // Process conversation with AI
+      console.log('[Voice AI] Processing user input:', userInput);
       const result = await voiceAI.processConversation(CallSid, userInput);
       
       if (result.completed) {
@@ -304,8 +307,10 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
       }
     }
     
+    const twimlResponse = twiml.toString();
+    console.log('[Voice AI] Sending TwiML response (length:', twimlResponse.length, ')');
     res.type('text/xml');
-    res.send(twiml.toString());
+    res.send(twimlResponse);
     
   } catch (error) {
     console.error('[Voice AI] Error:', error);
