@@ -1,5 +1,6 @@
 const OpenAI = require('openai');
 const ElevenLabsHandler = require('./elevenlabs-handler');
+const CoquiHandler = require('./coqui-handler');
 
 class VoiceAIHandler {
   constructor() {
@@ -14,11 +15,14 @@ class VoiceAIHandler {
       console.warn('[VoiceAI] OpenAI API key missing - Voice AI disabled');
     }
     
+    // Initialize voice providers (Coqui first, ElevenLabs as fallback)
+    this.coqui = new CoquiHandler();
     this.elevenLabs = new ElevenLabsHandler();
     this.conversations = new Map(); // Store conversation state
     
     // Cleanup old audio files every hour
     setInterval(() => {
+      this.coqui.cleanupOldFiles();
       this.elevenLabs.cleanupOldFiles();
     }, 60 * 60 * 1000);
   }
@@ -288,17 +292,32 @@ STIL CONVERSAȚIONAL:
         .replace(/\[COMPLETE\]/g, '')
         .trim();
 
-      // Use ElevenLabs for natural voice (with caching for speed)
+      // Use Coqui for natural voice (FREE!), fallback to ElevenLabs, then Polly
       let audioUrl = null;
       try {
-        if (this.elevenLabs.isConfigured()) {
+        // Try Coqui first (cloned voice, free)
+        if (this.coqui.isConfigured()) {
+          audioUrl = await this.coqui.generateSpeech(cleanResponse);
+          if (audioUrl) {
+            console.log('[VoiceAI] Using Coqui (cloned voice)');
+          }
+        }
+        
+        // Fallback to ElevenLabs if Coqui fails
+        if (!audioUrl && this.elevenLabs.isConfigured()) {
           audioUrl = await this.elevenLabs.generateSpeech(cleanResponse);
-          console.log('[VoiceAI] Using ElevenLabs for natural voice');
-        } else {
-          console.log('[VoiceAI] ElevenLabs not configured, using Polly.Ioana-Neural');
+          if (audioUrl) {
+            console.log('[VoiceAI] Using ElevenLabs (fallback)');
+          }
+        }
+        
+        // If both fail, use Polly
+        if (!audioUrl) {
+          console.log('[VoiceAI] Using Polly.Ioana-Neural (fallback)');
         }
       } catch (error) {
-        console.error('[VoiceAI] ElevenLabs error, falling back to Polly:', error.message);
+        console.error('[VoiceAI] Voice generation error:', error.message);
+        console.log('[VoiceAI] Falling back to Polly.Ioana-Neural');
       }
 
       return {

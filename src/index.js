@@ -68,6 +68,7 @@ const tokenGenerator = new TokenGenerator();
 
 // Serve static files
 app.use('/audio', express.static(path.join(__dirname, '../temp')));
+app.use('/audio', express.static(path.join(__dirname, '../cache'))); // Coqui cache
 app.use('/src', express.static(path.join(__dirname, '.')));
 
 // Health check
