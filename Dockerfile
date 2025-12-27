@@ -16,24 +16,21 @@ WORKDIR /app
 # Install Python dependencies
 RUN pip install --no-cache-dir \
     torch==2.1.0 --index-url https://download.pytorch.org/whl/cpu \
-    TTS==0.22.0 \
+    TTS \
     flask==3.0.0 \
     gunicorn==21.2.0 \
-    numpy==1.24.3 \
-    scipy==1.11.4 \
-    librosa==0.10.1 \
-    soundfile==0.12.1
+    numpy \
+    scipy \
+    librosa \
+    soundfile
 
 # Copy application files
 COPY app.py /app/
-COPY requirements.txt /app/
 COPY config.py /app/
+COPY models/ /app/models/
 
-# Create directories for models and audio
-RUN mkdir -p /app/models /app/audio /app/cache
-
-# Download XTTS v2 model (will be cached)
-RUN python -c "from TTS.api import TTS; TTS('tts_models/multilingual/multi-dataset/xtts_v2')"
+# Create directories for audio and cache
+RUN mkdir -p /app/audio /app/cache
 
 # Expose port
 EXPOSE 5001
