@@ -13,6 +13,7 @@
     "test:coverage": "vitest --coverage"
   },
   "dependencies": {
+    "@twilio/voice-sdk": "^2.17.0",
     "firebase": "^12.7.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

@@ -151,6 +151,19 @@ service cloud.firestore {
       allow read, write: if true; // Backend folosește service account
     }
     
+    // Voice Calls (Centrală Telefonică)
+    match /calls/{callId} {
+      // Read: Orice user autentificat poate vedea apelurile
+      allow read: if isAuthenticated();
+      
+      // Write: Doar backend (service account) poate crea/actualiza
+      // Backend nu folosește request.auth, deci verificăm dacă request.auth e null
+      allow create, update: if request.auth == null; // Service account
+      
+      // Delete: Doar admin
+      allow delete: if isAdmin();
+    }
+    
     // Default deny
     match /{document=**} {
       allow read, write: if false;

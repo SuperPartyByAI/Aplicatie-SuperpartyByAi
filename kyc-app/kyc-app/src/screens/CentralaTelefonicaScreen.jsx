@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
 import { io } from 'socket.io-client';
+import { Device } from '@twilio/voice-sdk';
 
 const BACKEND_URL = 'https://web-production-f0714.up.railway.app';
 
@@ -12,6 +13,85 @@ export default function CentralaTelefonicaScreen() {
   const [incomingCall, setIncomingCall] = useState(null);
   const [callStats, setCallStats] = useState(null);
   const [recentCalls, setRecentCalls] = useState([]);
+  const [twilioDevice, setTwilioDevice] = useState(null);
+  const [activeConnection, setActiveConnection] = useState(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const deviceRef = useRef(null);
+
+  // Initialize Twilio Device
+  useEffect(() => {
+    initializeTwilioDevice();
+    return () => {
+      if (deviceRef.current) {
+        deviceRef.current.destroy();
+      }
+    };
+  }, []);
+
+  const initializeTwilioDevice = async () => {
+    try {
+      // Get access token from backend
+      const identity = auth.currentUser?.uid || 'operator-' + Date.now();
+      const response = await fetch(`${BACKEND_URL}/api/voice/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identity })
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        console.error('Failed to get Twilio token:', data.error);
+        return;
+      }
+
+      // Create Twilio Device
+      const device = new Device(data.token, {
+        logLevel: 1,
+        codecPreferences: ['opus', 'pcmu']
+      });
+
+      // Setup device event listeners
+      device.on('registered', () => {
+        console.log('✅ Twilio Device registered');
+      });
+
+      device.on('error', (error) => {
+        console.error('❌ Twilio Device error:', error);
+      });
+
+      device.on('incoming', (connection) => {
+        console.log('📞 Incoming Twilio call');
+        setActiveConnection(connection);
+
+        // Setup connection event listeners
+        connection.on('accept', () => {
+          console.log('✅ Call accepted');
+          setIsConnecting(false);
+        });
+
+        connection.on('disconnect', () => {
+          console.log('✕ Call disconnected');
+          setActiveConnection(null);
+          setIsConnecting(false);
+        });
+
+        connection.on('reject', () => {
+          console.log('✕ Call rejected');
+          setActiveConnection(null);
+          setIsConnecting(false);
+        });
+      });
+
+      // Register device
+      await device.register();
+      setTwilioDevice(device);
+      deviceRef.current = device;
+
+      console.log('✅ Twilio Device initialized');
+    } catch (error) {
+      console.error('❌ Error initializing Twilio Device:', error);
+    }
+  };
 
   // Initialize Socket.io connection
   useEffect(() => {
@@ -87,23 +167,54 @@ export default function CentralaTelefonicaScreen() {
     }
   };
 
-  const answerCall = (callId) => {
-    if (socket) {
-      socket.emit('call:answer', {
-        callId,
-        operatorId: auth.currentUser?.uid || 'unknown'
-      });
+  const answerCall = async (callId) => {
+    if (!activeConnection) {
+      console.error('No active connection to answer');
+      return;
+    }
+
+    try {
+      setIsConnecting(true);
+      
+      // Accept the Twilio connection (this enables audio)
+      activeConnection.accept();
+
+      // Notify backend via Socket.io
+      if (socket) {
+        socket.emit('call:answer', {
+          callId,
+          operatorId: auth.currentUser?.uid || 'unknown'
+        });
+      }
+
       setIncomingCall(null);
+      console.log('✅ Call answered with audio');
+    } catch (error) {
+      console.error('❌ Error answering call:', error);
+      setIsConnecting(false);
     }
   };
 
   const rejectCall = (callId) => {
+    if (activeConnection) {
+      activeConnection.reject();
+    }
+
     if (socket) {
       socket.emit('call:reject', {
         callId,
         reason: 'rejected_by_operator'
       });
-      setIncomingCall(null);
+    }
+
+    setIncomingCall(null);
+    setActiveConnection(null);
+  };
+
+  const hangupCall = () => {
+    if (activeConnection) {
+      activeConnection.disconnect();
+      setActiveConnection(null);
     }
   };
 
@@ -150,6 +261,62 @@ export default function CentralaTelefonicaScreen() {
             📞 Centrală Telefonică
           </h1>
         </div>
+
+        {/* Active Call with Audio */}
+        {activeConnection && !incomingCall && (
+          <div style={{
+            position: 'fixed',
+            bottom: '20px',
+            right: '20px',
+            background: 'white',
+            borderRadius: '15px',
+            padding: '20px',
+            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+            zIndex: 9999,
+            minWidth: '300px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px' }}>
+              <div style={{
+                width: '50px',
+                height: '50px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '24px',
+                animation: 'pulse 2s ease-in-out infinite'
+              }}>
+                📞
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: '700', fontSize: '16px', color: '#333' }}>
+                  Apel în curs
+                </div>
+                <div style={{ fontSize: '14px', color: '#666', marginTop: '3px' }}>
+                  {isConnecting ? 'Conectare...' : 'Conectat'}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={hangupCall}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '10px',
+                border: 'none',
+                background: 'linear-gradient(135deg, #eb3349 0%, #f45c43 100%)',
+                color: 'white',
+                fontSize: '16px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                boxShadow: '0 4px 15px rgba(235, 51, 73, 0.3)'
+              }}
+            >
+              🔴 Închide Apelul
+            </button>
+          </div>
+        )}
 
         {/* Incoming Call Modal */}
         {incomingCall && (

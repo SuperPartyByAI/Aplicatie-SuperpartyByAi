@@ -5,6 +5,7 @@ const socketIO = require('socket.io');
 const cors = require('cors');
 const TwilioHandler = require('./voice/twilio-handler');
 const CallStorage = require('./voice/call-storage');
+const TokenGenerator = require('./voice/token-generator');
 
 const app = express();
 const server = http.createServer(app);
@@ -35,6 +36,7 @@ try {
 // Initialize Voice managers
 const callStorage = new CallStorage();
 const twilioHandler = new TwilioHandler(io, callStorage);
+const tokenGenerator = new TokenGenerator();
 
 // Health check
 app.get('/', (req, res) => {
@@ -156,6 +158,31 @@ app.patch('/api/clients/:clientId/status', async (req, res) => {
 });
 
 // Voice API Routes
+
+// Generate Access Token for Twilio Client
+app.post('/api/voice/token', (req, res) => {
+  try {
+    const { identity } = req.body;
+    
+    if (!identity) {
+      return res.status(400).json({ success: false, error: 'Identity required' });
+    }
+
+    if (!tokenGenerator.isConfigured()) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'Twilio Voice not configured. Missing API keys or TwiML App SID.' 
+      });
+    }
+
+    const token = tokenGenerator.generateToken(identity);
+    res.json({ success: true, token });
+  } catch (error) {
+    console.error('[Voice] Error generating token:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/voice/incoming', (req, res) => {
   twilioHandler.handleIncomingCall(req, res);
 });
