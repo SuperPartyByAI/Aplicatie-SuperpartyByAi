@@ -87,7 +87,26 @@ class TwilioHandler {
     const twiml = new VoiceResponse();
 
     if (Digits === '1') {
-      // Option 1: Voice AI reservation
+      // Option 1: Voice AI reservation with recording
+      
+      // Start recording using Twilio REST API
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      const client = require('twilio')(accountSid, authToken);
+      
+      client.calls(CallSid)
+        .recordings
+        .create({
+          recordingStatusCallback: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/recording-status`,
+          recordingStatusCallbackMethod: 'POST'
+        })
+        .then(recording => {
+          console.log('[Twilio] Recording started:', recording.sid);
+        })
+        .catch(err => {
+          console.error('[Twilio] Failed to start recording:', err);
+        });
+      
       twiml.say({
         voice: 'Google.ro-RO-Wavenet-A',
         language: 'ro-RO'

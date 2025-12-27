@@ -362,22 +362,31 @@ app.post('/api/voice/status', (req, res) => {
 });
 
 app.post('/api/voice/recording-status', (req, res) => {
-  const { CallSid, RecordingSid, RecordingUrl, RecordingDuration } = req.body;
+  const { CallSid, RecordingSid, RecordingUrl, RecordingDuration, RecordingStatus } = req.body;
   
-  console.log('[Voice] Recording ready:', {
+  console.log('[Voice] Recording webhook received:', {
     callSid: CallSid,
     recordingSid: RecordingSid,
-    duration: RecordingDuration
+    recordingUrl: RecordingUrl,
+    duration: RecordingDuration,
+    status: RecordingStatus
   });
 
-  // Update call with recording info
-  callStorage.updateCall(CallSid, {
-    recordingSid: RecordingSid,
-    recordingUrl: RecordingUrl,
-    recordingDuration: parseInt(RecordingDuration) || 0
-  }).catch(err => {
-    console.error('[Voice] Error updating call with recording:', err);
-  });
+  // Only update when recording is completed
+  if (RecordingStatus === 'completed' && RecordingUrl) {
+    console.log('[Voice] Updating call with recording URL');
+    callStorage.updateCall(CallSid, {
+      recordingSid: RecordingSid,
+      recordingUrl: RecordingUrl,
+      recordingDuration: parseInt(RecordingDuration) || 0
+    }).then(() => {
+      console.log('[Voice] Recording saved successfully for CallSid:', CallSid);
+    }).catch(err => {
+      console.error('[Voice] Error updating call with recording:', err);
+    });
+  } else {
+    console.log('[Voice] Recording not completed yet, status:', RecordingStatus);
+  }
 
   res.sendStatus(200);
 });
