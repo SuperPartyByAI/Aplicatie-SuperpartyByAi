@@ -20,9 +20,24 @@ class WhatsAppManager {
     
     this.ensureSessionsDir();
     this.startMessageProcessor();
+    this.startKeepAlive();
     
     // Initialize Firebase
     firestore.initialize();
+  }
+  
+  startKeepAlive() {
+    // Send keep-alive every 30 seconds to prevent disconnections
+    setInterval(() => {
+      this.clients.forEach((sock, accountId) => {
+        if (sock.user) {
+          // Connection is active, send presence update
+          sock.sendPresenceUpdate('available').catch(err => {
+            console.log(`⚠️ [${accountId}] Keep-alive failed:`, err.message);
+          });
+        }
+      });
+    }, 30000);
   }
   
   ensureSessionsDir() {
@@ -167,7 +182,8 @@ class WhatsAppManager {
 
       if (connection === 'close') {
         const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-        console.log(`🔌 [${accountId}] Connection closed. Reconnect:`, shouldReconnect);
+        const reason = lastDisconnect?.error?.output?.statusCode || 'unknown';
+        console.log(`🔌 [${accountId}] Connection closed. Reason: ${reason}, Reconnect: ${shouldReconnect}`);
         
         const account = this.accounts.get(accountId);
         if (account) {
@@ -180,9 +196,13 @@ class WhatsAppManager {
           setTimeout(() => {
             if (this.accounts.has(accountId)) {
               console.log(`🔄 [${accountId}] Auto-reconnecting...`);
-              this.connectBaileys(accountId);
+              // Use saved phone number from account
+              const savedPhone = account?.phone;
+              this.connectBaileys(accountId, savedPhone);
             }
           }, 5000);
+        } else {
+          console.log(`❌ [${accountId}] Logged out - not reconnecting. Please re-add account.`);
         }
       }
 

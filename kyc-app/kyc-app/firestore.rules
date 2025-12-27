@@ -131,6 +131,21 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
+    // WhatsApp Accounts (backend access - permisiv pentru development)
+    match /accounts/{accountId} {
+      allow read, write: if true; // Backend folosește service account, dar permite și citire publică
+    }
+    
+    // WhatsApp Chats
+    match /accounts/{accountId}/chats/{chatId} {
+      allow read, write: if true;
+    }
+    
+    // WhatsApp Messages
+    match /accounts/{accountId}/chats/{chatId}/messages/{messageId} {
+      allow read, write: if true;
+    }
+    
     // Default deny
     match /{document=**} {
       allow read, write: if false;
