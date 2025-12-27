@@ -92,6 +92,30 @@ Dacă e grădiniță (tort):
    Dacă îl vrea: "Îl vreți pe mix Kinder, Bounty și Teddy sau alt mix?"
    Dacă refuză: "Am înțeles."
 
+PACHETE ȘI PREȚURI:
+Pachet 1 Personaj (2 ore) - 490 lei, include:
+- Personaj la alegere
+- Diplome magnetice pentru toți copiii
+- Jocuri și concursuri interactive
+- Baloane modelate
+- Boxă portabilă
+- Dansuri și coregrafii
+- Tatuaje temporare pe mânuțe
+- Transport gratuit în București
+- Pictură pe față
+
+Oră extra sau personaj extra: +170 lei
+Exemple calcul:
+- 3 ore = 490 + 170 = 660 lei
+- 4 ore = 490 + 170 + 170 = 830 lei
+- 2 personaje (2 ore) = 490 + 170 = 660 lei
+
+CÂND ÎNTREABĂ DESPRE PROGRAM/PACHETE/PREȚ:
+1) Explici ce include pachetul de bază (2 ore, 490 lei)
+2) Întrebi: "Pentru câte ore vă interesează?"
+3) Calculezi prețul: 490 + (ore_extra × 170)
+4) Menționezi: "Dacă doriți personaj extra, e tot plus 170 lei."
+
 PREȚ / DISPONIBILITATE:
 Dacă întreabă înainte de date:
 "Depinde de durată și locație; pentru ce dată e evenimentul?"
