@@ -199,9 +199,9 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
       });
       
       gather.say({
-        voice: 'Polly.Carmen',
+        voice: 'Google.ro-RO-Wavenet-A',
         language: 'ro-RO'
-      }, 'Buna ziua! Sunt asistentul virtual SuperParty. Va ajut sa faceti o rezervare. Pentru ce data doriti sa rezervati?');
+      }, 'Bună ziua! SuperParty. Cu ce vă pot ajuta?');
       
     } else {
       // Process conversation with AI
@@ -241,7 +241,7 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
         }
         
         twiml.say({
-          voice: 'Polly.Carmen',
+          voice: 'Google.ro-RO-Wavenet-A',
           language: 'ro-RO'
         }, `Multumesc! Rezervarea dumneavoastra a fost inregistrata. Veti primi o confirmare pe WhatsApp. O zi buna!`);
         
@@ -258,7 +258,7 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
         });
         
         gather.say({
-          voice: 'Polly.Carmen',
+          voice: 'Google.ro-RO-Wavenet-A',
           language: 'ro-RO'
         }, result.response);
       }
@@ -272,7 +272,7 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
     
     const twiml = new VoiceResponse();
     twiml.say({
-      voice: 'Polly.Carmen',
+      voice: 'Google.ro-RO-Wavenet-A',
       language: 'ro-RO'
     }, 'Ne pare rau, a aparut o eroare. Va rugam sa sunati din nou.');
     twiml.hangup();

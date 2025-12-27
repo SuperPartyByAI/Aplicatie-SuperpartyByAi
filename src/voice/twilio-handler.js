@@ -56,13 +56,13 @@ class TwilioHandler {
     
     // IVR greeting
     gather.say({
-      voice: 'Polly.Carmen',
+      voice: 'Google.ro-RO-Wavenet-A',
       language: 'ro-RO'
     }, 'Buna ziua! Ati sunat la SuperParty. Pentru rezervare rapida, apasati tasta 1. Pentru operator, apasati tasta 2.');
     
     // If no input, repeat
     twiml.say({
-      voice: 'Polly.Carmen',
+      voice: 'Google.ro-RO-Wavenet-A',
       language: 'ro-RO'
     }, 'Nu am primit nicio selectie. Va rugam sa sunati din nou.');
     
@@ -89,7 +89,7 @@ class TwilioHandler {
     if (Digits === '1') {
       // Option 1: Voice AI reservation
       twiml.say({
-        voice: 'Polly.Carmen',
+        voice: 'Google.ro-RO-Wavenet-A',
         language: 'ro-RO'
       }, 'Va conectez cu asistentul virtual pentru rezervare.');
       
@@ -101,7 +101,7 @@ class TwilioHandler {
     } else if (Digits === '2') {
       // Option 2: Connect to operator
       twiml.say({
-        voice: 'Polly.Carmen',
+        voice: 'Google.ro-RO-Wavenet-A',
         language: 'ro-RO'
       }, 'Va conectez cu un operator. Va rugam asteptati.');
       
@@ -117,14 +117,14 @@ class TwilioHandler {
       
       // If no answer
       twiml.say({
-        voice: 'Polly.Carmen',
+        voice: 'Google.ro-RO-Wavenet-A',
         language: 'ro-RO'
       }, 'Ne pare rau, toti operatorii sunt ocupati. Va rugam sa sunati mai tarziu.');
       
     } else {
       // Invalid selection
       twiml.say({
-        voice: 'Polly.Carmen',
+        voice: 'Google.ro-RO-Wavenet-A',
         language: 'ro-RO'
       }, 'Selectie invalida. Va rugam sa sunati din nou.');
     }
