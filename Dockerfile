@@ -1,5 +1,5 @@
-# Use Node.js 18 LTS
-FROM node:18-slim
+# Use Node.js 20 LTS (required by Baileys)
+FROM node:20-slim
 
 # Install only essential dependencies for Baileys
 RUN apt-get update && apt-get install -y \
