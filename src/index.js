@@ -8,6 +8,7 @@ const CallStorage = require('./voice/call-storage');
 const TokenGenerator = require('./voice/token-generator');
 const VoiceAIHandler = require('./voice/voice-ai-handler');
 const ReservationStorage = require('./voice/reservation-storage');
+const WhatsAppNotifier = require('./voice/whatsapp-notifier');
 const VoiceResponse = require('twilio').twiml.VoiceResponse;
 
 const app = express();
@@ -39,6 +40,7 @@ try {
 // Initialize Voice managers
 const callStorage = new CallStorage();
 const reservationStorage = new ReservationStorage();
+const whatsappNotifier = new WhatsAppNotifier();
 const voiceAI = new VoiceAIHandler();
 const twilioHandler = new TwilioHandler(io, callStorage, voiceAI);
 const tokenGenerator = new TokenGenerator();
@@ -218,7 +220,21 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
           );
           console.log('[Voice AI] Reservation saved:', reservation.reservationId);
           
-          // TODO: Send WhatsApp confirmation
+          // Send WhatsApp confirmation
+          if (whatsappNotifier.isConfigured()) {
+            const whatsappResult = await whatsappNotifier.sendReservationConfirmation(
+              From,
+              reservation
+            );
+            
+            if (whatsappResult.success) {
+              console.log('[Voice AI] WhatsApp sent:', whatsappResult.messageSid);
+            } else {
+              console.error('[Voice AI] WhatsApp failed:', whatsappResult.error);
+            }
+          } else {
+            console.warn('[Voice AI] WhatsApp not configured - skipping notification');
+          }
           
         } catch (error) {
           console.error('[Voice AI] Error saving reservation:', error);
@@ -457,6 +473,45 @@ app.get('/api/reservations/stats/summary', async (req, res) => {
   try {
     const stats = await reservationStorage.getReservationStats();
     res.json({ success: true, stats });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// WhatsApp Notification Routes
+
+// Send test WhatsApp message
+app.post('/api/whatsapp/test', async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    
+    if (!phoneNumber) {
+      return res.status(400).json({ success: false, error: 'Phone number required' });
+    }
+    
+    const result = await whatsappNotifier.sendTestMessage(phoneNumber);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Resend reservation confirmation
+app.post('/api/reservations/:reservationId/resend-whatsapp', async (req, res) => {
+  try {
+    const { reservationId } = req.params;
+    
+    const reservation = await reservationStorage.getReservation(reservationId);
+    if (!reservation) {
+      return res.status(404).json({ success: false, error: 'Reservation not found' });
+    }
+    
+    const result = await whatsappNotifier.sendReservationConfirmation(
+      reservation.phoneNumber,
+      reservation
+    );
+    
+    res.json(result);
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
