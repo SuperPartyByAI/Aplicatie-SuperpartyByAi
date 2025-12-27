@@ -22,11 +22,9 @@
     "firebase-functions": "^6.0.0",
     "openai": "^6.15.0",
     "pino": "^8.16.0",
-    "puppeteer": "^21.0.0",
     "qrcode": "^1.5.3",
     "socket.io": "^4.6.1",
-    "twilio": "^5.11.1",
-    "whatsapp-web.js": "^1.23.0"
+    "twilio": "^5.11.1"
   },
   "devDependencies": {
     "firebase-functions-test": "^3.1.0"
