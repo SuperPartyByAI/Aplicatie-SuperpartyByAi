@@ -135,8 +135,24 @@ Asigură-te că sunt setate în Railway:
 - ✅ `OPENAI_API_KEY` - pentru GPT-4o
 - ✅ `TWILIO_ACCOUNT_SID`
 - ✅ `TWILIO_AUTH_TOKEN`
-- ✅ `TWILIO_PHONE_NUMBER`
-- ✅ `BACKEND_URL`
+- ✅ `TWILIO_PHONE_NUMBER` - +1 218 220 4425
+- ✅ `TWILIO_API_KEY`
+- ✅ `TWILIO_API_SECRET`
+- ✅ `TWILIO_TWIML_APP_SID`
+- ✅ `BACKEND_URL` - https://web-production-f0714.up.railway.app
+- ⚠️ `TWILIO_WHATSAPP_NUMBER` - whatsapp:+14155238886 (opțional - Sandbox)
+
+### 3. Test WhatsApp Notification
+```bash
+curl -X POST https://web-production-f0714.up.railway.app/api/whatsapp/test \
+  -H "Content-Type: application/json" \
+  -d '{"phoneNumber": "+40792864811"}'
+```
+
+**IMPORTANT**: Pentru Twilio WhatsApp Sandbox, trebuie mai întâi să te înregistrezi:
+1. Trimite pe WhatsApp la +1 415 523 8886
+2. Mesajul: "join <sandbox-code>" (găsești codul în Twilio Console → Messaging → Try it out → Send a WhatsApp message)
+3. După confirmare, poți primi mesaje de test
 
 ### 3. Verificare Logs
 În Railway Dashboard → Logs, caută:
@@ -158,13 +174,65 @@ Asigură-te că sunt setate în Railway:
 - Twilio Recording: ~$0.0025/min
 - **Total: ~$0.01-0.03 per apel**
 
+## Testare Flow Complet
+
+### Pas 1: Verificare Backend
+```bash
+# Check backend status
+curl https://web-production-f0714.up.railway.app/
+
+# Expected: {"status":"online",...}
+```
+
+### Pas 2: Test Apel Telefonic
+1. Sună la **+1 218 220 4425**
+2. Ascultă IVR: "Bună ziua! Ați sunat la SuperParty..."
+3. Apasă **1** pentru Voice AI
+
+### Pas 3: Conversație cu AI
+Răspunde la întrebări:
+- **Data**: "15 ianuarie"
+- **Invitați**: "20 de copii"
+- **Tip**: "aniversare"
+- **Preferințe**: "baloane și facepainting"
+- **Nume**: "Maria Popescu"
+
+### Pas 4: Verificare Rezervare
+```bash
+# Get recent reservations
+curl https://web-production-f0714.up.railway.app/api/reservations
+
+# Expected: Array cu rezervarea ta
+```
+
+### Pas 5: Verificare WhatsApp
+- Verifică telefonul pentru mesaj WhatsApp
+- Ar trebui să primești confirmare cu toate detaliile
+
+### Pas 6: Verificare în Dashboard
+1. Deschide [Centrală Telefonică](https://superparty-kyc.web.app/centrala-telefonica)
+2. Verifică "Call History" - ar trebui să vezi apelul
+3. Verifică "Call Statistics" - ar trebui să crească numărul
+
+## Checklist Testare
+
+- [ ] Backend online (status 200)
+- [ ] IVR răspunde la apel
+- [ ] Voice AI înțelege română
+- [ ] AI pune toate cele 5 întrebări
+- [ ] Rezervare salvată în Firestore
+- [ ] WhatsApp trimis (dacă configurat)
+- [ ] Apel vizibil în dashboard
+- [ ] Recording disponibil după apel
+
 ## Următorii Pași
 
-După testare, implementează:
-1. ✅ Salvare rezervare în Firestore
-2. ✅ Trimitere WhatsApp automată cu confirmare
-3. ✅ Dashboard pentru vizualizare rezervări
-4. ✅ Notificări pentru rezervări noi
+După testare cu succes:
+1. ✅ Salvare rezervare în Firestore - **IMPLEMENTAT**
+2. ✅ Trimitere WhatsApp automată - **IMPLEMENTAT**
+3. ⏳ Dashboard pentru vizualizare rezervări - **TODO**
+4. ⏳ Notificări real-time pentru rezervări noi - **TODO**
+5. ⏳ Număr telefonic românesc (+40) - **În așteptare (7 zile)**
 
 ## Troubleshooting
 
