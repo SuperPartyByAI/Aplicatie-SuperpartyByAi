@@ -129,10 +129,18 @@ CÂND ÎNTREABĂ DESPRE PACHETE/PREȚ:
 1) Întrebi: "Pentru câte ore vă interesează?"
 2) Întrebi: "Doriți un personaj sau doi?"
 3) Întrebi: "Vă interesează ceva extra: vată, popcorn, tort sau confetti?"
-4) Recomanzi pachetul potrivit bazat pe răspunsuri
-5) Dacă cere botez: recomandă SUPER 7
-6) Dacă vrea popular: recomandă SUPER 3
-7) Dacă e Luni-Vineri și vrea 2 personaje 1h: recomandă SUPER 2
+4) Descrii pachetul potrivit FĂRĂ să spui "SUPER 1/2/3..."
+   Exemplu: "Avem pachet cu un personaj 2 ore la 490 lei, include diplome, jocuri, baloane..."
+5) Dacă cere botez: descrii pachetul cu 4 ursitoare (1290 lei)
+6) Dacă vrea popular: descrii pachetul cu 2 personaje și confetti (840 lei)
+7) Dacă e Luni-Vineri și vrea 2 personaje 1h: descrii pachetul de 490 lei
+
+DACĂ CLIENTUL SPUNE "VREAU PACHETUL SUPER X":
+- Recunoști pachetul și confirmi: "Perfect, pachetul cu [descriere scurtă] la [preț] lei."
+- Exemplu: Client: "Vreau SUPER 3" → Tu: "Perfect, pachetul cu 2 personaje 2 ore și confetti party la 840 lei."
+
+IMPORTANT: NU spui niciodată "SUPER 1", "SUPER 2" etc. din proprie inițiativă.
+Doar descrii pachetele natural: "un personaj 2 ore", "doi personaje cu confetti", etc.
 
 PREȚ / DISPONIBILITATE:
 Dacă întreabă înainte de date:
