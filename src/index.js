@@ -7,6 +7,7 @@ const TwilioHandler = require('./voice/twilio-handler');
 const CallStorage = require('./voice/call-storage');
 const TokenGenerator = require('./voice/token-generator');
 const VoiceAIHandler = require('./voice/voice-ai-handler');
+const ReservationStorage = require('./voice/reservation-storage');
 const VoiceResponse = require('twilio').twiml.VoiceResponse;
 
 const app = express();
@@ -37,6 +38,7 @@ try {
 
 // Initialize Voice managers
 const callStorage = new CallStorage();
+const reservationStorage = new ReservationStorage();
 const voiceAI = new VoiceAIHandler();
 const twilioHandler = new TwilioHandler(io, callStorage, voiceAI);
 const tokenGenerator = new TokenGenerator();
@@ -207,8 +209,20 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
         // Conversation complete - save reservation
         console.log('[Voice AI] Reservation complete:', result.data);
         
-        // TODO: Save to Firestore
-        // TODO: Send WhatsApp confirmation
+        // Save to Firestore
+        try {
+          const reservation = await reservationStorage.saveReservation(
+            CallSid,
+            result.data,
+            From
+          );
+          console.log('[Voice AI] Reservation saved:', reservation.reservationId);
+          
+          // TODO: Send WhatsApp confirmation
+          
+        } catch (error) {
+          console.error('[Voice AI] Error saving reservation:', error);
+        }
         
         twiml.say({
           voice: 'Polly.Carmen',
@@ -387,6 +401,62 @@ app.post('/api/voice/calls/:callId/reject', (req, res) => {
     const { reason } = req.body;
     const call = twilioHandler.rejectCall(callId, reason);
     res.json({ success: true, call });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Reservation API Routes
+
+// Get recent reservations
+app.get('/api/reservations', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    const reservations = await reservationStorage.getRecentReservations(limit);
+    res.json({ success: true, reservations });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get reservation by ID
+app.get('/api/reservations/:reservationId', async (req, res) => {
+  try {
+    const { reservationId } = req.params;
+    const reservation = await reservationStorage.getReservation(reservationId);
+    
+    if (!reservation) {
+      return res.status(404).json({ success: false, error: 'Reservation not found' });
+    }
+    
+    res.json({ success: true, reservation });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Update reservation status
+app.patch('/api/reservations/:reservationId/status', async (req, res) => {
+  try {
+    const { reservationId } = req.params;
+    const { status, notes } = req.body;
+    
+    if (!['pending', 'confirmed', 'cancelled'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid status' });
+    }
+    
+    const success = await reservationStorage.updateReservationStatus(reservationId, status, notes);
+    res.json({ success });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get reservation statistics
+app.get('/api/reservations/stats/summary', async (req, res) => {
+  try {
+    const stats = await reservationStorage.getReservationStats();
+    res.json({ success: true, stats });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

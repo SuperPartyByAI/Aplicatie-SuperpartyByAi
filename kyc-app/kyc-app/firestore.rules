@@ -164,6 +164,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
+    // Voice AI Reservations
+    match /reservations/{reservationId} {
+      // Read: Orice user autentificat poate vedea rezervările
+      allow read: if isAuthenticated();
+      
+      // Write: Doar backend (service account) poate crea/actualiza
+      allow create, update: if request.auth == null; // Service account
+      
+      // Delete: Doar admin
+      allow delete: if isAdmin();
+    }
+    
     // Default deny
     match /{document=**} {
       allow read, write: if false;
