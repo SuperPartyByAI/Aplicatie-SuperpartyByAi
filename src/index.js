@@ -4,6 +4,7 @@ const http = require('http');
 const socketIO = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const admin = require('firebase-admin');
 const TwilioHandler = require('./voice/twilio-handler');
 const CallStorage = require('./voice/call-storage');
 const TokenGenerator = require('./voice/token-generator');
@@ -11,6 +12,22 @@ const VoiceAIHandler = require('./voice/voice-ai-handler');
 const ReservationStorage = require('./voice/reservation-storage');
 const WhatsAppNotifier = require('./voice/whatsapp-notifier');
 const VoiceResponse = require('twilio').twiml.VoiceResponse;
+
+// Initialize Firebase Admin
+try {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    console.log('✅ Firebase Admin initialized');
+  } else {
+    console.warn('⚠️  Firebase Admin not configured - running in memory mode');
+  }
+} catch (error) {
+  console.error('❌ Firebase Admin initialization failed:', error.message);
+  console.warn('⚠️  Running in memory mode');
+}
 
 const app = express();
 const server = http.createServer(app);
