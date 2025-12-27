@@ -10,8 +10,49 @@ class WhatsAppManager {
     this.accounts = new Map();
     this.sessionsPath = path.join(__dirname, '../../.wwebjs_auth');
     this.maxAccounts = 20;
+    this.messageQueue = [];
+    this.processing = false;
     
     this.ensureSessionsDir();
+    this.startMessageProcessor();
+  }
+  
+  startMessageProcessor() {
+    // Process queued messages every 100ms to handle high traffic
+    setInterval(() => {
+      if (this.messageQueue.length > 0 && !this.processing) {
+        this.processNextMessage();
+      }
+    }, 100);
+  }
+  
+  async processNextMessage() {
+    if (this.processing || this.messageQueue.length === 0) return;
+    
+    this.processing = true;
+    const { accountId, message } = this.messageQueue.shift();
+    
+    try {
+      const contactName = message._data?.notifyName || message.from.split('@')[0];
+      
+      this.io.emit('whatsapp:message', {
+        accountId,
+        message: {
+          id: message.id._serialized,
+          from: message.from,
+          to: message.to,
+          body: message.body,
+          timestamp: message.timestamp,
+          fromMe: message.fromMe,
+          hasMedia: message.hasMedia,
+          contactName: contactName
+        }
+      });
+    } catch (error) {
+      console.error(`❌ [${accountId}] Error processing queued message:`, error);
+    } finally {
+      this.processing = false;
+    }
   }
 
   ensureSessionsDir() {
@@ -134,30 +175,30 @@ class WhatsAppManager {
         account.status = 'disconnected';
       }
       this.io.emit('whatsapp:disconnected', { accountId, reason });
+      
+      // Auto-reconnect after 5 seconds
+      setTimeout(async () => {
+        if (this.clients.has(accountId)) {
+          console.log(`🔄 [${accountId}] Attempting auto-reconnect...`);
+          try {
+            await client.initialize();
+          } catch (error) {
+            console.error(`❌ [${accountId}] Auto-reconnect failed:`, error);
+          }
+        }
+      }, 5000);
     });
 
-    client.on('message', async (message) => {
-      console.log(`💬 [${accountId}] Message received`);
+    client.on('message', (message) => {
+      console.log(`💬 [${accountId}] Message received - queued (${this.messageQueue.length} in queue)`);
       
-      try {
-        // Avoid getContact() - use message data directly
-        const contactName = message._data?.notifyName || message.from.split('@')[0];
-        
-        this.io.emit('whatsapp:message', {
-          accountId,
-          message: {
-            id: message.id._serialized,
-            from: message.from,
-            to: message.to,
-            body: message.body,
-            timestamp: message.timestamp,
-            fromMe: message.fromMe,
-            hasMedia: message.hasMedia,
-            contactName: contactName
-          }
-        });
-      } catch (error) {
-        console.error(`❌ [${accountId}] Error processing message:`, error);
+      // Add to queue instead of processing immediately
+      this.messageQueue.push({ accountId, message });
+      
+      // Prevent queue from growing too large
+      if (this.messageQueue.length > 1000) {
+        console.warn(`⚠️ Message queue too large (${this.messageQueue.length}), dropping oldest messages`);
+        this.messageQueue = this.messageQueue.slice(-500);
       }
     });
   }
@@ -271,25 +312,39 @@ class WhatsAppManager {
     
     for (const [accountId, client] of this.clients.entries()) {
       try {
-        const chats = await client.getChats();
+        // Check if client is ready
+        const account = this.accounts.get(accountId);
+        if (!account || account.status !== 'connected') {
+          console.log(`⏭️ [${accountId}] Skipping - not connected (${account?.status})`);
+          continue;
+        }
+        
+        const chats = await Promise.race([
+          client.getChats(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+        ]);
         
         for (const chat of chats) {
-          if (!chat.isGroup) {
-            // Avoid getContact() which causes errors - use chat data directly
-            allClients.push({
-              id: chat.id._serialized,
-              accountId,
-              name: chat.name || chat.id.user || 'Unknown',
-              phone: chat.id.user,
-              status: 'available',
-              unreadCount: chat.unreadCount,
-              lastMessage: chat.timestamp,
-              lastMessageText: chat.lastMessage?.body || ''
-            });
+          try {
+            if (!chat.isGroup) {
+              // Avoid getContact() which causes errors - use chat data directly
+              allClients.push({
+                id: chat.id._serialized,
+                accountId,
+                name: chat.name || chat.id.user || 'Unknown',
+                phone: chat.id.user,
+                status: 'available',
+                unreadCount: chat.unreadCount || 0,
+                lastMessage: chat.timestamp || Date.now(),
+                lastMessageText: chat.lastMessage?.body || ''
+              });
+            }
+          } catch (chatError) {
+            console.error(`❌ [${accountId}] Failed to process chat ${chat.id._serialized}:`, chatError.message);
           }
         }
       } catch (error) {
-        console.error(`❌ [${accountId}] Failed to get clients:`, error);
+        console.error(`❌ [${accountId}] Failed to get chats:`, error.message);
       }
     }
     
@@ -299,27 +354,46 @@ class WhatsAppManager {
   async getClientMessages(clientId) {
     for (const [accountId, client] of this.clients.entries()) {
       try {
-        const chat = await client.getChatById(clientId);
-        const messages = await chat.fetchMessages({ limit: 100 });
+        const account = this.accounts.get(accountId);
+        if (!account || account.status !== 'connected') continue;
+        
+        const chat = await Promise.race([
+          client.getChatById(clientId),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+        ]);
+        
+        const messages = await Promise.race([
+          chat.fetchMessages({ limit: 100 }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+        ]);
         
         return messages.map(msg => ({
           id: msg.id._serialized,
-          text: msg.body,
+          text: msg.body || '',
           fromClient: !msg.fromMe,
           timestamp: msg.timestamp * 1000
         }));
       } catch (error) {
+        console.error(`❌ [${accountId}] Failed to get messages for ${clientId}:`, error.message);
         continue;
       }
     }
     
-    throw new Error('Client not found');
+    throw new Error('Client not found or no connected accounts');
   }
 
   async sendClientMessage(clientId, message) {
     for (const [accountId, client] of this.clients.entries()) {
       try {
-        await client.sendMessage(clientId, message);
+        const account = this.accounts.get(accountId);
+        if (!account || account.status !== 'connected') continue;
+        
+        await Promise.race([
+          client.sendMessage(clientId, message),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+        ]);
+        
+        console.log(`📤 [${accountId}] Message sent to ${clientId}`);
         
         return {
           id: `msg_${Date.now()}`,
@@ -328,11 +402,12 @@ class WhatsAppManager {
           timestamp: Date.now()
         };
       } catch (error) {
+        console.error(`❌ [${accountId}] Failed to send to ${clientId}:`, error.message);
         continue;
       }
     }
     
-    throw new Error('Failed to send message');
+    throw new Error('Failed to send message - no connected accounts available');
   }
 
   async updateClientStatus(clientId, status) {

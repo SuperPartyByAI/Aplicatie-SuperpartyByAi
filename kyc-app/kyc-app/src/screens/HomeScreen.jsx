@@ -1141,26 +1141,7 @@ ${perf.tasksOverdue > 0 ? `⚠️ Ai ${perf.tasksOverdue} task-uri în întârzi
               </>
             )}
             
-            {/* GM Mode Toggle - Doar pentru admin */}
-            {currentUser?.email === 'ursache.andrei1995@gmail.com' && !gmMode && (
-              <>
-                <div style={{ borderTop: '1px solid #10b981', margin: '0.5rem 0', opacity: 0.3 }}></div>
-                <button 
-                  onClick={() => {
-                    setGmMode(true);
-                    setCurrentView('gm-overview');
-                  }} 
-                  className="nav-item"
-                  style={{ 
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    border: '2px solid #10b981'
-                  }}
-                >
-                  <span className="nav-icon">🎮</span>
-                  <span className="nav-text">Activează GM Mode</span>
-                </button>
-              </>
-            )}
+            {/* GM Mode Toggle - REMOVED - Se activează doar prin chat AI scriind "gm" */}
             
             {/* GM Mode - Apare doar când e activat */}
             {gmMode && (
