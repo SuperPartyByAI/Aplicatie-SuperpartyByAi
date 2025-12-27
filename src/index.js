@@ -92,6 +92,9 @@ app.get('/api/accounts', (req, res) => {
 });
 
 app.post('/api/accounts/add', async (req, res) => {
+  if (!whatsappManager) {
+    return res.status(503).json({ success: false, error: 'WhatsApp Manager not available' });
+  }
   try {
     const { name } = req.body;
     const account = await whatsappManager.addAccount(name);
@@ -102,6 +105,9 @@ app.post('/api/accounts/add', async (req, res) => {
 });
 
 app.delete('/api/accounts/:accountId', async (req, res) => {
+  if (!whatsappManager) {
+    return res.status(503).json({ success: false, error: 'WhatsApp Manager not available' });
+  }
   try {
     const { accountId } = req.params;
     await whatsappManager.removeAccount(accountId);
