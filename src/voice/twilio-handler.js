@@ -47,18 +47,18 @@ class TwilioHandler {
     
     // Play ringing sound while waiting for answer
     twiml.say({ 
-      voice: 'alice',
+      voice: 'Polly.Carmen',
       language: 'ro-RO' 
-    }, 'Vă rugăm așteptați, vă conectăm cu un operator.');
+    }, 'Va rugam asteptati, va conectam cu un operator.');
     
     // Pause for 30 seconds (waiting for operator to answer)
     twiml.pause({ length: 30 });
     
     // If no answer, play message and hangup
     twiml.say({ 
-      voice: 'alice',
+      voice: 'Polly.Carmen',
       language: 'ro-RO' 
-    }, 'Ne pare rău, toți operatorii sunt ocupați. Vă rugăm să sunați mai târziu.');
+    }, 'Ne pare rau, toti operatorii sunt ocupati. Va rugam sa sunati mai tarziu.');
     
     twiml.hangup();
 
