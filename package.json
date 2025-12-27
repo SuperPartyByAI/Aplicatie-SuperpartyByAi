@@ -1,0 +1,12 @@
+{
+  "name": "railway-auto-monitor",
+  "version": "1.0.0",
+  "description": "Auto-monitor and auto-repair Railway services",
+  "main": "monitor.js",
+  "scripts": {
+    "start": "node monitor.js"
+  },
+  "keywords": ["railway", "monitoring", "auto-repair"],
+  "author": "Ona",
+  "license": "MIT"
+}
