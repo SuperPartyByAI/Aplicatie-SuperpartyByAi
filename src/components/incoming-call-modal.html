@@ -1,0 +1,540 @@
+<!-- Incoming Call Modal Component -->
+<style>
+  /* Incoming Call Modal */
+  .incoming-call-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 10000;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .incoming-call-overlay.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .incoming-call-modal {
+    background: white;
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease;
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(50px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .call-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    margin: 0 auto 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7);
+    }
+    50% {
+      transform: scale(1.05);
+      box-shadow: 0 0 0 20px rgba(102, 126, 234, 0);
+    }
+  }
+
+  .call-info h2 {
+    font-size: 24px;
+    margin-bottom: 10px;
+    color: #333;
+  }
+
+  .call-info p {
+    font-size: 16px;
+    color: #666;
+    margin-bottom: 5px;
+  }
+
+  .call-status {
+    display: inline-block;
+    padding: 8px 16px;
+    background: #f0f0f0;
+    border-radius: 20px;
+    font-size: 14px;
+    color: #666;
+    margin: 20px 0;
+    animation: blink 1.5s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .call-actions {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-top: 30px;
+  }
+
+  .call-btn {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  }
+
+  .call-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  .call-btn:active {
+    transform: scale(0.95);
+  }
+
+  .call-btn.answer {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: white;
+  }
+
+  .call-btn.reject {
+    background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+    color: white;
+  }
+
+  .call-btn-label {
+    font-size: 12px;
+    color: #666;
+    margin-top: 8px;
+    font-weight: 500;
+  }
+
+  .call-action-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Ringing animation for phone icon */
+  @keyframes ring {
+    0%, 100% { transform: rotate(-15deg); }
+    50% { transform: rotate(15deg); }
+  }
+
+  .call-avatar.ringing {
+    animation: pulse 2s ease-in-out infinite, ring 0.5s ease-in-out infinite;
+  }
+
+  /* Active Calls List */
+  .active-calls-panel {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    width: 320px;
+    max-height: 500px;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    z-index: 9999;
+    display: none;
+  }
+
+  .active-calls-panel.visible {
+    display: block;
+    animation: slideInRight 0.3s ease;
+  }
+
+  @keyframes slideInRight {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  .active-calls-header {
+    padding: 15px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .active-calls-list {
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .active-call-item {
+    padding: 15px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    transition: background 0.2s ease;
+  }
+
+  .active-call-item:hover {
+    background: #f8f9fa;
+  }
+
+  .active-call-avatar {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .active-call-info {
+    flex: 1;
+  }
+
+  .active-call-number {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+  }
+
+  .active-call-duration {
+    font-size: 12px;
+    color: #666;
+    margin-top: 3px;
+  }
+
+  .active-call-status {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: #e3f2fd;
+    color: #1976d2;
+    font-weight: 500;
+  }
+
+  .active-call-status.in-progress {
+    background: #e8f5e9;
+    color: #388e3c;
+  }
+
+  .active-call-status.ringing {
+    background: #fff3e0;
+    color: #f57c00;
+  }
+
+  /* Call notification badge */
+  .call-notification-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #f44336;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    animation: bounce 0.5s ease infinite;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+  }
+</style>
+
+<!-- Incoming Call Modal -->
+<div id="incomingCallOverlay" class="incoming-call-overlay">
+  <div class="incoming-call-modal">
+    <div class="call-avatar ringing" id="callAvatar">
+      📞
+    </div>
+    <div class="call-info">
+      <h2 id="callerName">Apel Incoming</h2>
+      <p id="callerNumber">+40 XXX XXX XXX</p>
+      <div class="call-status">
+        🔔 Sună...
+      </div>
+    </div>
+    <div class="call-actions">
+      <div class="call-action-wrapper">
+        <button class="call-btn answer" id="answerCallBtn" onclick="answerIncomingCall()">
+          ✓
+        </button>
+        <div class="call-btn-label">Răspunde</div>
+      </div>
+      <div class="call-action-wrapper">
+        <button class="call-btn reject" id="rejectCallBtn" onclick="rejectIncomingCall()">
+          ✕
+        </button>
+        <div class="call-btn-label">Respinge</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Active Calls Panel -->
+<div id="activeCallsPanel" class="active-calls-panel">
+  <div class="active-calls-header">
+    <span>📞 Apeluri Active (<span id="activeCallsCount">0</span>)</span>
+    <button onclick="toggleActiveCallsPanel()" style="background: none; border: none; color: white; cursor: pointer; font-size: 18px;">✕</button>
+  </div>
+  <div class="active-calls-list" id="activeCallsList">
+    <!-- Active calls will be populated here -->
+  </div>
+</div>
+
+<script>
+  let currentIncomingCall = null;
+  let activeCalls = [];
+  let callTimers = {};
+
+  // Show incoming call modal
+  function showIncomingCall(callData) {
+    currentIncomingCall = callData;
+    
+    document.getElementById('callerNumber').textContent = callData.from;
+    document.getElementById('callerName').textContent = 'Apel Incoming';
+    document.getElementById('incomingCallOverlay').classList.add('active');
+    
+    // Play ringtone (optional)
+    playRingtone();
+  }
+
+  // Hide incoming call modal
+  function hideIncomingCall() {
+    document.getElementById('incomingCallOverlay').classList.remove('active');
+    currentIncomingCall = null;
+    stopRingtone();
+  }
+
+  // Answer incoming call
+  function answerIncomingCall() {
+    if (!currentIncomingCall) return;
+    
+    const operatorId = localStorage.getItem('userId') || 'operator-1';
+    
+    // Emit socket event
+    if (window.socket) {
+      window.socket.emit('call:answer', {
+        callId: currentIncomingCall.callId,
+        operatorId: operatorId
+      });
+    }
+    
+    // Add to active calls
+    addToActiveCalls(currentIncomingCall);
+    
+    hideIncomingCall();
+    
+    // Show success notification
+    showNotification('Apel răspuns', 'success');
+  }
+
+  // Reject incoming call
+  function rejectIncomingCall() {
+    if (!currentIncomingCall) return;
+    
+    // Emit socket event
+    if (window.socket) {
+      window.socket.emit('call:reject', {
+        callId: currentIncomingCall.callId,
+        reason: 'rejected_by_operator'
+      });
+    }
+    
+    hideIncomingCall();
+    
+    // Show notification
+    showNotification('Apel respins', 'info');
+  }
+
+  // Add call to active calls list
+  function addToActiveCalls(callData) {
+    activeCalls.push(callData);
+    updateActiveCallsList();
+    startCallTimer(callData.callId);
+  }
+
+  // Remove call from active calls list
+  function removeFromActiveCalls(callId) {
+    activeCalls = activeCalls.filter(call => call.callId !== callId);
+    updateActiveCallsList();
+    stopCallTimer(callId);
+  }
+
+  // Update active calls list UI
+  function updateActiveCallsList() {
+    const listElement = document.getElementById('activeCallsList');
+    const countElement = document.getElementById('activeCallsCount');
+    
+    countElement.textContent = activeCalls.length;
+    
+    if (activeCalls.length === 0) {
+      listElement.innerHTML = '<div style="padding: 20px; text-align: center; color: #999;">Niciun apel activ</div>';
+      return;
+    }
+    
+    listElement.innerHTML = activeCalls.map(call => `
+      <div class="active-call-item" data-call-id="${call.callId}">
+        <div class="active-call-avatar">📞</div>
+        <div class="active-call-info">
+          <div class="active-call-number">${call.from}</div>
+          <div class="active-call-duration" id="duration-${call.callId}">00:00</div>
+        </div>
+        <div class="active-call-status ${call.status}">${getStatusLabel(call.status)}</div>
+      </div>
+    `).join('');
+  }
+
+  // Get status label
+  function getStatusLabel(status) {
+    const labels = {
+      'ringing': '🔔 Sună',
+      'in-progress': '📞 În curs',
+      'completed': '✓ Finalizat',
+      'rejected': '✕ Respins'
+    };
+    return labels[status] || status;
+  }
+
+  // Start call timer
+  function startCallTimer(callId) {
+    let seconds = 0;
+    callTimers[callId] = setInterval(() => {
+      seconds++;
+      const minutes = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      const timeStr = `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      
+      const durationElement = document.getElementById(`duration-${callId}`);
+      if (durationElement) {
+        durationElement.textContent = timeStr;
+      }
+    }, 1000);
+  }
+
+  // Stop call timer
+  function stopCallTimer(callId) {
+    if (callTimers[callId]) {
+      clearInterval(callTimers[callId]);
+      delete callTimers[callId];
+    }
+  }
+
+  // Toggle active calls panel
+  function toggleActiveCallsPanel() {
+    const panel = document.getElementById('activeCallsPanel');
+    panel.classList.toggle('visible');
+  }
+
+  // Show active calls panel
+  function showActiveCallsPanel() {
+    document.getElementById('activeCallsPanel').classList.add('visible');
+  }
+
+  // Ringtone functions (placeholder)
+  let ringtoneAudio = null;
+  
+  function playRingtone() {
+    // You can add actual audio file here
+    console.log('🔔 Playing ringtone...');
+  }
+  
+  function stopRingtone() {
+    console.log('🔇 Stopping ringtone...');
+  }
+
+  // Show notification
+  function showNotification(message, type = 'info') {
+    // This should integrate with your existing notification system
+    console.log(`[${type.toUpperCase()}] ${message}`);
+  }
+
+  // Socket.io event listeners
+  if (window.socket) {
+    // Incoming call
+    window.socket.on('call:incoming', (callData) => {
+      console.log('📞 Incoming call:', callData);
+      showIncomingCall(callData);
+    });
+
+    // Call answered
+    window.socket.on('call:answered', (callData) => {
+      console.log('✓ Call answered:', callData);
+      removeFromActiveCalls(callData.callId);
+      addToActiveCalls(callData);
+    });
+
+    // Call ended
+    window.socket.on('call:ended', (callData) => {
+      console.log('✕ Call ended:', callData);
+      removeFromActiveCalls(callData.callId);
+      showNotification('Apel finalizat', 'info');
+    });
+
+    // Call status update
+    window.socket.on('call:status', (callData) => {
+      console.log('📊 Call status update:', callData);
+      const index = activeCalls.findIndex(c => c.callId === callData.callId);
+      if (index !== -1) {
+        activeCalls[index] = callData;
+        updateActiveCallsList();
+      }
+    });
+
+    // Call error
+    window.socket.on('call:error', (error) => {
+      console.error('❌ Call error:', error);
+      showNotification('Eroare apel: ' + error.error, 'error');
+    });
+  }
+</script>

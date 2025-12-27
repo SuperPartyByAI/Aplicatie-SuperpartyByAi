@@ -8,6 +8,9 @@
     <!-- Supabase Client Library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
+    <!-- Socket.io Client -->
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    
     <style>
         * {
             margin: 0;
@@ -6301,6 +6304,33 @@ IMPORTANT:
             </div>
         </div>
     </div>
+    
+    <!-- Voice Call System -->
+    <script>
+        // Initialize Socket.io connection to backend
+        const BACKEND_URL = 'https://web-production-f0714.up.railway.app';
+        const socket = io(BACKEND_URL);
+        window.socket = socket; // Make available globally
+        
+        socket.on('connect', () => {
+            console.log('✅ Connected to Voice backend');
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('❌ Disconnected from Voice backend');
+        });
+        
+        // Load incoming call modal component
+        fetch('/src/components/incoming-call-modal.html')
+            .then(response => response.text())
+            .then(html => {
+                document.body.insertAdjacentHTML('beforeend', html);
+                console.log('✅ Voice call component loaded');
+            })
+            .catch(err => {
+                console.error('❌ Failed to load voice component:', err);
+            });
+    </script>
     
 </body>
 </html>
