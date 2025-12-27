@@ -16,11 +16,12 @@ class SessionStore {
   }
 
   /**
-   * Salvează session în Firestore
+   * Salvează session ȘI account metadata în Firestore
    * @param {string} accountId 
    * @param {string} sessionPath - Path la .baileys_auth/{accountId}
+   * @param {object} accountData - Account metadata (name, phone, status, etc.)
    */
-  async saveSession(accountId, sessionPath) {
+  async saveSession(accountId, sessionPath, accountData = null) {
     try {
       if (!this.db) await this.initialize();
 
@@ -33,15 +34,27 @@ class SessionStore {
 
       const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
       
-      // Salvează în Firestore
-      await this.db.collection('whatsapp_sessions').doc(accountId).set({
+      // Salvează în Firestore (session + metadata)
+      const sessionDoc = {
         accountId,
         creds: creds,
         updatedAt: new Date().toISOString(),
         savedAt: firestore.admin.firestore.FieldValue.serverTimestamp()
-      });
+      };
+      
+      // Add account metadata dacă există
+      if (accountData) {
+        sessionDoc.metadata = {
+          name: accountData.name,
+          phone: accountData.phone,
+          status: accountData.status,
+          createdAt: accountData.createdAt
+        };
+      }
+      
+      await this.db.collection('whatsapp_sessions').doc(accountId).set(sessionDoc, { merge: true });
 
-      console.log(`💾 [${accountId}] Session saved to Firestore`);
+      console.log(`💾 [${accountId}] Session + metadata saved to Firestore`);
     } catch (error) {
       console.error(`❌ [${accountId}] Failed to save session:`, error.message);
     }

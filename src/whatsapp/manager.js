@@ -44,19 +44,19 @@ class WhatsAppManager {
       
       for (const session of sessions) {
         const accountId = session.accountId;
-        const phoneNumber = session.creds?.me?.id?.split(':')[0] || null;
+        const phoneNumber = session.creds?.me?.id?.split(':')[0] || session.metadata?.phone || null;
         
         console.log(`🔄 Restoring account: ${accountId} (${phoneNumber || 'unknown'})`);
         
-        // Add account back
+        // Restore account cu metadata salvată
         const account = {
           id: accountId,
-          name: `WhatsApp ${accountId}`,
+          name: session.metadata?.name || `WhatsApp ${accountId}`,
           status: 'connecting',
           qrCode: null,
           pairingCode: null,
           phone: phoneNumber,
-          createdAt: session.updatedAt || new Date().toISOString()
+          createdAt: session.metadata?.createdAt || session.updatedAt || new Date().toISOString()
         };
         
         this.accounts.set(accountId, account);
@@ -238,7 +238,13 @@ class WhatsAppManager {
         
         const account = this.accounts.get(accountId);
         if (account) {
-          account.status = 'disconnected';
+          account.status = shouldReconnect ? 'reconnecting' : 'disconnected';
+          
+          // Salvează status în Firestore (păstrează accountul în listă)
+          const sessionPath = path.join(this.sessionsPath, accountId);
+          sessionStore.saveSession(accountId, sessionPath, account).catch(err => {
+            console.error(`❌ [${accountId}] Failed to save status:`, err.message);
+          });
         }
         
         this.io.emit('whatsapp:disconnected', { accountId, reason: lastDisconnect?.error?.message });
@@ -254,6 +260,10 @@ class WhatsAppManager {
           }, 5000);
         } else {
           console.log(`❌ [${accountId}] Logged out - not reconnecting. Please re-add account.`);
+          // Chiar și la logout, păstrează în listă cu status 'logged_out'
+          if (account) {
+            account.status = 'logged_out';
+          }
         }
       }
 
@@ -266,9 +276,9 @@ class WhatsAppManager {
           account.phone = sock.user?.id?.split(':')[0] || null;
         }
         
-        // Save session to Firestore for persistence
+        // Save session + metadata to Firestore for persistence
         const sessionPath = path.join(this.sessionsPath, accountId);
-        sessionStore.saveSession(accountId, sessionPath).catch(err => {
+        sessionStore.saveSession(accountId, sessionPath, account).catch(err => {
           console.error(`❌ [${accountId}] Failed to save session:`, err.message);
         });
         
@@ -284,7 +294,8 @@ class WhatsAppManager {
       await saveCreds();
       // Also save to Firestore for persistence across restarts
       const sessionPath = path.join(this.sessionsPath, accountId);
-      sessionStore.saveSession(accountId, sessionPath).catch(err => {
+      const account = this.accounts.get(accountId);
+      sessionStore.saveSession(accountId, sessionPath, account).catch(err => {
         console.error(`❌ [${accountId}] Failed to save session on creds update:`, err.message);
       });
     });
