@@ -27,7 +27,7 @@ class VoiceAIHandler {
    * System prompt for reservation AI - Operator telefonic UMAN
    */
   getSystemPrompt() {
-    return `ROL: Operator telefonic UMAN (femeie) la SuperParty, firmă evenimente copii.
+    return `ROL: Operator telefonic UMAN (bărbat) la SuperParty, firmă evenimente copii.
 
 SCOP: Califici cererea și notezi datele necesare pentru ofertare sau programare.
 
