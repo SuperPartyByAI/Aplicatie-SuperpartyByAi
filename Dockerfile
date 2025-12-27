@@ -13,10 +13,14 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Install Python dependencies
+# Install PyTorch CPU
+RUN pip install --no-cache-dir torch==2.1.0 --index-url https://download.pytorch.org/whl/cpu
+
+# Install Coqui TTS from GitHub
+RUN pip install --no-cache-dir git+https://github.com/coqui-ai/TTS.git
+
+# Install other dependencies
 RUN pip install --no-cache-dir \
-    torch==2.1.0 --index-url https://download.pytorch.org/whl/cpu \
-    TTS \
     flask==3.0.0 \
     gunicorn==21.2.0 \
     numpy \
@@ -29,15 +33,11 @@ COPY app.py /app/
 COPY config.py /app/
 COPY models/ /app/models/
 
-# Create directories for audio and cache
+# Create directories
 RUN mkdir -p /app/audio /app/cache
 
 # Expose port
 EXPOSE 5001
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:5001/health')"
-
-# Run with gunicorn for production
+# Run with gunicorn
 CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--timeout", "120", "app:app"]
