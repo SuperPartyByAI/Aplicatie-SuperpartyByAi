@@ -1,15 +1,29 @@
 #!/usr/bin/env node
 
 /**
- * Railway Auto-Monitor & Auto-Repair
- * Monitors all Railway services 24/7 and auto-fixes issues
+ * Railway Auto-Monitor & Auto-Repair v2.0
+ * - Circuit breaker pattern
+ * - Telegram notifications
+ * - Auto-repair with rollback
+ * - Performance metrics
+ * - Predictive monitoring
  */
 
 const https = require('https');
+const http = require('http');
 
 const RAILWAY_TOKEN = process.env.RAILWAY_TOKEN;
-const CHECK_INTERVAL = 60000; // 60 seconds
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+const CHECK_INTERVAL = 30000; // 30 seconds (faster detection)
 const RAILWAY_API = 'backboard.railway.app';
+
+// Performance thresholds
+const THRESHOLDS = {
+  responseTime: 5000, // 5 seconds
+  errorRate: 0.1, // 10%
+  memoryUsage: 0.9 // 90%
+};
 
 // Services to monitor
 const SERVICES = {
