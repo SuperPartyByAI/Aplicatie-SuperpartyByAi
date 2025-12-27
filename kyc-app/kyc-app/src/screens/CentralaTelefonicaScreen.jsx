@@ -246,27 +246,73 @@ export default function CentralaTelefonicaScreen() {
       
       // Use proxy endpoint that handles Twilio auth
       const audioUrl = `${BACKEND_URL}/api/voice/calls/${callId}/recording/audio`;
-      console.log('Playing recording from:', audioUrl);
+      console.log('🎵 Playing recording from:', audioUrl);
+
+      // First check if recording is available
+      const checkResponse = await fetch(audioUrl, { method: 'HEAD' });
+      console.log('📡 Recording check response:', checkResponse.status);
+      
+      if (!checkResponse.ok) {
+        throw new Error(`Recording not available (HTTP ${checkResponse.status})`);
+      }
 
       // Create audio element
       const audio = new Audio();
       audioRef.current = audio;
-      audio.src = audioUrl;
+      
+      audio.onloadstart = () => {
+        console.log('⏳ Audio loading started...');
+      };
+      
+      audio.oncanplay = () => {
+        console.log('✅ Audio can play');
+      };
       
       audio.onended = () => {
+        console.log('⏹ Audio playback ended');
         setPlayingRecording(null);
       };
       
       audio.onerror = (e) => {
-        console.error('Audio playback error:', e);
-        alert('Eroare la redarea înregistrării. Verifică că înregistrarea este disponibilă.');
+        console.error('❌ Audio playback error:', e);
+        console.error('Audio error details:', {
+          error: audio.error,
+          code: audio.error?.code,
+          message: audio.error?.message
+        });
+        
+        let errorMsg = 'Eroare la redarea înregistrării.';
+        if (audio.error) {
+          switch(audio.error.code) {
+            case 1: errorMsg = 'Încărcare anulată'; break;
+            case 2: errorMsg = 'Eroare de rețea'; break;
+            case 3: errorMsg = 'Eroare de decodare audio'; break;
+            case 4: errorMsg = 'Format audio nesuportat'; break;
+          }
+        }
+        
+        alert(errorMsg + '\n\nVerifică console-ul pentru detalii.');
         setPlayingRecording(null);
       };
       
-      await audio.play();
+      audio.src = audioUrl;
+      audio.load();
+      
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('❌ Play promise rejected:', error);
+          if (error.name === 'NotAllowedError') {
+            alert('Browser-ul blochează redarea automată. Click din nou pe buton.');
+          } else {
+            alert('Eroare la pornirea redării: ' + error.message);
+          }
+          setPlayingRecording(null);
+        });
+      }
     } catch (error) {
-      console.error('Error playing recording:', error);
-      alert('Eroare la redarea înregistrării');
+      console.error('❌ Error playing recording:', error);
+      alert('Eroare la redarea înregistrării: ' + error.message);
       setPlayingRecording(null);
     }
   };

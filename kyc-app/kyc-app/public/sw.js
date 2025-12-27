@@ -33,6 +33,22 @@ self.addEventListener('activate', (event) => {
 
 // Fetch - Network first, fallback to cache
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // Don't cache audio streaming, POST requests, or external APIs
+  const shouldCache = 
+    event.request.method === 'GET' &&
+    !url.pathname.includes('/recording/audio') &&
+    !url.pathname.includes('/api/voice/') &&
+    !url.hostname.includes('twilio.com') &&
+    !url.hostname.includes('railway.app');
+  
+  if (!shouldCache) {
+    // Just fetch without caching
+    event.respondWith(fetch(event.request));
+    return;
+  }
+  
   event.respondWith(
     fetch(event.request)
       .then((response) => {
