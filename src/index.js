@@ -211,7 +211,7 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
       // Process conversation with AI
       const result = await voiceAI.processConversation(CallSid, userInput);
       
-      if (result.isComplete) {
+      if (result.completed) {
         // Conversation complete - save reservation
         console.log('[Voice AI] Reservation complete:', result.data);
         

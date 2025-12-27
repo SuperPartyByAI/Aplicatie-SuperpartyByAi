@@ -178,7 +178,11 @@ SERVICII COMPLEXE: "Pentru asta vă contactează un coleg specializat." → cere
       // Generate natural speech with ElevenLabs
       let audioUrl = null;
       if (this.elevenLabs.isConfigured()) {
+        console.log('[VoiceAI] Using ElevenLabs for TTS');
         audioUrl = await this.elevenLabs.textToSpeech(cleanResponse);
+        console.log('[VoiceAI] ElevenLabs audio URL:', audioUrl);
+      } else {
+        console.log('[VoiceAI] ElevenLabs not configured - using fallback voice');
       }
 
       return {
