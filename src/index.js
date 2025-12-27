@@ -210,7 +210,7 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
     const userInput = SpeechResult || Digits || '';
     
     if (!userInput) {
-      // First interaction - greet and ask first question
+      // First interaction - greet and ask first question with ElevenLabs
       const gather = twiml.gather({
         input: 'speech',
         language: 'ro-RO',
@@ -219,10 +219,20 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
         method: 'POST'
       });
       
-      gather.say({
-        voice: 'Google.ro-RO-Wavenet-A',
-        language: 'ro-RO'
-      }, 'Bună ziua! SuperParty. Cu ce vă pot ajuta?');
+      // Generate first message with ElevenLabs
+      const firstMessage = 'Bună ziua! SuperParty. Cu ce vă pot ajuta?';
+      const audioUrl = await voiceAI.elevenLabs.textToSpeech(firstMessage);
+      
+      if (audioUrl) {
+        console.log('[Voice AI] Using ElevenLabs for first message');
+        gather.play(`${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}${audioUrl}`);
+      } else {
+        console.log('[Voice AI] ElevenLabs failed, using Google Wavenet');
+        gather.say({
+          voice: 'Google.ro-RO-Wavenet-A',
+          language: 'ro-RO'
+        }, firstMessage);
+      }
       
     } else {
       // Process conversation with AI
