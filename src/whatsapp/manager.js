@@ -18,16 +18,47 @@ class WhatsAppManager {
     this.maxAccounts = 20;
     this.messageQueue = [];
     this.processing = false;
+    this.retryCount = new Map(); // Track retry attempts per account
+    this.lastMessageTime = new Map(); // Track last message received per account
+    this.healthCheckInterval = null;
     
     this.ensureSessionsDir();
     this.startMessageProcessor();
     this.startKeepAlive();
+    this.startHealthCheck();
     
     // Initialize Firebase
     firestore.initialize();
     
     // Auto-restore sessions after Railway restart
     this.autoRestoreSessions();
+  }
+  
+  /**
+   * Health check - detectează proactiv probleme
+   */
+  startHealthCheck() {
+    // Check every 30 seconds
+    this.healthCheckInterval = setInterval(() => {
+      for (const [accountId, sock] of this.clients.entries()) {
+        const lastMsg = this.lastMessageTime.get(accountId) || Date.now();
+        const timeSinceLastMsg = Date.now() - lastMsg;
+        
+        // Dacă nu am primit mesaje în 2 minute, verifică conexiunea
+        if (timeSinceLastMsg > 120000) {
+          console.log(`[Health Check] Account ${accountId} - no activity for 2 min, checking...`);
+          
+          // Încearcă să trimită presence
+          try {
+            sock.sendPresenceUpdate('available');
+            this.lastMessageTime.set(accountId, Date.now());
+          } catch (error) {
+            console.log(`[Health Check] Account ${accountId} - connection dead, reconnecting...`);
+            this.reconnectAccount(accountId);
+          }
+        }
+      }
+    }, 30000);
   }
   
   async autoRestoreSessions() {
@@ -72,17 +103,64 @@ class WhatsAppManager {
   }
   
   startKeepAlive() {
-    // Send keep-alive every 30 seconds to prevent disconnections
+    // Send keep-alive every 15 seconds (mai agresiv pentru stabilitate maximă)
     setInterval(() => {
       this.clients.forEach((sock, accountId) => {
         if (sock.user) {
           // Connection is active, send presence update
           sock.sendPresenceUpdate('available').catch(err => {
             console.log(`⚠️ [${accountId}] Keep-alive failed:`, err.message);
+            // Dacă keep-alive eșuează, reconnect
+            this.reconnectAccount(accountId);
           });
+          // Update last activity time
+          this.lastMessageTime.set(accountId, Date.now());
         }
       });
-    }, 30000);
+    }, 15000); // 15 secunde în loc de 30
+  }
+  
+  /**
+   * Reconnect account cu exponential backoff
+   */
+  async reconnectAccount(accountId) {
+    const account = this.accounts.get(accountId);
+    if (!account) return;
+    
+    // Get retry count
+    const retries = this.retryCount.get(accountId) || 0;
+    this.retryCount.set(accountId, retries + 1);
+    
+    // Exponential backoff: 2s, 4s, 8s, 16s, max 60s
+    const backoff = Math.min(2000 * Math.pow(2, retries), 60000);
+    
+    console.log(`🔄 [${accountId}] Reconnecting in ${backoff/1000}s (attempt ${retries + 1})...`);
+    
+    // Disconnect old socket
+    const oldSock = this.clients.get(accountId);
+    if (oldSock) {
+      try {
+        await oldSock.logout();
+      } catch (e) {}
+      this.clients.delete(accountId);
+    }
+    
+    // Wait backoff time
+    await new Promise(resolve => setTimeout(resolve, backoff));
+    
+    // Reconnect
+    try {
+      await this.connectBaileys(accountId, account.phoneNumber);
+      // Reset retry count on success
+      this.retryCount.set(accountId, 0);
+      console.log(`✅ [${accountId}] Reconnected successfully`);
+    } catch (error) {
+      console.error(`❌ [${accountId}] Reconnect failed:`, error.message);
+      // Retry again
+      if (retries < 10) {
+        this.reconnectAccount(accountId);
+      }
+    }
   }
   
   ensureSessionsDir() {

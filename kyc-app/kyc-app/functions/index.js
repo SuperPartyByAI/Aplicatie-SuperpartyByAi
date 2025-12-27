@@ -12,10 +12,11 @@ const OPENAI_API_KEY = defineSecret('OPENAI_API_KEY');
 // Backend API (WhatsApp + Voice AI)
 const backendApp = require('./backend');
 exports.api = onRequest({
-  timeoutSeconds: 300,
-  memory: '1GiB',
+  timeoutSeconds: 540, // Max 9 minute (pentru WhatsApp connection)
+  memory: '2GiB', // Crește pentru puppeteer/baileys
   maxInstances: 10,
-  cors: true
+  cors: true,
+  cpu: 2 // Mai mult CPU pentru build
 }, backendApp);
 
 const rateLimitMap = new Map();
