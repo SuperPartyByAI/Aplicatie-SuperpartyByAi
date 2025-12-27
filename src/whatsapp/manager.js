@@ -1,6 +1,5 @@
 const makeWASocket = require('@whiskeysockets/baileys').default;
 const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
-const { makeInMemoryStore } = require('@whiskeysockets/baileys/lib/Store');
 const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
@@ -11,7 +10,7 @@ class WhatsAppManager {
     this.io = io;
     this.clients = new Map();
     this.accounts = new Map();
-    this.stores = new Map();
+    this.chatsCache = new Map(); // Manual cache for chats
     this.sessionsPath = path.join(__dirname, '../../.baileys_auth');
     this.maxAccounts = 20;
     this.messageQueue = [];
@@ -107,10 +106,6 @@ class WhatsAppManager {
     const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
     const { version } = await fetchLatestBaileysVersion();
 
-    // Create store for this account
-    const store = makeInMemoryStore({ logger: pino({ level: 'silent' }) });
-    this.stores.set(accountId, store);
-
     const sock = makeWASocket({
       version,
       auth: state,
@@ -119,10 +114,8 @@ class WhatsAppManager {
       browser: ['SuperParty', 'Chrome', '1.0.0']
     });
 
-    // Bind store to socket
-    store.bind(sock.ev);
-
     this.clients.set(accountId, sock);
+    this.chatsCache.set(accountId, new Map()); // Initialize chat cache for this account
     this.setupBaileysEvents(accountId, sock, saveCreds, phoneNumber);
   }
 
@@ -214,7 +207,20 @@ class WhatsAppManager {
         
         console.log(`💬 [${accountId}] Message received - queued (${this.messageQueue.length} in queue)`);
         
+        // Add to message queue
         this.messageQueue.push({ accountId, message });
+        
+        // Update chat cache
+        const chatId = message.key.remoteJid;
+        const chats = this.chatsCache.get(accountId);
+        if (chats && chatId && !chatId.includes('@g.us')) {
+          chats.set(chatId, {
+            id: chatId,
+            name: message.pushName || chatId.split('@')[0],
+            lastMessage: message.messageTimestamp,
+            unreadCount: message.key.fromMe ? 0 : 1
+          });
+        }
         
         if (this.messageQueue.length > 1000) {
           console.warn(`⚠️ Message queue too large (${this.messageQueue.length}), dropping oldest`);
@@ -340,32 +346,28 @@ class WhatsAppManager {
           continue;
         }
         
-        console.log(`📋 [${accountId}] Fetching chats...`);
+        console.log(`📋 [${accountId}] Fetching chats from cache...`);
         
-        // Get all chats from store
-        const store = this.stores.get(accountId);
-        if (!store) {
-          console.log(`⚠️ [${accountId}] No store found`);
+        // Get chats from manual cache
+        const chats = this.chatsCache.get(accountId);
+        if (!chats) {
+          console.log(`⚠️ [${accountId}] No chat cache found`);
           continue;
         }
         
-        const chats = store.chats.all();
-        console.log(`📋 [${accountId}] Found ${chats.length} chats`);
+        console.log(`📋 [${accountId}] Found ${chats.size} chats in cache`);
         
-        for (const chat of chats) {
-          // Only individual chats (not groups, not broadcast)
-          if (chat.id && !chat.id.includes('@g.us') && !chat.id.includes('@broadcast')) {
-            allClients.push({
-              id: chat.id,
-              accountId,
-              name: chat.name || chat.id.split('@')[0],
-              phone: chat.id.split('@')[0],
-              status: 'available',
-              unreadCount: chat.unreadCount || 0,
-              lastMessage: chat.conversationTimestamp || Date.now(),
-              lastMessageText: ''
-            });
-          }
+        for (const [chatId, chat] of chats.entries()) {
+          allClients.push({
+            id: chatId,
+            accountId,
+            name: chat.name,
+            phone: chatId.split('@')[0],
+            status: 'available',
+            unreadCount: chat.unreadCount || 0,
+            lastMessage: chat.lastMessage || Date.now(),
+            lastMessageText: ''
+          });
         }
         
         console.log(`✅ [${accountId}] Returning ${allClients.length} clients`);
