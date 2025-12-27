@@ -110,7 +110,9 @@ class TwilioHandler {
         callerId: From,
         record: 'record-from-answer',
         recordingStatusCallback: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/recording-status`,
-        recordingStatusCallbackMethod: 'POST'
+        recordingStatusCallbackMethod: 'POST',
+        action: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/status`,
+        method: 'POST'
       });
       
       dial.client('operator');

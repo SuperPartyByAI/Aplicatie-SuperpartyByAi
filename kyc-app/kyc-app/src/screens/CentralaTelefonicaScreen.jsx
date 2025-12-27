@@ -292,7 +292,15 @@ export default function CentralaTelefonicaScreen() {
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
-    const date = new Date(dateString);
+    
+    // Handle Firestore Timestamp format
+    let date;
+    if (dateString._seconds) {
+      date = new Date(dateString._seconds * 1000);
+    } else {
+      date = new Date(dateString);
+    }
+    
     return date.toLocaleString('ro-RO', {
       day: '2-digit',
       month: '2-digit',

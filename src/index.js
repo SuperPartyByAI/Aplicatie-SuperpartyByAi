@@ -400,11 +400,22 @@ app.get('/api/voice/calls/stats', async (req, res) => {
 app.get('/api/voice/calls/:callId/recording', async (req, res) => {
   try {
     const { callId } = req.params;
-    const call = await callStorage.getCall(callId);
+    console.log('[Recording] Fetching recording for CallSid:', callId);
     
-    if (!call || !call.recordingUrl) {
-      return res.status(404).json({ success: false, error: 'Recording not found' });
+    const call = await callStorage.getCall(callId);
+    console.log('[Recording] Call found:', call ? 'yes' : 'no');
+    
+    if (!call) {
+      console.log('[Recording] Call not found in database');
+      return res.status(404).json({ success: false, error: 'Call not found' });
     }
+    
+    if (!call.recordingUrl) {
+      console.log('[Recording] Recording URL not available yet');
+      return res.status(404).json({ success: false, error: 'Recording not available yet' });
+    }
+    
+    console.log('[Recording] Recording URL:', call.recordingUrl);
 
     // Return authenticated recording URL
     // Twilio recording URLs require Basic Auth with Account SID and Auth Token
