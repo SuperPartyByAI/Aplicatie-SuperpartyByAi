@@ -256,6 +256,11 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
         language: 'ro-RO'
       }, firstMessage);
       
+      // If no input, redirect back to try again
+      twiml.redirect({
+        method: 'POST'
+      }, `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/ai-conversation?CallSid=${CallSid}&From=${From}`);
+      
       console.log('[Voice AI] First message TwiML ready');
       
     } else {
@@ -327,6 +332,11 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
             language: 'ro-RO'
           }, result.response);
         }
+        
+        // If no input, redirect back to try again
+        twiml.redirect({
+          method: 'POST'
+        }, `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/ai-conversation?CallSid=${CallSid}&From=${From}`);
       }
     }
     
