@@ -17,6 +17,7 @@ function WhatsAppAccountManager() {
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [qrCode, setQrCode] = useState(null);
+  const [pairingCode, setPairingCode] = useState(null);
   const [socket, setSocket] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -34,9 +35,15 @@ function WhatsAppAccountManager() {
       setQrCode(data.qrCode);
     });
 
+    newSocket.on('whatsapp:pairing_code', (data) => {
+      console.log('🔢 Pairing code received:', data.code);
+      setPairingCode(data.code);
+    });
+
     newSocket.on('whatsapp:ready', (data) => {
       console.log('✅ Account ready:', data.accountId);
       setQrCode(null);
+      setPairingCode(null);
       loadAccounts();
     });
 
@@ -78,19 +85,21 @@ function WhatsAppAccountManager() {
     }
   };
 
-  const addAccount = async (name) => {
+  const addAccount = async (name, phoneNumber = null) => {
     setLoading(true);
+    setPairingCode(null);
+    setQrCode(null);
     try {
       const response = await fetch(`${BACKEND_URL}/api/accounts/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
+        body: JSON.stringify({ name, phoneNumber })
       });
       
       const data = await response.json();
       if (data.success) {
         setShowAddAccount(false);
-        // QR code will come via WebSocket
+        // QR code and/or pairing code will come via WebSocket
       } else {
         alert(`❌ Eroare: ${data.error}`);
       }
@@ -311,8 +320,9 @@ function WhatsAppAccountManager() {
             <form onSubmit={(e) => {
               e.preventDefault();
               const name = e.target.name.value;
+              const phoneNumber = e.target.phoneNumber.value;
               if (name.trim()) {
-                addAccount(name);
+                addAccount(name, phoneNumber || null);
               }
             }}>
               <div style={{ marginBottom: '1.5rem' }}>
@@ -329,6 +339,30 @@ function WhatsAppAccountManager() {
                   name="name"
                   placeholder="Ex: Support 1, Vânzări, etc."
                   required
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    background: '#1f2937',
+                    border: '1px solid #4b5563',
+                    borderRadius: '8px',
+                    color: 'white',
+                    fontSize: '1rem'
+                  }}
+                />
+              </div>
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  color: '#d1d5db',
+                  fontSize: '0.875rem'
+                }}>
+                  Număr telefon (opțional - pentru cod pairing)
+                </label>
+                <input
+                  type="tel"
+                  name="phoneNumber"
+                  placeholder="Ex: 40737571397 (fără +)"
                   style={{
                     width: '100%',
                     padding: '0.75rem',
@@ -383,7 +417,7 @@ function WhatsAppAccountManager() {
       )}
 
       {/* QR Code Modal */}
-      {qrCode && (
+      {(qrCode || pairingCode) && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -400,26 +434,58 @@ function WhatsAppAccountManager() {
             background: 'white',
             borderRadius: '12px',
             padding: '2rem',
-            textAlign: 'center'
+            textAlign: 'center',
+            maxWidth: '500px'
           }}>
-            <h3 style={{ marginBottom: '1rem', color: '#1f2937' }}>
-              📱 Scanează QR Code
-            </h3>
-            <p style={{ marginBottom: '1.5rem', color: '#6b7280' }}>
-              Deschide WhatsApp pe telefon și scanează acest cod
-            </p>
-            <img
-              src={qrCode}
-              alt="QR Code"
-              style={{
-                width: '300px',
-                height: '300px',
-                border: '2px solid #e5e7eb',
-                borderRadius: '8px'
-              }}
-            />
-            <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>
-              Așteptăm scanarea...
+            {qrCode && (
+              <>
+                <h3 style={{ marginBottom: '1rem', color: '#1f2937' }}>
+                  📱 Scanează QR Code
+                </h3>
+                <p style={{ marginBottom: '1.5rem', color: '#6b7280' }}>
+                  Deschide WhatsApp pe telefon și scanează acest cod
+                </p>
+                <img
+                  src={qrCode}
+                  alt="QR Code"
+                  style={{
+                    width: '300px',
+                    height: '300px',
+                    border: '2px solid #e5e7eb',
+                    borderRadius: '8px'
+                  }}
+                />
+              </>
+            )}
+            
+            {pairingCode && (
+              <>
+                <h3 style={{ marginTop: qrCode ? '2rem' : 0, marginBottom: '1rem', color: '#1f2937' }}>
+                  🔢 Cod Pairing
+                </h3>
+                <p style={{ marginBottom: '1rem', color: '#6b7280' }}>
+                  Introdu acest cod în WhatsApp pe telefon:
+                </p>
+                <div style={{
+                  fontSize: '2.5rem',
+                  fontWeight: 'bold',
+                  color: '#10b981',
+                  letterSpacing: '0.5rem',
+                  padding: '1rem',
+                  background: '#f3f4f6',
+                  borderRadius: '8px',
+                  marginBottom: '1rem'
+                }}>
+                  {pairingCode}
+                </div>
+                <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                  WhatsApp → Linked Devices → Link a Device → Link with phone number
+                </p>
+              </>
+            )}
+            
+            <p style={{ marginTop: '1.5rem', fontSize: '0.875rem', color: '#6b7280' }}>
+              Așteptăm conectarea...
             </p>
           </div>
         </div>

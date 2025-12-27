@@ -62,7 +62,7 @@ class WhatsAppManager {
     }
   }
 
-  async addAccount(accountName) {
+  async addAccount(accountName, phoneNumber = null) {
     if (this.accounts.size >= this.maxAccounts) {
       throw new Error(`Maximum ${this.maxAccounts} accounts reached`);
     }
@@ -73,14 +73,15 @@ class WhatsAppManager {
       name: accountName || `WhatsApp ${this.accounts.size + 1}`,
       status: 'connecting',
       qrCode: null,
-      phone: null,
+      pairingCode: null,
+      phone: phoneNumber,
       createdAt: new Date().toISOString()
     };
 
     this.accounts.set(accountId, account);
 
     try {
-      await this.connectBaileys(accountId);
+      await this.connectBaileys(accountId, phoneNumber);
       console.log(`✅ [${accountId}] Client initialized`);
       return account;
     } catch (error) {
@@ -91,7 +92,7 @@ class WhatsAppManager {
     }
   }
 
-  async connectBaileys(accountId) {
+  async connectBaileys(accountId, phoneNumber = null) {
     const sessionPath = path.join(this.sessionsPath, accountId);
     
     if (!fs.existsSync(sessionPath)) {
@@ -110,10 +111,10 @@ class WhatsAppManager {
     });
 
     this.clients.set(accountId, sock);
-    this.setupBaileysEvents(accountId, sock, saveCreds);
+    this.setupBaileysEvents(accountId, sock, saveCreds, phoneNumber);
   }
 
-  setupBaileysEvents(accountId, sock, saveCreds) {
+  setupBaileysEvents(accountId, sock, saveCreds, phoneNumber = null) {
     sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
       
@@ -128,6 +129,22 @@ class WhatsAppManager {
           }
           
           this.io.emit('whatsapp:qr', { accountId, qrCode: qrCodeDataUrl });
+          
+          // If phone number provided, also request pairing code
+          if (phoneNumber && !sock.authState.creds.registered) {
+            try {
+              const code = await sock.requestPairingCode(phoneNumber);
+              console.log(`🔢 [${accountId}] Pairing code: ${code}`);
+              
+              if (account) {
+                account.pairingCode = code;
+              }
+              
+              this.io.emit('whatsapp:pairing_code', { accountId, code });
+            } catch (error) {
+              console.error(`❌ [${accountId}] Failed to get pairing code:`, error);
+            }
+          }
         } catch (error) {
           console.error(`❌ [${accountId}] QR generation failed:`, error);
         }

@@ -45,8 +45,8 @@ app.get('/api/accounts', (req, res) => {
 
 app.post('/api/accounts/add', async (req, res) => {
   try {
-    const { name } = req.body;
-    const account = await whatsappManager.addAccount(name);
+    const { name, phoneNumber } = req.body;
+    const account = await whatsappManager.addAccount(name, phoneNumber);
     res.json({ success: true, account });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
