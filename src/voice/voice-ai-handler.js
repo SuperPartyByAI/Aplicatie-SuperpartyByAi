@@ -2,9 +2,16 @@ const OpenAI = require('openai');
 
 class VoiceAIHandler {
   constructor() {
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
-    });
+    this.openai = null;
+    
+    if (process.env.OPENAI_API_KEY) {
+      this.openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY
+      });
+      console.log('[VoiceAI] Initialized with OpenAI');
+    } else {
+      console.warn('[VoiceAI] OpenAI API key missing - Voice AI disabled');
+    }
     
     this.conversations = new Map(); // Store conversation state
   }
@@ -47,6 +54,14 @@ Când ai toate cele 5 informații, adaugă [COMPLETE] la final.`;
    * Process conversation turn with GPT-4o
    */
   async processConversation(callSid, userMessage) {
+    if (!this.openai) {
+      return {
+        response: 'Ne pare rău, serviciul Voice AI nu este disponibil momentan.',
+        completed: true,
+        data: null
+      };
+    }
+    
     try {
       // Get or create conversation history
       let conversation = this.conversations.get(callSid);
