@@ -1,5 +1,6 @@
 const makeWASocket = require('@whiskeysockets/baileys').default;
-const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeInMemoryStore } = require('@whiskeysockets/baileys');
+const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { makeInMemoryStore } = require('@whiskeysockets/baileys/lib/Store');
 const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
