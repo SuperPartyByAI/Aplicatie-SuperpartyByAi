@@ -5,8 +5,8 @@ const path = require('path');
 class ElevenLabsHandler {
   constructor() {
     this.client = null;
-    // Voce feminină română naturală - Rachel (multilingual)
-    this.voiceId = process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL'; // Rachel
+    // Voce feminină română naturală - Jane (Professional Audiobook Reader)
+    this.voiceId = process.env.ELEVENLABS_VOICE_ID || 'QtObtrglHRaER8xlDZsr'; // Jane
     
     if (process.env.ELEVENLABS_API_KEY) {
       this.client = new ElevenLabsClient({
@@ -32,12 +32,12 @@ class ElevenLabsHandler {
       const audio = await this.client.generate({
         voice: this.voiceId,
         text: text,
-        model_id: 'eleven_multilingual_v2', // Suportă română
+        model_id: 'eleven_multilingual_v2',
         voice_settings: {
-          stability: 0.45, // Setare optimizată pentru naturalețe
-          similarity_boost: 0.80, // Clarity/Similarity - păstrează caracteristicile vocii
-          style: 0.15, // Style/Expressiveness - ton calm, nu dramatic
-          use_speaker_boost: true // Îmbunătățește claritatea
+          stability: 0.50, // More stable (slider la mijloc)
+          similarity_boost: 0.75, // High clarity (slider sus)
+          style: 0.0, // None exaggerated (slider jos)
+          use_speaker_boost: true
         }
       });
 
