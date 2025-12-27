@@ -5,12 +5,14 @@ const path = require('path');
 class ElevenLabsHandler {
   constructor() {
     this.client = null;
+    this.apiKey = null;
     // Voce masculină română - Harry (Fierce Warrior)
     this.voiceId = process.env.ELEVENLABS_VOICE_ID || 'SOYHLrjzK2X1ezoPC6cr'; // Harry
     
     if (process.env.ELEVENLABS_API_KEY) {
+      this.apiKey = process.env.ELEVENLABS_API_KEY;
       this.client = new ElevenLabsClient({
-        apiKey: process.env.ELEVENLABS_API_KEY
+        apiKey: this.apiKey
       });
       console.log('[ElevenLabs] Initialized with voice:', this.voiceId);
     } else {
@@ -22,21 +24,20 @@ class ElevenLabsHandler {
    * Generate speech from text and return audio URL
    */
   async textToSpeech(text) {
-    if (!this.client) {
+    if (!this.client || !this.apiKey) {
       return null; // Fallback to Google Wavenet
     }
 
     try {
       console.log(`[ElevenLabs] Generating speech: "${text.substring(0, 50)}..."`);
       
-      const audio = await this.client.generate({
-        voice: this.voiceId,
+      // Use textToSpeech method from SDK v2
+      const audio = await this.client.textToSpeech.convert(this.voiceId, {
         text: text,
         model_id: 'eleven_flash_v2_5',
         voice_settings: {
-          stability: 0.50, // More stable (slider la mijloc)
-          similarity_boost: 0.75, // High clarity (slider sus)
-          use_speaker_boost: true
+          stability: 0.50,
+          similarity_boost: 0.75
         }
       });
 
