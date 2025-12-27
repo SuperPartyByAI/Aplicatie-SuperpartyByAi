@@ -2,9 +2,10 @@ const twilio = require('twilio');
 const VoiceResponse = twilio.twiml.VoiceResponse;
 
 class TwilioHandler {
-  constructor(io, callStorage) {
+  constructor(io, callStorage, voiceAI) {
     this.io = io;
     this.callStorage = callStorage;
+    this.voiceAI = voiceAI;
     this.activeCalls = new Map();
   }
 
@@ -42,28 +43,94 @@ class TwilioHandler {
       console.error('[Twilio] Error saving call:', err);
     });
 
-    // Generate TwiML response to connect to Twilio Device
+    // Generate TwiML response with IVR menu
     const twiml = new VoiceResponse();
     
-    // Dial to the registered Twilio Device (operator's browser)
-    const dial = twiml.dial({
-      timeout: 30,
-      callerId: callData.from,
-      record: 'record-from-answer', // Record the call from when it's answered
-      recordingStatusCallback: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/recording-status`,
-      recordingStatusCallbackMethod: 'POST'
+    // Gather user input (1 or 2)
+    const gather = twiml.gather({
+      numDigits: 1,
+      action: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/ivr-response`,
+      method: 'POST',
+      timeout: 5
     });
     
-    // Connect to any available operator
-    // The Device identity should match what's registered in frontend
-    dial.client('operator');
-    
-    // If no answer after timeout, play message
-    twiml.say({ 
+    // IVR greeting
+    gather.say({
       voice: 'Polly.Carmen',
-      language: 'ro-RO' 
-    }, 'Ne pare rau, toti operatorii sunt ocupati. Va rugam sa sunati mai tarziu.');
+      language: 'ro-RO'
+    }, 'Buna ziua! Ati sunat la SuperParty. Pentru rezervare rapida, apasati tasta 1. Pentru operator, apasati tasta 2.');
+    
+    // If no input, repeat
+    twiml.say({
+      voice: 'Polly.Carmen',
+      language: 'ro-RO'
+    }, 'Nu am primit nicio selectie. Va rugam sa sunati din nou.');
+    
+    twiml.hangup();
 
+    res.type('text/xml');
+    res.send(twiml.toString());
+  }
+
+  /**
+   * Handle IVR menu selection
+   */
+  handleIVRResponse(req, res) {
+    const { Digits, CallSid, From } = req.body;
+    
+    console.log('[Twilio] IVR selection:', {
+      callSid: CallSid,
+      digits: Digits,
+      from: From
+    });
+
+    const twiml = new VoiceResponse();
+
+    if (Digits === '1') {
+      // Option 1: Voice AI reservation
+      twiml.say({
+        voice: 'Polly.Carmen',
+        language: 'ro-RO'
+      }, 'Va conectez cu asistentul virtual pentru rezervare.');
+      
+      // Redirect to Voice AI handler
+      twiml.redirect({
+        method: 'POST'
+      }, `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/ai-conversation?CallSid=${CallSid}&From=${From}`);
+      
+    } else if (Digits === '2') {
+      // Option 2: Connect to operator
+      twiml.say({
+        voice: 'Polly.Carmen',
+        language: 'ro-RO'
+      }, 'Va conectez cu un operator. Va rugam asteptati.');
+      
+      const dial = twiml.dial({
+        timeout: 30,
+        callerId: From,
+        record: 'record-from-answer',
+        recordingStatusCallback: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/recording-status`,
+        recordingStatusCallbackMethod: 'POST'
+      });
+      
+      dial.client('operator');
+      
+      // If no answer
+      twiml.say({
+        voice: 'Polly.Carmen',
+        language: 'ro-RO'
+      }, 'Ne pare rau, toti operatorii sunt ocupati. Va rugam sa sunati mai tarziu.');
+      
+    } else {
+      // Invalid selection
+      twiml.say({
+        voice: 'Polly.Carmen',
+        language: 'ro-RO'
+      }, 'Selectie invalida. Va rugam sa sunati din nou.');
+    }
+
+    twiml.hangup();
+    
     res.type('text/xml');
     res.send(twiml.toString());
   }

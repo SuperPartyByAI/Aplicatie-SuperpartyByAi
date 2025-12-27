@@ -6,6 +6,8 @@ const cors = require('cors');
 const TwilioHandler = require('./voice/twilio-handler');
 const CallStorage = require('./voice/call-storage');
 const TokenGenerator = require('./voice/token-generator');
+const VoiceAIHandler = require('./voice/voice-ai-handler');
+const VoiceResponse = require('twilio').twiml.VoiceResponse;
 
 const app = express();
 const server = http.createServer(app);
@@ -35,7 +37,8 @@ try {
 
 // Initialize Voice managers
 const callStorage = new CallStorage();
-const twilioHandler = new TwilioHandler(io, callStorage);
+const voiceAI = new VoiceAIHandler();
+const twilioHandler = new TwilioHandler(io, callStorage, voiceAI);
 const tokenGenerator = new TokenGenerator();
 
 // Health check
@@ -158,6 +161,96 @@ app.patch('/api/clients/:clientId/status', async (req, res) => {
 });
 
 // Voice API Routes
+
+// IVR menu response handler
+app.post('/api/voice/ivr-response', (req, res) => {
+  twilioHandler.handleIVRResponse(req, res);
+});
+
+// Voice AI conversation handler
+app.post('/api/voice/ai-conversation', async (req, res) => {
+  try {
+    const { CallSid, From, SpeechResult, Digits } = req.body;
+    
+    console.log('[Voice AI] Processing:', {
+      callSid: CallSid,
+      from: From,
+      speech: SpeechResult,
+      digits: Digits
+    });
+
+    const twiml = new VoiceResponse();
+    
+    // Get user input (speech or digits)
+    const userInput = SpeechResult || Digits || '';
+    
+    if (!userInput) {
+      // First interaction - greet and ask first question
+      const gather = twiml.gather({
+        input: 'speech',
+        language: 'ro-RO',
+        speechTimeout: 'auto',
+        action: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/ai-conversation`,
+        method: 'POST'
+      });
+      
+      gather.say({
+        voice: 'Polly.Carmen',
+        language: 'ro-RO'
+      }, 'Buna ziua! Sunt asistentul virtual SuperParty. Va ajut sa faceti o rezervare. Pentru ce data doriti sa rezervati?');
+      
+    } else {
+      // Process conversation with AI
+      const result = await voiceAI.processConversation(CallSid, userInput);
+      
+      if (result.isComplete) {
+        // Conversation complete - save reservation
+        console.log('[Voice AI] Reservation complete:', result.data);
+        
+        // TODO: Save to Firestore
+        // TODO: Send WhatsApp confirmation
+        
+        twiml.say({
+          voice: 'Polly.Carmen',
+          language: 'ro-RO'
+        }, `Multumesc! Rezervarea dumneavoastra a fost inregistrata. Veti primi o confirmare pe WhatsApp. O zi buna!`);
+        
+        twiml.hangup();
+        
+      } else {
+        // Continue conversation
+        const gather = twiml.gather({
+          input: 'speech',
+          language: 'ro-RO',
+          speechTimeout: 'auto',
+          action: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/ai-conversation`,
+          method: 'POST'
+        });
+        
+        gather.say({
+          voice: 'Polly.Carmen',
+          language: 'ro-RO'
+        }, result.response);
+      }
+    }
+    
+    res.type('text/xml');
+    res.send(twiml.toString());
+    
+  } catch (error) {
+    console.error('[Voice AI] Error:', error);
+    
+    const twiml = new VoiceResponse();
+    twiml.say({
+      voice: 'Polly.Carmen',
+      language: 'ro-RO'
+    }, 'Ne pare rau, a aparut o eroare. Va rugam sa sunati din nou.');
+    twiml.hangup();
+    
+    res.type('text/xml');
+    res.send(twiml.toString());
+  }
+});
 
 // Generate Access Token for Twilio Client
 app.post('/api/voice/token', (req, res) => {
