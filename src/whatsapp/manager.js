@@ -42,7 +42,7 @@ class WhatsAppManager {
     try {
       const contactName = message.pushName || message.key.remoteJid.split('@')[0];
       
-      this.io.emit('whatsapp:message', {
+      const messageData = {
         accountId,
         message: {
           id: message.key.id,
@@ -54,7 +54,10 @@ class WhatsAppManager {
           hasMedia: !!message.message?.imageMessage || !!message.message?.videoMessage,
           contactName: contactName
         }
-      });
+      };
+      
+      console.log(`📤 [${accountId}] Emitting whatsapp:message:`, messageData.message.body);
+      this.io.emit('whatsapp:message', messageData);
     } catch (error) {
       console.error(`❌ [${accountId}] Error processing queued message:`, error);
     } finally {
