@@ -1,0 +1,19 @@
+⚠️ No Firebase credentials - running without persistence
+🔄 Checking for saved sessions in Firestore...
+⚠️ No Firebase credentials - running without persistence
+✅ WhatsApp Manager initialized
+[CallStorage] Firebase not available, running in memory mode
+[ReservationStorage] Firestore not available, using memory storage
+[WhatsAppNotifier] Twilio credentials missing
+[VoiceAI] OpenAI API key missing - Voice AI disabled
+
+╔═══════════════════════════════════════════════════════╗
+║  🚀 SuperParty Backend - WhatsApp + Voice             ║
+║  📡 Server running on port 5001                       ║
+║  📱 Max WhatsApp accounts: 20                         ║
+║  📞 Voice calls: Enabled                              ║
+║  ✅ Ready to accept connections                       ║
+╚═══════════════════════════════════════════════════════╝
+  
+❌ Failed to list sessions: Cannot read properties of null (reading 'collection')
+ℹ️ No saved sessions found
