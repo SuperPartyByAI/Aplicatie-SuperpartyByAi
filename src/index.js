@@ -220,7 +220,7 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
       const gather = twiml.gather({
         input: 'speech',
         language: 'ro-RO',
-        speechTimeout: 2, // 2 seconds pause after user stops speaking
+        speechTimeout: 1, // 1 second pause after user stops speaking
         action: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/ai-conversation`,
         method: 'POST'
       });
@@ -233,9 +233,9 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
         console.log('[Voice AI] Using ElevenLabs for first message');
         gather.play(`${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}${audioUrl}`);
       } else {
-        console.log('[Voice AI] ElevenLabs failed, using Azure Neural TTS');
+        console.log('[Voice AI] ElevenLabs failed, using fallback');
         gather.say({
-          voice: 'Polly.Ioana-Neural', // Azure Neural - voce feminină română naturală
+          voice: 'Polly.Ioana-Neural',
           language: 'ro-RO'
         }, firstMessage);
       }
@@ -294,7 +294,7 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
         const gather = twiml.gather({
           input: 'speech',
           language: 'ro-RO',
-          speechTimeout: 2, // 2 seconds pause after user stops speaking
+          speechTimeout: 1, // 1 second pause after user stops speaking
           action: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/ai-conversation`,
           method: 'POST'
         });
