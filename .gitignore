@@ -1,6 +1,19 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Secrets
 .firebase-token
 .secrets/
 .railway-credentials
 COMPLETE-CONFIG.txt
 YOUR-ENV-VARS.txt
 FINAL-ENV-VARS.txt
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local

@@ -2,17 +2,17 @@
   "name": "superparty-perfect-monitor",
   "version": "4.0.0",
   "description": "PERFECT monitoring: AI prediction, multi-region, <30s downtime/month, 90% prevention",
-  "main": "perfect-monitor.js",
+  "main": "monitoring/multi-project-monitor.js",
   "scripts": {
-    "start": "node multi-project-monitor.js",
-    "start:multi": "node multi-project-monitor.js",
-    "start:perfect": "node perfect-monitor.js",
-    "start:ultimate": "node ultimate-monitor.js",
-    "start:extreme": "node extreme-monitor.js",
-    "start:normal": "node ultra-fast-monitor.js",
-    "test": "node test-recovery.js",
-    "demo": "node demo-auto-repair.js",
-    "chaos": "node -e \"const UltimateMonitor = require('./ultimate-monitor'); const m = new UltimateMonitor(); m.runChaosTest();\""
+    "start": "node monitoring/multi-project-monitor.js",
+    "start:multi": "node monitoring/multi-project-monitor.js",
+    "start:perfect": "node monitoring/perfect-monitor.js",
+    "start:ultimate": "node monitoring/ultimate-monitor.js",
+    "start:extreme": "node monitoring/extreme-monitor.js",
+    "start:normal": "node monitoring/ultra-fast-monitor.js",
+    "test": "node monitoring/test-recovery.js",
+    "demo": "node monitoring/demo-auto-repair.js",
+    "chaos": "node -e \"const UltimateMonitor = require('./monitoring/ultimate-monitor'); const m = new UltimateMonitor(); m.runChaosTest();\""
   },
   "dependencies": {
     "node-fetch": "^2.6.7"
