@@ -1,0 +1,11 @@
+import type * as ElevenLabs from "../../../../../../index";
+/**
+ * @example
+ *     {}
+ */
+export interface UpdatePhoneNumberRequest {
+    agentId?: string;
+    inboundTrunkConfig?: ElevenLabs.InboundSipTrunkConfigRequestModel;
+    outboundTrunkConfig?: ElevenLabs.OutboundSipTrunkConfigRequestModel;
+    livekitStack?: ElevenLabs.LivekitStackType;
+}

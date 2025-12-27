@@ -3,6 +3,7 @@ const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
 const cors = require('cors');
+const path = require('path');
 const TwilioHandler = require('./voice/twilio-handler');
 const CallStorage = require('./voice/call-storage');
 const TokenGenerator = require('./voice/token-generator');
@@ -44,6 +45,9 @@ const whatsappNotifier = new WhatsAppNotifier();
 const voiceAI = new VoiceAIHandler();
 const twilioHandler = new TwilioHandler(io, callStorage, voiceAI);
 const tokenGenerator = new TokenGenerator();
+
+// Serve ElevenLabs audio files
+app.use('/audio', express.static(path.join(__dirname, '../temp')));
 
 // Health check
 app.get('/', (req, res) => {
@@ -240,10 +244,15 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
           console.error('[Voice AI] Error saving reservation:', error);
         }
         
-        twiml.say({
-          voice: 'Google.ro-RO-Wavenet-A',
-          language: 'ro-RO'
-        }, `Multumesc! Rezervarea dumneavoastra a fost inregistrata. Veti primi o confirmare pe WhatsApp. O zi buna!`);
+        // Use ElevenLabs if available, fallback to Google Wavenet
+        if (result.audioUrl) {
+          twiml.play(`${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}${result.audioUrl}`);
+        } else {
+          twiml.say({
+            voice: 'Google.ro-RO-Wavenet-A',
+            language: 'ro-RO'
+          }, `Multumesc! Rezervarea dumneavoastra a fost inregistrata. Veti primi o confirmare pe WhatsApp. O zi buna!`);
+        }
         
         twiml.hangup();
         
@@ -257,10 +266,15 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
           method: 'POST'
         });
         
-        gather.say({
-          voice: 'Google.ro-RO-Wavenet-A',
-          language: 'ro-RO'
-        }, result.response);
+        // Use ElevenLabs if available, fallback to Google Wavenet
+        if (result.audioUrl) {
+          gather.play(`${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}${result.audioUrl}`);
+        } else {
+          gather.say({
+            voice: 'Google.ro-RO-Wavenet-A',
+            language: 'ro-RO'
+          }, result.response);
+        }
       }
     }
     

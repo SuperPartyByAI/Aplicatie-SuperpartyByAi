@@ -1,0 +1,15 @@
+import type * as ElevenLabs from "../../api/index";
+import * as core from "../../core";
+import type * as serializers from "../index";
+import { SoftTimeoutConfig } from "./SoftTimeoutConfig";
+import { TurnEagerness } from "./TurnEagerness";
+export declare const TurnConfig: core.serialization.ObjectSchema<serializers.TurnConfig.Raw, ElevenLabs.TurnConfig>;
+export declare namespace TurnConfig {
+    interface Raw {
+        turn_timeout?: number | null;
+        initial_wait_time?: number | null;
+        silence_end_call_timeout?: number | null;
+        soft_timeout_config?: SoftTimeoutConfig.Raw | null;
+        turn_eagerness?: TurnEagerness.Raw | null;
+    }
+}

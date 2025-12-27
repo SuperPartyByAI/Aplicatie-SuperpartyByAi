@@ -1,0 +1,15 @@
+import type * as ElevenLabs from "../../api/index";
+import * as core from "../../core";
+import type * as serializers from "../index";
+import { DefaultConversationInitiationTrigger } from "./DefaultConversationInitiationTrigger";
+import { ZendeskConversationInitiationTrigger } from "./ZendeskConversationInitiationTrigger";
+export declare const ConversationHistoryMetadataCommonModelInitiationTrigger: core.serialization.Schema<serializers.ConversationHistoryMetadataCommonModelInitiationTrigger.Raw, ElevenLabs.ConversationHistoryMetadataCommonModelInitiationTrigger>;
+export declare namespace ConversationHistoryMetadataCommonModelInitiationTrigger {
+    type Raw = ConversationHistoryMetadataCommonModelInitiationTrigger.Default | ConversationHistoryMetadataCommonModelInitiationTrigger.Zendesk;
+    interface Default extends DefaultConversationInitiationTrigger.Raw {
+        trigger_type: "default";
+    }
+    interface Zendesk extends ZendeskConversationInitiationTrigger.Raw {
+        trigger_type: "zendesk";
+    }
+}

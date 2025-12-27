@@ -1,0 +1,5 @@
+export declare const DubbingModel: {
+    readonly DubbingV2: "dubbing_v2";
+    readonly DubbingV3: "dubbing_v3";
+};
+export type DubbingModel = (typeof DubbingModel)[keyof typeof DubbingModel];

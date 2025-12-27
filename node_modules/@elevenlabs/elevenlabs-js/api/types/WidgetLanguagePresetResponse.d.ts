@@ -1,0 +1,6 @@
+import type * as ElevenLabs from "../index";
+export interface WidgetLanguagePresetResponse {
+    firstMessage?: string;
+    /** The text contents for the selected language */
+    textContents?: ElevenLabs.WidgetTextContents;
+}

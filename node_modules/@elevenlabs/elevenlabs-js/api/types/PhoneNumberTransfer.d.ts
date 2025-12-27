@@ -1,0 +1,7 @@
+import type * as ElevenLabs from "../index";
+export interface PhoneNumberTransfer {
+    transferDestination?: ElevenLabs.PhoneNumberTransferTransferDestination;
+    phoneNumber?: string;
+    condition: string;
+    transferType?: ElevenLabs.TransferTypeEnum;
+}

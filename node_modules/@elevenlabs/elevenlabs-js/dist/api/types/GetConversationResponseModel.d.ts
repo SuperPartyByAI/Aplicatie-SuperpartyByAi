@@ -1,0 +1,15 @@
+import type * as ElevenLabs from "../index";
+export interface GetConversationResponseModel {
+    agentId: string;
+    conversationId: string;
+    status: ElevenLabs.GetConversationResponseModelStatus;
+    userId?: string;
+    branchId?: string;
+    transcript: ElevenLabs.ConversationHistoryTranscriptCommonModelOutput[];
+    metadata: ElevenLabs.ConversationHistoryMetadataCommonModel;
+    analysis?: ElevenLabs.ConversationHistoryAnalysisCommonModel;
+    conversationInitiationClientData?: ElevenLabs.ConversationInitiationClientDataRequestOutput;
+    hasAudio: boolean;
+    hasUserAudio: boolean;
+    hasResponseAudio: boolean;
+}

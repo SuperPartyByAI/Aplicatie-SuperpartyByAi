@@ -1,4 +1,5 @@
 const OpenAI = require('openai');
+const ElevenLabsHandler = require('./elevenlabs-handler');
 
 class VoiceAIHandler {
   constructor() {
@@ -13,7 +14,13 @@ class VoiceAIHandler {
       console.warn('[VoiceAI] OpenAI API key missing - Voice AI disabled');
     }
     
+    this.elevenLabs = new ElevenLabsHandler();
     this.conversations = new Map(); // Store conversation state
+    
+    // Cleanup old audio files every hour
+    setInterval(() => {
+      this.elevenLabs.cleanupOldFiles();
+    }, 60 * 60 * 1000);
   }
 
   /**
@@ -162,8 +169,15 @@ SERVICII COMPLEXE: "Pentru asta vă contactează un coleg specializat." → cere
         .replace(/\[COMPLETE\]/g, '')
         .trim();
 
+      // Generate natural speech with ElevenLabs
+      let audioUrl = null;
+      if (this.elevenLabs.isConfigured()) {
+        audioUrl = await this.elevenLabs.textToSpeech(cleanResponse);
+      }
+
       return {
         response: cleanResponse,
+        audioUrl: audioUrl, // Pentru Twilio Play
         completed,
         data: reservationData
       };

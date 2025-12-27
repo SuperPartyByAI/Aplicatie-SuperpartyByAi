@@ -1,0 +1,7 @@
+import type * as ElevenLabs from "../index";
+export interface DependentAvailableAgentIdentifier {
+    id: string;
+    name: string;
+    createdAtUnixSecs: number;
+    accessLevel: ElevenLabs.DependentAvailableAgentIdentifierAccessLevel;
+}
