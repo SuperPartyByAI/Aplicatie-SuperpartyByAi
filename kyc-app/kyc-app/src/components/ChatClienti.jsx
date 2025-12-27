@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import io from 'socket.io-client';
 
 const BACKEND_URL = 'https://aplicatie-superpartybyai-production.up.railway.app';
 
@@ -20,21 +21,32 @@ function ChatClienti() {
 
   useEffect(() => {
     loadClients();
-    // WebSocket connection for real-time updates
-    const ws = new WebSocket(`${BACKEND_URL.replace('https', 'wss')}/ws`);
     
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'new_message') {
-        if (selectedClient && data.clientId === selectedClient.id) {
-          setMessages(prev => [...prev, data.message]);
-        }
-        // Update client list to show new message indicator
-        loadClients();
+    // Socket.io connection for real-time updates
+    const socket = io(BACKEND_URL);
+    
+    socket.on('connect', () => {
+      console.log('✅ Connected to backend');
+    });
+    
+    socket.on('whatsapp:message', (data) => {
+      console.log('💬 New message received:', data);
+      
+      // If viewing this client's messages, add to list
+      if (selectedClient && data.message.from === selectedClient.id) {
+        setMessages(prev => [...prev, {
+          id: data.message.id,
+          text: data.message.body,
+          fromClient: !data.message.fromMe,
+          timestamp: data.message.timestamp * 1000
+        }]);
       }
-    };
+      
+      // Reload client list to update unread count
+      loadClients();
+    });
 
-    return () => ws.close();
+    return () => socket.disconnect();
   }, [selectedClient]);
 
   const loadClients = async () => {
