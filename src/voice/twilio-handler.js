@@ -48,7 +48,10 @@ class TwilioHandler {
     // Dial to the registered Twilio Device (operator's browser)
     const dial = twiml.dial({
       timeout: 30,
-      callerId: callData.from
+      callerId: callData.from,
+      record: 'record-from-answer', // Record the call from when it's answered
+      recordingStatusCallback: `${process.env.BACKEND_URL || 'https://web-production-f0714.up.railway.app'}/api/voice/recording-status`,
+      recordingStatusCallbackMethod: 'POST'
     });
     
     // Connect to any available operator

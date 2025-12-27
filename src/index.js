@@ -191,6 +191,27 @@ app.post('/api/voice/status', (req, res) => {
   twilioHandler.handleCallStatus(req, res);
 });
 
+app.post('/api/voice/recording-status', (req, res) => {
+  const { CallSid, RecordingSid, RecordingUrl, RecordingDuration } = req.body;
+  
+  console.log('[Voice] Recording ready:', {
+    callSid: CallSid,
+    recordingSid: RecordingSid,
+    duration: RecordingDuration
+  });
+
+  // Update call with recording info
+  callStorage.updateCall(CallSid, {
+    recordingSid: RecordingSid,
+    recordingUrl: RecordingUrl,
+    recordingDuration: parseInt(RecordingDuration) || 0
+  }).catch(err => {
+    console.error('[Voice] Error updating call with recording:', err);
+  });
+
+  res.sendStatus(200);
+});
+
 app.get('/api/voice/calls', (req, res) => {
   try {
     const calls = twilioHandler.getActiveCalls();
@@ -217,6 +238,40 @@ app.get('/api/voice/calls/stats', async (req, res) => {
     const end = endDate ? new Date(endDate) : new Date();
     const stats = await callStorage.getCallStats(start, end);
     res.json({ success: true, stats });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/voice/calls/:callId/recording', async (req, res) => {
+  try {
+    const { callId } = req.params;
+    const call = await callStorage.getCall(callId);
+    
+    if (!call || !call.recordingUrl) {
+      return res.status(404).json({ success: false, error: 'Recording not found' });
+    }
+
+    // Return authenticated recording URL
+    // Twilio recording URLs require Basic Auth with Account SID and Auth Token
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const recordingUrl = call.recordingUrl;
+    
+    // Add .mp3 extension for audio format
+    const audioUrl = recordingUrl + '.mp3';
+    
+    res.json({ 
+      success: true, 
+      recordingUrl: audioUrl,
+      recordingSid: call.recordingSid,
+      duration: call.recordingDuration,
+      // Provide auth for client to use
+      auth: {
+        username: accountSid,
+        password: authToken
+      }
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

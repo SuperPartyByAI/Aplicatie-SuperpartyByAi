@@ -16,7 +16,9 @@ export default function CentralaTelefonicaScreen() {
   const [twilioDevice, setTwilioDevice] = useState(null);
   const [activeConnection, setActiveConnection] = useState(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [playingRecording, setPlayingRecording] = useState(null);
   const deviceRef = useRef(null);
+  const audioRef = useRef(null);
 
   // Initialize Twilio Device
   useEffect(() => {
@@ -217,6 +219,52 @@ export default function CentralaTelefonicaScreen() {
       activeConnection.disconnect();
       setActiveConnection(null);
     }
+  };
+
+  const playRecording = async (callId) => {
+    try {
+      setPlayingRecording(callId);
+      
+      const response = await fetch(`${BACKEND_URL}/api/voice/calls/${callId}/recording`);
+      const data = await response.json();
+      
+      if (!data.success) {
+        alert('Înregistrarea nu este disponibilă încă. Așteaptă câteva secunde după încheierea apelului.');
+        setPlayingRecording(null);
+        return;
+      }
+
+      // Create audio element with Basic Auth
+      const audio = new Audio();
+      audioRef.current = audio;
+      
+      // Twilio requires Basic Auth for recording URLs
+      const authUrl = data.recordingUrl.replace('https://', `https://${data.auth.username}:${data.auth.password}@`);
+      audio.src = authUrl;
+      
+      audio.onended = () => {
+        setPlayingRecording(null);
+      };
+      
+      audio.onerror = () => {
+        alert('Eroare la redarea înregistrării');
+        setPlayingRecording(null);
+      };
+      
+      await audio.play();
+    } catch (error) {
+      console.error('Error playing recording:', error);
+      alert('Eroare la redarea înregistrării');
+      setPlayingRecording(null);
+    }
+  };
+
+  const stopRecording = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setPlayingRecording(null);
   };
 
   const formatDuration = (seconds) => {
@@ -480,6 +528,7 @@ export default function CentralaTelefonicaScreen() {
                   <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', color: '#666', fontWeight: '600' }}>Număr</th>
                   <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', color: '#666', fontWeight: '600' }}>Durata</th>
                   <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', color: '#666', fontWeight: '600' }}>Status</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', color: '#666', fontWeight: '600' }}>Înregistrare</th>
                 </tr>
               </thead>
               <tbody>
@@ -499,6 +548,45 @@ export default function CentralaTelefonicaScreen() {
                       }}>
                         {call.status === 'completed' ? '✓ Finalizat' : '✕ ' + call.status}
                       </span>
+                    </td>
+                    <td style={{ padding: '12px' }}>
+                      {call.recordingSid ? (
+                        playingRecording === call.callId ? (
+                          <button
+                            onClick={stopRecording}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              border: 'none',
+                              background: '#ef4444',
+                              color: 'white',
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                              fontWeight: '500'
+                            }}
+                          >
+                            ⏸ Stop
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => playRecording(call.callId)}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              border: 'none',
+                              background: '#667eea',
+                              color: 'white',
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                              fontWeight: '500'
+                            }}
+                          >
+                            ▶ Ascultă
+                          </button>
+                        )
+                      ) : (
+                        <span style={{ fontSize: '12px', color: '#999' }}>-</span>
+                      )}
                     </td>
                   </tr>
                 ))}
