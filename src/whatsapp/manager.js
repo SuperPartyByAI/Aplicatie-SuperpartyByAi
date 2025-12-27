@@ -1,14 +1,16 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const makeWASocket = require('@whiskeysockets/baileys').default;
+const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
+const pino = require('pino');
 
 class WhatsAppManager {
   constructor(io) {
     this.io = io;
     this.clients = new Map();
     this.accounts = new Map();
-    this.sessionsPath = path.join(__dirname, '../../.wwebjs_auth');
+    this.sessionsPath = path.join(__dirname, '../../.baileys_auth');
     this.maxAccounts = 20;
     this.messageQueue = [];
     this.processing = false;
@@ -17,8 +19,13 @@ class WhatsAppManager {
     this.startMessageProcessor();
   }
   
+  ensureSessionsDir() {
+    if (!fs.existsSync(this.sessionsPath)) {
+      fs.mkdirSync(this.sessionsPath, { recursive: true });
+    }
+  }
+  
   startMessageProcessor() {
-    // Process queued messages every 100ms to handle high traffic
     setInterval(() => {
       if (this.messageQueue.length > 0 && !this.processing) {
         this.processNextMessage();
@@ -33,18 +40,18 @@ class WhatsAppManager {
     const { accountId, message } = this.messageQueue.shift();
     
     try {
-      const contactName = message._data?.notifyName || message.from.split('@')[0];
+      const contactName = message.pushName || message.key.remoteJid.split('@')[0];
       
       this.io.emit('whatsapp:message', {
         accountId,
         message: {
-          id: message.id._serialized,
-          from: message.from,
-          to: message.to,
-          body: message.body,
-          timestamp: message.timestamp,
-          fromMe: message.fromMe,
-          hasMedia: message.hasMedia,
+          id: message.key.id,
+          from: message.key.remoteJid,
+          to: message.key.remoteJid,
+          body: message.message?.conversation || message.message?.extendedTextMessage?.text || '',
+          timestamp: message.messageTimestamp,
+          fromMe: message.key.fromMe,
+          hasMedia: !!message.message?.imageMessage || !!message.message?.videoMessage,
           contactName: contactName
         }
       });
@@ -52,12 +59,6 @@ class WhatsAppManager {
       console.error(`❌ [${accountId}] Error processing queued message:`, error);
     } finally {
       this.processing = false;
-    }
-  }
-
-  ensureSessionsDir() {
-    if (!fs.existsSync(this.sessionsPath)) {
-      fs.mkdirSync(this.sessionsPath, { recursive: true });
     }
   }
 
@@ -78,39 +79,8 @@ class WhatsAppManager {
 
     this.accounts.set(accountId, account);
 
-    const puppeteerConfig = {
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process',
-        '--disable-gpu'
-      ]
-    };
-
-    // Use system Chromium on Railway (Nixpacks installs it)
-    if (process.env.RAILWAY_ENVIRONMENT || process.env.NIXPACKS_METADATA) {
-      // Nixpacks puts chromium in PATH, so we can use 'chromium' directly
-      puppeteerConfig.executablePath = 'chromium';
-    }
-
-    const client = new Client({
-      authStrategy: new LocalAuth({
-        clientId: accountId,
-        dataPath: this.sessionsPath
-      }),
-      puppeteer: puppeteerConfig
-    });
-
-    this.setupClientEvents(accountId, client);
-    this.clients.set(accountId, client);
-
     try {
-      await client.initialize();
+      await this.connectBaileys(accountId);
       console.log(`✅ [${accountId}] Client initialized`);
       return account;
     } catch (error) {
@@ -121,100 +91,118 @@ class WhatsAppManager {
     }
   }
 
-  setupClientEvents(accountId, client) {
-    client.on('qr', async (qr) => {
-      console.log(`📱 [${accountId}] QR Code generated`);
-      try {
-        const qrCodeDataUrl = await QRCode.toDataURL(qr);
+  async connectBaileys(accountId) {
+    const sessionPath = path.join(this.sessionsPath, accountId);
+    
+    if (!fs.existsSync(sessionPath)) {
+      fs.mkdirSync(sessionPath, { recursive: true });
+    }
+
+    const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+    const { version } = await fetchLatestBaileysVersion();
+
+    const sock = makeWASocket({
+      version,
+      auth: state,
+      printQRInTerminal: false,
+      logger: pino({ level: 'silent' }),
+      browser: ['SuperParty', 'Chrome', '1.0.0']
+    });
+
+    this.clients.set(accountId, sock);
+    this.setupBaileysEvents(accountId, sock, saveCreds);
+  }
+
+  setupBaileysEvents(accountId, sock, saveCreds) {
+    sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
+      
+      if (qr) {
+        console.log(`📱 [${accountId}] QR Code generated`);
+        try {
+          const qrCodeDataUrl = await QRCode.toDataURL(qr);
+          const account = this.accounts.get(accountId);
+          if (account) {
+            account.qrCode = qrCodeDataUrl;
+            account.status = 'qr_ready';
+          }
+          
+          this.io.emit('whatsapp:qr', { accountId, qrCode: qrCodeDataUrl });
+        } catch (error) {
+          console.error(`❌ [${accountId}] QR generation failed:`, error);
+        }
+      }
+
+      if (connection === 'close') {
+        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        console.log(`🔌 [${accountId}] Connection closed. Reconnect:`, shouldReconnect);
+        
         const account = this.accounts.get(accountId);
         if (account) {
-          account.qrCode = qrCodeDataUrl;
-          account.status = 'qr_ready';
+          account.status = 'disconnected';
         }
         
-        this.io.emit('whatsapp:qr', { accountId, qrCode: qrCodeDataUrl });
-      } catch (error) {
-        console.error(`❌ [${accountId}] QR generation failed:`, error);
-      }
-    });
-
-    client.on('ready', () => {
-      console.log(`✅ [${accountId}] Client ready`);
-      const account = this.accounts.get(accountId);
-      if (account) {
-        account.status = 'connected';
-        account.qrCode = null;
-        account.phone = client.info?.wid?.user || null;
-      }
-      
-      this.io.emit('whatsapp:ready', {
-        accountId,
-        phone: client.info?.wid?.user,
-        info: client.info
-      });
-    });
-
-    client.on('authenticated', () => {
-      console.log(`🔐 [${accountId}] Authenticated`);
-      this.io.emit('whatsapp:authenticated', { accountId });
-    });
-
-    client.on('auth_failure', (error) => {
-      console.error(`❌ [${accountId}] Auth failed:`, error);
-      const account = this.accounts.get(accountId);
-      if (account) {
-        account.status = 'auth_failed';
-      }
-      this.io.emit('whatsapp:auth_failure', { accountId, error: error.message });
-    });
-
-    client.on('disconnected', (reason) => {
-      console.log(`🔌 [${accountId}] Disconnected:`, reason);
-      const account = this.accounts.get(accountId);
-      if (account) {
-        account.status = 'disconnected';
-      }
-      this.io.emit('whatsapp:disconnected', { accountId, reason });
-      
-      // Auto-reconnect after 5 seconds
-      setTimeout(async () => {
-        if (this.clients.has(accountId)) {
-          console.log(`🔄 [${accountId}] Attempting auto-reconnect...`);
-          try {
-            await client.initialize();
-          } catch (error) {
-            console.error(`❌ [${accountId}] Auto-reconnect failed:`, error);
-          }
+        this.io.emit('whatsapp:disconnected', { accountId, reason: lastDisconnect?.error?.message });
+        
+        if (shouldReconnect) {
+          setTimeout(() => {
+            if (this.accounts.has(accountId)) {
+              console.log(`🔄 [${accountId}] Auto-reconnecting...`);
+              this.connectBaileys(accountId);
+            }
+          }, 5000);
         }
-      }, 5000);
+      }
+
+      if (connection === 'open') {
+        console.log(`✅ [${accountId}] Connected`);
+        const account = this.accounts.get(accountId);
+        if (account) {
+          account.status = 'connected';
+          account.qrCode = null;
+          account.phone = sock.user?.id?.split(':')[0] || null;
+        }
+        
+        this.io.emit('whatsapp:ready', {
+          accountId,
+          phone: sock.user?.id?.split(':')[0],
+          info: sock.user
+        });
+      }
     });
 
-    client.on('message', (message) => {
-      console.log(`💬 [${accountId}] Message received - queued (${this.messageQueue.length} in queue)`);
+    sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('messages.upsert', async ({ messages, type }) => {
+      if (type !== 'notify') return;
       
-      // Add to queue instead of processing immediately
-      this.messageQueue.push({ accountId, message });
-      
-      // Prevent queue from growing too large
-      if (this.messageQueue.length > 1000) {
-        console.warn(`⚠️ Message queue too large (${this.messageQueue.length}), dropping oldest messages`);
-        this.messageQueue = this.messageQueue.slice(-500);
+      for (const message of messages) {
+        if (!message.message) continue;
+        
+        console.log(`💬 [${accountId}] Message received - queued (${this.messageQueue.length} in queue)`);
+        
+        this.messageQueue.push({ accountId, message });
+        
+        if (this.messageQueue.length > 1000) {
+          console.warn(`⚠️ Message queue too large (${this.messageQueue.length}), dropping oldest`);
+          this.messageQueue = this.messageQueue.slice(-500);
+        }
       }
     });
   }
 
   async removeAccount(accountId) {
-    const client = this.clients.get(accountId);
-    if (!client) {
+    const sock = this.clients.get(accountId);
+    if (!sock) {
       throw new Error('Account not found');
     }
 
     try {
-      await client.destroy();
+      await sock.logout();
       this.clients.delete(accountId);
       this.accounts.delete(accountId);
       
-      const sessionPath = path.join(this.sessionsPath, `session-${accountId}`);
+      const sessionPath = path.join(this.sessionsPath, accountId);
       if (fs.existsSync(sessionPath)) {
         fs.rmSync(sessionPath, { recursive: true, force: true });
       }
@@ -233,57 +221,59 @@ class WhatsAppManager {
   }
 
   async getChats(accountId) {
-    const client = this.clients.get(accountId);
-    if (!client) throw new Error('Account not found');
+    const sock = this.clients.get(accountId);
+    if (!sock) throw new Error('Account not found');
 
     try {
-      const chats = await client.getChats();
-      return chats.map(chat => ({
-        id: chat.id._serialized,
-        name: chat.name,
-        isGroup: chat.isGroup,
-        unreadCount: chat.unreadCount,
-        timestamp: chat.timestamp,
-        lastMessage: chat.lastMessage ? {
-          body: chat.lastMessage.body,
-          timestamp: chat.lastMessage.timestamp
-        } : null
-      }));
+      const chats = await sock.groupFetchAllParticipating();
+      const chatList = [];
+      
+      for (const [jid, chat] of Object.entries(chats)) {
+        chatList.push({
+          id: jid,
+          name: chat.subject || jid.split('@')[0],
+          isGroup: true,
+          unreadCount: 0,
+          timestamp: Date.now(),
+          lastMessage: null
+        });
+      }
+      
+      return chatList;
     } catch (error) {
       console.error(`❌ [${accountId}] Failed to get chats:`, error);
-      throw error;
+      return [];
     }
   }
 
   async getMessages(accountId, chatId, limit = 50) {
-    const client = this.clients.get(accountId);
-    if (!client) throw new Error('Account not found');
+    const sock = this.clients.get(accountId);
+    if (!sock) throw new Error('Account not found');
 
     try {
-      const chat = await client.getChatById(chatId);
-      const messages = await chat.fetchMessages({ limit });
+      const messages = await sock.fetchMessagesFromWA(chatId, limit);
       
       return messages.map(msg => ({
-        id: msg.id._serialized,
-        from: msg.from,
-        to: msg.to,
-        body: msg.body,
-        timestamp: msg.timestamp,
-        fromMe: msg.fromMe,
-        hasMedia: msg.hasMedia
+        id: msg.key.id,
+        from: msg.key.remoteJid,
+        to: msg.key.remoteJid,
+        body: msg.message?.conversation || msg.message?.extendedTextMessage?.text || '',
+        timestamp: msg.messageTimestamp,
+        fromMe: msg.key.fromMe,
+        hasMedia: !!msg.message?.imageMessage || !!msg.message?.videoMessage
       }));
     } catch (error) {
       console.error(`❌ [${accountId}] Failed to get messages:`, error);
-      throw error;
+      return [];
     }
   }
 
   async sendMessage(accountId, chatId, message) {
-    const client = this.clients.get(accountId);
-    if (!client) throw new Error('Account not found');
+    const sock = this.clients.get(accountId);
+    if (!sock) throw new Error('Account not found');
 
     try {
-      await client.sendMessage(chatId, message);
+      await sock.sendMessage(chatId, { text: message });
       console.log(`📤 [${accountId}] Message sent to ${chatId}`);
       return { success: true };
     } catch (error) {
@@ -294,9 +284,9 @@ class WhatsAppManager {
 
   async destroy() {
     console.log('🛑 Destroying all WhatsApp clients...');
-    for (const [accountId, client] of this.clients.entries()) {
+    for (const [accountId, sock] of this.clients.entries()) {
       try {
-        await client.destroy();
+        await sock.logout();
         console.log(`✅ [${accountId}] Destroyed`);
       } catch (error) {
         console.error(`❌ [${accountId}] Failed to destroy:`, error);
@@ -306,45 +296,35 @@ class WhatsAppManager {
     this.accounts.clear();
   }
 
-  // Client management methods
   async getAllClients() {
     const allClients = [];
     
-    for (const [accountId, client] of this.clients.entries()) {
+    for (const [accountId, sock] of this.clients.entries()) {
       try {
-        // Check if client is ready
         const account = this.accounts.get(accountId);
         if (!account || account.status !== 'connected') {
-          console.log(`⏭️ [${accountId}] Skipping - not connected (${account?.status})`);
+          console.log(`⏭️ [${accountId}] Skipping - not connected`);
           continue;
         }
         
-        const chats = await Promise.race([
-          client.getChats(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
-        ]);
+        const chats = await sock.groupFetchAllParticipating();
         
-        for (const chat of chats) {
-          try {
-            if (!chat.isGroup) {
-              // Avoid getContact() which causes errors - use chat data directly
-              allClients.push({
-                id: chat.id._serialized,
-                accountId,
-                name: chat.name || chat.id.user || 'Unknown',
-                phone: chat.id.user,
-                status: 'available',
-                unreadCount: chat.unreadCount || 0,
-                lastMessage: chat.timestamp || Date.now(),
-                lastMessageText: chat.lastMessage?.body || ''
-              });
-            }
-          } catch (chatError) {
-            console.error(`❌ [${accountId}] Failed to process chat ${chat.id._serialized}:`, chatError.message);
+        for (const [jid, chat] of Object.entries(chats)) {
+          if (!jid.includes('@g.us')) {
+            allClients.push({
+              id: jid,
+              accountId,
+              name: chat.subject || jid.split('@')[0],
+              phone: jid.split('@')[0],
+              status: 'available',
+              unreadCount: 0,
+              lastMessage: Date.now(),
+              lastMessageText: ''
+            });
           }
         }
       } catch (error) {
-        console.error(`❌ [${accountId}] Failed to get chats:`, error.message);
+        console.error(`❌ [${accountId}] Failed to get clients:`, error.message);
       }
     }
     
@@ -352,26 +332,18 @@ class WhatsAppManager {
   }
 
   async getClientMessages(clientId) {
-    for (const [accountId, client] of this.clients.entries()) {
+    for (const [accountId, sock] of this.clients.entries()) {
       try {
         const account = this.accounts.get(accountId);
         if (!account || account.status !== 'connected') continue;
         
-        const chat = await Promise.race([
-          client.getChatById(clientId),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
-        ]);
-        
-        const messages = await Promise.race([
-          chat.fetchMessages({ limit: 100 }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
-        ]);
+        const messages = await sock.fetchMessagesFromWA(clientId, 100);
         
         return messages.map(msg => ({
-          id: msg.id._serialized,
-          text: msg.body || '',
-          fromClient: !msg.fromMe,
-          timestamp: msg.timestamp * 1000
+          id: msg.key.id,
+          text: msg.message?.conversation || msg.message?.extendedTextMessage?.text || '',
+          fromClient: !msg.key.fromMe,
+          timestamp: msg.messageTimestamp * 1000
         }));
       } catch (error) {
         console.error(`❌ [${accountId}] Failed to get messages for ${clientId}:`, error.message);
@@ -383,15 +355,12 @@ class WhatsAppManager {
   }
 
   async sendClientMessage(clientId, message) {
-    for (const [accountId, client] of this.clients.entries()) {
+    for (const [accountId, sock] of this.clients.entries()) {
       try {
         const account = this.accounts.get(accountId);
         if (!account || account.status !== 'connected') continue;
         
-        await Promise.race([
-          client.sendMessage(clientId, message),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
-        ]);
+        await sock.sendMessage(clientId, { text: message });
         
         console.log(`📤 [${accountId}] Message sent to ${clientId}`);
         
@@ -411,8 +380,6 @@ class WhatsAppManager {
   }
 
   async updateClientStatus(clientId, status) {
-    // Store client status in memory or database
-    // For now, just emit event
     this.io.emit('client:status_updated', { clientId, status });
     return { success: true };
   }
