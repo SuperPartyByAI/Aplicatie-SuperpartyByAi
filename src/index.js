@@ -249,7 +249,7 @@ app.post('/api/voice/ai-conversation', async (req, res) => {
       });
       
       // Use Polly.Ioana-Neural directly for fast response (no ElevenLabs delay)
-      const firstMessage = 'Bună ziua, SuperParty. Cu ce vă pot ajuta?';
+      const firstMessage = 'Bună, sunt Kasya. Cu ce vă pot ajuta?';
       console.log('[Voice AI] Using Polly.Ioana-Neural for fast response');
       gather.say({
         voice: 'Polly.Ioana-Neural',
