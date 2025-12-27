@@ -47,7 +47,7 @@ class TwilioHandler {
     
     // Play ringing sound while waiting for answer
     twiml.say({ 
-      voice: 'Polly.Cristiano',
+      voice: 'alice',
       language: 'ro-RO' 
     }, 'Vă rugăm așteptați, vă conectăm cu un operator.');
     
@@ -56,7 +56,7 @@ class TwilioHandler {
     
     // If no answer, play message and hangup
     twiml.say({ 
-      voice: 'Polly.Cristiano',
+      voice: 'alice',
       language: 'ro-RO' 
     }, 'Ne pare rău, toți operatorii sunt ocupați. Vă rugăm să sunați mai târziu.');
     
