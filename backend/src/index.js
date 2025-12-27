@@ -4,6 +4,8 @@ const http = require('http');
 const socketIO = require('socket.io');
 const cors = require('cors');
 const WhatsAppManager = require('./whatsapp/manager');
+const TwilioHandler = require('./voice/twilio-handler');
+const CallStorage = require('./voice/call-storage');
 
 const app = express();
 const server = http.createServer(app);
@@ -19,17 +21,21 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // For Twilio webhooks
 
-// Initialize WhatsApp Manager
+// Initialize managers
 const whatsappManager = new WhatsAppManager(io);
+const callStorage = new CallStorage();
+const twilioHandler = new TwilioHandler(io, callStorage);
 
 // Health check
 app.get('/', (req, res) => {
   res.json({
     status: 'online',
-    service: 'SuperParty WhatsApp Backend',
+    service: 'SuperParty WhatsApp Backend + Voice',
     accounts: whatsappManager.getAccounts().length,
-    maxAccounts: 20
+    maxAccounts: 20,
+    activeCalls: twilioHandler.getActiveCalls().length
   });
 });
 
@@ -137,9 +143,89 @@ app.patch('/api/clients/:clientId/status', async (req, res) => {
   }
 });
 
+// Voice API Routes
+app.post('/api/voice/incoming', (req, res) => {
+  twilioHandler.handleIncomingCall(req, res);
+});
+
+app.post('/api/voice/status', (req, res) => {
+  twilioHandler.handleCallStatus(req, res);
+});
+
+app.get('/api/voice/calls', (req, res) => {
+  try {
+    const calls = twilioHandler.getActiveCalls();
+    res.json({ success: true, calls });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/voice/calls/recent', async (req, res) => {
+  try {
+    const { limit } = req.query;
+    const calls = await callStorage.getRecentCalls(parseInt(limit) || 100);
+    res.json({ success: true, calls });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/voice/calls/stats', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const end = endDate ? new Date(endDate) : new Date();
+    const stats = await callStorage.getCallStats(start, end);
+    res.json({ success: true, stats });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/voice/calls/:callId/answer', (req, res) => {
+  try {
+    const { callId } = req.params;
+    const { operatorId } = req.body;
+    const call = twilioHandler.answerCall(callId, operatorId);
+    res.json({ success: true, call });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/voice/calls/:callId/reject', (req, res) => {
+  try {
+    const { callId } = req.params;
+    const { reason } = req.body;
+    const call = twilioHandler.rejectCall(callId, reason);
+    res.json({ success: true, call });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Socket.IO
 io.on('connection', (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);
+
+  // Handle call answer from client
+  socket.on('call:answer', ({ callId, operatorId }) => {
+    try {
+      twilioHandler.answerCall(callId, operatorId);
+    } catch (error) {
+      socket.emit('call:error', { error: error.message });
+    }
+  });
+
+  // Handle call reject from client
+  socket.on('call:reject', ({ callId, reason }) => {
+    try {
+      twilioHandler.rejectCall(callId, reason);
+    } catch (error) {
+      socket.emit('call:error', { error: error.message });
+    }
+  });
 
   socket.on('disconnect', () => {
     console.log(`🔌 Client disconnected: ${socket.id}`);
@@ -169,9 +255,10 @@ process.on('SIGINT', async () => {
 server.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════════════════════╗
-║  🚀 SuperParty WhatsApp Backend                       ║
+║  🚀 SuperParty Backend - WhatsApp + Voice             ║
 ║  📡 Server running on port ${PORT}                       ║
-║  📱 Max accounts: 20                                  ║
+║  📱 Max WhatsApp accounts: 20                         ║
+║  📞 Voice calls: Enabled                              ║
 ║  ✅ Ready to accept connections                       ║
 ╚═══════════════════════════════════════════════════════╝
   `);
