@@ -146,6 +146,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
     
+    // WhatsApp Sessions (backend only - pentru persistență)
+    match /whatsapp_sessions/{sessionId} {
+      allow read, write: if true; // Backend folosește service account
+    }
+    
     // Default deny
     match /{document=**} {
       allow read, write: if false;

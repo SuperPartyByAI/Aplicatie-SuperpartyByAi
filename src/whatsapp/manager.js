@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const pino = require('pino');
 const firestore = require('../firebase/firestore');
+const sessionStore = require('./session-store');
 
 class WhatsAppManager {
   constructor(io) {
@@ -24,6 +25,50 @@ class WhatsAppManager {
     
     // Initialize Firebase
     firestore.initialize();
+    
+    // Auto-restore sessions after Railway restart
+    this.autoRestoreSessions();
+  }
+  
+  async autoRestoreSessions() {
+    try {
+      console.log('🔄 Checking for saved sessions in Firestore...');
+      const sessions = await sessionStore.listSessions();
+      
+      if (sessions.length === 0) {
+        console.log('ℹ️ No saved sessions found');
+        return;
+      }
+      
+      console.log(`📦 Found ${sessions.length} saved session(s), restoring...`);
+      
+      for (const session of sessions) {
+        const accountId = session.accountId;
+        const phoneNumber = session.creds?.me?.id?.split(':')[0] || null;
+        
+        console.log(`🔄 Restoring account: ${accountId} (${phoneNumber || 'unknown'})`);
+        
+        // Add account back
+        const account = {
+          id: accountId,
+          name: `WhatsApp ${accountId}`,
+          status: 'connecting',
+          qrCode: null,
+          pairingCode: null,
+          phone: phoneNumber,
+          createdAt: session.updatedAt || new Date().toISOString()
+        };
+        
+        this.accounts.set(accountId, account);
+        
+        // Connect with restored session
+        await this.connectBaileys(accountId, phoneNumber);
+      }
+      
+      console.log(`✅ Auto-restore complete: ${sessions.length} account(s) restored`);
+    } catch (error) {
+      console.error('❌ Auto-restore failed:', error.message);
+    }
   }
   
   startKeepAlive() {
@@ -123,6 +168,12 @@ class WhatsAppManager {
       fs.mkdirSync(sessionPath, { recursive: true });
     }
 
+    // Try to restore session from Firestore
+    const restored = await sessionStore.restoreSession(accountId, sessionPath);
+    if (restored) {
+      console.log(`✅ [${accountId}] Session restored from Firestore`);
+    }
+
     const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
     const { version } = await fetchLatestBaileysVersion();
 
@@ -215,6 +266,12 @@ class WhatsAppManager {
           account.phone = sock.user?.id?.split(':')[0] || null;
         }
         
+        // Save session to Firestore for persistence
+        const sessionPath = path.join(this.sessionsPath, accountId);
+        sessionStore.saveSession(accountId, sessionPath).catch(err => {
+          console.error(`❌ [${accountId}] Failed to save session:`, err.message);
+        });
+        
         this.io.emit('whatsapp:ready', {
           accountId,
           phone: sock.user?.id?.split(':')[0],
@@ -223,7 +280,14 @@ class WhatsAppManager {
       }
     });
 
-    sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', async () => {
+      await saveCreds();
+      // Also save to Firestore for persistence across restarts
+      const sessionPath = path.join(this.sessionsPath, accountId);
+      sessionStore.saveSession(accountId, sessionPath).catch(err => {
+        console.error(`❌ [${accountId}] Failed to save session on creds update:`, err.message);
+      });
+    });
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
       if (type !== 'notify') return;
@@ -300,10 +364,14 @@ class WhatsAppManager {
       this.clients.delete(accountId);
       this.accounts.delete(accountId);
       
+      // Delete local session
       const sessionPath = path.join(this.sessionsPath, accountId);
       if (fs.existsSync(sessionPath)) {
         fs.rmSync(sessionPath, { recursive: true, force: true });
       }
+      
+      // Delete from Firestore
+      await sessionStore.deleteSession(accountId);
       
       this.io.emit('whatsapp:account_removed', { accountId });
       console.log(`🗑️ [${accountId}] Account removed`);
