@@ -234,18 +234,21 @@ export default function CentralaTelefonicaScreen() {
     }
   };
 
-  const playRecording = async (callId) => {
+  const playRecording = async (callId, uniqueId) => {
     try {
-      setPlayingRecording(callId);
+      setPlayingRecording(uniqueId || callId);
       
       const response = await fetch(`${BACKEND_URL}/api/voice/calls/${callId}/recording`);
       const data = await response.json();
       
       if (!data.success) {
+        console.error('Recording not available:', data.error);
         alert('Înregistrarea nu este disponibilă încă. Așteaptă câteva secunde după încheierea apelului.');
         setPlayingRecording(null);
         return;
       }
+      
+      console.log('Playing recording:', data.recordingUrl);
 
       // Create audio element with Basic Auth
       const audio = new Audio();
@@ -546,7 +549,7 @@ export default function CentralaTelefonicaScreen() {
               </thead>
               <tbody>
                 {recentCalls.map(call => (
-                  <tr key={call.callId} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <tr key={call.id || call.callId} style={{ borderBottom: '1px solid #f0f0f0' }}>
                     <td style={{ padding: '12px', fontSize: '14px', color: '#333' }}>{formatDate(call.createdAt)}</td>
                     <td style={{ padding: '12px', fontSize: '14px', color: '#333' }}>{call.from}</td>
                     <td style={{ padding: '12px', fontSize: '14px', color: '#333' }}>{formatDuration(call.duration)}</td>
@@ -564,7 +567,7 @@ export default function CentralaTelefonicaScreen() {
                     </td>
                     <td style={{ padding: '12px' }}>
                       {call.recordingSid ? (
-                        playingRecording === call.callId ? (
+                        playingRecording === (call.id || call.callId) ? (
                           <button
                             onClick={stopRecording}
                             style={{
@@ -582,7 +585,7 @@ export default function CentralaTelefonicaScreen() {
                           </button>
                         ) : (
                           <button
-                            onClick={() => playRecording(call.callId)}
+                            onClick={() => playRecording(call.callId, call.id || call.callId)}
                             style={{
                               padding: '6px 12px',
                               borderRadius: '8px',

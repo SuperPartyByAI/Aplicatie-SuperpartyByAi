@@ -18,19 +18,23 @@ class CallStorage {
    */
   async saveCall(callData) {
     if (!this.enabled) {
-      this.memoryStore.set(callData.callId, callData);
-      console.log('[CallStorage] Call saved to memory:', callData.callId);
-      return callData;
+      const uniqueId = `${callData.callId}_${Date.now()}`;
+      this.memoryStore.set(uniqueId, { ...callData, id: uniqueId });
+      console.log('[CallStorage] Call saved to memory:', uniqueId);
+      return { ...callData, id: uniqueId };
     }
     
     try {
-      const docRef = this.callsCollection.doc(callData.callId);
-      await docRef.set({
+      // Use auto-generated ID instead of CallSid to allow multiple calls with same CallSid
+      const docRef = this.callsCollection.doc();
+      const callWithId = {
         ...callData,
+        id: docRef.id,
         createdAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-      console.log('[CallStorage] Call saved:', callData.callId);
-      return callData;
+      };
+      await docRef.set(callWithId);
+      console.log('[CallStorage] Call saved:', docRef.id, 'CallSid:', callData.callId);
+      return callWithId;
     } catch (error) {
       console.error('[CallStorage] Error saving call:', error);
       throw error;
@@ -38,25 +42,40 @@ class CallStorage {
   }
 
   /**
-   * Update existing call
+   * Update existing call by CallSid
    */
   async updateCall(callId, updates) {
     if (!this.enabled) {
-      const call = this.memoryStore.get(callId);
-      if (call) {
-        Object.assign(call, updates);
-        console.log('[CallStorage] Call updated in memory:', callId);
+      // Find call in memory by callId
+      for (const [key, call] of this.memoryStore.entries()) {
+        if (call.callId === callId) {
+          Object.assign(call, updates);
+          console.log('[CallStorage] Call updated in memory:', callId);
+          return updates;
+        }
       }
       return updates;
     }
     
     try {
-      const docRef = this.callsCollection.doc(callId);
+      // Find most recent call with this CallSid
+      const snapshot = await this.callsCollection
+        .where('callId', '==', callId)
+        .orderBy('createdAt', 'desc')
+        .limit(1)
+        .get();
+      
+      if (snapshot.empty) {
+        console.warn('[CallStorage] No call found with CallSid:', callId);
+        return updates;
+      }
+      
+      const docRef = snapshot.docs[0].ref;
       await docRef.update({
         ...updates,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
-      console.log('[CallStorage] Call updated:', callId);
+      console.log('[CallStorage] Call updated:', docRef.id, 'CallSid:', callId);
       return updates;
     } catch (error) {
       console.error('[CallStorage] Error updating call:', error);
@@ -65,24 +84,34 @@ class CallStorage {
   }
 
   /**
-   * Get call by ID
+   * Get call by CallSid (returns most recent)
    */
   async getCall(callId) {
     if (!this.enabled) {
-      return this.memoryStore.get(callId) || null;
+      // Find in memory by callId
+      for (const call of this.memoryStore.values()) {
+        if (call.callId === callId) {
+          return call;
+        }
+      }
+      return null;
     }
     
     try {
-      const docRef = this.callsCollection.doc(callId);
-      const doc = await docRef.get();
+      // Find most recent call with this CallSid
+      const snapshot = await this.callsCollection
+        .where('callId', '==', callId)
+        .orderBy('createdAt', 'desc')
+        .limit(1)
+        .get();
       
-      if (!doc.exists) {
+      if (snapshot.empty) {
         return null;
       }
 
       return {
-        callId: doc.id,
-        ...doc.data()
+        id: snapshot.docs[0].id,
+        ...snapshot.docs[0].data()
       };
     } catch (error) {
       console.error('[CallStorage] Error getting call:', error);
@@ -107,7 +136,7 @@ class CallStorage {
       const calls = [];
       snapshot.forEach(doc => {
         calls.push({
-          callId: doc.id,
+          id: doc.id,
           ...doc.data()
         });
       });
@@ -140,7 +169,7 @@ class CallStorage {
       const calls = [];
       snapshot.forEach(doc => {
         calls.push({
-          callId: doc.id,
+          id: doc.id,
           ...doc.data()
         });
       });
