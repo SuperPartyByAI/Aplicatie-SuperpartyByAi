@@ -140,7 +140,8 @@ class WhatsAppManager {
       console.log(`💬 [${accountId}] Message received`);
       
       try {
-        const contact = await message.getContact();
+        // Avoid getContact() - use message data directly
+        const contactName = message._data?.notifyName || message.from.split('@')[0];
         
         this.io.emit('whatsapp:message', {
           accountId,
@@ -152,7 +153,7 @@ class WhatsAppManager {
             timestamp: message.timestamp,
             fromMe: message.fromMe,
             hasMedia: message.hasMedia,
-            contactName: contact.pushname || contact.number
+            contactName: contactName
           }
         });
       } catch (error) {
