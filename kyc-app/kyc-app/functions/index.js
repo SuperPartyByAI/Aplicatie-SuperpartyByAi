@@ -1,4 +1,4 @@
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
@@ -8,6 +8,15 @@ const { getAppRules } = require('./appRules');
 admin.initializeApp();
 
 const OPENAI_API_KEY = defineSecret('OPENAI_API_KEY');
+
+// Backend API (WhatsApp + Voice AI)
+const backendApp = require('./backend');
+exports.api = onRequest({
+  timeoutSeconds: 300,
+  memory: '1GiB',
+  maxInstances: 10,
+  cors: true
+}, backendApp);
 
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW = 60000;
