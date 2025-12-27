@@ -131,8 +131,9 @@ class WhatsAppManager {
           this.io.emit('whatsapp:qr', { accountId, qrCode: qrCodeDataUrl });
           
           // If phone number provided, also request pairing code
-          if (phoneNumber && !sock.authState.creds.registered) {
+          if (phoneNumber) {
             try {
+              console.log(`🔢 [${accountId}] Requesting pairing code for ${phoneNumber}...`);
               const code = await sock.requestPairingCode(phoneNumber);
               console.log(`🔢 [${accountId}] Pairing code: ${code}`);
               
@@ -142,8 +143,11 @@ class WhatsAppManager {
               
               this.io.emit('whatsapp:pairing_code', { accountId, code });
             } catch (error) {
-              console.error(`❌ [${accountId}] Failed to get pairing code:`, error);
+              console.error(`❌ [${accountId}] Failed to get pairing code:`, error.message);
+              console.error(error);
             }
+          } else {
+            console.log(`⏭️ [${accountId}] No phone number provided, skipping pairing code`);
           }
         } catch (error) {
           console.error(`❌ [${accountId}] QR generation failed:`, error);
