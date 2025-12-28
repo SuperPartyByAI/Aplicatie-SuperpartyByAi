@@ -46,35 +46,82 @@ async function start() {
   // Add projects
   console.log('📦 Adding projects...');
   
-  // Add SuperParty main app
-  if (process.env.SUPERPARTY_PROJECT_ID) {
+  let projectsAdded = 0;
+  
+  // Auto-detect projects from env vars (v5.0 compatibility)
+  let i = 1;
+  while (process.env[`BACKEND_URL_${i}`]) {
+    const projectName = process.env[`PROJECT_NAME_${i}`] || `Project ${i}`;
+    const projectUrl = process.env[`BACKEND_URL_${i}`];
+    const serviceId = process.env[`BACKEND_SERVICE_ID_${i}`];
+    
+    if (projectUrl && serviceId) {
+      console.log(`  📦 Adding ${projectName}...`);
+      
+      const services = [{
+        id: serviceId,
+        name: projectName,
+        url: projectUrl
+      }];
+      
+      await monitor.addProject({
+        id: serviceId,
+        name: projectName,
+        services: services
+      });
+      
+      await dashboard.addProject(serviceId, projectName, services);
+      projectsAdded++;
+    }
+    i++;
+  }
+  
+  // Add SuperParty main app (v7.0 style)
+  if (process.env.SUPERPARTY_PROJECT_ID && !projectsAdded) {
     await monitor.addProject({
       id: process.env.SUPERPARTY_PROJECT_ID,
       name: 'SuperParty'
     });
     await dashboard.addProject(process.env.SUPERPARTY_PROJECT_ID, 'SuperParty');
+    projectsAdded++;
   }
 
   // Add voice service
-  if (process.env.VOICE_PROJECT_ID) {
+  if (process.env.VOICE_PROJECT_ID && !projectsAdded) {
     await monitor.addProject({
       id: process.env.VOICE_PROJECT_ID,
       name: 'Voice Service'
     });
     await dashboard.addProject(process.env.VOICE_PROJECT_ID, 'Voice Service');
+    projectsAdded++;
   }
 
-  // Add monitoring service
-  if (process.env.MONITORING_PROJECT_ID) {
+  // Add monitoring service (SELF-MONITORING)
+  if (process.env.RAILWAY_SERVICE_ID) {
+    const selfUrl = process.env.RAILWAY_PUBLIC_DOMAIN 
+      ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+      : `http://localhost:${process.env.PORT || 3001}`;
+    
+    console.log(`  🔄 Adding self-monitoring...`);
+    
+    const selfServices = [{
+      id: process.env.RAILWAY_SERVICE_ID,
+      name: 'v7.0 Monitor',
+      url: selfUrl
+    }];
+    
     await monitor.addProject({
-      id: process.env.MONITORING_PROJECT_ID,
-      name: 'Monitoring'
+      id: process.env.RAILWAY_SERVICE_ID,
+      name: 'v7.0 Monitor (Self)',
+      services: selfServices
     });
-    await dashboard.addProject(process.env.MONITORING_PROJECT_ID, 'Monitoring');
+    
+    await dashboard.addProject(process.env.RAILWAY_SERVICE_ID, 'v7.0 Monitor (Self)', selfServices);
+    projectsAdded++;
   }
 
   console.log('');
-  console.log('✅ Projects added');
+  console.log(`✅ ${projectsAdded} project(s) added`);
   console.log('');
 
   // Start dashboard

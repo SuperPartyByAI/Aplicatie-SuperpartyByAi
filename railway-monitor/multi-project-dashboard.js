@@ -26,17 +26,29 @@ class MultiProjectDashboard {
   /**
    * Add project to dashboard
    */
-  async addProject(projectId, name) {
-    console.log(`📦 Adding project: ${name || projectId}`);
+  async addProject(projectId, name, servicesData = null) {
+    console.log(`📦 Adding project to dashboard: ${name || projectId}`);
     
     try {
-      // Get project details from Railway
-      const projectData = await this.railway.projects.get(projectId);
-      const services = await this.railway.projects.getServices(projectId);
+      let services = [];
+      
+      // Try to get services from Railway API
+      if (!servicesData) {
+        try {
+          const projectData = await this.railway.projects.get(projectId);
+          services = await this.railway.projects.getServices(projectId);
+          name = name || projectData.name;
+        } catch (error) {
+          console.log(`⚠️ Could not fetch from Railway API: ${error.message}`);
+          // Continue with empty services
+        }
+      } else {
+        services = servicesData;
+      }
 
       const project = {
         id: projectId,
-        name: name || projectData.name,
+        name: name || projectId,
         services: services.map(s => ({
           id: s.id,
           name: s.name,
@@ -65,16 +77,19 @@ class MultiProjectDashboard {
 
       this.projects.set(projectId, project);
       
-      console.log(`✅ Project added: ${project.name} (${project.services.length} services)`);
+      console.log(`✅ Project added to dashboard: ${project.name} (${project.services.length} services)`);
       
-      // Start monitoring
-      await this.updateProjectMetrics(projectId);
+      // Start monitoring (don't await to avoid blocking)
+      this.updateProjectMetrics(projectId).catch(err => {
+        console.log(`⚠️ Could not update metrics: ${err.message}`);
+      });
       
       return project;
       
     } catch (error) {
-      console.error(`❌ Failed to add project:`, error.message);
-      throw error;
+      console.error(`❌ Failed to add project to dashboard:`, error.message);
+      // Don't throw - just log and continue
+      return null;
     }
   }
 

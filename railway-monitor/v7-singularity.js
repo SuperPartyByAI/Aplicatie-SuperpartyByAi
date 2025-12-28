@@ -185,17 +185,33 @@ class SingularityMonitor {
       status: 'healthy'
     };
 
-    // Get all services in project
-    const services = await this.railway.projects.getServices(projectConfig.id);
-    
-    for (const service of services) {
-      project.services.push({
-        id: service.id,
-        name: service.name,
-        url: service.url,
+    // If services provided directly, use them
+    if (projectConfig.services && projectConfig.services.length > 0) {
+      project.services = projectConfig.services.map(s => ({
+        id: s.id,
+        name: s.name,
+        url: s.url,
         status: 'unknown',
         metrics: {}
-      });
+      }));
+    } else {
+      // Otherwise, get all services from Railway API
+      try {
+        const services = await this.railway.projects.getServices(projectConfig.id);
+        
+        for (const service of services) {
+          project.services.push({
+            id: service.id,
+            name: service.name,
+            url: service.url,
+            status: 'unknown',
+            metrics: {}
+          });
+        }
+      } catch (error) {
+        console.log(`⚠️ Could not fetch services from Railway API: ${error.message}`);
+        console.log(`   Project will be added without services`);
+      }
     }
 
     this.projects.set(project.id, project);
