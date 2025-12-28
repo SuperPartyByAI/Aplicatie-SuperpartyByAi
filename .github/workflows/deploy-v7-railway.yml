@@ -1,0 +1,37 @@
+name: Deploy v7.0 to Railway
+
+on:
+  workflow_dispatch:
+    inputs:
+      railway_token:
+        description: 'Railway Token'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Railway CLI
+        run: |
+          curl -fsSL https://railway.app/install.sh | sh
+          echo "$HOME/.railway/bin" >> $GITHUB_PATH
+
+      - name: Deploy to Railway
+        env:
+          RAILWAY_TOKEN: ${{ github.event.inputs.railway_token }}
+        run: |
+          cd monitoring
+          railway link --project-id 998d4e46-c67c-47e2-9eaa-ae4cc806aab1 || true
+          railway up --service v7-singularity-monitor || railway up
+          railway variables set RAILWAY_TOKEN=$RAILWAY_TOKEN
+          railway variables set PORT=3001
+          railway variables set NODE_ENV=production
+          
+      - name: Get deployment URL
+        run: |
+          echo "✅ Deployment complete!"
+          echo "Check Railway dashboard for URL"
