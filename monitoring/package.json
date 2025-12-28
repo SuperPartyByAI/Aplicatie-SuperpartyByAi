@@ -4,7 +4,8 @@
   "description": "AUTONOMOUS monitoring: Self-managing AI, <10s downtime/month, 99% prevention, auto-creates projects, modifies code",
   "main": "autonomous-monitor.js",
   "scripts": {
-    "start": "node start-autonomous.js",
+    "start": "node v7-start.js",
+    "start:v7": "node v7-start.js",
     "start:autonomous": "node start-autonomous.js",
     "start:multi": "node multi-project-monitor.js",
     "start:perfect": "node perfect-monitor.js",
@@ -16,7 +17,8 @@
     "chaos": "node -e \"const UltimateMonitor = require('./ultimate-monitor'); const m = new UltimateMonitor(); m.runChaosTest();\""
   },
   "dependencies": {
-    "node-fetch": "^2.6.7"
+    "node-fetch": "^2.6.7",
+    "express": "^4.18.2"
   },
   "engines": {
     "node": ">=14.0.0"

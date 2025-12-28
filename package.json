@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node monitoring/multi-project-monitor.js",
     "start:multi": "node monitoring/multi-project-monitor.js",
+    "start:v7": "node monitoring/v7-start.js",
     "start:perfect": "node monitoring/perfect-monitor.js",
     "start:ultimate": "node monitoring/ultimate-monitor.js",
     "start:extreme": "node monitoring/extreme-monitor.js",
