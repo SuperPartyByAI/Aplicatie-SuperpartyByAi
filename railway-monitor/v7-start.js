@@ -153,6 +153,20 @@ async function start() {
   console.log('');
   console.log('Press Ctrl+C to stop');
   console.log('');
+  
+  // Auto-deploy Voice AI after 5 seconds
+  setTimeout(async () => {
+    console.log('');
+    console.log('🎤 v7.0: Auto-deploying Voice AI...');
+    console.log('');
+    
+    try {
+      const VoiceDeployer = require('./auto-deploy-voice-complete');
+      await VoiceDeployer.deploy();
+    } catch (error) {
+      console.log('⚠️  Voice AI deploy skipped:', error.message);
+    }
+  }, 5000);
 }
 
 // Handle errors
