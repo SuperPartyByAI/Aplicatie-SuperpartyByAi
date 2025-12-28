@@ -42,5 +42,9 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
 });
 
 exports.whatsapp = functions
-  .runWith({ memory: '2GB', timeoutSeconds: 540 })
+  .runWith({ 
+    memory: '2GB', 
+    timeoutSeconds: 540,
+    invoker: 'public'
+  })
   .https.onRequest(app);
