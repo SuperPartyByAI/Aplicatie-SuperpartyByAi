@@ -1,5 +1,4 @@
-// Use v2 for 2nd Gen Cloud Functions (Cloud Run)
-const { onRequest } = require('firebase-functions/v2/https');
+const functions = require('firebase-functions');
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -42,13 +41,5 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
   }
 });
 
-// firebase-functions v2 (2nd Gen): Cloud Run-based functions
-exports.whatsapp = onRequest(
-  {
-    memory: '2GiB',
-    timeoutSeconds: 540,
-    maxInstances: 10,
-    // 2nd Gen automatically handles public access
-  },
-  app
-);
+// Keep 1st Gen - works with existing deployment
+exports.whatsapp = functions.https.onRequest(app);
