@@ -41,5 +41,25 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
   }
 });
 
+app.delete('/api/whatsapp/accounts/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    await whatsappManager.removeAccount(accountId);
+    res.json({ success: true, message: 'Account deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/whatsapp/send', async (req, res) => {
+  try {
+    const { accountId, to, message } = req.body;
+    await whatsappManager.sendMessage(accountId, to, message);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Keep 1st Gen - works with existing deployment
 exports.whatsapp = functions.https.onRequest(app);
