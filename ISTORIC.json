@@ -210,8 +210,20 @@
     "total_sessions": 1,
     "good_states": 1,
     "intermediate_states": 1,
-    "banned_states": 3,
-    "success_rate": "25%",
-    "most_common_mistake": "Schimbat TTS când mergea perfect"
+    "banned_states": 5,
+    "success_rate": "17%",
+    "most_common_mistake": "ElevenLabs nu generează audio efectiv"
+  },
+  "current_issue": {
+    "date": "2024-12-28 15:00",
+    "problem": "ElevenLabs setat dar NU generează audio, folosește Polly robotizat",
+    "symptoms": [
+      "Sună 1.5 tonuri (nu 2)",
+      "Voce robotică (Polly, nu ElevenLabs)",
+      "Logs arată 'ElevenLabs enabled' dar NU apare 'Generating speech'"
+    ],
+    "root_cause": "ElevenLabs NU e apelat deloc în cod, doar verificat dacă e configurat",
+    "attempts_failed": 5,
+    "time_wasted": "6+ ore"
   }
 }
