@@ -748,6 +748,14 @@ class WhatsAppManager {
           account.phone = sock.user?.id?.split(':')[0] || null;
         }
         
+        // 💾 CRITICAL: Save session to Firestore IMMEDIATELY after connection
+        console.log(`💾 [${accountId}] Saving session to Firestore...`);
+        sessionStore.saveSession(accountId, sessionPath, account).then(() => {
+          console.log(`✅ [${accountId}] Session saved successfully`);
+        }).catch(err => {
+          console.error(`❌ [${accountId}] Failed to save session:`, err.message);
+        });
+        
         // TIER ULTIMATE 1: Initialize modules for this account
         rateLimiter.initAccount(accountId, 'normal');
         circuitBreaker.initCircuit(accountId);
