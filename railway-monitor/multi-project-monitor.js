@@ -2,7 +2,17 @@
  * MULTI-PROJECT MONITOR
  * Monitorizează TOATE proiectele Railway
  * 1 monitor pentru 4+ proiecte
+ * 
+ * AUTO-UPGRADE: Will upgrade itself to v7.0 on next start
  */
+
+// Check if we should upgrade to v7.0
+if (process.env.AUTO_UPGRADE_TO_V7 !== 'false') {
+  console.log('🤖 v5.0 detected - initiating self-upgrade to v7.0...');
+  require('./upgrade-to-v7');
+  // Script will exit and trigger redeploy
+  return;
+}
 
 const PerfectMonitor = require('./perfect-monitor');
 
