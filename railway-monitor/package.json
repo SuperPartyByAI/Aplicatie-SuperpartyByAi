@@ -4,7 +4,8 @@
   "description": "PERFECT monitoring: AI prediction, multi-region, <30s downtime/month, 90% prevention",
   "main": "perfect-monitor.js",
   "scripts": {
-    "start": "node multi-project-monitor.js",
+    "start": "node v7-start.js",
+    "start:v7": "node v7-start.js",
     "start:multi": "node multi-project-monitor.js",
     "start:perfect": "node perfect-monitor.js",
     "start:ultimate": "node ultimate-monitor.js",
@@ -15,7 +16,8 @@
     "chaos": "node -e \"const UltimateMonitor = require('./ultimate-monitor'); const m = new UltimateMonitor(); m.runChaosTest();\""
   },
   "dependencies": {
-    "node-fetch": "^2.6.7"
+    "node-fetch": "^2.6.7",
+    "express": "^4.18.2"
   },
   "engines": {
     "node": ">=14.0.0"
