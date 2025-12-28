@@ -65,31 +65,53 @@ exports.chatWithAI = functions.https.onCall(async (data, context) => {
   const { messages, userContext } = data;
 
   try {
-    // Aici ar trebui să fie integrarea cu OpenAI/GPT
-    // Pentru moment, returnăm un răspuns mock
-    const lastMessage = messages[messages.length - 1];
-    
-    let response = '';
-    
-    // Răspunsuri simple bazate pe context
-    if (lastMessage.content.toLowerCase().includes('evenimente')) {
-      response = `Ai ${userContext.stats?.evenimenteTotal || 0} evenimente în total. ${userContext.stats?.evenimenteAstazi || 0} sunt astăzi.`;
-    } else if (lastMessage.content.toLowerCase().includes('staff')) {
-      response = `Ai ${userContext.stats?.staffTotal || 0} membri de staff aprobați.`;
-    } else if (lastMessage.content.toLowerCase().includes('kyc')) {
-      response = userContext.isAdmin 
-        ? `Ai ${userContext.stats?.kycPending || 0} cereri KYC în așteptare.`
-        : 'Doar administratorul poate vedea cererile KYC.';
-    } else {
-      response = `Bună ${userContext.user?.nume || 'User'}! Sunt asistentul tău AI. Cum te pot ajuta astăzi?`;
-    }
-
-    // Salvează conversația în Firestore
     const admin = require('firebase-admin');
     if (!admin.apps.length) {
       admin.initializeApp();
     }
+
+    const lastMessage = messages[messages.length - 1];
     
+    // Construiește context pentru AI
+    const systemPrompt = `Ești asistentul AI pentru SuperParty, o platformă de management evenimente și staff.
+
+Context utilizator:
+- Nume: ${userContext.user?.nume || 'User'}
+- Email: ${userContext.user?.email || 'N/A'}
+- Cod: ${userContext.user?.code || 'N/A'}
+- Este admin: ${userContext.isAdmin ? 'Da' : 'Nu'}
+
+Statistici:
+- Evenimente total: ${userContext.stats?.evenimenteTotal || 0}
+- Evenimente astăzi: ${userContext.stats?.evenimenteAstazi || 0}
+- Evenimente nealocate: ${userContext.stats?.evenimenteNealocate || 0}
+- Staff total: ${userContext.stats?.staffTotal || 0}
+${userContext.isAdmin ? `- KYC în așteptare: ${userContext.stats?.kycPending || 0}` : ''}
+
+Răspunde în română, concis și util. Ajută utilizatorul cu informații despre evenimente, staff, disponibilitate, etc.`;
+
+    // Call OpenAI
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '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';
+    
+    const axios = require('axios');
+    const openaiResponse = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages.slice(-5).map(m => ({ role: m.role, content: m.content }))
+      ],
+      temperature: 0.7,
+      max_tokens: 500
+    }, {
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const response = openaiResponse.data.choices[0].message.content;
+    
+    // Salvează conversația în Firestore
     await admin.firestore().collection('aiConversations').add({
       userId: context.auth.uid,
       userEmail: context.auth.token.email,
@@ -97,7 +119,7 @@ exports.chatWithAI = functions.https.onCall(async (data, context) => {
       userMessage: lastMessage.content,
       aiResponse: response,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      model: 'mock-gpt-4o-mini'
+      model: 'gpt-4o-mini'
     });
 
     return {
@@ -106,7 +128,7 @@ exports.chatWithAI = functions.https.onCall(async (data, context) => {
     };
   } catch (error) {
     console.error('Chat AI error:', error);
-    throw new functions.https.HttpsError('internal', 'Eroare la procesarea mesajului');
+    throw new functions.https.HttpsError('internal', 'Eroare la procesarea mesajului: ' + error.message);
   }
 });
 
