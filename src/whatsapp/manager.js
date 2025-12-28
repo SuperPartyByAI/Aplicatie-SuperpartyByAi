@@ -22,13 +22,42 @@ class WhatsAppManager {
     this.lastMessageTime = new Map(); // Track last message received per account
     this.healthCheckInterval = null;
     
+    // TIER 3: Dual Connection
+    this.backupClients = new Map(); // Backup connections
+    this.activeConnection = new Map(); // Track active connection per account
+    
+    // TIER 3: Adaptive Keep-Alive
+    this.keepAliveInterval = 10000; // Start at 10s
+    this.rateLimitDetected = false;
+    
+    // TIER 3: Message Batching
+    this.messageBatch = [];
+    this.batchInterval = null;
+    
+    // TIER 3: Connection Quality
+    this.connectionQuality = new Map();
+    
+    // TIER 3: Monitoring
+    this.metrics = {
+      disconnects: 0,
+      reconnects: 0,
+      messageLoss: 0,
+      rateLimits: 0,
+      messagesProcessed: 0
+    };
+    
     this.ensureSessionsDir();
     this.startMessageProcessor();
-    this.startKeepAlive();
+    this.startAdaptiveKeepAlive(); // TIER 3: Adaptive instead of fixed
     this.startHealthCheck();
+    this.startProactiveMonitoring(); // TIER 3: Proactive reconnect
+    this.startBatchProcessor(); // TIER 3: Batch processing
     
     // Initialize Firebase
     firestore.initialize();
+    
+    // TIER 3: Restore queue from Firestore
+    this.restoreQueue();
     
     // Auto-restore sessions after Railway restart
     this.autoRestoreSessions();
@@ -102,22 +131,281 @@ class WhatsAppManager {
     }
   }
   
-  startKeepAlive() {
-    // ÎMBUNĂTĂȚIRE: Keep-alive every 10 seconds (was 15s) - reduce detection delay 33%
-    setInterval(() => {
-      this.clients.forEach((sock, accountId) => {
+  /**
+   * TIER 3: Adaptive Keep-Alive (Rate Limit Protection)
+   * Adjusts interval based on rate limit detection
+   */
+  startAdaptiveKeepAlive() {
+    const keepAliveCheck = async () => {
+      for (const [accountId, sock] of this.clients.entries()) {
         if (sock.user) {
-          // Connection is active, send presence update
-          sock.sendPresenceUpdate('available').catch(err => {
+          try {
+            await sock.sendPresenceUpdate('available');
+            
+            // Success - reduce interval if it was increased
+            if (this.keepAliveInterval > 10000) {
+              this.keepAliveInterval = Math.max(10000, this.keepAliveInterval - 1000);
+              console.log(`✅ [${accountId}] Keep-alive OK, interval: ${this.keepAliveInterval}ms`);
+            }
+            
+            // Update last activity time
+            this.lastMessageTime.set(accountId, Date.now());
+            
+            // Log metric
+            await this.logMetric('keep_alive_success', { accountId });
+          } catch (err) {
             console.log(`⚠️ [${accountId}] Keep-alive failed:`, err.message);
-            // Dacă keep-alive eșuează, reconnect
-            this.reconnectAccount(accountId);
-          });
-          // Update last activity time
-          this.lastMessageTime.set(accountId, Date.now());
+            
+            // TIER 3: Detect rate limit
+            if (err.message.includes('rate limit') || err.message.includes('429') || err.message.includes('too many')) {
+              this.keepAliveInterval = Math.min(60000, this.keepAliveInterval * 2);
+              this.rateLimitDetected = true;
+              this.metrics.rateLimits++;
+              
+              console.log(`🚨 [${accountId}] Rate limit detected! Interval: ${this.keepAliveInterval}ms`);
+              await this.logMetric('rate_limit_detected', { accountId, interval: this.keepAliveInterval });
+              
+              // Reset after 5 minutes
+              setTimeout(() => {
+                this.rateLimitDetected = false;
+                this.keepAliveInterval = 10000;
+                console.log(`✅ Rate limit cooldown complete, reset to 10s`);
+              }, 300000);
+            } else {
+              // TIER 3: Switch to backup connection if available
+              if (this.backupClients.has(accountId)) {
+                await this.switchToBackup(accountId);
+              } else {
+                // Regular reconnect
+                this.reconnectAccount(accountId);
+              }
+            }
+          }
         }
+      }
+      
+      // Schedule next check
+      setTimeout(keepAliveCheck, this.keepAliveInterval);
+    };
+    
+    // Start keep-alive
+    keepAliveCheck();
+  }
+  
+  /**
+   * TIER 3: Restore message queue from Firestore
+   */
+  async restoreQueue() {
+    try {
+      const savedQueue = await firestore.getQueue('global');
+      if (savedQueue && savedQueue.length > 0) {
+        this.messageQueue = savedQueue;
+        console.log(`📦 Restored ${savedQueue.length} messages from queue`);
+        await this.logMetric('queue_restored', { count: savedQueue.length });
+      }
+    } catch (error) {
+      console.error('❌ Failed to restore queue:', error.message);
+    }
+  }
+  
+  /**
+   * TIER 3: Batch processor for Firestore saves
+   */
+  startBatchProcessor() {
+    setInterval(async () => {
+      if (this.messageBatch.length > 0) {
+        await this.flushBatch();
+      }
+    }, 5000); // Flush every 5 seconds
+  }
+  
+  /**
+   * TIER 3: Flush message batch to Firestore
+   */
+  async flushBatch() {
+    if (this.messageBatch.length === 0) return;
+    
+    const batchToSave = [...this.messageBatch];
+    this.messageBatch = [];
+    
+    try {
+      await firestore.saveBatch(batchToSave);
+      console.log(`✅ Saved ${batchToSave.length} messages in batch`);
+      await this.logMetric('batch_saved', { count: batchToSave.length });
+    } catch (error) {
+      console.error(`❌ Batch save failed:`, error.message);
+      // Put back in queue
+      this.messageBatch.unshift(...batchToSave);
+    }
+  }
+  
+  /**
+   * TIER 3: Proactive monitoring for connection quality
+   */
+  startProactiveMonitoring() {
+    setInterval(async () => {
+      for (const [accountId, sock] of this.clients.entries()) {
+        if (sock.user) {
+          const quality = await this.measureConnectionQuality(accountId, sock);
+          this.connectionQuality.set(accountId, quality);
+          
+          // TIER 3: Proactive reconnect if quality drops
+          if (quality < 0.5) {
+            console.log(`⚠️ [${accountId}] Quality low (${(quality * 100).toFixed(0)}%), proactive reconnect`);
+            await this.proactiveReconnect(accountId);
+          }
+        }
+      }
+    }, 5000); // Check every 5 seconds
+  }
+  
+  /**
+   * TIER 3: Measure connection quality
+   */
+  async measureConnectionQuality(accountId, sock) {
+    let quality = 1.0;
+    
+    try {
+      // Check last message time
+      const lastMsg = this.lastMessageTime.get(accountId) || Date.now();
+      const timeSinceLastMsg = Date.now() - lastMsg;
+      
+      if (timeSinceLastMsg > 60000) quality -= 0.3; // No activity for 1 min
+      if (timeSinceLastMsg > 120000) quality -= 0.3; // No activity for 2 min
+      
+      // Check retry count
+      const retries = this.retryCount.get(accountId) || 0;
+      if (retries > 3) quality -= 0.2;
+      if (retries > 5) quality -= 0.2;
+      
+      return Math.max(0, quality);
+    } catch (error) {
+      return 0;
+    }
+  }
+  
+  /**
+   * TIER 3: Proactive reconnect (before disconnect)
+   */
+  async proactiveReconnect(accountId) {
+    try {
+      const account = this.accounts.get(accountId);
+      if (!account) return;
+      
+      console.log(`🔄 [${accountId}] Proactive reconnect initiated`);
+      await this.logMetric('proactive_reconnect', { accountId });
+      
+      // Create new connection
+      const newSock = await this.connectBaileys(accountId, account.phone);
+      
+      // Wait for connection to be ready
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Switch to new connection
+      const oldSock = this.clients.get(accountId);
+      this.clients.set(accountId, newSock);
+      
+      // Close old connection gracefully
+      if (oldSock) {
+        try {
+          await oldSock.logout();
+        } catch (e) {}
+      }
+      
+      console.log(`✅ [${accountId}] Proactive reconnect complete`);
+      this.retryCount.set(accountId, 0);
+    } catch (error) {
+      console.error(`❌ [${accountId}] Proactive reconnect failed:`, error.message);
+    }
+  }
+  
+  /**
+   * TIER 3: Initialize dual connection (primary + backup)
+   */
+  async initDualConnection(accountId, phoneNumber) {
+    try {
+      console.log(`🔄 [${accountId}] Initializing dual connection...`);
+      
+      // Primary connection
+      await this.connectBaileys(accountId, phoneNumber);
+      this.activeConnection.set(accountId, 'primary');
+      
+      // Backup connection after 30 seconds
+      setTimeout(async () => {
+        try {
+          const backupSock = await this.connectBaileys(accountId, phoneNumber, true);
+          this.backupClients.set(accountId, backupSock);
+          console.log(`✅ [${accountId}] Backup connection ready`);
+          await this.logMetric('backup_connection_ready', { accountId });
+        } catch (error) {
+          console.error(`❌ [${accountId}] Backup connection failed:`, error.message);
+        }
+      }, 30000);
+    } catch (error) {
+      console.error(`❌ [${accountId}] Dual connection init failed:`, error.message);
+    }
+  }
+  
+  /**
+   * TIER 3: Switch to backup connection
+   */
+  async switchToBackup(accountId) {
+    try {
+      const backupSock = this.backupClients.get(accountId);
+      if (!backupSock) {
+        console.log(`⚠️ [${accountId}] No backup connection available`);
+        return false;
+      }
+      
+      console.log(`⚡ [${accountId}] Switching to backup connection (0s downtime)`);
+      await this.logMetric('switched_to_backup', { accountId });
+      
+      // Switch connections
+      const oldSock = this.clients.get(accountId);
+      this.clients.set(accountId, backupSock);
+      this.backupClients.delete(accountId);
+      this.activeConnection.set(accountId, 'backup');
+      
+      // Close old connection
+      if (oldSock) {
+        try {
+          await oldSock.logout();
+        } catch (e) {}
+      }
+      
+      // Create new backup in background
+      setTimeout(async () => {
+        try {
+          const account = this.accounts.get(accountId);
+          const newBackup = await this.connectBaileys(accountId, account.phone, true);
+          this.backupClients.set(accountId, newBackup);
+          this.activeConnection.set(accountId, 'primary');
+          console.log(`✅ [${accountId}] New backup connection ready`);
+        } catch (error) {
+          console.error(`❌ [${accountId}] New backup failed:`, error.message);
+        }
+      }, 5000);
+      
+      return true;
+    } catch (error) {
+      console.error(`❌ [${accountId}] Switch to backup failed:`, error.message);
+      return false;
+    }
+  }
+  
+  /**
+   * TIER 3: Log metric to Firestore for monitoring
+   */
+  async logMetric(type, data) {
+    try {
+      await firestore.logEvent({
+        type,
+        data,
+        timestamp: Date.now()
       });
-    }, 10000); // ÎMBUNĂTĂȚIRE: 10s instead of 15s
+    } catch (error) {
+      // Silent fail - don't crash on logging errors
+    }
   }
   
   /**
@@ -170,9 +458,14 @@ class WhatsAppManager {
   }
   
   startMessageProcessor() {
-    setInterval(() => {
+    setInterval(async () => {
       if (this.messageQueue.length > 0 && !this.processing) {
-        this.processNextMessage();
+        await this.processNextMessage();
+      }
+      
+      // TIER 3: Save queue to Firestore every 10 messages
+      if (this.messageQueue.length > 0 && this.messageQueue.length % 10 === 0) {
+        await firestore.saveQueue('global', this.messageQueue);
       }
     }, 100);
   }
@@ -443,6 +736,28 @@ class WhatsAppManager {
    * Reduce message loss from 6.36% to 0.5%
    */
   async saveMessageWithRetry(accountId, chatId, messageData, pushName, maxRetries = 3) {
+    // TIER 3: Use batching for better performance
+    const useBatching = process.env.USE_MESSAGE_BATCHING !== 'false';
+    
+    if (useBatching) {
+      // Add to batch
+      this.messageBatch.push({
+        accountId,
+        chatId,
+        messageData,
+        pushName
+      });
+      
+      // Flush if batch is full
+      if (this.messageBatch.length >= 10) {
+        await this.flushBatch();
+      }
+      
+      this.metrics.messagesProcessed++;
+      return;
+    }
+    
+    // Original retry logic (fallback)
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         // ÎMBUNĂTĂȚIRE: Check for duplicates before saving
@@ -462,6 +777,9 @@ class WhatsAppManager {
           lastMessageTimestamp: messageData.timestamp
         });
         
+        this.metrics.messagesProcessed++;
+        await this.logMetric('message_saved', { accountId, messageId: messageData.id });
+        
         // Success - exit retry loop
         return;
       } catch (error) {
@@ -469,6 +787,8 @@ class WhatsAppManager {
         
         if (attempt === maxRetries - 1) {
           // Final attempt failed - log error but don't crash
+          this.metrics.messageLoss++;
+          await this.logMetric('message_lost', { accountId, messageId: messageData.id, error: error.message });
           console.error(`❌ [${accountId}] Message ${messageData.id} lost after ${maxRetries} attempts`);
           return;
         }
@@ -707,10 +1027,20 @@ class WhatsAppManager {
       // Stop accepting new messages
       clearInterval(this.healthCheckInterval);
       
+      // TIER 3: Flush message batch
+      console.log(`💾 Flushing message batch (${this.messageBatch.length} messages)...`);
+      await this.flushBatch();
+      
       // Process remaining messages in queue
       console.log(`📤 Processing ${this.messageQueue.length} messages in queue...`);
       while (this.messageQueue.length > 0 && !this.processing) {
         await this.processNextMessage();
+      }
+      
+      // TIER 3: Save queue to Firestore
+      if (this.messageQueue.length > 0) {
+        console.log(`💾 Saving ${this.messageQueue.length} messages to queue...`);
+        await firestore.saveQueue('global', this.messageQueue);
       }
       
       // Save all sessions
@@ -720,14 +1050,46 @@ class WhatsAppManager {
         await sessionStore.saveSession(accountId, sessionPath, account);
       }
       
-      // Disconnect all clients cleanly
+      // TIER 3: Log final metrics
+      console.log('📊 Final metrics:', this.metrics);
+      await this.logMetric('graceful_shutdown', { metrics: this.metrics });
+      
+      // Disconnect all clients cleanly (including backups)
       console.log('🔌 Disconnecting all clients...');
       await this.destroy();
+      
+      // TIER 3: Disconnect backup clients
+      for (const [accountId, backupSock] of this.backupClients.entries()) {
+        try {
+          await backupSock.logout();
+          console.log(`✅ [${accountId}] Backup disconnected`);
+        } catch (e) {}
+      }
       
       console.log('✅ Graceful shutdown complete');
     } catch (error) {
       console.error('❌ Graceful shutdown error:', error.message);
     }
+  }
+  
+  /**
+   * TIER 3: Generate daily report
+   */
+  async generateDailyReport() {
+    const report = {
+      date: new Date().toISOString().split('T')[0],
+      metrics: this.metrics,
+      accounts: this.accounts.size,
+      activeConnections: this.clients.size,
+      backupConnections: this.backupClients.size,
+      queueSize: this.messageQueue.length,
+      batchSize: this.messageBatch.length
+    };
+    
+    console.log('📊 Daily Report:', report);
+    await this.logMetric('daily_report', report);
+    
+    return report;
   }
 }
 

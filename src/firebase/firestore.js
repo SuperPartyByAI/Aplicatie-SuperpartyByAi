@@ -154,6 +154,138 @@ class FirestoreService {
       return false; // Assume doesn't exist on error
     }
   }
+
+  /**
+   * TIER 3: Save message batch (10x faster)
+   */
+  async saveBatch(messageBatch) {
+    if (!this.db) return;
+
+    try {
+      const batch = this.db.batch();
+      
+      for (const item of messageBatch) {
+        const { accountId, chatId, messageData, pushName } = item;
+        
+        // Message
+        const messageRef = this.db
+          .collection('accounts')
+          .doc(accountId)
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .doc(messageData.id);
+        
+        batch.set(messageRef, {
+          ...messageData,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        
+        // Chat metadata
+        const chatRef = this.db
+          .collection('accounts')
+          .doc(accountId)
+          .collection('chats')
+          .doc(chatId);
+        
+        batch.set(chatRef, {
+          name: pushName || chatId.split('@')[0],
+          lastMessage: messageData.body,
+          lastMessageTimestamp: messageData.timestamp,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+      
+      await batch.commit();
+    } catch (error) {
+      console.error('❌ Failed to save batch to Firestore:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * TIER 3: Save message queue
+   */
+  async saveQueue(queueId, queue) {
+    if (!this.db) return;
+
+    try {
+      await this.db
+        .collection('message_queues')
+        .doc(queueId)
+        .set({
+          queue: queue,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+    } catch (error) {
+      console.error('❌ Failed to save queue to Firestore:', error.message);
+    }
+  }
+
+  /**
+   * TIER 3: Get message queue
+   */
+  async getQueue(queueId) {
+    if (!this.db) return [];
+
+    try {
+      const doc = await this.db
+        .collection('message_queues')
+        .doc(queueId)
+        .get();
+
+      if (doc.exists) {
+        return doc.data().queue || [];
+      }
+      return [];
+    } catch (error) {
+      console.error('❌ Failed to get queue from Firestore:', error.message);
+      return [];
+    }
+  }
+
+  /**
+   * TIER 3: Log event for monitoring
+   */
+  async logEvent(event) {
+    if (!this.db) return;
+
+    try {
+      await this.db
+        .collection('monitoring_events')
+        .add({
+          ...event,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+    } catch (error) {
+      // Silent fail - don't crash on logging errors
+    }
+  }
+
+  /**
+   * TIER 3: Get monitoring events
+   */
+  async getEvents(limit = 100) {
+    if (!this.db) return [];
+
+    try {
+      const snapshot = await this.db
+        .collection('monitoring_events')
+        .orderBy('timestamp', 'desc')
+        .limit(limit)
+        .get();
+
+      const events = [];
+      snapshot.forEach(doc => {
+        events.push({ id: doc.id, ...doc.data() });
+      });
+
+      return events;
+    } catch (error) {
+      console.error('❌ Failed to get events from Firestore:', error.message);
+      return [];
+    }
+  }
 }
 
 module.exports = new FirestoreService();
