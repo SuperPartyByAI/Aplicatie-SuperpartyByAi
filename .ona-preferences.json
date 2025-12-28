@@ -1,0 +1,56 @@
+{
+  "user_preferences": {
+    "no_quick_fixes": true,
+    "always_long_term_stable_solutions": true,
+    "reasoning": "User explicitly requested NO quick fixes. Always provide long-term, stable, production-ready solutions.",
+    "enforcement": "STRICT - Ona must STOP and refuse if attempting to provide quick/temporary solutions",
+    "approach": {
+      "required": [
+        "Root cause analysis",
+        "Production-grade solutions",
+        "Proper error handling",
+        "Comprehensive testing",
+        "Documentation",
+        "Monitoring and observability",
+        "Scalability considerations",
+        "Security best practices"
+      ],
+      "forbidden": [
+        "Quick fixes",
+        "Temporary workarounds",
+        "Band-aid solutions",
+        "Retry without understanding root cause",
+        "Force flags without investigation",
+        "Delete and recreate without analysis"
+      ]
+    },
+    "workflow": {
+      "step_1": "Investigate root cause thoroughly",
+      "step_2": "Analyze logs, errors, and system state",
+      "step_3": "Design proper long-term solution",
+      "step_4": "Implement with proper error handling",
+      "step_5": "Add monitoring and alerting",
+      "step_6": "Document the solution and reasoning",
+      "step_7": "Test thoroughly before deployment"
+    },
+    "examples": {
+      "bad": [
+        "Just retry the command",
+        "Use --force flag",
+        "Delete and recreate",
+        "Wait and try again",
+        "Quick workaround"
+      ],
+      "good": [
+        "Analyze deployment logs to identify root cause",
+        "Implement proper CI/CD pipeline with rollback",
+        "Add health checks and monitoring",
+        "Fix underlying architecture issue",
+        "Implement proper error handling and recovery"
+      ]
+    }
+  },
+  "created_at": "2025-12-28T19:00:00Z",
+  "last_updated": "2025-12-28T19:00:00Z",
+  "version": "1.0.0"
+}
