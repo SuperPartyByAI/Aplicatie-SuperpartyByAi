@@ -7,6 +7,12 @@ const pino = require('pino');
 const firestore = require('../firebase/firestore');
 const sessionStore = require('./session-store');
 
+// TIER ULTIMATE 1: Import new modules
+const behaviorSimulator = require('./behavior');
+const rateLimiter = require('./rate-limiter');
+const messageVariation = require('./message-variation');
+const circuitBreaker = require('./circuit-breaker');
+
 class WhatsAppManager {
   constructor(io) {
     this.io = io;
@@ -59,8 +65,57 @@ class WhatsAppManager {
     // TIER 3: Restore queue from Firestore
     this.restoreQueue();
     
+    // TIER ULTIMATE 1: Initialize modules
+    this.initializeUltimateModules();
+    
     // Auto-restore sessions after Railway restart
     this.autoRestoreSessions();
+  }
+  
+  /**
+   * TIER ULTIMATE 1: Initialize all ULTIMATE modules
+   */
+  initializeUltimateModules() {
+    // Setup rate limiter message sender
+    rateLimiter.sendMessage = async (accountId, message) => {
+      const sock = this.getActiveConnection(accountId);
+      if (!sock) throw new Error('No active connection');
+      
+      // Use behavior simulator to send
+      return await behaviorSimulator.sendMessageWithBehavior(
+        sock,
+        message.jid,
+        message.text
+      );
+    };
+    
+    // Setup circuit breaker event handlers
+    circuitBreaker.on('circuit-opened', ({ accountId, failures, lastError }) => {
+      console.warn(`⚠️ Circuit opened for ${accountId}: ${failures} failures, last: ${lastError}`);
+      this.metrics.circuitBreaks = (this.metrics.circuitBreaks || 0) + 1;
+      
+      // Log to Firestore
+      firestore.logEvent({
+        type: 'circuit_opened',
+        accountId,
+        failures,
+        lastError,
+        timestamp: Date.now()
+      });
+    });
+    
+    circuitBreaker.on('circuit-closed', ({ accountId }) => {
+      console.log(`✅ Circuit closed for ${accountId}: recovered`);
+      
+      // Log to Firestore
+      firestore.logEvent({
+        type: 'circuit_closed',
+        accountId,
+        timestamp: Date.now()
+      });
+    });
+    
+    console.log('✅ TIER ULTIMATE 1 modules initialized');
   }
   
   /**
@@ -648,6 +703,13 @@ class WhatsAppManager {
           account.phone = sock.user?.id?.split(':')[0] || null;
         }
         
+        // TIER ULTIMATE 1: Initialize modules for this account
+        rateLimiter.initAccount(accountId, 'normal');
+        circuitBreaker.initCircuit(accountId);
+        
+        // TIER ULTIMATE 1: Start presence simulation
+        behaviorSimulator.startPresenceSimulation(sock, accountId);
+        
         // Save session + metadata to Firestore for persistence
         const sessionPath = path.join(this.sessionsPath, accountId);
         sessionStore.saveSession(accountId, sessionPath, account).catch(err => {
@@ -679,6 +741,13 @@ class WhatsAppManager {
         if (!message.message) continue;
         
         console.log(`💬 [${accountId}] Message received - queued (${this.messageQueue.length} in queue)`);
+        
+        // TIER ULTIMATE 1: Simulate read receipt for incoming messages
+        if (!message.key.fromMe) {
+          behaviorSimulator.handleIncomingMessage(sock, message).catch(err => {
+            console.error(`Error handling incoming message behavior:`, err.message);
+          });
+        }
         
         // Add to message queue
         this.messageQueue.push({ accountId, message });
@@ -891,24 +960,147 @@ class WhatsAppManager {
     }
   }
 
-  async sendMessage(accountId, chatId, message) {
-    const sock = this.clients.get(accountId);
-    if (!sock) throw new Error('Account not found');
+  async sendMessage(accountId, chatId, message, options = {}) {
+    // TIER ULTIMATE 1: Check circuit breaker
+    const circuitCheck = circuitBreaker.canExecute(accountId);
+    if (!circuitCheck.allowed) {
+      console.warn(`⚠️ [${accountId}] Circuit breaker: ${circuitCheck.reason}`);
+      throw new Error(`Circuit breaker open: ${circuitCheck.reason}`);
+    }
+    
+    // TIER ULTIMATE 1: Check rate limiter
+    const rateLimitCheck = rateLimiter.canSendNow(accountId, chatId);
+    if (!rateLimitCheck.allowed) {
+      console.log(`⏳ [${accountId}] Rate limited: ${rateLimitCheck.reason}, queuing...`);
+      
+      // Queue message
+      const messageId = await rateLimiter.queueMessage(
+        accountId,
+        chatId,
+        message,
+        options.priority || 0
+      );
+      
+      return { success: true, queued: true, messageId };
+    }
+    
+    const sock = this.getActiveConnection(accountId);
+    if (!sock) {
+      circuitBreaker.recordFailure(accountId, new Error('No active connection'));
+      throw new Error('Account not found');
+    }
 
     try {
-      await sock.sendMessage(chatId, { text: message });
+      // TIER ULTIMATE 1: Apply message variation if template provided
+      let finalMessage = message;
+      if (options.useVariation && options.template) {
+        finalMessage = messageVariation.generateUniqueMessage(
+          accountId,
+          chatId,
+          options.template,
+          options.variables || {},
+          options.variationOptions || {}
+        );
+      }
+      
+      // TIER ULTIMATE 1: Send with human behavior simulation
+      if (options.useBehavior !== false) {
+        await behaviorSimulator.sendMessageWithBehavior(
+          sock,
+          chatId,
+          finalMessage,
+          options.behaviorOptions || {}
+        );
+      } else {
+        // Direct send without behavior
+        await sock.sendMessage(chatId, { text: finalMessage });
+      }
+      
+      // TIER ULTIMATE 1: Record success
+      circuitBreaker.recordSuccess(accountId);
+      rateLimiter.recordMessage(accountId, chatId);
+      
       console.log(`📤 [${accountId}] Message sent to ${chatId}`);
       return { success: true };
     } catch (error) {
       console.error(`❌ [${accountId}] Failed to send message:`, error);
+      
+      // TIER ULTIMATE 1: Record failure
+      circuitBreaker.recordFailure(accountId, error);
+      
+      // TIER ULTIMATE 1: Check if rate limit error
+      if (error.message.includes('rate limit') || error.message.includes('429')) {
+        rateLimiter.handleRateLimit(accountId, 'medium');
+      }
+      
       throw error;
     }
+  }
+  
+  /**
+   * TIER ULTIMATE 1: Send bulk messages with variation
+   */
+  async sendBulkMessages(accountId, recipients, template, options = {}) {
+    // Initialize account in rate limiter
+    rateLimiter.initAccount(accountId, options.accountAge || 'normal');
+    
+    // Generate varied messages
+    const messages = messageVariation.generateBatch(
+      accountId,
+      recipients,
+      template,
+      options
+    );
+    
+    const results = [];
+    
+    for (const message of messages) {
+      try {
+        const result = await this.sendMessage(accountId, message.jid, message.text, {
+          useBehavior: true,
+          priority: options.priority || 0
+        });
+        
+        results.push({
+          jid: message.jid,
+          success: true,
+          ...result
+        });
+      } catch (error) {
+        results.push({
+          jid: message.jid,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+    
+    return results;
+  }
+  
+  /**
+   * Get active connection (primary or backup)
+   */
+  getActiveConnection(accountId) {
+    const active = this.activeConnection.get(accountId);
+    if (active === 'backup') {
+      return this.backupClients.get(accountId);
+    }
+    return this.clients.get(accountId);
   }
 
   async destroy() {
     console.log('🛑 Destroying all WhatsApp clients...');
     for (const [accountId, sock] of this.clients.entries()) {
       try {
+        // TIER ULTIMATE 1: Stop presence simulation
+        behaviorSimulator.stopPresenceSimulation(accountId);
+        
+        // TIER ULTIMATE 1: Cleanup modules
+        rateLimiter.cleanup(accountId);
+        messageVariation.cleanup(accountId);
+        circuitBreaker.cleanup(accountId);
+        
         await sock.logout();
         console.log(`✅ [${accountId}] Destroyed`);
       } catch (error) {
@@ -917,6 +1109,12 @@ class WhatsAppManager {
     }
     this.clients.clear();
     this.accounts.clear();
+    
+    // TIER ULTIMATE 1: Global cleanup
+    behaviorSimulator.cleanup();
+    rateLimiter.cleanup();
+    messageVariation.cleanup();
+    circuitBreaker.cleanup();
   }
 
   async getAllClients() {
