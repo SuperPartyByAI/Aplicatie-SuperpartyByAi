@@ -1,0 +1,44 @@
+═══════════════════════════════════════════════════════════════
+🚀 DEPLOY VOICE AI - SERVICIU NOU PE RAILWAY
+═══════════════════════════════════════════════════════════════
+
+PASUL 1: Mergi la Railway
+https://railway.app
+
+PASUL 2: Click "New Project"
+
+PASUL 3: Click "Deploy from GitHub repo"
+
+PASUL 4: Selectează:
+SuperPartyByAI/superparty-ai-backend
+Branch: master
+
+PASUL 5: După ce se creează, click pe serviciu → Variables → Raw Editor
+Paste asta:
+
+OPENAI_API_KEY=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
+TWILIO_ACCOUNT_SID=AC17c88873d670aab4aa4a50fae230d2df
+TWILIO_AUTH_TOKEN=5c6670d39a1dbf46d47ecdaa244b91d9
+TWILIO_PHONE_NUMBER=+12182204425
+BACKEND_URL=https://NOUL-URL-DE-LA-RAILWAY.railway.app
+COQUI_API_URL=https://web-production-00dca9.up.railway.app
+NODE_ENV=production
+PORT=5001
+
+IMPORTANT: Schimbă BACKEND_URL cu URL-ul real al noului serviciu!
+
+PASUL 6: Click Settings → Networking → Generate Domain
+Copiază URL-ul generat (ex: voice-ai-production-abc123.up.railway.app)
+
+PASUL 7: Înapoi la Variables → Editează BACKEND_URL cu noul URL
+
+PASUL 8: Configurează Twilio
+https://console.twilio.com/
+Phone Numbers → +1 (218) 220-4425
+A call comes in: https://NOUL-URL/api/voice/incoming
+
+PASUL 9: Testează
+Sună la: +1 (218) 220-4425
+Ar trebui să auzi: "Bună ziua, SuperParty, cu ce vă ajut?" cu vocea Kasya
+
+═══════════════════════════════════════════════════════════════
