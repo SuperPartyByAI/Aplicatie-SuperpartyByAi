@@ -1,4 +1,5 @@
-const functions = require('firebase-functions');
+// Use v2 for 2nd Gen Cloud Functions (Cloud Run)
+const { onRequest } = require('firebase-functions/v2/https');
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -41,12 +42,13 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
   }
 });
 
-// firebase-functions v5 syntax: options are passed directly to onRequest
-exports.whatsapp = functions.https.onRequest(
+// firebase-functions v2 (2nd Gen): Cloud Run-based functions
+exports.whatsapp = onRequest(
   {
     memory: '2GiB',
     timeoutSeconds: 540,
-    // Note: invoker: 'public' is not supported in v5, use IAM permissions instead
+    maxInstances: 10,
+    // 2nd Gen automatically handles public access
   },
   app
 );
