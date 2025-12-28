@@ -25,7 +25,10 @@ class WhatsAppManager {
     this.accounts = new Map();
     this.chatsCache = new Map(); // Manual cache for chats
     this.messagesCache = new Map(); // Manual cache for messages per chat
-    this.sessionsPath = path.join(__dirname, '../../.baileys_auth');
+    // Use /tmp for Firebase Functions (read-only filesystem)
+    this.sessionsPath = process.env.FUNCTIONS_EMULATOR ? 
+      path.join(__dirname, '../../.baileys_auth') : 
+      '/tmp/.baileys_auth';
     this.maxAccounts = 20;
     this.messageQueue = [];
     this.processing = false;
