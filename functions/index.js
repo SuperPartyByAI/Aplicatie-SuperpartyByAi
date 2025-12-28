@@ -41,10 +41,12 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
   }
 });
 
-exports.whatsapp = functions
-  .runWith({ 
-    memory: '2GB', 
+// firebase-functions v5 syntax: options are passed directly to onRequest
+exports.whatsapp = functions.https.onRequest(
+  {
+    memory: '2GiB',
     timeoutSeconds: 540,
-    invoker: 'public'
-  })
-  .https.onRequest(app);
+    // Note: invoker: 'public' is not supported in v5, use IAM permissions instead
+  },
+  app
+);
