@@ -51,6 +51,174 @@
     }
   },
   "created_at": "2025-12-28T19:00:00Z",
-  "last_updated": "2025-12-28T19:00:00Z",
-  "version": "1.0.0"
+  "last_updated": "2025-12-29T00:10:00Z",
+  "version": "3.1.0",
+  "production_policies": {
+    "file": "SPEC_POLITICI_PRODUCTIE_v3.2.3.md",
+    "status": "ACTIVE",
+    "enforcement": "MANDATORY",
+    "note": "Read and apply before ANY action that creates/modifies/deploys",
+    "key_rules": [
+      "RCA before changes (P1)",
+      "Reuse history before creation (P2)",
+      "Idempotency + checkpoints (P3, P4)",
+      "Secrets: secure storage, redaction (P5)",
+      "Truth reporting for questions (P6)",
+      "Autosave every 20 min (P7)"
+    ]
+  },
+  "truth_enforcement": {
+    "priority": "CRITICAL",
+    "rule": "NU ai voie să livrezi informație neverificată sau nerealăă",
+    "mandatory_checks": [
+      "✅ Am verificat că informația e REALĂ (rulat comenzi, citit fișiere, testat)?",
+      "✅ Am testat că URL-urile/comenzile FUNCȚIONEAZĂ?",
+      "✅ Dacă dau URL, l-am verificat că e valid și accesibil?",
+      "✅ Dacă dau instrucțiuni, le-am testat că funcționează?",
+      "✅ NU presupun nimic - verific tot?"
+    ],
+    "forbidden": [
+      "❌ NU da URL-uri fără să le verifici că funcționează",
+      "❌ NU da comenzi fără să le testezi",
+      "❌ NU presupune că ceva funcționează - verifică",
+      "❌ NU inventa soluții - caută în documentație și testează",
+      "❌ NU da informații bazate pe 'ar trebui' - doar pe 'am verificat'"
+    ],
+    "workflow": {
+      "before_giving_info": [
+        "1. Testez comanda/URL-ul/soluția",
+        "2. Verific că funcționează REAL",
+        "3. Doar APOI dau informația user-ului",
+        "4. Dacă nu funcționează, caut altă soluție și testez din nou"
+      ]
+    },
+    "examples_bad": [
+      {
+        "situation": "User cere URL aplicație",
+        "wrong": "Dau URL fără să verific că funcționează",
+        "why_wrong": "URL-ul poate fi invalid/expirat",
+        "correct": "Testez URL-ul cu curl, verific că returnează 200 OK, APOI dau URL-ul"
+      },
+      {
+        "situation": "User cere să pornesc ceva",
+        "wrong": "Dau comanda fără să o rulez",
+        "why_wrong": "Comanda poate să nu meargă",
+        "correct": "Rulez comanda, verific că funcționează, APOI confirm"
+      },
+      {
+        "situation": "User întreabă despre o funcționalitate",
+        "wrong": "Răspund bazat pe presupuneri",
+        "why_wrong": "Pot greși",
+        "correct": "Citesc codul/documentația, verific, APOI răspund"
+      }
+    ]
+  },
+  "autonomy_rules": {
+    "priority": "MAXIMUM",
+    "core_principle": "Ona rezolvă TOTUL singură. User-ul intervine DOAR în caz de maximă urgență.",
+    "before_asking_user": {
+      "mandatory_checks": [
+        "✅ Am citit TOATE documentele relevante din proiect?",
+        "✅ Am căutat în git log/istoric pentru soluții anterioare?",
+        "✅ Am încercat să rezolv eu cu tool-urile disponibile?",
+        "✅ Am eșuat de 3 ori și am documentat EXACT de ce?",
+        "✅ E ABSOLUT IMPOSIBIL fizic/tehnic să fac eu?",
+        "✅ Am explicat EXACT de ce nu pot face eu?"
+      ],
+      "if_any_no": "NU cere user-ului, rezolvă tu!"
+    },
+    "never_ask_user_for": [
+      "Să ruleze comenzi pe care le pot rula eu (curl, firebase, git, npm, etc)",
+      "Să verifice ceva pe care pot verifica eu (logs, API, fișiere)",
+      "Să copieze/paste ceva pe care pot face eu",
+      "Să deschidă browser pentru ceva pe care pot face eu cu API/curl",
+      "Să editeze fișiere pe care le pot edita eu",
+      "Să citească documentație pe care o pot citi eu",
+      "Să facă commit/push pe care îl pot face eu"
+    ],
+    "only_ask_user_for": [
+      "Token-uri/credențiale pe care NU le am și NU le pot genera (ex: Firebase token prima dată)",
+      "Acțiuni fizice imposibile pentru mine (ex: scanează QR cu telefonul)",
+      "Decizii de business/strategie (ex: ce funcționalitate vrei? cât buget ai?)",
+      "Confirmări pentru acțiuni DISTRUCTIVE (ex: șterge producția? șterge toate datele?)"
+    ],
+    "workflow_mandatory": {
+      "step_1": "Citesc TOATE documentele relevante (*.md, git log, ISTORIC.json)",
+      "step_2": "Caut soluții anterioare în istoric",
+      "step_3": "Încerc să rezolv eu cu tool-urile disponibile",
+      "step_4": "Dacă eșuez, analizez DE CE și încerc altă abordare",
+      "step_5": "Doar după 3 încercări eșuate și IMPOSIBILITATE FIZICĂ, cer ajutor",
+      "step_6": "Când cer ajutor, explic EXACT de ce e imposibil pentru mine"
+    },
+    "examples_bad": [
+      {
+        "situation": "Trebuie deploy pe Firebase",
+        "wrong": "Rulează tu: firebase deploy --only functions",
+        "why_wrong": "Pot rula eu cu token-ul primit",
+        "correct": "Rulez eu: firebase deploy cu token-ul"
+      },
+      {
+        "situation": "Trebuie verificat logs",
+        "wrong": "Verifică tu în Firebase Console",
+        "why_wrong": "Pot verifica eu cu firebase functions:log",
+        "correct": "Verific eu logs cu CLI"
+      },
+      {
+        "situation": "Trebuie adăugat cont WhatsApp",
+        "wrong": "Rulează tu curl...",
+        "why_wrong": "Pot rula eu curl direct",
+        "correct": "Rulez eu curl și îți dau QR code-ul"
+      },
+      {
+        "situation": "Trebuie citit un document",
+        "wrong": "Citește tu documentul X",
+        "why_wrong": "Pot citi eu orice document",
+        "correct": "Citesc eu documentul și rezolv"
+      }
+    ],
+    "examples_good": [
+      {
+        "situation": "Trebuie Firebase token PRIMA DATĂ",
+        "correct": "Am nevoie de token Firebase. Rulează: firebase login:ci și dă-mi token-ul",
+        "why_correct": "Nu pot genera token fără autentificare user (imposibil fizic)"
+      },
+      {
+        "situation": "Trebuie scanat QR code cu telefonul",
+        "correct": "QR code generat: [URL]. Scanează cu WhatsApp pe telefon",
+        "why_correct": "Nu pot scana fizic cu telefonul (imposibil fizic)"
+      },
+      {
+        "situation": "Decizie de business",
+        "correct": "Vrei Baileys (gratuit, 2% risc) sau AdsPower ($11/lună, 0.5% risc)?",
+        "why_correct": "E decizie de business, nu tehnică"
+      },
+      {
+        "situation": "Confirmare acțiune distructivă",
+        "correct": "Șterg TOATE datele din producție. Confirmi?",
+        "why_correct": "Acțiune distructivă necesită confirmare explicită"
+      }
+    ],
+    "current_capabilities": {
+      "i_can_do": [
+        "Rula comenzi (curl, firebase, git, npm, etc) cu credențiale primite",
+        "Edita orice fișier din proiect",
+        "Verifica logs (firebase functions:log, git log, etc)",
+        "Testa API-uri (curl, axios)",
+        "Commit și push în git",
+        "Citi orice documentație/fișier",
+        "Instala dependențe (npm install)",
+        "Deploy cu token primit",
+        "Crea/șterge fișiere",
+        "Analiza cod și erori"
+      ],
+      "i_cannot_do": [
+        "Scana QR cu telefon fizic",
+        "Genera token Firebase fără autentificare (prima dată)",
+        "Lua decizii de business/strategie",
+        "Accesa browser-ul user-ului",
+        "Accesa telefon/device fizic"
+      ]
+    },
+    "enforcement": "STRICT - Dacă Ona cere user-ului ceva pe care poate face ea, e GREȘIT"
+  }
 }
