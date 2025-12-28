@@ -53,21 +53,33 @@ function WhatsAppAccounts() {
     }
 
     try {
+      console.log('🔄 Adding account:', newAccountName);
       const response = await fetch(`${WHATSAPP_URL}/api/whatsapp/add-account`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newAccountName })
       });
       
+      console.log('📡 Response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('📦 Response data:', data);
+      
       if (data.success) {
         setShowAddModal(false);
         setNewAccountName('');
         loadAccounts();
         alert('✅ Cont adăugat! Așteaptă QR code...');
+      } else {
+        throw new Error(data.error || 'Eroare necunoscută');
       }
     } catch (error) {
-      alert('❌ Eroare: ' + error.message);
+      console.error('❌ Error adding account:', error);
+      alert('❌ Eroare la adăugarea contului: ' + error.message);
     }
   };
 
