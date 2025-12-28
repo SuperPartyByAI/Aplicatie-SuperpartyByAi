@@ -5,7 +5,7 @@
 
 const https = require('https');
 
-const RAILWAY_TOKEN = '998d4e46-c67c-47e2-9eaa-ae4cc806aab1';
+const RAILWAY_TOKEN = 'b74c098c-1777-4601-b4c5-1f9298377cd9';
 
 const VARIABLES = {
   OPENAI_API_KEY: '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',

@@ -16,9 +16,10 @@
     "chaos": "node -e \"const UltimateMonitor = require('./monitoring/ultimate-monitor'); const m = new UltimateMonitor(); m.runChaosTest();\""
   },
   "dependencies": {
-    "node-fetch": "^2.6.7",
+    "axios": "^1.6.0",
     "express": "^4.18.2",
-    "axios": "^1.6.0"
+    "firebase-admin": "^13.6.0",
+    "node-fetch": "^2.6.7"
   },
   "engines": {
     "node": ">=14.0.0"
