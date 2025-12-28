@@ -56,6 +56,17 @@
   ],
   "banned_states": [
     {
+      "id": 4,
+      "commit": "4d5130e",
+      "date": "2024-12-28 14:50",
+      "feedback": "vocea e de boala de cacat",
+      "action": "ElevenLabs setat dar nu generează audio, folosește Polly fallback",
+      "reason": "Cod greșit - ElevenLabs funcționează (API key valid) dar nu e folosit",
+      "rule": "Verifică că ElevenLabs CHIAR generează și servește audio, nu doar că e 'enabled'",
+      "context": "Status zice 'ElevenLabs (PREMIUM)' dar vocea e Polly robotizat",
+      "score": 1
+    },
+    {
       "id": 1,
       "commit": "ce4ecb6",
       "date": "2024-12-28 11:00",
