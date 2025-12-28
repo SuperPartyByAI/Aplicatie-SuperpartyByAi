@@ -8,5 +8,19 @@
       "firebase-debug.log",
       "firebase-debug.*.log"
     ]
+  },
+  "hosting": {
+    "public": "kyc-app/kyc-app/dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
   }
 }

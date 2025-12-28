@@ -55,5 +55,93 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
   }
 });
 
+// AI Chat Functions
+exports.chatWithAI = functions.https.onCall(async (data, context) => {
+  // Verifică autentificare
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Trebuie să fii autentificat');
+  }
+
+  const { messages, userContext } = data;
+
+  try {
+    // Aici ar trebui să fie integrarea cu OpenAI/GPT
+    // Pentru moment, returnăm un răspuns mock
+    const lastMessage = messages[messages.length - 1];
+    
+    let response = '';
+    
+    // Răspunsuri simple bazate pe context
+    if (lastMessage.content.toLowerCase().includes('evenimente')) {
+      response = `Ai ${userContext.stats?.evenimenteTotal || 0} evenimente în total. ${userContext.stats?.evenimenteAstazi || 0} sunt astăzi.`;
+    } else if (lastMessage.content.toLowerCase().includes('staff')) {
+      response = `Ai ${userContext.stats?.staffTotal || 0} membri de staff aprobați.`;
+    } else if (lastMessage.content.toLowerCase().includes('kyc')) {
+      response = userContext.isAdmin 
+        ? `Ai ${userContext.stats?.kycPending || 0} cereri KYC în așteptare.`
+        : 'Doar administratorul poate vedea cererile KYC.';
+    } else {
+      response = `Bună ${userContext.user?.nume || 'User'}! Sunt asistentul tău AI. Cum te pot ajuta astăzi?`;
+    }
+
+    // Salvează conversația în Firestore
+    const admin = require('firebase-admin');
+    if (!admin.apps.length) {
+      admin.initializeApp();
+    }
+    
+    await admin.firestore().collection('aiConversations').add({
+      userId: context.auth.uid,
+      userEmail: context.auth.token.email,
+      userName: userContext.user?.nume || 'Unknown',
+      userMessage: lastMessage.content,
+      aiResponse: response,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      model: 'mock-gpt-4o-mini'
+    });
+
+    return {
+      success: true,
+      message: response
+    };
+  } catch (error) {
+    console.error('Chat AI error:', error);
+    throw new functions.https.HttpsError('internal', 'Eroare la procesarea mesajului');
+  }
+});
+
+exports.aiManager = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Trebuie să fii autentificat');
+  }
+
+  const { action, message, imageUrls, userContext } = data;
+
+  try {
+    if (action === 'validate_image') {
+      // Mock validation pentru imagini
+      return {
+        success: true,
+        validation: {
+          isValid: true,
+          confidence: 0.95,
+          extractedData: {
+            type: 'document',
+            message: 'Document validat cu succes'
+          }
+        }
+      };
+    }
+
+    return {
+      success: false,
+      error: 'Action not supported'
+    };
+  } catch (error) {
+    console.error('AI Manager error:', error);
+    throw new functions.https.HttpsError('internal', 'Eroare la procesare');
+  }
+});
+
 // Keep 1st Gen - works with existing deployment
 exports.whatsapp = functions.https.onRequest(app);
