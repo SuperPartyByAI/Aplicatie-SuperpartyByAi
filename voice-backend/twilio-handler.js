@@ -25,6 +25,10 @@ class TwilioHandler {
 
     const twiml = new VoiceResponse();
     
+    // Wait for 3 rings before answering (approximately 9 seconds)
+    // Each ring is about 3 seconds
+    twiml.pause({ length: 9 });
+    
     // Direct to AI conversation
     twiml.redirect({
       method: 'POST'
@@ -55,12 +59,14 @@ class TwilioHandler {
         
         if (audioUrl) {
           // Use Kasya voice from Coqui
+          console.log('[Voice] Using Coqui XTTS (Kasya voice)');
           const fullUrl = `${process.env.COQUI_API_URL || 'https://web-production-00dca9.up.railway.app'}${audioUrl}`;
           twiml.play(fullUrl);
         } else {
-          // Fallback to Polly
+          // Fallback to Google voice (more natural than Polly)
+          console.log('[Voice] Using Google Wavenet (fallback)');
           twiml.say({
-            voice: 'Polly.Carmen',
+            voice: 'Google.ro-RO-Wavenet-A',
             language: 'ro-RO'
           }, greeting);
         }
@@ -85,7 +91,7 @@ class TwilioHandler {
             twiml.play(fullUrl);
           } else {
             twiml.say({
-              voice: 'Polly.Carmen',
+              voice: 'Google.ro-RO-Wavenet-A',
               language: 'ro-RO'
             }, result.response);
           }
@@ -103,7 +109,7 @@ class TwilioHandler {
             twiml.play(fullUrl);
           } else {
             twiml.say({
-              voice: 'Polly.Carmen',
+              voice: 'Google.ro-RO-Wavenet-A',
               language: 'ro-RO'
             }, result.response);
           }
@@ -120,7 +126,7 @@ class TwilioHandler {
       } else {
         // No input - repeat
         twiml.say({
-          voice: 'Polly.Carmen',
+          voice: 'Google.ro-RO-Wavenet-A',
           language: 'ro-RO'
         }, 'Nu am primit nicio informație. Vă rog să repetați.');
         
@@ -141,7 +147,7 @@ class TwilioHandler {
       
       const twiml = new VoiceResponse();
       twiml.say({
-        voice: 'Polly.Carmen',
+        voice: 'Google.ro-RO-Wavenet-A',
         language: 'ro-RO'
       }, 'Ne pare rău, a apărut o eroare. Vă rugăm să sunați din nou.');
       twiml.hangup();
