@@ -1,1 +1,1 @@
-web: npm start
+web: node monitoring/v7-start.js
