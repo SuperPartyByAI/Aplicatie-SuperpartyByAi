@@ -13,6 +13,11 @@ const rateLimiter = require('./rate-limiter');
 const messageVariation = require('./message-variation');
 const circuitBreaker = require('./circuit-breaker');
 
+// TIER ULTIMATE 2: Import new modules
+const webhookManager = require('./webhooks');
+const advancedHealthChecker = require('./advanced-health');
+const proxyRotationManager = require('./proxy-rotation');
+
 class WhatsAppManager {
   constructor(io) {
     this.io = io;
@@ -116,6 +121,30 @@ class WhatsAppManager {
     });
     
     console.log('✅ TIER ULTIMATE 1 modules initialized');
+    
+    // TIER ULTIMATE 2: Initialize webhooks, health, proxy
+    this.initializeUltimate2Modules();
+  }
+  
+  /**
+   * TIER ULTIMATE 2: Initialize webhooks, advanced health, proxy rotation
+   */
+  initializeUltimate2Modules() {
+    // Setup webhook event handlers
+    webhookManager.on('webhook-failed', ({ endpoint, event, error }) => {
+      console.error(`❌ Webhook failed: ${endpoint} (${event}) - ${error}`);
+      
+      // Log to Firestore
+      firestore.logEvent({
+        type: 'webhook_failed',
+        endpoint,
+        event,
+        error,
+        timestamp: Date.now()
+      });
+    });
+    
+    console.log('✅ TIER ULTIMATE 2 modules initialized');
   }
   
   /**
@@ -603,12 +632,16 @@ class WhatsAppManager {
     const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
     const { version } = await fetchLatestBaileysVersion();
 
+    // TIER ULTIMATE 2: Get proxy agent if configured
+    const proxyAgent = proxyRotationManager.getProxyAgent(accountId);
+    
     const sock = makeWASocket({
       version,
       auth: state,
       printQRInTerminal: false,
       logger: pino({ level: 'silent' }),
-      browser: ['SuperParty', 'Chrome', '1.0.0']
+      browser: ['SuperParty', 'Chrome', '1.0.0'],
+      agent: proxyAgent || undefined // Use proxy if available
     });
 
     this.clients.set(accountId, sock);
@@ -632,6 +665,9 @@ class WhatsAppManager {
           }
           
           this.io.emit('whatsapp:qr', { accountId, qrCode: qrCodeDataUrl });
+          
+          // TIER ULTIMATE 2: Send webhook
+          webhookManager.onAccountQR(accountId, qrCodeDataUrl);
           
           // If phone number provided, also request pairing code
           if (phoneNumber) {
@@ -661,6 +697,12 @@ class WhatsAppManager {
         const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
         const reason = lastDisconnect?.error?.output?.statusCode || 'unknown';
         console.log(`🔌 [${accountId}] Connection closed. Reason: ${reason}, Reconnect: ${shouldReconnect}`);
+        
+        // TIER ULTIMATE 2: Record disconnect
+        advancedHealthChecker.recordEvent(accountId, 'disconnect', { reason });
+        
+        // TIER ULTIMATE 2: Send webhook
+        webhookManager.onAccountDisconnected(accountId, reason);
         
         const account = this.accounts.get(accountId);
         if (account) {
@@ -709,6 +751,13 @@ class WhatsAppManager {
         
         // TIER ULTIMATE 1: Start presence simulation
         behaviorSimulator.startPresenceSimulation(sock, accountId);
+        
+        // TIER ULTIMATE 2: Initialize advanced health
+        advancedHealthChecker.initAccount(accountId);
+        advancedHealthChecker.recordEvent(accountId, 'connect');
+        
+        // TIER ULTIMATE 2: Send webhook
+        webhookManager.onAccountConnected(accountId, sock.user?.id?.split(':')[0]);
         
         // Save session + metadata to Firestore for persistence
         const sessionPath = path.join(this.sessionsPath, accountId);
@@ -1020,6 +1069,12 @@ class WhatsAppManager {
       circuitBreaker.recordSuccess(accountId);
       rateLimiter.recordMessage(accountId, chatId);
       
+      // TIER ULTIMATE 2: Record message sent
+      advancedHealthChecker.recordEvent(accountId, 'message_sent');
+      
+      // TIER ULTIMATE 2: Send webhook
+      webhookManager.onMessageSent(accountId, chatId, Date.now());
+      
       console.log(`📤 [${accountId}] Message sent to ${chatId}`);
       return { success: true };
     } catch (error) {
@@ -1031,6 +1086,17 @@ class WhatsAppManager {
       // TIER ULTIMATE 1: Check if rate limit error
       if (error.message.includes('rate limit') || error.message.includes('429')) {
         rateLimiter.handleRateLimit(accountId, 'medium');
+      }
+      
+      // TIER ULTIMATE 2: Record message failed
+      advancedHealthChecker.recordEvent(accountId, 'message_failed', { error: error.message });
+      
+      // TIER ULTIMATE 2: Send webhook
+      webhookManager.onMessageFailed(accountId, chatId, error.message);
+      
+      // TIER ULTIMATE 2: Handle proxy failure if proxy is used
+      if (proxyRotationManager.getProxy(accountId)) {
+        proxyRotationManager.handleProxyFailure(accountId, error);
       }
       
       throw error;
@@ -1115,6 +1181,11 @@ class WhatsAppManager {
     rateLimiter.cleanup();
     messageVariation.cleanup();
     circuitBreaker.cleanup();
+    
+    // TIER ULTIMATE 2: Global cleanup
+    advancedHealthChecker.cleanup();
+    proxyRotationManager.cleanup();
+    webhookManager.cleanup();
   }
 
   async getAllClients() {

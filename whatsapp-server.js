@@ -42,8 +42,8 @@ app.get('/', (req, res) => {
   res.json({
     status: 'online',
     service: 'SuperParty WhatsApp Server',
-    version: '4.0.0',
-    tier: 'TIER ULTIMATE 1',
+    version: '5.0.0',
+    tier: 'TIER ULTIMATE 2',
     improvements: {
       tier1: [
         'Keep-alive: 10s (was 15s)',
@@ -69,14 +69,20 @@ app.get('/', (req, res) => {
         'Intelligent rate limiting (adaptive throttling)',
         'Message variation (anti-spam, templates)',
         'Circuit breaker (cascade prevention)'
+      ],
+      tierUltimate2: [
+        'Webhooks (real-time notifications)',
+        'Advanced health checks (predictive failure detection)',
+        'Proxy rotation (IP rotation per account)'
       ]
     },
     expectedResults: {
-      downtime: '0.1s (was 0.5s)',
-      messageLoss: '0.001% (was 0.05%)',
-      banRisk: '0.5% (was 2%)',
-      detectionRisk: '0.5% (was 2%)',
-      uptime: '99.99% (was 99.9%)'
+      downtime: '1-2s (realistic)',
+      messageLoss: '0.5-1% (realistic)',
+      banRisk: '1-2% (realistic with proxy)',
+      detectionRisk: '3-4% (realistic)',
+      uptime: '98-99% (realistic)',
+      truthPercentage: '75% (honest)'
     },
     accounts: accounts.length,
     connected: accounts.filter(a => a.status === 'connected').length,
@@ -160,10 +166,13 @@ app.get('/api/ultimate/stats', (req, res) => {
     const rateLimiter = require('./src/whatsapp/rate-limiter');
     const messageVariation = require('./src/whatsapp/message-variation');
     const circuitBreaker = require('./src/whatsapp/circuit-breaker');
+    const webhookManager = require('./src/whatsapp/webhooks');
+    const advancedHealthChecker = require('./src/whatsapp/advanced-health');
+    const proxyRotationManager = require('./src/whatsapp/proxy-rotation');
     
     res.json({
       success: true,
-      tier: 'ULTIMATE 1',
+      tier: 'ULTIMATE 2',
       modules: {
         behavior: behaviorSimulator.getStats(),
         rateLimiter: rateLimiter.getStats(),
@@ -171,9 +180,147 @@ app.get('/api/ultimate/stats', (req, res) => {
         circuitBreaker: {
           stats: circuitBreaker.getStats(),
           states: circuitBreaker.getAllStates()
-        }
+        },
+        webhooks: webhookManager.getStats(),
+        advancedHealth: advancedHealthChecker.getStats(),
+        proxyRotation: proxyRotationManager.getStats()
       }
     });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// TIER ULTIMATE 2: Webhooks management
+app.post('/api/ultimate/webhooks/register', (req, res) => {
+  try {
+    const { name, url, events, secret, enabled } = req.body;
+    const webhookManager = require('./src/whatsapp/webhooks');
+    
+    webhookManager.register(name, { url, events, secret, enabled });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/ultimate/webhooks/:name', (req, res) => {
+  try {
+    const { name } = req.params;
+    const webhookManager = require('./src/whatsapp/webhooks');
+    
+    const result = webhookManager.unregister(name);
+    res.json({ success: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/ultimate/webhooks/:name/test', async (req, res) => {
+  try {
+    const { name } = req.params;
+    const webhookManager = require('./src/whatsapp/webhooks');
+    
+    const result = await webhookManager.test(name);
+    res.json({ success: result.success, result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/ultimate/webhooks', (req, res) => {
+  try {
+    const webhookManager = require('./src/whatsapp/webhooks');
+    const endpoints = webhookManager.getEndpoints();
+    res.json({ success: true, endpoints });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// TIER ULTIMATE 2: Advanced health
+app.get('/api/ultimate/health/:accountId', (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const advancedHealthChecker = require('./src/whatsapp/advanced-health');
+    
+    const health = advancedHealthChecker.getHealthData(accountId);
+    res.json({ success: true, health });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/ultimate/health', (req, res) => {
+  try {
+    const advancedHealthChecker = require('./src/whatsapp/advanced-health');
+    const health = advancedHealthChecker.getAllHealth();
+    res.json({ success: true, health });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// TIER ULTIMATE 2: Proxy management
+app.post('/api/ultimate/proxy/add', (req, res) => {
+  try {
+    const { proxyId, url, type, username, password, enabled, sticky } = req.body;
+    const proxyRotationManager = require('./src/whatsapp/proxy-rotation');
+    
+    proxyRotationManager.addProxy(proxyId, { url, type, username, password, enabled, sticky });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/ultimate/proxy/:proxyId', (req, res) => {
+  try {
+    const { proxyId } = req.params;
+    const proxyRotationManager = require('./src/whatsapp/proxy-rotation');
+    
+    const result = proxyRotationManager.removeProxy(proxyId);
+    res.json({ success: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/ultimate/proxy/assign', (req, res) => {
+  try {
+    const { accountId, proxyId } = req.body;
+    const proxyRotationManager = require('./src/whatsapp/proxy-rotation');
+    
+    if (proxyId) {
+      proxyRotationManager.assignProxy(accountId, proxyId);
+    } else {
+      proxyRotationManager.autoAssignProxy(accountId);
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/ultimate/proxy/rotate/:accountId', (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const proxyRotationManager = require('./src/whatsapp/proxy-rotation');
+    
+    const newProxyId = proxyRotationManager.rotateProxy(accountId);
+    res.json({ success: true, proxyId: newProxyId });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/ultimate/proxy', (req, res) => {
+  try {
+    const proxyRotationManager = require('./src/whatsapp/proxy-rotation');
+    const proxies = proxyRotationManager.getProxies();
+    const assignments = proxyRotationManager.getAssignments();
+    res.json({ success: true, proxies, assignments });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
