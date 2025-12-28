@@ -8,4 +8,4 @@ cmds = ["npm install"]
 cmds = ["echo 'No build needed'"]
 
 [start]
-cmd = "node multi-project-monitor.js"
+cmd = "node railway-monitor/v7-start.js"
