@@ -1,0 +1,73 @@
+# 🎤 Voice AI Status
+
+## ✅ Ce e GATA (făcut automat de v7.0):
+
+1. ✅ **Cod Voice AI** - Pushed pe GitHub
+   - Repository: `SuperPartyByAI/superparty-ai-backend`
+   - Branch: `master`
+   - Voce: Kasya (Coqui XTTS)
+   - AI: GPT-4o (operator telefonic uman)
+
+2. ✅ **Twilio Webhook** - Configurat automat
+   - Număr: `+1 (218) 220-4425`
+   - Webhook: `https://web-production-f0714.up.railway.app/api/voice/incoming`
+   - Status: `https://web-production-f0714.up.railway.app/api/voice/status`
+
+3. ✅ **Credențiale** - Toate setate
+   - OpenAI API Key ✅
+   - Twilio Account SID ✅
+   - Twilio Auth Token ✅
+   - Coqui API URL ✅
+
+## ⚠️ Ce MAI TREBUIE (1 minut manual):
+
+**Railway - Schimbă sursa serviciului:**
+
+1. Mergi la: https://railway.app
+2. Găsește serviciul: `web-production-f0714.up.railway.app`
+3. Click **Settings** → **Source**
+4. Click **Disconnect** (dacă e conectat la alt repo)
+5. Click **Connect Repo**
+6. Selectează: `SuperPartyByAI/superparty-ai-backend`
+7. Branch: `master`
+8. Click **Connect**
+
+Railway va redeploya automat în 2-3 minute.
+
+## 🎯 Test Final:
+
+După ce Railway termină deploy-ul:
+
+**Sună la: +1 (218) 220-4425**
+
+Ar trebui să auzi:
+> "Bună ziua, SuperParty, cu ce vă ajut?"
+
+Cu vocea Kasya (clonată cu Coqui XTTS).
+
+## 📊 Verificare:
+
+După ce suni, verifică în Railway logs:
+```
+🚀 SuperParty Backend - WhatsApp + Voice
+📡 Server running on port 5001
+🎤 Voice: Kasya (Coqui XTTS)
+[Twilio] Incoming call: { callSid: '...', from: '...' }
+[VoiceAI] Initialized with OpenAI
+[Coqui] Service is now AVAILABLE
+```
+
+## ❌ Troubleshooting:
+
+**Dacă nu răspunde:**
+- Verifică că Railway a terminat deploy-ul
+- Verifică că serviciul e conectat la `superparty-ai-backend`
+- Verifică logs pentru erori
+
+**Dacă răspunde dar nu e vocea Kasya:**
+- Verifică că Coqui service rulează pe: `https://web-production-00dca9.up.railway.app`
+- Verifică că `COQUI_API_URL` e setat în Railway Variables
+
+**Dacă se închide imediat:**
+- Verifică Railway logs pentru erori
+- Verifică că toate variabilele sunt setate corect
