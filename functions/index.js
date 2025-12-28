@@ -1,8 +1,12 @@
 const functions = require('firebase-functions');
+const admin = require('firebase-admin');
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
+
+// Initialize Firebase Admin
+admin.initializeApp();
 
 const app = express();
 const server = http.createServer(app);
@@ -65,11 +69,6 @@ exports.chatWithAI = functions.https.onCall(async (data, context) => {
   const { messages, userContext } = data;
 
   try {
-    const admin = require('firebase-admin');
-    if (!admin.apps.length) {
-      admin.initializeApp();
-    }
-
     const lastMessage = messages[messages.length - 1];
     
     // Construiește context pentru AI

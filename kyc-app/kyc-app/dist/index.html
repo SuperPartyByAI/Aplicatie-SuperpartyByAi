@@ -19,8 +19,8 @@
     <link rel="apple-touch-icon" href="/icon-192.png" />
     
     <title>SuperParty - Management Evenimente</title>
-    <script type="module" crossorigin src="/assets/index-BdPRXwj2.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/react-vendor-BCVUYfxV.js">
+    <script type="module" crossorigin src="/assets/index-BcOe9p9q.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/react-vendor-BCFq-EBz.js">
     <link rel="modulepreload" crossorigin href="/assets/firebase-CZFSqwcK.js">
     <link rel="stylesheet" crossorigin href="/assets/index-C5uUzP1w.css">
   </head>
@@ -30,32 +30,10 @@
     <!-- Service Worker Registration -->
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', async () => {
-          try {
-            // Unregister old service workers first
-            const registrations = await navigator.serviceWorker.getRegistrations();
-            for (let registration of registrations) {
-              await registration.unregister();
-              console.log('Old SW unregistered');
-            }
-            
-            // Register new service worker
-            const reg = await navigator.serviceWorker.register('/sw.js');
-            console.log('✅ SW registered:', reg);
-            
-            // Force update on page load
-            reg.addEventListener('updatefound', () => {
-              const newWorker = reg.installing;
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'activated') {
-                  console.log('🔄 New SW activated, reloading...');
-                  window.location.reload();
-                }
-              });
-            });
-          } catch (err) {
-            console.log('❌ SW registration failed:', err);
-          }
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('SW registered:', reg))
+            .catch(err => console.log('SW registration failed:', err));
         });
       }
     </script>
