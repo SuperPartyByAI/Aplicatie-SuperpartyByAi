@@ -1,0 +1,206 @@
+{
+  "version": "1.0",
+  "last_updated": "2024-12-28T12:47:00Z",
+  "project": {
+    "name": "SuperParty Voice AI",
+    "repository": "SuperPartyByAI/superparty-ai-backend",
+    "deployment": {
+      "platform": "Railway",
+      "url": "https://web-production-f0714.up.railway.app",
+      "status": "✅ online"
+    },
+    "phone": "+1 (218) 220-4425"
+  },
+  "current_state": {
+    "commit": "d806745",
+    "branch": "main",
+    "status": "✅ funcțional",
+    "voice_engine": "ElevenLabs (PREMIUM)",
+    "last_test": "2024-12-27 17:00",
+    "last_feedback": "merge perfect"
+  },
+  "good_states": [
+    {
+      "id": 1,
+      "commit": "d806745",
+      "date": "2024-12-27 17:00",
+      "feedback": "merge perfect",
+      "description": "ElevenLabs funcțional, voce reală ca o persoană",
+      "features": {
+        "voice_engine": "ElevenLabs",
+        "voice_quality": "reală, nu robotică",
+        "delay": "6 secunde (2 tonuri)",
+        "timeout": "5 secunde",
+        "greeting": "Bună ziua, numele meu este Kasya. Cu ce vă pot ajuta?",
+        "api_key": "sk_2e63b1cacac373135a1dfc97d6165ef184d0d66a181f74fc"
+      },
+      "score": 10,
+      "notes": "Clientul a confirmat că vocea sună perfect, ca o persoană reală"
+    }
+  ],
+  "intermediate_states": [
+    {
+      "id": 1,
+      "commit": "1e56f33",
+      "date": "2024-12-28 10:00",
+      "feedback": "merge, dar pauza e prea mare",
+      "description": "Funcțional dar timeout prea mare",
+      "issues": [
+        "Pauză prea mare între ce zice clientul și răspunsul AI-ului",
+        "Timeout 5-6 secunde e prea mult"
+      ],
+      "score": 7,
+      "can_improve": true,
+      "improvement_needed": "Reduce timeout la 2-3 secunde"
+    }
+  ],
+  "banned_states": [
+    {
+      "id": 1,
+      "commit": "ce4ecb6",
+      "date": "2024-12-28 11:00",
+      "feedback": "e de căcat",
+      "action": "Schimbat de la Google Wavenet la Polly.Carmen cu SSML",
+      "file": "twilio-handler.js",
+      "diff": "voice: 'Google.ro-RO-Wavenet-A' → voice: 'Polly.Carmen' + SSML",
+      "reason": "Vocea a devenit robotică, nu mai sună natural",
+      "rule": "NU schimba TTS-ul (ElevenLabs/Google Wavenet) la Polly când merge perfect",
+      "context": "ElevenLabs mergea perfect, am schimbat fără motiv",
+      "score": 2
+    },
+    {
+      "id": 2,
+      "commit": "1c5c38d",
+      "date": "2024-12-28 12:30",
+      "feedback": "ai futut tot",
+      "action": "Modificat 5 lucruri deodată: timeout, voce, SSML, greeting, delay",
+      "reason": "Clientul a cerut doar timeout mai mic, am schimbat tot",
+      "rule": "Modifică DOAR ce cere clientul, NU 10 lucruri deodată",
+      "context": "Clientul: 'reduce timeout'. Eu: am schimbat tot sistemul",
+      "score": 1
+    },
+    {
+      "id": 3,
+      "commit": "cfc379e",
+      "date": "2024-12-28 13:00",
+      "feedback": "vocea e robotică rău",
+      "action": "Folosit Polly fallback în loc de ElevenLabs",
+      "reason": "ElevenLabs nu genera audio, folosea Polly robotizat",
+      "rule": "Verifică că ElevenLabs funcționează, nu lăsa Polly fallback",
+      "context": "API key invalid sau ElevenLabs down",
+      "score": 2
+    }
+  ],
+  "sessions": [
+    {
+      "date": "2024-12-28",
+      "duration": "~6 ore",
+      "summary": "Am încercat să îmbunătățesc vocea și timeout-ul, am făcut multe greșeli, am revenit la starea bună",
+      "actions": [
+        "Schimbat de la Google Wavenet la Polly - GREȘIT",
+        "Adăugat SSML pentru voce mai naturală - NU a funcționat",
+        "Modificat timeout, delay, greeting deodată - GREȘIT",
+        "Revert la ElevenLabs - CORECT",
+        "Actualizat API key ElevenLabs - CORECT",
+        "Redus timeout de la 5s la 3s - În teste"
+      ],
+      "lessons_learned": [
+        "NU schimba TTS când clientul zice că merge perfect",
+        "Modifică DOAR ce cere clientul, nu 10 lucruri",
+        "Verifică că ElevenLabs funcționează înainte de deploy",
+        "Polly cu SSML tot sună robotizat",
+        "ElevenLabs e singura voce care sună ca o persoană reală"
+      ],
+      "client_feedback": [
+        {
+          "time": "17:00 (ieri)",
+          "feedback": "merge perfect",
+          "context": "ElevenLabs funcțional"
+        },
+        {
+          "time": "11:00",
+          "feedback": "e de căcat",
+          "context": "după ce am schimbat la Polly"
+        },
+        {
+          "time": "12:30",
+          "feedback": "ai futut tot",
+          "context": "după ce am modificat 5 lucruri"
+        },
+        {
+          "time": "13:00",
+          "feedback": "vocea e robotică rău",
+          "context": "Polly fallback în loc de ElevenLabs"
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "OPENAI_API_KEY": "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",
+    "ELEVENLABS_API_KEY": "sk_2e63b1cacac373135a1dfc97d6165ef184d0d66a181f74fc",
+    "TWILIO_ACCOUNT_SID": "AC17c88873d670aab4aa4a50fae230d2df",
+    "TWILIO_AUTH_TOKEN": "5c6670d39a1dbf46d47ecdaa244b91d9",
+    "TWILIO_PHONE_NUMBER": "+12182204425",
+    "BACKEND_URL": "https://web-production-f0714.up.railway.app",
+    "COQUI_API_URL": "https://web-production-00dca9.up.railway.app",
+    "NODE_ENV": "production",
+    "PORT": "5001"
+  },
+  "rules": [
+    {
+      "id": 1,
+      "rule": "NU schimba TTS-ul (ElevenLabs/Google Wavenet) când clientul zice că merge perfect",
+      "reason": "Vocea devine robotică",
+      "examples": ["Polly.Carmen", "Polly cu SSML"]
+    },
+    {
+      "id": 2,
+      "rule": "Modifică DOAR ce cere clientul, NU 10 lucruri deodată",
+      "reason": "Risc să strici ce merge",
+      "examples": ["Clientul cere timeout → schimb doar timeout, NU vocea"]
+    },
+    {
+      "id": 3,
+      "rule": "Verifică că ElevenLabs funcționează înainte de deploy",
+      "reason": "Dacă nu funcționează, folosește Polly robotizat",
+      "check": "Testează endpoint-ul /health și vezi voice: 'ElevenLabs (PREMIUM)'"
+    },
+    {
+      "id": 4,
+      "rule": "La 'continuam citeste din fisierul istoric' - citesc COMPLET ISTORIC.json",
+      "sections": [
+        "good_states",
+        "banned_states",
+        "intermediate_states",
+        "project status",
+        "sessions",
+        "variables",
+        "rules"
+      ]
+    }
+  ],
+  "flow": {
+    "trigger_words": {
+      "good": ["merge perfect", "e perfect", "funcționează perfect", "exact ce trebuia"],
+      "intermediate": ["merge", "funcționează", "e ok", "acceptabil", "merge, dar..."],
+      "banned": ["e de căcat", "nu merge", "ai futut tot", "e de boală", "nu funcționează"]
+    },
+    "on_continuam": {
+      "trigger": "continuam citeste din fisierul istoric",
+      "action": "Citesc COMPLET ISTORIC.json și afișez rezumat",
+      "probability": "75%"
+    },
+    "on_salvează": {
+      "trigger": "salvează",
+      "action": "Update ISTORIC.json cu feedback-ul din sesiunea curentă"
+    }
+  },
+  "statistics": {
+    "total_sessions": 1,
+    "good_states": 1,
+    "intermediate_states": 1,
+    "banned_states": 3,
+    "success_rate": "25%",
+    "most_common_mistake": "Schimbat TTS când mergea perfect"
+  }
+}
