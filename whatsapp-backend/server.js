@@ -1,8 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const makeWASocket = require('@whiskeysockets/baileys').default;
-const { DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
-const { useFirestoreAuthState } = require('./lib/persistence/firestore-auth-state');
+const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const QRCode = require('qrcode');
 const pino = require('pino');
 const fs = require('fs');
@@ -133,8 +132,7 @@ async function createConnection(accountId, name, phone) {
     const { version, isLatest } = await fetchLatestBaileysVersion();
     console.log(`✅ [${accountId}] Baileys version: ${version.join('.')}, isLatest: ${isLatest}`);
 
-    // Use Firestore auth state instead of disk
-    const { state, saveCreds } = await useFirestoreAuthState(accountId, db);
+    const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
     
     const sock = makeWASocket({
       auth: state,
@@ -1204,10 +1202,13 @@ async function restoreAccountsFromFirestore() {
       
       console.log(`🔄 Restoring account: ${accountId}`);
       
-      try {
-        // Load session from Firestore
-        const { state, saveCreds } = await useFirestoreAuthState(accountId, db);
-        const { version } = await fetchLatestBaileysVersion();
+      // Recreate connection
+      const sessionPath = path.join(authDir, accountId);
+      
+      if (fs.existsSync(sessionPath)) {
+        try {
+          const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+          const { version } = await fetchLatestBaileysVersion();
           
           const sock = makeWASocket({
             auth: state,
@@ -1238,10 +1239,13 @@ async function restoreAccountsFromFirestore() {
           
           sock.ev.on('creds.update', saveCreds);
           
-        connections.set(accountId, account);
-        console.log(`✅ [${accountId}] Restored to memory`);
-      } catch (error) {
-        console.error(`❌ [${accountId}] Restore failed:`, error.message);
+          connections.set(accountId, account);
+          console.log(`✅ [${accountId}] Restored to memory`);
+        } catch (error) {
+          console.error(`❌ [${accountId}] Restore failed:`, error.message);
+        }
+      } else {
+        console.log(`⚠️  [${accountId}] Session not found on disk`);
       }
     }
     
