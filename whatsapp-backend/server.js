@@ -1182,12 +1182,87 @@ app.get('/api/admin/tests/report', requireAdmin, async (req, res) => {
   }
 });
 
+// Restore accounts from Firestore on cold start
+async function restoreAccountsFromFirestore() {
+  if (!firestoreAvailable) {
+    console.log('⚠️  Firestore not available, skipping account restore');
+    return;
+  }
+  
+  try {
+    console.log('🔄 Restoring accounts from Firestore...');
+    const snapshot = await db.collection('accounts').where('status', '==', 'connected').get();
+    
+    console.log(`📦 Found ${snapshot.size} connected accounts in Firestore`);
+    
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const accountId = doc.id;
+      
+      console.log(`🔄 Restoring account: ${accountId}`);
+      
+      // Recreate connection
+      const sessionPath = path.join(authDir, accountId);
+      
+      if (fs.existsSync(sessionPath)) {
+        try {
+          const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+          const { version } = await fetchLatestBaileysVersion();
+          
+          const sock = makeWASocket({
+            auth: state,
+            version,
+            printQRInTerminal: false,
+            browser: ['SuperParty', 'Chrome', '1.0.0'],
+            logger: pino({ level: 'silent' })
+          });
+          
+          const account = {
+            id: accountId,
+            phoneNumber: data.phoneE164 || data.phone,
+            sock,
+            status: 'connecting',
+            qrCode: null,
+            pairingCode: null,
+            createdAt: data.createdAt || new Date().toISOString(),
+            lastUpdate: data.updatedAt || new Date().toISOString()
+          };
+          
+          // Setup event handlers (simplified)
+          sock.ev.on('connection.update', async (update) => {
+            if (update.connection === 'open') {
+              account.status = 'connected';
+              console.log(`✅ [${accountId}] Restored and connected`);
+            }
+          });
+          
+          sock.ev.on('creds.update', saveCreds);
+          
+          connections.set(accountId, account);
+          console.log(`✅ [${accountId}] Restored to memory`);
+        } catch (error) {
+          console.error(`❌ [${accountId}] Restore failed:`, error.message);
+        }
+      } else {
+        console.log(`⚠️  [${accountId}] Session not found on disk`);
+      }
+    }
+    
+    console.log(`✅ Account restore complete: ${connections.size} accounts loaded`);
+  } catch (error) {
+    console.error('❌ Account restore failed:', error.message);
+  }
+}
+
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n✅ Server running on port ${PORT}`);
   console.log(`🌐 Health: http://localhost:${PORT}/health`);
   console.log(`📱 Accounts: http://localhost:${PORT}/api/whatsapp/accounts`);
   console.log(`🚀 Railway deployment ready!\n`);
+  
+  // Restore accounts after server starts
+  await restoreAccountsFromFirestore();
 });
 
 // Graceful shutdown
