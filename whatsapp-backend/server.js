@@ -144,8 +144,8 @@ const VERSION = '2.0.0';
 const COMMIT_HASH = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown';
 const BOOT_TIMESTAMP = new Date().toISOString();
 
-// Long-run jobs
-const longrunJobs = require('./lib/longrun-jobs');
+// Long-run jobs (production-grade)
+const longrunJobs = require('./lib/longrun-jobs-v2');
 const START_TIME = Date.now();
 
 console.log(`🚀 SuperParty WhatsApp Backend v${VERSION} (${COMMIT_HASH})`);
@@ -1853,7 +1853,8 @@ app.listen(PORT, '0.0.0.0', async () => {
   
   // Initialize long-run jobs
   if (firestoreAvailable) {
-    longrunJobs.initJobs(db);
+    const baseUrl = process.env.BAILEYS_BASE_URL || 'https://whats-upp-production.up.railway.app';
+    longrunJobs.initJobs(db, baseUrl);
   }
 });
 
