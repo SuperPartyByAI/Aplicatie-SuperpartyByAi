@@ -104,10 +104,7 @@ const reconnectAttempts = new Map();
 const store = makeInMemoryStore({ logger: pino({ level: 'silent' }) });
 console.log('📦 Baileys store initialized');
 
-// Admin token for protected endpoints
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'dev-token-change-in-prod';
-
-// Admin authentication middleware
+// Admin authentication middleware (ADMIN_TOKEN defined at line 18)
 function requireAdmin(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
