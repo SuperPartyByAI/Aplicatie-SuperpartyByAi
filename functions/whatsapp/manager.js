@@ -916,7 +916,8 @@ class WhatsAppManager {
         
         // 💾 CRITICAL: Save session to Firestore IMMEDIATELY after connection
         console.log(`💾 [${accountId}] Saving session to Firestore...`);
-        sessionStore.saveSession(accountId, sessionPath, account).then(() => {
+        const sessionPathForSave = path.join(this.sessionsPath, accountId);
+        sessionStore.saveSession(accountId, sessionPathForSave, account).then(() => {
           console.log(`✅ [${accountId}] Session saved successfully`);
         }).catch(err => {
           console.error(`❌ [${accountId}] Failed to save session:`, err.message);
