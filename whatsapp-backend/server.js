@@ -1523,6 +1523,68 @@ app.get('/admin/queue/status', requireAdmin, async (req, res) => {
   }
 });
 
+// Admin: Diagnostic Firestore sessions
+app.get('/api/admin/firestore/sessions', requireAdmin, async (req, res) => {
+  try {
+    const sessionsSnapshot = await db.collection('wa_sessions').get();
+    const sessions = [];
+    
+    for (const doc of sessionsSnapshot.docs) {
+      const data = doc.data();
+      sessions.push({
+        id: doc.id,
+        fields: Object.keys(data),
+        hasCreds: !!data.creds,
+        hasKeys: !!data.keys,
+        credsKeys: data.creds ? Object.keys(data.creds) : [],
+        keysTypes: data.keys ? Object.keys(data.keys) : [],
+        updatedAt: data.updatedAt ? data.updatedAt.toDate().toISOString() : null,
+        schemaVersion: data.schemaVersion
+      });
+    }
+    
+    res.json({
+      success: true,
+      total: sessions.length,
+      sessions
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: Reset account session
+app.post('/api/admin/accounts/:id/reset-session', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Delete wa_sessions
+    await db.collection('wa_sessions').doc(id).delete();
+    console.log(`🗑️  [${id}] Session deleted from Firestore`);
+    
+    // Update wa_accounts to needs_qr
+    await db.collection('wa_accounts').doc(id).set({
+      status: 'needs_qr',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    
+    // Disconnect socket if exists
+    const account = connections.get(id);
+    if (account && account.sock) {
+      account.sock.end();
+      connections.delete(id);
+      console.log(`🔌 [${id}] Socket disconnected`);
+    }
+    
+    res.json({
+      success: true,
+      message: 'Session reset, regenerate QR via /api/whatsapp/regenerate-qr/:id'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Start server
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n✅ Server running on port ${PORT}`);
