@@ -21,9 +21,9 @@ console.log(`🔐 ADMIN_TOKEN configured: ${ADMIN_TOKEN.substring(0, 10)}...`);
 // Trust Railway proxy for rate limiting
 app.set('trust proxy', 1);
 
-// Feature flag for Firestore auth state: off | creds_only | full
-const FIRESTORE_AUTH_MODE = process.env.FIRESTORE_AUTH_STATE_MODE || 'creds_only';
-console.log(`🔧 FIRESTORE_AUTH_STATE_MODE: ${FIRESTORE_AUTH_MODE}`);
+// Firestore auth state: always enabled
+const USE_FIRESTORE_AUTH = true;
+console.log(`🔧 Firestore auth-state: ENABLED`);
 
 // Initialize Firebase Admin with Railway env var
 let firestoreAvailable = false;
@@ -185,10 +185,10 @@ async function createConnection(accountId, name, phone) {
     const { version, isLatest } = await fetchLatestBaileysVersion();
     console.log(`✅ [${accountId}] Baileys version: ${version.join('.')}, isLatest: ${isLatest}`);
 
-    // Use Firestore auth state if enabled, otherwise fallback to disk
+    // Use Firestore auth state
     let state, saveCreds;
-    if (FIRESTORE_AUTH_MODE !== 'off' && firestoreAvailable) {
-      ({ state, saveCreds } = await useFirestoreAuthState(accountId, db, FIRESTORE_AUTH_MODE));
+    if (USE_FIRESTORE_AUTH && firestoreAvailable) {
+      ({ state, saveCreds } = await useFirestoreAuthState(accountId, db));
     } else {
       ({ state, saveCreds } = await useMultiFileAuthState(sessionPath));
     }
@@ -1313,10 +1313,10 @@ async function restoreAccountsFromFirestore() {
       console.log(`🔄 Restoring account: ${accountId}`);
       
       try {
-        // Use Firestore auth state if enabled
+        // Use Firestore auth state
         let state, saveCreds;
-        if (FIRESTORE_AUTH_MODE !== 'off') {
-          ({ state, saveCreds } = await useFirestoreAuthState(accountId, db, FIRESTORE_AUTH_MODE));
+        if (USE_FIRESTORE_AUTH && firestoreAvailable) {
+          ({ state, saveCreds } = await useFirestoreAuthState(accountId, db));
           
           // Check if creds exist in Firestore
           if (!state.creds) {

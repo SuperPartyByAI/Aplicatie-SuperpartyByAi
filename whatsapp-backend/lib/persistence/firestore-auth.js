@@ -1,6 +1,6 @@
 /**
  * Firestore-based auth state for Baileys
- * Feature-flagged implementation: off | creds_only | full
+ * Full implementation: creds + keys persistence
  */
 
 const admin = require('firebase-admin');
@@ -40,23 +40,14 @@ function decodeBinary(obj) {
  * Create Firestore auth state handler
  * @param {string} accountId 
  * @param {FirebaseFirestore.Firestore} db 
- * @param {string} mode - 'off' | 'creds_only' | 'full'
  */
-async function useFirestoreAuthState(accountId, db, mode = 'off') {
-  console.log(`[AUTH] Mode: ${mode} for ${accountId}`);
-  
-  if (mode === 'off') {
-    // Fallback to empty state (will generate QR)
-    return {
-      state: { creds: null, keys: createEmptyKeys() },
-      saveCreds: async () => {}
-    };
-  }
+async function useFirestoreAuthState(accountId, db) {
+  console.log(`[AUTH] Firestore auth-state for ${accountId}`);
   
   const sessionRef = db.collection('wa_sessions').doc(accountId);
   
   // Load existing session
-  let creds = null;
+  let creds = undefined;
   let keys = {};
   
   try {
@@ -70,41 +61,36 @@ async function useFirestoreAuthState(accountId, db, mode = 'off') {
         console.log(`✅ [${accountId}] Loaded creds from Firestore`);
       }
       
-      if (mode === 'full' && data.keys) {
+      if (data.keys) {
         keys = decodeBinary(data.keys);
-        console.log(`✅ [${accountId}] Loaded keys from Firestore`);
+        console.log(`✅ [${accountId}] Loaded ${Object.keys(keys).length} key types from Firestore`);
       }
     } else {
-      console.log(`🆕 [${accountId}] No session in Firestore`);
+      console.log(`🆕 [${accountId}] No session in Firestore, will generate QR`);
     }
   } catch (error) {
     console.error(`❌ [${accountId}] Failed to load session:`, error.message);
+    // Continue with undefined creds to generate QR
   }
   
   // Create state object
-  // Note: creds must be undefined (not null) for new sessions to generate QR
   const state = {
-    creds: creds || undefined,
-    keys: createKeysHandler(keys, accountId, sessionRef, mode)
+    creds,
+    keys: createKeysHandler(keys, accountId, sessionRef)
   };
   
   // Save credentials function
   const saveCreds = async () => {
-    if (mode === 'off') return;
-    
     try {
       const update = {
         creds: encodeBinary(state.creds),
+        keys: encodeBinary(keys),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         schemaVersion: 1
       };
       
-      if (mode === 'full') {
-        update.keys = encodeBinary(keys);
-      }
-      
       await sessionRef.set(update, { merge: true });
-      console.log(`💾 [${accountId}] Saved to Firestore (mode: ${mode})`);
+      console.log(`💾 [${accountId}] Session saved to Firestore`);
     } catch (error) {
       console.error(`❌ [${accountId}] Save failed:`, error.message);
     }
@@ -120,7 +106,7 @@ function createEmptyKeys() {
   };
 }
 
-function createKeysHandler(keys, accountId, sessionRef, mode) {
+function createKeysHandler(keys, accountId, sessionRef) {
   return {
     get: async (type, ids) => {
       const data = keys[type] || {};
@@ -133,20 +119,19 @@ function createKeysHandler(keys, accountId, sessionRef, mode) {
       return data;
     },
     set: async (data) => {
-      if (mode !== 'full') return;
-      
       // Merge keys
       for (const [type, typeData] of Object.entries(data)) {
         if (!keys[type]) keys[type] = {};
         Object.assign(keys[type], typeData);
       }
       
-      // Save to Firestore (debounced in production)
+      // Save to Firestore
       try {
-        await sessionRef.update({
+        await sessionRef.set({
           keys: encodeBinary(keys),
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
+        }, { merge: true });
+        console.log(`💾 [${accountId}] Keys saved to Firestore (${Object.keys(data).join(', ')})`);
       } catch (error) {
         console.error(`❌ [${accountId}] Keys save failed:`, error.message);
       }
