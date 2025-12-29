@@ -1,0 +1,32 @@
+=== WINDOWS: GET QR CODE ===
+
+Step 1: Run this in PowerShell or CMD:
+curl "https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3/api/whatsapp/accounts" -o accounts.json
+
+Step 2: Open accounts.json in Notepad
+
+Step 3: Search for "account_1767011755513"
+
+Step 4: Copy the ENTIRE "qrCode" value (starts with data:image/png;base64,...)
+Example:
+"qrCode": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAARQAAAEUCAYAAADqcMl5..."
+
+Step 5: Paste in Chrome/Firefox address bar and press Enter
+
+Step 6: QR code will display - scan with WhatsApp app
+
+=== OR USE THIS DIRECT LINK ===
+
+Open this URL in browser:
+https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3/api/whatsapp/accounts
+
+Search for "account_1767011755513" in the JSON response
+Copy qrCode value
+Paste in new browser tab
+
+=== ALTERNATIVE: Use Node.js ===
+
+If you have Node.js installed:
+
+node -e "const https = require('https'); https.get('https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3/api/whatsapp/accounts', res => { let data = ''; res.on('data', chunk => data += chunk); res.on('end', () => { const accounts = JSON.parse(data).accounts; const account = accounts.find(a => a.id === 'account_1767011755513'); if (account && account.qrCode) { console.log('QR Code URL:'); console.log(account.qrCode); console.log(''); console.log('Copy the above URL and paste in browser'); } else { console.log('Account not found or QR not ready'); } }); });"
+
