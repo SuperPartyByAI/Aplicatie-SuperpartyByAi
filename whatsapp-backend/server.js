@@ -34,7 +34,21 @@ if (!admin.apps.length) {
   }
 }
 
-const db = admin.firestore();
+// Initialize Firestore only if Firebase Admin is available
+let _db = null;
+if (firestoreAvailable) {
+  _db = admin.firestore();
+}
+
+// Proxy to ensure Firestore is available when accessed
+const db = new Proxy({}, {
+  get(target, prop) {
+    if (!_db) {
+      throw new Error('Firestore not available - FIREBASE_SERVICE_ACCOUNT_JSON not set');
+    }
+    return _db[prop];
+  }
+});
 
 // CORS configuration
 app.use(cors({
