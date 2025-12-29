@@ -1685,6 +1685,29 @@ app.get('/api/admin/firestore/sessions', async (req, res) => {
   }
 });
 
+// Admin: Self-exit for process restart
+app.post('/api/admin/self-exit', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader ? authHeader.substring(7) : null;
+    
+    if (token !== ONE_TIME_TEST_TOKEN || Date.now() > TEST_TOKEN_EXPIRY) {
+      return res.status(403).json({ error: 'Invalid or expired test token' });
+    }
+    
+    console.log('🔄 Self-exit requested for process restart');
+    
+    res.json({ success: true, message: 'Process exit initiated' });
+    
+    setTimeout(() => {
+      console.log('👋 Exiting process for restart...');
+      process.exit(0);
+    }, 1000);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Admin: Restart socket (for coldstart test)
 app.post('/api/admin/sockets/restart', async (req, res) => {
   try {

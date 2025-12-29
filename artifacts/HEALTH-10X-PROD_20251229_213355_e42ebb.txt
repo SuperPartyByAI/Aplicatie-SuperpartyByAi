@@ -1,0 +1,134 @@
+=== FAZA 0: FINGERPRINT ===
+runId: PROD_20251229_213355_e42ebb
+BASE_URL: https://whats-upp-production.up.railway.app
+
+Request 1:
+{
+  "commit": "5b6dfdd4",
+  "bootTimestamp": "2025-12-29T21:21:10.199Z",
+  "deploymentId": "d290a093-9be2-4a3f-ad26-6a05072374ad",
+  "accounts": {
+    "total": 1,
+    "connected": 1,
+    "connecting": 0,
+    "needs_qr": 0,
+    "max": 18
+  }
+}
+Request 2:
+{
+  "commit": "5b6dfdd4",
+  "bootTimestamp": "2025-12-29T21:21:10.199Z",
+  "deploymentId": "d290a093-9be2-4a3f-ad26-6a05072374ad",
+  "accounts": {
+    "total": 1,
+    "connected": 1,
+    "connecting": 0,
+    "needs_qr": 0,
+    "max": 18
+  }
+}
+Request 3:
+{
+  "commit": "5b6dfdd4",
+  "bootTimestamp": "2025-12-29T21:21:10.199Z",
+  "deploymentId": "d290a093-9be2-4a3f-ad26-6a05072374ad",
+  "accounts": {
+    "total": 1,
+    "connected": 1,
+    "connecting": 0,
+    "needs_qr": 0,
+    "max": 18
+  }
+}
+Request 4:
+{
+  "commit": "5b6dfdd4",
+  "bootTimestamp": "2025-12-29T21:21:10.199Z",
+  "deploymentId": "d290a093-9be2-4a3f-ad26-6a05072374ad",
+  "accounts": {
+    "total": 1,
+    "connected": 1,
+    "connecting": 0,
+    "needs_qr": 0,
+    "max": 18
+  }
+}
+Request 5:
+{
+  "commit": "5b6dfdd4",
+  "bootTimestamp": "2025-12-29T21:21:10.199Z",
+  "deploymentId": "d290a093-9be2-4a3f-ad26-6a05072374ad",
+  "accounts": {
+    "total": 1,
+    "connected": 1,
+    "connecting": 0,
+    "needs_qr": 0,
+    "max": 18
+  }
+}
+Request 6:
+{
+  "commit": "5b6dfdd4",
+  "bootTimestamp": "2025-12-29T21:21:10.199Z",
+  "deploymentId": "d290a093-9be2-4a3f-ad26-6a05072374ad",
+  "accounts": {
+    "total": 1,
+    "connected": 1,
+    "connecting": 0,
+    "needs_qr": 0,
+    "max": 18
+  }
+}
+Request 7:
+{
+  "commit": "5b6dfdd4",
+  "bootTimestamp": "2025-12-29T21:21:10.199Z",
+  "deploymentId": "d290a093-9be2-4a3f-ad26-6a05072374ad",
+  "accounts": {
+    "total": 1,
+    "connected": 1,
+    "connecting": 0,
+    "needs_qr": 0,
+    "max": 18
+  }
+}
+Request 8:
+{
+  "commit": "5b6dfdd4",
+  "bootTimestamp": "2025-12-29T21:21:10.199Z",
+  "deploymentId": "d290a093-9be2-4a3f-ad26-6a05072374ad",
+  "accounts": {
+    "total": 1,
+    "connected": 1,
+    "connecting": 0,
+    "needs_qr": 0,
+    "max": 18
+  }
+}
+Request 9:
+{
+  "commit": "5b6dfdd4",
+  "bootTimestamp": "2025-12-29T21:21:10.199Z",
+  "deploymentId": "d290a093-9be2-4a3f-ad26-6a05072374ad",
+  "accounts": {
+    "total": 1,
+    "connected": 1,
+    "connecting": 0,
+    "needs_qr": 0,
+    "max": 18
+  }
+}
+Request 10:
+{
+  "commit": "5b6dfdd4",
+  "bootTimestamp": "2025-12-29T21:21:10.199Z",
+  "deploymentId": "d290a093-9be2-4a3f-ad26-6a05072374ad",
+  "accounts": {
+    "total": 1,
+    "connected": 1,
+    "connecting": 0,
+    "needs_qr": 0,
+    "max": 18
+  }
+}
