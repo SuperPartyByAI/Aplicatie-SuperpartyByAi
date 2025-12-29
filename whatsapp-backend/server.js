@@ -407,6 +407,49 @@ async function createConnection(accountId, name, phone) {
 
     // Creds update handler
     sock.ev.on('creds.update', saveCreds);
+    
+    // Flush outbox on connect
+    sock.ev.on('connection.update', async (update) => {
+      if (update.connection === 'open') {
+        console.log(`🔄 [${accountId}] Connection open, flushing outbox...`);
+        
+        try {
+          const outboxSnapshot = await db.collection('outbox')
+            .where('accountId', '==', accountId)
+            .where('status', '==', 'queued')
+            .get();
+          
+          console.log(`📤 [${accountId}] Found ${outboxSnapshot.size} queued messages`);
+          
+          for (const doc of outboxSnapshot.docs) {
+            const data = doc.data();
+            
+            try {
+              const jid = data.toJid;
+              const result = await sock.sendMessage(jid, data.payload);
+              
+              await db.collection('outbox').doc(doc.id).update({
+                status: 'sent',
+                sentAt: admin.firestore.FieldValue.serverTimestamp(),
+                providerMessageId: result.key.id
+              });
+              
+              console.log(`✅ [${accountId}] Flushed message ${doc.id}`);
+            } catch (error) {
+              console.error(`❌ [${accountId}] Failed to flush ${doc.id}:`, error.message);
+              
+              await db.collection('outbox').doc(doc.id).update({
+                status: 'failed',
+                error: error.message,
+                attempts: (data.attempts || 0) + 1
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`❌ [${accountId}] Outbox flush error:`, error.message);
+        }
+      }
+    });
 
     // Messages handler
     sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
