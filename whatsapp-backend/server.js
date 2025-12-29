@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const makeWASocket = require('@whiskeysockets/baileys').default;
-const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeInMemoryStore } = require('@whiskeysockets/baileys');
+const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const { useFirestoreAuthState } = require('./lib/persistence/firestore-auth');
 const QRCode = require('qrcode');
 const pino = require('pino');
@@ -100,9 +100,9 @@ const accountLimiter = rateLimit({
 const connections = new Map();
 const reconnectAttempts = new Map();
 
-// Create Baileys store for message handling
-const store = makeInMemoryStore({ logger: pino({ level: 'silent' }) });
-console.log('📦 Baileys store initialized');
+// Note: makeInMemoryStore not available in Baileys 6.7.21
+// Message handling works without store (events still emit)
+console.log('📦 Baileys initialized (store not required)');
 
 // Admin authentication middleware (ADMIN_TOKEN defined at line 18)
 function requireAdmin(req, res, next) {
@@ -221,9 +221,9 @@ async function createConnection(accountId, name, phone) {
 
     connections.set(accountId, account);
     
-    // Bind store to socket for message handling
-    store.bind(sock.ev);
-    console.log(`📦 [${accountId}] Store bound to socket - will receive all events`);
+    // Note: Store binding not required in Baileys 6.7.21
+    // Events emit directly from sock.ev
+    console.log(`📦 [${accountId}] Socket events configured`);
 
     // Save to Firestore
     await saveAccountToFirestore(accountId, {
