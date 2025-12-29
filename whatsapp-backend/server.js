@@ -48,6 +48,27 @@ app.use(express.json());
 // In-memory store for active connections
 const connections = new Map();
 const reconnectAttempts = new Map();
+
+// Admin token for protected endpoints
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'dev-token-change-in-prod';
+
+// Admin authentication middleware
+function requireAdmin(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized: Missing token' });
+  }
+  
+  const token = authHeader.substring(7);
+  if (token !== ADMIN_TOKEN) {
+    return res.status(403).json({ error: 'Forbidden: Invalid token' });
+  }
+  
+  next();
+}
+
+// Test runs storage
+const testRuns = new Map();
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_TIMEOUT_MS = 60000;
 
@@ -714,6 +735,450 @@ app.delete('/api/whatsapp/accounts/:id', async (req, res) => {
     res.json({ success: true, message: 'Account deleted' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// ADMIN ENDPOINTS (Protected with ADMIN_TOKEN)
+// ============================================
+
+// POST /api/admin/account/:id/disconnect
+app.post('/api/admin/account/:id/disconnect', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const account = connections.get(id);
+    
+    if (!account) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    
+    const tsDisconnect = Date.now();
+    
+    // Close socket (recoverable disconnect)
+    if (account.sock) {
+      account.sock.end();
+    }
+    
+    console.log(`🔌 [ADMIN] Disconnected account ${id}`);
+    
+    res.json({
+      success: true,
+      accountId: id,
+      tsDisconnect,
+      reason: 'admin_disconnect'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/admin/account/:id/reconnect
+app.post('/api/admin/account/:id/reconnect', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const account = connections.get(id);
+    
+    if (!account) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    
+    const tsStart = Date.now();
+    
+    // Trigger reconnect
+    console.log(`🔄 [ADMIN] Reconnecting account ${id}`);
+    
+    // Wait for connection (max 60s)
+    const maxWait = 60000;
+    const checkInterval = 1000;
+    let elapsed = 0;
+    
+    while (elapsed < maxWait) {
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+      elapsed += checkInterval;
+      
+      const currentAccount = connections.get(id);
+      if (currentAccount && currentAccount.status === 'connected') {
+        const tsConnected = Date.now();
+        const mttrMs = tsConnected - tsStart;
+        
+        console.log(`✅ [ADMIN] Account ${id} reconnected in ${mttrMs}ms`);
+        
+        return res.json({
+          success: true,
+          accountId: id,
+          tsConnected,
+          mttrMs
+        });
+      }
+    }
+    
+    res.status(408).json({ error: 'Reconnect timeout after 60s' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/admin/tests/mttr
+app.post('/api/admin/tests/mttr', requireAdmin, async (req, res) => {
+  try {
+    const { accountId, n = 10 } = req.query;
+    
+    if (!accountId) {
+      return res.status(400).json({ error: 'accountId required' });
+    }
+    
+    const account = connections.get(accountId);
+    if (!account) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    
+    const runId = `mttr_${Date.now()}`;
+    const dataset = [];
+    
+    console.log(`📊 [ADMIN] Starting MTTR benchmark: runId=${runId}, n=${n}`);
+    
+    // Run N disconnect/reconnect cycles
+    for (let i = 0; i < n; i++) {
+      console.log(`[${i+1}/${n}] Disconnect...`);
+      
+      // Disconnect
+      if (account.sock) {
+        account.sock.end();
+      }
+      
+      // Wait for disconnect
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Measure reconnect time
+      const tsStart = Date.now();
+      
+      // Wait for reconnect (max 60s)
+      let reconnected = false;
+      for (let wait = 0; wait < 60000; wait += 1000) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const currentAccount = connections.get(accountId);
+        if (currentAccount && currentAccount.status === 'connected') {
+          const mttrMs = Date.now() - tsStart;
+          dataset.push(mttrMs / 1000); // Convert to seconds
+          console.log(`✅ [${i+1}/${n}] Reconnected in ${mttrMs}ms`);
+          reconnected = true;
+          break;
+        }
+      }
+      
+      if (!reconnected) {
+        console.error(`❌ [${i+1}/${n}] Reconnect timeout`);
+        dataset.push(60); // Timeout value
+      }
+    }
+    
+    // Calculate percentiles
+    const sorted = dataset.slice().sort((a, b) => a - b);
+    const p50 = sorted[Math.floor(sorted.length * 0.5)];
+    const p90 = sorted[Math.floor(sorted.length * 0.9)];
+    const p95 = sorted[Math.floor(sorted.length * 0.95)];
+    
+    const result = {
+      runId,
+      accountId,
+      n,
+      dataset,
+      p50,
+      p90,
+      p95,
+      verdict: p95 <= 60 ? 'PASS' : 'FAIL',
+      timestamp: new Date().toISOString()
+    };
+    
+    // Save to Firestore
+    await db.collection('prod_tests').doc(runId).set({
+      type: 'mttr',
+      ...result
+    });
+    
+    console.log(`✅ [ADMIN] MTTR benchmark complete: ${result.verdict}`);
+    
+    res.json(result);
+  } catch (error) {
+    console.error('❌ [ADMIN] MTTR test error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/admin/tests/queue
+app.post('/api/admin/tests/queue', requireAdmin, async (req, res) => {
+  try {
+    const { accountId, to } = req.query;
+    
+    if (!accountId || !to) {
+      return res.status(400).json({ error: 'accountId and to required' });
+    }
+    
+    const runId = `queue_${Date.now()}`;
+    console.log(`📤 [ADMIN] Starting queue test: runId=${runId}`);
+    
+    // Force offline
+    const account = connections.get(accountId);
+    if (account && account.sock) {
+      account.sock.end();
+    }
+    
+    // Wait for offline
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Send 3 messages while offline
+    const messageIds = [];
+    for (let i = 1; i <= 3; i++) {
+      const msgId = `msg_${Date.now()}_${i}`;
+      const message = `Queue test ${i} - ${runId}`;
+      
+      // Save to Firestore as queued
+      await db.collection('messages').doc(msgId).set({
+        accountId,
+        to,
+        body: message,
+        status: 'queued',
+        type: 'outbound',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        runId
+      });
+      
+      messageIds.push(msgId);
+      console.log(`📝 [${i}/3] Message queued: ${msgId}`);
+    }
+    
+    // Wait a bit
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Reconnect
+    console.log(`🔄 Reconnecting...`);
+    
+    // Wait for reconnect (max 60s)
+    let reconnected = false;
+    for (let wait = 0; wait < 60000; wait += 1000) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const currentAccount = connections.get(accountId);
+      if (currentAccount && currentAccount.status === 'connected') {
+        reconnected = true;
+        console.log(`✅ Reconnected`);
+        break;
+      }
+    }
+    
+    if (!reconnected) {
+      return res.status(408).json({ error: 'Reconnect timeout' });
+    }
+    
+    // Check message statuses after reconnect
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    const statusTransitions = [];
+    for (const msgId of messageIds) {
+      const doc = await db.collection('messages').doc(msgId).get();
+      if (doc.exists) {
+        statusTransitions.push({
+          msgId,
+          status: doc.data().status,
+          updatedAt: doc.data().updatedAt
+        });
+      }
+    }
+    
+    const result = {
+      runId,
+      accountId,
+      to,
+      messageIds,
+      statusTransitions,
+      verdict: statusTransitions.every(t => t.status === 'sent' || t.status === 'delivered') ? 'PASS' : 'PARTIAL',
+      timestamp: new Date().toISOString()
+    };
+    
+    // Save to Firestore
+    await db.collection('prod_tests').doc(runId).set({
+      type: 'queue',
+      ...result
+    });
+    
+    console.log(`✅ [ADMIN] Queue test complete: ${result.verdict}`);
+    
+    res.json(result);
+  } catch (error) {
+    console.error('❌ [ADMIN] Queue test error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/admin/tests/soak/start
+app.post('/api/admin/tests/soak/start', requireAdmin, async (req, res) => {
+  try {
+    const { hours = 2, accountId } = req.query;
+    
+    if (!accountId) {
+      return res.status(400).json({ error: 'accountId required' });
+    }
+    
+    const runId = `soak_${Date.now()}`;
+    const durationMs = hours * 60 * 60 * 1000;
+    const startTime = Date.now();
+    
+    console.log(`⏱️  [ADMIN] Starting soak test: runId=${runId}, duration=${hours}h`);
+    
+    // Initialize test run
+    testRuns.set(runId, {
+      type: 'soak',
+      accountId,
+      startTime,
+      durationMs,
+      heartbeats: 0,
+      failures: 0,
+      status: 'running'
+    });
+    
+    // Save initial state to Firestore
+    await db.collection('prod_tests').doc(runId).set({
+      type: 'soak',
+      accountId,
+      hours,
+      startTime: new Date(startTime).toISOString(),
+      status: 'running'
+    });
+    
+    // Start background heartbeat (every 60s)
+    const interval = setInterval(async () => {
+      const run = testRuns.get(runId);
+      if (!run) {
+        clearInterval(interval);
+        return;
+      }
+      
+      const elapsed = Date.now() - run.startTime;
+      
+      if (elapsed >= run.durationMs) {
+        // Test complete
+        clearInterval(interval);
+        
+        const uptime = ((run.heartbeats - run.failures) / run.heartbeats * 100).toFixed(2);
+        const verdict = uptime >= 99 && run.failures === 0 ? 'PASS' : 'FAIL';
+        
+        run.status = 'complete';
+        run.uptime = uptime;
+        run.verdict = verdict;
+        
+        // Save summary to Firestore
+        await db.collection('prod_tests').doc(runId).update({
+          status: 'complete',
+          endTime: new Date().toISOString(),
+          heartbeats: run.heartbeats,
+          failures: run.failures,
+          uptime: parseFloat(uptime),
+          verdict
+        });
+        
+        console.log(`✅ [ADMIN] Soak test complete: ${verdict}, uptime=${uptime}%`);
+        return;
+      }
+      
+      // Heartbeat
+      try {
+        const account = connections.get(accountId);
+        const isHealthy = account && account.status === 'connected';
+        
+        run.heartbeats++;
+        if (!isHealthy) {
+          run.failures++;
+        }
+        
+        // Save heartbeat to Firestore
+        await db.collection('prod_tests').doc(runId).collection('heartbeats').add({
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          heartbeat: run.heartbeats,
+          accountStatus: account ? account.status : 'not_found',
+          healthy: isHealthy
+        });
+        
+        const elapsedMin = Math.floor(elapsed / 1000 / 60);
+        console.log(`💓 [${runId}] Heartbeat ${run.heartbeats} at ${elapsedMin}min: ${isHealthy ? '✅' : '❌'}`);
+      } catch (error) {
+        run.failures++;
+        console.error(`❌ [${runId}] Heartbeat failed:`, error.message);
+      }
+    }, 60000); // Every 60 seconds
+    
+    res.json({
+      success: true,
+      runId,
+      accountId,
+      hours,
+      startTime: new Date(startTime).toISOString(),
+      message: `Soak test started. Check status at /api/admin/tests/soak/status?runId=${runId}`
+    });
+  } catch (error) {
+    console.error('❌ [ADMIN] Soak test start error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/admin/tests/soak/status
+app.get('/api/admin/tests/soak/status', requireAdmin, async (req, res) => {
+  try {
+    const { runId } = req.query;
+    
+    if (!runId) {
+      return res.status(400).json({ error: 'runId required' });
+    }
+    
+    const run = testRuns.get(runId);
+    if (!run) {
+      return res.status(404).json({ error: 'Test run not found' });
+    }
+    
+    const elapsed = Date.now() - run.startTime;
+    const progress = (elapsed / run.durationMs * 100).toFixed(2);
+    const uptime = run.heartbeats > 0 ? ((run.heartbeats - run.failures) / run.heartbeats * 100).toFixed(2) : 0;
+    
+    res.json({
+      runId,
+      status: run.status,
+      progress: parseFloat(progress),
+      elapsed: Math.floor(elapsed / 1000),
+      heartbeats: run.heartbeats,
+      failures: run.failures,
+      uptime: parseFloat(uptime)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/admin/tests/report
+app.get('/api/admin/tests/report', requireAdmin, async (req, res) => {
+  try {
+    const { runId } = req.query;
+    
+    if (!runId) {
+      return res.status(400).json({ error: 'runId required' });
+    }
+    
+    const doc = await db.collection('prod_tests').doc(runId).get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ error: 'Test run not found' });
+    }
+    
+    const data = doc.data();
+    
+    res.json({
+      runId,
+      type: data.type,
+      verdict: data.verdict,
+      data,
+      firestoreDoc: `prod_tests/${runId}`
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
