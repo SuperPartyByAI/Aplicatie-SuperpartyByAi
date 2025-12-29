@@ -115,18 +115,70 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
       }
 
       if (connection === 'close') {
-        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        console.log(`❌ ${accountId} disconnected - generating new QR`);
         
-        // Don't reconnect automatically - let user scan QR again
-        account.status = 'logged_out';
-        account.qrCode = null;
-        console.log(`❌ ${accountId} disconnected - need new QR`);
-        
-        // Clean up session files to force new QR generation
+        // Clean up old session
         const sessionPath = path.join(authDir, accountId);
         if (fs.existsSync(sessionPath)) {
           fs.rmSync(sessionPath, { recursive: true, force: true });
         }
+        
+        // Create new socket for fresh QR
+        (async () => {
+          const { state: newState, saveCreds: newSaveCreds } = await useMultiFileAuthState(sessionPath);
+          const newSock = makeWASocket({
+            auth: newState,
+            printQRInTerminal: false,
+            logger: pino({ level: 'silent' })
+          });
+          
+          account.sock = newSock;
+          account.status = 'connecting';
+          account.qrCode = null;
+          
+          // Re-attach handlers
+          newSock.ev.on('connection.update', async (update) => {
+            const { connection: newConn, qr: newQr } = update;
+            
+            if (newQr) {
+              const qrCode = await QRCode.toDataURL(newQr);
+              account.qrCode = qrCode;
+              account.status = 'qr_ready';
+              console.log(`📱 New QR Code ready for ${accountId}`);
+            }
+            
+            if (newConn === 'open') {
+              account.status = 'connected';
+              account.qrCode = null;
+              console.log(`✅ ${accountId} reconnected`);
+            }
+          });
+          
+          newSock.ev.on('creds.update', newSaveCreds);
+          
+          newSock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
+            if (type !== 'notify') return;
+            
+            for (const msg of newMessages) {
+              if (!msg.message) continue;
+              
+              const messageData = {
+                id: msg.key.id,
+                from: msg.key.remoteJid,
+                fromMe: msg.key.fromMe,
+                text: msg.message?.conversation || msg.message?.extendedTextMessage?.text || '',
+                timestamp: msg.messageTimestamp,
+                createdAt: new Date().toISOString()
+              };
+
+              const accountMessages = messages.get(accountId) || [];
+              accountMessages.push(messageData);
+              messages.set(accountId, accountMessages);
+
+              console.log(`💬 [${accountId}] Message received from ${messageData.from}`);
+            }
+          });
+        })();
       }
     });
 
