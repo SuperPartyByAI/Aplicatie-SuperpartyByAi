@@ -21,9 +21,9 @@ console.log(`🔐 ADMIN_TOKEN configured: ${ADMIN_TOKEN.substring(0, 10)}...`);
 // Trust Railway proxy for rate limiting
 app.set('trust proxy', 1);
 
-// Firestore auth state: always enabled
-const USE_FIRESTORE_AUTH = true;
-console.log(`🔧 Firestore auth-state: ENABLED`);
+// Use disk-based auth with Railway volume
+const USE_FIRESTORE_AUTH = false;
+console.log(`🔧 Auth: disk-based (Railway volume)`);
 
 // Initialize Firebase Admin with Railway env var
 let firestoreAvailable = false;
@@ -124,11 +124,16 @@ const testRuns = new Map();
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_TIMEOUT_MS = 60000;
 
-// Ensure auth directory exists
-const authDir = path.join(__dirname, '.baileys_auth');
+// Auth directory: use Railway volume if available
+const authDir = process.env.RAILWAY_VOLUME_MOUNT_PATH 
+  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'baileys_auth')
+  : path.join(__dirname, '.baileys_auth');
+
 if (!fs.existsSync(authDir)) {
   fs.mkdirSync(authDir, { recursive: true });
 }
+
+console.log(`📁 Auth directory: ${authDir}`);
 
 const VERSION = '2.0.0';
 const COMMIT_HASH = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown';
