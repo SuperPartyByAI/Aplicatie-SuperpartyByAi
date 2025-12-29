@@ -3,6 +3,12 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
+const admin = require('firebase-admin');
+
+// Initialize Firebase Admin at startup
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -124,5 +130,10 @@ app.get('/health', (req, res) => {
 // Keep 1st Gen - works with existing deployment
 exports.whatsapp = functions.https.onRequest(app);
 
-// New version with all endpoints - deploy this one
-exports.whatsappV2 = functions.https.onRequest(app);
+// 2nd Gen version with all endpoints
+exports.whatsappV2 = functions
+  .runWith({
+    timeoutSeconds: 540,
+    memory: '512MB'
+  })
+  .https.onRequest(app);
