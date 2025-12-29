@@ -19,7 +19,7 @@ function ChatClientiScreen() {
     }
     
     // Check for connected account
-    fetch('https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/accounts')
+    fetch('https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV2/api/whatsapp/accounts')
       .then(r => r.json())
       .then(data => {
         const connected = data.accounts?.find(acc => acc.status === 'connected');

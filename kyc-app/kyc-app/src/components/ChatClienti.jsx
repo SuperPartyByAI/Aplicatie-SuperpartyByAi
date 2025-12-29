@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 
-const BACKEND_URL = 'https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp';
+const BACKEND_URL = 'https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV2';
 
 // Mock data pentru testare
 const MOCK_CLIENTS = [

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 
-const WHATSAPP_URL = 'https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp';
+const WHATSAPP_URL = 'https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV2';
 
 function WhatsAppAccounts() {
   const [accounts, setAccounts] = useState([]);
