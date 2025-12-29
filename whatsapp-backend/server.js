@@ -21,9 +21,9 @@ console.log(`🔐 ADMIN_TOKEN configured: ${ADMIN_TOKEN.substring(0, 10)}...`);
 // Trust Railway proxy for rate limiting
 app.set('trust proxy', 1);
 
-// Use disk-based auth with Railway volume
-const USE_FIRESTORE_AUTH = false;
-console.log(`🔧 Auth: disk-based (Railway volume)`);
+// Use hybrid: disk for Baileys, Firestore for backup/restore
+const USE_FIRESTORE_BACKUP = true;
+console.log(`🔧 Auth: disk + Firestore backup`);
 
 // Initialize Firebase Admin with Railway env var
 let firestoreAvailable = false;
@@ -190,12 +190,38 @@ async function createConnection(accountId, name, phone) {
     const { version, isLatest } = await fetchLatestBaileysVersion();
     console.log(`✅ [${accountId}] Baileys version: ${version.join('.')}, isLatest: ${isLatest}`);
 
-    // Use Firestore auth state
-    let state, saveCreds;
-    if (USE_FIRESTORE_AUTH && firestoreAvailable) {
-      ({ state, saveCreds } = await useFirestoreAuthState(accountId, db));
-    } else {
-      ({ state, saveCreds } = await useMultiFileAuthState(sessionPath));
+    // Use disk auth + Firestore backup
+    let { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+    
+    // Wrap saveCreds to backup to Firestore
+    if (USE_FIRESTORE_BACKUP && firestoreAvailable) {
+      const originalSaveCreds = saveCreds;
+      saveCreds = async () => {
+        await originalSaveCreds();
+        
+        // Backup to Firestore
+        try {
+          const sessionFiles = fs.readdirSync(sessionPath);
+          const sessionData = {};
+          
+          for (const file of sessionFiles) {
+            const filePath = path.join(sessionPath, file);
+            if (fs.statSync(filePath).isFile()) {
+              sessionData[file] = fs.readFileSync(filePath, 'utf8');
+            }
+          }
+          
+          await db.collection('wa_sessions').doc(accountId).set({
+            files: sessionData,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            schemaVersion: 2
+          });
+          
+          console.log(`💾 [${accountId}] Session backed up to Firestore (${Object.keys(sessionData).length} files)`);
+        } catch (error) {
+          console.error(`❌ [${accountId}] Firestore backup failed:`, error.message);
+        }
+      };
     }
     
     const sock = makeWASocket({
@@ -1318,23 +1344,68 @@ async function restoreAccountsFromFirestore() {
       console.log(`🔄 Restoring account: ${accountId}`);
       
       try {
-        // Use Firestore auth state
-        let state, saveCreds;
-        if (USE_FIRESTORE_AUTH && firestoreAvailable) {
-          ({ state, saveCreds } = await useFirestoreAuthState(accountId, db));
+        console.log(`BOOT [${accountId}] Starting restore...`);
+        
+        const sessionPath = path.join(authDir, accountId);
+        
+        // Try restore from Firestore if disk session missing
+        if (!fs.existsSync(sessionPath) && USE_FIRESTORE_BACKUP && firestoreAvailable) {
+          console.log(`BOOT [${accountId}] No disk session, attempting Firestore restore...`);
           
-          // Check if creds exist in Firestore
-          if (!state.creds) {
-            console.log(`⚠️  [${accountId}] No creds in Firestore, skipping`);
+          const sessionDoc = await db.collection('wa_sessions').doc(accountId).get();
+          if (sessionDoc.exists) {
+            const sessionData = sessionDoc.data();
+            
+            if (sessionData.files) {
+              fs.mkdirSync(sessionPath, { recursive: true });
+              
+              for (const [filename, content] of Object.entries(sessionData.files)) {
+                fs.writeFileSync(path.join(sessionPath, filename), content, 'utf8');
+              }
+              
+              console.log(`FIRESTORE_SESSION_LOADED [${accountId}] Restored ${Object.keys(sessionData.files).length} files from Firestore`);
+            }
+          } else {
+            console.log(`⚠️  [${accountId}] No session in Firestore, skipping`);
             continue;
           }
-        } else {
-          const sessionPath = path.join(authDir, accountId);
-          if (!fs.existsSync(sessionPath)) {
-            console.log(`⚠️  [${accountId}] No session on disk, skipping`);
-            continue;
-          }
-          ({ state, saveCreds } = await useMultiFileAuthState(sessionPath));
+        }
+        
+        // Check disk session exists now
+        if (!fs.existsSync(sessionPath)) {
+          console.log(`⚠️  [${accountId}] No session available, skipping`);
+          continue;
+        }
+        
+        // Load from disk
+        let { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+        
+        // Wrap saveCreds for Firestore backup
+        if (USE_FIRESTORE_BACKUP && firestoreAvailable) {
+          const originalSaveCreds = saveCreds;
+          saveCreds = async () => {
+            await originalSaveCreds();
+            
+            try {
+              const sessionFiles = fs.readdirSync(sessionPath);
+              const sessionData = {};
+              
+              for (const file of sessionFiles) {
+                const filePath = path.join(sessionPath, file);
+                if (fs.statSync(filePath).isFile()) {
+                  sessionData[file] = fs.readFileSync(filePath, 'utf8');
+                }
+              }
+              
+              await db.collection('wa_sessions').doc(accountId).set({
+                files: sessionData,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                schemaVersion: 2
+              });
+            } catch (error) {
+              console.error(`❌ [${accountId}] Firestore backup failed:`, error.message);
+            }
+          };
         }
         
         const { version } = await fetchLatestBaileysVersion();
