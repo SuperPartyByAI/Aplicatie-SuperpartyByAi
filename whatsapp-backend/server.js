@@ -358,15 +358,29 @@ async function createConnection(accountId, name, phone) {
     sock.ev.on('creds.update', saveCreds);
 
     // Messages handler
-    sock.ev.on('messages.upsert', async ({ messages: newMessages }) => {
+    sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
+      console.log(`🔔 [${accountId}] messages.upsert EVENT: type=${type}, count=${newMessages.length}`);
+      
       for (const msg of newMessages) {
-        if (!msg.message) continue;
+        console.log(`📩 [${accountId}] RAW MESSAGE:`, JSON.stringify({
+          id: msg.key.id,
+          remoteJid: msg.key.remoteJid,
+          fromMe: msg.key.fromMe,
+          participant: msg.key.participant,
+          hasMessage: !!msg.message,
+          messageKeys: msg.message ? Object.keys(msg.message) : []
+        }));
+        
+        if (!msg.message) {
+          console.log(`⚠️  [${accountId}] Skipping message ${msg.key.id} - no message content`);
+          continue;
+        }
         
         const messageId = msg.key.id;
         const from = msg.key.remoteJid;
         const isFromMe = msg.key.fromMe;
         
-        console.log(`📨 [${accountId}] Message ${isFromMe ? 'sent' : 'received'}: ${messageId}`);
+        console.log(`📨 [${accountId}] PROCESSING: ${isFromMe ? 'OUTBOUND' : 'INBOUND'} message ${messageId} from ${from}`);
         
         // Save to Firestore
         try {
@@ -383,7 +397,14 @@ async function createConnection(accountId, name, phone) {
             createdAt: admin.firestore.FieldValue.serverTimestamp()
           };
           
+          console.log(`💾 [${accountId}] Saving to Firestore: threads/${threadId}/messages/${messageId}`, {
+            direction: messageData.direction,
+            body: messageData.body.substring(0, 50)
+          });
+          
           await db.collection('threads').doc(threadId).collection('messages').doc(messageId).set(messageData);
+          
+          console.log(`✅ [${accountId}] Message saved successfully`);
           
           // Update thread
           await db.collection('threads').doc(threadId).set({
@@ -398,8 +419,21 @@ async function createConnection(accountId, name, phone) {
         }
       }
     });
+    
+    // Messages update handler (for status updates)
+    sock.ev.on('messages.update', (updates) => {
+      console.log(`🔄 [${accountId}] messages.update EVENT: ${updates.length} updates`);
+      for (const update of updates) {
+        console.log(`  - Message ${update.key.id}: ${JSON.stringify(update.update)}`);
+      }
+    });
+    
+    // Message receipt handler
+    sock.ev.on('message-receipt.update', (receipts) => {
+      console.log(`📬 [${accountId}] message-receipt.update EVENT: ${receipts.length} receipts`);
+    });
 
-    console.log(`✅ [${accountId}] Connection created`);
+    console.log(`✅ [${accountId}] Connection created with event handlers`);
     return account;
 
   } catch (error) {
