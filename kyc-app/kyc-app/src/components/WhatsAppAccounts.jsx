@@ -12,24 +12,12 @@ function WhatsAppAccounts() {
   useEffect(() => {
     loadAccounts();
     
-    // Socket.io pentru QR codes real-time
-    const socket = io(WHATSAPP_URL);
-    
-    socket.on('connect', () => {
-      console.log('✅ Connected to WhatsApp backend');
-    });
-    
-    socket.on('whatsapp:qr', (data) => {
-      console.log('📱 QR Code received:', data.accountId);
-      loadAccounts(); // Refresh pentru a lua QR code-ul nou
-    });
-    
-    socket.on('whatsapp:connected', (data) => {
-      console.log('✅ WhatsApp connected:', data.accountId);
+    // Polling pentru QR codes (Firebase Functions nu suportă Socket.io persistent)
+    const pollInterval = setInterval(() => {
       loadAccounts();
-    });
+    }, 3000); // Refresh la fiecare 3 secunde
 
-    return () => socket.disconnect();
+    return () => clearInterval(pollInterval);
   }, []);
 
   const loadAccounts = async () => {
