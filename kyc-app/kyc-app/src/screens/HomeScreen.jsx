@@ -119,6 +119,13 @@ function HomeScreen() {
   const loadGMUsers = async () => {
     setLoadingConversations(true);
     try {
+      // Verifică autentificarea
+      if (!auth.currentUser) {
+        console.log('⚠️ User not authenticated, skipping GM data load');
+        setLoadingConversations(false);
+        return;
+      }
+      
       // Încarcă toate conversațiile
       const convQuery = query(
         collection(db, 'aiConversations'),
