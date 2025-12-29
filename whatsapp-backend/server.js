@@ -191,9 +191,15 @@ async function createConnection(accountId, name, phone) {
     const sock = makeWASocket({
       auth: state,
       printQRInTerminal: false,
-      logger: pino({ level: 'silent' }),
+      logger: pino({ level: 'warn' }), // Changed from 'silent' to see errors
       browser: ['SuperParty', 'Chrome', '2.0.0'],
-      version // CRITICAL: Use fetched version
+      version, // CRITICAL: Use fetched version
+      syncFullHistory: false, // Don't sync full history on connect
+      markOnlineOnConnect: true,
+      getMessage: async (key) => {
+        // Return undefined to indicate message not found in cache
+        return undefined;
+      }
     });
 
     const account = {
