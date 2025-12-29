@@ -1,0 +1,12 @@
+{
+  "name": "railway-redeployer",
+  "version": "1.0.0",
+  "description": "In-platform redeployer for Railway services",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  }
+}
