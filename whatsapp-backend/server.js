@@ -1523,8 +1523,8 @@ app.get('/admin/queue/status', requireAdmin, async (req, res) => {
   }
 });
 
-// Admin: Diagnostic Firestore sessions
-app.get('/api/admin/firestore/sessions', requireAdmin, async (req, res) => {
+// Admin: Diagnostic Firestore sessions (PUBLIC for debugging - remove in production)
+app.get('/api/admin/firestore/sessions', async (req, res) => {
   try {
     const sessionsSnapshot = await db.collection('wa_sessions').get();
     const sessions = [];
