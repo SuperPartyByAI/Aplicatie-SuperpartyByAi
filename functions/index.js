@@ -61,5 +61,54 @@ app.post('/api/whatsapp/send', async (req, res) => {
   }
 });
 
+// Alias for send-message (frontend compatibility)
+app.post('/api/whatsapp/send-message', async (req, res) => {
+  try {
+    const { accountId, to, message } = req.body;
+    
+    // Get first connected account if no accountId provided
+    let targetAccountId = accountId;
+    if (!targetAccountId) {
+      const accounts = whatsappManager.getAccounts();
+      const connected = accounts.find(acc => acc.status === 'connected');
+      if (!connected) {
+        return res.status(400).json({ success: false, error: 'No connected account found' });
+      }
+      targetAccountId = connected.id;
+    }
+    
+    await whatsappManager.sendMessage(targetAccountId, to, message);
+    res.json({ success: true, message: 'Message sent' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get messages for a client
+app.get('/api/whatsapp/messages', async (req, res) => {
+  try {
+    const { limit = 50 } = req.query;
+    // TODO: Implement message storage/retrieval
+    res.json({ success: true, messages: [] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get clients list
+app.get('/api/clients', async (req, res) => {
+  try {
+    // TODO: Implement clients list from WhatsApp chats
+    res.json({ success: true, clients: [] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', timestamp: Date.now() });
+});
+
 // Keep 1st Gen - works with existing deployment
 exports.whatsapp = functions.https.onRequest(app);
