@@ -6,6 +6,9 @@ const rateLimit = require('express-rate-limit');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust Railway proxy for rate limiting
+app.set('trust proxy', 1);
+
 // Twilio credentials from env vars
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
