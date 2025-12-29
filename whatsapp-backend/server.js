@@ -18,7 +18,7 @@ const MAX_ACCOUNTS = 18;
 app.set('trust proxy', 1);
 
 // Feature flag for Firestore auth state: off | creds_only | full
-const FIRESTORE_AUTH_MODE = process.env.FIRESTORE_AUTH_STATE_MODE || 'off';
+const FIRESTORE_AUTH_MODE = process.env.FIRESTORE_AUTH_STATE_MODE || 'creds_only';
 console.log(`🔧 FIRESTORE_AUTH_STATE_MODE: ${FIRESTORE_AUTH_MODE}`);
 
 // Initialize Firebase Admin with Railway env var
