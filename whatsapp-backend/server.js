@@ -147,6 +147,11 @@ const BOOT_TIMESTAMP = new Date().toISOString();
 // Long-run jobs (production-grade v3)
 const longrunJobsModule = require('./lib/longrun-jobs-v3');
 let longrunJobsInstance = null;
+
+// Long-run schema and evidence endpoints
+const LongRunSchemaComplete = require('./lib/longrun-schema-complete');
+const EvidenceEndpoints = require('./lib/evidence-endpoints');
+const LONGRUN_ADMIN_TOKEN = process.env.LONGRUN_ADMIN_TOKEN || ADMIN_TOKEN;
 const START_TIME = Date.now();
 
 console.log(`🚀 SuperParty WhatsApp Backend v${VERSION} (${COMMIT_HASH})`);
@@ -1942,9 +1947,24 @@ app.listen(PORT, '0.0.0.0', async () => {
   // Restore accounts after server starts
   await restoreAccountsFromFirestore();
   
-  // Initialize long-run jobs v3
+  // Initialize long-run schema and evidence endpoints
   if (firestoreAvailable) {
     const baseUrl = process.env.BAILEYS_BASE_URL || 'https://whats-upp-production.up.railway.app';
+    
+    // Initialize schema
+    const longrunSchema = new LongRunSchemaComplete(db);
+    
+    // Initialize evidence endpoints
+    new EvidenceEndpoints(app, db, longrunSchema, LONGRUN_ADMIN_TOKEN);
+    console.log('✅ Evidence endpoints initialized');
+    
+    // Initialize config
+    const commitHash = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown';
+    const serviceVersion = '2.0.0';
+    const instanceId = process.env.RAILWAY_DEPLOYMENT_ID || `local-${Date.now()}`;
+    
+    await longrunSchema.initConfig(baseUrl, commitHash, serviceVersion, instanceId);
+    console.log('✅ Long-run config initialized');
     
     // Create baileys-like interface for LongRunJobs
     const baileysInterface = {
