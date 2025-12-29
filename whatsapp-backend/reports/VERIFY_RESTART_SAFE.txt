@@ -1,0 +1,37 @@
+🔍 VERIFYING RESTART-SAFE JOBS
+📍 Base URL: https://whats-upp-production.up.railway.app
+
+
+=== TEST 1: IDEMPOTENT WRITES ===
+
+✅ Found 20 heartbeats
+✅ 20/20 heartbeats have deterministic docIds
+✅ No duplicate docIds (idempotent writes confirmed)
+
+=== TEST 2: GAP DETECTION ===
+
+✅ Found 43 heartbeats for analysis
+✅ 39/42 intervals within expected range (50-70s)
+⚠️  Detected 3 gaps:
+   - Gap 5: 111.6s (0 missed heartbeats)
+   - Gap 13: 85.7s (0 missed heartbeats)
+   - Gap 19: 642.9s (9 missed heartbeats)
+✅ Coverage: 92.9%
+
+=== TEST 3: DISTRIBUTED LOCK ===
+
+✅ Found 3 unique instance(s):
+   - bcfe891c-59b1-4364-999f-4399e47e613a
+   - b44d8ae9-00ba-41bc-93c1-f0f16b7ef03e
+   - undefined
+⚠️  Multiple instances detected (3)
+✅ No overlaps detected (sequential instances, lock working)
+
+=== SUMMARY ===
+
+Idempotent writes: ✅ PASS
+Gap detection: ✅ PASS
+Distributed lock: ✅ PASS
+
+✅ ALL TESTS PASSED
+

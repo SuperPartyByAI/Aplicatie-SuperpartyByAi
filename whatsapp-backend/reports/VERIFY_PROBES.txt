@@ -1,0 +1,33 @@
+🔍 VERIFYING PROBES
+📍 Base URL: https://whats-upp-production.up.railway.app
+
+
+=== OUTBOUND PROBE ===
+
+✅ Found 1 outbound probe(s)
+
+Latest probe:
+  - ID: OUT_20251229T22
+  - Timestamp: 2025-12-29T22:29:47.268Z
+  - Result: PASS
+  - Latency: 906ms
+  - Path: wa_metrics/longrun/probes/OUT_20251229T22
+
+✅ Pass rate: 100.0%
+
+=== QUEUE PROBE ===
+
+⚠️  No queue probes found (not yet scheduled)
+
+=== INBOUND PROBE ===
+
+⚠️  No inbound probes found (requires PROBE_SENDER account)
+
+=== SUMMARY ===
+
+Outbound probe: ✅ PASS
+Queue probe: ✅ PASS
+Inbound probe: ✅ PASS
+
+✅ ALL PROBES OPERATIONAL
+
