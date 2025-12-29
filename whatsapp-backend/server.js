@@ -9,14 +9,25 @@ const path = require('path');
 const admin = require('firebase-admin');
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 8080; // Railway injects PORT
 const MAX_ACCOUNTS = 18;
 
-// Initialize Firebase Admin
+// Initialize Firebase Admin with Railway env var
 if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault()
-  });
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    // Railway: use JSON from env var
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+    console.log('🔥 Firebase Admin initialized from FIREBASE_SERVICE_ACCOUNT_JSON');
+  } else {
+    // Fallback: application default credentials
+    admin.initializeApp({
+      credential: admin.credential.applicationDefault()
+    });
+    console.log('🔥 Firebase Admin initialized with default credentials');
+  }
 }
 
 const db = admin.firestore();
@@ -44,9 +55,11 @@ if (!fs.existsSync(authDir)) {
 }
 
 const VERSION = '2.0.0';
-const COMMIT_HASH = 'fd2a9842'; // Latest commit
+const COMMIT_HASH = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown';
+const START_TIME = Date.now();
 
 console.log(`🚀 SuperParty WhatsApp Backend v${VERSION} (${COMMIT_HASH})`);
+console.log(`📍 PORT: ${PORT}`);
 console.log(`📁 Auth directory: ${authDir}`);
 console.log(`🔥 Firestore: ${admin.apps.length > 0 ? 'Connected' : 'Not connected'}`);
 console.log(`📊 Max accounts: ${MAX_ACCOUNTS}`);
@@ -348,18 +361,137 @@ app.get('/health', async (req, res) => {
   const connecting = Array.from(connections.values()).filter(c => c.status === 'connecting' || c.status === 'reconnecting').length;
   const needsQr = Array.from(connections.values()).filter(c => c.status === 'needs_qr' || c.status === 'qr_ready').length;
   
+  // Test Firestore connection
+  let firestoreStatus = 'disconnected';
+  try {
+    await db.collection('_health_check').doc('test').set({ timestamp: admin.firestore.FieldValue.serverTimestamp() });
+    firestoreStatus = 'connected';
+  } catch (error) {
+    console.error('❌ Firestore health check failed:', error.message);
+  }
+  
   res.json({
     status: 'healthy',
+    version: VERSION,
+    commit: COMMIT_HASH,
+    uptime: Math.floor((Date.now() - START_TIME) / 1000),
     timestamp: new Date().toISOString(),
     accounts: {
       total: connections.size,
       connected,
       connecting,
-      needsQr,
+      needs_qr: needsQr,
       max: MAX_ACCOUNTS
     },
-    firestore: admin.apps.length > 0 ? 'connected' : 'disconnected'
+    firestore: firestoreStatus
   });
+});
+
+// QR Display endpoint (HTML for easy scanning)
+app.get('/api/whatsapp/qr/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    // Try in-memory first
+    let account = connections.get(accountId);
+    
+    // If not in memory, try Firestore
+    if (!account) {
+      const doc = await db.collection('whatsapp_accounts').doc(accountId).get();
+      if (doc.exists) {
+        account = doc.data();
+      }
+    }
+    
+    if (!account) {
+      return res.status(404).send(`
+        <html>
+          <body style="font-family: Arial; padding: 20px;">
+            <h2>❌ Account Not Found</h2>
+            <p>Account ID: ${accountId}</p>
+          </body>
+        </html>
+      `);
+    }
+    
+    const qrCode = account.qrCode || (account.qr_code);
+    
+    if (!qrCode) {
+      return res.status(404).send(`
+        <html>
+          <body style="font-family: Arial; padding: 20px;">
+            <h2>⏳ QR Code Not Ready</h2>
+            <p>Account ID: ${accountId}</p>
+            <p>Status: ${account.status}</p>
+            <p>Refresh this page in a few seconds...</p>
+            <script>setTimeout(() => location.reload(), 5000);</script>
+          </body>
+        </html>
+      `);
+    }
+    
+    res.send(`
+      <html>
+        <head>
+          <title>WhatsApp QR Code - ${accountId}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              margin: 0;
+              background: #f5f5f5;
+            }
+            .container {
+              background: white;
+              padding: 30px;
+              border-radius: 10px;
+              box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+              text-align: center;
+            }
+            img {
+              max-width: 400px;
+              border: 2px solid #25D366;
+              border-radius: 10px;
+            }
+            .instructions {
+              margin-top: 20px;
+              color: #666;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>📱 WhatsApp QR Code</h1>
+            <p><strong>Account ID:</strong> ${accountId}</p>
+            <img src="${qrCode}" alt="QR Code" />
+            <div class="instructions">
+              <h3>How to scan:</h3>
+              <ol style="text-align: left; display: inline-block;">
+                <li>Open WhatsApp on your phone</li>
+                <li>Go to Settings → Linked Devices</li>
+                <li>Tap "Link a Device"</li>
+                <li>Scan this QR code</li>
+              </ol>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error('❌ Error displaying QR:', error);
+    res.status(500).send(`
+      <html>
+        <body style="font-family: Arial; padding: 20px;">
+          <h2>❌ Error</h2>
+          <p>${error.message}</p>
+        </body>
+      </html>
+    `);
+  }
 });
 
 // Get all accounts
