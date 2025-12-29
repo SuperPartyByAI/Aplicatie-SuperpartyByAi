@@ -82,8 +82,9 @@ async function useFirestoreAuthState(accountId, db, mode = 'off') {
   }
   
   // Create state object
+  // Note: creds must be undefined (not null) for new sessions to generate QR
   const state = {
-    creds,
+    creds: creds || undefined,
     keys: createKeysHandler(keys, accountId, sessionRef, mode)
   };
   
