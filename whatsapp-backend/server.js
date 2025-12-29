@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const makeWASocket = require('@whiskeysockets/baileys').default;
-const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeInMemoryStore } = require('@whiskeysockets/baileys');
 const { useFirestoreAuthState } = require('./lib/persistence/firestore-auth');
 const QRCode = require('qrcode');
 const pino = require('pino');
@@ -95,6 +95,10 @@ const accountLimiter = rateLimit({
 // In-memory store for active connections
 const connections = new Map();
 const reconnectAttempts = new Map();
+
+// Create Baileys store for message handling
+const store = makeInMemoryStore({ logger: pino({ level: 'silent' }) });
+console.log('📦 Baileys store initialized');
 
 // Admin token for protected endpoints
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'dev-token-change-in-prod';
@@ -215,6 +219,10 @@ async function createConnection(accountId, name, phone) {
     };
 
     connections.set(accountId, account);
+    
+    // Bind store to socket for message handling
+    store.bind(sock.ev);
+    console.log(`📦 [${accountId}] Store bound to socket - will receive all events`);
 
     // Save to Firestore
     await saveAccountToFirestore(accountId, {
