@@ -21,8 +21,19 @@ app.get('/', (req, res) => {
   res.json({
     status: 'online',
     service: 'SuperParty WhatsApp on Firebase',
-    version: '5.0.0',
-    accounts: whatsappManager.getAccounts().length
+    version: '5.1.0',
+    accounts: whatsappManager.getAccounts().length,
+    endpoints: [
+      'GET /',
+      'GET /api/whatsapp/accounts',
+      'POST /api/whatsapp/add-account',
+      'DELETE /api/whatsapp/accounts/:id',
+      'POST /api/whatsapp/send',
+      'POST /api/whatsapp/send-message',
+      'GET /api/whatsapp/messages',
+      'GET /api/clients',
+      'GET /health'
+    ]
   });
 });
 
@@ -112,3 +123,6 @@ app.get('/health', (req, res) => {
 
 // Keep 1st Gen - works with existing deployment
 exports.whatsapp = functions.https.onRequest(app);
+
+// New version with all endpoints - deploy this one
+exports.whatsappV2 = functions.https.onRequest(app);
