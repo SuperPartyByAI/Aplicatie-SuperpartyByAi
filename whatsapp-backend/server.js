@@ -13,20 +13,23 @@ const PORT = process.env.PORT || 8080; // Railway injects PORT
 const MAX_ACCOUNTS = 18;
 
 // Initialize Firebase Admin with Railway env var
+let firestoreAvailable = false;
 if (!admin.apps.length) {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    // Railway: use JSON from env var
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
-    });
-    console.log('🔥 Firebase Admin initialized from FIREBASE_SERVICE_ACCOUNT_JSON');
-  } else {
-    // Fallback: application default credentials
-    admin.initializeApp({
-      credential: admin.credential.applicationDefault()
-    });
-    console.log('🔥 Firebase Admin initialized with default credentials');
+  try {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      // Railway: use JSON from env var
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+      firestoreAvailable = true;
+      console.log('✅ Firebase Admin initialized from FIREBASE_SERVICE_ACCOUNT_JSON');
+    } else {
+      console.warn('⚠️  FIREBASE_SERVICE_ACCOUNT_JSON not set - Firestore disabled');
+    }
+  } catch (error) {
+    console.error('❌ Firebase Admin initialization failed:', error.message);
+    console.log('⚠️  Continuing without Firestore...');
   }
 }
 
@@ -356,6 +359,24 @@ app.get('/', (req, res) => {
 });
 
 // Health endpoint
+// Root endpoint for basic connectivity test
+app.get('/', (req, res) => {
+  res.json({
+    service: 'SuperParty WhatsApp Backend',
+    version: VERSION,
+    commit: COMMIT_HASH,
+    status: 'online',
+    timestamp: new Date().toISOString(),
+    endpoints: [
+      'GET /',
+      'GET /health',
+      'GET /api/whatsapp/accounts',
+      'POST /api/whatsapp/add-account',
+      'GET /api/whatsapp/qr/:accountId'
+    ]
+  });
+});
+
 app.get('/health', async (req, res) => {
   const connected = Array.from(connections.values()).filter(c => c.status === 'connected').length;
   const connecting = Array.from(connections.values()).filter(c => c.status === 'connecting' || c.status === 'reconnecting').length;
@@ -363,11 +384,16 @@ app.get('/health', async (req, res) => {
   
   // Test Firestore connection
   let firestoreStatus = 'disconnected';
-  try {
-    await db.collection('_health_check').doc('test').set({ timestamp: admin.firestore.FieldValue.serverTimestamp() });
-    firestoreStatus = 'connected';
-  } catch (error) {
-    console.error('❌ Firestore health check failed:', error.message);
+  if (firestoreAvailable) {
+    try {
+      await db.collection('_health_check').doc('test').set({ timestamp: admin.firestore.FieldValue.serverTimestamp() });
+      firestoreStatus = 'connected';
+    } catch (error) {
+      console.error('❌ Firestore health check failed:', error.message);
+      firestoreStatus = 'error';
+    }
+  } else {
+    firestoreStatus = 'not_configured';
   }
   
   res.json({
@@ -692,10 +718,11 @@ app.delete('/api/whatsapp/accounts/:id', async (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n✅ Server running on port ${PORT}`);
   console.log(`🌐 Health: http://localhost:${PORT}/health`);
-  console.log(`📱 Accounts: http://localhost:${PORT}/api/whatsapp/accounts\n`);
+  console.log(`📱 Accounts: http://localhost:${PORT}/api/whatsapp/accounts`);
+  console.log(`🚀 Railway deployment ready!\n`);
 });
 
 // Graceful shutdown
