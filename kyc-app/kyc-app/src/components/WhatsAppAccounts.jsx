@@ -24,11 +24,16 @@ function WhatsAppAccounts() {
     try {
       const response = await fetch(`${WHATSAPP_URL}/api/whatsapp/accounts`);
       const data = await response.json();
+      console.log('📱 WhatsApp accounts loaded:', data.accounts);
       if (data.success) {
         setAccounts(data.accounts);
+        // Log QR code status
+        data.accounts.forEach(acc => {
+          console.log(`Account ${acc.name}: status=${acc.status}, hasQR=${!!acc.qrCode}`);
+        });
       }
     } catch (error) {
-      console.error('Error loading accounts:', error);
+      console.error('❌ Error loading accounts:', error);
     } finally {
       setLoading(false);
     }
