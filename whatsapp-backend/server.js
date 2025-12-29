@@ -978,10 +978,11 @@ app.post('/api/admin/tests/queue', requireAdmin, async (req, res) => {
     for (const msgId of messageIds) {
       const doc = await db.collection('messages').doc(msgId).get();
       if (doc.exists) {
+        const data = doc.data();
         statusTransitions.push({
           msgId,
-          status: doc.data().status,
-          updatedAt: doc.data().updatedAt
+          status: data.status,
+          updatedAt: data.updatedAt ? data.updatedAt.toDate().toISOString() : null
         });
       }
     }
