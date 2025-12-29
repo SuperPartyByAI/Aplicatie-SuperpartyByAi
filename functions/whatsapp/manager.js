@@ -7,6 +7,8 @@ const pino = require('pino');
 const firestore = require('../firebase/firestore');
 const sessionStore = require('./session-store');
 const messageStore = require('./message-store');
+const monitor = require('./monitor');
+const messageQueue = require('./message-queue');
 
 // TIER ULTIMATE 1: Import new modules
 const behaviorSimulator = require('./behavior');
@@ -36,6 +38,14 @@ class WhatsAppManager {
     this.retryCount = new Map(); // Track retry attempts per account
     this.lastMessageTime = new Map(); // Track last message received per account
     this.healthCheckInterval = null;
+    this.reconnectAttempts = new Map(); // Track reconnect attempts per account
+    this.reconnectTimeouts = new Map(); // Track reconnect timeouts per account
+    this.connectionStartTime = new Map(); // Track when connection attempt started
+    
+    // Reconnect configuration
+    this.MAX_RECONNECT_ATTEMPTS = 5;
+    this.RECONNECT_TIMEOUT_MS = 60000; // 60 seconds max per attempt
+    this.CONNECTION_TIMEOUT_MS = 30000; // 30 seconds to establish connection
     
     // TIER 3: Dual Connection
     this.backupClients = new Map(); // Backup connections
@@ -590,6 +600,88 @@ class WhatsAppManager {
     }
   }
 
+  async sendAlert(to, message) {
+    // Try to send via any connected account
+    for (const [accountId, account] of this.accounts.entries()) {
+      if (account.status === 'connected') {
+        try {
+          const jid = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+          await this.sendMessage(accountId, jid, message);
+          console.log(`📢 [Alert] Sent via ${accountId}`);
+          return true;
+        } catch (err) {
+          console.log(`⚠️ [Alert] Failed via ${accountId}:`, err.message);
+        }
+      }
+    }
+    
+    // If no connected account, log to Firestore
+    console.log(`⚠️ [Alert] No connected account, logging to Firestore`);
+    await monitor.logIncident('system', 'alert_failed', {
+      to,
+      message,
+      reason: 'no_connected_account'
+    });
+    
+    return false;
+  }
+
+  handleConnectionTimeout(accountId, phoneNumber) {
+    const account = this.accounts.get(accountId);
+    if (!account) return;
+    
+    const attempts = this.reconnectAttempts.get(accountId) || 0;
+    
+    if (account.status === 'connected') {
+      // Already connected, clear timeout
+      console.log(`✅ [${accountId}] Connected before timeout`);
+      return;
+    }
+    
+    if (attempts >= this.MAX_RECONNECT_ATTEMPTS) {
+      // Max attempts reached, fallback to QR
+      console.log(`❌ [${accountId}] Max reconnect attempts (${this.MAX_RECONNECT_ATTEMPTS}) reached, generating QR...`);
+      account.status = 'needs_qr';
+      
+      // Clean up client
+      const sock = this.clients.get(accountId);
+      if (sock) {
+        try {
+          sock.end();
+        } catch (e) {
+          // Ignore
+        }
+        this.clients.delete(accountId);
+      }
+      
+      // Trigger QR generation by creating new connection
+      this.reconnectAttempts.delete(accountId);
+      this.addAccount(account.name, phoneNumber).catch(err => {
+        console.error(`❌ [${accountId}] Failed to generate QR:`, err.message);
+      });
+      
+      // Send alert
+      monitor.logIncident(accountId, 'needs_qr', {
+        reason: 'max_reconnect_attempts',
+        attempts: attempts
+      }).catch(err => console.error('Failed to log incident:', err));
+      
+      return;
+    }
+    
+    // Retry with backoff
+    const backoffMs = Math.min(1000 * Math.pow(2, attempts), 30000); // Max 30s
+    console.log(`🔄 [${accountId}] Reconnect attempt ${attempts + 1}/${this.MAX_RECONNECT_ATTEMPTS} in ${backoffMs}ms...`);
+    
+    this.reconnectAttempts.set(accountId, attempts + 1);
+    
+    setTimeout(() => {
+      if (this.accounts.has(accountId) && account.status !== 'connected') {
+        this.connectBaileys(accountId, phoneNumber);
+      }
+    }, backoffMs);
+  }
+
   async addAccount(accountName, phoneNumber = null) {
     if (this.accounts.size >= this.maxAccounts) {
       throw new Error(`Maximum ${this.maxAccounts} accounts reached`);
@@ -622,6 +714,22 @@ class WhatsAppManager {
 
   async connectBaileys(accountId, phoneNumber = null) {
     const sessionPath = path.join(this.sessionsPath, accountId);
+    
+    // Track connection start time
+    this.connectionStartTime.set(accountId, Date.now());
+    
+    // Clear any existing timeout
+    if (this.reconnectTimeouts.has(accountId)) {
+      clearTimeout(this.reconnectTimeouts.get(accountId));
+    }
+    
+    // Set connection timeout
+    const timeoutId = setTimeout(() => {
+      console.log(`⏱️ [${accountId}] Connection timeout after ${this.CONNECTION_TIMEOUT_MS}ms`);
+      this.handleConnectionTimeout(accountId, phoneNumber);
+    }, this.CONNECTION_TIMEOUT_MS);
+    
+    this.reconnectTimeouts.set(accountId, timeoutId);
     
     if (!fs.existsSync(sessionPath)) {
       fs.mkdirSync(sessionPath, { recursive: true });
@@ -732,16 +840,73 @@ class WhatsAppManager {
             }
           }, 1000); // ÎMBUNĂTĂȚIRE: 1s instead of 5s
         } else {
-          console.log(`❌ [${accountId}] Logged out - not reconnecting. Please re-add account.`);
-          // Chiar și la logout, păstrează în listă cu status 'logged_out'
+          console.log(`❌ [${accountId}] Logged out - generating new QR/pairing...`);
+          
+          // Set status to needs_qr
           if (account) {
-            account.status = 'logged_out';
+            account.status = 'needs_qr';
+            account.qrCode = null;
+            account.pairingCode = null;
           }
+          
+          // Log incident
+          monitor.logIncident(accountId, 'logged_out', {
+            reason: reason,
+            requiresQR: true
+          }).catch(err => console.error('Failed to log incident:', err));
+          
+          // Update monitor status
+          monitor.updateAccountStatus(accountId, 'logged_out', {
+            disconnectReason: reason,
+            lastDisconnectedAt: new Date().toISOString()
+          }).catch(err => console.error('Failed to update monitor:', err));
+          
+          // Clean up old client
+          this.clients.delete(accountId);
+          
+          // Generate new QR/pairing by re-adding account
+          const savedPhone = account?.phone;
+          setTimeout(() => {
+            console.log(`🔄 [${accountId}] Generating new QR/pairing code...`);
+            this.connectBaileys(accountId, savedPhone).catch(err => {
+              console.error(`❌ [${accountId}] Failed to generate QR:`, err.message);
+            });
+          }, 2000);
+          
+          // Try to send alert (may fail if WhatsApp is down)
+          this.sendAlert('+40737571397', `⛔ WhatsApp LOGGED OUT | account=${accountId} | ts=${new Date().toISOString()}`).catch(err => {
+            console.log(`⚠️ [${accountId}] Could not send alert (expected if WhatsApp down):`, err.message);
+          });
         }
       }
 
       if (connection === 'open') {
         console.log(`✅ [${accountId}] Connected`);
+        
+        // Clear connection timeout
+        if (this.reconnectTimeouts.has(accountId)) {
+          clearTimeout(this.reconnectTimeouts.get(accountId));
+          this.reconnectTimeouts.delete(accountId);
+        }
+        
+        // Reset reconnect attempts
+        this.reconnectAttempts.delete(accountId);
+        
+        // Calculate MTTR if reconnecting
+        const startTime = this.connectionStartTime.get(accountId);
+        if (startTime) {
+          const mttrMs = Date.now() - startTime;
+          console.log(`📊 [${accountId}] MTTR: ${mttrMs}ms`);
+          this.connectionStartTime.delete(accountId);
+          
+          // Log to monitor
+          monitor.updateAccountStatus(accountId, 'connected', {
+            phone: sock.user?.id?.split(':')[0] || null,
+            lastDisconnectedAt: null,
+            mttrLastSeconds: Math.floor(mttrMs / 1000)
+          }).catch(err => console.error('Failed to update monitor:', err));
+        }
+        
         const account = this.accounts.get(accountId);
         if (account) {
           account.status = 'connected';
@@ -763,6 +928,18 @@ class WhatsAppManager {
         
         // TIER ULTIMATE 1: Start presence simulation
         behaviorSimulator.startPresenceSimulation(sock, accountId);
+        
+        // Flush queued messages after connection
+        setTimeout(() => {
+          console.log(`📤 [${accountId}] Flushing queued messages...`);
+          messageQueue.flushQueue(accountId, async (to, message) => {
+            return await this.sendMessage(accountId, to, message);
+          }).then(result => {
+            console.log(`✅ [${accountId}] Flush result:`, result);
+          }).catch(err => {
+            console.error(`❌ [${accountId}] Flush error:`, err.message);
+          });
+        }, 2000);
         
         // TIER ULTIMATE 2: Initialize advanced health
         advancedHealthChecker.initAccount(accountId);
@@ -1053,9 +1230,17 @@ class WhatsAppManager {
     }
     
     const sock = this.getActiveConnection(accountId);
-    if (!sock) {
-      circuitBreaker.recordFailure(accountId, new Error('No active connection'));
-      throw new Error('Account not found');
+    const account = this.accounts.get(accountId);
+    
+    // If not connected, queue message
+    if (!sock || !account || account.status !== 'connected') {
+      console.log(`📥 [${accountId}] Not connected, queuing message...`);
+      const messageId = await messageQueue.queueMessage(accountId, chatId, message, {
+        direction: 'client_to_operator',
+        threadId: chatId,
+        ...options
+      });
+      return { success: true, queued: true, messageId };
     }
 
     try {
