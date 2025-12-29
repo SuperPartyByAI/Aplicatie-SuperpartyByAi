@@ -1684,6 +1684,48 @@ app.get('/api/admin/longrun/heartbeats', async (req, res) => {
   }
 });
 
+// Admin: Query longrun locks
+app.get('/api/admin/longrun/locks', async (req, res) => {
+  try {
+    const snapshot = await db.collection('wa_metrics').doc('longrun').collection('locks').get();
+    
+    const locks = [];
+    snapshot.forEach(doc => {
+      locks.push({
+        id: doc.id,
+        path: `wa_metrics/longrun/locks/${doc.id}`,
+        ...doc.data()
+      });
+    });
+    
+    res.json({ success: true, count: locks.length, locks });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: Query longrun config
+app.get('/api/admin/longrun/config', async (req, res) => {
+  try {
+    const configDoc = await db.collection('wa_metrics').doc('longrun').collection('config').doc('current').get();
+    
+    if (!configDoc.exists) {
+      return res.json({ success: false, error: 'Config not found' });
+    }
+    
+    res.json({ 
+      success: true, 
+      config: {
+        id: configDoc.id,
+        path: `wa_metrics/longrun/config/${configDoc.id}`,
+        ...configDoc.data()
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Admin: Query longrun probes
 app.get('/api/admin/longrun/probes', async (req, res) => {
   try {
