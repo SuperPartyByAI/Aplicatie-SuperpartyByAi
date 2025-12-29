@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const makeWASocket = require('@whiskeysockets/baileys').default;
 const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const { useFirestoreAuthState } = require('./lib/persistence/firestore-auth');
@@ -12,6 +13,9 @@ const admin = require('firebase-admin');
 const app = express();
 const PORT = process.env.PORT || 8080; // Railway injects PORT
 const MAX_ACCOUNTS = 18;
+
+// Trust Railway proxy for rate limiting
+app.set('trust proxy', 1);
 
 // Feature flag for Firestore auth state: off | creds_only | full
 const FIRESTORE_AUTH_MODE = process.env.FIRESTORE_AUTH_STATE_MODE || 'off';
@@ -49,6 +53,44 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// Global rate limiting: 200 requests per IP per minute
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  message: {
+    success: false,
+    error: 'Too many requests. Limit: 200 per minute per IP.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+app.use(globalLimiter);
+
+// Rate limiting for message sending: 30 messages per IP per minute
+const messageLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: {
+    success: false,
+    error: 'Too many messages. Limit: 30 per minute per IP.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Rate limiting for account operations: 10 per IP per minute
+const accountLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: {
+    success: false,
+    error: 'Too many account operations. Limit: 10 per minute per IP.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 // In-memory store for active connections
 const connections = new Map();
@@ -575,7 +617,7 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
 });
 
 // Add new account
-app.post('/api/whatsapp/add-account', async (req, res) => {
+app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
   try {
     const { name, phone } = req.body;
     
@@ -612,7 +654,7 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
 });
 
 // Regenerate QR
-app.post('/api/whatsapp/regenerate-qr/:accountId', async (req, res) => {
+app.post('/api/whatsapp/regenerate-qr/:accountId', accountLimiter, async (req, res) => {
   try {
     const { accountId } = req.params;
     const account = connections.get(accountId);
@@ -643,7 +685,7 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', async (req, res) => {
 });
 
 // Send message
-app.post('/api/whatsapp/send-message', async (req, res) => {
+app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
   try {
     const { accountId, to, message } = req.body;
     const account = connections.get(accountId);
@@ -716,7 +758,7 @@ app.get('/api/whatsapp/messages', async (req, res) => {
 });
 
 // Delete account
-app.delete('/api/whatsapp/accounts/:id', async (req, res) => {
+app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
   try {
     const { id } = req.params;
     const account = connections.get(id);
