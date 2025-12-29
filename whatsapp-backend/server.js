@@ -144,8 +144,9 @@ const VERSION = '2.0.0';
 const COMMIT_HASH = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown';
 const BOOT_TIMESTAMP = new Date().toISOString();
 
-// Long-run jobs (production-grade)
-const longrunJobs = require('./lib/longrun-jobs-v2');
+// Long-run jobs (production-grade v3)
+const longrunJobsModule = require('./lib/longrun-jobs-v3');
+let longrunJobsInstance = null;
 const START_TIME = Date.now();
 
 console.log(`🚀 SuperParty WhatsApp Backend v${VERSION} (${COMMIT_HASH})`);
@@ -1899,16 +1900,81 @@ app.listen(PORT, '0.0.0.0', async () => {
   // Restore accounts after server starts
   await restoreAccountsFromFirestore();
   
-  // Initialize long-run jobs
+  // Initialize long-run jobs v3
   if (firestoreAvailable) {
     const baseUrl = process.env.BAILEYS_BASE_URL || 'https://whats-upp-production.up.railway.app';
-    longrunJobs.initJobs(db, baseUrl);
+    
+    // Create baileys-like interface for LongRunJobs
+    const baileysInterface = {
+      getAccounts: () => {
+        const accounts = [];
+        connections.forEach((conn, accountId) => {
+          accounts.push({
+            accountId,
+            status: conn.status || 'unknown',
+            phoneNumber: conn.phoneNumber || null,
+            role: conn.role || 'operator'
+          });
+        });
+        return accounts;
+      },
+      sendMessage: async (accountId, to, message) => {
+        const conn = connections.get(accountId);
+        if (!conn || !conn.sock) {
+          throw new Error(`Account ${accountId} not connected`);
+        }
+        
+        const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
+        return await conn.sock.sendMessage(jid, { text: message });
+      },
+      getQueueStats: async () => {
+        // TODO: Implement queue stats if available
+        return { pending: 0 };
+      },
+      on: (event, handler) => {
+        // TODO: Implement event emitter if needed
+      },
+      removeListener: (event, handler) => {
+        // TODO: Implement event emitter if needed
+      },
+      bootTimestamp: START_TIME
+    };
+    
+    longrunJobsInstance = new longrunJobsModule(db, baseUrl, baileysInterface);
+    await longrunJobsInstance.start();
+    console.log('✅ Long-run jobs v3 started');
   }
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('SIGTERM received, closing connections...');
+  
+  // Stop long-run jobs first
+  if (longrunJobsInstance) {
+    await longrunJobsInstance.stop();
+  }
+  
+  connections.forEach((account, id) => {
+    if (account.sock) {
+      try {
+        account.sock.end();
+      } catch (e) {
+        // Ignore
+      }
+    }
+  });
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, closing connections...');
+  
+  // Stop long-run jobs first
+  if (longrunJobsInstance) {
+    await longrunJobsInstance.stop();
+  }
+  
   connections.forEach((account, id) => {
     if (account.sock) {
       try {
