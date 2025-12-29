@@ -1,0 +1,200 @@
+{
+  "generated_at": "2025-12-29T11:12:00Z",
+  "environment": "Firebase Functions whatsappV3",
+  "evidence": [
+    {
+      "id": "version-check",
+      "claim": "Version 5.2.0 deployed",
+      "status": "CONFIRMAT",
+      "evidence_type": "command_output",
+      "reproduce_command": "curl -sS https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3/",
+      "raw_output_excerpt": "{\"status\":\"online\",\"service\":\"SuperParty WhatsApp on Firebase\",\"version\":\"5.2.0\",\"deployed\":\"2025-12-29T11:10:09.439Z\",\"accounts\":3}",
+      "source_path": "/tmp/version-check.txt"
+    },
+    {
+      "id": "accounts-total",
+      "claim": "Total accounts: 4",
+      "status": "CONFIRMAT",
+      "evidence_type": "command_output",
+      "reproduce_command": "curl -sS https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3/api/whatsapp/accounts | jq '.accounts | length'",
+      "raw_output_excerpt": "4",
+      "source_path": "/tmp/accounts-check.txt",
+      "calc": {
+        "inputs": ["account_1767002145379", "account_1767002931111", "account_1767003050123", "account_1767003100302"],
+        "formula": "count(accounts)",
+        "result": "4"
+      }
+    },
+    {
+      "id": "accounts-connected",
+      "claim": "Connected accounts: 0",
+      "status": "CONFIRMAT",
+      "evidence_type": "command_output",
+      "reproduce_command": "curl -sS https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3/api/whatsapp/accounts | jq '[.accounts[] | select(.status == \"connected\")] | length'",
+      "raw_output_excerpt": "0",
+      "source_path": "/tmp/accounts-check.txt",
+      "calc": {
+        "inputs": [],
+        "formula": "count(accounts where status=connected)",
+        "result": "0"
+      }
+    },
+    {
+      "id": "accounts-needs-qr",
+      "claim": "Accounts needs_qr: 3",
+      "status": "CONFIRMAT",
+      "evidence_type": "command_output",
+      "reproduce_command": "curl -sS https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3/api/whatsapp/accounts | jq '[.accounts[] | select(.status == \"needs_qr\")] | length'",
+      "raw_output_excerpt": "3",
+      "source_path": "/tmp/accounts-check.txt",
+      "calc": {
+        "inputs": ["account_1767002145379", "account_1767002931111", "account_1767003050123"],
+        "formula": "count(accounts where status=needs_qr)",
+        "result": "3"
+      }
+    },
+    {
+      "id": "qr-null-for-needs-qr",
+      "claim": "QR/Pairing null for needs_qr accounts: 3/3",
+      "status": "CONFIRMAT",
+      "evidence_type": "command_output",
+      "reproduce_command": "curl -sS https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3/api/whatsapp/accounts | jq '[.accounts[] | select(.status == \"needs_qr\" and .qrCode == null)] | length'",
+      "raw_output_excerpt": "3",
+      "source_path": "/tmp/accounts-check.txt",
+      "calc": {
+        "inputs": ["account_1767002145379: qrCode=null", "account_1767002931111: qrCode=null", "account_1767003050123: qrCode=null"],
+        "formula": "count(accounts where status=needs_qr AND qrCode=null)",
+        "result": "3"
+      }
+    },
+    {
+      "id": "logged-out-detection",
+      "claim": "Logged out detection works",
+      "status": "CONFIRMAT",
+      "evidence_type": "logs",
+      "reproduce_command": "firebase functions:log --project superparty-frontend | grep 'Logged out'",
+      "raw_output_excerpt": "2025-12-29T11:10:15.160279Z ? whatsappV3: ❌ [account_1767003050123] Logged out - generating new QR/pairing...",
+      "source_path": "/tmp/logs-raw.txt",
+      "timestamp_range": {
+        "start": "2025-12-29T11:10:00Z",
+        "end": "2025-12-29T11:12:00Z"
+      }
+    },
+    {
+      "id": "fallback-trigger",
+      "claim": "Fallback QR generation triggered",
+      "status": "CONFIRMAT",
+      "evidence_type": "logs",
+      "reproduce_command": "firebase functions:log --project superparty-frontend | grep 'Generating new QR'",
+      "raw_output_excerpt": "2025-12-29T11:10:16.132703Z ? whatsappV3: 🔄 [account_1767002931111] Generating new QR/pairing code...",
+      "source_path": "/tmp/logs-raw.txt",
+      "timestamp_range": {
+        "start": "2025-12-29T11:10:00Z",
+        "end": "2025-12-29T11:12:00Z"
+      }
+    },
+    {
+      "id": "incident-logging",
+      "claim": "Incident logging works",
+      "status": "CONFIRMAT",
+      "evidence_type": "logs",
+      "reproduce_command": "firebase functions:log --project superparty-frontend | grep 'Incident logged'",
+      "raw_output_excerpt": "2025-12-29T11:10:15.397904Z ? whatsappV3: 📝 [Monitor] Incident logged: logged_out for account_1767003050123",
+      "source_path": "/tmp/logs-raw.txt",
+      "timestamp_range": {
+        "start": "2025-12-29T11:10:00Z",
+        "end": "2025-12-29T11:12:00Z"
+      }
+    },
+    {
+      "id": "connection-timeout-logs",
+      "claim": "Connection timeout appears in logs",
+      "status": "FALS",
+      "evidence_type": "logs",
+      "reproduce_command": "firebase functions:log --project superparty-frontend | grep 'Connection timeout'",
+      "raw_output_excerpt": "(no matches)",
+      "source_path": "/tmp/logs-raw.txt",
+      "timestamp_range": {
+        "start": "2025-12-29T11:10:00Z",
+        "end": "2025-12-29T11:12:00Z"
+      }
+    },
+    {
+      "id": "connection-open",
+      "claim": "Connection open event in logs",
+      "status": "FALS",
+      "evidence_type": "logs",
+      "reproduce_command": "firebase functions:log --project superparty-frontend | grep 'Connected\\|connection.*open'",
+      "raw_output_excerpt": "(no matches)",
+      "source_path": "/tmp/logs-raw.txt",
+      "timestamp_range": {
+        "start": "2025-12-29T11:10:00Z",
+        "end": "2025-12-29T11:12:00Z"
+      }
+    },
+    {
+      "id": "mttr-calculation",
+      "claim": "MTTR calculated",
+      "status": "NETESTAT",
+      "evidence_type": "none",
+      "reproduce_command": "N/A",
+      "raw_output_excerpt": "No reconnect success events to calculate MTTR",
+      "source_path": null
+    },
+    {
+      "id": "production-ready-80",
+      "claim": "80% production ready",
+      "status": "FALS",
+      "evidence_type": "calc",
+      "reproduce_command": "N/A",
+      "raw_output_excerpt": "0/4 accounts connected, 0/3 QR available, 0 MTTR data",
+      "source_path": null,
+      "calc": {
+        "inputs": [
+          "DoD-1 (connected): FAIL",
+          "DoD-2 (QR): FAIL",
+          "DoD-3 (MTTR): NETESTAT",
+          "DoD-4 (Queue): NETESTAT",
+          "DoD-5 (E2E): NETESTAT",
+          "DoD-6 (Monitoring): PASS"
+        ],
+        "formula": "PASS / TOTAL = 1 / 6",
+        "result": "16.67%"
+      }
+    },
+    {
+      "id": "dod-1-connected",
+      "claim": "DoD-1: Min 1 account connected",
+      "status": "FALS",
+      "evidence_type": "command_output",
+      "reproduce_command": "curl -sS https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3/api/whatsapp/accounts | jq '[.accounts[] | select(.status == \"connected\")] | length'",
+      "raw_output_excerpt": "0",
+      "source_path": "/tmp/accounts-check.txt"
+    },
+    {
+      "id": "dod-2-qr-functional",
+      "claim": "DoD-2: QR/Pairing functional",
+      "status": "FALS",
+      "evidence_type": "command_output",
+      "reproduce_command": "curl -sS https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3/api/whatsapp/accounts | jq '[.accounts[] | select(.status == \"needs_qr\" and .qrCode != null)] | length'",
+      "raw_output_excerpt": "0",
+      "source_path": "/tmp/accounts-check.txt"
+    },
+    {
+      "id": "dod-6-monitoring",
+      "claim": "DoD-6: Monitoring + alerting",
+      "status": "CONFIRMAT",
+      "evidence_type": "logs",
+      "reproduce_command": "firebase functions:log --project superparty-frontend | grep 'Monitor\\|Incident logged'",
+      "raw_output_excerpt": "2025-12-29T11:10:15.397904Z ? whatsappV3: 📝 [Monitor] Incident logged: logged_out for account_1767003050123",
+      "source_path": "/tmp/logs-raw.txt"
+    }
+  ],
+  "summary": {
+    "total_claims": 14,
+    "confirmat": 8,
+    "fals": 4,
+    "neconfirmat": 0,
+    "netestat": 2
+  }
+}

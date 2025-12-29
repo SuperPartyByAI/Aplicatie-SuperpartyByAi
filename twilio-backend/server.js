@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const twilio = require('twilio');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -20,6 +21,42 @@ const client = twilio(accountSid, authToken);
 
 app.use(express.json());
 
+// Global rate limiting: 100 requests per IP per minute
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  message: {
+    success: false,
+    error: 'Too many requests. Limit: 100 per minute per IP.'
+  }
+});
+
+app.use(globalLimiter);
+
+// Rate limiting: 10 SMS per IP per minute
+const smsLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10,
+  message: {
+    success: false,
+    error: 'Too many SMS requests. Limit: 10 per minute per IP.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Rate limiting for bulk: 3 requests per IP per minute
+const bulkLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 3,
+  message: {
+    success: false,
+    error: 'Too many bulk SMS requests. Limit: 3 per minute per IP.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({
@@ -31,7 +68,7 @@ app.get('/health', (req, res) => {
 });
 
 // Send SMS endpoint
-app.post('/sms/send', async (req, res) => {
+app.post('/sms/send', smsLimiter, async (req, res) => {
   const { to, message } = req.body;
 
   if (!to || !message) {
@@ -66,7 +103,7 @@ app.post('/sms/send', async (req, res) => {
 });
 
 // Bulk SMS endpoint
-app.post('/sms/send-bulk', async (req, res) => {
+app.post('/sms/send-bulk', bulkLimiter, async (req, res) => {
   const { recipients, message } = req.body;
 
   if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
