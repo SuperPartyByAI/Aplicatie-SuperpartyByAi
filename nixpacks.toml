@@ -1,8 +1,0 @@
-[phases.setup]
-nixPkgs = ["nodejs-20_x"]
-
-[phases.install]
-cmds = ["cd whatsapp-backend && npm ci"]
-
-[start]
-cmd = "cd whatsapp-backend && node server.js"
