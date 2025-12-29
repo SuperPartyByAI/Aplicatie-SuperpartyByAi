@@ -6,6 +6,7 @@ const fs = require('fs');
 const pino = require('pino');
 const firestore = require('../firebase/firestore');
 const sessionStore = require('./session-store');
+const messageStore = require('./message-store');
 
 // TIER ULTIMATE 1: Import new modules
 const behaviorSimulator = require('./behavior');
@@ -802,6 +803,13 @@ class WhatsAppManager {
         
         console.log(`💬 [${accountId}] Message received - queued (${this.messageQueue.length} in queue)`);
         
+        // Save message to Firestore immediately
+        try {
+          await messageStore.saveMessage(accountId, message);
+        } catch (error) {
+          console.error(`❌ Failed to save message to Firestore:`, error.message);
+        }
+        
         // TIER ULTIMATE 1: Simulate read receipt for incoming messages
         if (!message.key.fromMe) {
           behaviorSimulator.handleIncomingMessage(sock, message).catch(err => {
@@ -1064,8 +1072,9 @@ class WhatsAppManager {
       }
       
       // TIER ULTIMATE 1: Send with human behavior simulation
+      let sentMessage;
       if (options.useBehavior !== false) {
-        await behaviorSimulator.sendMessageWithBehavior(
+        sentMessage = await behaviorSimulator.sendMessageWithBehavior(
           sock,
           chatId,
           finalMessage,
@@ -1073,7 +1082,16 @@ class WhatsAppManager {
         );
       } else {
         // Direct send without behavior
-        await sock.sendMessage(chatId, { text: finalMessage });
+        sentMessage = await sock.sendMessage(chatId, { text: finalMessage });
+      }
+      
+      // Save sent message to Firestore
+      if (sentMessage) {
+        try {
+          await messageStore.saveMessage(accountId, sentMessage);
+        } catch (error) {
+          console.error(`❌ Failed to save sent message to Firestore:`, error.message);
+        }
       }
       
       // TIER ULTIMATE 1: Record success

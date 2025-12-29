@@ -10,23 +10,17 @@ class FirestoreService {
     if (this.initialized) return;
 
     try {
-      // Initialize with service account from environment or file
-      if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount)
-        });
-      } else {
-        console.log('⚠️ No Firebase credentials - running without persistence');
-        return;
-      }
-
+      // Use already initialized admin instance
       this.db = admin.firestore();
       this.initialized = true;
-      console.log('✅ Firebase initialized');
+      console.log('✅ Firestore initialized');
     } catch (error) {
-      console.error('❌ Failed to initialize Firebase:', error.message);
+      console.error('❌ Failed to initialize Firestore:', error.message);
     }
+  }
+  
+  get admin() {
+    return admin;
   }
 
   async saveMessage(accountId, chatId, message) {
