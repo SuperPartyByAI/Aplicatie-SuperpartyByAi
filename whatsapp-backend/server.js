@@ -43,7 +43,10 @@ if (!fs.existsSync(authDir)) {
   fs.mkdirSync(authDir, { recursive: true });
 }
 
-console.log(`🚀 SuperParty WhatsApp Backend v2.0.0`);
+const VERSION = '2.0.0';
+const COMMIT_HASH = 'fd2a9842'; // Latest commit
+
+console.log(`🚀 SuperParty WhatsApp Backend v${VERSION} (${COMMIT_HASH})`);
 console.log(`📁 Auth directory: ${authDir}`);
 console.log(`🔥 Firestore: ${admin.apps.length > 0 ? 'Connected' : 'Not connected'}`);
 console.log(`📊 Max accounts: ${MAX_ACCOUNTS}`);
@@ -128,7 +131,9 @@ async function createConnection(accountId, name, phone) {
       worker: {
         service: 'railway',
         instanceId: process.env.RAILWAY_DEPLOYMENT_ID || 'local',
-        version: '2.0.0',
+        version: VERSION,
+        commit: COMMIT_HASH,
+        uptime: process.uptime(),
         bootTs: new Date().toISOString()
       }
     });
@@ -318,7 +323,9 @@ app.get('/', (req, res) => {
   res.json({
     status: 'online',
     service: 'SuperParty WhatsApp Backend',
-    version: '2.0.0',
+    version: VERSION,
+    commit: COMMIT_HASH,
+    uptime: process.uptime(),
     accounts: connections.size,
     maxAccounts: MAX_ACCOUNTS,
     firestore: admin.apps.length > 0 ? 'connected' : 'disconnected',
