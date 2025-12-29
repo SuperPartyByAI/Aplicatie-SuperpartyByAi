@@ -14,6 +14,10 @@ const app = express();
 const PORT = process.env.PORT || 8080; // Railway injects PORT
 const MAX_ACCOUNTS = 18;
 
+// Admin token for protected endpoints
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'dev-token-' + Math.random().toString(36).substring(7);
+console.log(`🔐 ADMIN_TOKEN configured: ${ADMIN_TOKEN.substring(0, 10)}...`);
+
 // Trust Railway proxy for rate limiting
 app.set('trust proxy', 1);
 
@@ -1368,6 +1372,148 @@ async function restoreAccountsFromFirestore() {
     console.error('❌ Account restore failed:', error.message);
   }
 }
+
+// Queue/Outbox endpoints
+app.post('/admin/queue/test', requireAdmin, async (req, res) => {
+  try {
+    const { accountId, messages } = req.body;
+    
+    if (!accountId || !messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Missing accountId or messages array' });
+    }
+    
+    // Enqueue messages to Firestore outbox
+    const queuedMessages = [];
+    
+    for (const msg of messages) {
+      const messageId = `queue_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const queueData = {
+        accountId,
+        to: msg.to,
+        body: msg.body,
+        status: 'queued',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        attempts: 0
+      };
+      
+      await db.collection('wa_outbox').doc(messageId).set(queueData);
+      queuedMessages.push({ messageId, ...queueData });
+    }
+    
+    res.json({
+      success: true,
+      queued: queuedMessages.length,
+      messages: queuedMessages
+    });
+  } catch (error) {
+    console.error('Queue test error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/admin/queue/flush', requireAdmin, async (req, res) => {
+  try {
+    const { accountId } = req.body;
+    
+    if (!accountId) {
+      return res.status(400).json({ error: 'Missing accountId' });
+    }
+    
+    // Get queued messages
+    const snapshot = await db.collection('wa_outbox')
+      .where('accountId', '==', accountId)
+      .where('status', '==', 'queued')
+      .orderBy('createdAt', 'asc')
+      .get();
+    
+    const results = [];
+    const account = connections.get(accountId);
+    
+    if (!account || account.status !== 'connected') {
+      return res.status(400).json({ error: 'Account not connected' });
+    }
+    
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const messageId = doc.id;
+      
+      try {
+        // Send message
+        const result = await account.sock.sendMessage(
+          `${data.to}@s.whatsapp.net`,
+          { text: data.body }
+        );
+        
+        // Update status
+        await db.collection('wa_outbox').doc(messageId).update({
+          status: 'sent',
+          sentAt: admin.firestore.FieldValue.serverTimestamp(),
+          waMessageId: result.key.id
+        });
+        
+        results.push({
+          messageId,
+          status: 'sent',
+          waMessageId: result.key.id
+        });
+      } catch (error) {
+        await db.collection('wa_outbox').doc(messageId).update({
+          status: 'failed',
+          error: error.message,
+          attempts: admin.firestore.Increment(1)
+        });
+        
+        results.push({
+          messageId,
+          status: 'failed',
+          error: error.message
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      flushed: results.length,
+      results
+    });
+  } catch (error) {
+    console.error('Queue flush error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/admin/queue/status', requireAdmin, async (req, res) => {
+  try {
+    const { accountId } = req.query;
+    
+    let query = db.collection('wa_outbox');
+    if (accountId) {
+      query = query.where('accountId', '==', accountId);
+    }
+    
+    const snapshot = await query.get();
+    const messages = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    const stats = {
+      total: messages.length,
+      queued: messages.filter(m => m.status === 'queued').length,
+      sent: messages.filter(m => m.status === 'sent').length,
+      failed: messages.filter(m => m.status === 'failed').length
+    };
+    
+    res.json({
+      success: true,
+      stats,
+      messages
+    });
+  } catch (error) {
+    console.error('Queue status error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Start server
 app.listen(PORT, '0.0.0.0', async () => {
