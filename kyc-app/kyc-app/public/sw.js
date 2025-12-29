@@ -36,40 +36,40 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
   
-  // Skip caching for:
+  // Skip Service Worker entirely for:
   // - POST/PUT/DELETE requests
   // - Socket.io requests
   // - Firebase Functions
   // - External APIs
-  const shouldCache = 
+  const shouldIntercept = 
     request.method === 'GET' &&
     !url.pathname.includes('/socket.io/') &&
     !url.hostname.includes('cloudfunctions.net') &&
     !url.hostname.includes('firebaseio.com') &&
     !url.hostname.includes('googleapis.com');
   
+  // Don't intercept non-cacheable requests at all
+  if (!shouldIntercept) {
+    return;
+  }
+  
   event.respondWith(
     fetch(request)
       .then((response) => {
-        // Only cache GET requests for same-origin resources
-        if (shouldCache && response.status === 200) {
+        // Cache successful GET requests
+        if (response.status === 200) {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, responseToCache);
+            cache.put(request, responseToCache).catch(() => {
+              // Ignore cache errors
+            });
           });
         }
         return response;
       })
       .catch(() => {
-        // Fallback to cache only for cacheable requests
-        if (shouldCache) {
-          return caches.match(request);
-        }
-        // For non-cacheable requests, return a network error
-        return new Response('Network error', {
-          status: 408,
-          headers: { 'Content-Type': 'text/plain' }
-        });
+        // Fallback to cache
+        return caches.match(request);
       })
   );
 });
