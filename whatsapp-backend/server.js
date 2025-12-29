@@ -18,6 +18,11 @@ const MAX_ACCOUNTS = 18;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'dev-token-' + Math.random().toString(36).substring(7);
 console.log(`🔐 ADMIN_TOKEN configured: ${ADMIN_TOKEN.substring(0, 10)}...`);
 
+// ONE_TIME_TEST_TOKEN for orchestrator (30 min validity)
+const ONE_TIME_TEST_TOKEN = 'test-' + Math.random().toString(36).substring(2, 15);
+const TEST_TOKEN_EXPIRY = Date.now() + 30 * 60 * 1000;
+console.log(`🧪 ONE_TIME_TEST_TOKEN: ${ONE_TIME_TEST_TOKEN} (valid 30min)`);
+
 // Trust Railway proxy for rate limiting
 app.set('trust proxy', 1);
 
@@ -1619,6 +1624,104 @@ app.get('/api/admin/firestore/sessions', async (req, res) => {
       total: sessions.length,
       sessions
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: Restart socket (for coldstart test)
+app.post('/api/admin/sockets/restart', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader ? authHeader.substring(7) : null;
+    
+    if (token !== ONE_TIME_TEST_TOKEN || Date.now() > TEST_TOKEN_EXPIRY) {
+      return res.status(403).json({ error: 'Invalid or expired test token' });
+    }
+    
+    const { accountId } = req.body;
+    if (!accountId) {
+      return res.status(400).json({ error: 'accountId required' });
+    }
+    
+    const account = connections.get(accountId);
+    if (!account) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    
+    console.log(`🔄 [${accountId}] Socket restart requested`);
+    
+    // Close current socket
+    if (account.sock) {
+      account.sock.end();
+    }
+    
+    // Remove from connections
+    connections.delete(accountId);
+    
+    // Trigger restore from Firestore (via boot loader logic)
+    setTimeout(async () => {
+      try {
+        const sessionPath = path.join(authDir, accountId);
+        
+        // Restore from Firestore if needed
+        if (!fs.existsSync(sessionPath) && USE_FIRESTORE_BACKUP && firestoreAvailable) {
+          const sessionDoc = await db.collection('wa_sessions').doc(accountId).get();
+          if (sessionDoc.exists) {
+            const sessionData = sessionDoc.data();
+            
+            if (sessionData.files) {
+              fs.mkdirSync(sessionPath, { recursive: true });
+              
+              for (const [filename, content] of Object.entries(sessionData.files)) {
+                fs.writeFileSync(path.join(sessionPath, filename), content, 'utf8');
+              }
+              
+              console.log(`FIRESTORE_SESSION_LOADED [${accountId}] Restored from Firestore`);
+            }
+          }
+        }
+        
+        // Recreate socket
+        const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+        const { version } = await fetchLatestBaileysVersion();
+        
+        const sock = makeWASocket({
+          auth: state,
+          version,
+          printQRInTerminal: false,
+          browser: ['SuperParty', 'Chrome', '2.0.0'],
+          logger: pino({ level: 'warn' })
+        });
+        
+        const newAccount = {
+          id: accountId,
+          sock,
+          status: 'connecting',
+          createdAt: account.createdAt,
+          lastUpdate: new Date().toISOString()
+        };
+        
+        connections.set(accountId, newAccount);
+        
+        // Setup event handlers (simplified)
+        sock.ev.on('connection.update', async (update) => {
+          const { connection } = update;
+          
+          if (connection === 'open') {
+            newAccount.status = 'connected';
+            newAccount.phone = sock.user?.id.split(':')[0];
+            console.log(`SOCKET_CREATED [${accountId}] Reconnected`);
+          }
+        });
+        
+        console.log(`✅ [${accountId}] Socket recreated`);
+      } catch (error) {
+        console.error(`❌ [${accountId}] Socket restart failed:`, error.message);
+      }
+    }, 1000);
+    
+    res.json({ success: true, message: 'Socket restart initiated' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
