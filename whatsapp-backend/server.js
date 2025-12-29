@@ -538,6 +538,19 @@ app.get('/', (req, res) => {
   });
 });
 
+// Expose test token (temporary for orchestrator)
+app.get('/api/test/token', (req, res) => {
+  if (Date.now() > TEST_TOKEN_EXPIRY) {
+    return res.status(410).json({ error: 'Token expired' });
+  }
+  
+  res.json({
+    token: ONE_TIME_TEST_TOKEN,
+    expiresAt: new Date(TEST_TOKEN_EXPIRY).toISOString(),
+    validFor: Math.floor((TEST_TOKEN_EXPIRY - Date.now()) / 1000) + 's'
+  });
+});
+
 app.get('/health', async (req, res) => {
   const connected = Array.from(connections.values()).filter(c => c.status === 'connected').length;
   const connecting = Array.from(connections.values()).filter(c => c.status === 'connecting' || c.status === 'reconnecting').length;
