@@ -1111,27 +1111,6 @@ ${perf.tasksOverdue > 0 ? `⚠️ Ai ${perf.tasksOverdue} task-uri în întârzi
                   <span className="nav-text">Admin KYC</span>
                 </button>
                 <button 
-                  onClick={() => setCurrentView('admin-conversations')} 
-                  className={`nav-item ${currentView === 'admin-conversations' ? 'active' : ''}`}
-                >
-                  <span className="nav-icon">💬</span>
-                  <span className="nav-text">Conversații AI</span>
-                </button>
-                <button 
-                  onClick={() => navigate('/chat-clienti')} 
-                  className="nav-item"
-                >
-                  <span className="nav-icon">📱</span>
-                  <span className="nav-text">Chat Clienti</span>
-                </button>
-                <button 
-                  onClick={() => navigate('/centrala-telefonica')} 
-                  className="nav-item"
-                >
-                  <span className="nav-icon">📞</span>
-                  <span className="nav-text">Centrala Telefonică</span>
-                </button>
-                <button 
                   onClick={() => {
                     setAdminMode(false);
                     setCurrentView('dashboard');
@@ -1156,6 +1135,22 @@ ${perf.tasksOverdue > 0 ? `⚠️ Ai ${perf.tasksOverdue} task-uri în întârzi
                 >
                   <span className="nav-icon">💬</span>
                   <span className="nav-text">Conversații AI</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/chat-clienti')} 
+                  className="nav-item"
+                  style={{ borderLeft: '3px solid #10b981' }}
+                >
+                  <span className="nav-icon">📱</span>
+                  <span className="nav-text">Chat Clienti</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/centrala-telefonica')} 
+                  className="nav-item"
+                  style={{ borderLeft: '3px solid #10b981' }}
+                >
+                  <span className="nav-icon">📞</span>
+                  <span className="nav-text">Centrala Telefonică</span>
                 </button>
                 <button 
                   onClick={() => setCurrentView('gm-overview')} 
