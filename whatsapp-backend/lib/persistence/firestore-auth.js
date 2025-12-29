@@ -109,12 +109,15 @@ function createEmptyKeys() {
 function createKeysHandler(keys, accountId, sessionRef) {
   return {
     get: async (type, ids) => {
-      const data = keys[type] || {};
+      if (!keys[type]) keys[type] = {};
+      const data = keys[type];
+      
       if (Array.isArray(ids)) {
-        return ids.reduce((acc, id) => {
-          if (data[id]) acc[id] = data[id];
-          return acc;
-        }, {});
+        const result = {};
+        for (const id of ids) {
+          if (data[id]) result[id] = data[id];
+        }
+        return result;
       }
       return data;
     },
