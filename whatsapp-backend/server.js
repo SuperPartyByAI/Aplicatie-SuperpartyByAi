@@ -116,13 +116,16 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
 
       if (connection === 'close') {
         const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-        if (shouldReconnect) {
-          account.status = 'reconnecting';
-          console.log(`🔄 ${accountId} reconnecting...`);
-        } else {
-          account.status = 'logged_out';
-          connections.delete(accountId);
-          console.log(`❌ ${accountId} logged out`);
+        
+        // Don't reconnect automatically - let user scan QR again
+        account.status = 'logged_out';
+        account.qrCode = null;
+        console.log(`❌ ${accountId} disconnected - need new QR`);
+        
+        // Clean up session files to force new QR generation
+        const sessionPath = path.join(authDir, accountId);
+        if (fs.existsSync(sessionPath)) {
+          fs.rmSync(sessionPath, { recursive: true, force: true });
         }
       }
     });
