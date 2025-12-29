@@ -1,15 +1,17 @@
 /**
  * Long-run instrumentation - Production Grade
- * Restart-safe, idempotent, distributed lock, gap detection
+ * Restart-safe, idempotent, distributed lock, gap detection, Telegram alerts
  */
 
 const admin = require('firebase-admin');
+const TelegramAlerts = require('./telegram-alerts');
 
 let db;
 let instanceId;
 let heartbeatInterval;
 let lockRenewInterval;
 let probeIntervals = [];
+let telegramAlerts;
 
 const HEARTBEAT_INTERVAL_SEC = 60;
 const LOCK_LEASE_SEC = 120;
@@ -20,6 +22,11 @@ async function initJobs(firestoreDb, baseUrl) {
   instanceId = process.env.RAILWAY_DEPLOYMENT_ID || `local-${Date.now()}`;
   
   console.log(`🔧 Initializing long-run jobs (instanceId: ${instanceId})`);
+  
+  // Initialize Telegram alerts
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  telegramAlerts = new TelegramAlerts(botToken, chatId);
   
   // Initialize config
   await initConfig(baseUrl);
@@ -36,6 +43,7 @@ async function initJobs(firestoreDb, baseUrl) {
   startHeartbeatJob();
   startProbeJobs();
   startLockRenew();
+  startAlertMonitoring();
   
   console.log('✅ Long-run jobs initialized');
 }
@@ -275,6 +283,76 @@ async function runInboundProbe() {
     console.log(`✅ Inbound probe PASS: ${probeKey}`);
   } catch (error) {
     console.error(`❌ Inbound probe FAIL: ${probeKey}`, error.message);
+  }
+}
+
+function startAlertMonitoring() {
+  // Check for missed heartbeats every hour
+  setInterval(async () => {
+    try {
+      await checkMissedHeartbeats();
+    } catch (error) {
+      console.error('❌ Alert monitoring error (missed HB):', error.message);
+    }
+  }, 3600000); // 1 hour
+  
+  // Check for consecutive probe fails every 6 hours
+  setInterval(async () => {
+    try {
+      await checkConsecutiveProbeFails();
+    } catch (error) {
+      console.error('❌ Alert monitoring error (probe fails):', error.message);
+    }
+  }, 6 * 3600000); // 6 hours
+  
+  console.log('✅ Alert monitoring started');
+}
+
+async function checkMissedHeartbeats() {
+  const now = Date.now();
+  const hourAgo = now - 3600000;
+  
+  const snapshot = await db.collection('wa_metrics').doc('longrun').collection('heartbeats')
+    .where('ts', '>=', admin.firestore.Timestamp.fromMillis(hourAgo))
+    .where('ts', '<=', admin.firestore.Timestamp.fromMillis(now))
+    .get();
+  
+  const expectedHb = 60; // 1 per minute
+  const actualHb = snapshot.size;
+  const missedHb = expectedHb - actualHb;
+  
+  if (missedHb > 3) {
+    await telegramAlerts.alertMissedHeartbeats(missedHb, hourAgo, now);
+  }
+}
+
+async function checkConsecutiveProbeFails() {
+  const probeTypes = ['outbound', 'inbound', 'queue'];
+  
+  for (const type of probeTypes) {
+    const snapshot = await db.collection('wa_metrics').doc('longrun').collection('probes')
+      .where('type', '==', type)
+      .orderBy('tsIso', 'desc')
+      .limit(5)
+      .get();
+    
+    const probes = [];
+    snapshot.forEach(doc => probes.push(doc.data()));
+    
+    if (probes.length < 2) continue;
+    
+    let consecutiveFails = 0;
+    for (const probe of probes) {
+      if (probe.result === 'FAIL') {
+        consecutiveFails++;
+      } else {
+        break;
+      }
+    }
+    
+    if (consecutiveFails >= 2) {
+      await telegramAlerts.alertConsecutiveProbeFails(type, consecutiveFails, probes.slice(0, consecutiveFails));
+    }
   }
 }
 
