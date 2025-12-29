@@ -151,6 +151,7 @@ let longrunJobsInstance = null;
 // Long-run schema and evidence endpoints
 const LongRunSchemaComplete = require('./lib/longrun-schema-complete');
 const EvidenceEndpoints = require('./lib/evidence-endpoints');
+const DeployGuard = require('./lib/deploy-guard');
 const LONGRUN_ADMIN_TOKEN = process.env.LONGRUN_ADMIN_TOKEN || ADMIN_TOKEN;
 const START_TIME = Date.now();
 
@@ -2005,6 +2006,11 @@ app.listen(PORT, '0.0.0.0', async () => {
     longrunJobsInstance = new longrunJobsModule(db, baseUrl, baileysInterface);
     await longrunJobsInstance.start();
     console.log('✅ Long-run jobs v3 started');
+    
+    // Start deploy guard
+    const deployGuard = new DeployGuard(db, longrunSchema, baseUrl, commitHash);
+    deployGuard.start();
+    console.log('✅ Deploy guard started');
   }
 });
 
