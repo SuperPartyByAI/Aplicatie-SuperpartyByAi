@@ -42,7 +42,7 @@ if (!admin.apps.length) {
   }
 }
 
-const db = admin.firestore();
+const db = firestoreAvailable ? admin.firestore() : null;
 
 // CORS configuration
 app.use(cors({
@@ -127,6 +127,7 @@ if (!fs.existsSync(authDir)) {
 
 const VERSION = '2.0.0';
 const COMMIT_HASH = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown';
+const BOOT_TIMESTAMP = new Date().toISOString();
 const START_TIME = Date.now();
 
 console.log(`🚀 SuperParty WhatsApp Backend v${VERSION} (${COMMIT_HASH})`);
@@ -415,6 +416,7 @@ app.get('/', (req, res) => {
     service: 'SuperParty WhatsApp Backend',
     version: VERSION,
     commit: COMMIT_HASH,
+    bootTimestamp: BOOT_TIMESTAMP,
     uptime: process.uptime(),
     accounts: connections.size,
     maxAccounts: MAX_ACCOUNTS,
@@ -456,6 +458,13 @@ app.get('/health', async (req, res) => {
   const connecting = Array.from(connections.values()).filter(c => c.status === 'connecting' || c.status === 'reconnecting').length;
   const needsQr = Array.from(connections.values()).filter(c => c.status === 'needs_qr' || c.status === 'qr_ready').length;
   
+  const fingerprint = {
+    version: VERSION,
+    commit: COMMIT_HASH,
+    bootTimestamp: BOOT_TIMESTAMP,
+    deploymentId: process.env.RAILWAY_DEPLOYMENT_ID || 'unknown'
+  };
+  
   // Test Firestore connection
   let firestoreStatus = 'disconnected';
   if (firestoreAvailable) {
@@ -472,8 +481,7 @@ app.get('/health', async (req, res) => {
   
   res.json({
     status: 'healthy',
-    version: VERSION,
-    commit: COMMIT_HASH,
+    ...fingerprint,
     uptime: Math.floor((Date.now() - START_TIME) / 1000),
     timestamp: new Date().toISOString(),
     accounts: {
