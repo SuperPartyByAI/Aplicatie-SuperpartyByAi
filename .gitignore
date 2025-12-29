@@ -1,6 +1,6 @@
 # Dependencies
 node_modules/
-package-lock.json
+# package-lock.json excluded from gitignore for functions/ directory (needed by Cloud Functions)
 
 # Secrets
 .firebase-token
