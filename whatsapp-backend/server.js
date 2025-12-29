@@ -143,6 +143,9 @@ console.log(`📁 Auth directory: ${authDir}`);
 const VERSION = '2.0.0';
 const COMMIT_HASH = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown';
 const BOOT_TIMESTAMP = new Date().toISOString();
+
+// Long-run jobs
+const longrunJobs = require('./lib/longrun-jobs');
 const START_TIME = Date.now();
 
 console.log(`🚀 SuperParty WhatsApp Backend v${VERSION} (${COMMIT_HASH})`);
@@ -1847,6 +1850,11 @@ app.listen(PORT, '0.0.0.0', async () => {
   
   // Restore accounts after server starts
   await restoreAccountsFromFirestore();
+  
+  // Initialize long-run jobs
+  if (firestoreAvailable) {
+    longrunJobs.initJobs(db);
+  }
 });
 
 // Graceful shutdown
