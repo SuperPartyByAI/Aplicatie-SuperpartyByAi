@@ -1317,6 +1317,12 @@ async function restoreAccountsFromFirestore() {
         let state, saveCreds;
         if (FIRESTORE_AUTH_MODE !== 'off') {
           ({ state, saveCreds } = await useFirestoreAuthState(accountId, db, FIRESTORE_AUTH_MODE));
+          
+          // Check if creds exist in Firestore
+          if (!state.creds) {
+            console.log(`⚠️  [${accountId}] No creds in Firestore, skipping`);
+            continue;
+          }
         } else {
           const sessionPath = path.join(authDir, accountId);
           if (!fs.existsSync(sessionPath)) {
