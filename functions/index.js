@@ -27,7 +27,8 @@ app.get('/', (req, res) => {
   res.json({
     status: 'online',
     service: 'SuperParty WhatsApp on Firebase',
-    version: '5.1.0',
+    version: '5.2.0',
+    deployed: new Date().toISOString(),
     accounts: whatsappManager.getAccounts().length,
     endpoints: [
       'GET /',
