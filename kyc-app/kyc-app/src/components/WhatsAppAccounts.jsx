@@ -8,6 +8,7 @@ function WhatsAppAccounts() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newAccountName, setNewAccountName] = useState('');
+  const [newAccountPhone, setNewAccountPhone] = useState('');
 
   useEffect(() => {
     loadAccounts();
@@ -46,11 +47,14 @@ function WhatsAppAccounts() {
     }
 
     try {
-      console.log('🔄 Adding account:', newAccountName);
+      console.log('🔄 Adding account:', newAccountName, 'phone:', newAccountPhone);
       const response = await fetch(`${WHATSAPP_URL}/api/whatsapp/add-account`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newAccountName })
+        body: JSON.stringify({ 
+          name: newAccountName,
+          phone: newAccountPhone || undefined // Send only if provided
+        })
       });
       
       console.log('📡 Response status:', response.status);
@@ -65,8 +69,9 @@ function WhatsAppAccounts() {
       if (data.success) {
         setShowAddModal(false);
         setNewAccountName('');
+        setNewAccountPhone('');
         loadAccounts();
-        alert('✅ Cont adăugat! Așteaptă QR code...');
+        alert('✅ Cont adăugat! Așteaptă QR code' + (newAccountPhone ? ' și pairing code' : '') + '...');
       } else {
         throw new Error(data.error || 'Eroare necunoscută');
       }
@@ -164,7 +169,7 @@ function WhatsAppAccounts() {
                 </p>
               )}
 
-              {account.qrCode && account.status === 'qr_ready' && (
+              {account.qrCode && (account.status === 'qr_ready' || account.status === 'reconnecting') && (
                 <div style={{marginTop: '1rem', textAlign: 'center'}}>
                   <p style={{color: '#f59e0b', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: '600'}}>
                     📱 Scanează cu WhatsApp:
@@ -185,6 +190,33 @@ function WhatsAppAccounts() {
                   <p style={{color: '#6b7280', fontSize: '0.75rem', marginTop: '0.5rem'}}>
                     WhatsApp → Settings → Linked Devices → Link a Device
                   </p>
+                  
+                  {account.pairingCode && (
+                    <div style={{
+                      marginTop: '1rem',
+                      padding: '1rem',
+                      background: '#1e293b',
+                      borderRadius: '8px',
+                      border: '1px solid #334155'
+                    }}>
+                      <p style={{color: '#94a3b8', fontSize: '0.75rem', marginBottom: '0.5rem'}}>
+                        SAU folosește codul de conectare:
+                      </p>
+                      <p style={{
+                        color: '#10b981',
+                        fontSize: '1.5rem',
+                        fontWeight: '700',
+                        letterSpacing: '0.2em',
+                        margin: '0.5rem 0',
+                        fontFamily: 'monospace'
+                      }}>
+                        {account.pairingCode}
+                      </p>
+                      <p style={{color: '#6b7280', fontSize: '0.7rem', marginTop: '0.5rem'}}>
+                        WhatsApp → Settings → Linked Devices → Link with phone number
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -244,16 +276,39 @@ function WhatsAppAccounts() {
                 border: '1px solid #4b5563',
                 borderRadius: '6px',
                 color: 'white',
-                marginBottom: '1.5rem'
+                marginBottom: '1rem'
+              }}
+            />
+            
+            <label style={{display: 'block', marginBottom: '0.5rem', color: '#9ca3af', fontSize: '0.875rem'}}>
+              Număr telefon (opțional, pentru pairing code):
+            </label>
+            <input
+              type="tel"
+              value={newAccountPhone}
+              onChange={(e) => setNewAccountPhone(e.target.value)}
+              placeholder="Ex: +40712345678"
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                background: '#374151',
+                border: '1px solid #4b5563',
+                borderRadius: '6px',
+                color: 'white',
+                marginBottom: '0.5rem'
               }}
               onKeyPress={(e) => e.key === 'Enter' && addAccount()}
             />
+            <p style={{color: '#6b7280', fontSize: '0.7rem', marginBottom: '1.5rem', marginTop: '0.25rem'}}>
+              💡 Dacă introduci numărul, vei primi și un cod de 8 cifre
+            </p>
 
             <div style={{display: 'flex', gap: '1rem'}}>
               <button
                 onClick={() => {
                   setShowAddModal(false);
                   setNewAccountName('');
+                  setNewAccountPhone('');
                 }}
                 style={{
                   flex: 1,
