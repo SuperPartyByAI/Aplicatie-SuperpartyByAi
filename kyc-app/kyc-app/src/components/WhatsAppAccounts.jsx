@@ -169,7 +169,7 @@ function WhatsAppAccounts() {
                 </p>
               )}
 
-              {account.qrCode && (account.status === 'qr_ready' || account.status === 'reconnecting') && (
+              {account.qrCode && (account.status === 'qr_ready' || account.status === 'reconnecting' || account.status === 'logged_out') && (
                 <div style={{marginTop: '1rem', textAlign: 'center'}}>
                   <p style={{color: '#f59e0b', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: '600'}}>
                     📱 Scanează cu WhatsApp:
