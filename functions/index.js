@@ -137,3 +137,6 @@ exports.whatsappV2 = functions
     memory: '512MB'
   })
   .https.onRequest(app);
+
+// Clean new function - no upgrade history
+exports.whatsappV3 = functions.https.onRequest(app);
