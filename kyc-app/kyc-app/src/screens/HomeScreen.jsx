@@ -1125,6 +1125,13 @@ ${perf.tasksOverdue > 0 ? `⚠️ Ai ${perf.tasksOverdue} task-uri în întârzi
                   <span className="nav-text">Chat Clienti</span>
                 </button>
                 <button 
+                  onClick={() => navigate('/centrala-telefonica')} 
+                  className="nav-item"
+                >
+                  <span className="nav-icon">📞</span>
+                  <span className="nav-text">Centrala Telefonică</span>
+                </button>
+                <button 
                   onClick={() => {
                     setAdminMode(false);
                     setCurrentView('dashboard');
