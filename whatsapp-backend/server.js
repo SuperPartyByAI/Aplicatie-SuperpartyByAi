@@ -1658,6 +1658,54 @@ app.get('/admin/queue/status', requireAdmin, async (req, res) => {
   }
 });
 
+// Admin: Query longrun heartbeats
+app.get('/api/admin/longrun/heartbeats', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 20;
+    
+    const snapshot = await db.collection('wa_metrics').doc('longrun').collection('heartbeats')
+      .orderBy('tsIso', 'desc')
+      .limit(limit)
+      .get();
+    
+    const heartbeats = [];
+    snapshot.forEach(doc => {
+      heartbeats.push({
+        id: doc.id,
+        path: `wa_metrics/longrun/heartbeats/${doc.id}`,
+        ...doc.data()
+      });
+    });
+    
+    res.json({ success: true, count: heartbeats.length, heartbeats });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: Query longrun probes
+app.get('/api/admin/longrun/probes', async (req, res) => {
+  try {
+    const snapshot = await db.collection('wa_metrics').doc('longrun').collection('probes')
+      .orderBy('tsIso', 'desc')
+      .limit(10)
+      .get();
+    
+    const probes = [];
+    snapshot.forEach(doc => {
+      probes.push({
+        id: doc.id,
+        path: `wa_metrics/longrun/probes/${doc.id}`,
+        ...doc.data()
+      });
+    });
+    
+    res.json({ success: true, count: probes.length, probes });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Admin: Diagnostic Firestore sessions (PUBLIC for debugging - remove in production)
 app.get('/api/admin/firestore/sessions', async (req, res) => {
   try {
