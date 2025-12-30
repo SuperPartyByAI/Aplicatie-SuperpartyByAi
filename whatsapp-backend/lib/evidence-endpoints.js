@@ -152,6 +152,7 @@ class EvidenceEndpoints {
           
           // Inbound dedupe
           inboundDedupeStore: 'firestore',
+          lastInboundDedupeWriteAt: waStatus.lastInboundDedupeWriteAt || null,
           
           // Dependency health
           consecutiveFirestoreErrors: waStatus.consecutiveFirestoreErrors || 0,
@@ -159,6 +160,7 @@ class EvidenceEndpoints {
           
           // Circuit breaker
           reconnectMode: waStatus.reconnectMode || 'normal',
+          cooldownUntil: waStatus.cooldownUntil || null,
           
           // Single-flight
           connectInProgress: waStatus.connectInProgress || false,

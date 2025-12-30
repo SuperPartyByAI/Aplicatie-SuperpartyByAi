@@ -516,10 +516,12 @@ class WAIntegration {
       connectInProgress: this.connectInProgress,
       lastConnectAttemptAt: this.lastConnectAttemptAt,
       reconnectMode: this.reconnectMode,
+      cooldownUntil: this.cooldownUntil ? this.cooldownUntil.toISOString() : null,
       outboxPendingCount,
       outboxOldestPendingAgeSec,
       drainMode: this.drainMode,
       inboundDedupeStore: 'firestore',
+      lastInboundDedupeWriteAt: null, // TODO: track
       consecutiveFirestoreErrors: this.consecutiveFirestoreErrors,
       degradedSince: this.degradedSince,
       warmUpComplete: this.warmUpComplete
