@@ -135,19 +135,52 @@ function WhatsAppAccounts() {
   }
 
   return (
-    <div style={{padding: '1rem'}}>
-      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
-        <h2 style={{margin: 0, color: 'white'}}>📱 Conturi WhatsApp ({accounts.length})</h2>
+    <div style={{
+      padding: '1rem',
+      maxWidth: '100%',
+      overflowX: 'hidden'
+    }}>
+      <div style={{
+        display: 'flex',
+        flexDirection: window.innerWidth < 768 ? 'column' : 'row',
+        justifyContent: 'space-between',
+        alignItems: window.innerWidth < 768 ? 'stretch' : 'center',
+        marginBottom: '1.5rem',
+        gap: '1rem'
+      }}>
+        <h2 style={{
+          margin: 0,
+          background: 'linear-gradient(135deg, #00f5ff 0%, #00ff88 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          fontSize: window.innerWidth < 768 ? '1.5rem' : '2rem',
+          fontWeight: '800',
+          textShadow: '0 0 20px rgba(0, 245, 255, 0.5)'
+        }}>
+          📱 Conturi WhatsApp ({accounts.length})
+        </h2>
         <button
           onClick={() => setShowAddModal(true)}
           style={{
             padding: '0.75rem 1.5rem',
-            background: '#10b981',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
+            background: 'linear-gradient(135deg, #00f5ff 0%, #00ff88 100%)',
+            color: '#0a0a0a',
+            border: '2px solid #00f5ff',
+            borderRadius: '12px',
             cursor: 'pointer',
-            fontWeight: '600'
+            fontWeight: '700',
+            fontSize: window.innerWidth < 768 ? '1rem' : '1.1rem',
+            boxShadow: '0 0 20px rgba(0, 245, 255, 0.6), inset 0 0 10px rgba(255, 255, 255, 0.2)',
+            transition: 'all 0.3s ease',
+            width: window.innerWidth < 768 ? '100%' : 'auto'
+          }}
+          onMouseOver={(e) => {
+            e.target.style.transform = 'scale(1.05)';
+            e.target.style.boxShadow = '0 0 30px rgba(0, 245, 255, 0.8), inset 0 0 15px rgba(255, 255, 255, 0.3)';
+          }}
+          onMouseOut={(e) => {
+            e.target.style.transform = 'scale(1)';
+            e.target.style.boxShadow = '0 0 20px rgba(0, 245, 255, 0.6), inset 0 0 10px rgba(255, 255, 255, 0.2)';
           }}
         >
           + Adaugă Cont
@@ -158,36 +191,74 @@ function WhatsAppAccounts() {
         <div style={{
           padding: '3rem',
           textAlign: 'center',
-          background: '#1f2937',
-          borderRadius: '8px',
-          color: '#9ca3af'
+          background: 'rgba(0, 245, 255, 0.05)',
+          border: '2px solid rgba(0, 245, 255, 0.3)',
+          borderRadius: '16px',
+          color: '#00f5ff',
+          boxShadow: '0 0 30px rgba(0, 245, 255, 0.2)'
         }}>
-          <p style={{fontSize: '1.125rem', marginBottom: '0.5rem'}}>📭 Niciun cont WhatsApp</p>
-          <p>Adaugă primul cont pentru a începe!</p>
+          <p style={{fontSize: '1.125rem', marginBottom: '0.5rem', fontWeight: '600'}}>📭 Niciun cont WhatsApp</p>
+          <p style={{color: '#00ff88'}}>Adaugă primul cont pentru a începe!</p>
         </div>
       ) : (
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1.5rem'}}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: window.innerWidth < 768 ? '1fr' : 'repeat(auto-fill, minmax(350px, 1fr))',
+          gap: '1.5rem'
+        }}>
           {accounts.map(account => (
             <div
               key={account.id}
               style={{
-                background: '#1f2937',
-                borderRadius: '8px',
+                background: 'linear-gradient(135deg, rgba(0, 10, 20, 0.9) 0%, rgba(0, 20, 40, 0.9) 100%)',
+                borderRadius: '16px',
                 padding: '1.5rem',
-                border: '1px solid #374151'
+                border: '2px solid rgba(0, 245, 255, 0.3)',
+                boxShadow: '0 0 20px rgba(0, 245, 255, 0.2), inset 0 0 20px rgba(0, 245, 255, 0.05)',
+                transition: 'all 0.3s ease'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(0, 245, 255, 0.6)';
+                e.currentTarget.style.boxShadow = '0 0 30px rgba(0, 245, 255, 0.4), inset 0 0 30px rgba(0, 245, 255, 0.1)';
+                e.currentTarget.style.transform = 'translateY(-5px)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(0, 245, 255, 0.3)';
+                e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 245, 255, 0.2), inset 0 0 20px rgba(0, 245, 255, 0.05)';
+                e.currentTarget.style.transform = 'translateY(0)';
               }}
             >
-              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem'}}>
-                <div>
-                  <h3 style={{margin: '0 0 0.5rem 0', color: 'white'}}>{account.name}</h3>
+              <div style={{
+                display: 'flex',
+                flexDirection: window.innerWidth < 768 ? 'column' : 'row',
+                justifyContent: 'space-between',
+                alignItems: window.innerWidth < 768 ? 'start' : 'start',
+                marginBottom: '1rem',
+                gap: '0.5rem'
+              }}>
+                <div style={{width: '100%'}}>
+                  <h3 style={{
+                    margin: '0 0 0.5rem 0',
+                    background: 'linear-gradient(135deg, #00f5ff 0%, #00ff88 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    fontSize: window.innerWidth < 768 ? '1.1rem' : '1.3rem',
+                    fontWeight: '700'
+                  }}>
+                    {account.name}
+                  </h3>
                   <div style={{
                     display: 'inline-block',
-                    padding: '0.25rem 0.75rem',
-                    background: getStatusColor(account.status) + '20',
+                    padding: '0.4rem 1rem',
+                    background: `linear-gradient(135deg, ${getStatusColor(account.status)}40 0%, ${getStatusColor(account.status)}20 100%)`,
                     color: getStatusColor(account.status),
-                    borderRadius: '4px',
+                    border: `2px solid ${getStatusColor(account.status)}`,
+                    borderRadius: '8px',
                     fontSize: '0.875rem',
-                    fontWeight: '600'
+                    fontWeight: '700',
+                    boxShadow: `0 0 15px ${getStatusColor(account.status)}40`,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
                   }}>
                     {getStatusText(account.status)}
                   </div>
@@ -195,55 +266,98 @@ function WhatsAppAccounts() {
               </div>
 
               {account.phone && (
-                <p style={{margin: '0.5rem 0', color: '#9ca3af', fontSize: '0.875rem'}}>
+                <p style={{
+                  margin: '0.5rem 0',
+                  color: '#00ff88',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  textShadow: '0 0 10px rgba(0, 255, 136, 0.5)'
+                }}>
                   📞 {account.phone}
                 </p>
               )}
 
               {account.qrCode && (account.status === 'qr_ready' || account.status === 'reconnecting' || account.status === 'logged_out') && (
-                <div style={{marginTop: '1rem', textAlign: 'center'}}>
-                  <p style={{color: '#f59e0b', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: '600'}}>
-                    📱 Scanează cu WhatsApp:
+                <div style={{
+                  marginTop: '1rem',
+                  textAlign: 'center',
+                  padding: '1rem',
+                  background: 'rgba(255, 165, 0, 0.05)',
+                  border: '2px solid rgba(255, 165, 0, 0.3)',
+                  borderRadius: '12px',
+                  boxShadow: '0 0 20px rgba(255, 165, 0, 0.2)'
+                }}>
+                  <p style={{
+                    color: '#ffa500',
+                    fontSize: '1rem',
+                    marginBottom: '1rem',
+                    fontWeight: '700',
+                    textShadow: '0 0 10px rgba(255, 165, 0, 0.5)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px'
+                  }}>
+                    📱 Scanează cu WhatsApp
                   </p>
                   <img 
                     src={account.qrCode} 
                     alt="QR Code" 
                     style={{
-                      width: '250px',
-                      height: '250px',
+                      width: window.innerWidth < 768 ? '200px' : '250px',
+                      height: window.innerWidth < 768 ? '200px' : '250px',
                       margin: '0 auto',
-                      border: '2px solid #374151',
-                      borderRadius: '8px',
+                      border: '3px solid #ffa500',
+                      borderRadius: '12px',
                       padding: '0.5rem',
-                      background: 'white'
+                      background: 'white',
+                      boxShadow: '0 0 30px rgba(255, 165, 0, 0.4)'
                     }}
                   />
-                  <p style={{color: '#6b7280', fontSize: '0.75rem', marginTop: '0.5rem'}}>
+                  <p style={{
+                    color: '#00ff88',
+                    fontSize: '0.75rem',
+                    marginTop: '0.75rem',
+                    fontWeight: '500'
+                  }}>
                     WhatsApp → Settings → Linked Devices → Link a Device
                   </p>
                   
                   {account.pairingCode && (
                     <div style={{
                       marginTop: '1rem',
-                      padding: '1rem',
-                      background: '#1e293b',
-                      borderRadius: '8px',
-                      border: '1px solid #334155'
+                      padding: '1.5rem',
+                      background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.1) 0%, rgba(75, 0, 130, 0.1) 100%)',
+                      border: '2px solid rgba(138, 43, 226, 0.4)',
+                      borderRadius: '12px',
+                      boxShadow: '0 0 20px rgba(138, 43, 226, 0.3)'
                     }}>
-                      <p style={{color: '#94a3b8', fontSize: '0.75rem', marginBottom: '0.5rem'}}>
-                        SAU folosește codul de conectare:
+                      <p style={{
+                        color: '#ba55d3',
+                        fontSize: '0.85rem',
+                        marginBottom: '0.75rem',
+                        fontWeight: '600',
+                        textTransform: 'uppercase',
+                        letterSpacing: '1px'
+                      }}>
+                        SAU folosește codul:
                       </p>
                       <p style={{
-                        color: '#10b981',
-                        fontSize: '1.5rem',
-                        fontWeight: '700',
-                        letterSpacing: '0.2em',
-                        margin: '0.5rem 0',
-                        fontFamily: 'monospace'
+                        color: '#00f5ff',
+                        fontSize: window.innerWidth < 768 ? '1.8rem' : '2rem',
+                        fontWeight: '800',
+                        letterSpacing: '0.3em',
+                        margin: '1rem 0',
+                        fontFamily: 'monospace',
+                        textShadow: '0 0 20px rgba(0, 245, 255, 0.6)',
+                        textAlign: 'center'
                       }}>
                         {account.pairingCode}
                       </p>
-                      <p style={{color: '#6b7280', fontSize: '0.7rem', marginTop: '0.5rem'}}>
+                      <p style={{
+                        color: '#00ff88',
+                        fontSize: '0.75rem',
+                        marginTop: '0.75rem',
+                        fontWeight: '500'
+                      }}>
                         WhatsApp → Settings → Linked Devices → Link with phone number
                       </p>
                     </div>
@@ -254,36 +368,54 @@ function WhatsAppAccounts() {
               {account.status === 'connected' && (
                 <div style={{
                   marginTop: '1rem',
-                  padding: '1rem',
-                  background: '#10b98120',
-                  borderRadius: '6px',
-                  textAlign: 'center'
+                  padding: '1.5rem',
+                  background: 'linear-gradient(135deg, rgba(0, 255, 136, 0.1) 0%, rgba(0, 245, 255, 0.1) 100%)',
+                  border: '2px solid rgba(0, 255, 136, 0.4)',
+                  borderRadius: '12px',
+                  textAlign: 'center',
+                  boxShadow: '0 0 30px rgba(0, 255, 136, 0.2)'
                 }}>
-                  <p style={{color: '#10b981', margin: '0 0 0.75rem 0', fontWeight: '600'}}>
-                    ✅ Cont activ și funcțional!
+                  <p style={{
+                    color: '#00ff88',
+                    margin: '0 0 1rem 0',
+                    fontWeight: '700',
+                    fontSize: '1.1rem',
+                    textShadow: '0 0 15px rgba(0, 255, 136, 0.6)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px'
+                  }}>
+                    ✅ Cont Activ
                   </p>
                   <button
                     onClick={() => disconnectAccount(account.id)}
                     style={{
-                      padding: '0.75rem 1.5rem',
-                      background: '#ef4444',
+                      padding: '1rem 1.5rem',
+                      background: 'linear-gradient(135deg, #ff0080 0%, #ff0040 100%)',
                       color: 'white',
-                      border: 'none',
-                      borderRadius: '8px',
+                      border: '2px solid #ff0080',
+                      borderRadius: '12px',
                       cursor: 'pointer',
                       fontWeight: '700',
-                      fontSize: '1rem',
+                      fontSize: window.innerWidth < 768 ? '0.95rem' : '1rem',
                       display: 'block',
                       margin: '0 auto',
                       width: '100%',
-                      maxWidth: '250px',
-                      boxShadow: '0 4px 6px rgba(239, 68, 68, 0.3)',
-                      transition: 'all 0.2s'
+                      maxWidth: window.innerWidth < 768 ? '100%' : '250px',
+                      boxShadow: '0 0 20px rgba(255, 0, 128, 0.5), inset 0 0 10px rgba(255, 255, 255, 0.2)',
+                      transition: 'all 0.3s ease',
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px'
                     }}
-                    onMouseOver={(e) => e.target.style.background = '#dc2626'}
-                    onMouseOut={(e) => e.target.style.background = '#ef4444'}
+                    onMouseOver={(e) => {
+                      e.target.style.transform = 'scale(1.05)';
+                      e.target.style.boxShadow = '0 0 30px rgba(255, 0, 128, 0.7), inset 0 0 15px rgba(255, 255, 255, 0.3)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.target.style.transform = 'scale(1)';
+                      e.target.style.boxShadow = '0 0 20px rgba(255, 0, 128, 0.5), inset 0 0 10px rgba(255, 255, 255, 0.2)';
+                    }}
                   >
-                    🔌 Deconectează Cont
+                    🔌 Deconectează
                   </button>
                 </div>
               )}
@@ -300,22 +432,44 @@ function WhatsAppAccounts() {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(0,0,0,0.75)',
+          background: 'rgba(0,0,0,0.9)',
+          backdropFilter: 'blur(10px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 1000
+          zIndex: 1000,
+          padding: '1rem'
         }}>
           <div style={{
-            background: '#1f2937',
-            borderRadius: '8px',
-            padding: '2rem',
-            maxWidth: '400px',
-            width: '90%'
+            background: 'linear-gradient(135deg, rgba(0, 10, 20, 0.95) 0%, rgba(0, 20, 40, 0.95) 100%)',
+            border: '2px solid rgba(0, 245, 255, 0.4)',
+            borderRadius: '16px',
+            padding: window.innerWidth < 768 ? '1.5rem' : '2rem',
+            maxWidth: '450px',
+            width: '100%',
+            boxShadow: '0 0 40px rgba(0, 245, 255, 0.3), inset 0 0 30px rgba(0, 245, 255, 0.05)'
           }}>
-            <h3 style={{margin: '0 0 1.5rem 0', color: 'white'}}>Adaugă Cont WhatsApp</h3>
+            <h3 style={{
+              margin: '0 0 1.5rem 0',
+              background: 'linear-gradient(135deg, #00f5ff 0%, #00ff88 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              fontSize: window.innerWidth < 768 ? '1.3rem' : '1.5rem',
+              fontWeight: '800',
+              textAlign: 'center'
+            }}>
+              ➕ Adaugă Cont WhatsApp
+            </h3>
             
-            <label style={{display: 'block', marginBottom: '0.5rem', color: '#9ca3af', fontSize: '0.875rem'}}>
+            <label style={{
+              display: 'block',
+              marginBottom: '0.5rem',
+              color: '#00f5ff',
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px'
+            }}>
               Nume cont:
             </label>
             <input
@@ -326,16 +480,35 @@ function WhatsAppAccounts() {
               style={{
                 width: '100%',
                 padding: '0.75rem',
-                background: '#374151',
-                border: '1px solid #4b5563',
-                borderRadius: '6px',
-                color: 'white',
-                marginBottom: '1rem'
+                background: 'rgba(0, 245, 255, 0.05)',
+                border: '2px solid rgba(0, 245, 255, 0.3)',
+                borderRadius: '8px',
+                color: '#00f5ff',
+                marginBottom: '1rem',
+                fontSize: '1rem',
+                outline: 'none',
+                transition: 'all 0.3s ease'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = 'rgba(0, 245, 255, 0.6)';
+                e.target.style.boxShadow = '0 0 15px rgba(0, 245, 255, 0.3)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'rgba(0, 245, 255, 0.3)';
+                e.target.style.boxShadow = 'none';
               }}
             />
             
-            <label style={{display: 'block', marginBottom: '0.5rem', color: '#9ca3af', fontSize: '0.875rem'}}>
-              Număr telefon (opțional, pentru pairing code):
+            <label style={{
+              display: 'block',
+              marginBottom: '0.5rem',
+              color: '#00ff88',
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px'
+            }}>
+              Număr telefon (opțional):
             </label>
             <input
               type="tel"
@@ -345,19 +518,40 @@ function WhatsAppAccounts() {
               style={{
                 width: '100%',
                 padding: '0.75rem',
-                background: '#374151',
-                border: '1px solid #4b5563',
-                borderRadius: '6px',
-                color: 'white',
-                marginBottom: '0.5rem'
+                background: 'rgba(0, 255, 136, 0.05)',
+                border: '2px solid rgba(0, 255, 136, 0.3)',
+                borderRadius: '8px',
+                color: '#00ff88',
+                marginBottom: '0.5rem',
+                fontSize: '1rem',
+                outline: 'none',
+                transition: 'all 0.3s ease'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = 'rgba(0, 255, 136, 0.6)';
+                e.target.style.boxShadow = '0 0 15px rgba(0, 255, 136, 0.3)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'rgba(0, 255, 136, 0.3)';
+                e.target.style.boxShadow = 'none';
               }}
               onKeyPress={(e) => e.key === 'Enter' && addAccount()}
             />
-            <p style={{color: '#6b7280', fontSize: '0.7rem', marginBottom: '1.5rem', marginTop: '0.25rem'}}>
+            <p style={{
+              color: '#ba55d3',
+              fontSize: '0.75rem',
+              marginBottom: '1.5rem',
+              marginTop: '0.5rem',
+              fontWeight: '500'
+            }}>
               💡 Dacă introduci numărul, vei primi și un cod de 8 cifre
             </p>
 
-            <div style={{display: 'flex', gap: '1rem'}}>
+            <div style={{
+              display: 'flex',
+              flexDirection: window.innerWidth < 768 ? 'column' : 'row',
+              gap: '1rem'
+            }}>
               <button
                 onClick={() => {
                   setShowAddModal(false);
@@ -366,30 +560,56 @@ function WhatsAppAccounts() {
                 }}
                 style={{
                   flex: 1,
-                  padding: '0.75rem',
-                  background: '#374151',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer'
+                  padding: '1rem',
+                  background: 'linear-gradient(135deg, rgba(255, 0, 128, 0.2) 0%, rgba(255, 0, 64, 0.2) 100%)',
+                  color: '#ff0080',
+                  border: '2px solid rgba(255, 0, 128, 0.4)',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontWeight: '700',
+                  fontSize: '1rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                  transition: 'all 0.3s ease'
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.background = 'linear-gradient(135deg, rgba(255, 0, 128, 0.3) 0%, rgba(255, 0, 64, 0.3) 100%)';
+                  e.target.style.boxShadow = '0 0 20px rgba(255, 0, 128, 0.4)';
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.background = 'linear-gradient(135deg, rgba(255, 0, 128, 0.2) 0%, rgba(255, 0, 64, 0.2) 100%)';
+                  e.target.style.boxShadow = 'none';
                 }}
               >
-                Anulează
+                ✖ Anulează
               </button>
               <button
                 onClick={addAccount}
                 style={{
                   flex: 1,
-                  padding: '0.75rem',
-                  background: '#10b981',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
+                  padding: '1rem',
+                  background: 'linear-gradient(135deg, #00f5ff 0%, #00ff88 100%)',
+                  color: '#0a0a0a',
+                  border: '2px solid #00f5ff',
+                  borderRadius: '10px',
                   cursor: 'pointer',
-                  fontWeight: '600'
+                  fontWeight: '800',
+                  fontSize: '1rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                  boxShadow: '0 0 20px rgba(0, 245, 255, 0.5)',
+                  transition: 'all 0.3s ease'
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.transform = 'scale(1.05)';
+                  e.target.style.boxShadow = '0 0 30px rgba(0, 245, 255, 0.7)';
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.transform = 'scale(1)';
+                  e.target.style.boxShadow = '0 0 20px rgba(0, 245, 255, 0.5)';
                 }}
               >
-                Adaugă
+                ✓ Adaugă
               </button>
             </div>
           </div>
