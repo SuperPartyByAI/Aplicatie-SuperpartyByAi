@@ -147,8 +147,15 @@ exports.whatsapp = functions.https.onRequest(app);
 //   })
 //   .https.onRequest(app);
 
-// Clean new function - no upgrade history
-exports.whatsappV3 = functions.https.onRequest(app);
+// Clean new function - no upgrade history (v1 - deprecated)
+// exports.whatsappV3 = functions.https.onRequest(app);
+
+// WhatsApp Backend v2 (2nd Gen)
+exports.whatsappV4 = onRequest({
+  timeoutSeconds: 540,
+  memory: '512MiB',
+  maxInstances: 10
+}, app);
 
 // Simple test function to verify deployment works
 exports.testAI = functions.https.onRequest((req, res) => {
