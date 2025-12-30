@@ -143,6 +143,11 @@ exports.whatsappV2 = functions
 // Clean new function - no upgrade history
 exports.whatsappV3 = functions.https.onRequest(app);
 
+// Simple test function to verify deployment works
+exports.testAI = functions.https.onRequest((req, res) => {
+  res.json({ success: true, message: 'Test AI function works!' });
+});
+
 // AI Chat Function
 exports.chatWithAI = functions
   .runWith({
