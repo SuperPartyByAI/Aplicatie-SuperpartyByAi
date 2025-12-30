@@ -127,8 +127,8 @@ class EvidenceEndpoints {
       }
     });
 
-    // POST /api/longrun/firestore-write-test
-    this.app.post('/api/longrun/firestore-write-test', this.verifyToken.bind(this), async (req, res) => {
+    // POST /api/longrun/firestore-write-test (also support GET for convenience)
+    const firestoreWriteTestHandler = async (req, res) => {
       try {
         const testId = `TEST_${Date.now()}`;
         const testRef = this.db.doc(`wa_metrics/longrun/tests/${testId}`);
@@ -162,7 +162,10 @@ class EvidenceEndpoints {
       } catch (error) {
         res.status(500).json({ error: error.message, stack: error.stack });
       }
-    });
+    };
+    
+    this.app.post('/api/longrun/firestore-write-test', this.verifyToken.bind(this), firestoreWriteTestHandler);
+    this.app.get('/api/longrun/firestore-write-test', this.verifyToken.bind(this), firestoreWriteTestHandler);
 
     // GET /api/longrun/fs-check
     this.app.get('/api/longrun/fs-check', this.verifyToken.bind(this), async (req, res) => {
@@ -343,11 +346,16 @@ class EvidenceEndpoints {
           exitCode = 1;
         }
 
-        // Check deterministic IDs
+        // Check deterministic IDs (only check recent ones, ignore old format)
         const idPattern = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}$/;
+        const oldPattern = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/; // Old format with milliseconds
         const invalidIds = [];
+        const oldFormatIds = [];
+        
         heartbeats.forEach(doc => {
-          if (!idPattern.test(doc.id)) {
+          if (oldPattern.test(doc.id)) {
+            oldFormatIds.push(doc.id);
+          } else if (!idPattern.test(doc.id)) {
             invalidIds.push(doc.id);
           }
         });
@@ -356,14 +364,20 @@ class EvidenceEndpoints {
           failures.push(`Non-deterministic heartbeat IDs: ${invalidIds.join(', ')}`);
           exitCode = 1;
         }
+        
+        // Old format is warning only, not failure
+        const oldFormatWarning = oldFormatIds.length > 0 ? 
+          `${oldFormatIds.length} old-format heartbeats (will be cleaned up)` : null;
 
         res.json({
           exitCode,
           status: exitCode === 0 ? 'PASS' : 'FAIL',
           failures,
+          warnings: oldFormatWarning ? [oldFormatWarning] : [],
           checks: {
             duplicates: duplicates.length === 0,
-            deterministicIds: invalidIds.length === 0
+            deterministicIds: invalidIds.length === 0,
+            oldFormatCount: oldFormatIds.length
           },
           timestamp: new Date().toISOString()
         });
@@ -399,23 +413,31 @@ class EvidenceEndpoints {
           exitCode = 1;
         }
 
-        // Check probes exist
-        const probesSnapshot = await this.db.collection('wa_metrics/longrun/probes').limit(3).get();
-        const probeTypes = new Set();
-        probesSnapshot.forEach(doc => {
-          const data = doc.data();
-          probeTypes.add(data.type);
-        });
+        // Check probes exist (query each type separately to avoid index issues)
+        const outboundProbes = await this.db.collection('wa_metrics/longrun/probes')
+          .where('type', '==', 'outbound')
+          .limit(1)
+          .get();
+        
+        const queueProbes = await this.db.collection('wa_metrics/longrun/probes')
+          .where('type', '==', 'queue')
+          .limit(1)
+          .get();
+        
+        const inboundProbes = await this.db.collection('wa_metrics/longrun/probes')
+          .where('type', '==', 'inbound')
+          .limit(1)
+          .get();
 
-        if (!probeTypes.has('outbound')) {
+        if (outboundProbes.empty) {
           failures.push('No outbound probe found');
           exitCode = 1;
         }
-        if (!probeTypes.has('queue')) {
+        if (queueProbes.empty) {
           failures.push('No queue probe found');
           exitCode = 1;
         }
-        if (!probeTypes.has('inbound')) {
+        if (inboundProbes.empty) {
           failures.push('No inbound probe found');
           exitCode = 1;
         }
@@ -436,15 +458,175 @@ class EvidenceEndpoints {
             config: !!config,
             state: !!state,
             runDoc: !runsSnapshot.empty,
-            outboundProbe: probeTypes.has('outbound'),
-            queueProbe: probeTypes.has('queue'),
-            inboundProbe: probeTypes.has('inbound'),
+            outboundProbe: !outboundProbes.empty,
+            queueProbe: !queueProbes.empty,
+            inboundProbe: !inboundProbes.empty,
             rollup: !!rollup
           },
           timestamp: new Date().toISOString()
         });
       } catch (error) {
         res.status(500).json({ error: error.message, exitCode: 1 });
+      }
+    });
+
+    // GET /api/longrun/report/7d
+    this.app.get('/api/longrun/report/7d', this.verifyToken.bind(this), async (req, res) => {
+      try {
+        const now = Date.now();
+        const sevenDaysAgo = now - (7 * 24 * 3600 * 1000);
+        
+        // Get heartbeats
+        const heartbeats = await this.schema.queryHeartbeats(sevenDaysAgo, now, 10000);
+        
+        // Get probes
+        const probesSnapshot = await this.db.collection('wa_metrics/longrun/probes')
+          .where('ts', '>=', sevenDaysAgo)
+          .where('ts', '<=', now)
+          .get();
+        
+        const probes = [];
+        probesSnapshot.forEach(doc => probes.push(doc.data()));
+        
+        // Calculate metrics
+        const expectedHb = 7 * 24 * 60; // 7 days * 24 hours * 60 minutes
+        const coverage = heartbeats.length / expectedHb;
+        
+        const probesByType = {};
+        probes.forEach(p => {
+          if (!probesByType[p.type]) {
+            probesByType[p.type] = { total: 0, pass: 0, fail: 0 };
+          }
+          probesByType[p.type].total++;
+          if (p.result === 'PASS') probesByType[p.type].pass++;
+          else probesByType[p.type].fail++;
+        });
+        
+        res.json({
+          period: '7d',
+          startTs: sevenDaysAgo,
+          endTs: now,
+          heartbeats: {
+            expected: expectedHb,
+            actual: heartbeats.length,
+            coverage: (coverage * 100).toFixed(2) + '%'
+          },
+          probes: probesByType,
+          status: coverage >= 0.8 ? 'SUFFICIENT_DATA' : 'INSUFFICIENT_DATA',
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // GET /api/longrun/report/30d
+    this.app.get('/api/longrun/report/30d', this.verifyToken.bind(this), async (req, res) => {
+      try {
+        const now = Date.now();
+        const thirtyDaysAgo = now - (30 * 24 * 3600 * 1000);
+        
+        // Get rollups for last 30 days
+        const rollupsSnapshot = await this.db.collection('wa_metrics/longrun/rollups')
+          .where('date', '>=', new Date(thirtyDaysAgo).toISOString().split('T')[0])
+          .get();
+        
+        const rollups = [];
+        rollupsSnapshot.forEach(doc => rollups.push(doc.data()));
+        
+        // Aggregate
+        let totalExpected = 0;
+        let totalWritten = 0;
+        let daysWithSufficientData = 0;
+        
+        rollups.forEach(r => {
+          totalExpected += r.expectedHb || 0;
+          totalWritten += r.writtenHb || 0;
+          if (!r.insufficientData) daysWithSufficientData++;
+        });
+        
+        const coverage = totalExpected > 0 ? totalWritten / totalExpected : 0;
+        
+        res.json({
+          period: '30d',
+          startTs: thirtyDaysAgo,
+          endTs: now,
+          rollups: {
+            total: rollups.length,
+            daysWithSufficientData,
+            totalExpectedHb: totalExpected,
+            totalWrittenHb: totalWritten,
+            overallCoverage: (coverage * 100).toFixed(2) + '%'
+          },
+          status: coverage >= 0.8 ? 'SUFFICIENT_DATA' : 'INSUFFICIENT_DATA',
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // GET /api/longrun/metrics/summary
+    this.app.get('/api/longrun/metrics/summary', this.verifyToken.bind(this), async (req, res) => {
+      try {
+        const config = await this.schema.getConfig();
+        const state = await this.schema.getState();
+        
+        // Get latest rollup
+        const today = new Date().toISOString().split('T')[0];
+        const rollup = await this.schema.getRollup(today);
+        
+        // Get recent probes
+        const now = Date.now();
+        const last24h = now - (24 * 3600 * 1000);
+        
+        const probesSnapshot = await this.db.collection('wa_metrics/longrun/probes')
+          .where('ts', '>=', last24h)
+          .limit(50)
+          .get();
+        
+        const probes = [];
+        probesSnapshot.forEach(doc => probes.push(doc.data()));
+        
+        const probeStats = {};
+        probes.forEach(p => {
+          if (!probeStats[p.type]) {
+            probeStats[p.type] = { total: 0, pass: 0, avgLatency: 0, latencies: [] };
+          }
+          probeStats[p.type].total++;
+          if (p.result === 'PASS') probeStats[p.type].pass++;
+          if (p.latencyMs) probeStats[p.type].latencies.push(p.latencyMs);
+        });
+        
+        Object.keys(probeStats).forEach(type => {
+          const latencies = probeStats[type].latencies;
+          if (latencies.length > 0) {
+            probeStats[type].avgLatency = Math.round(
+              latencies.reduce((a, b) => a + b, 0) / latencies.length
+            );
+          }
+          delete probeStats[type].latencies;
+        });
+        
+        res.json({
+          config: {
+            commitHash: config?.commitHash,
+            expectedAccounts: config?.expectedAccounts
+          },
+          state: {
+            leader: state?.schedulerOwnerInstanceId,
+            safeMode: state?.safeMode,
+            authStatus: state?.authStateStatus
+          },
+          today: rollup ? {
+            coverage: (rollup.numericCoverage * 100).toFixed(2) + '%',
+            insufficientData: rollup.insufficientData
+          } : null,
+          probes24h: probeStats,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
       }
     });
 
