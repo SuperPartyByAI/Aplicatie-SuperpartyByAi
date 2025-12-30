@@ -795,6 +795,272 @@ app.get('/health/detailed', async (req, res) => {
   });
 });
 
+// ============================================================================
+// AI ENDPOINTS
+// ============================================================================
+
+const https = require('https');
+
+// Rate limiter for AI endpoints
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 requests per minute
+  message: { success: false, error: 'Too many AI requests. Try again later.' }
+});
+
+// Helper function to call OpenAI API
+function callOpenAI(messages, maxTokens = 500) {
+  return new Promise((resolve, reject) => {
+    const apiKey = process.env.OPENAI_API_KEY;
+    
+    if (!apiKey) {
+      return reject(new Error('OPENAI_API_KEY not configured'));
+    }
+    
+    const postData = JSON.stringify({
+      model: 'gpt-3.5-turbo',
+      messages: messages,
+      max_tokens: maxTokens,
+      temperature: 0.7
+    });
+    
+    const options = {
+      hostname: 'api.openai.com',
+      port: 443,
+      path: '/v1/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Length': Buffer.byteLength(postData)
+      },
+      timeout: 30000 // 30s timeout
+    };
+    
+    const req = https.request(options, (res) => {
+      let data = '';
+      
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          
+          if (res.statusCode !== 200) {
+            const errorMsg = parsed.error?.message || 'OpenAI API error';
+            return reject(new Error(errorMsg));
+          }
+          
+          resolve(parsed);
+        } catch (e) {
+          reject(new Error('Failed to parse OpenAI response'));
+        }
+      });
+    });
+    
+    req.on('error', (e) => {
+      reject(new Error(`Network error: ${e.message}`));
+    });
+    
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('Request timeout'));
+    });
+    
+    req.write(postData);
+    req.end();
+  });
+}
+
+// 1. Chat with AI
+app.post('/api/ai/chat', aiLimiter, async (req, res) => {
+  const startTime = Date.now();
+  const requestId = `ai_chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  console.log(`[${requestId}] AI Chat request`, {
+    hasMessages: !!req.body.messages,
+    messageCount: req.body.messages?.length || 0
+  });
+  
+  try {
+    const { messages } = req.body;
+    
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Messages array is required'
+      });
+    }
+    
+    const response = await callOpenAI(messages, 500);
+    const duration = Date.now() - startTime;
+    const message = response.choices[0]?.message?.content || '';
+    
+    console.log(`[${requestId}] Success`, {
+      duration: `${duration}ms`,
+      responseLength: message.length
+    });
+    
+    res.json({
+      success: true,
+      message: message,
+      requestId: requestId,
+      duration: duration
+    });
+    
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    
+    console.error(`[${requestId}] Error`, {
+      duration: `${duration}ms`,
+      error: error.message
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      requestId: requestId
+    });
+  }
+});
+
+// 2. Validate image with AI
+app.post('/api/ai/validate-image', aiLimiter, async (req, res) => {
+  const startTime = Date.now();
+  const requestId = `ai_img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  console.log(`[${requestId}] AI Image validation request`, {
+    hasImageUrl: !!req.body.imageUrl
+  });
+  
+  try {
+    const { imageUrl, prompt } = req.body;
+    
+    if (!imageUrl) {
+      return res.status(400).json({
+        success: false,
+        error: 'imageUrl is required'
+      });
+    }
+    
+    const messages = [
+      {
+        role: 'system',
+        content: 'You are an image validation assistant. Analyze images and provide validation results.'
+      },
+      {
+        role: 'user',
+        content: prompt || `Analyze this image and validate if it meets quality standards: ${imageUrl}`
+      }
+    ];
+    
+    const response = await callOpenAI(messages, 300);
+    const duration = Date.now() - startTime;
+    const analysis = response.choices[0]?.message?.content || '';
+    
+    console.log(`[${requestId}] Success`, {
+      duration: `${duration}ms`,
+      analysisLength: analysis.length
+    });
+    
+    res.json({
+      success: true,
+      analysis: analysis,
+      imageUrl: imageUrl,
+      requestId: requestId,
+      duration: duration
+    });
+    
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    
+    console.error(`[${requestId}] Error`, {
+      duration: `${duration}ms`,
+      error: error.message
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      requestId: requestId
+    });
+  }
+});
+
+// 3. Analyze text with AI
+app.post('/api/ai/analyze-text', aiLimiter, async (req, res) => {
+  const startTime = Date.now();
+  const requestId = `ai_txt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  console.log(`[${requestId}] AI Text analysis request`, {
+    hasText: !!req.body.text,
+    textLength: req.body.text?.length || 0
+  });
+  
+  try {
+    const { text, analysisType } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({
+        success: false,
+        error: 'text is required'
+      });
+    }
+    
+    const systemPrompts = {
+      sentiment: 'You are a sentiment analysis expert. Analyze the sentiment of the text and provide a detailed assessment.',
+      summary: 'You are a text summarization expert. Provide a concise summary of the text.',
+      keywords: 'You are a keyword extraction expert. Extract the main keywords and topics from the text.',
+      default: 'You are a text analysis expert. Analyze the provided text and provide insights.'
+    };
+    
+    const messages = [
+      {
+        role: 'system',
+        content: systemPrompts[analysisType] || systemPrompts.default
+      },
+      {
+        role: 'user',
+        content: text
+      }
+    ];
+    
+    const response = await callOpenAI(messages, 400);
+    const duration = Date.now() - startTime;
+    const analysis = response.choices[0]?.message?.content || '';
+    
+    console.log(`[${requestId}] Success`, {
+      duration: `${duration}ms`,
+      analysisType: analysisType || 'default',
+      analysisLength: analysis.length
+    });
+    
+    res.json({
+      success: true,
+      analysis: analysis,
+      analysisType: analysisType || 'default',
+      requestId: requestId,
+      duration: duration
+    });
+    
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    
+    console.error(`[${requestId}] Error`, {
+      duration: `${duration}ms`,
+      error: error.message
+    });
+    
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      requestId: requestId
+    });
+  }
+});
+
 // QR Display endpoint (HTML for easy scanning)
 app.get('/api/whatsapp/qr/:accountId', async (req, res) => {
   try {
