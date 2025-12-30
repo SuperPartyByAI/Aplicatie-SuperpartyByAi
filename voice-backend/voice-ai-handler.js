@@ -543,11 +543,8 @@ GÂNDIRE CU VOCE TARE (vorbești singură):
 
   /**
    * Process conversation with GPT-4o
-   * @param {string} callSid - Call identifier
-   * @param {string} userMessage - User's speech input
-   * @param {Object} emotions - Hume AI emotion analysis (optional)
    */
-  async processConversation(callSid, userMessage, emotions = null) {
+  async processConversation(callSid, userMessage) {
     if (!this.openai) {
       return {
         response: 'Ne pare rău, serviciul Voice AI nu este disponibil momentan.',
@@ -572,28 +569,10 @@ GÂNDIRE CU VOCE TARE (vorbești singură):
         this.conversations.set(callSid, conversation);
       }
 
-      // Build user message with emotion context
-      let userContent = userMessage;
-      
-      if (emotions && emotions.clientStyle) {
-        // Add emotion context to help GPT-4 adapt
-        let emotionContext = `[EMOTION DETECTED: Client is ${emotions.clientStyle.toUpperCase()}`;
-        
-        if (emotions.topEmotions && emotions.topEmotions.length > 0) {
-          const topEmotion = emotions.topEmotions[0];
-          emotionContext += ` - Primary emotion: ${topEmotion.name} (${(topEmotion.score * 100).toFixed(0)}%)`;
-        }
-        
-        emotionContext += `]\n\n`;
-        userContent = emotionContext + userMessage;
-        
-        console.log(`[VoiceAI] Emotion-enhanced prompt for ${callSid}:`, emotions.clientStyle);
-      }
-
       // Add user message
       conversation.messages.push({
         role: 'user',
-        content: userContent
+        content: userMessage
       });
 
       // Call GPT-4o

@@ -2,11 +2,9 @@ const twilio = require('twilio');
 const VoiceResponse = twilio.twiml.VoiceResponse;
 
 class TwilioHandler {
-  constructor(voiceAI, humeHandler) {
+  constructor(voiceAI) {
     this.voiceAI = voiceAI;
-    this.humeHandler = humeHandler;
     this.activeCalls = new Map();
-    this.callEmotions = new Map(); // Store emotions per call
   }
 
   /**
@@ -73,31 +71,18 @@ class TwilioHandler {
           }, greeting);
         }
         
-        // Gather speech input with recording for emotion analysis
+        // Gather speech input
         const gather = twiml.gather({
           input: 'speech',
           language: 'ro-RO',
           speechTimeout: 'auto',
           action: `${process.env.BACKEND_URL}/api/voice/ai-conversation`,
-          method: 'POST',
-          speechModel: 'phone_call'
+          method: 'POST'
         });
         
-        // Record for emotion analysis (Hume AI)
-        if (this.humeHandler) {
-          twiml.record({
-            maxLength: 30,
-            recordingStatusCallback: `${process.env.BACKEND_URL}/api/voice/recording-callback`,
-            recordingStatusCallbackMethod: 'POST'
-          });
-        }
-        
       } else if (SpeechResult) {
-        // Get emotions for this call (if available)
-        const emotions = this.callEmotions.get(CallSid);
-        
-        // Process user input with emotions
-        const result = await this.voiceAI.processConversation(CallSid, SpeechResult, emotions);
+        // Process user input
+        const result = await this.voiceAI.processConversation(CallSid, SpeechResult);
         
         if (result.completed) {
           // Conversation complete
@@ -211,35 +196,6 @@ class TwilioHandler {
    */
   getActiveCalls() {
     return Array.from(this.activeCalls.values());
-  }
-
-  /**
-   * Handle recording callback from Twilio
-   */
-  async handleRecordingCallback(req, res) {
-    try {
-      const { CallSid, RecordingUrl, RecordingSid } = req.body;
-      
-      if (!this.humeHandler) {
-        return res.status(200).send('OK');
-      }
-
-      console.log(`[Hume] Processing recording for call ${CallSid}: ${RecordingUrl}`);
-
-      // Download and analyze audio with Hume AI
-      const emotions = await this.humeHandler.analyzeAudio(RecordingUrl);
-      
-      if (emotions) {
-        // Store emotions for this call
-        this.callEmotions.set(CallSid, emotions);
-        console.log(`[Hume] Detected emotions for ${CallSid}:`, emotions);
-      }
-
-      res.status(200).send('OK');
-    } catch (error) {
-      console.error('[Hume] Recording callback error:', error);
-      res.status(500).send('Error processing recording');
-    }
   }
 }
 
