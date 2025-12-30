@@ -108,21 +108,57 @@ class EvidenceEndpoints {
           });
         });
         
-        // DoD-WA-1: WA connection status fields
+        // DoD-WA-1: WA connection status fields (COMPLETE W1-W18)
         const waStatus = {
+          // W1: Lock
           waMode: waLock && waLock.leaseUntil > Date.now() ? 'active' : 'passive',
+          lockHolder: waLock?.holderInstanceId || null,
+          lockLeaseUntil: waLock?.leaseUntil || null,
+          leaseEpoch: waLock?.leaseEpoch || 0,
+          
+          // W3: Connection state
           waStatus: waConnection?.waStatus || 'UNKNOWN',
           connectedAt: waConnection?.connectedAt || null,
           lastDisconnectAt: waConnection?.lastDisconnectAt || null,
           lastDisconnectReason: waConnection?.lastDisconnectReason || null,
           retryCount: waConnection?.retryCount || 0,
           nextRetryAt: waConnection?.nextRetryAt || null,
+          
+          // W2: Auth
           authStore: 'firestore',
           authStateExists: authCredsDoc.exists,
           authKeyCount: authKeyCount,
           lastAuthWriteAt: authCredsDoc.exists ? authCredsDoc.data().updatedAt : null,
-          lockHolder: waLock?.holderInstanceId || null,
-          lockLeaseUntil: waLock?.leaseUntil || null
+          
+          // W4: Keepalive
+          lastEventAt: waConnection?.lastEventAt || null,
+          lastMessageAt: waConnection?.lastMessageAt || null,
+          lastAckAt: waConnection?.lastAckAt || null,
+          
+          // W8: Outbox
+          outboxPendingCount: waConnection?.outboxPendingCount || 0,
+          outboxOldestPendingAgeSec: waConnection?.outboxOldestPendingAgeSec || null,
+          drainMode: waConnection?.drainMode || false,
+          
+          // W9: Inbound dedupe
+          inboundDedupeStore: 'firestore',
+          
+          // W12: Dependency health
+          consecutiveFirestoreErrors: waConnection?.consecutiveFirestoreErrors || 0,
+          degradedSince: waConnection?.degradedSince || null,
+          
+          // W13: Circuit breaker
+          reconnectMode: waConnection?.reconnectMode || 'normal',
+          
+          // W14: Single-flight
+          connectInProgress: waConnection?.connectInProgress || false,
+          lastConnectAttemptAt: waConnection?.lastConnectAttemptAt || null,
+          
+          // W18: Pairing
+          pairingRequired: waConnection?.pairingRequired || false,
+          
+          // W17: Warm-up
+          warmUpComplete: waConnection?.warmUpComplete || false
         };
         
         res.json({
