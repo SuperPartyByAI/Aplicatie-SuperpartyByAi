@@ -352,8 +352,9 @@ async function createConnection(accountId, name, phone) {
       if (connection === 'close') {
         const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
         const reason = lastDisconnect?.error?.output?.statusCode || 'unknown';
+        const errorMsg = lastDisconnect?.error?.message || 'No error message';
         
-        console.log(`🔌 [${accountId}] Connection closed. Reason: ${reason}, Reconnect: ${shouldReconnect}`);
+        console.log(`🔌 [${accountId}] Connection closed. Reason: ${reason}, Error: ${errorMsg}, Reconnect: ${shouldReconnect}`);
         
         account.status = shouldReconnect ? 'reconnecting' : 'logged_out';
         account.lastUpdate = new Date().toISOString();
