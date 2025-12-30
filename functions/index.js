@@ -1,5 +1,12 @@
-const functions = require('firebase-functions');
-// const { defineString } = require('firebase-functions/params'); // Temporarily disabled for compatibility
+const { onRequest, onCall } = require('firebase-functions/v2/https');
+const { setGlobalOptions } = require('firebase-functions/v2');
+const functions = require('firebase-functions'); // Keep v1 for existing functions
+
+// Set global options for v2 functions
+setGlobalOptions({
+  region: 'us-central1',
+  maxInstances: 10
+});
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -148,28 +155,25 @@ exports.testAI = functions.https.onRequest((req, res) => {
   res.json({ success: true, message: 'Test AI function works!' });
 });
 
-// AI Chat Function
-exports.chatWithAI = functions
-  .runWith({
-    timeoutSeconds: 60,
-    memory: '256MB'
-  })
-  .https.onCall(async (data, context) => {
+// AI Chat Function (v2)
+exports.chatWithAI = onCall({
+  timeoutSeconds: 60,
+  memory: '256MiB'
+}, async (request) => {
+  const data = request.data;
+  const context = request.auth;
     const startTime = Date.now();
     const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     console.log(`[${requestId}] chatWithAI called`, {
-      hasAuth: !!context.auth,
+      hasAuth: !!context,
       messageCount: data.messages?.length || 0
     });
     
     try {
       // Validate input
       if (!data.messages || !Array.isArray(data.messages)) {
-        throw new functions.https.HttpsError(
-          'invalid-argument',
-          'Messages array is required'
-        );
+        throw new Error('Messages array is required');
       }
       
       // Get OpenAI API key from environment
@@ -177,10 +181,7 @@ exports.chatWithAI = functions
       
       if (!openaiKey) {
         console.error(`[${requestId}] OpenAI API key not configured`);
-        throw new functions.https.HttpsError(
-          'failed-precondition',
-          'AI service not configured. Contact administrator.'
-        );
+        throw new Error('AI service not configured. Contact administrator.');
       }
       
       // Call OpenAI API
@@ -296,7 +297,7 @@ exports.chatWithAI = functions
       });
       
       // Re-throw HttpsError as-is
-      if (error instanceof functions.https.HttpsError) {
+      if (error instanceof Error) {
         throw error;
       }
       
@@ -308,19 +309,19 @@ exports.chatWithAI = functions
     }
   });
 
-// AI Manager Function (for image validation, etc.)
-exports.aiManager = functions
-  .runWith({
-    timeoutSeconds: 60,
-    memory: '512MB'
-  })
-  .https.onCall(async (data, context) => {
+// AI Manager Function (v2)
+exports.aiManager = onCall({
+  timeoutSeconds: 60,
+  memory: '512MiB'
+}, async (request) => {
+  const data = request.data;
+  const context = request.auth;
     const startTime = Date.now();
     const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     console.log(`[${requestId}] aiManager called`, {
       action: data.action,
-      hasAuth: !!context.auth
+      hasAuth: !!context
     });
     
     try {
@@ -357,7 +358,7 @@ exports.aiManager = functions
         message: error.message
       });
       
-      if (error instanceof functions.https.HttpsError) {
+      if (error instanceof Error) {
         throw error;
       }
       
