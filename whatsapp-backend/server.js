@@ -1520,7 +1520,7 @@ async function restoreAccountsFromFirestore() {
             lastUpdate: data.updatedAt || new Date().toISOString()
           };
           
-          // Setup event handlers (simplified)
+          // Setup event handlers (FULL - same as createConnection)
           sock.ev.on('connection.update', async (update) => {
             if (update.connection === 'open') {
               account.status = 'connected';
@@ -1529,6 +1529,67 @@ async function restoreAccountsFromFirestore() {
           });
           
           sock.ev.on('creds.update', saveCreds);
+          
+          // Messages handler - CRITICAL for receiving messages
+          sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
+            console.log(`🔔 [${accountId}] messages.upsert EVENT: type=${type}, count=${newMessages.length}`);
+            
+            for (const msg of newMessages) {
+              console.log(`📩 [${accountId}] RAW MESSAGE:`, JSON.stringify({
+                id: msg.key.id,
+                remoteJid: msg.key.remoteJid,
+                fromMe: msg.key.fromMe,
+                participant: msg.key.participant,
+                hasMessage: !!msg.message,
+                messageKeys: msg.message ? Object.keys(msg.message) : []
+              }));
+              
+              if (!msg.message) {
+                console.log(`⚠️  [${accountId}] Skipping message ${msg.key.id} - no message content`);
+                continue;
+              }
+              
+              const messageId = msg.key.id;
+              const from = msg.key.remoteJid;
+              const isFromMe = msg.key.fromMe;
+              
+              console.log(`📨 [${accountId}] PROCESSING: ${isFromMe ? 'OUTBOUND' : 'INBOUND'} message ${messageId} from ${from}`);
+              
+              try {
+                const threadId = from;
+                const messageData = {
+                  accountId,
+                  clientJid: from,
+                  direction: isFromMe ? 'outbound' : 'inbound',
+                  body: msg.message.conversation || msg.message.extendedTextMessage?.text || '',
+                  waMessageId: messageId,
+                  status: 'delivered',
+                  tsClient: new Date(msg.messageTimestamp * 1000).toISOString(),
+                  tsServer: admin.firestore.FieldValue.serverTimestamp(),
+                  createdAt: admin.firestore.FieldValue.serverTimestamp()
+                };
+                
+                console.log(`💾 [${accountId}] Saving to Firestore: threads/${threadId}/messages/${messageId}`, {
+                  direction: messageData.direction,
+                  body: messageData.body.substring(0, 50)
+                });
+                
+                await db.collection('threads').doc(threadId).collection('messages').doc(messageId).set(messageData);
+                
+                console.log(`✅ [${accountId}] Message saved successfully`);
+                
+                await db.collection('threads').doc(threadId).set({
+                  accountId,
+                  clientJid: from,
+                  lastMessageAt: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                
+                console.log(`💾 [${accountId}] Message saved to Firestore: ${messageId}`);
+              } catch (error) {
+                console.error(`❌ [${accountId}] Message save failed:`, error.message);
+              }
+            }
+          });
           
         connections.set(accountId, account);
         console.log(`✅ [${accountId}] Restored to memory`);
