@@ -198,37 +198,90 @@ class WhatsAppManager {
         return;
       }
       
-      console.log(`📦 Found ${sessions.length} saved session(s), restoring...`);
+      console.log(`📦 Found ${sessions.length} saved session(s), restoring with concurrency limit...`);
       
-      for (const session of sessions) {
-        const accountId = session.accountId;
-        const phoneNumber = session.creds?.me?.id?.split(':')[0] || session.metadata?.phone || null;
+      // Restore with concurrency limit (2 at a time) to avoid overwhelming
+      const CONCURRENCY = 2;
+      for (let i = 0; i < sessions.length; i += CONCURRENCY) {
+        const batch = sessions.slice(i, i + CONCURRENCY);
+        await Promise.all(batch.map(session => this.restoreSession(session)));
         
-        console.log(`🔄 Restoring account: ${accountId} (${phoneNumber || 'unknown'})`);
-        
-        // Restore account cu metadata salvată
-        const account = {
-          id: accountId,
-          name: session.metadata?.name || `WhatsApp ${accountId}`,
-          status: 'connecting',
-          qrCode: null,
-          pairingCode: null,
-          phone: phoneNumber,
-          createdAt: session.metadata?.createdAt || session.updatedAt || new Date().toISOString()
-        };
-        
-        this.accounts.set(accountId, account);
-        
-        // Connect with restored session
-        await this.connectBaileys(accountId, phoneNumber);
+        // Delay between batches
+        if (i + CONCURRENCY < sessions.length) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
       }
       
-      console.log(`✅ Auto-restore complete: ${sessions.length} account(s) restored`);
-      
-      // Cleanup Firestore: remove accounts not in memory
-      await this.cleanupFirestoreAccounts();
+      console.log(`✅ Auto-restore complete: ${sessions.length} account(s) processed`);
     } catch (error) {
-      console.error('❌ Auto-restore failed:', error.message);
+      console.error('❌ Error during auto-restore:', error);
+    }
+  }
+
+  /**
+   * Restore a single session with validation and cleanup
+   */
+  async restoreSession(session) {
+    const accountId = session.accountId;
+    const phoneNumber = session.creds?.me?.id?.split(':')[0] || session.metadata?.phone || null;
+    
+    console.log(`🔄 Restoring account: ${accountId} (${phoneNumber || 'unknown'})`);
+    
+    try {
+      // Validate session age (sessions expire after ~14 days)
+      const sessionAge = Date.now() - new Date(session.updatedAt).getTime();
+      const MAX_SESSION_AGE = 14 * 24 * 60 * 60 * 1000; // 14 days
+      
+      if (sessionAge > MAX_SESSION_AGE) {
+        console.log(`⚠️ [${accountId}] Session too old (${Math.floor(sessionAge / (24 * 60 * 60 * 1000))} days), cleaning up`);
+        await this.cleanupExpiredSession(accountId, session.sessionPath);
+        return;
+      }
+      
+      // Restore account with metadata
+      const account = {
+        id: accountId,
+        name: session.metadata?.name || `WhatsApp ${accountId}`,
+        status: 'connecting',
+        qrCode: null,
+        pairingCode: null,
+        phone: phoneNumber,
+        createdAt: session.metadata?.createdAt || session.updatedAt || new Date().toISOString()
+      };
+      
+      this.accounts.set(accountId, account);
+      
+      // Connect with restored session (will validate and cleanup if invalid)
+      await this.connectBaileys(accountId, phoneNumber);
+      
+    } catch (error) {
+      console.error(`❌ [${accountId}] Error restoring session:`, error);
+      // Cleanup on restore error
+      await this.cleanupExpiredSession(accountId, session.sessionPath);
+    }
+  }
+
+  /**
+   * Cleanup expired or invalid session
+   */
+  async cleanupExpiredSession(accountId, sessionPath) {
+    try {
+      console.log(`🗑️ [${accountId}] Cleaning up expired/invalid session`);
+      
+      // Delete session from Firestore
+      await sessionStore.deleteSession(accountId, sessionPath);
+      
+      // Delete account doc from Firestore
+      await firestore.db.collection('accounts').doc(accountId).delete();
+      
+      // Remove from memory
+      this.accounts.delete(accountId);
+      this.clients.delete(accountId);
+      this.reconnectAttempts.delete(accountId);
+      
+      console.log(`✅ [${accountId}] Cleanup complete - session removed`);
+    } catch (error) {
+      console.error(`❌ [${accountId}] Error during cleanup:`, error);
     }
   }
   
@@ -663,7 +716,7 @@ class WhatsAppManager {
     return false;
   }
 
-  handleConnectionTimeout(accountId, phoneNumber) {
+  async handleConnectionTimeout(accountId, phoneNumber) {
     const account = this.accounts.get(accountId);
     if (!account) return;
     
@@ -676,8 +729,8 @@ class WhatsAppManager {
     }
     
     if (attempts >= this.MAX_RECONNECT_ATTEMPTS) {
-      // Max attempts reached, fallback to QR
-      console.log(`❌ [${accountId}] Max reconnect attempts (${this.MAX_RECONNECT_ATTEMPTS}) reached, generating QR...`);
+      // Max attempts reached - session is INVALID
+      console.log(`❌ [${accountId}] Max reconnect attempts (${this.MAX_RECONNECT_ATTEMPTS}) reached - session INVALID`);
       account.status = 'needs_qr';
       
       // Clean up client
@@ -688,13 +741,12 @@ class WhatsAppManager {
         } catch (e) {
           // Ignore
         }
-        this.clients.delete(accountId);
       }
       
-      // Trigger QR generation by creating new connection
-      this.reconnectAttempts.delete(accountId);
-      this.addAccount(account.name, phoneNumber).catch(err => {
-        console.error(`❌ [${accountId}] Failed to generate QR:`, err.message);
+      // Cleanup expired session
+      const sessionPath = path.join(this.sessionsPath, accountId);
+      await this.cleanupExpiredSession(accountId, sessionPath).catch(err => {
+        console.error(`❌ [${accountId}] Failed to cleanup:`, err.message);
       });
       
       // Send alert
@@ -731,6 +783,22 @@ class WhatsAppManager {
     }
 
     const accountId = `account_${Date.now()}`;
+    
+    // CLEANUP: Delete any old session for this phone number (prevent conflicts)
+    if (normalizedPhone) {
+      console.log(`🧹 [${accountId}] Cleaning up old sessions for phone: ${normalizedPhone}`);
+      const oldAccounts = Array.from(this.accounts.entries())
+        .filter(([id, acc]) => acc.phone === normalizedPhone);
+      
+      for (const [oldId, oldAcc] of oldAccounts) {
+        console.log(`🗑️ [${oldId}] Removing old account for same phone`);
+        const sessionPath = path.join(this.sessionsPath, oldId);
+        await this.cleanupExpiredSession(oldId, sessionPath).catch(err => {
+          console.error(`❌ [${oldId}] Failed to cleanup:`, err.message);
+        });
+      }
+    }
+    
     const account = {
       id: accountId,
       name: accountName || `WhatsApp ${this.accounts.size + 1}`,
@@ -849,9 +917,18 @@ class WhatsAppManager {
       }
 
       if (connection === 'close') {
-        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-        const reason = lastDisconnect?.error?.output?.statusCode || 'unknown';
-        console.log(`🔌 [${accountId}] Connection closed. Reason: ${reason}, Reconnect: ${shouldReconnect}`);
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const reason = statusCode || 'unknown';
+        
+        // Detect INVALID sessions (loggedOut, badSession, unauthorized)
+        const isInvalidSession = statusCode === DisconnectReason.loggedOut || 
+                                 statusCode === 401 || 
+                                 statusCode === 403 ||
+                                 statusCode === 428; // Connection closed (bad session)
+        
+        const shouldReconnect = !isInvalidSession;
+        
+        console.log(`🔌 [${accountId}] Connection closed. Reason: ${reason}, Invalid: ${isInvalidSession}, Reconnect: ${shouldReconnect}`);
         
         // TIER ULTIMATE 2: Record disconnect
         advancedHealthChecker.recordEvent(accountId, 'disconnect', { reason });
@@ -892,19 +969,17 @@ class WhatsAppManager {
             }
           }, 1000); // ÎMBUNĂTĂȚIRE: 1s instead of 5s
         } else {
-          console.log(`❌ [${accountId}] Logged out - generating new QR/pairing...`);
-          
-          // Set status to needs_qr
-          if (account) {
-            account.status = 'needs_qr';
-            account.qrCode = null;
-            account.pairingCode = null;
-          }
+          // Session is INVALID - cleanup required
+          console.log(`❌ [${accountId}] Session INVALID (reason: ${reason}) - cleaning up`);
+          const sessionPath = path.join(this.sessionsPath, accountId);
+          await this.cleanupExpiredSession(accountId, sessionPath).catch(err => {
+            console.error(`❌ [${accountId}] Failed to cleanup:`, err.message);
+          });
           
           // Log incident
-          monitor.logIncident(accountId, 'logged_out', {
+          monitor.logIncident(accountId, 'session_invalid', {
             reason: reason,
-            requiresQR: true
+            cleaned: true
           }).catch(err => console.error('Failed to log incident:', err));
           
           // Update monitor status
@@ -912,9 +987,6 @@ class WhatsAppManager {
             disconnectReason: reason,
             lastDisconnectedAt: new Date().toISOString()
           }).catch(err => console.error('Failed to update monitor:', err));
-          
-          // Clean up old client
-          this.clients.delete(accountId);
           
           // Generate new QR/pairing by re-adding account
           const savedPhone = account?.phone;
