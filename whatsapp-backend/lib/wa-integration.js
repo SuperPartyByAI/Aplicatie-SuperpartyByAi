@@ -115,7 +115,7 @@ class WAIntegration {
   }
 
   /**
-   * W8: Process outbox
+   * W8: Process outbox (PENDING + SENT without ACK)
    */
   async processOutbox() {
     if (this.outboxProcessing || this.pairingRequired || !this.warmUpComplete) {
@@ -125,16 +125,34 @@ class WAIntegration {
     this.outboxProcessing = true;
     
     try {
-      // Get pending messages
-      const snapshot = await this.db.collection('wa_metrics/longrun/outbox')
+      // Get PENDING messages
+      const pendingSnapshot = await this.db.collection('wa_metrics/longrun/outbox')
         .where('status', '==', 'PENDING')
         .where('nextAttemptAt', '<=', new Date())
         .orderBy('nextAttemptAt')
         .limit(this.drainMode ? 5 : 10)
         .get();
       
-      for (const doc of snapshot.docs) {
+      for (const doc of pendingSnapshot.docs) {
         await this.sendOutboxMessage(doc.id, doc.data());
+      }
+      
+      // Get SENT messages without ACK (timeout > 5 min)
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const sentSnapshot = await this.db.collection('wa_metrics/longrun/outbox')
+        .where('status', '==', 'SENT')
+        .where('sentAt', '<', fiveMinutesAgo)
+        .limit(5)
+        .get();
+      
+      for (const doc of sentSnapshot.docs) {
+        console.log(`[WAIntegration] Retrying SENT without ACK: ${doc.id}`);
+        // Reset to PENDING for retry
+        await this.db.doc(`wa_metrics/longrun/outbox/${doc.id}`).update({
+          status: 'PENDING',
+          nextAttemptAt: new Date(),
+          lastError: 'ack_timeout_5min'
+        });
       }
     } catch (error) {
       console.error('[WAIntegration] Outbox processing error:', error.message);
@@ -166,9 +184,13 @@ class WAIntegration {
     
     try {
       // TODO: Actual send via Baileys socket
-      // For now, mark as SENT
+      // For now, simulate send and generate waMessageId
+      const waMessageId = `MSG_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      
       await this.db.doc(`wa_metrics/longrun/outbox/${outboxId}`).update({
         status: 'SENT',
+        sentAt: FieldValue.serverTimestamp(),
+        waMessageId,
         attemptCount: (data.attemptCount || 0) + 1,
         lastUpdatedAt: FieldValue.serverTimestamp(),
         instanceId: this.instanceId,
@@ -176,7 +198,7 @@ class WAIntegration {
       });
       
       this.lastSendAt = now;
-      console.log(`[WAIntegration] Sent outbox message: ${outboxId}`);
+      console.log(`[WAIntegration] Sent outbox message: ${outboxId} waMessageId=${waMessageId}`);
     } catch (error) {
       console.error(`[WAIntegration] Failed to send ${outboxId}:`, error.message);
       
@@ -390,6 +412,34 @@ class WAIntegration {
     
     // Exit
     process.exit(reason === 'event_loop_stall' ? 1 : 0);
+  }
+
+  /**
+   * Handle message ACK (mark outbox as ACKED)
+   */
+  async handleMessageAck(waMessageId) {
+    try {
+      // Find outbox entry by waMessageId
+      const snapshot = await this.db.collection('wa_metrics/longrun/outbox')
+        .where('waMessageId', '==', waMessageId)
+        .where('status', '==', 'SENT')
+        .limit(1)
+        .get();
+      
+      if (snapshot.empty) {
+        return;
+      }
+      
+      const doc = snapshot.docs[0];
+      await this.db.doc(`wa_metrics/longrun/outbox/${doc.id}`).update({
+        status: 'ACKED',
+        ackedAt: FieldValue.serverTimestamp()
+      });
+      
+      console.log(`[WAIntegration] Message ACKED: ${doc.id}`);
+    } catch (error) {
+      console.error('[WAIntegration] ACK handling error:', error.message);
+    }
   }
 
   /**
