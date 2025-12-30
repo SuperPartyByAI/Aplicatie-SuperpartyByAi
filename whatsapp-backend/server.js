@@ -1104,6 +1104,54 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
 // ============================================
 
 // POST /api/admin/account/:id/disconnect
+// Public disconnect endpoint for UI
+app.post('/api/whatsapp/disconnect/:id', accountLimiter, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const account = connections.get(id);
+    
+    if (!account) {
+      return res.status(404).json({ success: false, error: 'Account not found' });
+    }
+    
+    const tsDisconnect = Date.now();
+    
+    // Close socket
+    if (account.sock) {
+      account.sock.end();
+      console.log(`🔌 [${id}] Socket closed by user request`);
+    }
+    
+    // Update status in memory
+    account.status = 'disconnected';
+    
+    // Update status in Firestore
+    if (firestoreAvailable) {
+      await db.collection('accounts').doc(id).update({
+        status: 'disconnected',
+        disconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      console.log(`💾 [${id}] Status updated to disconnected in Firestore`);
+    }
+    
+    // Remove from connections (will not auto-restore until manually reconnected)
+    connections.delete(id);
+    
+    console.log(`🔌 [${id}] Account disconnected by user`);
+    
+    res.json({
+      success: true,
+      accountId: id,
+      tsDisconnect,
+      reason: 'user_disconnect'
+    });
+  } catch (error) {
+    console.error(`❌ Disconnect error:`, error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/admin/account/:id/disconnect', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
