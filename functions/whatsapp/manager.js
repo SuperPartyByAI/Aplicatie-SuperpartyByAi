@@ -42,6 +42,13 @@ class WhatsAppManager {
     this.reconnectTimeouts = new Map(); // Track reconnect timeouts per account
     this.connectionStartTime = new Map(); // Track when connection attempt started
     
+    // Status sync debouncing
+    this.statusSyncQueue = new Map(); // accountId -> {status, timestamp}
+    this.statusSyncTimers = new Map(); // accountId -> timeoutId
+    this.lastStatusSync = new Map(); // accountId -> timestamp
+    this.STATUS_SYNC_DEBOUNCE_MS = 5000; // 5 seconds debounce
+    this.STATUS_SYNC_MIN_INTERVAL_MS = 10000; // 10 seconds minimum between syncs
+    
     // Reconnect configuration
     this.MAX_RECONNECT_ATTEMPTS = 5;
     this.RECONNECT_TIMEOUT_MS = 60000; // 60 seconds max per attempt
@@ -168,21 +175,39 @@ class WhatsAppManager {
     // ÎMBUNĂTĂȚIRE: Check every 15 seconds (was 30s) - reduce detection delay 50%
     this.healthCheckInterval = setInterval(() => {
       for (const [accountId, sock] of this.clients.entries()) {
-        const lastMsg = this.lastMessageTime.get(accountId) || Date.now();
-        const timeSinceLastMsg = Date.now() - lastMsg;
-        
-        // Dacă nu am primit mesaje în 2 minute, verifică conexiunea
-        if (timeSinceLastMsg > 120000) {
-          console.log(`[Health Check] Account ${accountId} - no activity for 2 min, checking...`);
-          
-          // Încearcă să trimită presence
-          try {
-            sock.sendPresenceUpdate('available');
-            this.lastMessageTime.set(accountId, Date.now());
-          } catch (error) {
-            console.log(`[Health Check] Account ${accountId} - connection dead, reconnecting...`);
-            this.reconnectAccount(accountId);
+        try {
+          // Validate socket exists and is connected
+          if (!sock || !sock.user || sock.ws?.readyState !== 1) {
+            console.log(`[Health Check] Account ${accountId} - socket not ready (state: ${sock?.ws?.readyState}), skipping`);
+            continue;
           }
+          
+          const account = this.accounts.get(accountId);
+          if (!account || account.status !== 'connected') {
+            continue;
+          }
+          
+          const lastMsg = this.lastMessageTime.get(accountId) || Date.now();
+          const timeSinceLastMsg = Date.now() - lastMsg;
+          
+          // Dacă nu am primit mesaje în 2 minute, verifică conexiunea
+          if (timeSinceLastMsg > 120000) {
+            console.log(`[Health Check] Account ${accountId} - no activity for 2 min, checking...`);
+            
+            // Încearcă să trimită presence (with timeout protection)
+            Promise.race([
+              sock.sendPresenceUpdate('available'),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Presence timeout')), 5000))
+            ]).then(() => {
+              this.lastMessageTime.set(accountId, Date.now());
+            }).catch(error => {
+              console.log(`[Health Check] Account ${accountId} - presence failed: ${error.message}, reconnecting...`);
+              this.reconnectAccount(accountId);
+            });
+          }
+        } catch (error) {
+          console.error(`[Health Check] Account ${accountId} - error: ${error.message}`);
+          // Don't crash, just log and continue
         }
       }
     }, 15000); // ÎMBUNĂTĂȚIRE: 15s instead of 30s
@@ -282,6 +307,74 @@ class WhatsAppManager {
       console.log(`✅ [${accountId}] Cleanup complete - session removed`);
     } catch (error) {
       console.error(`❌ [${accountId}] Error during cleanup:`, error);
+    }
+  }
+
+  /**
+   * Debounced status sync to Firestore with rate limiting
+   * Prevents DEADLINE_EXCEEDED by batching rapid status changes
+   */
+  syncAccountStatusDebounced(accountId, status, account) {
+    // Check if we synced recently (rate limiting)
+    const lastSync = this.lastStatusSync.get(accountId) || 0;
+    const timeSinceLastSync = Date.now() - lastSync;
+    
+    if (timeSinceLastSync < this.STATUS_SYNC_MIN_INTERVAL_MS) {
+      console.log(`⏭️ [${accountId}] Status sync rate-limited (${timeSinceLastSync}ms since last sync)`);
+      // Queue for later
+      this.statusSyncQueue.set(accountId, { status, account, timestamp: Date.now() });
+      return;
+    }
+    
+    // Clear existing timer
+    if (this.statusSyncTimers.has(accountId)) {
+      clearTimeout(this.statusSyncTimers.get(accountId));
+    }
+    
+    // Debounce: wait for status to stabilize
+    const timerId = setTimeout(() => {
+      this.statusSyncTimers.delete(accountId);
+      this.performStatusSync(accountId, status, account);
+    }, this.STATUS_SYNC_DEBOUNCE_MS);
+    
+    this.statusSyncTimers.set(accountId, timerId);
+  }
+
+  /**
+   * Perform actual status sync with timeout and retry
+   */
+  async performStatusSync(accountId, status, account) {
+    try {
+      console.log(`💾 [${accountId}] Syncing status: ${status}`);
+      
+      // Race with timeout (5s max)
+      await Promise.race([
+        firestore.db.collection('accounts').doc(accountId).set({
+          id: accountId,
+          name: account.name,
+          status: status,
+          phone: account.phone,
+          updatedAt: firestore.admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Status sync timeout')), 5000))
+      ]);
+      
+      this.lastStatusSync.set(accountId, Date.now());
+      console.log(`✅ [${accountId}] Status synced successfully`);
+      
+    } catch (error) {
+      console.error(`⚠️ [${accountId}] Status sync failed (non-critical): ${error.message}`);
+      // Best-effort: don't crash, just log
+      
+      // Retry once after 10s if it was a timeout
+      if (error.message.includes('timeout') || error.message.includes('DEADLINE_EXCEEDED')) {
+        setTimeout(() => {
+          console.log(`🔄 [${accountId}] Retrying status sync...`);
+          this.performStatusSync(accountId, status, account).catch(() => {
+            console.log(`⚠️ [${accountId}] Status sync retry failed, giving up`);
+          });
+        }, 10000);
+      }
     }
   }
   
@@ -920,6 +1013,12 @@ class WhatsAppManager {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const reason = statusCode || 'unknown';
         
+        // CLEANUP: Clear all timers/intervals for this account
+        if (this.reconnectTimeouts.has(accountId)) {
+          clearTimeout(this.reconnectTimeouts.get(accountId));
+          this.reconnectTimeouts.delete(accountId);
+        }
+        
         // Detect INVALID sessions (loggedOut, badSession, unauthorized)
         const isInvalidSession = statusCode === DisconnectReason.loggedOut || 
                                  statusCode === 401 || 
@@ -940,14 +1039,8 @@ class WhatsAppManager {
         if (account) {
           account.status = shouldReconnect ? 'reconnecting' : 'disconnected';
           
-          // Sync to Firestore immediately
-          await firestore.db.collection('accounts').doc(accountId).set({
-            id: accountId,
-            name: account.name,
-            status: account.status,
-            phone: account.phone,
-            updatedAt: firestore.admin.firestore.FieldValue.serverTimestamp()
-          }, { merge: true }).catch(err => console.error('Failed to sync account status:', err));
+          // Sync to Firestore with debouncing (best-effort, non-blocking)
+          this.syncAccountStatusDebounced(accountId, account.status, account);
           
           // Salvează status în Firestore (păstrează accountul în listă)
           const sessionPath = path.join(this.sessionsPath, accountId);
@@ -1037,14 +1130,8 @@ class WhatsAppManager {
           account.qrCode = null;
           account.phone = sock.user?.id?.split(':')[0] || null;
           
-          // Sync to Firestore immediately
-          await firestore.db.collection('accounts').doc(accountId).set({
-            id: accountId,
-            name: account.name,
-            status: 'connected',
-            phone: account.phone,
-            updatedAt: firestore.admin.firestore.FieldValue.serverTimestamp()
-          }, { merge: true }).catch(err => console.error('Failed to sync account status:', err));
+          // Sync to Firestore with debouncing (best-effort, non-blocking)
+          this.syncAccountStatusDebounced(accountId, 'connected', account);
         }
         
         // 💾 CRITICAL: Save session to Firestore IMMEDIATELY after connection
@@ -1709,5 +1796,43 @@ class WhatsAppManager {
     return report;
   }
 }
+
+// Global error handlers to prevent process crashes
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🚨 Unhandled Rejection at:', promise);
+  console.error('🚨 Reason:', reason);
+  // Log to Firestore for monitoring
+  try {
+    const firestore = require('./firebase/firestore');
+    firestore.db.collection('system_errors').add({
+      type: 'unhandledRejection',
+      reason: reason?.message || String(reason),
+      stack: reason?.stack || null,
+      timestamp: firestore.admin.firestore.FieldValue.serverTimestamp()
+    }).catch(err => console.error('Failed to log unhandledRejection:', err));
+  } catch (e) {
+    // Ignore if firestore not available
+  }
+  // DO NOT rethrow or exit - keep process alive
+});
+
+process.on('uncaughtException', (error, origin) => {
+  console.error('🚨 Uncaught Exception:', error);
+  console.error('🚨 Origin:', origin);
+  // Log to Firestore for monitoring
+  try {
+    const firestore = require('./firebase/firestore');
+    firestore.db.collection('system_errors').add({
+      type: 'uncaughtException',
+      message: error.message,
+      stack: error.stack,
+      origin: origin,
+      timestamp: firestore.admin.firestore.FieldValue.serverTimestamp()
+    }).catch(err => console.error('Failed to log uncaughtException:', err));
+  } catch (e) {
+    // Ignore if firestore not available
+  }
+  // DO NOT exit - keep process alive
+});
 
 module.exports = WhatsAppManager;
