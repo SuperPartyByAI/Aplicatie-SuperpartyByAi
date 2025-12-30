@@ -44,7 +44,15 @@ class EvidenceEndpoints {
         
         // Get auth state info
         const authCredsDoc = await this.db.doc('wa_metrics/longrun/baileys_auth/creds').get();
-        const authKeysSnapshot = await this.db.collection('wa_metrics/longrun/baileys_auth/keys').get();
+        // Keys are stored as subcollection, use collectionGroup or count differently
+        let authKeyCount = 0;
+        try {
+          const keysRef = this.db.doc('wa_metrics/longrun/baileys_auth').collection('keys');
+          const authKeysSnapshot = await keysRef.get();
+          authKeyCount = authKeysSnapshot.size;
+        } catch (error) {
+          console.error('[status-now] Error counting auth keys:', error.message);
+        }
         
         // Get latest heartbeats
         const now = Date.now();
@@ -110,7 +118,7 @@ class EvidenceEndpoints {
           nextRetryAt: waConnection?.nextRetryAt || null,
           authStore: 'firestore',
           authStateExists: authCredsDoc.exists,
-          authKeyCount: authKeysSnapshot.size,
+          authKeyCount: authKeyCount,
           lastAuthWriteAt: authCredsDoc.exists ? authCredsDoc.data().updatedAt : null,
           lockHolder: waLock?.holderInstanceId || null,
           lockLeaseUntil: waLock?.leaseUntil || null
