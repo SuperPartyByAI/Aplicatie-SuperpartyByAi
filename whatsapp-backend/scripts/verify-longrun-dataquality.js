@@ -53,16 +53,27 @@ async function verifyDataQuality() {
   console.log(`  Max gap: ${maxGap.toFixed(0)}s`);
   console.log(`  Expected interval: 60s`);
   
-  // Verdict
-  const pass = coverage >= 0.8 && maxGap <= 120;
+  // SLO Validation
+  const insufficientData = coverage < 0.8;
+  const uptimePct = coverage * 100;
+  const driftExceeded = maxGap > 120;
   
+  console.log(`\n=== SLO VALIDATION ===`);
+  console.log(`  Uptime: ${uptimePct.toFixed(2)}%`);
+  console.log(`  Insufficient data: ${insufficientData ? 'YES' : 'NO'}`);
+  console.log(`  Max gap acceptable: ${!driftExceeded ? 'YES' : 'NO'}`);
+  
+  // Verdict
   console.log(`\n=== VERDICT ===`);
-  if (pass) {
+  if (insufficientData) {
+    console.log('⚠️  INSUFFICIENT_DATA (coverage < 80%)');
+    process.exit(2); // Exit code 2 for insufficient data
+  } else if (driftExceeded) {
+    console.log(`❌ DATA QUALITY FAIL (max gap ${maxGap}s > 120s)`);
+    process.exit(1);
+  } else {
     console.log('✅ DATA QUALITY PASS');
     process.exit(0);
-  } else {
-    console.log('❌ DATA QUALITY FAIL');
-    process.exit(1);
   }
 }
 

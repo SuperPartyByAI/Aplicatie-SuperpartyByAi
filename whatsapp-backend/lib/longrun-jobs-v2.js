@@ -128,11 +128,22 @@ function startLockRenew() {
   }, LOCK_RENEW_SEC * 1000);
 }
 
+let lastHeartbeatTs = null;
+
 function startHeartbeatJob() {
   heartbeatInterval = setInterval(async () => {
     try {
       const now = new Date();
+      const nowTs = now.getTime();
       const bucketId = now.toISOString().replace(/[:.]/g, '-').slice(0, 19); // yyyyMMddTHHmmss
+      
+      // Calculate drift
+      let driftSec = 0;
+      if (lastHeartbeatTs) {
+        const actualInterval = (nowTs - lastHeartbeatTs) / 1000;
+        driftSec = Math.abs(actualInterval - HEARTBEAT_INTERVAL_SEC);
+      }
+      lastHeartbeatTs = nowTs;
       
       const uptime = process.uptime();
       const memory = process.memoryUsage();
@@ -142,7 +153,8 @@ function startHeartbeatJob() {
         ts: admin.firestore.FieldValue.serverTimestamp(),
         tsIso: now.toISOString(),
         bucketId,
-        commit: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+        commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+        serviceVersion: '2.0.0',
         instanceId,
         uptimeSec: Math.floor(uptime),
         memoryRss: memory.rss,
@@ -152,10 +164,10 @@ function startHeartbeatJob() {
         needsQrCount: 0,
         queueDepth: 0,
         expectedIntervalSec: HEARTBEAT_INTERVAL_SEC,
-        driftSec: 0
+        driftSec: Math.round(driftSec)
       });
       
-      console.log(`💓 Heartbeat: ${bucketId} (uptime=${Math.floor(uptime)}s, connected=${connectedCount})`);
+      console.log(`💓 Heartbeat: ${bucketId} (uptime=${Math.floor(uptime)}s, connected=${connectedCount}, drift=${Math.round(driftSec)}s)`);
     } catch (error) {
       console.error('❌ Heartbeat error:', error.message);
     }
@@ -204,7 +216,8 @@ async function runOutboundProbe() {
       result: 'PASS',
       latencyMs: Date.now() - startTs,
       instanceId,
-      commit: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown'
+      commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+      serviceVersion: '2.0.0'
     });
     
     console.log(`✅ Outbound probe PASS: ${probeKey}`);
@@ -217,7 +230,10 @@ async function runOutboundProbe() {
       ts: admin.firestore.FieldValue.serverTimestamp(),
       result: 'FAIL',
       error: error.message,
-      latencyMs: Date.now() - startTs
+      latencyMs: Date.now() - startTs,
+      instanceId,
+      commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+      serviceVersion: '2.0.0'
     });
   }
 }
@@ -243,7 +259,9 @@ async function runQueueProbe() {
       ts: admin.firestore.FieldValue.serverTimestamp(),
       tsIso: now.toISOString(),
       result: 'PASS',
-      instanceId
+      instanceId,
+      commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+      serviceVersion: '2.0.0'
     });
     
     console.log(`✅ Queue probe PASS: ${probeKey}`);
@@ -277,6 +295,8 @@ async function runInboundProbe() {
       tsIso: now.toISOString(),
       result: 'PASS',
       instanceId,
+      commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+      serviceVersion: '2.0.0',
       note: 'Probe sender required for full implementation'
     });
     
@@ -305,7 +325,130 @@ function startAlertMonitoring() {
     }
   }, 6 * 3600000); // 6 hours
   
+  // Daily rollup at midnight UTC
+  scheduleDailyRollup();
+  
   console.log('✅ Alert monitoring started');
+}
+
+function scheduleDailyRollup() {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setUTCHours(24, 0, 0, 0); // Next midnight UTC
+  
+  const msUntilMidnight = midnight.getTime() - now.getTime();
+  
+  setTimeout(() => {
+    runDailyRollup();
+    // Schedule next rollup in 24h
+    setInterval(() => runDailyRollup(), 24 * 3600000);
+  }, msUntilMidnight);
+  
+  console.log(`📅 Daily rollup scheduled for ${midnight.toISOString()}`);
+}
+
+async function runDailyRollup() {
+  const yesterday = new Date();
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const dateKey = yesterday.toISOString().slice(0, 10); // yyyy-mm-dd
+  
+  try {
+    console.log(`📊 Running daily rollup for ${dateKey}`);
+    
+    // Check if already exists (idempotency)
+    const rollupRef = db.collection('wa_metrics').doc('longrun').collection('rollups').doc(dateKey);
+    const rollupDoc = await rollupRef.get();
+    
+    if (rollupDoc.exists) {
+      console.log(`⚠️  Rollup ${dateKey} already exists, skipping`);
+      return;
+    }
+    
+    // Get heartbeats for the day
+    const dayStart = new Date(yesterday);
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const dayEnd = new Date(yesterday);
+    dayEnd.setUTCHours(23, 59, 59, 999);
+    
+    const hbSnapshot = await db.collection('wa_metrics').doc('longrun').collection('heartbeats')
+      .where('tsIso', '>=', dayStart.toISOString())
+      .where('tsIso', '<=', dayEnd.toISOString())
+      .get();
+    
+    const expectedHb = 24 * 60; // 1440 per day
+    const writtenHb = hbSnapshot.size;
+    const missedHb = expectedHb - writtenHb;
+    const uptimePct = (writtenHb / expectedHb) * 100;
+    const numericCoverage = writtenHb / expectedHb;
+    
+    // Get incidents for the day
+    const incidentsSnapshot = await db.collection('wa_metrics').doc('longrun').collection('incidents')
+      .where('tsStart', '>=', dayStart.getTime())
+      .where('tsStart', '<=', dayEnd.getTime())
+      .get();
+    
+    const incidents = [];
+    incidentsSnapshot.forEach(doc => incidents.push(doc.data()));
+    
+    // Calculate MTTR
+    const mttrs = incidents
+      .filter(i => i.mttrSec !== null)
+      .map(i => i.mttrSec)
+      .sort((a, b) => a - b);
+    
+    const mttrP50 = mttrs.length > 0 ? mttrs[Math.floor(mttrs.length * 0.5)] : null;
+    const mttrP90 = mttrs.length > 0 ? mttrs[Math.floor(mttrs.length * 0.9)] : null;
+    const mttrP95 = mttrs.length > 0 ? mttrs[Math.floor(mttrs.length * 0.95)] : null;
+    
+    // Get probe pass rates
+    const probeSnapshot = await db.collection('wa_metrics').doc('longrun').collection('probes')
+      .where('tsIso', '>=', dayStart.toISOString())
+      .where('tsIso', '<=', dayEnd.toISOString())
+      .get();
+    
+    const probesByType = {};
+    probeSnapshot.forEach(doc => {
+      const data = doc.data();
+      if (!probesByType[data.type]) {
+        probesByType[data.type] = { pass: 0, fail: 0 };
+      }
+      if (data.result === 'PASS') {
+        probesByType[data.type].pass++;
+      } else {
+        probesByType[data.type].fail++;
+      }
+    });
+    
+    const probePassRates = {};
+    for (const [type, counts] of Object.entries(probesByType)) {
+      const total = counts.pass + counts.fail;
+      probePassRates[type] = total > 0 ? (counts.pass / total) * 100 : 0;
+    }
+    
+    // Write rollup
+    await rollupRef.set({
+      date: dateKey,
+      expectedHb,
+      writtenHb,
+      missedHb,
+      uptimePct: Math.round(uptimePct * 100) / 100,
+      probePassRates,
+      mttrP50,
+      mttrP90,
+      mttrP95,
+      incidentsCount: incidents.length,
+      insufficientData: numericCoverage < 0.8,
+      numericCoverage: Math.round(numericCoverage * 1000) / 1000,
+      commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+      serviceVersion: '2.0.0',
+      instanceId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    console.log(`✅ Daily rollup created: ${dateKey} (uptime=${uptimePct.toFixed(2)}%, incidents=${incidents.length})`);
+  } catch (error) {
+    console.error(`❌ Daily rollup error for ${dateKey}:`, error.message);
+  }
 }
 
 async function checkMissedHeartbeats() {
@@ -321,7 +464,28 @@ async function checkMissedHeartbeats() {
   const actualHb = snapshot.size;
   const missedHb = expectedHb - actualHb;
   
+  console.log(`📊 Heartbeat check: ${actualHb}/${expectedHb} (missed: ${missedHb})`);
+  
   if (missedHb > 3) {
+    // Create incident
+    const incidentId = `MISSED_HB_${Date.now()}`;
+    await db.collection('wa_metrics').doc('longrun').collection('incidents').doc(incidentId).set({
+      incidentId,
+      type: 'missed_heartbeat',
+      tsStart: hourAgo,
+      tsEnd: now,
+      mttrSec: null,
+      accountId: null,
+      reason: `Missed ${missedHb} heartbeats in last hour`,
+      expectedHb,
+      actualHb,
+      missedHb,
+      commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+      instanceId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    console.log(`🚨 Incident created: ${incidentId}`);
     await telegramAlerts.alertMissedHeartbeats(missedHb, hourAgo, now);
   }
 }
@@ -351,6 +515,25 @@ async function checkConsecutiveProbeFails() {
     }
     
     if (consecutiveFails >= 2) {
+      // Create incident
+      const incidentId = `PROBE_FAIL_${type.toUpperCase()}_${Date.now()}`;
+      await db.collection('wa_metrics').doc('longrun').collection('incidents').doc(incidentId).set({
+        incidentId,
+        type: 'probe_fail',
+        probeType: type,
+        tsStart: probes[consecutiveFails - 1].ts?.toMillis() || Date.now(),
+        tsEnd: probes[0].ts?.toMillis() || Date.now(),
+        mttrSec: null,
+        accountId: null,
+        reason: `${consecutiveFails} consecutive ${type} probe failures`,
+        consecutiveFails,
+        failedProbes: probes.slice(0, consecutiveFails).map(p => p.probeKey),
+        commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+        instanceId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      
+      console.log(`🚨 Incident created: ${incidentId}`);
       await telegramAlerts.alertConsecutiveProbeFails(type, consecutiveFails, probes.slice(0, consecutiveFails));
     }
   }
