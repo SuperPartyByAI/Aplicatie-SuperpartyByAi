@@ -42,16 +42,17 @@ class EvidenceEndpoints {
         const waLockDoc = await this.db.doc('wa_metrics/longrun/locks/wa_connection').get();
         const waLock = waLockDoc.exists ? waLockDoc.data() : null;
         
-        // Get auth state info
+        // Get auth state info (fixed: use proper subcollection path)
         const authCredsDoc = await this.db.doc('wa_metrics/longrun/baileys_auth/creds').get();
-        // Keys are stored as subcollection, use collectionGroup or count differently
         let authKeyCount = 0;
         try {
+          // Keys stored as subcollection under baileys_auth document
           const keysRef = this.db.doc('wa_metrics/longrun/baileys_auth').collection('keys');
           const authKeysSnapshot = await keysRef.get();
           authKeyCount = authKeysSnapshot.size;
         } catch (error) {
           console.error('[status-now] Error counting auth keys:', error.message);
+          authKeyCount = 0;
         }
         
         // Get latest heartbeats
