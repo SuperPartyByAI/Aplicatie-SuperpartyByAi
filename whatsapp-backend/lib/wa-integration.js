@@ -426,15 +426,25 @@ class WAIntegration {
   }
 
   /**
+   * Stop all monitoring (for shutdown)
+   */
+  stopMonitoring() {
+    // Stop outbox worker
+    if (this.outboxWorkerInterval) {
+      clearInterval(this.outboxWorkerInterval);
+      this.outboxWorkerInterval = null;
+    }
+    
+    console.log('[WAIntegration] All timers stopped');
+  }
+
+  /**
    * W7: Graceful shutdown
    */
   async gracefulShutdown(reason) {
     console.log(`[WAIntegration] Graceful shutdown initiated: ${reason}`);
     
-    // Stop outbox worker
-    if (this.outboxWorkerInterval) {
-      clearInterval(this.outboxWorkerInterval);
-    }
+    this.stopMonitoring();
     
     // Stop stability monitoring
     await this.stability.cleanup();

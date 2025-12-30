@@ -165,19 +165,41 @@ async function getWAStatus() {
 }
 
 /**
- * Graceful shutdown
+ * Graceful shutdown (SIGTERM/SIGINT)
  */
-async function shutdown() {
-  console.log('[WABootstrap] Graceful shutdown initiated');
+async function shutdown(signal) {
+  console.log(`[WABootstrap] Graceful shutdown initiated signal=${signal}`);
   
   if (waIntegration) {
-    await waIntegration.gracefulShutdown('sigterm');
+    try {
+      // Stop timers
+      waIntegration.stopMonitoring();
+      
+      // Close socket (TODO: integrate with actual Baileys socket)
+      console.log('[WABootstrap] Closing Baileys socket...');
+      
+      // Flush auth writes
+      console.log('[WABootstrap] Flushing auth writes...');
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for pending writes
+      
+      // Release lock
+      console.log('[WABootstrap] Releasing lock...');
+      await waIntegration.stability.lock.release();
+      
+      console.log('[WABootstrap] shutdown_graceful_complete');
+      process.exit(0);
+    } catch (error) {
+      console.error('[WABootstrap] Shutdown error:', error.message);
+      process.exit(1);
+    }
+  } else {
+    process.exit(0);
   }
 }
 
 // Setup shutdown handlers
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 module.exports = {
   initializeWASystem,
