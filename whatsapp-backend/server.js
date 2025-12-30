@@ -1758,7 +1758,13 @@ async function restoreAccountsFromFirestore() {
   
   try {
     console.log('🔄 Restoring accounts from Firestore...');
-    const snapshot = await db.collection('accounts').where('status', '==', 'connected').get();
+    
+    // Get all accounts with connected or reconnecting status
+    const connectedSnapshot = await db.collection('accounts').where('status', '==', 'connected').get();
+    const reconnectingSnapshot = await db.collection('accounts').where('status', '==', 'reconnecting').get();
+    
+    const allDocs = [...connectedSnapshot.docs, ...reconnectingSnapshot.docs];
+    const snapshot = { docs: allDocs, size: allDocs.length };
     
     console.log(`📦 Found ${snapshot.size} connected accounts in Firestore`);
     
