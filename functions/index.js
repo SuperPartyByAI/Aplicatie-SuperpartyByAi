@@ -139,13 +139,13 @@ app.get('/health', (req, res) => {
 // Keep 1st Gen - works with existing deployment
 exports.whatsapp = functions.https.onRequest(app);
 
-// 2nd Gen version with all endpoints
-exports.whatsappV2 = functions
-  .runWith({
-    timeoutSeconds: 540,
-    memory: '512MB'
-  })
-  .https.onRequest(app);
+// 2nd Gen version with all endpoints (deprecated - use whatsappV3)
+// exports.whatsappV2 = functions
+//   .runWith({
+//     timeoutSeconds: 540,
+//     memory: '512MB'
+//   })
+//   .https.onRequest(app);
 
 // Clean new function - no upgrade history
 exports.whatsappV3 = functions.https.onRequest(app);
