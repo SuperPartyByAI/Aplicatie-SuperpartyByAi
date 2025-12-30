@@ -34,6 +34,18 @@ class EvidenceEndpoints {
         const state = await this.schema.getState();
         const config = await this.schema.getConfig();
         
+        // Get WA connection state
+        const waConnectionDoc = await this.db.doc('wa_metrics/longrun/state/wa_connection').get();
+        const waConnection = waConnectionDoc.exists ? waConnectionDoc.data() : null;
+        
+        // Get WA lock status
+        const waLockDoc = await this.db.doc('wa_metrics/longrun/locks/wa_connection').get();
+        const waLock = waLockDoc.exists ? waLockDoc.data() : null;
+        
+        // Get auth state info
+        const authCredsDoc = await this.db.doc('wa_metrics/longrun/baileys_auth/creds').get();
+        const authKeysSnapshot = await this.db.collection('wa_metrics/longrun/baileys_auth/keys').get();
+        
         // Get latest heartbeats
         const now = Date.now();
         const heartbeats = await this.schema.queryHeartbeats(now - 3600000, now, 20);
@@ -87,9 +99,27 @@ class EvidenceEndpoints {
           });
         });
         
+        // DoD-WA-1: WA connection status fields
+        const waStatus = {
+          waMode: waLock && waLock.leaseUntil > Date.now() ? 'active' : 'passive',
+          waStatus: waConnection?.waStatus || 'UNKNOWN',
+          connectedAt: waConnection?.connectedAt || null,
+          lastDisconnectAt: waConnection?.lastDisconnectAt || null,
+          lastDisconnectReason: waConnection?.lastDisconnectReason || null,
+          retryCount: waConnection?.retryCount || 0,
+          nextRetryAt: waConnection?.nextRetryAt || null,
+          authStore: 'firestore',
+          authStateExists: authCredsDoc.exists,
+          authKeyCount: authKeysSnapshot.size,
+          lastAuthWriteAt: authCredsDoc.exists ? authCredsDoc.data().updatedAt : null,
+          lockHolder: waLock?.holderInstanceId || null,
+          lockLeaseUntil: waLock?.leaseUntil || null
+        };
+        
         res.json({
           success: true,
           timestamp: new Date().toISOString(),
+          wa: waStatus, // DoD-WA-1
           state: state ? {
             path: 'wa_metrics/longrun/state/current',
             ...state
