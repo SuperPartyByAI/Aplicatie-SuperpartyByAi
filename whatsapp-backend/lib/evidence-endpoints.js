@@ -775,6 +775,66 @@ class EvidenceEndpoints {
         res.status(500).json({ error: error.message, stack: error.stack });
       }
     });
+    
+    // W8: Outbox management endpoints
+    this.app.post('/api/longrun/outbox/create', this.verifyToken.bind(this), async (req, res) => {
+      try {
+        const { to, payload } = req.body;
+        
+        if (!to || !payload) {
+          return res.status(400).json({ error: 'Missing to or payload' });
+        }
+        
+        const outboxId = `OUT_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        
+        await this.db.doc(`wa_metrics/longrun/outbox/${outboxId}`).set({
+          to,
+          payload,
+          status: 'PENDING',
+          createdAt: FieldValue.serverTimestamp(),
+          nextAttemptAt: FieldValue.serverTimestamp(),
+          attemptCount: 0,
+          instanceId: process.env.INSTANCE_ID || 'unknown'
+        });
+        
+        res.json({
+          success: true,
+          outboxId,
+          path: `wa_metrics/longrun/outbox/${outboxId}`
+        });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
+    
+    this.app.get('/api/longrun/outbox/stats', this.verifyToken.bind(this), async (req, res) => {
+      try {
+        const pendingSnapshot = await this.db.collection('wa_metrics/longrun/outbox')
+          .where('status', '==', 'PENDING')
+          .get();
+        
+        const sentSnapshot = await this.db.collection('wa_metrics/longrun/outbox')
+          .where('status', '==', 'SENT')
+          .get();
+        
+        const ackedSnapshot = await this.db.collection('wa_metrics/longrun/outbox')
+          .where('status', '==', 'ACKED')
+          .get();
+        
+        res.json({
+          success: true,
+          stats: {
+            pending: pendingSnapshot.size,
+            sent: sentSnapshot.size,
+            acked: ackedSnapshot.size,
+            total: pendingSnapshot.size + sentSnapshot.size + ackedSnapshot.size
+          },
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
   }
 }
 
