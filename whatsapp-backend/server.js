@@ -703,22 +703,7 @@ async function recoverStaleConnection(accountId) {
   }
 }
 
-// Start health monitoring watchdog
-setInterval(() => {
-  const staleAccounts = checkStaleConnections();
-  
-  if (staleAccounts.length > 0) {
-    console.log(`🚨 Found ${staleAccounts.length} stale connections, triggering auto-recovery...`);
-    
-    for (const accountId of staleAccounts) {
-      recoverStaleConnection(accountId).catch(err => {
-        console.error(`❌ Recovery failed for ${accountId}:`, err.message);
-      });
-    }
-  }
-}, HEALTH_CHECK_INTERVAL);
-
-console.log(`🏥 Health monitoring watchdog started (check every ${HEALTH_CHECK_INTERVAL/1000}s)`);
+// Health monitoring watchdog will be started after account restore
 
 app.get('/health', async (req, res) => {
   const connected = Array.from(connections.values()).filter(c => c.status === 'connected').length;
@@ -2214,6 +2199,23 @@ app.listen(PORT, '0.0.0.0', async () => {
   
   // Restore accounts after server starts
   await restoreAccountsFromFirestore();
+  
+  // Start health monitoring watchdog AFTER accounts are restored
+  setInterval(() => {
+    const staleAccounts = checkStaleConnections();
+    
+    if (staleAccounts.length > 0) {
+      console.log(`🚨 Found ${staleAccounts.length} stale connections, triggering auto-recovery...`);
+      
+      for (const accountId of staleAccounts) {
+        recoverStaleConnection(accountId).catch(err => {
+          console.error(`❌ Recovery failed for ${accountId}:`, err.message);
+        });
+      }
+    }
+  }, HEALTH_CHECK_INTERVAL);
+  
+  console.log(`🏥 Health monitoring watchdog started (check every ${HEALTH_CHECK_INTERVAL/1000}s)`);
   
   // Initialize long-run schema and evidence endpoints
   if (firestoreAvailable) {
