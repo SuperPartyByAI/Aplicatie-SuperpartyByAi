@@ -28,6 +28,7 @@ class WAIntegration {
     // W13: Circuit breaker
     this.disconnectHistory = []; // timestamps
     this.reconnectMode = 'normal'; // normal | cooldown
+    this.cooldownUntil = null;
     
     // W14: Single-flight connect
     this.connectInProgress = false;
@@ -279,17 +280,35 @@ class WAIntegration {
   }
 
   /**
-   * W12: Handle Firestore errors
+   * W12: Handle Firestore errors (DEPENDENCY GATING)
    */
   handleFirestoreError(error) {
     this.consecutiveFirestoreErrors++;
     
-    if (this.consecutiveFirestoreErrors >= 5 && !this.degradedSince) {
+    if (this.consecutiveFirestoreErrors >= 3 && !this.degradedSince) {
       this.degradedSince = new Date().toISOString();
-      console.error('[WAIntegration] Entering DEGRADED mode (Firestore errors)');
+      console.error('[WAIntegration] degraded_firestore_enter consecutiveErrors=3');
       
       // Create incident
       this.createDegradedIncident();
+      
+      // STOP operations
+      this.warmUpComplete = false;
+    }
+  }
+  
+  /**
+   * Reset Firestore error counter (on success)
+   */
+  resetFirestoreErrors() {
+    if (this.consecutiveFirestoreErrors > 0) {
+      this.consecutiveFirestoreErrors = 0;
+      
+      if (this.degradedSince) {
+        console.log('[WAIntegration] degraded_firestore_exit');
+        this.degradedSince = null;
+        this.warmUpComplete = true;
+      }
     }
   }
 
@@ -313,40 +332,50 @@ class WAIntegration {
   }
 
   /**
-   * W13: Check circuit breaker
+   * W13: Check circuit breaker (DISCONNECT STORM)
    */
   checkCircuitBreaker() {
     const now = Date.now();
-    const fifteenMinutesAgo = now - (15 * 60 * 1000);
+    const twoMinutesAgo = now - (2 * 60 * 1000);
     
     // Clean old disconnects
-    this.disconnectHistory = this.disconnectHistory.filter(ts => ts > fifteenMinutesAgo);
+    this.disconnectHistory = this.disconnectHistory.filter(ts => ts > twoMinutesAgo);
     
-    if (this.disconnectHistory.length >= 20 && this.reconnectMode === 'normal') {
+    if (this.disconnectHistory.length >= 5 && this.reconnectMode === 'normal') {
       this.reconnectMode = 'cooldown';
-      console.warn('[WAIntegration] Circuit breaker TRIPPED - entering cooldown');
+      const cooldownUntil = new Date(now + 5 * 60 * 1000);
+      console.error(`[WAIntegration] cooldown_enter disconnects=${this.disconnectHistory.length} cooldownUntil=${cooldownUntil.toISOString()}`);
       
       // Create incident
-      this.createCooldownIncident();
+      this.createCooldownIncident(cooldownUntil);
       
-      return { tripped: true, nextRetryAt: new Date(now + 5 * 60 * 1000) };
+      return { tripped: true, cooldownUntil };
+    }
+    
+    // Check if cooldown expired
+    if (this.reconnectMode === 'cooldown' && this.cooldownUntil && now > this.cooldownUntil.getTime()) {
+      this.reconnectMode = 'normal';
+      this.cooldownUntil = null;
+      console.log('[WAIntegration] cooldown_exit');
     }
     
     return { tripped: false };
   }
 
   /**
-   * W13: Create cooldown incident
+   * W13: Create cooldown incident (DEDUPED)
    */
-  async createCooldownIncident() {
+  async createCooldownIncident(cooldownUntil) {
     try {
-      await this.db.doc('wa_metrics/longrun/incidents/wa_reconnect_cooldown_active').set({
-        type: 'wa_reconnect_cooldown',
+      await this.db.doc('wa_metrics/longrun/incidents/wa_disconnect_storm_cooldown').set({
+        type: 'wa_disconnect_storm_cooldown',
         active: true,
         firstDetectedAt: FieldValue.serverTimestamp(),
+        lastCheckedAt: FieldValue.serverTimestamp(),
         instanceId: this.instanceId,
         disconnectCount: this.disconnectHistory.length,
-        instructions: 'Too many disconnects. System in cooldown mode for 5 minutes.'
+        cooldownUntil: cooldownUntil.toISOString(),
+        instructions: 'Disconnect storm detected. Cooldown mode for 5 minutes.'
       }, { merge: true });
     } catch (error) {
       console.error('[WAIntegration] Failed to create cooldown incident:', error.message);
