@@ -23,6 +23,9 @@ const proxyRotationManager = require('./proxy-rotation');
 
 class WhatsAppManager {
   constructor(io) {
+    // DEPLOYMENT MARKER
+    console.log('🚀 WhatsAppManager starting - BUILD_SHA=3abb4baa K_REVISION=' + (process.env.K_REVISION || 'local'));
+    
     this.io = io;
     this.clients = new Map();
     this.accounts = new Map();
@@ -48,6 +51,12 @@ class WhatsAppManager {
     this.lastStatusSync = new Map(); // accountId -> timestamp
     this.STATUS_SYNC_DEBOUNCE_MS = 5000; // 5 seconds debounce
     this.STATUS_SYNC_MIN_INTERVAL_MS = 10000; // 10 seconds minimum between syncs
+    
+    // Session save debouncing (prevent DEADLINE_EXCEEDED on creds.update)
+    this.sessionSaveTimers = new Map(); // accountId -> timeoutId
+    this.lastSessionSave = new Map(); // accountId -> timestamp
+    this.SESSION_SAVE_DEBOUNCE_MS = 3000; // 3 seconds debounce
+    this.SESSION_SAVE_MIN_INTERVAL_MS = 30000; // 30 seconds minimum between saves
     
     // Reconnect configuration
     this.MAX_RECONNECT_ATTEMPTS = 5;
@@ -194,15 +203,24 @@ class WhatsAppManager {
           if (timeSinceLastMsg > 120000) {
             console.log(`[Health Check] Account ${accountId} - no activity for 2 min, checking...`);
             
-            // Încearcă să trimită presence (with timeout protection)
+            // Încearcă să trimită presence (crash-proof with explicit catch)
+            const presencePromise = sock.sendPresenceUpdate('available').catch(err => {
+              console.log(`[Health Check] Account ${accountId} - sendPresenceUpdate rejected: ${err.message}`);
+              throw err;
+            });
+            
             Promise.race([
-              sock.sendPresenceUpdate('available'),
+              presencePromise,
               new Promise((_, reject) => setTimeout(() => reject(new Error('Presence timeout')), 5000))
             ]).then(() => {
               this.lastMessageTime.set(accountId, Date.now());
             }).catch(error => {
               console.log(`[Health Check] Account ${accountId} - presence failed: ${error.message}, reconnecting...`);
-              this.reconnectAccount(accountId);
+              // Crash-proof reconnect
+              const reconnectPromise = this.reconnectAccount(accountId);
+              if (reconnectPromise && reconnectPromise.catch) {
+                reconnectPromise.catch(err => console.error(`[Health Check] Reconnect failed: ${err.message}`));
+              }
             });
           }
         } catch (error) {
@@ -375,6 +393,56 @@ class WhatsAppManager {
           });
         }, 10000);
       }
+    }
+  }
+
+  /**
+   * Debounced session save with rate limiting
+   * Prevents DEADLINE_EXCEEDED on rapid creds.update events
+   */
+  saveSessionDebounced(accountId, sessionPath, account) {
+    // Check if we saved recently (rate limiting)
+    const lastSave = this.lastSessionSave.get(accountId) || 0;
+    const timeSinceLastSave = Date.now() - lastSave;
+    
+    if (timeSinceLastSave < this.SESSION_SAVE_MIN_INTERVAL_MS) {
+      console.log(`⏭️ [${accountId}] Session save rate-limited (${Math.floor(timeSinceLastSave/1000)}s since last save)`);
+      return;
+    }
+    
+    // Clear existing timer
+    if (this.sessionSaveTimers.has(accountId)) {
+      clearTimeout(this.sessionSaveTimers.get(accountId));
+    }
+    
+    // Debounce: wait for creds to stabilize
+    const timerId = setTimeout(() => {
+      this.sessionSaveTimers.delete(accountId);
+      this.performSessionSave(accountId, sessionPath, account);
+    }, this.SESSION_SAVE_DEBOUNCE_MS);
+    
+    this.sessionSaveTimers.set(accountId, timerId);
+  }
+
+  /**
+   * Perform actual session save with timeout
+   */
+  async performSessionSave(accountId, sessionPath, account) {
+    try {
+      console.log(`💾 [${accountId}] Saving session...`);
+      
+      // Race with timeout (5s max)
+      await Promise.race([
+        sessionStore.saveSession(accountId, sessionPath, account),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Session save timeout')), 5000))
+      ]);
+      
+      this.lastSessionSave.set(accountId, Date.now());
+      console.log(`✅ [${accountId}] Session saved successfully`);
+      
+    } catch (error) {
+      console.error(`⚠️ [${accountId}] Session save failed (non-critical): ${error.message}`);
+      // Best-effort: don't crash, just log
     }
   }
   
@@ -842,11 +910,14 @@ class WhatsAppManager {
         console.error(`❌ [${accountId}] Failed to cleanup:`, err.message);
       });
       
-      // Send alert
-      monitor.logIncident(accountId, 'needs_qr', {
-        reason: 'max_reconnect_attempts',
-        attempts: attempts
-      }).catch(err => console.error('Failed to log incident:', err));
+      // Send alert (best-effort with timeout)
+      Promise.race([
+        monitor.logIncident(accountId, 'needs_qr', {
+          reason: 'max_reconnect_attempts',
+          attempts: attempts
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Incident log timeout')), 3000))
+      ]).catch(err => console.error(`⚠️ Failed to log incident (non-critical): ${err.message}`));
       
       return;
     }
@@ -1042,11 +1113,9 @@ class WhatsAppManager {
           // Sync to Firestore with debouncing (best-effort, non-blocking)
           this.syncAccountStatusDebounced(accountId, account.status, account);
           
-          // Salvează status în Firestore (păstrează accountul în listă)
+          // Salvează status în Firestore (păstrează accountul în listă) - debounced
           const sessionPath = path.join(this.sessionsPath, accountId);
-          sessionStore.saveSession(accountId, sessionPath, account).catch(err => {
-            console.error(`❌ [${accountId}] Failed to save status:`, err.message);
-          });
+          this.saveSessionDebounced(accountId, sessionPath, account);
         }
         
         this.io.emit('whatsapp:disconnected', { accountId, reason: lastDisconnect?.error?.message });
@@ -1069,17 +1138,23 @@ class WhatsAppManager {
             console.error(`❌ [${accountId}] Failed to cleanup:`, err.message);
           });
           
-          // Log incident
-          monitor.logIncident(accountId, 'session_invalid', {
-            reason: reason,
-            cleaned: true
-          }).catch(err => console.error('Failed to log incident:', err));
+          // Log incident (best-effort with timeout)
+          Promise.race([
+            monitor.logIncident(accountId, 'session_invalid', {
+              reason: reason,
+              cleaned: true
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Incident log timeout')), 3000))
+          ]).catch(err => console.error(`⚠️ Failed to log incident (non-critical): ${err.message}`));
           
-          // Update monitor status
-          monitor.updateAccountStatus(accountId, 'logged_out', {
-            disconnectReason: reason,
-            lastDisconnectedAt: new Date().toISOString()
-          }).catch(err => console.error('Failed to update monitor:', err));
+          // Update monitor status (best-effort with timeout)
+          Promise.race([
+            monitor.updateAccountStatus(accountId, 'logged_out', {
+              disconnectReason: reason,
+              lastDisconnectedAt: new Date().toISOString()
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Monitor update timeout')), 3000))
+          ]).catch(err => console.error(`⚠️ Failed to update monitor (non-critical): ${err.message}`));
           
           // Generate new QR/pairing by re-adding account
           const savedPhone = account?.phone;
@@ -1134,14 +1209,9 @@ class WhatsAppManager {
           this.syncAccountStatusDebounced(accountId, 'connected', account);
         }
         
-        // 💾 CRITICAL: Save session to Firestore IMMEDIATELY after connection
-        console.log(`💾 [${accountId}] Saving session to Firestore...`);
+        // 💾 Save session to Firestore with debouncing (best-effort)
         const sessionPathForSave = path.join(this.sessionsPath, accountId);
-        sessionStore.saveSession(accountId, sessionPathForSave, account).then(() => {
-          console.log(`✅ [${accountId}] Session saved successfully`);
-        }).catch(err => {
-          console.error(`❌ [${accountId}] Failed to save session:`, err.message);
-        });
+        this.saveSessionDebounced(accountId, sessionPathForSave, account);
         
         // TIER ULTIMATE 1: Initialize modules for this account
         rateLimiter.initAccount(accountId, 'normal');
@@ -1169,11 +1239,9 @@ class WhatsAppManager {
         // TIER ULTIMATE 2: Send webhook
         webhookManager.onAccountConnected(accountId, sock.user?.id?.split(':')[0]);
         
-        // Save session + metadata to Firestore for persistence
+        // Save session + metadata to Firestore for persistence (debounced)
         const sessionPath = path.join(this.sessionsPath, accountId);
-        sessionStore.saveSession(accountId, sessionPath, account).catch(err => {
-          console.error(`❌ [${accountId}] Failed to save session:`, err.message);
-        });
+        this.saveSessionDebounced(accountId, sessionPath, account);
         
         this.io.emit('whatsapp:ready', {
           accountId,
@@ -1185,12 +1253,10 @@ class WhatsAppManager {
 
     sock.ev.on('creds.update', async () => {
       await saveCreds();
-      // Also save to Firestore for persistence across restarts
+      // Also save to Firestore for persistence across restarts (debounced)
       const sessionPath = path.join(this.sessionsPath, accountId);
       const account = this.accounts.get(accountId);
-      sessionStore.saveSession(accountId, sessionPath, account).catch(err => {
-        console.error(`❌ [${accountId}] Failed to save session on creds update:`, err.message);
-      });
+      this.saveSessionDebounced(accountId, sessionPath, account);
     });
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
