@@ -7,6 +7,7 @@ const express = require('express');
 const cors = require('cors');
 const VoiceAIHandler = require('./voice-ai-handler');
 const TwilioHandler = require('./twilio-handler');
+const HumeEmotionHandler = require('./hume-emotion-handler');
 
 const app = express();
 
@@ -17,7 +18,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Initialize handlers
 const voiceAI = new VoiceAIHandler();
-const twilioHandler = new TwilioHandler(voiceAI);
+const humeHandler = new HumeEmotionHandler();
+const twilioHandler = new TwilioHandler(voiceAI, humeHandler);
 
 // Health check
 app.get('/', (req, res) => {
@@ -55,6 +57,10 @@ app.post('/api/voice/status', (req, res) => {
   twilioHandler.handleCallStatus(req, res);
 });
 
+app.post('/api/voice/recording-callback', async (req, res) => {
+  await twilioHandler.handleRecordingCallback(req, res);
+});
+
 app.get('/api/voice/calls', (req, res) => {
   const calls = twilioHandler.getActiveCalls();
   res.json({ success: true, calls });
@@ -69,6 +75,7 @@ app.listen(PORT, () => {
   console.log(`║  📡 Server running on port ${PORT}                       ║`);
   console.log('║  📞 Voice calls: Enabled                              ║');
   console.log('║  🎤 Voice: Kasya (Coqui XTTS)                         ║');
+  console.log('║  🎭 Emotion AI: Hume (adaptive conversations)         ║');
   console.log('║  ✅ Ready to accept connections                       ║');
   console.log('╚═══════════════════════════════════════════════════════╝');
   console.log('');

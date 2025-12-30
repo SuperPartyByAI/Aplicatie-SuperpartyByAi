@@ -11,7 +11,9 @@
     "cors": "^2.8.5",
     "twilio": "^4.19.0",
     "openai": "^4.20.0",
-    "node-fetch": "^2.6.7"
+    "node-fetch": "^2.6.7",
+    "hume": "^0.7.0",
+    "form-data": "^4.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
