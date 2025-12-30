@@ -86,15 +86,18 @@ class WAReconnectManager {
   }
 
   /**
-   * Calculate backoff delay with jitter
+   * Calculate backoff delay with jitter (0..250ms)
    */
   calculateBackoffDelay() {
     const index = Math.min(this.retryCount - 1, this.backoffDelays.length - 1);
     const baseDelay = this.backoffDelays[index];
     
-    // Add jitter (±20%)
-    const jitter = baseDelay * 0.2 * (Math.random() * 2 - 1);
+    // Add jitter 0..250ms
+    const jitter = Math.floor(Math.random() * 251);
     const delay = Math.min(baseDelay + jitter, this.maxDelay);
+    
+    const delaySec = (delay / 1000).toFixed(1);
+    console.log(`[WAReconnect] reconnect_scheduled_backoff_sec=${delaySec}`);
     
     return Math.round(delay);
   }

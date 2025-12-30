@@ -116,13 +116,13 @@ class WAKeepaliveMonitor {
   }
 
   /**
-   * Get Baileys socket config with keepalive settings
+   * Get Baileys socket config with keepalive settings (FAST FAIL)
    */
   static getBaileysConfig() {
     return {
-      keepAliveIntervalMs: 30000, // Send keepalive every 30s
-      connectTimeoutMs: 60000, // 60s connection timeout
-      defaultQueryTimeoutMs: 60000, // 60s query timeout
+      keepAliveIntervalMs: 25000, // Send keepalive every 25s
+      connectTimeoutMs: 15000, // 15s connection timeout (FAST FAIL)
+      defaultQueryTimeoutMs: 30000, // 30s query timeout
       qrTimeout: 60000, // 60s QR timeout
       retryRequestDelayMs: 250 // Retry delay
     };
