@@ -265,17 +265,25 @@ function WhatsAppAccounts() {
                   <button
                     onClick={() => disconnectAccount(account.id)}
                     style={{
-                      padding: '0.5rem 1rem',
+                      padding: '0.75rem 1.5rem',
                       background: '#ef4444',
                       color: 'white',
                       border: 'none',
-                      borderRadius: '6px',
+                      borderRadius: '8px',
                       cursor: 'pointer',
-                      fontWeight: '600',
-                      fontSize: '0.875rem'
+                      fontWeight: '700',
+                      fontSize: '1rem',
+                      display: 'block',
+                      margin: '0 auto',
+                      width: '100%',
+                      maxWidth: '250px',
+                      boxShadow: '0 4px 6px rgba(239, 68, 68, 0.3)',
+                      transition: 'all 0.2s'
                     }}
+                    onMouseOver={(e) => e.target.style.background = '#dc2626'}
+                    onMouseOut={(e) => e.target.style.background = '#ef4444'}
                   >
-                    Deconectează
+                    🔌 Deconectează Cont
                   </button>
                 </div>
               )}
