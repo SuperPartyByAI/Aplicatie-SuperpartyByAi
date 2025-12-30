@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 
-const WHATSAPP_URL = 'https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3';
+const WHATSAPP_URL = 'https://whats-upp-production.up.railway.app';
 
 function WhatsAppAccounts() {
   const [accounts, setAccounts] = useState([]);
@@ -78,6 +78,37 @@ function WhatsAppAccounts() {
     } catch (error) {
       console.error('❌ Error adding account:', error);
       alert('❌ Eroare la adăugarea contului: ' + error.message);
+    }
+  };
+
+  const disconnectAccount = async (accountId) => {
+    if (!confirm('Sigur vrei să deconectezi acest cont?')) {
+      return;
+    }
+
+    try {
+      console.log('🔌 Disconnecting account:', accountId);
+      const response = await fetch(`${WHATSAPP_URL}/api/whatsapp/disconnect/${accountId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('📦 Disconnect response:', data);
+      
+      if (data.success) {
+        loadAccounts();
+        alert('✅ Cont deconectat cu succes!');
+      } else {
+        throw new Error(data.error || 'Eroare necunoscută');
+      }
+    } catch (error) {
+      console.error('❌ Error disconnecting account:', error);
+      alert('❌ Eroare la deconectare: ' + error.message);
     }
   };
 
@@ -228,9 +259,24 @@ function WhatsAppAccounts() {
                   borderRadius: '6px',
                   textAlign: 'center'
                 }}>
-                  <p style={{color: '#10b981', margin: 0, fontWeight: '600'}}>
+                  <p style={{color: '#10b981', margin: '0 0 0.75rem 0', fontWeight: '600'}}>
                     ✅ Cont activ și funcțional!
                   </p>
+                  <button
+                    onClick={() => disconnectAccount(account.id)}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      background: '#ef4444',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    Deconectează
+                  </button>
                 </div>
               )}
             </div>
