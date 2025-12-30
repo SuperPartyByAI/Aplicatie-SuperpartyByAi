@@ -141,7 +141,7 @@ if (!fs.existsSync(authDir)) {
 console.log(`📁 Auth directory: ${authDir}`);
 
 const VERSION = '2.0.0';
-const COMMIT_HASH = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown';
+let COMMIT_HASH = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || null;
 const BOOT_TIMESTAMP = new Date().toISOString();
 
 // Long-run jobs (production-grade v2)
@@ -608,6 +608,22 @@ app.get('/health', async (req, res) => {
   const connected = Array.from(connections.values()).filter(c => c.status === 'connected').length;
   const connecting = Array.from(connections.values()).filter(c => c.status === 'connecting' || c.status === 'reconnecting').length;
   const needsQr = Array.from(connections.values()).filter(c => c.status === 'needs_qr' || c.status === 'qr_ready').length;
+  
+  // Get commit from config if env var not set
+  if (!COMMIT_HASH && firestoreAvailable) {
+    try {
+      const configDoc = await db.doc('wa_metrics/longrun/config/current').get();
+      if (configDoc.exists) {
+        COMMIT_HASH = configDoc.data().commitHash || 'unknown';
+      } else {
+        COMMIT_HASH = 'unknown';
+      }
+    } catch (e) {
+      COMMIT_HASH = 'unknown';
+    }
+  } else if (!COMMIT_HASH) {
+    COMMIT_HASH = 'unknown';
+  }
   
   const fingerprint = {
     version: VERSION,
@@ -1955,12 +1971,8 @@ app.listen(PORT, '0.0.0.0', async () => {
     // Initialize schema
     const longrunSchema = new LongRunSchemaComplete(db);
     
-    // Initialize evidence endpoints
-    new EvidenceEndpoints(app, db, longrunSchema, LONGRUN_ADMIN_TOKEN);
-    console.log('✅ Evidence endpoints initialized');
-    
     // Initialize config
-    const commitHash = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown';
+    const commitHash = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'ed61e9f4';
     const serviceVersion = '2.0.0';
     const instanceId = process.env.RAILWAY_DEPLOYMENT_ID || `local-${Date.now()}`;
     
@@ -2002,6 +2014,10 @@ app.listen(PORT, '0.0.0.0', async () => {
       },
       bootTimestamp: START_TIME
     };
+    
+    // Initialize evidence endpoints (after baileys interface)
+    new EvidenceEndpoints(app, db, longrunSchema, LONGRUN_ADMIN_TOKEN, baileysInterface);
+    console.log('✅ Evidence endpoints initialized');
     
     // Initialize long-run jobs v2 (uses initJobs function, not class)
     await longrunJobsModule.initJobs(db, baseUrl);

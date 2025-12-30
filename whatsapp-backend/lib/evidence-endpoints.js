@@ -6,13 +6,15 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const BootstrapRunner = require('./bootstrap-runner');
 
 class EvidenceEndpoints {
-  constructor(app, db, schema, adminToken) {
+  constructor(app, db, schema, adminToken, baileys) {
     this.app = app;
     this.db = db;
     this.schema = schema;
     this.adminToken = adminToken;
+    this.baileys = baileys;
     
     this.setupEndpoints();
   }
@@ -292,12 +294,11 @@ class EvidenceEndpoints {
     // POST /api/longrun/bootstrap
     this.app.post('/api/longrun/bootstrap', this.verifyToken.bind(this), async (req, res) => {
       try {
-        // This will be implemented by the bootstrap runner
-        res.json({
-          success: true,
-          message: 'Bootstrap runner not yet implemented',
-          timestamp: new Date().toISOString()
-        });
+        const baseUrl = process.env.BAILEYS_BASE_URL || 'https://whats-upp-production.up.railway.app';
+        const bootstrap = new BootstrapRunner(this.db, this.schema, baseUrl, this.baileys);
+        const results = await bootstrap.run();
+        
+        res.json(results);
       } catch (error) {
         res.status(500).json({ error: error.message, stack: error.stack });
       }
@@ -314,6 +315,136 @@ class EvidenceEndpoints {
         });
       } catch (error) {
         res.status(500).json({ error: error.message, stack: error.stack });
+      }
+    });
+
+    // GET /api/longrun/verify/dataquality
+    this.app.get('/api/longrun/verify/dataquality', this.verifyToken.bind(this), async (req, res) => {
+      try {
+        const failures = [];
+        let exitCode = 0;
+
+        // Check for duplicate heartbeat IDs
+        const heartbeats = await this.db.collection('wa_metrics/longrun/heartbeats')
+          .limit(100)
+          .get();
+        
+        const hbIds = new Set();
+        const duplicates = [];
+        heartbeats.forEach(doc => {
+          if (hbIds.has(doc.id)) {
+            duplicates.push(doc.id);
+          }
+          hbIds.add(doc.id);
+        });
+
+        if (duplicates.length > 0) {
+          failures.push(`Duplicate heartbeat IDs: ${duplicates.join(', ')}`);
+          exitCode = 1;
+        }
+
+        // Check deterministic IDs
+        const idPattern = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}$/;
+        const invalidIds = [];
+        heartbeats.forEach(doc => {
+          if (!idPattern.test(doc.id)) {
+            invalidIds.push(doc.id);
+          }
+        });
+
+        if (invalidIds.length > 0) {
+          failures.push(`Non-deterministic heartbeat IDs: ${invalidIds.join(', ')}`);
+          exitCode = 1;
+        }
+
+        res.json({
+          exitCode,
+          status: exitCode === 0 ? 'PASS' : 'FAIL',
+          failures,
+          checks: {
+            duplicates: duplicates.length === 0,
+            deterministicIds: invalidIds.length === 0
+          },
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        res.status(500).json({ error: error.message, exitCode: 1 });
+      }
+    });
+
+    // GET /api/longrun/verify/readiness
+    this.app.get('/api/longrun/verify/readiness', this.verifyToken.bind(this), async (req, res) => {
+      try {
+        const failures = [];
+        let exitCode = 0;
+
+        // Check config exists
+        const config = await this.schema.getConfig();
+        if (!config) {
+          failures.push('Config not found: wa_metrics/longrun/config/current');
+          exitCode = 1;
+        }
+
+        // Check state exists
+        const state = await this.schema.getState();
+        if (!state) {
+          failures.push('State not found: wa_metrics/longrun/state/current');
+          exitCode = 1;
+        }
+
+        // Check run doc exists
+        const runsSnapshot = await this.db.collection('wa_metrics/longrun/runs').limit(1).get();
+        if (runsSnapshot.empty) {
+          failures.push('No run docs found: wa_metrics/longrun/runs/*');
+          exitCode = 1;
+        }
+
+        // Check probes exist
+        const probesSnapshot = await this.db.collection('wa_metrics/longrun/probes').limit(3).get();
+        const probeTypes = new Set();
+        probesSnapshot.forEach(doc => {
+          const data = doc.data();
+          probeTypes.add(data.type);
+        });
+
+        if (!probeTypes.has('outbound')) {
+          failures.push('No outbound probe found');
+          exitCode = 1;
+        }
+        if (!probeTypes.has('queue')) {
+          failures.push('No queue probe found');
+          exitCode = 1;
+        }
+        if (!probeTypes.has('inbound')) {
+          failures.push('No inbound probe found');
+          exitCode = 1;
+        }
+
+        // Check rollup exists
+        const today = new Date().toISOString().split('T')[0];
+        const rollup = await this.schema.getRollup(today);
+        if (!rollup) {
+          failures.push(`No rollup found for today: wa_metrics/longrun/rollups/${today}`);
+          exitCode = 1;
+        }
+
+        res.json({
+          exitCode,
+          status: exitCode === 0 ? 'READY+COLLECTING' : 'NOT_READY',
+          failures,
+          checks: {
+            config: !!config,
+            state: !!state,
+            runDoc: !runsSnapshot.empty,
+            outboundProbe: probeTypes.has('outbound'),
+            queueProbe: probeTypes.has('queue'),
+            inboundProbe: probeTypes.has('inbound'),
+            rollup: !!rollup
+          },
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        res.status(500).json({ error: error.message, exitCode: 1 });
       }
     });
 
