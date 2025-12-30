@@ -27,6 +27,7 @@ class FirestoreService {
     if (!this.db) return;
 
     try {
+      // Save to nested structure (legacy)
       await this.db
         .collection('accounts')
         .doc(accountId)
@@ -39,7 +40,7 @@ class FirestoreService {
           createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
       
-      // Update chat metadata
+      // Update chat metadata (legacy)
       await this.db
         .collection('accounts')
         .doc(accountId)
@@ -48,6 +49,41 @@ class FirestoreService {
         .set({
           lastMessage: message.body,
           lastMessageTimestamp: message.timestamp,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+      // ALSO save to flat collections for frontend
+      const threadId = `${accountId}_${chatId}`;
+      
+      // Save message to whatsapp_messages
+      await this.db
+        .collection('whatsapp_messages')
+        .doc(message.id)
+        .set({
+          id: message.id,
+          threadId: threadId,
+          accountId: accountId,
+          from: message.from || chatId,
+          to: message.to || accountId,
+          body: message.body || '',
+          timestamp: message.timestamp || Date.now(),
+          fromMe: message.fromMe || false,
+          status: message.status || 'received',
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      
+      // Update thread in whatsapp_threads
+      await this.db
+        .collection('whatsapp_threads')
+        .doc(threadId)
+        .set({
+          id: threadId,
+          accountId: accountId,
+          phoneNumber: chatId.replace('@s.whatsapp.net', ''),
+          name: message.pushName || chatId.replace('@s.whatsapp.net', ''),
+          lastMessageTime: message.timestamp || Date.now(),
+          lastMessage: message.body || '',
+          unreadCount: message.fromMe ? 0 : admin.firestore.FieldValue.increment(1),
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
 
