@@ -27,6 +27,8 @@ jobs:
           npm ci
           
       - name: Deploy WhatsApp Functions to Firebase
+        env:
+          BUILD_SHA: ${{ github.sha }}
         run: |
           echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_SUPERPARTY_FRONTEND }}' > $HOME/gcloud-key.json
           export GOOGLE_APPLICATION_CREDENTIALS="$HOME/gcloud-key.json"

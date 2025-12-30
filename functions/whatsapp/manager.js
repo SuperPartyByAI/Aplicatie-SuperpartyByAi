@@ -24,7 +24,8 @@ const proxyRotationManager = require('./proxy-rotation');
 class WhatsAppManager {
   constructor(io) {
     // DEPLOYMENT MARKER
-    console.log('🚀 WhatsAppManager starting - BUILD_SHA=3abb4baa K_REVISION=' + (process.env.K_REVISION || 'local'));
+    const BUILD_SHA = process.env.BUILD_SHA || process.env.K_REVISION || 'unknown';
+    console.log('🚀 WhatsAppManager starting - BUILD_SHA=' + BUILD_SHA);
     
     this.io = io;
     this.clients = new Map();

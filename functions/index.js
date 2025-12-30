@@ -7,6 +7,10 @@ setGlobalOptions({
   region: 'us-central1',
   maxInstances: 10
 });
+
+// Deployment marker
+const BUILD_SHA = process.env.BUILD_SHA || process.env.K_REVISION || 'unknown';
+console.log('🚀 Firebase Functions starting - BUILD_SHA=' + BUILD_SHA);
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
