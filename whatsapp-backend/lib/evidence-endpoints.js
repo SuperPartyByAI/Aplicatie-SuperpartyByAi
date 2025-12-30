@@ -114,13 +114,64 @@ class EvidenceEndpoints {
         });
         
         // DoD-WA-1: WA connection status fields (COMPLETE W1-W18) - FROM MAIN FLOW
-        // waStatus already populated from waBootstrap.getWAStatus() above
-        // Ensure all required fields are present
-        waStatus.authStore = waStatus.authStore || 'firestore';
-        waStatus.authStateExists = authStateExists;
-        waStatus.authKeyCount = authKeyCount;
-        waStatus.lastAuthWriteAt = lastAuthWriteAt;
-        waStatus.inboundDedupeStore = waStatus.inboundDedupeStore || 'firestore';
+        // Ensure ALL required fields are present with defaults
+        const completeWAStatus = {
+          // From waBootstrap
+          instanceId: waStatus.instanceId || 'unknown',
+          waMode: waStatus.waMode || 'passive_lock_not_acquired',
+          waStatus: waStatus.waStatus || 'NOT_RUNNING',
+          
+          // Lock
+          lockHolder: waStatus.lockHolder || null,
+          lockLeaseUntil: waStatus.lock?.leaseUntil || null,
+          leaseEpoch: waStatus.lock?.leaseEpoch || 0,
+          lockStatus: waStatus.lock?.exists ? 'held' : 'not_held',
+          
+          // Connection state
+          connectedAt: waStatus.connectedAt || null,
+          lastDisconnectAt: waStatus.lastDisconnectAt || null,
+          lastDisconnectReason: waStatus.lastDisconnectReason || null,
+          retryCount: waStatus.retryCount || 0,
+          nextRetryAt: waStatus.nextRetryAt || null,
+          
+          // Auth
+          authStore: 'firestore',
+          authStateExists: authStateExists,
+          authKeyCount: authKeyCount,
+          lastAuthWriteAt: lastAuthWriteAt,
+          
+          // Keepalive
+          lastEventAt: waStatus.lastEventAt || null,
+          lastMessageAt: waStatus.lastMessageAt || null,
+          lastAckAt: waStatus.lastAckAt || null,
+          
+          // Outbox
+          outboxPendingCount: waStatus.outboxPendingCount || 0,
+          outboxOldestPendingAgeSec: waStatus.outboxOldestPendingAgeSec || null,
+          drainMode: waStatus.drainMode || false,
+          
+          // Inbound dedupe
+          inboundDedupeStore: 'firestore',
+          
+          // Dependency health
+          consecutiveFirestoreErrors: waStatus.consecutiveFirestoreErrors || 0,
+          degradedSince: waStatus.degradedSince || null,
+          
+          // Circuit breaker
+          reconnectMode: waStatus.reconnectMode || 'normal',
+          
+          // Single-flight
+          connectInProgress: waStatus.connectInProgress || false,
+          lastConnectAttemptAt: waStatus.lastConnectAttemptAt || null,
+          
+          // Pairing
+          pairingRequired: waStatus.pairingRequired || false,
+          
+          // Warm-up
+          warmUpComplete: waStatus.warmUpComplete || false
+        };
+        
+        waStatus = completeWAStatus;
         
         res.json({
           success: true,
