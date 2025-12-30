@@ -1,0 +1,45 @@
+========================================
+GENEREAZA TOKEN FIREBASE CI
+========================================
+
+PASUL 1: Deschide CMD (Command Prompt)
+========================================
+
+Windows Key + R
+Scrie: cmd
+Enter
+
+========================================
+PASUL 2: Ruleaza comanda pentru token
+========================================
+
+firebase login:ci
+
+========================================
+PASUL 3: Se va deschide browser-ul
+========================================
+
+- Autentifica-te cu: superpartybyai@gmail.com
+- Permite accesul
+
+========================================
+PASUL 4: Copiaza token-ul
+========================================
+
+In CMD va aparea un token lung, ceva de genul:
+
+1//0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+COPIAZA tot token-ul (selecteaza cu mouse-ul si da click dreapta -> Copy)
+
+========================================
+PASUL 5: Trimite-mi token-ul
+========================================
+
+Lipeste token-ul aici in chat.
+
+========================================
+NOTA:
+========================================
+
+Token-ul este SIGUR de trimis - este doar pentru deploy, nu contine parole.

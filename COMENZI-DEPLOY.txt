@@ -1,0 +1,45 @@
+========================================
+COMENZI DEPLOY - COPY/PASTE IN CMD
+========================================
+
+IMPORTANT: Ruleaza din directorul ROOT:
+cd C:\Users\ursac\Aplicatie-SuperpartyByAi
+
+========================================
+OPTIUNEA 1: Deploy COMPLET (Recomandat)
+========================================
+
+cd C:\Users\ursac\Aplicatie-SuperpartyByAi\kyc-app\kyc-app && npm run build && cd ..\.. && firebase deploy
+
+========================================
+OPTIUNEA 2: Deploy DOAR Hosting
+========================================
+
+cd C:\Users\ursac\Aplicatie-SuperpartyByAi\kyc-app\kyc-app && npm run build && cd ..\.. && firebase deploy --only hosting
+
+========================================
+OPTIUNEA 3: Deploy DOAR Firestore Rules
+========================================
+
+cd C:\Users\ursac\Aplicatie-SuperpartyByAi && firebase deploy --only firestore
+
+========================================
+PAS CU PAS (daca vrei sa vezi fiecare pas):
+========================================
+
+1. Build aplicatie:
+cd C:\Users\ursac\Aplicatie-SuperpartyByAi\kyc-app\kyc-app
+npm run build
+
+2. Inapoi la root:
+cd C:\Users\ursac\Aplicatie-SuperpartyByAi
+
+3. Deploy:
+firebase deploy
+
+========================================
+VERIFICARE DUPA DEPLOY:
+========================================
+
+Aplicatie LIVE: https://superparty-frontend.web.app/home
+Firestore Rules: https://console.firebase.google.com/project/superparty-frontend/firestore/rules

@@ -1,0 +1,53 @@
+========================================
+DEPLOY FIREBASE CU TOKEN CI
+========================================
+
+PASUL 1: Genereaza token (DOAR PRIMA DATA)
+========================================
+
+Ruleaza in CMD (pe Windows):
+
+firebase login:ci
+
+Copiaza token-ul afisat.
+
+========================================
+PASUL 2: Deploy cu token
+========================================
+
+Ruleaza in CMD:
+
+cd C:\Users\ursac\Aplicatie-SuperpartyByAi\kyc-app\kyc-app
+npm run build
+cd ..\..
+firebase deploy --token "PUNE_TOKENUL_TAU_AICI"
+
+SAU deploy doar hosting:
+
+firebase deploy --only hosting --token "PUNE_TOKENUL_TAU_AICI"
+
+SAU deploy doar firestore:
+
+firebase deploy --only firestore --token "PUNE_TOKENUL_TAU_AICI"
+
+========================================
+COMANDA COMPLETA (COPY/PASTE)
+========================================
+
+cd C:\Users\ursac\Aplicatie-SuperpartyByAi\kyc-app\kyc-app && npm run build && cd ..\.. && firebase deploy --token "PUNE_TOKENUL_TAU_AICI"
+
+========================================
+NOTA:
+========================================
+
+Inlocuieste "PUNE_TOKENUL_TAU_AICI" cu token-ul generat la PASUL 1.
+
+Token-ul arata asa:
+1//0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+========================================
+VERIFICARE DUPA DEPLOY:
+========================================
+
+Aplicatie: https://superparty-frontend.web.app/home
+Console: https://console.firebase.google.com/project/superparty-frontend

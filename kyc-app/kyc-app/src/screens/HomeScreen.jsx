@@ -1106,6 +1106,17 @@ ${perf.tasksOverdue > 0 ? `⚠️ Ai ${perf.tasksOverdue} task-uri în întârzi
               <span className="nav-text">Șoferi</span>
             </button>
             
+            {/* WhatsApp Conversații - Secțiune nouă */}
+            <div style={{ borderTop: '1px solid #334155', margin: '0.5rem 0', opacity: 0.3 }}></div>
+            <button onClick={() => navigate('/whatsapp/available')} className="nav-item">
+              <span className="nav-icon">📱</span>
+              <span className="nav-text">Clienți disponibili</span>
+            </button>
+            <button onClick={() => navigate('/whatsapp/chat')} className="nav-item">
+              <span className="nav-icon">💬</span>
+              <span className="nav-text">Chat clienți</span>
+            </button>
+            
             {/* Admin Mode - Apare doar când e activat */}
             {adminMode && currentUser?.email === 'ursache.andrei1995@gmail.com' && (
               <>

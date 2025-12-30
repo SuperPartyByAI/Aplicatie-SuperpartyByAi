@@ -1,0 +1,104 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function: check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function: check if user is admin
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.email == 'ursache.andrei1995@gmail.com';
+    }
+    
+    // Helper function: check if user has staff profile
+    function hasStaffProfile() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/staffProfiles/$(request.auth.uid));
+    }
+    
+    // Helper function: get staff code
+    function getStaffCode() {
+      return get(/databases/$(database)/documents/staffProfiles/$(request.auth.uid)).data.code;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+    }
+    
+    // Staff profiles
+    match /staffProfiles/{profileId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Evenimente
+    match /evenimente/{eventId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // AI Conversations
+    match /aiConversations/{conversationId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+    
+    // AI Corrections
+    match /aiCorrections/{correctionId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // Threads (WhatsApp Conversations) - USED BY BACKEND
+    match /threads/{threadId} {
+      // All authenticated users can read all threads
+      allow read: if isAuthenticated();
+      
+      // All authenticated users can create and update threads
+      allow create, update: if isAuthenticated();
+      
+      // Only admin can delete
+      allow delete: if isAdmin();
+      
+      // Messages subcollection
+      match /messages/{messageId} {
+        // All authenticated users can read all messages
+        allow read: if isAuthenticated();
+        
+        // All authenticated users can create messages
+        allow create: if isAuthenticated();
+        
+        // Messages cannot be updated
+        allow update: if false;
+        
+        // Only admin can delete
+        allow delete: if isAdmin();
+      }
+    }
+    
+    // WhatsApp Conversations - NEW (not used yet)
+    match /whatsappConversations/{conversationId} {
+      allow read: if isAuthenticated() && hasStaffProfile();
+      allow create: if isAuthenticated() && hasStaffProfile();
+      allow update: if isAuthenticated() && hasStaffProfile();
+      allow delete: if isAdmin();
+    }
+    
+    // WhatsApp Messages - NEW (not used yet)
+    match /whatsappMessages/{messageId} {
+      allow read: if isAuthenticated() && hasStaffProfile();
+      allow create: if isAuthenticated() && hasStaffProfile();
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+    
+    // Default deny all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
