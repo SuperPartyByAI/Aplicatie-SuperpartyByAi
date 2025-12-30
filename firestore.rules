@@ -53,6 +53,18 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
+    // Outbox - WhatsApp message queue
+    match /outbox/{messageId} {
+      // All authenticated users can read and create
+      allow read, create: if isAuthenticated();
+      
+      // Backend can update status
+      allow update: if isAuthenticated();
+      
+      // Only admin can delete
+      allow delete: if isAdmin();
+    }
+    
     // Threads (WhatsApp Conversations) - USED BY BACKEND
     match /threads/{threadId} {
       // All authenticated users can read all threads

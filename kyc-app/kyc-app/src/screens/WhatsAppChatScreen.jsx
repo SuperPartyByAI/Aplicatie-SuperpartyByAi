@@ -9,6 +9,7 @@ import {
   doc, 
   getDoc,
   addDoc,
+  updateDoc,
   serverTimestamp,
   orderBy 
 } from 'firebase/firestore';
@@ -47,27 +48,43 @@ function WhatsAppChatScreen() {
     };
     loadProfile();
 
-    // Subscribe to threads (conversations)
+    // Subscribe to threads (conversations) - real-time updates
     const q = query(
-      collection(db, 'threads')
+      collection(db, 'whatsapp_threads'),
+      orderBy('lastMessageTime', 'desc')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const conversations = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          client_phone: data.clientJid || doc.id,
-          unread_count_for_operator: data.unreadCount || 0,
-          last_client_message_at: data.lastMessageAt || data.createdAt,
-          assigned_operator_code: data.assigned_operator_code || null,
-          reserved_at: data.reserved_at || null,
-          status: data.assigned_operator_code ? 'RESERVED' : 'AVAILABLE'
-        };
-      }).filter(conv => conv.status === 'RESERVED');
+      console.log('💬 Threads snapshot received:', snapshot.size, 'documents');
       
+      const conversations = snapshot.docs
+        .map(doc => {
+          const data = doc.data();
+          
+          // Skip if no data or no lastMessageTime
+          if (!data || !data.lastMessageTime) {
+            return null;
+          }
+          
+          return {
+            id: doc.id,
+            client_phone: data.phoneNumber || doc.id,
+            unread_count_for_operator: data.unreadCount || 0,
+            last_client_message_at: data.lastMessageTime,
+            assigned_operator_code: data.assigned_operator_code || null,
+            reserved_at: data.reserved_at || null,
+            status: data.assigned_operator_code ? 'RESERVED' : 'AVAILABLE',
+            name: data.name || data.phoneNumber || 'Unknown'
+          };
+        })
+        .filter(conv => conv !== null && conv.status === 'RESERVED');
+      
+      console.log('✅ Reserved conversations:', conversations.length);
       setReservedConversations(conversations);
       setFilteredConversations(conversations);
+      setLoading(false);
+    }, (error) => {
+      console.error('❌ Error listening to threads:', error);
       setLoading(false);
     });
 
@@ -79,7 +96,8 @@ function WhatsAppChatScreen() {
     if (!selectedConversation) return;
 
     const q = query(
-      collection(db, 'threads', selectedConversation.id, 'messages'),
+      collection(db, 'whatsapp_messages'),
+      where('threadId', '==', selectedConversation.id),
       orderBy('timestamp', 'asc')
     );
 
@@ -89,11 +107,11 @@ function WhatsAppChatScreen() {
         return {
           id: doc.id,
           conversation_id: selectedConversation.id,
-          sender_type: data.direction === 'inbound' ? 'CLIENT' : 'OPERATOR',
-          sender_operator_code: data.direction === 'outbound' ? staffProfile?.code : null,
+          sender_type: data.fromMe ? 'OPERATOR' : 'CLIENT',
+          sender_operator_code: data.fromMe ? staffProfile?.code : null,
           timestamp: data.timestamp,
           content: data.body || '',
-          delivery_status: data.status,
+          delivery_status: data.status || 'sent',
           ai_auto_response: false
         };
       });
@@ -151,13 +169,27 @@ function WhatsAppChatScreen() {
     setSending(true);
     try {
       const messageId = `msg_${Date.now()}`;
+      
+      // Save to outbox for WhatsApp sending
+      await addDoc(collection(db, 'outbox'), {
+        accountId: 'account_1767042206934', // Default account
+        toJid: selectedConversation.client_phone,
+        payload: {
+          text: inputMessage.trim()
+        },
+        status: 'queued',
+        createdAt: serverTimestamp(),
+        attempts: 0
+      });
+
+      // Also save to threads for display
       await addDoc(collection(db, 'threads', selectedConversation.id, 'messages'), {
         accountId: 'operator',
         clientJid: selectedConversation.client_phone,
         direction: 'outbound',
         body: inputMessage.trim(),
         timestamp: serverTimestamp(),
-        status: 'sent',
+        status: 'queued',
         providerMessageId: messageId
       });
 
@@ -170,7 +202,7 @@ function WhatsAppChatScreen() {
       setInputMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
-      alert('Eroare la trimitere mesaj');
+      alert('Eroare la trimitere mesaj: ' + error.message);
     } finally {
       setSending(false);
     }
