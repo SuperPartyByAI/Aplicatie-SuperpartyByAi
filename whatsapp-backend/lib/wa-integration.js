@@ -145,9 +145,16 @@ class WAIntegration {
   }
 
   /**
-   * W8: Send outbox message
+   * W8: Send outbox message (with fencing check)
    */
   async sendOutboxMessage(outboxId, data) {
+    // W11: FENCING CHECK
+    const lockStatus = await this.stability.lock.getStatus();
+    if (!lockStatus.isHolder) {
+      console.log(`[WAIntegration] fencing_abort_outbox_send outboxId=${outboxId} reason=lock_not_held`);
+      return;
+    }
+    
     // Rate limiting
     const now = Date.now();
     const timeSinceLastSend = now - this.lastSendAt;
@@ -164,7 +171,8 @@ class WAIntegration {
         status: 'SENT',
         attemptCount: (data.attemptCount || 0) + 1,
         lastUpdatedAt: FieldValue.serverTimestamp(),
-        instanceId: this.instanceId
+        instanceId: this.instanceId,
+        leaseEpoch: lockStatus.leaseEpoch || 0
       });
       
       this.lastSendAt = now;
@@ -187,9 +195,16 @@ class WAIntegration {
   }
 
   /**
-   * W9: Check inbound dedupe
+   * W9: Check inbound dedupe (with fencing check)
    */
   async checkInboundDedupe(waMessageId) {
+    // W11: FENCING CHECK
+    const lockStatus = await this.stability.lock.getStatus();
+    if (!lockStatus.isHolder) {
+      console.log(`[WAIntegration] fencing_abort_inbound_dedupe waMessageId=${waMessageId} reason=lock_not_held`);
+      return { isDuplicate: true, source: 'fencing_abort' };
+    }
+    
     // Check cache first
     if (this.inboundDedupeCache.has(waMessageId)) {
       return { isDuplicate: true, source: 'cache' };
@@ -210,12 +225,13 @@ class WAIntegration {
           return { isDuplicate: true, source: 'firestore' };
         }
         
-        // Create dedupe entry
+        // Create dedupe entry with fencing token
         transaction.set(dedupeRef, {
           waMessageId,
           firstSeenAt: FieldValue.serverTimestamp(),
           lastSeenAt: FieldValue.serverTimestamp(),
-          instanceId: this.instanceId
+          instanceId: this.instanceId,
+          leaseEpoch: lockStatus.leaseEpoch || 0
         });
         
         return { isDuplicate: false };
