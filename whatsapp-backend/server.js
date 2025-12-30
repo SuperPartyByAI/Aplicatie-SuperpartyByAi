@@ -1700,6 +1700,8 @@ async function restoreAccount(accountId, data) {
       
       const account = {
         id: accountId,
+        name: data.name || accountId,
+        phone: data.phoneE164 || data.phone,
         phoneNumber: data.phoneE164 || data.phone,
         sock,
         status: 'connecting',
