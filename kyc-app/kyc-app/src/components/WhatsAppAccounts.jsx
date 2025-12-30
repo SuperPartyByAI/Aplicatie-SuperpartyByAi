@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 
-const WHATSAPP_URL = 'https://whats-upp-production.up.railway.app';
+const WHATSAPP_URL = 'https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3';
 
 function WhatsAppAccounts() {
   const [accounts, setAccounts] = useState([]);
@@ -88,8 +88,8 @@ function WhatsAppAccounts() {
 
     try {
       console.log('🔌 Disconnecting account:', accountId);
-      const response = await fetch(`${WHATSAPP_URL}/api/whatsapp/disconnect/${accountId}`, {
-        method: 'POST',
+      const response = await fetch(`${WHATSAPP_URL}/api/whatsapp/accounts/${accountId}`, {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
       });
       
