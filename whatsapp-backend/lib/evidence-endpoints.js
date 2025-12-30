@@ -9,12 +9,13 @@ const crypto = require('crypto');
 const BootstrapRunner = require('./bootstrap-runner');
 
 class EvidenceEndpoints {
-  constructor(app, db, schema, adminToken, baileys) {
+  constructor(app, db, schema, adminToken, baileys, waBootstrap) {
     this.app = app;
     this.db = db;
     this.schema = schema;
     this.adminToken = adminToken;
     this.baileys = baileys;
+    this.waBootstrap = waBootstrap;
     
     this.setupEndpoints();
   }
@@ -34,26 +35,30 @@ class EvidenceEndpoints {
         const state = await this.schema.getState();
         const config = await this.schema.getConfig();
         
-        // Get WA connection state
-        const waConnectionDoc = await this.db.doc('wa_metrics/longrun/state/wa_connection').get();
-        const waConnection = waConnectionDoc.exists ? waConnectionDoc.data() : null;
-        
-        // Get WA lock status
-        const waLockDoc = await this.db.doc('wa_metrics/longrun/locks/wa_connection').get();
-        const waLock = waLockDoc.exists ? waLockDoc.data() : null;
-        
-        // Get auth state info (fixed: use proper subcollection path)
-        const authCredsDoc = await this.db.doc('wa_metrics/longrun/baileys_auth/creds').get();
-        let authKeyCount = 0;
-        try {
-          // Keys stored as subcollection under baileys_auth document
-          const keysRef = this.db.doc('wa_metrics/longrun/baileys_auth').collection('keys');
-          const authKeysSnapshot = await keysRef.get();
-          authKeyCount = authKeysSnapshot.size;
-        } catch (error) {
-          console.error('[status-now] Error counting auth keys:', error.message);
-          authKeyCount = 0;
+        // Get WA status from bootstrap (MAIN FLOW)
+        let waStatus = null;
+        if (this.waBootstrap) {
+          waStatus = await this.waBootstrap.getWAStatus();
+        } else {
+          // Fallback: read from Firestore directly
+          const waConnectionDoc = await this.db.doc('wa_metrics/longrun/state/wa_connection').get();
+          const waConnection = waConnectionDoc.exists ? waConnectionDoc.data() : null;
+          
+          const waLockDoc = await this.db.doc('wa_metrics/longrun/locks/wa_connection').get();
+          const waLock = waLockDoc.exists ? waLockDoc.data() : null;
+          
+          waStatus = {
+            waMode: waLock && waLock.leaseUntil > Date.now() ? 'active' : 'passive_lock_not_acquired',
+            waStatus: waConnection?.waStatus || 'NOT_RUNNING',
+            lockHolder: waLock?.holderInstanceId || null
+          };
         }
+        
+        // Auth info already in waStatus if using bootstrap
+        // Keep for backward compatibility
+        let authKeyCount = waStatus.authKeyCount || 0;
+        let authStateExists = waStatus.authStateExists || false;
+        let lastAuthWriteAt = waStatus.lastAuthWriteAt || null;
         
         // Get latest heartbeats
         const now = Date.now();
@@ -108,58 +113,14 @@ class EvidenceEndpoints {
           });
         });
         
-        // DoD-WA-1: WA connection status fields (COMPLETE W1-W18)
-        const waStatus = {
-          // W1: Lock
-          waMode: waLock && waLock.leaseUntil > Date.now() ? 'active' : 'passive',
-          lockHolder: waLock?.holderInstanceId || null,
-          lockLeaseUntil: waLock?.leaseUntil || null,
-          leaseEpoch: waLock?.leaseEpoch || 0,
-          
-          // W3: Connection state
-          waStatus: waConnection?.waStatus || 'UNKNOWN',
-          connectedAt: waConnection?.connectedAt || null,
-          lastDisconnectAt: waConnection?.lastDisconnectAt || null,
-          lastDisconnectReason: waConnection?.lastDisconnectReason || null,
-          retryCount: waConnection?.retryCount || 0,
-          nextRetryAt: waConnection?.nextRetryAt || null,
-          
-          // W2: Auth
-          authStore: 'firestore',
-          authStateExists: authCredsDoc.exists,
-          authKeyCount: authKeyCount,
-          lastAuthWriteAt: authCredsDoc.exists ? authCredsDoc.data().updatedAt : null,
-          
-          // W4: Keepalive
-          lastEventAt: waConnection?.lastEventAt || null,
-          lastMessageAt: waConnection?.lastMessageAt || null,
-          lastAckAt: waConnection?.lastAckAt || null,
-          
-          // W8: Outbox
-          outboxPendingCount: waConnection?.outboxPendingCount || 0,
-          outboxOldestPendingAgeSec: waConnection?.outboxOldestPendingAgeSec || null,
-          drainMode: waConnection?.drainMode || false,
-          
-          // W9: Inbound dedupe
-          inboundDedupeStore: 'firestore',
-          
-          // W12: Dependency health
-          consecutiveFirestoreErrors: waConnection?.consecutiveFirestoreErrors || 0,
-          degradedSince: waConnection?.degradedSince || null,
-          
-          // W13: Circuit breaker
-          reconnectMode: waConnection?.reconnectMode || 'normal',
-          
-          // W14: Single-flight
-          connectInProgress: waConnection?.connectInProgress || false,
-          lastConnectAttemptAt: waConnection?.lastConnectAttemptAt || null,
-          
-          // W18: Pairing
-          pairingRequired: waConnection?.pairingRequired || false,
-          
-          // W17: Warm-up
-          warmUpComplete: waConnection?.warmUpComplete || false
-        };
+        // DoD-WA-1: WA connection status fields (COMPLETE W1-W18) - FROM MAIN FLOW
+        // waStatus already populated from waBootstrap.getWAStatus() above
+        // Ensure all required fields are present
+        waStatus.authStore = waStatus.authStore || 'firestore';
+        waStatus.authStateExists = authStateExists;
+        waStatus.authKeyCount = authKeyCount;
+        waStatus.lastAuthWriteAt = lastAuthWriteAt;
+        waStatus.inboundDedupeStore = waStatus.inboundDedupeStore || 'firestore';
         
         res.json({
           success: true,

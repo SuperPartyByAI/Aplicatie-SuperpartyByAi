@@ -155,6 +155,7 @@ let longrunJobsInstance = null;
 const LongRunSchemaComplete = require('./lib/longrun-schema-complete');
 const EvidenceEndpoints = require('./lib/evidence-endpoints');
 const DeployGuard = require('./lib/deploy-guard');
+const waBootstrap = require('./lib/wa-bootstrap');
 const LONGRUN_ADMIN_TOKEN = process.env.LONGRUN_ADMIN_TOKEN || ADMIN_TOKEN;
 const START_TIME = Date.now();
 
@@ -2018,8 +2019,13 @@ app.listen(PORT, '0.0.0.0', async () => {
       bootTimestamp: START_TIME
     };
     
-    // Initialize evidence endpoints (after baileys interface)
-    new EvidenceEndpoints(app, db, longrunSchema, LONGRUN_ADMIN_TOKEN, baileysInterface);
+    // Initialize WA system with lock acquisition (BEFORE any Baileys init)
+    console.log('🔒 Initializing WA system with lock acquisition...');
+    const waInitResult = await waBootstrap.initializeWASystem(db);
+    console.log(`🔒 WA system initialized: mode=${waInitResult.mode}`);
+    
+    // Initialize evidence endpoints (after baileys interface + wa-bootstrap)
+    new EvidenceEndpoints(app, db, longrunSchema, LONGRUN_ADMIN_TOKEN, baileysInterface, waBootstrap);
     console.log('✅ Evidence endpoints initialized');
     
     // Initialize long-run jobs v2 (uses initJobs function, not class)
