@@ -1202,6 +1202,20 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
       });
     }
     
+    // Check for duplicate phone number
+    if (phone) {
+      const normalizedPhone = phone.replace(/\D/g, ''); // Remove non-digits
+      for (const [existingId, conn] of connections.entries()) {
+        const existingPhone = conn.phone?.replace(/\D/g, '');
+        if (existingPhone && existingPhone === normalizedPhone) {
+          return res.status(400).json({
+            success: false,
+            error: `Phone number ${phone} already exists (account: ${conn.name || existingId})`
+          });
+        }
+      }
+    }
+    
     const accountId = `account_${Date.now()}`;
     
     // Create connection (async, will emit QR later)
