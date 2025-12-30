@@ -1,5 +1,5 @@
 const functions = require('firebase-functions');
-const { defineString } = require('firebase-functions/params');
+// const { defineString } = require('firebase-functions/params'); // Temporarily disabled for compatibility
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -143,12 +143,6 @@ exports.whatsappV2 = functions
 // Clean new function - no upgrade history
 exports.whatsappV3 = functions.https.onRequest(app);
 
-// Define OpenAI API key parameter
-const openaiApiKey = defineString('OPENAI_API_KEY', {
-  description: 'OpenAI API key for chat completions',
-  default: ''
-});
-
 // AI Chat Function
 exports.chatWithAI = functions
   .runWith({
@@ -173,8 +167,8 @@ exports.chatWithAI = functions
         );
       }
       
-      // Get OpenAI API key from params
-      const openaiKey = openaiApiKey.value();
+      // Get OpenAI API key from environment
+      const openaiKey = process.env.OPENAI_API_KEY;
       
       if (!openaiKey) {
         console.error(`[${requestId}] OpenAI API key not configured`);
