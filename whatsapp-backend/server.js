@@ -63,6 +63,9 @@ app.use(cors({
 
 app.use(express.json());
 
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, 'public')));
+
 // Global rate limiting: 200 requests per IP per minute
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,

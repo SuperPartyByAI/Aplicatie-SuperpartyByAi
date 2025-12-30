@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Backend - Long-Run Monitoring</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        header {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        h1 { font-size: 32px; margin-bottom: 10px; color: #60a5fa; }
+        .subtitle { color: #94a3b8; font-size: 14px; }
+        .auth-section {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 1px solid #334155;
+        }
+        .auth-section input {
+            width: 100%;
+            padding: 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .auth-section button {
+            padding: 12px 24px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .auth-section button:hover { background: #2563eb; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: #1e293b;
+            padding: 24px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .card h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            color: #60a5fa;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-ok { background: #10b981; }
+        .status-warning { background: #f59e0b; }
+        .status-error { background: #ef4444; }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #334155;
+        }
+        .metric:last-child { border-bottom: none; }
+        .metric-label { color: #94a3b8; font-size: 14px; }
+        .metric-value { font-weight: 600; font-size: 16px; }
+        .metric-value.good { color: #10b981; }
+        .metric-value.warning { color: #f59e0b; }
+        .metric-value.bad { color: #ef4444; }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #64748b;
+        }
+        .error {
+            background: #7f1d1d;
+            color: #fca5a5;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #991b1b;
+        }
+        .refresh-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 24px;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+        .refresh-btn:hover { background: #2563eb; transform: scale(1.1); }
+        .refresh-btn.spinning { animation: spin 1s linear infinite; }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .timestamp {
+            text-align: center;
+            color: #64748b;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 WhatsApp Backend Monitoring</h1>
+            <p class="subtitle">Long-Run Stability Dashboard - Real-time metrics from Firestore</p>
+        </header>
+        
+        <div class="auth-section" id="authSection">
+            <h2 style="margin-bottom: 12px; font-size: 16px;">Authentication Required</h2>
+            <input type="password" id="tokenInput" placeholder="Enter admin token..." />
+            <button onclick="authenticate()">Authenticate</button>
+        </div>
+        
+        <div id="dashboard" style="display: none;">
+            <div class="grid">
+                <div class="card">
+                    <h2><span class="status-indicator" id="systemStatus"></span> System Status</h2>
+                    <div class="metric">
+                        <span class="metric-label">Leader Instance</span>
+                        <span class="metric-value" id="leaderInstance">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Safe Mode</span>
+                        <span class="metric-value" id="safeMode">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Auth Status</span>
+                        <span class="metric-value" id="authStatus">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Deploy Commit</span>
+                        <span class="metric-value" id="deployCommit" style="font-size: 12px;">-</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📊 Today's Coverage</h2>
+                    <div class="metric">
+                        <span class="metric-label">Heartbeat Coverage</span>
+                        <span class="metric-value" id="todayCoverage">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Data Status</span>
+                        <span class="metric-value" id="todayStatus">-</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>🔍 Probes (24h)</h2>
+                    <div id="probeStats" class="loading">Loading...</div>
+                </div>
+            </div>
+            
+            <div class="grid">
+                <div class="card">
+                    <h2>📈 7-Day Report</h2>
+                    <div class="metric">
+                        <span class="metric-label">Heartbeat Coverage</span>
+                        <span class="metric-value" id="coverage7d">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Expected HB</span>
+                        <span class="metric-value" id="expected7d">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Actual HB</span>
+                        <span class="metric-value" id="actual7d">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Status</span>
+                        <span class="metric-value" id="status7d">-</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2>📅 30-Day Report</h2>
+                    <div class="metric">
+                        <span class="metric-label">Overall Coverage</span>
+                        <span class="metric-value" id="coverage30d">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Days with Data</span>
+                        <span class="metric-value" id="days30d">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Total Rollups</span>
+                        <span class="metric-value" id="rollups30d">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Status</span>
+                        <span class="metric-value" id="status30d">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <button class="refresh-btn" onclick="refreshData()" id="refreshBtn">↻</button>
+        
+        <div class="timestamp" id="lastUpdate"></div>
+    </div>
+    
+    <script>
+        let adminToken = null;
+        const API_BASE = window.location.origin;
+        
+        function authenticate() {
+            const token = document.getElementById('tokenInput').value;
+            if (!token) {
+                alert('Please enter a token');
+                return;
+            }
+            
+            adminToken = token;
+            localStorage.setItem('adminToken', token);
+            
+            document.getElementById('authSection').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            
+            loadData();
+        }
+        
+        window.addEventListener('load', () => {
+            const savedToken = localStorage.getItem('adminToken');
+            if (savedToken) {
+                adminToken = savedToken;
+                document.getElementById('authSection').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                loadData();
+            }
+        });
+        
+        async function fetchWithAuth(url) {
+            const response = await fetch(url, {
+                headers: { 'X-Admin-Token': adminToken }
+            });
+            
+            if (response.status === 401) {
+                localStorage.removeItem('adminToken');
+                document.getElementById('authSection').style.display = 'block';
+                document.getElementById('dashboard').style.display = 'none';
+                throw new Error('Authentication failed');
+            }
+            
+            return response.json();
+        }
+        
+        async function loadData() {
+            try {
+                const [summary, report7d, report30d] = await Promise.all([
+                    fetchWithAuth(`${API_BASE}/api/longrun/metrics/summary`),
+                    fetchWithAuth(`${API_BASE}/api/longrun/report/7d`),
+                    fetchWithAuth(`${API_BASE}/api/longrun/report/30d`)
+                ]);
+                
+                updateSystemStatus(summary);
+                updateTodayCoverage(summary);
+                updateProbes(summary);
+                update7DayReport(report7d);
+                update30DayReport(report30d);
+                
+                document.getElementById('lastUpdate').textContent = 
+                    `Last updated: ${new Date().toLocaleString()}`;
+                    
+            } catch (error) {
+                console.error('Error loading data:', error);
+                showError(error.message);
+            }
+        }
+        
+        function updateSystemStatus(summary) {
+            const statusEl = document.getElementById('systemStatus');
+            if (summary.state?.safeMode) {
+                statusEl.className = 'status-indicator status-warning';
+            } else if (summary.state?.leader) {
+                statusEl.className = 'status-indicator status-ok';
+            } else {
+                statusEl.className = 'status-indicator status-error';
+            }
+            
+            document.getElementById('leaderInstance').textContent = 
+                summary.state?.leader || 'None';
+            document.getElementById('safeMode').textContent = 
+                summary.state?.safeMode ? 'Active' : 'Inactive';
+            document.getElementById('safeMode').className = 
+                summary.state?.safeMode ? 'metric-value warning' : 'metric-value good';
+            document.getElementById('authStatus').textContent = 
+                summary.state?.authStatus || 'Unknown';
+            document.getElementById('deployCommit').textContent = 
+                summary.config?.commitHash?.substring(0, 8) || 'Unknown';
+        }
+        
+        function updateTodayCoverage(summary) {
+            if (summary.today) {
+                document.getElementById('todayCoverage').textContent = summary.today.coverage;
+                document.getElementById('todayCoverage').className = 
+                    parseFloat(summary.today.coverage) >= 80 ? 'metric-value good' : 'metric-value warning';
+                document.getElementById('todayStatus').textContent = 
+                    summary.today.insufficientData ? 'Insufficient' : 'Sufficient';
+                document.getElementById('todayStatus').className = 
+                    summary.today.insufficientData ? 'metric-value warning' : 'metric-value good';
+            }
+        }
+        
+        function updateProbes(summary) {
+            const container = document.getElementById('probeStats');
+            if (!summary.probes24h || Object.keys(summary.probes24h).length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #64748b;">No probe data</div>';
+                return;
+            }
+            
+            let html = '';
+            Object.entries(summary.probes24h).forEach(([type, stats]) => {
+                const successRate = stats.total > 0 ? ((stats.pass / stats.total) * 100).toFixed(1) : 0;
+                html += `
+                    <div class="metric">
+                        <span class="metric-label">${type}</span>
+                        <span class="metric-value ${successRate >= 95 ? 'good' : 'warning'}">
+                            ${successRate}% (${stats.avgLatency}ms)
+                        </span>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+        
+        function update7DayReport(report) {
+            document.getElementById('coverage7d').textContent = report.heartbeats.coverage;
+            document.getElementById('coverage7d').className = 
+                parseFloat(report.heartbeats.coverage) >= 80 ? 'metric-value good' : 'metric-value warning';
+            document.getElementById('expected7d').textContent = report.heartbeats.expected;
+            document.getElementById('actual7d').textContent = report.heartbeats.actual;
+            document.getElementById('status7d').textContent = 
+                report.status === 'SUFFICIENT_DATA' ? 'Sufficient' : 'Insufficient';
+            document.getElementById('status7d').className = 
+                report.status === 'SUFFICIENT_DATA' ? 'metric-value good' : 'metric-value warning';
+        }
+        
+        function update30DayReport(report) {
+            document.getElementById('coverage30d').textContent = report.rollups.overallCoverage;
+            document.getElementById('coverage30d').className = 
+                parseFloat(report.rollups.overallCoverage) >= 80 ? 'metric-value good' : 'metric-value warning';
+            document.getElementById('days30d').textContent = 
+                `${report.rollups.daysWithSufficientData} / ${report.rollups.total}`;
+            document.getElementById('rollups30d').textContent = report.rollups.total;
+            document.getElementById('status30d').textContent = 
+                report.status === 'SUFFICIENT_DATA' ? 'Sufficient' : 'Insufficient';
+            document.getElementById('status30d').className = 
+                report.status === 'SUFFICIENT_DATA' ? 'metric-value good' : 'metric-value warning';
+        }
+        
+        function refreshData() {
+            const btn = document.getElementById('refreshBtn');
+            btn.classList.add('spinning');
+            
+            loadData().finally(() => {
+                setTimeout(() => btn.classList.remove('spinning'), 500);
+            });
+        }
+        
+        function showError(message) {
+            const dashboard = document.getElementById('dashboard');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = `Error: ${message}`;
+            dashboard.insertBefore(errorDiv, dashboard.firstChild);
+            
+            setTimeout(() => errorDiv.remove(), 5000);
+        }
+        
+        setInterval(refreshData, 60000);
+    </script>
+</body>
+</html>
