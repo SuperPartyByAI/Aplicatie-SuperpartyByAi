@@ -144,8 +144,8 @@ const VERSION = '2.0.0';
 const COMMIT_HASH = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown';
 const BOOT_TIMESTAMP = new Date().toISOString();
 
-// Long-run jobs (production-grade v3)
-const longrunJobsModule = require('./lib/longrun-jobs-v3');
+// Long-run jobs (production-grade v2)
+const longrunJobsModule = require('./lib/longrun-jobs-v2');
 let longrunJobsInstance = null;
 
 // Long-run schema and evidence endpoints
@@ -2003,9 +2003,9 @@ app.listen(PORT, '0.0.0.0', async () => {
       bootTimestamp: START_TIME
     };
     
-    longrunJobsInstance = new longrunJobsModule(db, baseUrl, baileysInterface);
-    await longrunJobsInstance.start();
-    console.log('✅ Long-run jobs v3 started');
+    // Initialize long-run jobs v2 (uses initJobs function, not class)
+    await longrunJobsModule.initJobs(db, baseUrl);
+    console.log('✅ Long-run jobs v2 started');
     
     // Start deploy guard
     const deployGuard = new DeployGuard(db, longrunSchema, baseUrl, commitHash);
@@ -2019,8 +2019,8 @@ process.on('SIGTERM', async () => {
   console.log('SIGTERM received, closing connections...');
   
   // Stop long-run jobs first
-  if (longrunJobsInstance) {
-    await longrunJobsInstance.stop();
+  if (longrunJobsModule && longrunJobsModule.stopJobs) {
+    await longrunJobsModule.stopJobs();
   }
   
   connections.forEach((account, id) => {
@@ -2039,8 +2039,8 @@ process.on('SIGINT', async () => {
   console.log('SIGINT received, closing connections...');
   
   // Stop long-run jobs first
-  if (longrunJobsInstance) {
-    await longrunJobsInstance.stop();
+  if (longrunJobsModule && longrunJobsModule.stopJobs) {
+    await longrunJobsModule.stopJobs();
   }
   
   connections.forEach((account, id) => {
