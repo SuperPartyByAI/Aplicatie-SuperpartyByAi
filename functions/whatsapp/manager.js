@@ -234,20 +234,29 @@ class WhatsAppManager {
   
   /**
    * Cleanup Firestore accounts collection
-   * Remove accounts that are not in memory (phantom accounts)
+   * Remove accounts that are not in memory AND have no saved session
    */
   async cleanupFirestoreAccounts() {
     try {
       console.log('🧹 Cleaning up Firestore accounts...');
       const snapshot = await firestore.db.collection('accounts').get();
       const memoryAccountIds = Array.from(this.accounts.keys());
+      const savedSessions = await sessionStore.listSessions();
+      const sessionAccountIds = savedSessions.map(s => s.accountId);
       
       let cleaned = 0;
       for (const doc of snapshot.docs) {
-        if (!memoryAccountIds.includes(doc.id)) {
-          console.log(`🗑️ Removing phantom account: ${doc.id}`);
+        const accountId = doc.id;
+        const inMemory = memoryAccountIds.includes(accountId);
+        const hasSession = sessionAccountIds.includes(accountId);
+        
+        // Only delete if NOT in memory AND has NO session
+        if (!inMemory && !hasSession) {
+          console.log(`🗑️ Removing phantom account (no session): ${accountId}`);
           await doc.ref.delete();
           cleaned++;
+        } else if (!inMemory && hasSession) {
+          console.log(`⏭️ Keeping account with session: ${accountId}`);
         }
       }
       
