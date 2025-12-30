@@ -224,8 +224,36 @@ class WhatsAppManager {
       }
       
       console.log(`✅ Auto-restore complete: ${sessions.length} account(s) restored`);
+      
+      // Cleanup Firestore: remove accounts not in memory
+      await this.cleanupFirestoreAccounts();
     } catch (error) {
       console.error('❌ Auto-restore failed:', error.message);
+    }
+  }
+  
+  /**
+   * Cleanup Firestore accounts collection
+   * Remove accounts that are not in memory (phantom accounts)
+   */
+  async cleanupFirestoreAccounts() {
+    try {
+      console.log('🧹 Cleaning up Firestore accounts...');
+      const snapshot = await firestore.db.collection('accounts').get();
+      const memoryAccountIds = Array.from(this.accounts.keys());
+      
+      let cleaned = 0;
+      for (const doc of snapshot.docs) {
+        if (!memoryAccountIds.includes(doc.id)) {
+          console.log(`🗑️ Removing phantom account: ${doc.id}`);
+          await doc.ref.delete();
+          cleaned++;
+        }
+      }
+      
+      console.log(`✅ Firestore cleanup complete: ${cleaned} phantom account(s) removed`);
+    } catch (error) {
+      console.error('❌ Firestore cleanup failed:', error.message);
     }
   }
   
@@ -687,6 +715,12 @@ class WhatsAppManager {
       throw new Error(`Maximum ${this.maxAccounts} accounts reached`);
     }
 
+    // Normalize phone number: remove @s.whatsapp.net if already present
+    let normalizedPhone = phoneNumber;
+    if (phoneNumber) {
+      normalizedPhone = phoneNumber.replace(/@s\.whatsapp\.net/g, '').replace(/[^0-9+]/g, '');
+    }
+
     const accountId = `account_${Date.now()}`;
     const account = {
       id: accountId,
@@ -694,7 +728,7 @@ class WhatsAppManager {
       status: 'connecting',
       qrCode: null,
       pairingCode: null,
-      phone: phoneNumber,
+      phone: normalizedPhone,
       createdAt: new Date().toISOString()
     };
 
@@ -820,6 +854,15 @@ class WhatsAppManager {
         if (account) {
           account.status = shouldReconnect ? 'reconnecting' : 'disconnected';
           
+          // Sync to Firestore immediately
+          await firestore.db.collection('accounts').doc(accountId).set({
+            id: accountId,
+            name: account.name,
+            status: account.status,
+            phone: account.phone,
+            updatedAt: firestore.admin.firestore.FieldValue.serverTimestamp()
+          }, { merge: true }).catch(err => console.error('Failed to sync account status:', err));
+          
           // Salvează status în Firestore (păstrează accountul în listă)
           const sessionPath = path.join(this.sessionsPath, accountId);
           sessionStore.saveSession(accountId, sessionPath, account).catch(err => {
@@ -912,6 +955,15 @@ class WhatsAppManager {
           account.status = 'connected';
           account.qrCode = null;
           account.phone = sock.user?.id?.split(':')[0] || null;
+          
+          // Sync to Firestore immediately
+          await firestore.db.collection('accounts').doc(accountId).set({
+            id: accountId,
+            name: account.name,
+            status: 'connected',
+            phone: account.phone,
+            updatedAt: firestore.admin.firestore.FieldValue.serverTimestamp()
+          }, { merge: true }).catch(err => console.error('Failed to sync account status:', err));
         }
         
         // 💾 CRITICAL: Save session to Firestore IMMEDIATELY after connection
