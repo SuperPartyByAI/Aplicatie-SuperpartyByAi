@@ -14,6 +14,11 @@ const app = express();
 const PORT = process.env.PORT || 8080; // Railway injects PORT
 const MAX_ACCOUNTS = 18;
 
+// Health monitoring and auto-recovery
+const connectionHealth = new Map(); // accountId -> { lastEventAt, lastMessageAt, reconnectCount, isStale }
+const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000; // 5 minutes without events = stale
+const HEALTH_CHECK_INTERVAL = 60 * 1000; // Check every 60 seconds
+
 // Admin token for protected endpoints
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'dev-token-' + Math.random().toString(36).substring(7);
 console.log(`🔐 ADMIN_TOKEN configured: ${ADMIN_TOKEN.substring(0, 10)}...`);
@@ -608,6 +613,113 @@ app.get('/api/test/token', (req, res) => {
   });
 });
 
+// Health monitoring functions
+function updateConnectionHealth(accountId, eventType) {
+  if (!connectionHealth.has(accountId)) {
+    connectionHealth.set(accountId, {
+      lastEventAt: Date.now(),
+      lastMessageAt: null,
+      reconnectCount: 0,
+      isStale: false
+    });
+  }
+  
+  const health = connectionHealth.get(accountId);
+  health.lastEventAt = Date.now();
+  
+  if (eventType === 'message') {
+    health.lastMessageAt = Date.now();
+  }
+  
+  health.isStale = false;
+}
+
+function checkStaleConnections() {
+  const now = Date.now();
+  const staleAccounts = [];
+  
+  for (const [accountId, account] of connections.entries()) {
+    if (account.status !== 'connected') continue;
+    
+    const health = connectionHealth.get(accountId);
+    if (!health) {
+      // No health data = just connected, give it time
+      connectionHealth.set(accountId, {
+        lastEventAt: now,
+        lastMessageAt: null,
+        reconnectCount: 0,
+        isStale: false
+      });
+      continue;
+    }
+    
+    const timeSinceLastEvent = now - health.lastEventAt;
+    
+    if (timeSinceLastEvent > STALE_CONNECTION_THRESHOLD && !health.isStale) {
+      console.log(`⚠️  [${accountId}] STALE CONNECTION detected (${Math.round(timeSinceLastEvent/1000)}s since last event)`);
+      health.isStale = true;
+      staleAccounts.push(accountId);
+    }
+  }
+  
+  return staleAccounts;
+}
+
+async function recoverStaleConnection(accountId) {
+  console.log(`🔄 [${accountId}] Starting auto-recovery for stale connection...`);
+  
+  const account = connections.get(accountId);
+  if (!account) {
+    console.log(`⚠️  [${accountId}] Account not found in connections`);
+    return;
+  }
+  
+  try {
+    // Increment reconnect count
+    const health = connectionHealth.get(accountId);
+    if (health) {
+      health.reconnectCount++;
+    }
+    
+    // Close existing socket
+    if (account.sock) {
+      console.log(`🔌 [${accountId}] Closing stale socket...`);
+      account.sock.end();
+    }
+    
+    // Wait a bit
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Remove from connections
+    connections.delete(accountId);
+    
+    // Trigger restore (will recreate connection)
+    console.log(`♻️  [${accountId}] Triggering reconnection...`);
+    await restoreSingleAccount(accountId);
+    
+    console.log(`✅ [${accountId}] Auto-recovery completed`);
+  } catch (error) {
+    console.error(`❌ [${accountId}] Auto-recovery failed:`, error.message);
+  }
+}
+
+// Start health monitoring watchdog
+setInterval(() => {
+  const staleAccounts = checkStaleConnections();
+  
+  if (staleAccounts.length > 0) {
+    console.log(`🚨 Found ${staleAccounts.length} stale connections, triggering auto-recovery...`);
+    
+    for (const accountId of staleAccounts) {
+      recoverStaleConnection(accountId).catch(err => {
+        console.error(`❌ Recovery failed for ${accountId}:`, err.message);
+      });
+    }
+  }
+}, HEALTH_CHECK_INTERVAL);
+
+console.log(`🏥 Health monitoring watchdog started (check every ${HEALTH_CHECK_INTERVAL/1000}s)`);
+
 app.get('/health', async (req, res) => {
   const connected = Array.from(connections.values()).filter(c => c.status === 'connected').length;
   const connecting = Array.from(connections.values()).filter(c => c.status === 'connecting' || c.status === 'reconnecting').length;
@@ -663,6 +775,38 @@ app.get('/health', async (req, res) => {
       max: MAX_ACCOUNTS
     },
     firestore: firestoreStatus
+  });
+});
+
+// Detailed health endpoint with connection metrics
+app.get('/health/detailed', async (req, res) => {
+  const accountsHealth = [];
+  
+  for (const [accountId, account] of connections.entries()) {
+    const health = connectionHealth.get(accountId);
+    
+    accountsHealth.push({
+      accountId,
+      status: account.status,
+      phoneNumber: account.phoneNumber,
+      lastEventAt: health?.lastEventAt ? new Date(health.lastEventAt).toISOString() : null,
+      lastMessageAt: health?.lastMessageAt ? new Date(health.lastMessageAt).toISOString() : null,
+      timeSinceLastEvent: health?.lastEventAt ? Math.floor((Date.now() - health.lastEventAt) / 1000) : null,
+      timeSinceLastMessage: health?.lastMessageAt ? Math.floor((Date.now() - health.lastMessageAt) / 1000) : null,
+      reconnectCount: health?.reconnectCount || 0,
+      isStale: health?.isStale || false
+    });
+  }
+  
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor((Date.now() - START_TIME) / 1000),
+    monitoring: {
+      staleThreshold: STALE_CONNECTION_THRESHOLD / 1000,
+      checkInterval: HEALTH_CHECK_INTERVAL / 1000
+    },
+    accounts: accountsHealth
   });
 });
 
@@ -1416,6 +1560,211 @@ app.get('/api/admin/tests/report', requireAdmin, async (req, res) => {
 });
 
 // Restore accounts from Firestore on cold start
+// Restore single account (used for auto-recovery)
+async function restoreSingleAccount(accountId) {
+  if (!firestoreAvailable) {
+    console.log(`⚠️  [${accountId}] Firestore not available`);
+    return;
+  }
+  
+  try {
+    const doc = await db.collection('accounts').doc(accountId).get();
+    
+    if (!doc.exists) {
+      console.log(`⚠️  [${accountId}] Account not found in Firestore`);
+      return;
+    }
+    
+    const data = doc.data();
+    
+    if (data.status !== 'connected') {
+      console.log(`⚠️  [${accountId}] Account status is ${data.status}, skipping restore`);
+      return;
+    }
+    
+    await restoreAccount(accountId, data);
+  } catch (error) {
+    console.error(`❌ [${accountId}] Single restore failed:`, error.message);
+  }
+}
+
+// Extract account restore logic
+async function restoreAccount(accountId, data) {
+  try {
+    console.log(`BOOT [${accountId}] Starting restore...`);
+    
+    const sessionPath = path.join(authDir, accountId);
+    
+    // Try restore from Firestore if disk session missing
+    if (!fs.existsSync(sessionPath) && USE_FIRESTORE_BACKUP && firestoreAvailable) {
+      console.log(`BOOT [${accountId}] No disk session, attempting Firestore restore...`);
+      
+      const sessionDoc = await db.collection('wa_sessions').doc(accountId).get();
+      if (sessionDoc.exists) {
+        const sessionData = sessionDoc.data();
+        
+        if (sessionData.files) {
+          fs.mkdirSync(sessionPath, { recursive: true });
+          
+          for (const [filename, content] of Object.entries(sessionData.files)) {
+            fs.writeFileSync(path.join(sessionPath, filename), content, 'utf8');
+          }
+          
+          console.log(`FIRESTORE_SESSION_LOADED [${accountId}] Restored ${Object.keys(sessionData.files).length} files from Firestore`);
+        }
+      } else {
+        console.log(`⚠️  [${accountId}] No session in Firestore, skipping`);
+        return;
+      }
+    }
+    
+    // Check disk session exists now
+    if (!fs.existsSync(sessionPath)) {
+      console.log(`⚠️  [${accountId}] No session available, skipping`);
+      return;
+    }
+    
+    // Load from disk
+    let { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+    
+    // Wrap saveCreds for Firestore backup
+    if (USE_FIRESTORE_BACKUP && firestoreAvailable) {
+      const originalSaveCreds = saveCreds;
+      saveCreds = async () => {
+        await originalSaveCreds();
+        
+        try {
+          const sessionFiles = fs.readdirSync(sessionPath);
+          const sessionData = {};
+          
+          for (const file of sessionFiles) {
+            const filePath = path.join(sessionPath, file);
+            if (fs.statSync(filePath).isFile()) {
+              sessionData[file] = fs.readFileSync(filePath, 'utf8');
+            }
+          }
+          
+          await db.collection('wa_sessions').doc(accountId).set({
+            files: sessionData,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            schemaVersion: 2
+          });
+        } catch (error) {
+          console.error(`❌ [${accountId}] Firestore backup failed:`, error.message);
+        }
+      };
+    }
+    
+    const { version } = await fetchLatestBaileysVersion();
+      
+      const sock = makeWASocket({
+        auth: state,
+        version,
+        printQRInTerminal: false,
+        browser: ['SuperParty', 'Chrome', '1.0.0'],
+        logger: pino({ level: 'silent' })
+      });
+      
+      const account = {
+        id: accountId,
+        phoneNumber: data.phoneE164 || data.phone,
+        sock,
+        status: 'connecting',
+        qrCode: null,
+        pairingCode: null,
+        createdAt: data.createdAt || new Date().toISOString(),
+        lastUpdate: data.updatedAt || new Date().toISOString()
+      };
+      
+      // Setup event handlers (FULL - same as createConnection)
+      sock.ev.on('connection.update', async (update) => {
+        updateConnectionHealth(accountId, 'connection');
+        
+        if (update.connection === 'open') {
+          account.status = 'connected';
+          console.log(`✅ [${accountId}] Restored and connected`);
+        }
+        
+        if (update.connection === 'close') {
+          console.log(`🔌 [${accountId}] Connection closed`);
+          const health = connectionHealth.get(accountId);
+          if (health) {
+            health.isStale = true;
+          }
+        }
+      });
+      
+      sock.ev.on('creds.update', saveCreds);
+      
+      // Messages handler - CRITICAL for receiving messages
+      sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
+        updateConnectionHealth(accountId, 'message');
+        console.log(`🔔 [${accountId}] messages.upsert EVENT: type=${type}, count=${newMessages.length}`);
+        
+        for (const msg of newMessages) {
+          console.log(`📩 [${accountId}] RAW MESSAGE:`, JSON.stringify({
+            id: msg.key.id,
+            remoteJid: msg.key.remoteJid,
+            fromMe: msg.key.fromMe,
+            participant: msg.key.participant,
+            hasMessage: !!msg.message,
+            messageKeys: msg.message ? Object.keys(msg.message) : []
+          }));
+          
+          if (!msg.message) {
+            console.log(`⚠️  [${accountId}] Skipping message ${msg.key.id} - no message content`);
+            continue;
+          }
+          
+          const messageId = msg.key.id;
+          const from = msg.key.remoteJid;
+          const isFromMe = msg.key.fromMe;
+          
+          console.log(`📨 [${accountId}] PROCESSING: ${isFromMe ? 'OUTBOUND' : 'INBOUND'} message ${messageId} from ${from}`);
+          
+          try {
+            const threadId = from;
+            const messageData = {
+              accountId,
+              clientJid: from,
+              direction: isFromMe ? 'outbound' : 'inbound',
+              body: msg.message.conversation || msg.message.extendedTextMessage?.text || '',
+              waMessageId: messageId,
+              status: 'delivered',
+              tsClient: new Date(msg.messageTimestamp * 1000).toISOString(),
+              tsServer: admin.firestore.FieldValue.serverTimestamp(),
+              createdAt: admin.firestore.FieldValue.serverTimestamp()
+            };
+            
+            console.log(`💾 [${accountId}] Saving to Firestore: threads/${threadId}/messages/${messageId}`, {
+              direction: messageData.direction,
+              body: messageData.body.substring(0, 50)
+            });
+            
+            await db.collection('threads').doc(threadId).collection('messages').doc(messageId).set(messageData);
+            
+            console.log(`✅ [${accountId}] Message saved successfully`);
+            
+            await db.collection('threads').doc(threadId).set({
+              accountId,
+              clientJid: from,
+              lastMessageAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            
+            console.log(`💾 [${accountId}] Message saved to Firestore: ${messageId}`);
+          } catch (error) {
+            console.error(`❌ [${accountId}] Message save failed:`, error.message);
+          }
+        }
+      });
+      
+    connections.set(accountId, account);
+    console.log(`✅ [${accountId}] Restored to memory`);
+  } catch (error) {
+    console.error(`❌ [${accountId}] Restore failed:`, error.message);
+  }
+}
+
 async function restoreAccountsFromFirestore() {
   if (!firestoreAvailable) {
     console.log('⚠️  Firestore not available, skipping account restore');
@@ -1432,170 +1781,7 @@ async function restoreAccountsFromFirestore() {
       const data = doc.data();
       const accountId = doc.id;
       
-      console.log(`🔄 Restoring account: ${accountId}`);
-      
-      try {
-        console.log(`BOOT [${accountId}] Starting restore...`);
-        
-        const sessionPath = path.join(authDir, accountId);
-        
-        // Try restore from Firestore if disk session missing
-        if (!fs.existsSync(sessionPath) && USE_FIRESTORE_BACKUP && firestoreAvailable) {
-          console.log(`BOOT [${accountId}] No disk session, attempting Firestore restore...`);
-          
-          const sessionDoc = await db.collection('wa_sessions').doc(accountId).get();
-          if (sessionDoc.exists) {
-            const sessionData = sessionDoc.data();
-            
-            if (sessionData.files) {
-              fs.mkdirSync(sessionPath, { recursive: true });
-              
-              for (const [filename, content] of Object.entries(sessionData.files)) {
-                fs.writeFileSync(path.join(sessionPath, filename), content, 'utf8');
-              }
-              
-              console.log(`FIRESTORE_SESSION_LOADED [${accountId}] Restored ${Object.keys(sessionData.files).length} files from Firestore`);
-            }
-          } else {
-            console.log(`⚠️  [${accountId}] No session in Firestore, skipping`);
-            continue;
-          }
-        }
-        
-        // Check disk session exists now
-        if (!fs.existsSync(sessionPath)) {
-          console.log(`⚠️  [${accountId}] No session available, skipping`);
-          continue;
-        }
-        
-        // Load from disk
-        let { state, saveCreds } = await useMultiFileAuthState(sessionPath);
-        
-        // Wrap saveCreds for Firestore backup
-        if (USE_FIRESTORE_BACKUP && firestoreAvailable) {
-          const originalSaveCreds = saveCreds;
-          saveCreds = async () => {
-            await originalSaveCreds();
-            
-            try {
-              const sessionFiles = fs.readdirSync(sessionPath);
-              const sessionData = {};
-              
-              for (const file of sessionFiles) {
-                const filePath = path.join(sessionPath, file);
-                if (fs.statSync(filePath).isFile()) {
-                  sessionData[file] = fs.readFileSync(filePath, 'utf8');
-                }
-              }
-              
-              await db.collection('wa_sessions').doc(accountId).set({
-                files: sessionData,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                schemaVersion: 2
-              });
-            } catch (error) {
-              console.error(`❌ [${accountId}] Firestore backup failed:`, error.message);
-            }
-          };
-        }
-        
-        const { version } = await fetchLatestBaileysVersion();
-          
-          const sock = makeWASocket({
-            auth: state,
-            version,
-            printQRInTerminal: false,
-            browser: ['SuperParty', 'Chrome', '1.0.0'],
-            logger: pino({ level: 'silent' })
-          });
-          
-          const account = {
-            id: accountId,
-            phoneNumber: data.phoneE164 || data.phone,
-            sock,
-            status: 'connecting',
-            qrCode: null,
-            pairingCode: null,
-            createdAt: data.createdAt || new Date().toISOString(),
-            lastUpdate: data.updatedAt || new Date().toISOString()
-          };
-          
-          // Setup event handlers (FULL - same as createConnection)
-          sock.ev.on('connection.update', async (update) => {
-            if (update.connection === 'open') {
-              account.status = 'connected';
-              console.log(`✅ [${accountId}] Restored and connected`);
-            }
-          });
-          
-          sock.ev.on('creds.update', saveCreds);
-          
-          // Messages handler - CRITICAL for receiving messages
-          sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
-            console.log(`🔔 [${accountId}] messages.upsert EVENT: type=${type}, count=${newMessages.length}`);
-            
-            for (const msg of newMessages) {
-              console.log(`📩 [${accountId}] RAW MESSAGE:`, JSON.stringify({
-                id: msg.key.id,
-                remoteJid: msg.key.remoteJid,
-                fromMe: msg.key.fromMe,
-                participant: msg.key.participant,
-                hasMessage: !!msg.message,
-                messageKeys: msg.message ? Object.keys(msg.message) : []
-              }));
-              
-              if (!msg.message) {
-                console.log(`⚠️  [${accountId}] Skipping message ${msg.key.id} - no message content`);
-                continue;
-              }
-              
-              const messageId = msg.key.id;
-              const from = msg.key.remoteJid;
-              const isFromMe = msg.key.fromMe;
-              
-              console.log(`📨 [${accountId}] PROCESSING: ${isFromMe ? 'OUTBOUND' : 'INBOUND'} message ${messageId} from ${from}`);
-              
-              try {
-                const threadId = from;
-                const messageData = {
-                  accountId,
-                  clientJid: from,
-                  direction: isFromMe ? 'outbound' : 'inbound',
-                  body: msg.message.conversation || msg.message.extendedTextMessage?.text || '',
-                  waMessageId: messageId,
-                  status: 'delivered',
-                  tsClient: new Date(msg.messageTimestamp * 1000).toISOString(),
-                  tsServer: admin.firestore.FieldValue.serverTimestamp(),
-                  createdAt: admin.firestore.FieldValue.serverTimestamp()
-                };
-                
-                console.log(`💾 [${accountId}] Saving to Firestore: threads/${threadId}/messages/${messageId}`, {
-                  direction: messageData.direction,
-                  body: messageData.body.substring(0, 50)
-                });
-                
-                await db.collection('threads').doc(threadId).collection('messages').doc(messageId).set(messageData);
-                
-                console.log(`✅ [${accountId}] Message saved successfully`);
-                
-                await db.collection('threads').doc(threadId).set({
-                  accountId,
-                  clientJid: from,
-                  lastMessageAt: admin.firestore.FieldValue.serverTimestamp()
-                }, { merge: true });
-                
-                console.log(`💾 [${accountId}] Message saved to Firestore: ${messageId}`);
-              } catch (error) {
-                console.error(`❌ [${accountId}] Message save failed:`, error.message);
-              }
-            }
-          });
-          
-        connections.set(accountId, account);
-        console.log(`✅ [${accountId}] Restored to memory`);
-      } catch (error) {
-        console.error(`❌ [${accountId}] Restore failed:`, error.message);
-      }
+      await restoreAccount(accountId, data);
     }
     
     console.log(`✅ Account restore complete: ${connections.size} accounts loaded`);
