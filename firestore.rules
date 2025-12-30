@@ -108,6 +108,41 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
+    // WhatsApp Messages (flat collection) - ACTIVE
+    match /whatsapp_messages/{messageId} {
+      allow read: if isAuthenticated();
+      allow create, update: if true; // Backend needs to write
+      allow delete: if isAdmin();
+    }
+    
+    // WhatsApp Threads (flat collection) - ACTIVE
+    match /whatsapp_threads/{threadId} {
+      allow read: if isAuthenticated();
+      allow create, update: if true; // Backend needs to write
+      allow delete: if isAdmin();
+    }
+    
+    // WhatsApp Accounts
+    match /accounts/{accountId} {
+      allow read: if isAuthenticated();
+      allow create, update: if true; // Backend needs to write
+      allow delete: if isAdmin();
+      
+      // Chats subcollection
+      match /chats/{chatId} {
+        allow read: if isAuthenticated();
+        allow create, update: if true;
+        allow delete: if isAdmin();
+        
+        // Messages subcollection
+        match /messages/{messageId} {
+          allow read: if isAuthenticated();
+          allow create, update: if true;
+          allow delete: if isAdmin();
+        }
+      }
+    }
+    
     // Default deny all other collections
     match /{document=**} {
       allow read, write: if false;
