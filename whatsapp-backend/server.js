@@ -1411,6 +1411,70 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
   }
 });
 
+// Visual QR endpoint (temporary for testing)
+app.get('/api/whatsapp/qr-visual', async (req, res) => {
+  try {
+    const accounts = [];
+    connections.forEach((conn, id) => {
+      if (conn.qrCode) {
+        accounts.push({
+          id,
+          name: conn.name,
+          phone: conn.phone,
+          status: conn.status,
+          qrCode: conn.qrCode
+        });
+      }
+    });
+    
+    if (accounts.length === 0) {
+      return res.send('<html><body><h1>No QR codes available</h1><p>Create an account first using POST /api/whatsapp/add-account</p></body></html>');
+    }
+    
+    const html = `
+      <html>
+      <head>
+        <title>WhatsApp QR Codes</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+          .qr-container { background: white; padding: 20px; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .qr-container h2 { margin-top: 0; color: #25D366; }
+          .qr-container img { max-width: 400px; border: 2px solid #25D366; border-radius: 8px; }
+          .info { color: #666; margin: 10px 0; }
+          .status { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+          .status.qr_ready { background: #FFF3CD; color: #856404; }
+          .status.connecting { background: #D1ECF1; color: #0C5460; }
+          .status.connected { background: #D4EDDA; color: #155724; }
+        </style>
+      </head>
+      <body>
+        <h1>📱 WhatsApp QR Codes</h1>
+        ${accounts.map(acc => `
+          <div class="qr-container">
+            <h2>${acc.name || acc.id}</h2>
+            <div class="info">
+              <strong>Phone:</strong> ${acc.phone || 'N/A'}<br>
+              <strong>Status:</strong> <span class="status ${acc.status}">${acc.status}</span><br>
+              <strong>Account ID:</strong> ${acc.id}
+            </div>
+            <img src="${acc.qrCode}" alt="QR Code">
+            <p style="color: #666; font-size: 14px;">Scan this QR code with WhatsApp: Settings → Linked Devices → Link a Device</p>
+          </div>
+        `).join('')}
+        <script>
+          // Auto-refresh every 5 seconds
+          setTimeout(() => location.reload(), 5000);
+        </script>
+      </body>
+      </html>
+    `;
+    
+    res.send(html);
+  } catch (error) {
+    res.status(500).send(`<html><body><h1>Error</h1><pre>${error.message}</pre></body></html>`);
+  }
+});
+
 // Add new account
 app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
   try {
