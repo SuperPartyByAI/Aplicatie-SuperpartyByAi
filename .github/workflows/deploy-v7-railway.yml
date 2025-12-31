@@ -25,7 +25,7 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
           cd monitoring
-          railway link --project-id 998d4e46-c67c-47e2-9eaa-ae4cc806aab1 || true
+          railway link 998d4e46-c67c-47e2-9eaa-ae4cc806aab1 || true
           railway up --service v7-singularity-monitor || railway up
           railway variables set RAILWAY_TOKEN=$RAILWAY_TOKEN || true
           railway variables set PORT=3001 || true
