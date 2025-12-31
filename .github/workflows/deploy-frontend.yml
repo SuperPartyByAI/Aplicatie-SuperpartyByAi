@@ -2,40 +2,45 @@ name: Deploy Frontend to Firebase
 
 on:
   workflow_dispatch:
-    paths:
-      - 'kyc-app/**'
-      - '.github/workflows/deploy-frontend.yml'
+
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
+    defaults:
+      run:
+        shell: bash
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-      
+        uses: actions/checkout@v4
+
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: 20
+          cache: npm
           cache-dependency-path: kyc-app/kyc-app/package-lock.json
-          
+
       - name: Install dependencies
         run: |
           cd kyc-app/kyc-app
           npm ci
-          
+
       - name: Build
         run: |
           cd kyc-app/kyc-app
           npm run build
-          
+
       - name: Install Functions dependencies
         run: |
           cd kyc-app/kyc-app/functions
           npm ci
-          
+
       - name: Deploy to Firebase
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -46,9 +51,16 @@ jobs:
           TWILIO_API_SECRET: ${{ secrets.TWILIO_API_SECRET }}
           TWILIO_TWIML_APP_SID: ${{ secrets.TWILIO_TWIML_APP_SID }}
           TWILIO_WHATSAPP_NUMBER: ${{ secrets.TWILIO_WHATSAPP_NUMBER }}
+          TWILIO_WHATSAPP_NUMBER: ${{ secrets.TWILIO_WHATSAPP_NUMBER }}
+          FIREBASE_SERVICE_ACCOUNT_SUPERPARTY_FRONTEND: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SUPERPARTY_FRONTEND }}
         run: |
           cd kyc-app/kyc-app
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_SUPERPARTY_FRONTEND }}' > $HOME/gcloud-key.json
+
+          echo "$FIREBASE_SERVICE_ACCOUNT_SUPERPARTY_FRONTEND" > "$HOME/gcloud-key.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$HOME/gcloud-key.json"
+
           npm install -g firebase-tools
-          firebase deploy --only hosting,functions --project superparty-frontend --non-interactive
+
+          firebase deploy --only hosting,functions \
+            --project superparty-frontend \
+            --non-interactive
