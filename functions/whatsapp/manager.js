@@ -990,7 +990,9 @@ class WhatsAppManager {
       qrCode: null,
       pairingCode: null,
       phone: normalizedPhone,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      hasEverConnected: false,
+      pairingMode: true
     };
 
     this.accounts.set(accountId, account);
@@ -1207,7 +1209,22 @@ class WhatsAppManager {
             }
           }, 1000); // ÎMBUNĂTĂȚIRE: 1s instead of 5s
         } else {
-          // Session is INVALID - cleanup required
+          // Session is INVALID
+          
+          // PAIRING MODE: Don't cleanup if in pairing (never connected before)
+          if (account && account.pairingMode && !account.hasEverConnected) {
+            console.log(`[PAIRING] ${accountId} 401 during pairing -> qr_invalid (no cleanup)`);
+            account.status = 'qr_invalid';
+            account.qrCode = null;
+            account.pairingCode = null;
+            if (account.qrExpiryTimer) {
+              clearTimeout(account.qrExpiryTimer);
+              account.qrExpiryTimer = null;
+            }
+            return;
+          }
+          
+          // Cleanup only for accounts that were connected before
           console.log(`❌ [${accountId}] Session INVALID (reason: ${reason}) - cleaning up`);
           const sessionPath = path.join(this.sessionsPath, accountId);
           await this.cleanupExpiredSession(accountId, sessionPath).catch(err => {
@@ -1282,6 +1299,8 @@ class WhatsAppManager {
           account.pairingCode = null;
           account.qrGenerated = false;
           account.qrGeneratedAt = null;
+          account.hasEverConnected = true;
+          account.pairingMode = false;
           account.phone = sock.user?.id?.split(':')[0] || null;
           
           // Clear QR expiry timer on successful connection
@@ -1504,6 +1523,7 @@ class WhatsAppManager {
     account.qrCode = null;
     account.pairingCode = null;
     account.status = 'connecting';
+    account.pairingMode = true;
     
     // Clear timer
     if (account.qrExpiryTimer) {
