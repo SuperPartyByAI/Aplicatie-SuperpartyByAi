@@ -386,7 +386,7 @@ async function createConnection(accountId, name, phone) {
     let { state, saveCreds } = await useMultiFileAuthState(sessionPath);
     
     // Wrap saveCreds to backup to Firestore
-    if (USE_FIRESTORE_BACKUP && firestoreAvailable) {
+    if (USE_FIRESTORE_BACKUP && firestoreAvailable && db) {
       const originalSaveCreds = saveCreds;
       saveCreds = async () => {
         await originalSaveCreds();
@@ -644,6 +644,11 @@ async function createConnection(accountId, name, phone) {
       if (update.connection === 'open') {
         console.log(`🔄 [${accountId}] Connection open, flushing outbox...`);
         
+        if (!firestoreAvailable || !db) {
+          console.log(`⚠️  [${accountId}] Firestore not available, skipping outbox flush`);
+          return;
+        }
+        
         try {
           const outboxSnapshot = await db.collection('outbox')
             .where('accountId', '==', accountId)
@@ -708,39 +713,43 @@ async function createConnection(accountId, name, phone) {
         console.log(`📨 [${accountId}] PROCESSING: ${isFromMe ? 'OUTBOUND' : 'INBOUND'} message ${messageId} from ${from}`);
         
         // Save to Firestore
-        try {
-          const threadId = from;
-          const messageData = {
-            accountId,
-            clientJid: from,
-            direction: isFromMe ? 'outbound' : 'inbound',
-            body: msg.message.conversation || msg.message.extendedTextMessage?.text || '',
-            waMessageId: messageId,
-            status: 'delivered',
-            tsClient: new Date(msg.messageTimestamp * 1000).toISOString(),
-            tsServer: admin.firestore.FieldValue.serverTimestamp(),
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-          };
-          
-          console.log(`💾 [${accountId}] Saving to Firestore: threads/${threadId}/messages/${messageId}`, {
-            direction: messageData.direction,
-            body: messageData.body.substring(0, 50)
-          });
-          
-          await db.collection('threads').doc(threadId).collection('messages').doc(messageId).set(messageData);
-          
-          console.log(`✅ [${accountId}] Message saved successfully`);
-          
-          // Update thread
-          await db.collection('threads').doc(threadId).set({
-            accountId,
-            clientJid: from,
-            lastMessageAt: admin.firestore.FieldValue.serverTimestamp()
-          }, { merge: true });
-          
-          console.log(`💾 [${accountId}] Message saved to Firestore: ${messageId}`);
-        } catch (error) {
-          console.error(`❌ [${accountId}] Message save failed:`, error.message);
+        if (firestoreAvailable && db) {
+          try {
+            const threadId = from;
+            const messageData = {
+              accountId,
+              clientJid: from,
+              direction: isFromMe ? 'outbound' : 'inbound',
+              body: msg.message.conversation || msg.message.extendedTextMessage?.text || '',
+              waMessageId: messageId,
+              status: 'delivered',
+              tsClient: new Date(msg.messageTimestamp * 1000).toISOString(),
+              tsServer: admin.firestore.FieldValue.serverTimestamp(),
+              createdAt: admin.firestore.FieldValue.serverTimestamp()
+            };
+            
+            console.log(`💾 [${accountId}] Saving to Firestore: threads/${threadId}/messages/${messageId}`, {
+              direction: messageData.direction,
+              body: messageData.body.substring(0, 50)
+            });
+            
+            await db.collection('threads').doc(threadId).collection('messages').doc(messageId).set(messageData);
+            
+            console.log(`✅ [${accountId}] Message saved successfully`);
+            
+            // Update thread
+            await db.collection('threads').doc(threadId).set({
+              accountId,
+              clientJid: from,
+              lastMessageAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            
+            console.log(`💾 [${accountId}] Message saved to Firestore: ${messageId}`);
+          } catch (error) {
+            console.error(`❌ [${accountId}] Message save failed:`, error.message);
+          }
+        } else {
+          console.log(`⚠️  [${accountId}] Firestore not available, message not persisted`);
         }
       }
     });
