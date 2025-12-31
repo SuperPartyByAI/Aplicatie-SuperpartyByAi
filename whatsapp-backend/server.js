@@ -317,6 +317,11 @@ console.log(`📊 Max accounts: ${MAX_ACCOUNTS}`);
 
 // Helper: Save account to Firestore
 async function saveAccountToFirestore(accountId, data) {
+  if (!firestoreAvailable || !db) {
+    console.log(`⚠️  [${accountId}] Firestore not available, skipping save`);
+    return;
+  }
+  
   try {
     await db.collection('accounts').doc(accountId).set({
       ...data,
@@ -330,6 +335,11 @@ async function saveAccountToFirestore(accountId, data) {
 
 // Helper: Log incident to Firestore
 async function logIncident(accountId, type, details) {
+  if (!firestoreAvailable || !db) {
+    console.log(`⚠️  [${accountId}] Firestore not available, skipping incident log`);
+    return;
+  }
+  
   try {
     const incidentId = `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     await db.collection('incidents').doc(incidentId).set({
