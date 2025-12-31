@@ -57,7 +57,6 @@ jobs:
           TWILIO_API_SECRET: ${{ secrets.TWILIO_API_SECRET }}
           TWILIO_TWIML_APP_SID: ${{ secrets.TWILIO_TWIML_APP_SID }}
           TWILIO_WHATSAPP_NUMBER: ${{ secrets.TWILIO_WHATSAPP_NUMBER }}
-          TWILIO_WHATSAPP_NUMBER: ${{ secrets.TWILIO_WHATSAPP_NUMBER }}
           FIREBASE_SERVICE_ACCOUNT_SUPERPARTY_FRONTEND: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SUPERPARTY_FRONTEND }}
         run: |
           cd kyc-app/kyc-app
