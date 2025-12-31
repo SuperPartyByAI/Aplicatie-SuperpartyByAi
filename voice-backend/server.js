@@ -39,6 +39,10 @@ app.get('/health', (req, res) => {
 });
 
 // Voice AI Routes
+app.post('/api/voice/token', (req, res) => {
+  twilioHandler.generateAccessToken(req, res);
+});
+
 app.post('/api/voice/incoming', (req, res) => {
   twilioHandler.handleIncomingCall(req, res);
 });

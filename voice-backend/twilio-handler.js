@@ -1,10 +1,55 @@
 const twilio = require('twilio');
 const VoiceResponse = twilio.twiml.VoiceResponse;
+const AccessToken = twilio.jwt.AccessToken;
+const VoiceGrant = AccessToken.VoiceGrant;
 
 class TwilioHandler {
   constructor(voiceAI) {
     this.voiceAI = voiceAI;
     this.activeCalls = new Map();
+  }
+
+  /**
+   * Generate Twilio Access Token for browser client
+   */
+  generateAccessToken(req, res) {
+    const { identity } = req.body;
+    
+    if (!identity) {
+      return res.status(400).json({ success: false, error: 'Identity required' });
+    }
+
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const apiKey = process.env.TWILIO_API_KEY;
+    const apiSecret = process.env.TWILIO_API_SECRET;
+    const twimlAppSid = process.env.TWILIO_TWIML_APP_SID;
+
+    if (!accountSid || !apiKey || !apiSecret) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Twilio credentials not configured' 
+      });
+    }
+
+    // Create access token
+    const token = new AccessToken(accountSid, apiKey, apiSecret, {
+      identity: identity,
+      ttl: 3600 // 1 hour
+    });
+
+    // Create voice grant
+    const voiceGrant = new VoiceGrant({
+      outgoingApplicationSid: twimlAppSid,
+      incomingAllow: true
+    });
+
+    token.addGrant(voiceGrant);
+
+    res.json({
+      success: true,
+      token: token.toJwt(),
+      identity: identity
+    });
   }
 
   /**
