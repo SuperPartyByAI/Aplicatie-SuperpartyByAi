@@ -204,10 +204,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: Date.now() });
 });
 
-// Keep 1st Gen - works with existing deployment
-exports.whatsapp = functions.https.onRequest(app);
+// REMOVED: 1st Gen function - cannot upgrade to 2nd Gen
+// Use whatsappV4 instead (2nd Gen)
+// exports.whatsapp = functions.https.onRequest(app);
 
-// 2nd Gen version with all endpoints (deprecated - use whatsappV3)
+// 2nd Gen version with all endpoints (deprecated - use whatsappV4)
 // exports.whatsappV2 = functions
 //   .runWith({
 //     timeoutSeconds: 540,
@@ -225,10 +226,10 @@ exports.whatsappV4 = onRequest({
   maxInstances: 10
 }, app);
 
-// Simple test function to verify deployment works
-exports.testAI = functions.https.onRequest((req, res) => {
-  res.json({ success: true, message: 'Test AI function works!' });
-});
+// REMOVED: 1st Gen test function - cannot upgrade to 2nd Gen
+// exports.testAI = functions.https.onRequest((req, res) => {
+//   res.json({ success: true, message: 'Test AI function works!' });
+// });
 
 // AI Chat Function (v2)
 exports.chatWithAI = onCall({

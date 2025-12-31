@@ -44,7 +44,7 @@ jobs:
 
       - name: Install Functions dependencies
         run: |
-          cd kyc-app/kyc-app/functions
+          cd functions
           npm ci
 
       - name: Deploy to Firebase
