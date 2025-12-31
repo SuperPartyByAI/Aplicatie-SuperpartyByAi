@@ -1,5 +1,6 @@
 const OpenAI = require('openai');
 const CoquiHandler = require('./coqui-handler');
+const ElevenLabsHandler = require('./elevenlabs-handler');
 
 class VoiceAIHandler {
   constructor() {
@@ -14,7 +15,8 @@ class VoiceAIHandler {
       console.warn('[VoiceAI] OpenAI API key missing - Voice AI disabled');
     }
     
-    // Initialize Coqui for Kasya voice
+    // Voice providers (priority: ElevenLabs > Coqui)
+    this.elevenlabs = new ElevenLabsHandler();
     this.coqui = new CoquiHandler();
     this.conversations = new Map();
   }
@@ -620,9 +622,11 @@ GÂNDIRE CU VOCE TARE (vorbești singură):
       console.log('[VoiceAI] Raw response:', assistantMessage.substring(0, 200));
       console.log('[VoiceAI] Clean response:', cleanResponse);
 
-      // Generate audio with Kasya voice (Coqui)
+      // Generate audio (priority: ElevenLabs > Coqui)
       let audioUrl = null;
-      if (this.coqui.isConfigured()) {
+      if (this.elevenlabs.isConfigured()) {
+        audioUrl = await this.elevenlabs.generateSpeech(cleanResponse);
+      } else if (this.coqui.isConfigured()) {
         audioUrl = await this.coqui.generateSpeech(cleanResponse);
       }
 
