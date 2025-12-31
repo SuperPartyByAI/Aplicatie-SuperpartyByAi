@@ -1,6 +1,12 @@
 name: Deploy Frontend to Firebase
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'kyc-app/**'
+      - '.github/workflows/deploy-frontend.yml'
   workflow_dispatch:
 
 concurrency:
