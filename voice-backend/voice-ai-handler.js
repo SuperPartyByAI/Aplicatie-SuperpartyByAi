@@ -613,8 +613,12 @@ GÂNDIRE CU VOCE TARE (vorbești singură):
       // Clean response
       const cleanResponse = assistantMessage
         .replace(/\[DATA:.*?\]/g, '')
+        .replace(/\[VOICE:.*?\]/g, '')
         .replace(/\[COMPLETE\]/g, '')
         .trim();
+
+      console.log('[VoiceAI] Raw response:', assistantMessage.substring(0, 200));
+      console.log('[VoiceAI] Clean response:', cleanResponse);
 
       // Generate audio with Kasya voice (Coqui)
       let audioUrl = null;
