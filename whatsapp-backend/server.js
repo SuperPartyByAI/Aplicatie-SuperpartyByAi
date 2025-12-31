@@ -517,21 +517,36 @@ async function createConnection(accountId, name, phone) {
         const errorMsg = lastDisconnect?.error?.message || 'No error message';
         
         console.log(`🔌 [${accountId}] connection.update: close`);
-        console.log(`🔌 [${accountId}] Reason: ${reason}, Reconnect: ${shouldReconnect}`);
+        console.log(`🔌 [${accountId}] Reason code: ${reason}, Reconnect: ${shouldReconnect}`);
         console.log(`🔌 [${accountId}] Current status: ${account.status}`);
         
-        // CRITICAL: Don't delete account if QR is ready and waiting for scan
-        if (account.status === 'qr_ready' && reason === 'unknown') {
-          console.log(`⏸️  [${accountId}] QR ready, preserving account for scanning (not deleting)`);
-          account.status = 'qr_ready'; // Keep status
+        // Define explicit cleanup reasons (only these trigger account deletion)
+        const EXPLICIT_CLEANUP_REASONS = [
+          DisconnectReason.loggedOut,
+          DisconnectReason.badSession,
+          DisconnectReason.unauthorized
+        ];
+        
+        const isExplicitCleanup = EXPLICIT_CLEANUP_REASONS.includes(reason);
+        
+        // CRITICAL: Preserve account during pairing phase
+        // Don't delete if: status is pairing-related AND reason is transient (not explicit cleanup)
+        const isPairingPhase = ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'].includes(account.status);
+        
+        if (isPairingPhase && !isExplicitCleanup) {
+          console.log(`⏸️  [${accountId}] Pairing phase (${account.status}), preserving account (reason: ${reason})`);
+          account.status = 'awaiting_scan'; // Mark as waiting for scan
           account.lastUpdate = new Date().toISOString();
           
           await saveAccountToFirestore(accountId, {
-            status: 'qr_ready',
+            status: 'awaiting_scan',
             lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
             lastDisconnectReason: 'qr_waiting_scan',
             lastDisconnectCode: reason
           });
+          
+          // Release lock to allow reconnect if needed, but keep account in Map
+          connectionRegistry.release(accountId);
           
           // Don't delete, don't reconnect - just wait for user to scan QR
           return;
@@ -557,6 +572,9 @@ async function createConnection(accountId, name, phone) {
             
             reconnectAttempts.set(accountId, attempts + 1);
             
+            // Release lock before reconnect
+            connectionRegistry.release(accountId);
+            
             setTimeout(() => {
               if (connections.has(accountId)) {
                 createConnection(accountId, account.name, account.phone);
@@ -578,13 +596,14 @@ async function createConnection(accountId, name, phone) {
             // Clean up and regenerate
             connections.delete(accountId);
             reconnectAttempts.delete(accountId);
+            connectionRegistry.release(accountId);
             
             setTimeout(() => {
               createConnection(accountId, account.name, account.phone);
             }, 5000);
           }
         } else {
-          console.log(`❌ [${accountId}] Logged out, needs new QR`);
+          console.log(`❌ [${accountId}] Explicit cleanup (${reason}), deleting account`);
           account.status = 'needs_qr';
           
           await saveAccountToFirestore(accountId, {
@@ -598,6 +617,7 @@ async function createConnection(accountId, name, phone) {
           
           // Clean up and regenerate
           connections.delete(accountId);
+          connectionRegistry.release(accountId);
           
           setTimeout(() => {
             createConnection(accountId, account.name, account.phone);
