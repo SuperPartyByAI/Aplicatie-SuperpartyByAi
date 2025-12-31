@@ -58,7 +58,12 @@ app.get('/', (req, res) => {
 
 app.get('/api/whatsapp/accounts', (req, res) => {
   const accounts = whatsappManager.getAccounts();
-  res.json({ success: true, accounts });
+  // Remove non-serializable fields (timers)
+  const cleanAccounts = accounts.map(acc => {
+    const { qrExpiryTimer, ...rest } = acc;
+    return rest;
+  });
+  res.json({ success: true, accounts: cleanAccounts });
 });
 
 app.post('/api/whatsapp/add-account', async (req, res) => {
