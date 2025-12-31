@@ -2160,6 +2160,19 @@ async function restoreAccountsFromFirestore() {
     }
     
     console.log(`✅ Account restore complete: ${connections.size} accounts loaded`);
+    
+    // Start connections for restored accounts (P1B fix)
+    console.log('🔌 Starting connections for restored accounts...');
+    for (const [accountId, account] of connections.entries()) {
+      if (account.status === 'connected' || account.status === 'connecting') {
+        console.log(`🔌 [${accountId}] Starting connection...`);
+        try {
+          await createConnection(accountId, account.name, account.phone);
+        } catch (error) {
+          console.error(`❌ [${accountId}] Failed to start connection:`, error.message);
+        }
+      }
+    }
   } catch (error) {
     // Log error details without exposing secrets
     console.error('❌ Account restore failed:', {
