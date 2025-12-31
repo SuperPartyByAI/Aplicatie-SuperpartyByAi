@@ -1270,7 +1270,11 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
       }
     }
     
-    const accountId = `account_${Date.now()}`;
+    // Generate deterministic accountId based on phone number (not timestamp)
+    // This ensures same phone always gets same accountId and session folder
+    const crypto = require('crypto');
+    const phoneHash = crypto.createHash('sha256').update(phone).digest('hex').substring(0, 16);
+    const accountId = `account_${phoneHash}`;
     
     // Create connection (async, will emit QR later)
     createConnection(accountId, name, phone).catch(err => {
