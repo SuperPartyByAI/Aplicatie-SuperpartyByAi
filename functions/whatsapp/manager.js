@@ -186,13 +186,19 @@ class WhatsAppManager {
     this.healthCheckInterval = setInterval(() => {
       for (const [accountId, sock] of this.clients.entries()) {
         try {
+          const account = this.accounts.get(accountId);
+          
+          // Skip if QR waiting for scan
+          if (account && account.qrGenerated && account.status !== 'connected') {
+            continue;
+          }
+          
           // Validate socket exists and is connected
           if (!sock || !sock.user || sock.ws?.readyState !== 1) {
             console.log(`[Health Check] Account ${accountId} - socket not ready (state: ${sock?.ws?.readyState}), skipping`);
             continue;
           }
           
-          const account = this.accounts.get(accountId);
           if (!account || account.status !== 'connected') {
             continue;
           }
@@ -488,6 +494,13 @@ class WhatsAppManager {
   startAdaptiveKeepAlive() {
     const keepAliveCheck = async () => {
       for (const [accountId, sock] of this.clients.entries()) {
+        const account = this.accounts.get(accountId);
+        
+        // Skip if QR waiting for scan
+        if (account && account.qrGenerated && account.status !== 'connected') {
+          continue;
+        }
+        
         if (sock.user) {
           try {
             await sock.sendPresenceUpdate('available');
@@ -764,6 +777,12 @@ class WhatsAppManager {
   async reconnectAccount(accountId) {
     const account = this.accounts.get(accountId);
     if (!account) return;
+    
+    // Don't reconnect if QR was generated (waiting for scan)
+    if (account.qrGenerated && account.status !== 'connected') {
+      console.log(`⏭️ [${accountId}] Skip reconnect - QR waiting for scan`);
+      return;
+    }
     
     // Get retry count
     const retries = this.retryCount.get(accountId) || 0;
@@ -1044,12 +1063,49 @@ class WhatsAppManager {
       
       if (qr) {
         console.log(`📱 [${accountId}] QR Code generated`);
+        
+        const account = this.accounts.get(accountId);
+        
+        // Ignore duplicates in 120s window (status=qr_ready and not expired)
+        if (account && account.qrGenerated && account.status === 'qr_ready') {
+          const age = Date.now() - (account.qrGeneratedAt || 0);
+          if (age < 120000) {
+            console.log(`⏭️ [${accountId}] QR already active (${Math.floor(age/1000)}s old), ignoring duplicate`);
+            return;
+          }
+        }
+        
+        // If status != qr_ready or expired, only accept QR after explicit regenerate
+        if (account && account.qrGenerated && account.status !== 'qr_ready' && account.status !== 'connecting') {
+          console.log(`⏭️ [${accountId}] QR event ignored (status=${account.status}, need explicit regenerate)`);
+          return;
+        }
+        
         try {
           const qrCodeDataUrl = await QRCode.toDataURL(qr);
-          const account = this.accounts.get(accountId);
           if (account) {
             account.qrCode = qrCodeDataUrl;
+            account.qrGenerated = true;
+            account.qrGeneratedAt = Date.now();
             account.status = 'qr_ready';
+            
+            // Clear existing timer if any
+            if (account.qrExpiryTimer) {
+              clearTimeout(account.qrExpiryTimer);
+            }
+            
+            // Set 120s expiry timer
+            account.qrExpiryTimer = setTimeout(() => {
+              if (account.status === 'qr_ready') {
+                console.log(`[PAIRING] ${accountId} QR expired after 120s`);
+                account.status = 'qr_expired';
+                account.qrCode = null;
+                account.pairingCode = null;
+                account.qrExpiryTimer = null;
+              }
+            }, 120000);
+            
+            console.log(`[PAIRING] ${accountId} qr_issued, expiresAt=${new Date(Date.now() + 120000).toISOString()}`);
           }
           
           this.io.emit('whatsapp:qr', { accountId, qrCode: qrCodeDataUrl });
@@ -1085,6 +1141,20 @@ class WhatsAppManager {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const reason = statusCode || 'unknown';
         
+        const account = this.accounts.get(accountId);
+        
+        // PAIRING: If socket closes while waiting for QR scan, invalidate QR
+        if (account && account.qrGenerated && account.status === 'qr_ready') {
+          console.log(`[PAIRING] ${accountId} socket closed while waiting -> qr_invalid`);
+          account.status = 'qr_invalid';
+          account.qrCode = null;
+          account.pairingCode = null;
+          if (account.qrExpiryTimer) {
+            clearTimeout(account.qrExpiryTimer);
+            account.qrExpiryTimer = null;
+          }
+        }
+        
         // CLEANUP: Clear all timers/intervals for this account
         if (this.reconnectTimeouts.has(accountId)) {
           clearTimeout(this.reconnectTimeouts.get(accountId));
@@ -1107,7 +1177,6 @@ class WhatsAppManager {
         // TIER ULTIMATE 2: Send webhook
         webhookManager.onAccountDisconnected(accountId, reason);
         
-        const account = this.accounts.get(accountId);
         if (account) {
           account.status = shouldReconnect ? 'reconnecting' : 'disconnected';
           
@@ -1122,6 +1191,12 @@ class WhatsAppManager {
         this.io.emit('whatsapp:disconnected', { accountId, reason: lastDisconnect?.error?.message });
         
         if (shouldReconnect) {
+          // Don't reconnect if QR was generated (waiting for scan)
+          if (account && account.qrGenerated && account.status !== 'connected') {
+            console.log(`⏭️ [${accountId}] Skip auto-reconnect - QR waiting for scan`);
+            return;
+          }
+          
           // ÎMBUNĂTĂȚIRE: Reconnect delay 1s (was 5s) - reduce downtime 80%
           setTimeout(() => {
             if (this.accounts.has(accountId)) {
@@ -1204,7 +1279,16 @@ class WhatsAppManager {
         if (account) {
           account.status = 'connected';
           account.qrCode = null;
+          account.pairingCode = null;
+          account.qrGenerated = false;
+          account.qrGeneratedAt = null;
           account.phone = sock.user?.id?.split(':')[0] || null;
+          
+          // Clear QR expiry timer on successful connection
+          if (account.qrExpiryTimer) {
+            clearTimeout(account.qrExpiryTimer);
+            account.qrExpiryTimer = null;
+          }
           
           // Sync to Firestore with debouncing (best-effort, non-blocking)
           this.syncAccountStatusDebounced(accountId, 'connected', account);
@@ -1401,6 +1485,46 @@ class WhatsAppManager {
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
+  }
+
+  /**
+   * Regenerate QR/pairing code (explicit user action)
+   */
+  async regenerateQR(accountId) {
+    const account = this.accounts.get(accountId);
+    if (!account) {
+      throw new Error('Account not found');
+    }
+    
+    console.log(`[PAIRING] ${accountId} regenerate requested`);
+    
+    // Full reset
+    account.qrGenerated = false;
+    account.qrGeneratedAt = null;
+    account.qrCode = null;
+    account.pairingCode = null;
+    account.status = 'connecting';
+    
+    // Clear timer
+    if (account.qrExpiryTimer) {
+      clearTimeout(account.qrExpiryTimer);
+      account.qrExpiryTimer = null;
+    }
+    
+    // Close old socket
+    const oldSock = this.clients.get(accountId);
+    if (oldSock) {
+      try {
+        await oldSock.logout();
+      } catch (e) {}
+      this.clients.delete(accountId);
+    }
+    
+    // Start new pairing
+    console.log(`[PAIRING] ${accountId} attempt new`);
+    await this.connectBaileys(accountId, account.phone);
+    
+    return { success: true, message: 'QR regeneration started' };
   }
 
   async removeAccount(accountId) {

@@ -71,6 +71,16 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
   }
 });
 
+app.post('/api/whatsapp/accounts/:accountId/regenerate-qr', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const result = await whatsappManager.regenerateQR(accountId);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.delete('/api/whatsapp/accounts/:accountId', async (req, res) => {
   try {
     const { accountId } = req.params;
