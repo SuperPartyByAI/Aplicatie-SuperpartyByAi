@@ -1108,6 +1108,10 @@ class WhatsAppManager {
             }, 120000);
             
             console.log(`[PAIRING] ${accountId} qr_issued, expiresAt=${new Date(Date.now() + 120000).toISOString()}`);
+            
+            // CRITICAL: Stop socket activity after QR generation to prevent 401
+            // WhatsApp rejects if socket sends packets before scan
+            console.log(`[PAIRING] ${accountId} pausing socket activity until scan`);
           }
           
           this.io.emit('whatsapp:qr', { accountId, qrCode: qrCodeDataUrl });
@@ -1578,6 +1582,18 @@ class WhatsAppManager {
 
   getAccounts() {
     return Array.from(this.accounts.values());
+  }
+  
+  async getQRForWeb(accountId) {
+    const account = this.accounts.get(accountId);
+    if (!account) return null;
+    
+    return {
+      id: accountId,
+      status: account.status,
+      qrCode: account.qrCode,
+      pairingCode: account.pairingCode
+    };
   }
 
   async getChats(accountId) {

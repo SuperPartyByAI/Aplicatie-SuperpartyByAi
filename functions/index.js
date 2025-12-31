@@ -150,6 +150,55 @@ app.get('/api/clients', async (req, res) => {
   }
 });
 
+// Connect page with QR code
+app.get('/connect/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const qrData = await whatsappManager.getQRForWeb(accountId);
+    
+    if (!qrData) {
+      return res.send(`<html><body style="font-family: Arial; text-align: center; padding: 50px;"><h1>Account not found</h1><p>ID: ${accountId}</p></body></html>`);
+    }
+    
+    res.send(`
+      <html>
+        <head>
+          <title>Connect WhatsApp - ${accountId}</title>
+          <meta http-equiv="refresh" content="5">
+          <style>
+            body { font-family: Arial; text-align: center; padding: 20px; background: #f0f0f0; }
+            .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; }
+            h1 { color: #25D366; }
+            .qr-container img { max-width: 400px; border: 2px solid #25D366; border-radius: 10px; }
+            .status { padding: 10px; margin: 10px 0; border-radius: 5px; font-weight: bold; }
+            .status.qr_ready { background: #d4edda; color: #155724; }
+            .status.connected { background: #d1ecf1; color: #0c5460; }
+            .pairing-code { font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #25D366; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>🔗 Connect WhatsApp</h1>
+            <div class="status ${qrData.status}">${qrData.status.toUpperCase()}</div>
+            
+            ${qrData.status === 'qr_ready' && qrData.qrCode ? `
+              <div class="qr-container"><img src="${qrData.qrCode}" /></div>
+              ${qrData.pairingCode ? `<p>Pairing code:</p><div class="pairing-code">${qrData.pairingCode}</div>` : ''}
+              <p><em>Scan with WhatsApp → Settings → Linked Devices</em></p>
+            ` : qrData.status === 'connected' ? `
+              <h2>✅ Connected!</h2>
+            ` : `
+              <p>Waiting... (${qrData.status})</p>
+            `}
+          </div>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    res.status(500).send(`<html><body><h1>Error: ${error.message}</h1></body></html>`);
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: Date.now() });
