@@ -40,18 +40,41 @@ let firestoreAvailable = false;
 if (!admin.apps.length) {
   try {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-      // Railway: use JSON from env var
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-      firestoreAvailable = true;
-      console.log('✅ Firebase Admin initialized from FIREBASE_SERVICE_ACCOUNT_JSON');
+      // Validate JSON format before parsing
+      let serviceAccount;
+      try {
+        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+      } catch (parseError) {
+        console.error('❌ FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON');
+        console.log('⚠️  Continuing without Firestore...');
+        serviceAccount = null;
+      }
+      
+      if (serviceAccount) {
+        // Validate required fields
+        const requiredFields = ['type', 'project_id', 'private_key', 'client_email'];
+        const missingFields = requiredFields.filter(field => !serviceAccount[field]);
+        
+        if (missingFields.length > 0) {
+          console.error(`❌ FIREBASE_SERVICE_ACCOUNT_JSON missing required fields: ${missingFields.join(', ')}`);
+          console.log('⚠️  Continuing without Firestore...');
+        } else {
+          // Initialize Firebase Admin
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+          });
+          firestoreAvailable = true;
+          console.log('✅ Firebase Admin initialized from FIREBASE_SERVICE_ACCOUNT_JSON');
+        }
+      }
     } else {
       console.warn('⚠️  FIREBASE_SERVICE_ACCOUNT_JSON not set - Firestore disabled');
     }
   } catch (error) {
-    console.error('❌ Firebase Admin initialization failed:', error.message);
+    console.error('❌ Firebase Admin initialization failed:', {
+      code: error.code,
+      message: error.message
+    });
     console.log('⚠️  Continuing without Firestore...');
   }
 }
@@ -2108,7 +2131,14 @@ async function restoreAccountsFromFirestore() {
     
     console.log(`✅ Account restore complete: ${connections.size} accounts loaded`);
   } catch (error) {
-    console.error('❌ Account restore failed:', error.message);
+    // Log error details without exposing secrets
+    console.error('❌ Account restore failed:', {
+      code: error.code,
+      message: error.message,
+      name: error.name
+    });
+    console.log('⚠️  Starting with 0 accounts. Service will continue running.');
+    // Don't throw - allow service to start with empty state
   }
 }
 
