@@ -518,6 +518,24 @@ async function createConnection(accountId, name, phone) {
         
         console.log(`🔌 [${accountId}] connection.update: close`);
         console.log(`🔌 [${accountId}] Reason: ${reason}, Reconnect: ${shouldReconnect}`);
+        console.log(`🔌 [${accountId}] Current status: ${account.status}`);
+        
+        // CRITICAL: Don't delete account if QR is ready and waiting for scan
+        if (account.status === 'qr_ready' && reason === 'unknown') {
+          console.log(`⏸️  [${accountId}] QR ready, preserving account for scanning (not deleting)`);
+          account.status = 'qr_ready'; // Keep status
+          account.lastUpdate = new Date().toISOString();
+          
+          await saveAccountToFirestore(accountId, {
+            status: 'qr_ready',
+            lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastDisconnectReason: 'qr_waiting_scan',
+            lastDisconnectCode: reason
+          });
+          
+          // Don't delete, don't reconnect - just wait for user to scan QR
+          return;
+        }
         
         account.status = shouldReconnect ? 'reconnecting' : 'logged_out';
         account.lastUpdate = new Date().toISOString();
