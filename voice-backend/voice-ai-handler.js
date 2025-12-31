@@ -26,10 +26,27 @@ class VoiceAIHandler {
   }
 
   /**
-   * System prompt - Operator telefonic UMAN cu vocea Kasya
+   * System prompt - Operator telefonic simplu și eficient
    */
   getSystemPrompt() {
-    return `IDENTITATE & ROL:
+    return `Ești operator telefonic la SuperParty (organizare evenimente copii).
+
+SARCINA:
+Colectează: dată, oră, locație, tip eveniment, vârstă copil, număr copii.
+
+STIL:
+- Natural, prietenos, profesional
+- Răspunsuri scurte (max 2 propoziții)
+- Pune o întrebare la final
+
+FORMAT RĂSPUNS:
+- Text simplu (fără "object Promise" sau cod)
+- Când ai toate datele: adaugă [COMPLETE] la final
+- Când ai date parțiale: adaugă [DATA: {"date":"...", "time":"...", ...}]
+
+EXEMPLU:
+Client: "Vreau animator"
+Tu: "Perfect! Pentru ce dată aveți nevoie?"
 Ești Kasya, operator telefonic UMAN (femeie, ~28 ani) la SuperParty (evenimente pentru copii).
 Vorbești EXACT ca o persoană reală la telefon:
 - Uneori te întrerupi singură: "Deci... aa, stai, pe 15 sau pe 25?"
@@ -586,6 +603,23 @@ GÂNDIRE CU VOCE TARE (vorbești singură):
       });
 
       const assistantMessage = response.choices[0].message.content;
+
+      console.log('[VoiceAI] ===== OpenAI Response =====');
+      console.log('[VoiceAI] Type:', typeof assistantMessage);
+      console.log('[VoiceAI] Content:', JSON.stringify(assistantMessage).substring(0, 200));
+      console.log('[VoiceAI] Full response object:', JSON.stringify(response.choices[0]));
+      console.log('[VoiceAI] ============================');
+
+      // Validate response
+      if (!assistantMessage || typeof assistantMessage !== 'string') {
+        console.error('[VoiceAI] Invalid response from OpenAI:', assistantMessage);
+        return {
+          response: 'Vă rog să repetați, nu am înțeles bine.',
+          audioUrl: null,
+          completed: false,
+          data: null
+        };
+      }
 
       // Add to history
       conversation.messages.push({

@@ -6,18 +6,20 @@ class ElevenLabsHandler {
     this.voiceId = process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL'; // Default: Sarah (Romanian)
     this.enabled = false;
 
+    console.log('[ElevenLabs] Checking API key:', process.env.ELEVENLABS_API_KEY ? 'EXISTS' : 'MISSING');
+    
     if (process.env.ELEVENLABS_API_KEY) {
       try {
         this.client = new ElevenLabsClient({
           apiKey: process.env.ELEVENLABS_API_KEY
         });
         this.enabled = true;
-        console.log('[ElevenLabs] Initialized with voice:', this.voiceId);
+        console.log('[ElevenLabs] ✅ Initialized successfully with voice:', this.voiceId);
       } catch (error) {
-        console.error('[ElevenLabs] Initialization failed:', error.message);
+        console.error('[ElevenLabs] ❌ Initialization failed:', error.message);
       }
     } else {
-      console.warn('[ElevenLabs] API key not configured');
+      console.error('[ElevenLabs] ❌ API key not configured - ELEVENLABS_API_KEY missing');
     }
   }
 
