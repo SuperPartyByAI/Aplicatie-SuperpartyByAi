@@ -160,15 +160,23 @@ const testRuns = new Map();
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_TIMEOUT_MS = 60000;
 
-// Auth directory: use Railway volume if available
-const authDir = process.env.RAILWAY_VOLUME_MOUNT_PATH 
-  ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'baileys_auth')
-  : path.join(__dirname, '.baileys_auth');
+// Auth directory: use SESSIONS_PATH env var (Railway Volume)
+// Priority: SESSIONS_PATH > RAILWAY_VOLUME_MOUNT_PATH > local fallback
+const authDir = process.env.SESSIONS_PATH 
+  || (process.env.RAILWAY_VOLUME_MOUNT_PATH 
+      ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'baileys_auth')
+      : path.join(__dirname, '.baileys_auth'));
 
+// Ensure directory exists at startup
 if (!fs.existsSync(authDir)) {
   fs.mkdirSync(authDir, { recursive: true });
+  console.log(`📁 Created auth directory: ${authDir}`);
+} else {
+  console.log(`📁 Auth directory exists: ${authDir}`);
 }
 
+// Log session path configuration (sanitized)
+console.log(`📁 SESSIONS_PATH: ${process.env.SESSIONS_PATH ? 'SET' : 'NOT SET (using fallback)'}`);
 console.log(`📁 Auth directory: ${authDir}`);
 
 const VERSION = '2.0.0';
@@ -231,7 +239,14 @@ async function createConnection(accountId, name, phone) {
     const sessionPath = path.join(authDir, accountId);
     if (!fs.existsSync(sessionPath)) {
       fs.mkdirSync(sessionPath, { recursive: true });
+      console.log(`📁 [${accountId}] Created session directory: ${sessionPath}`);
     }
+    
+    // Check if session exists (creds.json)
+    const credsPath = path.join(sessionPath, 'creds.json');
+    const credsExists = fs.existsSync(credsPath);
+    console.log(`🔑 [${accountId}] Session path: ${sessionPath}`);
+    console.log(`🔑 [${accountId}] Credentials exist: ${credsExists}`);
 
     // Fetch latest Baileys version (CRITICAL FIX)
     const { version, isLatest } = await fetchLatestBaileysVersion();
@@ -352,7 +367,8 @@ async function createConnection(accountId, name, phone) {
       }
 
       if (connection === 'open') {
-        console.log(`✅ [${accountId}] Connected!`);
+        console.log(`✅ [${accountId}] connection.update: open`);
+        console.log(`✅ [${accountId}] Connected! Session persisted at: ${sessionPath}`);
         account.status = 'connected';
         account.qrCode = null;
         account.phone = sock.user?.id?.split(':')[0] || phone;
@@ -377,7 +393,8 @@ async function createConnection(accountId, name, phone) {
         const reason = lastDisconnect?.error?.output?.statusCode || 'unknown';
         const errorMsg = lastDisconnect?.error?.message || 'No error message';
         
-        console.log(`🔌 [${accountId}] Connection closed. Reason: ${reason}, Error: ${errorMsg}, Reconnect: ${shouldReconnect}`);
+        console.log(`🔌 [${accountId}] connection.update: close`);
+        console.log(`🔌 [${accountId}] Reason: ${reason}, Reconnect: ${shouldReconnect}`);
         
         account.status = shouldReconnect ? 'reconnecting' : 'logged_out';
         account.lastUpdate = new Date().toISOString();
