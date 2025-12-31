@@ -175,9 +175,22 @@ if (!fs.existsSync(authDir)) {
   console.log(`📁 Auth directory exists: ${authDir}`);
 }
 
-// Log session path configuration (sanitized)
-console.log(`📁 SESSIONS_PATH: ${process.env.SESSIONS_PATH ? 'SET' : 'NOT SET (using fallback)'}`);
+// Check if directory is writable
+let isWritable = false;
+try {
+  const testFile = path.join(authDir, '.write-test');
+  fs.writeFileSync(testFile, 'test');
+  fs.unlinkSync(testFile);
+  isWritable = true;
+} catch (error) {
+  console.error(`❌ Auth directory not writable: ${error.message}`);
+}
+
+// Log session path configuration (sanitized, safe for operators)
+console.log(`📁 SESSIONS_PATH: ${process.env.SESSIONS_PATH || 'NOT SET (using fallback)'}`);
 console.log(`📁 Auth directory: ${authDir}`);
+console.log(`📁 Sessions dir exists: ${fs.existsSync(authDir)}`);
+console.log(`📁 Sessions dir writable: ${isWritable}`);
 
 const VERSION = '2.0.0';
 let COMMIT_HASH = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || null;
