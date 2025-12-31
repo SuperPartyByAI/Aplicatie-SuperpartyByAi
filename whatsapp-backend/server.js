@@ -9,6 +9,107 @@ const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
+const crypto = require('crypto');
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+/**
+ * Canonicalize phone number to E.164 format
+ * @param {string} input - Phone number in any format
+ * @returns {string} - E.164 format (e.g., +40737571397)
+ */
+function canonicalPhone(input) {
+  if (!input) return null;
+  
+  // Remove all non-digit characters
+  let digits = input.replace(/\D/g, '');
+  
+  // If starts with 0, assume Romanian number (replace 0 with +40)
+  if (digits.startsWith('0')) {
+    digits = '40' + digits.substring(1);
+  }
+  
+  // Add + prefix if not present
+  if (!digits.startsWith('+')) {
+    digits = '+' + digits;
+  }
+  
+  return digits;
+}
+
+/**
+ * Generate deterministic accountId from phone number
+ * @param {string} phone - Phone number (will be canonicalized)
+ * @returns {string} - Deterministic accountId
+ */
+function generateAccountId(phone) {
+  const canonical = canonicalPhone(phone);
+  const hash = crypto.createHash('sha256').update(canonical).digest('hex').substring(0, 32);
+  const env = process.env.NODE_ENV || 'dev';
+  return `account_${env}_${hash}`;
+}
+
+/**
+ * Mask phone number for logging (show first 3 and last 2 digits)
+ * @param {string} phone - Phone number
+ * @returns {string} - Masked phone (e.g., +407****97)
+ */
+function maskPhone(phone) {
+  if (!phone || phone.length < 6) return '[REDACTED]';
+  return phone.substring(0, 4) + '****' + phone.substring(phone.length - 2);
+}
+
+// ============================================================================
+// ACCOUNT CONNECTION REGISTRY (Prevent duplicate sockets)
+// ============================================================================
+
+class AccountConnectionRegistry {
+  constructor() {
+    this.locks = new Map(); // accountId -> { connecting: boolean, connectedAt: timestamp }
+  }
+  
+  /**
+   * Try to acquire lock for connecting
+   * @returns {boolean} - true if acquired, false if already connecting/connected
+   */
+  tryAcquire(accountId) {
+    const existing = this.locks.get(accountId);
+    
+    if (existing && existing.connecting) {
+      console.log(`⚠️  [${accountId}] Already connecting, skipping duplicate`);
+      return false;
+    }
+    
+    if (existing && existing.connectedAt && (Date.now() - existing.connectedAt < 5000)) {
+      console.log(`⚠️  [${accountId}] Recently connected (${Date.now() - existing.connectedAt}ms ago), skipping duplicate`);
+      return false;
+    }
+    
+    this.locks.set(accountId, { connecting: true, connectedAt: null });
+    console.log(`🔒 [${accountId}] Connection lock acquired`);
+    return true;
+  }
+  
+  /**
+   * Mark connection as established
+   */
+  markConnected(accountId) {
+    this.locks.set(accountId, { connecting: false, connectedAt: Date.now() });
+    console.log(`✅ [${accountId}] Connection lock: marked as connected`);
+  }
+  
+  /**
+   * Release lock
+   */
+  release(accountId) {
+    this.locks.delete(accountId);
+    console.log(`🔓 [${accountId}] Connection lock released`);
+  }
+}
+
+const connectionRegistry = new AccountConnectionRegistry();
 
 const app = express();
 const PORT = process.env.PORT || 8080; // Railway injects PORT
@@ -246,6 +347,12 @@ async function logIncident(accountId, type, details) {
 
 // Helper: Create WhatsApp connection
 async function createConnection(accountId, name, phone) {
+  // Try to acquire connection lock (prevent duplicate sockets)
+  if (!connectionRegistry.tryAcquire(accountId)) {
+    console.log(`⚠️  [${accountId}] Connection already in progress, skipping`);
+    return;
+  }
+  
   try {
     console.log(`\n🔌 [${accountId}] Creating connection...`);
     
@@ -382,6 +489,9 @@ async function createConnection(accountId, name, phone) {
       if (connection === 'open') {
         console.log(`✅ [${accountId}] connection.update: open`);
         console.log(`✅ [${accountId}] Connected! Session persisted at: ${sessionPath}`);
+        
+        // Mark connection as established in registry
+        connectionRegistry.markConnected(accountId);
         account.status = 'connected';
         account.qrCode = null;
         account.phone = sock.user?.id?.split(':')[0] || phone;
@@ -1270,11 +1380,11 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
       }
     }
     
-    // Generate deterministic accountId based on phone number (not timestamp)
-    // This ensures same phone always gets same accountId and session folder
-    const crypto = require('crypto');
-    const phoneHash = crypto.createHash('sha256').update(phone).digest('hex').substring(0, 16);
-    const accountId = `account_${phoneHash}`;
+    // Generate deterministic accountId based on canonicalized phone number
+    const canonicalPhoneNum = canonicalPhone(phone);
+    const accountId = generateAccountId(canonicalPhoneNum);
+    
+    console.log(`📞 [${accountId}] Canonical phone: ${maskPhone(canonicalPhoneNum)}`);
     
     // Create connection (async, will emit QR later)
     createConnection(accountId, name, phone).catch(err => {
