@@ -96,19 +96,28 @@ class TwilioHandler {
         // First message - greeting
         const greeting = 'Bună ziua, SuperParty, cu ce vă ajut?';
         
-        // Try to get audio from Coqui
+        // Try ElevenLabs first, then Coqui
         let audioUrl = null;
-        if (this.voiceAI.coqui?.isConfigured()) {
+        if (this.voiceAI.elevenlabs?.isConfigured()) {
+          console.log('[Voice] Generating greeting with ElevenLabs');
+          audioUrl = await this.voiceAI.elevenlabs.generateSpeech(greeting);
+        } else if (this.voiceAI.coqui?.isConfigured()) {
+          console.log('[Voice] Generating greeting with Coqui');
           audioUrl = await this.voiceAI.coqui.generateSpeech(greeting);
         }
         
         if (audioUrl) {
-          // Use Kasya voice from Coqui
-          console.log('[Voice] Using Coqui XTTS (Kasya voice)');
-          const fullUrl = `${process.env.COQUI_API_URL || 'https://web-production-00dca9.up.railway.app'}${audioUrl}`;
-          twiml.play(fullUrl);
+          // ElevenLabs returns data URL, Coqui returns path
+          if (audioUrl.startsWith('data:')) {
+            console.log('[Voice] Using ElevenLabs data URL');
+            twiml.play(audioUrl);
+          } else {
+            console.log('[Voice] Using Coqui URL');
+            const fullUrl = `${process.env.COQUI_API_URL || 'https://web-production-00dca9.up.railway.app'}${audioUrl}`;
+            twiml.play(fullUrl);
+          }
         } else {
-          // Fallback to Google voice (more natural than Polly)
+          // Fallback to Google voice
           console.log('[Voice] Using Google Wavenet (fallback)');
           twiml.say({
             voice: 'Google.ro-RO-Wavenet-A',
@@ -132,8 +141,13 @@ class TwilioHandler {
         if (result.completed) {
           // Conversation complete
           if (result.audioUrl) {
-            const fullUrl = `${process.env.COQUI_API_URL || 'https://web-production-00dca9.up.railway.app'}${result.audioUrl}`;
-            twiml.play(fullUrl);
+            // ElevenLabs returns data URL, Coqui returns path
+            if (result.audioUrl.startsWith('data:')) {
+              twiml.play(result.audioUrl);
+            } else {
+              const fullUrl = `${process.env.COQUI_API_URL || 'https://web-production-00dca9.up.railway.app'}${result.audioUrl}`;
+              twiml.play(fullUrl);
+            }
           } else {
             twiml.say({
               voice: 'Google.ro-RO-Wavenet-A',
@@ -150,8 +164,13 @@ class TwilioHandler {
         } else {
           // Continue conversation
           if (result.audioUrl) {
-            const fullUrl = `${process.env.COQUI_API_URL || 'https://web-production-00dca9.up.railway.app'}${result.audioUrl}`;
-            twiml.play(fullUrl);
+            // ElevenLabs returns data URL, Coqui returns path
+            if (result.audioUrl.startsWith('data:')) {
+              twiml.play(result.audioUrl);
+            } else {
+              const fullUrl = `${process.env.COQUI_API_URL || 'https://web-production-00dca9.up.railway.app'}${result.audioUrl}`;
+              twiml.play(fullUrl);
+            }
           } else {
             twiml.say({
               voice: 'Google.ro-RO-Wavenet-A',
