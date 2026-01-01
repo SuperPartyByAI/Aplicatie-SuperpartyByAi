@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Console Error Checker</title>
+</head>
+<body>
+    <h1>Console Error Checker</h1>
+    <p>Deschide Console (F12) și copiază tot ce vezi acolo aici:</p>
+    <textarea id="console-output" style="width: 100%; height: 400px;" placeholder="Paste console output here..."></textarea>
+    <br><br>
+    <button onclick="analyzeErrors()">Analyze Errors</button>
+    <div id="results"></div>
+
+    <script>
+        // Capture console errors
+        const errors = [];
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        const originalLog = console.log;
+
+        console.error = function(...args) {
+            errors.push({type: 'error', message: args.join(' ')});
+            originalError.apply(console, args);
+        };
+
+        console.warn = function(...args) {
+            errors.push({type: 'warn', message: args.join(' ')});
+            originalWarn.apply(console, args);
+        };
+
+        console.log = function(...args) {
+            errors.push({type: 'log', message: args.join(' ')});
+            originalLog.apply(console, args);
+        };
+
+        function analyzeErrors() {
+            const output = document.getElementById('console-output').value;
+            const results = document.getElementById('results');
+            
+            const betterStackErrors = (output.match(/betterstack\.com.*401/g) || []).length;
+            const iconErrors = (output.match(/icon-192\.png.*error/gi) || []).length;
+            const logtailErrors = (output.match(/logtail/gi) || []).length;
+            
+            results.innerHTML = `
+                <h2>Analysis:</h2>
+                <ul>
+                    <li>Better Stack 401 errors: ${betterStackErrors}</li>
+                    <li>Icon errors: ${iconErrors}</li>
+                    <li>Logtail mentions: ${logtailErrors}</li>
+                    <li>Total captured errors: ${errors.length}</li>
+                </ul>
+                <h3>Captured Errors:</h3>
+                <pre>${JSON.stringify(errors, null, 2)}</pre>
+            `;
+        }
+
+        // Auto-display captured errors after 5 seconds
+        setTimeout(() => {
+            if (errors.length > 0) {
+                document.getElementById('console-output').value = JSON.stringify(errors, null, 2);
+                analyzeErrors();
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
