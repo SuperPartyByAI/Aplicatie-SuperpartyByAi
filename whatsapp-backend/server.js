@@ -1916,16 +1916,64 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
       });
     }
 
-    // Check for duplicate phone number
+    // Check for duplicate phone number and disconnect old session
     if (phone) {
       const normalizedPhone = phone.replace(/\D/g, ''); // Remove non-digits
+
+      // Check in active connections (memory)
       for (const [existingId, conn] of connections.entries()) {
         const existingPhone = conn.phone?.replace(/\D/g, '');
         if (existingPhone && existingPhone === normalizedPhone) {
-          return res.status(400).json({
-            success: false,
-            error: `Phone number ${phone} already exists (account: ${conn.name || existingId})`,
-          });
+          console.log(
+            `🔄 [${existingId}] Disconnecting old session for phone ${maskPhone(normalizedPhone)}`
+          );
+
+          // Disconnect old session
+          if (conn.sock) {
+            try {
+              conn.sock.end();
+            } catch (e) {
+              console.error(`❌ [${existingId}] Error ending socket:`, e.message);
+            }
+          }
+
+          // Remove from connections
+          connections.delete(existingId);
+          reconnectAttempts.delete(existingId);
+          connectionRegistry.release(existingId);
+
+          // Update Firestore status
+          if (firestoreAvailable && db) {
+            await saveAccountToFirestore(existingId, {
+              status: 'disconnected',
+              lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
+              lastDisconnectReason: 'replaced_by_new_session',
+            }).catch(err => console.error(`❌ [${existingId}] Failed to update Firestore:`, err));
+          }
+
+          console.log(`✅ [${existingId}] Old session disconnected`);
+        }
+      }
+
+      // Check in Firestore for any other accounts with same phone
+      if (firestoreAvailable && db) {
+        try {
+          const accountsSnapshot = await db.collection('accounts').get();
+          for (const doc of accountsSnapshot.docs) {
+            const data = doc.data();
+            const existingPhone =
+              data.phoneE164?.replace(/\D/g, '') || data.phone?.replace(/\D/g, '');
+            if (existingPhone && existingPhone === normalizedPhone && doc.id !== accountId) {
+              console.log(`🗑️ [${doc.id}] Marking old Firestore account as disconnected`);
+              await db.collection('accounts').doc(doc.id).update({
+                status: 'disconnected',
+                lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
+                lastDisconnectReason: 'replaced_by_new_session',
+              });
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error checking Firestore for duplicates:', error.message);
         }
       }
     }
@@ -1969,6 +2017,103 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
       extra: { body: req.body },
     });
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Clean up duplicate accounts (admin endpoint)
+app.post('/admin/cleanup-duplicates', requireAdmin, async (req, res) => {
+  try {
+    if (!firestoreAvailable || !db) {
+      return res.status(503).json({ error: 'Firestore not available' });
+    }
+
+    const accountsSnapshot = await db.collection('accounts').get();
+    const phoneMap = new Map(); // phone -> [accountIds]
+    const duplicates = [];
+
+    // Group accounts by phone number
+    for (const doc of accountsSnapshot.docs) {
+      const data = doc.data();
+      const phone = data.phoneE164?.replace(/\D/g, '') || data.phone?.replace(/\D/g, '');
+
+      if (phone) {
+        if (!phoneMap.has(phone)) {
+          phoneMap.set(phone, []);
+        }
+        phoneMap.get(phone).push({
+          id: doc.id,
+          name: data.name,
+          status: data.status,
+          createdAt: data.createdAt,
+          lastUpdate: data.updatedAt || data.lastUpdate,
+        });
+      }
+    }
+
+    // Find duplicates and keep only the most recent connected one
+    for (const [phone, accounts] of phoneMap.entries()) {
+      if (accounts.length > 1) {
+        // Sort by: connected first, then by most recent
+        accounts.sort((a, b) => {
+          if (a.status === 'connected' && b.status !== 'connected') return -1;
+          if (a.status !== 'connected' && b.status === 'connected') return 1;
+
+          const aTime = a.lastUpdate?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
+          const bTime = b.lastUpdate?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
+          return bTime - aTime; // Most recent first
+        });
+
+        // Keep first (most relevant), mark others as duplicates
+        const toKeep = accounts[0];
+        const toRemove = accounts.slice(1);
+
+        duplicates.push({
+          phone,
+          kept: toKeep,
+          removed: toRemove,
+        });
+
+        // Disconnect and mark duplicates
+        for (const acc of toRemove) {
+          console.log(`🗑️ [${acc.id}] Removing duplicate for phone ${phone}`);
+
+          // Disconnect if in memory
+          if (connections.has(acc.id)) {
+            const conn = connections.get(acc.id);
+            if (conn.sock) {
+              try {
+                conn.sock.end();
+              } catch (e) {
+                // Ignore
+              }
+            }
+            connections.delete(acc.id);
+            reconnectAttempts.delete(acc.id);
+            connectionRegistry.release(acc.id);
+          }
+
+          // Update Firestore
+          await db.collection('accounts').doc(acc.id).update({
+            status: 'disconnected',
+            lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastDisconnectReason: 'duplicate_cleanup',
+          });
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Cleaned up ${duplicates.length} duplicate phone numbers`,
+      duplicates: duplicates.map(d => ({
+        phone: d.phone,
+        kept: d.kept.id,
+        removed: d.removed.map(r => r.id),
+      })),
+    });
+  } catch (error) {
+    console.error('❌ Cleanup duplicates error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -3654,10 +3799,13 @@ app.listen(PORT, '0.0.0.0', async () => {
 
         try {
           // Update status to sending
-          await db.collection('outbox').doc(doc.id).update({
-            status: 'sending',
-            attempts: (data.attempts || 0) + 1,
-          });
+          await db
+            .collection('outbox')
+            .doc(doc.id)
+            .update({
+              status: 'sending',
+              attempts: (data.attempts || 0) + 1,
+            });
 
           // Send message
           const messagePayload = payload || { text: body };
@@ -3672,7 +3820,10 @@ app.listen(PORT, '0.0.0.0', async () => {
 
           console.log(`✅ [${accountId}] Sent outbox message ${doc.id}`);
         } catch (error) {
-          console.error(`❌ [${accountId}] Failed to send outbox message ${doc.id}:`, error.message);
+          console.error(
+            `❌ [${accountId}] Failed to send outbox message ${doc.id}:`,
+            error.message
+          );
 
           await db.collection('outbox').doc(doc.id).update({
             status: 'failed',
