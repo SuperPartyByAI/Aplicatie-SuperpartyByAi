@@ -10,3 +10,4 @@ package-lock.json
 kyc-app/kyc-app/src/**
 kyc-app/kyc-app/public/**
 kyc-app/kyc-app/vite.config.js
+kyc-app/kyc-app/dist/
