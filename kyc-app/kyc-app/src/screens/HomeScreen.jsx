@@ -1207,7 +1207,15 @@ ${perf.tasksOverdue > 0 ? `⚠️ Ai ${perf.tasksOverdue} task-uri în întârzi
                   style={{ borderLeft: '3px solid #10b981' }}
                 >
                   <span className="nav-icon">📱</span>
-                  <span className="nav-text">Chat Clienti</span>
+                  <span className="nav-text">Chat Clienti WhatsApp</span>
+                </button>
+                <button
+                  onClick={() => navigate('/accounts-management')}
+                  className="nav-item"
+                  style={{ borderLeft: '3px solid #10b981' }}
+                >
+                  <span className="nav-icon">⚙️</span>
+                  <span className="nav-text">Conturi WhatsApp</span>
                 </button>
                 <button
                   onClick={() => navigate('/centrala-telefonica')}

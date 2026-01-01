@@ -1,37 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
-import WhatsAppAccounts from '../components/WhatsAppAccounts';
 import ChatClientiRealtime from '../components/ChatClientiRealtime';
 
 function ChatClientiScreen() {
   const navigate = useNavigate();
   const currentUser = auth.currentUser;
-  const isAdmin = currentUser?.email === 'ursache.andrei1995@gmail.com';
-  const [view, setView] = useState('accounts');
-  const [connectedAccount, setConnectedAccount] = useState(null);
+  
+  // Allow access for GM and Admin
+  const hasAccess = currentUser?.email === 'ursache.andrei1995@gmail.com' || 
+                    currentUser?.role === 'GM';
 
   useEffect(() => {
-    if (!isAdmin) {
-      alert('⛔ Acces interzis! Doar administratorul poate accesa această pagină.');
+    if (!hasAccess) {
+      alert('⛔ Acces interzis! Doar GM și Admin pot accesa această pagină.');
       navigate('/home');
       return;
     }
+  }, [hasAccess, navigate]);
 
-    // Check for connected account
-    fetch('https://whats-upp-production.up.railway.app/api/whatsapp/accounts')
-      .then(r => r.json())
-      .then(data => {
-        const connected = data.accounts?.find(acc => acc.status === 'connected');
-        if (connected) {
-          setConnectedAccount(connected);
-          setView('chat');
-        }
-      })
-      .catch(err => console.error('Error:', err));
-  }, [isAdmin, navigate]);
-
-  if (!isAdmin) {
+  if (!hasAccess) {
     return null;
   }
 
@@ -49,28 +37,17 @@ function ChatClientiScreen() {
           <div>
             <h1>💬 Chat Clienti - WhatsApp</h1>
             <p className="page-subtitle">
-              {view === 'chat' ? 'Conversații cu clienții' : 'Gestionare conturi WhatsApp'}
+              Conversații cu clienții prin WhatsApp
             </p>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {connectedAccount && (
-              <>
-                <button
-                  onClick={() => setView('chat')}
-                  className={view === 'chat' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
-                >
-                  💬 Chat
-                </button>
-                <button
-                  onClick={() => setView('accounts')}
-                  className={view === 'accounts' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
-                >
-                  ⚙️ Accounts
-                </button>
-              </>
-            )}
+            <button 
+              onClick={() => navigate('/accounts-management')} 
+              className="btn-secondary"
+              style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
+            >
+              ⚙️ Conturi WhatsApp
+            </button>
             <button onClick={() => navigate('/home')} className="btn-secondary">
               ← Înapoi
             </button>
@@ -78,7 +55,7 @@ function ChatClientiScreen() {
         </div>
       </div>
 
-      {view === 'accounts' ? <WhatsAppAccounts /> : <ChatClientiRealtime />}
+      <ChatClientiRealtime />
     </div>
   );
 }
