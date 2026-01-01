@@ -30,6 +30,7 @@ function ChatClientiRealtime({
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [filter, setFilter] = useState('all'); // 'my', 'team', 'all', 'unassigned'
+  const [error, setError] = useState(null);
 
   // Load connected WhatsApp account
   useEffect(() => {
@@ -60,9 +61,22 @@ function ChatClientiRealtime({
         console.log(`📥 Received ${threadsList.length} threads`);
         setThreads(threadsList);
         setLoading(false);
+        setError(null);
       },
       error => {
         console.error('❌ Error listening to threads:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        
+        // Set user-friendly error message
+        let errorMessage = 'Eroare la încărcarea conversațiilor';
+        if (error.code === 'failed-precondition' || error.message.includes('index')) {
+          errorMessage = '⚠️ Index Firestore lipsă. Se construiește automat (2-5 min). Reîmprospătează pagina.';
+        } else if (error.code === 'permission-denied') {
+          errorMessage = '❌ Permisiuni insuficiente. Contactează administratorul.';
+        }
+        
+        setError(errorMessage);
         setLoading(false);
       }
     );
@@ -247,6 +261,37 @@ function ChatClientiRealtime({
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af' }}>
         Se încarcă conversațiile...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }}>
+        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
+        <h2 style={{ color: '#ef4444', marginBottom: '1rem' }}>
+          Eroare la încărcarea conversațiilor
+        </h2>
+        <div style={{ background: '#1f2937', padding: '1.5rem', borderRadius: '8px', marginBottom: '1rem' }}>
+          <p style={{ color: '#d1d5db', marginBottom: '1rem' }}>{error}</p>
+          <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+            Verifică consola browser-ului (F12) pentru detalii tehnice.
+          </p>
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            padding: '0.75rem 1.5rem',
+            background: '#3b82f6',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: '500'
+          }}
+        >
+          🔄 Reîmprospătează Pagina
+        </button>
       </div>
     );
   }
