@@ -5,9 +5,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import Toast from './components/Toast';
 import LoadingSpinner from './components/LoadingSpinner';
-import Dock from './components/Dock';
-import FAB from './components/FAB';
-import WheelOverlay from './components/WheelOverlay';
+import AuthenticatedShell from './components/AuthenticatedShell';
 
 // Eager loading pentru auth flow (critical)
 import AuthScreen from './screens/AuthScreen';
@@ -105,10 +103,8 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
-        {/* Persistent UI Shell: Dock + FAB + Wheel */}
-        <Dock />
-        <FAB />
-        <WheelOverlay />
+        {/* Persistent UI Shell: Dock + FAB + Wheel (only on authenticated routes) */}
+        <AuthenticatedShell />
       </BrowserRouter>
     </>
   );

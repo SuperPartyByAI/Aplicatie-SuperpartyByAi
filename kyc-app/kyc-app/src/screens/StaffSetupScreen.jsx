@@ -15,7 +15,8 @@ import { signOut } from 'firebase/auth';
 
 function StaffSetupScreen() {
   const navigate = useNavigate();
-  const currentUser = auth.currentUser;
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [codIdentificare, setCodIdentificare] = useState('');
   const [ceCodAi, setCeCodAi] = useState('');
   const [cineNoteaza, setCineNoteaza] = useState('');
@@ -25,6 +26,16 @@ function StaffSetupScreen() {
   const [userName, setUserName] = useState('');
 
   useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setCurrentUser(user);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    
     const loadUserData = async () => {
       try {
         const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
@@ -90,11 +101,31 @@ function StaffSetupScreen() {
     navigate('/');
   };
 
+  if (loading) {
+    return (
+      <div className="screen-container">
+        <div className="card">
+          <p>Se încarcă...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="screen-container">
+        <div className="card">
+          <p>Nu ești autentificat. Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="screen-container">
       <div className="card">
         <h1>Staff Setup</h1>
-        <p>Email: {currentUser?.email}</p>
+        <p>Email: {currentUser.email}</p>
         <p>Cod alocat: {userCode || '(lipsește)'}</p>
         <input
           placeholder="Cod identificare"
