@@ -522,7 +522,14 @@ function ChatClientiRealtime({
                 gap: '0.5rem',
               }}
             >
-              {messages.map(msg => (
+              {messages
+                .filter(msg => {
+                  // Filter out messages from Admin and GM
+                  const body = msg.body || '';
+                  const isAdminMessage = body.includes('[Admin]') || body.includes('[GM]');
+                  return !isAdminMessage;
+                })
+                .map(msg => (
                 <div
                   key={msg.id}
                   style={{

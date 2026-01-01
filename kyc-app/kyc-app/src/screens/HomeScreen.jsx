@@ -24,7 +24,11 @@ function HomeScreen() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [adminMode, setAdminMode] = useState(false); // Toggle admin mode
-  const [gmMode, setGmMode] = useState(false); // Toggle GM mode
+  const [gmMode, setGmMode] = useState(() => {
+    // Load GM Mode from localStorage (persistent across pages)
+    const saved = localStorage.getItem('gmMode');
+    return saved === 'true';
+  }); // Toggle GM mode
   const [currentView, setCurrentView] = useState('dashboard'); // dashboard, admin-kyc, admin-conversations, gm-overview, gm-analytics
   const [kycSubmissions, setKycSubmissions] = useState([]);
   const [aiConversations, setAiConversations] = useState([]);
@@ -95,6 +99,11 @@ function HomeScreen() {
     kycPending: 0,
   });
   const [loading, setLoading] = useState(true);
+
+  // Persist GM Mode in localStorage
+  useEffect(() => {
+    localStorage.setItem('gmMode', gmMode.toString());
+  }, [gmMode]);
 
   // Prevent sidebar scroll from propagating to body
   useEffect(() => {
