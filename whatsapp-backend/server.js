@@ -2121,6 +2121,48 @@ app.post('/api/cleanup-duplicates', async (req, res) => {
   }
 });
 
+// Update account name
+app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const { name } = req.body;
+
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'Name is required' });
+    }
+
+    const account = connections.get(accountId);
+    if (!account) {
+      return res.status(404).json({ success: false, error: 'Account not found' });
+    }
+
+    // Update in memory
+    account.name = name.trim();
+
+    // Update in Firestore if available
+    if (firestoreAvailable && db) {
+      await db.collection('accounts').doc(accountId).update({
+        name: name.trim(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Account name updated',
+      account: {
+        id: accountId,
+        name: account.name,
+        phone: account.phone,
+        status: account.status,
+      }
+    });
+  } catch (error) {
+    console.error('❌ Update account name error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Regenerate QR
 app.post('/api/whatsapp/regenerate-qr/:accountId', accountLimiter, async (req, res) => {
   try {

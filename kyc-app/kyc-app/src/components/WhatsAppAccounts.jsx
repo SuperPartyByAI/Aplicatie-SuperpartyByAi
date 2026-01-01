@@ -11,6 +11,8 @@ function WhatsAppAccounts() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountPhone, setNewAccountPhone] = useState('');
+  const [editingAccount, setEditingAccount] = useState(null);
+  const [editName, setEditName] = useState('');
 
   useEffect(() => {
     loadAccounts();
@@ -86,6 +88,35 @@ function WhatsAppAccounts() {
     } catch (error) {
       console.error('❌ Error adding account:', error);
       alert('❌ Eroare la adăugarea contului: ' + error.message);
+    }
+  };
+
+  const updateAccountName = async (accountId) => {
+    if (!editName.trim()) {
+      alert('❌ Numele nu poate fi gol');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${WHATSAPP_URL}/api/whatsapp/accounts/${accountId}/name`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editName.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('✅ Account name updated:', data.account);
+        setEditingAccount(null);
+        setEditName('');
+        loadAccounts();
+      } else {
+        throw new Error(data.error || 'Eroare necunoscută');
+      }
+    } catch (error) {
+      console.error('❌ Error updating account name:', error);
+      alert('❌ Eroare la actualizarea numelui: ' + error.message);
     }
   };
 
@@ -301,7 +332,78 @@ function WhatsAppAccounts() {
                       fontWeight: '700',
                     }}
                   >
-                    {account.name}
+                    {editingAccount === account.id ? (
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && updateAccountName(account.id)}
+                          style={{
+                            padding: '0.5rem',
+                            borderRadius: '6px',
+                            border: '2px solid #00ff88',
+                            background: '#1a1a2e',
+                            color: 'white',
+                            fontSize: '1rem',
+                            outline: 'none',
+                          }}
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => updateAccountName(account.id)}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            background: '#00ff88',
+                            color: '#0f0f23',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                          }}
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingAccount(null);
+                            setEditName('');
+                          }}
+                          style={{
+                            padding: '0.5rem 1rem',
+                            background: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <span>{account.name}</span>
+                        <button
+                          onClick={() => {
+                            setEditingAccount(account.id);
+                            setEditName(account.name);
+                          }}
+                          style={{
+                            padding: '0.25rem 0.5rem',
+                            background: 'transparent',
+                            color: '#00ff88',
+                            border: '1px solid #00ff88',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem',
+                          }}
+                        >
+                          ✏️ Edit
+                        </button>
+                      </div>
+                    )}
                   </h3>
                   <div
                     style={{
