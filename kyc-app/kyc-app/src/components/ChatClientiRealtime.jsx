@@ -44,10 +44,10 @@ function ChatClientiRealtime({
     console.log(`📡 Setting up real-time listener for threads (accountId: ${connectedAccount.id})...`);
 
     // Filter threads by accountId to prevent mixing accounts
+    // Note: Removed orderBy to work without Firestore index (sorting done client-side)
     const threadsQuery = query(
       collection(db, 'threads'),
       where('accountId', '==', connectedAccount.id),
-      orderBy('lastMessageAt', 'desc'),
       limitQuery(50)
     );
 
@@ -58,7 +58,15 @@ function ChatClientiRealtime({
           id: doc.id,
           ...doc.data(),
         }));
-        console.log(`📥 Received ${threadsList.length} threads`);
+        
+        // Sort client-side by lastMessageAt (descending)
+        threadsList.sort((a, b) => {
+          const aTime = a.lastMessageAt?.toMillis?.() || 0;
+          const bTime = b.lastMessageAt?.toMillis?.() || 0;
+          return bTime - aTime;
+        });
+        
+        console.log(`📥 Received ${threadsList.length} threads (sorted client-side)`);
         setThreads(threadsList);
         setLoading(false);
         setError(null);
