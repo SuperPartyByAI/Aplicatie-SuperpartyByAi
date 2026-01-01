@@ -2,6 +2,9 @@ const { onRequest, onCall } = require('firebase-functions/v2/https');
 const { setGlobalOptions } = require('firebase-functions/v2');
 const functions = require('firebase-functions'); // Keep v1 for existing functions
 
+// Initialize Sentry
+const { Sentry, logger } = require('./sentry');
+
 // Set global options for v2 functions
 setGlobalOptions({
   region: 'us-central1',
@@ -72,6 +75,10 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
     const account = await whatsappManager.addAccount(name, phone);
     res.json({ success: true, account });
   } catch (error) {
+    Sentry.captureException(error, {
+      tags: { endpoint: 'add-account', function: 'whatsappV4' },
+      extra: { name, phone }
+    });
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -82,6 +89,10 @@ app.post('/api/whatsapp/accounts/:accountId/regenerate-qr', async (req, res) => 
     const result = await whatsappManager.regenerateQR(accountId);
     res.json(result);
   } catch (error) {
+    Sentry.captureException(error, {
+      tags: { endpoint: 'regenerate-qr', function: 'whatsappV4' },
+      extra: { accountId: req.params.accountId }
+    });
     res.status(500).json({ success: false, error: error.message });
   }
 });

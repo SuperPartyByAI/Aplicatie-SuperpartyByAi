@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
+import * as Sentry from '@sentry/react';
 
 const WHATSAPP_URL = 'https://aplicatie-superpartybyai-production-d067.up.railway.app';
 
@@ -23,7 +24,10 @@ function WhatsAppAccounts() {
 
   const loadAccounts = async () => {
     try {
-      const response = await fetch(`${WHATSAPP_URL}/api/whatsapp/accounts`);
+      const response = await Sentry.startSpan(
+        { op: 'http.client', name: 'GET /api/whatsapp/accounts' },
+        () => fetch(`${WHATSAPP_URL}/api/whatsapp/accounts`)
+      );
       const data = await response.json();
       console.log('📱 WhatsApp accounts loaded:', data.accounts);
       if (data.success) {

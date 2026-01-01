@@ -11,6 +11,9 @@ const path = require('path');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
 
+// Initialize Sentry
+const { Sentry, logger } = require('./sentry');
+
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
@@ -477,7 +480,10 @@ async function createConnection(accountId, name, phone) {
         console.log(`📱 [${accountId}] QR Code generated (length: ${qr.length})`);
         
         try {
-          const qrDataURL = await QRCode.toDataURL(qr);
+          const qrDataURL = await Sentry.startSpan(
+            { op: 'whatsapp.qr.generate', name: 'Generate QR Code' },
+            () => QRCode.toDataURL(qr)
+          );
           account.qrCode = qrDataURL;
           account.status = 'qr_ready';
           account.lastUpdate = new Date().toISOString();
@@ -490,8 +496,10 @@ async function createConnection(accountId, name, phone) {
           });
           
           console.log(`✅ [${accountId}] QR saved to Firestore`);
+          logger.info('QR code generated and saved', { accountId, qrLength: qr.length });
         } catch (error) {
           console.error(`❌ [${accountId}] QR generation failed:`, error.message);
+          logger.error('QR generation failed', { accountId, error: error.message });
           await logIncident(accountId, 'qr_generation_failed', { error: error.message });
         }
       }
@@ -1510,6 +1518,10 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
     // Create connection (async, will emit QR later)
     createConnection(accountId, name, phone).catch(err => {
       console.error(`❌ [${accountId}] Failed to create:`, err.message);
+      Sentry.captureException(err, {
+        tags: { accountId, operation: 'create_connection' },
+        extra: { name, phone: maskPhone(canonicalPhoneNum) }
+      });
     });
     
     // Return immediately with connecting status
@@ -1526,6 +1538,10 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
       }
     });
   } catch (error) {
+    Sentry.captureException(error, {
+      tags: { endpoint: 'add-account' },
+      extra: { body: req.body }
+    });
     res.status(500).json({ success: false, error: error.message });
   }
 });
