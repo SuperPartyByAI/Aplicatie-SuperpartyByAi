@@ -486,7 +486,9 @@ async function createConnection(accountId, name, phone) {
     // Note: Store binding not required in Baileys 6.7.21
     // Events emit directly from sock.ev
     console.log(`📦 [${accountId}] Socket events configured`);
-    console.log(`📦 [${accountId}] messages.upsert listeners: ${sock.ev.listenerCount('messages.upsert')}`);
+    const evListeners = sock.ev._events || {};
+    const msgListeners = evListeners['messages.upsert'];
+    console.log(`📦 [${accountId}] messages.upsert listeners: ${Array.isArray(msgListeners) ? msgListeners.length : (msgListeners ? 1 : 0)}`);
 
     // Save to Firestore
     await saveAccountToFirestore(accountId, {
@@ -1096,15 +1098,16 @@ app.get('/debug/listeners/:accountId', (req, res) => {
     return res.json({ error: 'Socket not found', account: { id: accountId, status: account.status } });
   }
   
+  const evListeners = sock.ev._events || {};
   res.json({
     accountId,
     status: account.status,
     socketExists: !!sock,
     eventListeners: {
-      'messages.upsert': sock.ev.listenerCount('messages.upsert'),
-      'connection.update': sock.ev.listenerCount('connection.update'),
-      'creds.update': sock.ev.listenerCount('creds.update'),
-      'messages.update': sock.ev.listenerCount('messages.update'),
+      'messages.upsert': Array.isArray(evListeners['messages.upsert']) ? evListeners['messages.upsert'].length : (evListeners['messages.upsert'] ? 1 : 0),
+      'connection.update': Array.isArray(evListeners['connection.update']) ? evListeners['connection.update'].length : (evListeners['connection.update'] ? 1 : 0),
+      'creds.update': Array.isArray(evListeners['creds.update']) ? evListeners['creds.update'].length : (evListeners['creds.update'] ? 1 : 0),
+      'messages.update': Array.isArray(evListeners['messages.update']) ? evListeners['messages.update'].length : (evListeners['messages.update'] ? 1 : 0),
     },
     accountDetails: {
       name: account.name,
