@@ -11,7 +11,10 @@
     "start:ultimate": "node monitoring/ultimate-monitor.js",
     "start:extreme": "node monitoring/extreme-monitor.js",
     "start:normal": "node monitoring/ultra-fast-monitor.js",
-    "test": "node monitoring/test-recovery.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "node monitoring/test-recovery.js",
     "demo": "node monitoring/demo-auto-repair.js",
     "chaos": "node -e \"const UltimateMonitor = require('./monitoring/ultimate-monitor'); const m = new UltimateMonitor(); m.runChaosTest();\"",
     "ci:status": "./scripts/ci-status.sh",
@@ -54,9 +57,11 @@
   ],
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@types/jest": "^30.0.0",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
+    "jest": "^30.2.0",
     "prettier": "^3.7.4"
   }
 }

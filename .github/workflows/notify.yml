@@ -1,0 +1,84 @@
+name: Notifications
+
+on:
+  workflow_run:
+    workflows: ["CI", "Deploy Frontend to Firebase", "Deploy WhatsApp Functions to Firebase", "Deploy v7.0 to Railway"]
+    types:
+      - completed
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion != 'skipped' }}
+    
+    steps:
+      - name: Determine status emoji
+        id: status
+        run: |
+          if [ "${{ github.event.workflow_run.conclusion }}" == "success" ]; then
+            echo "emoji=✅" >> $GITHUB_OUTPUT
+            echo "color=good" >> $GITHUB_OUTPUT
+          else
+            echo "emoji=❌" >> $GITHUB_OUTPUT
+            echo "color=danger" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Send Slack notification
+        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
+        run: |
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "text": "${{ steps.status.outputs.emoji }} *${{ github.event.workflow_run.name }}* - ${{ github.event.workflow_run.conclusion }}",
+              "attachments": [{
+                "color": "${{ steps.status.outputs.color }}",
+                "fields": [
+                  {
+                    "title": "Repository",
+                    "value": "${{ github.repository }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Branch",
+                    "value": "${{ github.event.workflow_run.head_branch }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Commit",
+                    "value": "<${{ github.event.workflow_run.html_url }}|View Run>",
+                    "short": false
+                  }
+                ]
+              }]
+            }'
+      
+      - name: Send Discord notification
+        if: ${{ secrets.DISCORD_WEBHOOK_URL != '' }}
+        run: |
+          curl -X POST ${{ secrets.DISCORD_WEBHOOK_URL }} \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "content": "${{ steps.status.outputs.emoji }} **${{ github.event.workflow_run.name }}** - ${{ github.event.workflow_run.conclusion }}",
+              "embeds": [{
+                "title": "${{ github.event.workflow_run.name }}",
+                "url": "${{ github.event.workflow_run.html_url }}",
+                "color": '${{ github.event.workflow_run.conclusion == 'success' && '3066993' || '15158332' }}',
+                "fields": [
+                  {
+                    "name": "Repository",
+                    "value": "${{ github.repository }}",
+                    "inline": true
+                  },
+                  {
+                    "name": "Branch",
+                    "value": "${{ github.event.workflow_run.head_branch }}",
+                    "inline": true
+                  },
+                  {
+                    "name": "Status",
+                    "value": "${{ github.event.workflow_run.conclusion }}",
+                    "inline": true
+                  }
+                ]
+              }]
+            }'
