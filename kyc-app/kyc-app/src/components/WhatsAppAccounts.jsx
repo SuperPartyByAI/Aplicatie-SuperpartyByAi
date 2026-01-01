@@ -3,7 +3,7 @@ import io from 'socket.io-client';
 import * as Sentry from '@sentry/react';
 import logtail from '../logtail';
 
-const WHATSAPP_URL = 'https://aplicatie-superpartybyai-production-d067.up.railway.app';
+const WHATSAPP_URL = 'https://whats-upp-production.up.railway.app';
 
 function WhatsAppAccounts() {
   const [accounts, setAccounts] = useState([]);
