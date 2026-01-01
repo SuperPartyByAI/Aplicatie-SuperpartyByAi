@@ -532,6 +532,13 @@ async function createConnection(accountId, name, phone) {
           });
 
           console.log(`✅ [${accountId}] QR saved to Firestore`);
+
+          // Invalidate accounts cache so frontend gets updated QR
+          if (featureFlags.isEnabled('API_CACHING')) {
+            cache.del('whatsapp:accounts');
+            console.log(`🗑️  [${accountId}] Cache invalidated for QR update`);
+          }
+
           logger.info('QR code generated and saved', { accountId, qrLength: qr.length });
           logtail.info('QR code generated', {
             accountId,
@@ -564,6 +571,12 @@ async function createConnection(accountId, name, phone) {
 
         // Reset reconnect attempts
         reconnectAttempts.delete(accountId);
+
+        // Invalidate accounts cache so frontend sees connected status
+        if (featureFlags.isEnabled('API_CACHING')) {
+          cache.del('whatsapp:accounts');
+          console.log(`🗑️  [${accountId}] Cache invalidated for connection update`);
+        }
 
         // Save to Firestore
         await saveAccountToFirestore(accountId, {
@@ -1692,6 +1705,11 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
     const accountId = generateAccountId(canonicalPhoneNum);
 
     console.log(`📞 [${accountId}] Canonical phone: ${maskPhone(canonicalPhoneNum)}`);
+
+    // Invalidate accounts cache
+    if (featureFlags.isEnabled('API_CACHING')) {
+      cache.del('whatsapp:accounts');
+    }
 
     // Create connection (async, will emit QR later)
     createConnection(accountId, name, phone).catch(err => {
