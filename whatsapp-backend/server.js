@@ -400,6 +400,9 @@ async function createConnection(accountId, name, phone) {
     return;
   }
 
+  // Set timeout to prevent "connecting forever"
+  const CONNECTING_TIMEOUT = 60000; // 60 seconds
+
   try {
     console.log(`\n🔌 [${accountId}] Creating connection...`);
 
@@ -483,6 +486,20 @@ async function createConnection(accountId, name, phone) {
 
     connections.set(accountId, account);
 
+    // Set timeout to prevent "connecting forever"
+    account.connectingTimeout = setTimeout(() => {
+      console.log(`⏰ [${accountId}] Connecting timeout (60s), transitioning to disconnected`);
+      const acc = connections.get(accountId);
+      if (acc && acc.status === 'connecting') {
+        acc.status = 'disconnected';
+        acc.lastError = 'Connection timeout - no progress after 60s';
+        saveAccountToFirestore(accountId, {
+          status: 'disconnected',
+          lastError: 'Connection timeout',
+        }).catch(err => console.error(`❌ [${accountId}] Timeout save failed:`, err));
+      }
+    }, CONNECTING_TIMEOUT);
+
     // Note: Store binding not required in Baileys 6.7.21
     // Events emit directly from sock.ev
     console.log(`📦 [${accountId}] Socket events configured`);
@@ -563,6 +580,12 @@ async function createConnection(accountId, name, phone) {
       if (connection === 'open') {
         console.log(`✅ [${accountId}] connection.update: open`);
         console.log(`✅ [${accountId}] Connected! Session persisted at: ${sessionPath}`);
+        
+        // Clear connecting timeout
+        if (account.connectingTimeout) {
+          clearTimeout(account.connectingTimeout);
+          account.connectingTimeout = null;
+        }
 
         // Mark connection as established in registry
         connectionRegistry.markConnected(accountId);
