@@ -535,7 +535,7 @@ async function createConnection(accountId, name, phone) {
 
           // Invalidate accounts cache so frontend gets updated QR
           if (featureFlags.isEnabled('API_CACHING')) {
-            cache.delete('whatsapp:accounts');
+            await cache.delete('whatsapp:accounts');
             console.log(`🗑️  [${accountId}] Cache invalidated for QR update`);
           }
 
@@ -574,7 +574,7 @@ async function createConnection(accountId, name, phone) {
 
         // Invalidate accounts cache so frontend sees connected status
         if (featureFlags.isEnabled('API_CACHING')) {
-          cache.delete('whatsapp:accounts');
+          await cache.delete('whatsapp:accounts');
           console.log(`🗑️  [${accountId}] Cache invalidated for connection update`);
         }
 
@@ -1708,7 +1708,7 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
 
     // Invalidate accounts cache
     if (featureFlags.isEnabled('API_CACHING')) {
-      cache.delete('whatsapp:accounts');
+      await cache.delete('whatsapp:accounts');
     }
 
     // Create connection (async, will emit QR later)
