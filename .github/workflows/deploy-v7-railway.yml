@@ -24,10 +24,14 @@ jobs:
       - name: Deploy to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: 998d4e46-c67c-47e2-9eaa-ae4cc806aab1
         run: |
           cd monitoring
-          railway link 998d4e46-c67c-47e2-9eaa-ae4cc806aab1 || true
-          railway up --service v7-singularity-monitor || railway up
+          # Link using environment variable
+          railway link || echo "Link failed, continuing..."
+          # Deploy with explicit service name
+          railway up --service v7-singularity-monitor
+          # Set environment variables
           railway variables set RAILWAY_TOKEN=$RAILWAY_TOKEN || true
           railway variables set PORT=3001 || true
           railway variables set NODE_ENV=production || true
