@@ -135,7 +135,7 @@ const connectionRegistry = new AccountConnectionRegistry();
 
 const app = express();
 const PORT = process.env.PORT || 8080; // Railway injects PORT
-const MAX_ACCOUNTS = 18;
+const MAX_ACCOUNTS = 30;
 
 // Health monitoring and auto-recovery
 const connectionHealth = new Map(); // accountId -> { lastEventAt, lastMessageAt, reconnectCount, isStale }
