@@ -14,6 +14,9 @@ const crypto = require('crypto');
 // Initialize Sentry
 const { Sentry, logger } = require('./sentry');
 
+// Initialize Better Stack (Logtail)
+const logtail = require('./logtail');
+
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
@@ -497,9 +500,11 @@ async function createConnection(accountId, name, phone) {
           
           console.log(`✅ [${accountId}] QR saved to Firestore`);
           logger.info('QR code generated and saved', { accountId, qrLength: qr.length });
+          logtail.info('QR code generated', { accountId, qrLength: qr.length, phone: maskPhone(phone) });
         } catch (error) {
           console.error(`❌ [${accountId}] QR generation failed:`, error.message);
           logger.error('QR generation failed', { accountId, error: error.message });
+          logtail.error('QR generation failed', { accountId, error: error.message, stack: error.stack });
           await logIncident(accountId, 'qr_generation_failed', { error: error.message });
         }
       }

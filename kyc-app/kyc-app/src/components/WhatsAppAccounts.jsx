@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 import * as Sentry from '@sentry/react';
+import logtail from '../logtail';
 
 const WHATSAPP_URL = 'https://aplicatie-superpartybyai-production-d067.up.railway.app';
 
@@ -30,6 +31,7 @@ function WhatsAppAccounts() {
       );
       const data = await response.json();
       console.log('📱 WhatsApp accounts loaded:', data.accounts);
+      logtail.info('WhatsApp accounts loaded', { count: data.accounts?.length || 0 });
       if (data.success) {
         setAccounts(data.accounts);
         // Log QR code status

@@ -5,6 +5,9 @@ const functions = require('firebase-functions'); // Keep v1 for existing functio
 // Initialize Sentry
 const { Sentry, logger } = require('./sentry');
 
+// Initialize Better Stack (Logtail)
+const logtail = require('./logtail');
+
 // Set global options for v2 functions
 setGlobalOptions({
   region: 'us-central1',
@@ -73,12 +76,14 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
   try {
     const { name, phone } = req.body;
     const account = await whatsappManager.addAccount(name, phone);
+    logtail.info('WhatsApp account added', { accountId: account.id, name, phone });
     res.json({ success: true, account });
   } catch (error) {
     Sentry.captureException(error, {
       tags: { endpoint: 'add-account', function: 'whatsappV4' },
       extra: { name, phone }
     });
+    logtail.error('Failed to add WhatsApp account', { name, phone, error: error.message });
     res.status(500).json({ success: false, error: error.message });
   }
 });
