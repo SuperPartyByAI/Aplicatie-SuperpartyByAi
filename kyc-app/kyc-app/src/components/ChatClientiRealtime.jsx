@@ -631,12 +631,20 @@ function ChatClientiRealtime({
             style={{
               flex: 1,
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#9ca3af',
+              padding: '2rem',
             }}
           >
-            Selectează o conversație
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>💬</div>
+            <div style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem', color: 'white' }}>
+              Selectează o conversație
+            </div>
+            <div style={{ textAlign: 'center', maxWidth: '400px' }}>
+              Click pe o conversație din lista din stânga pentru a vedea mesajele și a putea răspunde.
+            </div>
           </div>
         )}
       </div>
