@@ -199,8 +199,41 @@ function ChatClientiRealtime() {
 
   if (!connectedAccount) {
     return (
-      <div style={{ padding: '2rem', textAlign: 'center', color: '#ef4444' }}>
-        ❌ Niciun cont WhatsApp conectat
+      <div style={{ padding: '2rem', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }}>
+        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📱</div>
+        <h2 style={{ color: '#ef4444', marginBottom: '1rem' }}>
+          Niciun cont WhatsApp conectat
+        </h2>
+        <p style={{ color: '#9ca3af', marginBottom: '1.5rem' }}>
+          Pentru a vedea conversațiile, trebuie să conectezi un cont WhatsApp.
+        </p>
+        <div style={{ background: '#1f2937', padding: '1.5rem', borderRadius: '8px', textAlign: 'left' }}>
+          <h3 style={{ color: '#10b981', marginBottom: '1rem' }}>📋 Pași pentru conectare:</h3>
+          <ol style={{ color: '#d1d5db', lineHeight: '1.8' }}>
+            <li>Mergi la <strong style={{ color: '#60a5fa' }}>/chat-clienti</strong> sau <strong style={{ color: '#60a5fa' }}>/accounts-management</strong></li>
+            <li>Click pe tab <strong style={{ color: '#60a5fa' }}>"⚙️ Accounts"</strong></li>
+            <li>Click pe <strong style={{ color: '#60a5fa' }}>"➕ Add Account"</strong></li>
+            <li>Scanează <strong style={{ color: '#60a5fa' }}>QR code</strong> cu WhatsApp pe telefon</li>
+            <li>Așteaptă ca status să devină <strong style={{ color: '#10b981' }}>🟢 connected</strong></li>
+            <li>Revino aici pentru a vedea conversațiile</li>
+          </ol>
+        </div>
+        <div style={{ marginTop: '1.5rem' }}>
+          <a 
+            href="/chat-clienti" 
+            style={{ 
+              display: 'inline-block',
+              padding: '0.75rem 1.5rem', 
+              background: '#3b82f6', 
+              color: 'white', 
+              borderRadius: '6px',
+              textDecoration: 'none',
+              fontWeight: '500'
+            }}
+          >
+            🔗 Conectează Cont WhatsApp
+          </a>
+        </div>
       </div>
     );
   }
