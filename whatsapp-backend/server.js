@@ -854,6 +854,14 @@ async function createConnection(accountId, name, phone) {
         } else {
           console.log(`⚠️  [${accountId}] Firestore not available, message not persisted`);
         }
+        } catch (msgError) {
+          console.error(`❌ [${accountId}] Error processing message:`, msgError.message);
+          console.error(`❌ [${accountId}] Stack:`, msgError.stack);
+        }
+      }
+      } catch (eventError) {
+        console.error(`❌ [${accountId}] Error in messages.upsert handler:`, eventError.message);
+        console.error(`❌ [${accountId}] Stack:`, eventError.stack);
       }
     });
 
