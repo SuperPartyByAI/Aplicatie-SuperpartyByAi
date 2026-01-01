@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import io from 'socket.io-client';
+import { db } from '../firebase';
+import { collection, query, where, orderBy, limit, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const BACKEND_URL = 'https://whats-upp-production.up.railway.app';
 

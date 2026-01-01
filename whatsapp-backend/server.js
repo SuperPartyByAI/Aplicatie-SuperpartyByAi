@@ -3626,6 +3626,68 @@ app.listen(PORT, '0.0.0.0', async () => {
   // Start lease refresh
   startLeaseRefresh();
 
+  // Start outbox worker (process queued messages every 5 seconds)
+  const OUTBOX_WORKER_INTERVAL = 5000;
+  setInterval(async () => {
+    if (!firestoreAvailable || !db) return;
+
+    try {
+      const outboxSnapshot = await db
+        .collection('outbox')
+        .where('status', '==', 'queued')
+        .limit(10)
+        .get();
+
+      if (outboxSnapshot.empty) return;
+
+      console.log(`📤 Outbox worker: processing ${outboxSnapshot.size} queued messages`);
+
+      for (const doc of outboxSnapshot.docs) {
+        const data = doc.data();
+        const { accountId, toJid, payload, body } = data;
+
+        const account = connections.get(accountId);
+        if (!account || !account.sock || account.status !== 'connected') {
+          console.log(`⏸️  [${accountId}] Account not connected, skipping message ${doc.id}`);
+          continue;
+        }
+
+        try {
+          // Update status to sending
+          await db.collection('outbox').doc(doc.id).update({
+            status: 'sending',
+            attempts: (data.attempts || 0) + 1,
+          });
+
+          // Send message
+          const messagePayload = payload || { text: body };
+          const result = await account.sock.sendMessage(toJid, messagePayload);
+
+          // Update status to sent
+          await db.collection('outbox').doc(doc.id).update({
+            status: 'sent',
+            sentAt: admin.firestore.FieldValue.serverTimestamp(),
+            providerMessageId: result.key.id,
+          });
+
+          console.log(`✅ [${accountId}] Sent outbox message ${doc.id}`);
+        } catch (error) {
+          console.error(`❌ [${accountId}] Failed to send outbox message ${doc.id}:`, error.message);
+
+          await db.collection('outbox').doc(doc.id).update({
+            status: 'failed',
+            error: error.message,
+            failedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      }
+    } catch (error) {
+      console.error('❌ Outbox worker error:', error.message);
+    }
+  }, OUTBOX_WORKER_INTERVAL);
+
+  console.log(`📤 Outbox worker started (interval: ${OUTBOX_WORKER_INTERVAL / 1000}s)`);
+
   // Initialize long-run schema and evidence endpoints
   if (firestoreAvailable) {
     const baseUrl = process.env.BAILEYS_BASE_URL || 'https://whats-upp-production.up.railway.app';

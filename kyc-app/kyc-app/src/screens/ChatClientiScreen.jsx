@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
 import WhatsAppAccounts from '../components/WhatsAppAccounts';
-import ChatClienti from '../components/ChatClienti';
+import ChatClientiRealtime from '../components/ChatClientiRealtime';
 
 function ChatClientiScreen() {
   const navigate = useNavigate();
@@ -19,9 +19,7 @@ function ChatClientiScreen() {
     }
 
     // Check for connected account
-    fetch(
-      'https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV4/api/whatsapp/accounts'
-    )
+    fetch('https://whats-upp-production.up.railway.app/api/whatsapp/accounts')
       .then(r => r.json())
       .then(data => {
         const connected = data.accounts?.find(acc => acc.status === 'connected');
@@ -80,7 +78,7 @@ function ChatClientiScreen() {
         </div>
       </div>
 
-      {view === 'accounts' ? <WhatsAppAccounts /> : <ChatClienti />}
+      {view === 'accounts' ? <WhatsAppAccounts /> : <ChatClientiRealtime />}
     </div>
   );
 }
