@@ -96,6 +96,38 @@ function HomeScreen() {
   });
   const [loading, setLoading] = useState(true);
 
+  // Prevent sidebar scroll from propagating to body
+  useEffect(() => {
+    const sidebar = sidebarRef.current;
+    if (!sidebar) return;
+
+    const preventScrollPropagation = (e) => {
+      const target = e.currentTarget;
+      const scrollTop = target.scrollTop;
+      const scrollHeight = target.scrollHeight;
+      const height = target.clientHeight;
+      const delta = e.deltaY;
+
+      const isAtTop = scrollTop === 0;
+      const isAtBottom = scrollTop + height >= scrollHeight;
+
+      if ((isAtTop && delta < 0) || (isAtBottom && delta > 0)) {
+        e.preventDefault();
+      }
+      
+      e.stopPropagation();
+    };
+
+    const sidebarContent = sidebar.querySelector('.sidebar-content');
+    if (sidebarContent) {
+      sidebarContent.addEventListener('wheel', preventScrollPropagation, { passive: false });
+      
+      return () => {
+        sidebarContent.removeEventListener('wheel', preventScrollPropagation);
+      };
+    }
+  }, []);
+
   // Listen to auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, user => {
