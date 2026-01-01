@@ -6,11 +6,14 @@ import './index.css';
 import App from './App.jsx';
 import './sentry'; // Initialize Sentry
 import { queryClient } from './queryClient';
+import { WheelProvider } from './contexts/WheelContext';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <WheelProvider>
+        <App />
+      </WheelProvider>
       {/* DevTools only in development */}
       {import.meta.env.DEV && (
         <ReactQueryDevtools initialIsOpen={false} position="bottom" />

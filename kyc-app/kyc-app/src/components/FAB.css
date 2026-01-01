@@ -1,0 +1,53 @@
+/* Floating Action Button */
+.fab {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+  z-index: 9998;
+}
+
+.fab:hover {
+  transform: translateX(-50%) scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.fab:active {
+  transform: translateX(-50%) scale(0.95);
+}
+
+.fab-icon {
+  font-size: 32px;
+  font-weight: bold;
+  line-height: 1;
+  transition: transform 0.3s ease;
+}
+
+.fab:hover .fab-icon {
+  transform: rotate(45deg);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .fab {
+    width: 56px;
+    height: 56px;
+    bottom: 70px;
+  }
+
+  .fab-icon {
+    font-size: 28px;
+  }
+}

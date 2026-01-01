@@ -1,0 +1,182 @@
+/* Wheel Overlay */
+.wheel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.wheel-container {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.wheel-inner-ring,
+.wheel-outer-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Wheel Buttons */
+.wheel-button {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+.wheel-button:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.wheel-button:active {
+  transform: scale(0.95);
+}
+
+.wheel-button-inner {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.wheel-button-outer {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.wheel-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.wheel-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.2;
+  max-width: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Center FAB */
+.wheel-center-fab {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.wheel-center-fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.wheel-center-fab:active {
+  transform: scale(0.95);
+}
+
+.wheel-center-icon {
+  font-size: 28px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .wheel-container {
+    width: 280px;
+    height: 280px;
+  }
+
+  .wheel-button {
+    width: 56px;
+    height: 56px;
+    margin: -28px 0 0 -28px;
+  }
+
+  .wheel-button-inner {
+    transform: rotate(var(--angle)) translate(70px) rotate(calc(-1 * var(--angle)));
+  }
+
+  .wheel-button-outer {
+    transform: rotate(var(--angle)) translate(120px) rotate(calc(-1 * var(--angle)));
+  }
+
+  .wheel-icon {
+    font-size: 20px;
+  }
+
+  .wheel-label {
+    font-size: 9px;
+  }
+
+  .wheel-center-fab {
+    width: 48px;
+    height: 48px;
+    margin: -24px 0 0 -24px;
+  }
+
+  .wheel-center-icon {
+    font-size: 24px;
+  }
+}
