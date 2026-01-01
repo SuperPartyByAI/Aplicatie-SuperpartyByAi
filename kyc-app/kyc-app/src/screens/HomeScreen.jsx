@@ -825,14 +825,19 @@ ${perf.tasksOverdue > 0 ? `⚠️ Ai ${perf.tasksOverdue} task-uri în întârzi
     // Verifică comenzi directe (doar dacă nu sunt imagini)
     if (images.length === 0) {
       const commandResponse = await processCommand(userMessage);
-      if (commandResponse !== undefined && commandResponse !== null) {
-        // Only add message if response is not null (null = silent command like GM/Admin mode)
+      
+      // If command returned null, it's a silent command (GM/Admin mode)
+      if (commandResponse === null) {
+        return; // Silent command, no message in chat
+      }
+      
+      // If command returned a string, it's a command response
+      if (commandResponse) {
         setMessages(prev => [...prev, { role: 'assistant', content: commandResponse }]);
         return;
-      } else if (commandResponse === null) {
-        // Silent command executed, don't add any message
-        return;
       }
+      
+      // If undefined, continue to AI (not a command)
     }
 
     setChatLoading(true);
