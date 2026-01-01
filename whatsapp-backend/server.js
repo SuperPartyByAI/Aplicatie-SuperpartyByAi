@@ -1432,7 +1432,7 @@ app.get('/api/whatsapp/qr/:accountId', async (req, res) => {
 
     // If not in memory, try Firestore
     if (!account) {
-      const doc = await db.collection('whatsapp_accounts').doc(accountId).get();
+      const doc = await db.collection('accounts').doc(accountId).get();
       if (doc.exists) {
         account = doc.data();
       }
