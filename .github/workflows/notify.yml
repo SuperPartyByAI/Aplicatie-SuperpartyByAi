@@ -2,83 +2,73 @@ name: Notifications
 
 on:
   workflow_run:
-    workflows: ["CI", "Deploy Frontend to Firebase", "Deploy WhatsApp Functions to Firebase", "Deploy v7.0 to Railway"]
+    workflows:
+      - "CI"
+      - "Deploy Frontend to Firebase"
+      - "Deploy WhatsApp Functions to Firebase"
+      - "Deploy v7.0 to Railway"
     types:
       - completed
 
 jobs:
   notify:
     runs-on: ubuntu-latest
+
+    # Rulează doar dacă workflow-ul sursă nu a fost "skipped"
     if: ${{ github.event.workflow_run.conclusion != 'skipped' }}
-    
+
+    # Recomandat: să nu-ți mai facă Actions roșu dacă Slack/Discord au probleme
+    continue-on-error: true
+
     steps:
-      - name: Determine status emoji
+      - name: Determine status outputs
         id: status
+        shell: bash
         run: |
-          if [ "${{ github.event.workflow_run.conclusion }}" == "success" ]; then
+          if [ "${{ github.event.workflow_run.conclusion }}" = "success" ]; then
             echo "emoji=✅" >> $GITHUB_OUTPUT
-            echo "color=good" >> $GITHUB_OUTPUT
+            echo "slack_color=good" >> $GITHUB_OUTPUT
+            echo "discord_color=3066993" >> $GITHUB_OUTPUT
           else
             echo "emoji=❌" >> $GITHUB_OUTPUT
-            echo "color=danger" >> $GITHUB_OUTPUT
+            echo "slack_color=danger" >> $GITHUB_OUTPUT
+            echo "discord_color=15158332" >> $GITHUB_OUTPUT
           fi
-      
+
       - name: Send Slack notification
         if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
+        shell: bash
         run: |
-          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+          curl -sS -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
             -H 'Content-Type: application/json' \
             -d '{
               "text": "${{ steps.status.outputs.emoji }} *${{ github.event.workflow_run.name }}* - ${{ github.event.workflow_run.conclusion }}",
               "attachments": [{
-                "color": "${{ steps.status.outputs.color }}",
+                "color": "${{ steps.status.outputs.slack_color }}",
                 "fields": [
-                  {
-                    "title": "Repository",
-                    "value": "${{ github.repository }}",
-                    "short": true
-                  },
-                  {
-                    "title": "Branch",
-                    "value": "${{ github.event.workflow_run.head_branch }}",
-                    "short": true
-                  },
-                  {
-                    "title": "Commit",
-                    "value": "<${{ github.event.workflow_run.html_url }}|View Run>",
-                    "short": false
-                  }
+                  { "title": "Repository", "value": "${{ github.repository }}", "short": true },
+                  { "title": "Branch", "value": "${{ github.event.workflow_run.head_branch }}", "short": true },
+                  { "title": "Run", "value": "<${{ github.event.workflow_run.html_url }}|View Run>", "short": false }
                 ]
               }]
-            }'
-      
+            }' || true
+
       - name: Send Discord notification
         if: ${{ secrets.DISCORD_WEBHOOK_URL != '' }}
+        shell: bash
         run: |
-          curl -X POST ${{ secrets.DISCORD_WEBHOOK_URL }} \
+          curl -sS -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
             -H 'Content-Type: application/json' \
             -d '{
               "content": "${{ steps.status.outputs.emoji }} **${{ github.event.workflow_run.name }}** - ${{ github.event.workflow_run.conclusion }}",
               "embeds": [{
                 "title": "${{ github.event.workflow_run.name }}",
                 "url": "${{ github.event.workflow_run.html_url }}",
-                "color": '${{ github.event.workflow_run.conclusion == 'success' && '3066993' || '15158332' }}',
+                "color": '"${{ steps.status.outputs.discord_color }}"',
                 "fields": [
-                  {
-                    "name": "Repository",
-                    "value": "${{ github.repository }}",
-                    "inline": true
-                  },
-                  {
-                    "name": "Branch",
-                    "value": "${{ github.event.workflow_run.head_branch }}",
-                    "inline": true
-                  },
-                  {
-                    "name": "Status",
-                    "value": "${{ github.event.workflow_run.conclusion }}",
-                    "inline": true
-                  }
+                  { "name": "Repository", "value": "${{ github.repository }}", "inline": true },
+                  { "name": "Branch", "value": "${{ github.event.workflow_run.head_branch }}", "inline": true },
+                  { "name": "Status", "value": "${{ github.event.workflow_run.conclusion }}", "inline": true }
                 ]
               }]
-            }'
+            }' || true

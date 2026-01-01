@@ -75,13 +75,6 @@ function AnimatorChatClientiScreen() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button
-              onClick={() => navigate('/animator/rezerva-clienti')}
-              className="btn-secondary"
-              style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
-            >
-              📋 Rezervă Clienți
-            </button>
             <button onClick={() => navigate('/home')} className="btn-secondary">
               ← Înapoi
             </button>

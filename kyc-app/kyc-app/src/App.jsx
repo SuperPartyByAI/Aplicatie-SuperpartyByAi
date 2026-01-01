@@ -26,7 +26,6 @@ const CentralaTelefonicaScreen = lazy(() => import('./screens/CentralaTelefonica
 const ClientiDisponibiliScreen = lazy(() => import('./screens/ClientiDisponibiliScreen'));
 const WhatsAppChatScreen = lazy(() => import('./screens/WhatsAppChatScreen'));
 const AccountsManagementScreen = lazy(() => import('./screens/AccountsManagementScreen'));
-const RezervaClientiScreen = lazy(() => import('./screens/RezervaClientiScreen'));
 const AnimatorChatClientiScreen = lazy(() => import('./screens/AnimatorChatClientiScreen'));
 
 function App() {
@@ -98,7 +97,6 @@ function App() {
             <Route path="/whatsapp/available" element={<ClientiDisponibiliScreen />} />
             <Route path="/whatsapp/chat" element={<WhatsAppChatScreen />} />
             <Route path="/accounts-management" element={<AccountsManagementScreen />} />
-            <Route path="/animator/rezerva-clienti" element={<RezervaClientiScreen />} />
             <Route path="/animator/chat-clienti" element={<AnimatorChatClientiScreen />} />
             <Route path="/settings" element={<SettingsScreen />} />
             <Route path="*" element={<Navigate to="/" replace />} />

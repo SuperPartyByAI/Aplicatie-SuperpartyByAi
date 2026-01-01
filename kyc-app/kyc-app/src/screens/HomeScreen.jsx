@@ -1196,10 +1196,6 @@ ${perf.tasksOverdue > 0 ? `⚠️ Ai ${perf.tasksOverdue} task-uri în întârzi
 
             {/* WhatsApp Conversații - Secțiune nouă */}
             <div style={{ borderTop: '1px solid #334155', margin: '0.5rem 0', opacity: 0.3 }}></div>
-            <button onClick={() => navigate('/animator/rezerva-clienti')} className="nav-item">
-              <span className="nav-icon">📋</span>
-              <span className="nav-text">Rezervă Clienți</span>
-            </button>
             <button onClick={() => navigate('/animator/chat-clienti')} className="nav-item">
               <span className="nav-icon">💬</span>
               <span className="nav-text">Chat Clienți</span>
