@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
@@ -2165,9 +2166,12 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
         accountId,
         toJid: to,
         payload: { message },
+        body: message,
         status: 'queued',
-        attempts: 0,
+        attemptCount: 0,
+        nextAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
       return res.json({ success: true, queued: true, messageId });
@@ -3773,13 +3777,18 @@ app.listen(PORT, '0.0.0.0', async () => {
 
   // Start outbox worker (process queued messages every 5 seconds)
   const OUTBOX_WORKER_INTERVAL = 5000;
+  const MAX_RETRY_ATTEMPTS = 5;
+  
   setInterval(async () => {
     if (!firestoreAvailable || !db) return;
 
     try {
+      // Query queued messages that are ready to be processed
+      const now = admin.firestore.Timestamp.now();
       const outboxSnapshot = await db
         .collection('outbox')
         .where('status', '==', 'queued')
+        .where('nextAttemptAt', '<=', now)
         .limit(10)
         .get();
 
@@ -3789,47 +3798,135 @@ app.listen(PORT, '0.0.0.0', async () => {
 
       for (const doc of outboxSnapshot.docs) {
         const data = doc.data();
-        const { accountId, toJid, payload, body } = data;
+        const requestId = doc.id;
+        const { accountId, toJid, threadId, payload, body, attemptCount = 0, providerMessageId } = data;
 
+        // IDEMPOTENCY CHECK: Skip if already sent
+        if (providerMessageId) {
+          console.log(`✅ [${accountId}] Message ${requestId} already sent (providerMessageId: ${providerMessageId}), skipping`);
+          await db.collection('outbox').doc(requestId).update({
+            status: 'sent',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          continue;
+        }
+
+        // Check if account is connected
         const account = connections.get(accountId);
         if (!account || !account.sock || account.status !== 'connected') {
-          console.log(`⏸️  [${accountId}] Account not connected, skipping message ${doc.id}`);
+          console.log(`⏸️  [${accountId}] Account not connected, skipping message ${requestId}`);
+          
+          // Retry later with exponential backoff
+          const newAttemptCount = attemptCount + 1;
+          const backoffMs = Math.min(1000 * Math.pow(2, newAttemptCount), 60000);
+          const nextAttemptAt = new Date(Date.now() + backoffMs);
+          
+          await db.collection('outbox').doc(requestId).update({
+            attemptCount: newAttemptCount,
+            nextAttemptAt: admin.firestore.Timestamp.fromDate(nextAttemptAt),
+            lastError: 'Account not connected',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
           continue;
         }
 
         try {
           // Update status to sending
-          await db
-            .collection('outbox')
-            .doc(doc.id)
-            .update({
-              status: 'sending',
-              attempts: (data.attempts || 0) + 1,
-            });
+          await db.collection('outbox').doc(requestId).update({
+            status: 'sending',
+            attemptCount: attemptCount + 1,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
 
-          // Send message
+          // Send message via Baileys
           const messagePayload = payload || { text: body };
           const result = await account.sock.sendMessage(toJid, messagePayload);
 
-          // Update status to sent
-          await db.collection('outbox').doc(doc.id).update({
+          console.log(`✅ [${accountId}] Sent outbox message ${requestId}, waMessageId: ${result.key.id}`);
+
+          // Update outbox: status = sent
+          await db.collection('outbox').doc(requestId).update({
             status: 'sent',
-            sentAt: admin.firestore.FieldValue.serverTimestamp(),
             providerMessageId: result.key.id,
+            sentAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastError: null,
           });
 
-          console.log(`✅ [${accountId}] Sent outbox message ${doc.id}`);
+          // Update message doc in thread (if threadId provided)
+          if (threadId) {
+            try {
+              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(requestId);
+              const messageDoc = await messageRef.get();
+              
+              if (messageDoc.exists) {
+                await messageRef.update({
+                  status: 'sent',
+                  waMessageId: result.key.id,
+                  lastError: null,
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+                console.log(`💾 [${accountId}] Updated message doc ${requestId} in thread ${threadId}`);
+              }
+            } catch (msgError) {
+              console.error(`⚠️  [${accountId}] Failed to update message doc ${requestId}:`, msgError.message);
+            }
+          }
+
+          // Update thread lastMessageAt
+          if (threadId) {
+            try {
+              await db.collection('threads').doc(threadId).update({
+                lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+                lastMessageText: body || '',
+                lastMessageDirection: 'out',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            } catch (threadError) {
+              console.error(`⚠️  [${accountId}] Failed to update thread ${threadId}:`, threadError.message);
+            }
+          }
+
         } catch (error) {
-          console.error(
-            `❌ [${accountId}] Failed to send outbox message ${doc.id}:`,
-            error.message
-          );
+          console.error(`❌ [${accountId}] Failed to send outbox message ${requestId}:`, error.message);
 
-          await db.collection('outbox').doc(doc.id).update({
-            status: 'failed',
-            error: error.message,
-            failedAt: admin.firestore.FieldValue.serverTimestamp(),
+          const newAttemptCount = attemptCount + 1;
+          
+          // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 60s
+          const backoffMs = Math.min(1000 * Math.pow(2, newAttemptCount), 60000);
+          const nextAttemptAt = new Date(Date.now() + backoffMs);
+          
+          // Mark as failed after MAX_RETRY_ATTEMPTS
+          const newStatus = newAttemptCount >= MAX_RETRY_ATTEMPTS ? 'failed' : 'queued';
+          
+          await db.collection('outbox').doc(requestId).update({
+            status: newStatus,
+            attemptCount: newAttemptCount,
+            nextAttemptAt: admin.firestore.Timestamp.fromDate(nextAttemptAt),
+            lastError: error.message,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            ...(newStatus === 'failed' && { failedAt: admin.firestore.FieldValue.serverTimestamp() }),
           });
+
+          // Update message doc in thread
+          if (threadId) {
+            try {
+              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(requestId);
+              const messageDoc = await messageRef.get();
+              
+              if (messageDoc.exists) {
+                await messageRef.update({
+                  status: newStatus,
+                  lastError: error.message,
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+              }
+            } catch (msgError) {
+              console.error(`⚠️  [${accountId}] Failed to update message doc ${requestId}:`, msgError.message);
+            }
+          }
+
+          console.log(`🔄 [${accountId}] Message ${requestId} will retry in ${backoffMs}ms (attempt ${newAttemptCount}/${MAX_RETRY_ATTEMPTS})`);
         }
       }
     } catch (error) {
@@ -3837,7 +3934,7 @@ app.listen(PORT, '0.0.0.0', async () => {
     }
   }, OUTBOX_WORKER_INTERVAL);
 
-  console.log(`📤 Outbox worker started (interval: ${OUTBOX_WORKER_INTERVAL / 1000}s)`);
+  console.log(`📤 Outbox worker started (interval: ${OUTBOX_WORKER_INTERVAL / 1000}s, max retries: ${MAX_RETRY_ATTEMPTS})`);
 
   // Initialize long-run schema and evidence endpoints
   if (firestoreAvailable) {
