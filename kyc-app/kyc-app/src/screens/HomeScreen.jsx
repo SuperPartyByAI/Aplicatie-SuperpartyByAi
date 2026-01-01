@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { auth, db, storage, callChatWithAI, callAIManager } from '../firebase';
 import {
   doc,
@@ -19,6 +19,7 @@ import { signOut, onAuthStateChanged } from 'firebase/auth';
 
 function HomeScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [currentUser, setCurrentUser] = useState(auth.currentUser);
   const [staffProfile, setStaffProfile] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -104,6 +105,58 @@ function HomeScreen() {
   useEffect(() => {
     localStorage.setItem('gmMode', gmMode.toString());
   }, [gmMode]);
+
+  // Handle navigation intent from Dock/Wheel
+  useEffect(() => {
+    const intent = location.state?.intent;
+    if (!intent) return;
+
+    // Clear intent from location state
+    navigate(location.pathname, { replace: true, state: {} });
+
+    if (intent === 'openChatAI') {
+      setChatOpen(true);
+      return;
+    }
+
+    if (intent === 'team') {
+      // Open sidebar or navigate to team view
+      setSidebarOpen(true);
+      return;
+    }
+
+    if (typeof intent === 'object' && intent.action) {
+      switch (intent.action) {
+        case 'loadKycSubmissions':
+          setAdminMode(true);
+          setCurrentView(intent.view || 'admin-kyc');
+          loadKycSubmissions();
+          break;
+        case 'loadAiConversations':
+          setAdminMode(true);
+          setCurrentView(intent.view || 'admin-conversations');
+          loadAiConversations();
+          break;
+        case 'loadPerformanceMetrics':
+          setGmMode(true);
+          setCurrentView(intent.view || 'gm-overview');
+          loadPerformanceMetrics();
+          break;
+        case 'loadGMUsers':
+          setGmMode(true);
+          setCurrentView(intent.view || 'gm-conversations');
+          loadGMUsers();
+          break;
+        case 'setView':
+          if (intent.view) {
+            setCurrentView(intent.view);
+          }
+          break;
+        default:
+          console.warn('Unknown intent action:', intent.action);
+      }
+    }
+  }, [location.state]);
 
   // Prevent sidebar scroll from propagating to body
   useEffect(() => {
