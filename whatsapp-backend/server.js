@@ -344,6 +344,78 @@ console.log(`🔥 Firestore: ${admin.apps.length > 0 ? 'Connected' : 'Not connec
 console.log(`📊 Max accounts: ${MAX_ACCOUNTS}`);
 
 // Helper: Save account to Firestore
+// Helper: Generate lease data for account ownership
+function generateLeaseData() {
+  const LEASE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+  const now = Date.now();
+
+  return {
+    claimedBy: process.env.RAILWAY_DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown',
+    claimedAt: admin.firestore.Timestamp.fromMillis(now),
+    leaseUntil: admin.firestore.Timestamp.fromMillis(now + LEASE_DURATION_MS),
+  };
+}
+
+// Helper: Refresh leases for all active accounts
+async function refreshLeases() {
+  if (!firestoreAvailable || !db) {
+    return;
+  }
+
+  const leaseData = generateLeaseData();
+
+  for (const [accountId, account] of connections.entries()) {
+    if (account.status === 'connected' || account.status === 'connecting') {
+      try {
+        await saveAccountToFirestore(accountId, leaseData);
+        console.log(
+          `🔄 [${accountId}] Lease refreshed until ${new Date(leaseData.leaseUntil.toMillis()).toISOString()}`
+        );
+      } catch (error) {
+        console.error(`❌ [${accountId}] Lease refresh failed:`, error.message);
+      }
+    }
+  }
+}
+
+// Start lease refresh interval (every 2 minutes)
+const LEASE_REFRESH_INTERVAL = 2 * 60 * 1000;
+let leaseRefreshTimer = null;
+
+function startLeaseRefresh() {
+  if (leaseRefreshTimer) {
+    clearInterval(leaseRefreshTimer);
+  }
+
+  leaseRefreshTimer = setInterval(() => {
+    refreshLeases().catch(err => console.error('❌ Lease refresh error:', err));
+  }, LEASE_REFRESH_INTERVAL);
+
+  console.log(`✅ Lease refresh started (interval: ${LEASE_REFRESH_INTERVAL / 1000}s)`);
+}
+
+// Release leases on shutdown
+async function releaseLeases() {
+  if (!firestoreAvailable || !db) {
+    return;
+  }
+
+  console.log('🔓 Releasing leases on shutdown...');
+
+  for (const [accountId] of connections.entries()) {
+    try {
+      await saveAccountToFirestore(accountId, {
+        claimedBy: null,
+        claimedAt: null,
+        leaseUntil: null,
+      });
+      console.log(`🔓 [${accountId}] Lease released`);
+    } catch (error) {
+      console.error(`❌ [${accountId}] Lease release failed:`, error.message);
+    }
+  }
+}
+
 async function saveAccountToFirestore(accountId, data) {
   if (!firestoreAvailable || !db) {
     console.log(`⚠️  [${accountId}] Firestore not available, skipping save`);
@@ -505,9 +577,11 @@ async function createConnection(accountId, name, phone) {
     console.log(`📦 [${accountId}] Socket events configured`);
     const evListeners = sock.ev._events || {};
     const msgListeners = evListeners['messages.upsert'];
-    console.log(`📦 [${accountId}] messages.upsert listeners: ${Array.isArray(msgListeners) ? msgListeners.length : (msgListeners ? 1 : 0)}`);
+    console.log(
+      `📦 [${accountId}] messages.upsert listeners: ${Array.isArray(msgListeners) ? msgListeners.length : msgListeners ? 1 : 0}`
+    );
 
-    // Save to Firestore
+    // Save to Firestore with lease data
     await saveAccountToFirestore(accountId, {
       accountId,
       name,
@@ -516,6 +590,7 @@ async function createConnection(accountId, name, phone) {
       qrCode: null,
       pairingCode: null,
       createdAt: account.createdAt,
+      ...generateLeaseData(),
       worker: {
         service: 'railway',
         instanceId: process.env.RAILWAY_DEPLOYMENT_ID || 'local',
@@ -580,7 +655,7 @@ async function createConnection(accountId, name, phone) {
       if (connection === 'open') {
         console.log(`✅ [${accountId}] connection.update: open`);
         console.log(`✅ [${accountId}] Connected! Session persisted at: ${sessionPath}`);
-        
+
         // Clear connecting timeout
         if (account.connectingTimeout) {
           clearTimeout(account.connectingTimeout);
@@ -797,93 +872,97 @@ async function createConnection(accountId, name, phone) {
         console.log(
           `🔔🔔🔔 [${accountId}] messages.upsert EVENT TRIGGERED: type=${type}, count=${newMessages.length}, timestamp=${new Date().toISOString()}`
         );
-        console.log(`🔔 [${accountId}] Account status: ${account?.status}, Socket exists: ${!!sock}`);
-        console.log(`🔔 [${accountId}] Firestore available: ${firestoreAvailable}, DB exists: ${!!db}`);
-
-      for (const msg of newMessages) {
-        try {
         console.log(
-          `📩 [${accountId}] RAW MESSAGE:`,
-          JSON.stringify({
-            id: msg.key.id,
-            remoteJid: msg.key.remoteJid,
-            fromMe: msg.key.fromMe,
-            participant: msg.key.participant,
-            hasMessage: !!msg.message,
-            messageKeys: msg.message ? Object.keys(msg.message) : [],
-          })
+          `🔔 [${accountId}] Account status: ${account?.status}, Socket exists: ${!!sock}`
+        );
+        console.log(
+          `🔔 [${accountId}] Firestore available: ${firestoreAvailable}, DB exists: ${!!db}`
         );
 
-        if (!msg.message) {
-          console.log(`⚠️  [${accountId}] Skipping message ${msg.key.id} - no message content`);
-          continue;
-        }
-
-        const messageId = msg.key.id;
-        const from = msg.key.remoteJid;
-        const isFromMe = msg.key.fromMe;
-
-        console.log(
-          `📨 [${accountId}] PROCESSING: ${isFromMe ? 'OUTBOUND' : 'INBOUND'} message ${messageId} from ${from}`
-        );
-
-        // Save to Firestore
-        if (firestoreAvailable && db) {
+        for (const msg of newMessages) {
           try {
-            const threadId = from;
-            const messageData = {
-              accountId,
-              clientJid: from,
-              direction: isFromMe ? 'outbound' : 'inbound',
-              body: msg.message.conversation || msg.message.extendedTextMessage?.text || '',
-              waMessageId: messageId,
-              status: 'delivered',
-              tsClient: new Date(msg.messageTimestamp * 1000).toISOString(),
-              tsServer: admin.firestore.FieldValue.serverTimestamp(),
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            };
+            console.log(
+              `📩 [${accountId}] RAW MESSAGE:`,
+              JSON.stringify({
+                id: msg.key.id,
+                remoteJid: msg.key.remoteJid,
+                fromMe: msg.key.fromMe,
+                participant: msg.key.participant,
+                hasMessage: !!msg.message,
+                messageKeys: msg.message ? Object.keys(msg.message) : [],
+              })
+            );
+
+            if (!msg.message) {
+              console.log(`⚠️  [${accountId}] Skipping message ${msg.key.id} - no message content`);
+              continue;
+            }
+
+            const messageId = msg.key.id;
+            const from = msg.key.remoteJid;
+            const isFromMe = msg.key.fromMe;
 
             console.log(
-              `💾 [${accountId}] Saving to Firestore: threads/${threadId}/messages/${messageId}`,
-              {
-                direction: messageData.direction,
-                body: messageData.body.substring(0, 50),
+              `📨 [${accountId}] PROCESSING: ${isFromMe ? 'OUTBOUND' : 'INBOUND'} message ${messageId} from ${from}`
+            );
+
+            // Save to Firestore
+            if (firestoreAvailable && db) {
+              try {
+                const threadId = from;
+                const messageData = {
+                  accountId,
+                  clientJid: from,
+                  direction: isFromMe ? 'outbound' : 'inbound',
+                  body: msg.message.conversation || msg.message.extendedTextMessage?.text || '',
+                  waMessageId: messageId,
+                  status: 'delivered',
+                  tsClient: new Date(msg.messageTimestamp * 1000).toISOString(),
+                  tsServer: admin.firestore.FieldValue.serverTimestamp(),
+                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                };
+
+                console.log(
+                  `💾 [${accountId}] Saving to Firestore: threads/${threadId}/messages/${messageId}`,
+                  {
+                    direction: messageData.direction,
+                    body: messageData.body.substring(0, 50),
+                  }
+                );
+
+                await db
+                  .collection('threads')
+                  .doc(threadId)
+                  .collection('messages')
+                  .doc(messageId)
+                  .set(messageData);
+
+                console.log(`✅ [${accountId}] Message saved successfully`);
+
+                // Update thread
+                await db.collection('threads').doc(threadId).set(
+                  {
+                    accountId,
+                    clientJid: from,
+                    lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+                  },
+                  { merge: true }
+                );
+
+                console.log(`💾 [${accountId}] Message saved to Firestore: ${messageId}`);
+              } catch (error) {
+                console.error(`❌ [${accountId}] Message save failed:`, error.message);
+                console.error(`❌ [${accountId}] Error stack:`, error.stack);
+                console.error(`❌ [${accountId}] Error details:`, JSON.stringify(error, null, 2));
               }
-            );
-
-            await db
-              .collection('threads')
-              .doc(threadId)
-              .collection('messages')
-              .doc(messageId)
-              .set(messageData);
-
-            console.log(`✅ [${accountId}] Message saved successfully`);
-
-            // Update thread
-            await db.collection('threads').doc(threadId).set(
-              {
-                accountId,
-                clientJid: from,
-                lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
-
-            console.log(`💾 [${accountId}] Message saved to Firestore: ${messageId}`);
-          } catch (error) {
-            console.error(`❌ [${accountId}] Message save failed:`, error.message);
-            console.error(`❌ [${accountId}] Error stack:`, error.stack);
-            console.error(`❌ [${accountId}] Error details:`, JSON.stringify(error, null, 2));
+            } else {
+              console.log(`⚠️  [${accountId}] Firestore not available, message not persisted`);
+            }
+          } catch (msgError) {
+            console.error(`❌ [${accountId}] Error processing message:`, msgError.message);
+            console.error(`❌ [${accountId}] Stack:`, msgError.stack);
           }
-        } else {
-          console.log(`⚠️  [${accountId}] Firestore not available, message not persisted`);
         }
-        } catch (msgError) {
-          console.error(`❌ [${accountId}] Error processing message:`, msgError.message);
-          console.error(`❌ [${accountId}] Stack:`, msgError.stack);
-        }
-      }
       } catch (eventError) {
         console.error(`❌ [${accountId}] Error in messages.upsert handler:`, eventError.message);
         console.error(`❌ [${accountId}] Stack:`, eventError.stack);
@@ -1111,33 +1190,52 @@ app.get('/api/cache/stats', async (req, res) => {
 app.get('/debug/listeners/:accountId', (req, res) => {
   const { accountId } = req.params;
   const account = connections.get(accountId);
-  
+
   if (!account) {
     return res.status(404).json({ error: 'Account not found' });
   }
-  
+
   const sock = account.sock;
   if (!sock) {
-    return res.json({ error: 'Socket not found', account: { id: accountId, status: account.status } });
+    return res.json({
+      error: 'Socket not found',
+      account: { id: accountId, status: account.status },
+    });
   }
-  
+
   const evListeners = sock.ev._events || {};
   res.json({
     accountId,
     status: account.status,
     socketExists: !!sock,
     eventListeners: {
-      'messages.upsert': Array.isArray(evListeners['messages.upsert']) ? evListeners['messages.upsert'].length : (evListeners['messages.upsert'] ? 1 : 0),
-      'connection.update': Array.isArray(evListeners['connection.update']) ? evListeners['connection.update'].length : (evListeners['connection.update'] ? 1 : 0),
-      'creds.update': Array.isArray(evListeners['creds.update']) ? evListeners['creds.update'].length : (evListeners['creds.update'] ? 1 : 0),
-      'messages.update': Array.isArray(evListeners['messages.update']) ? evListeners['messages.update'].length : (evListeners['messages.update'] ? 1 : 0),
+      'messages.upsert': Array.isArray(evListeners['messages.upsert'])
+        ? evListeners['messages.upsert'].length
+        : evListeners['messages.upsert']
+          ? 1
+          : 0,
+      'connection.update': Array.isArray(evListeners['connection.update'])
+        ? evListeners['connection.update'].length
+        : evListeners['connection.update']
+          ? 1
+          : 0,
+      'creds.update': Array.isArray(evListeners['creds.update'])
+        ? evListeners['creds.update'].length
+        : evListeners['creds.update']
+          ? 1
+          : 0,
+      'messages.update': Array.isArray(evListeners['messages.update'])
+        ? evListeners['messages.update'].length
+        : evListeners['messages.update']
+          ? 1
+          : 0,
     },
     accountDetails: {
       name: account.name,
       phone: account.phone,
       createdAt: account.createdAt,
       lastUpdate: account.lastUpdate,
-    }
+    },
   });
 });
 
@@ -1148,6 +1246,9 @@ app.get('/health', async (req, res) => {
   ).length;
   const needsQr = Array.from(connections.values()).filter(
     c => c.status === 'needs_qr' || c.status === 'qr_ready'
+  ).length;
+  const disconnected = Array.from(connections.values()).filter(
+    c => c.status === 'disconnected'
   ).length;
 
   // Get commit from config if env var not set
@@ -1190,19 +1291,53 @@ app.get('/health', async (req, res) => {
     firestoreStatus = 'not_configured';
   }
 
+  // Aggregate lastError/lastDisconnectReason by status
+  const errorsByStatus = {};
+  for (const account of connections.values()) {
+    const status = account.status;
+    if (!errorsByStatus[status]) {
+      errorsByStatus[status] = [];
+    }
+    if (account.lastError) {
+      errorsByStatus[status].push(account.lastError);
+    }
+  }
+
   res.json({
     status: 'healthy',
     ...fingerprint,
+    mode: 'single', // Single worker mode (no multi-worker coordination yet)
     uptime: Math.floor((Date.now() - START_TIME) / 1000),
     timestamp: new Date().toISOString(),
     accounts: {
       total: connections.size,
       connected,
       connecting,
+      disconnected,
       needs_qr: needsQr,
       max: MAX_ACCOUNTS,
     },
-    firestore: firestoreStatus,
+    firestore: {
+      status: firestoreStatus,
+      policy: {
+        collections: [
+          'accounts - account metadata and status',
+          'wa_sessions - encrypted session files',
+          'threads - conversation threads',
+          'threads/{threadId}/messages - messages per thread',
+          'outbox - queued outbound messages',
+          'wa_outbox - WhatsApp-specific outbox',
+        ],
+        ownership: 'Single worker owns all accounts (no lease coordination yet)',
+        lease: 'Not implemented - future: claimedBy, claimedAt, leaseUntil fields',
+      },
+    },
+    lock: {
+      owner: process.env.RAILWAY_DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown',
+      expiresAt: null, // Not implemented yet
+      note: 'Lease/lock system not yet implemented - single worker mode',
+    },
+    errorsByStatus,
   });
 });
 
@@ -2502,6 +2637,8 @@ async function restoreSingleAccount(accountId) {
 
 // Extract account restore logic
 async function restoreAccount(accountId, data) {
+  const CONNECTING_TIMEOUT = 60000; // 60 seconds - same as createConnection
+
   try {
     console.log(`BOOT [${accountId}] Starting restore...`);
 
@@ -2575,8 +2712,13 @@ async function restoreAccount(accountId, data) {
       auth: state,
       version,
       printQRInTerminal: false,
-      browser: ['SuperParty', 'Chrome', '1.0.0'],
-      logger: pino({ level: 'silent' }),
+      browser: ['SuperParty', 'Chrome', '2.0.0'],
+      logger: pino({ level: 'warn' }),
+      syncFullHistory: false,
+      markOnlineOnConnect: true,
+      getMessage: async key => {
+        return undefined;
+      },
     });
 
     const account = {
@@ -2592,108 +2734,356 @@ async function restoreAccount(accountId, data) {
       lastUpdate: data.updatedAt || new Date().toISOString(),
     };
 
+    // Set timeout to prevent "connecting forever" - CRITICAL FIX
+    account.connectingTimeout = setTimeout(() => {
+      console.log(`⏰ [${accountId}] Connecting timeout (60s), transitioning to disconnected`);
+      const acc = connections.get(accountId);
+      if (acc && acc.status === 'connecting') {
+        acc.status = 'disconnected';
+        acc.lastError = 'Connection timeout - no progress after 60s';
+        saveAccountToFirestore(accountId, {
+          status: 'disconnected',
+          lastError: 'Connection timeout',
+          lastErrorAt: admin.firestore.FieldValue.serverTimestamp(),
+        }).catch(err => console.error(`❌ [${accountId}] Timeout save failed:`, err));
+      }
+    }, CONNECTING_TIMEOUT);
+
     // Setup event handlers (FULL - same as createConnection)
     sock.ev.on('connection.update', async update => {
+      const { connection, lastDisconnect, qr } = update;
+
       updateConnectionHealth(accountId, 'connection');
 
-      if (update.connection === 'open') {
-        account.status = 'connected';
-        console.log(`✅ [${accountId}] Restored and connected`);
+      console.log(`🔔 [${accountId}] Connection update: ${connection || 'qr'}`);
+
+      if (qr) {
+        console.log(`📱 [${accountId}] QR Code generated (length: ${qr.length})`);
+
+        try {
+          const qrDataURL = await QRCode.toDataURL(qr);
+          account.qrCode = qrDataURL;
+          account.status = 'qr_ready';
+          account.lastUpdate = new Date().toISOString();
+
+          await saveAccountToFirestore(accountId, {
+            qrCode: qrDataURL,
+            qrUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            status: 'qr_ready',
+          });
+
+          console.log(`✅ [${accountId}] QR saved to Firestore`);
+
+          if (featureFlags.isEnabled('API_CACHING')) {
+            await cache.delete('whatsapp:accounts');
+            console.log(`🗑️  [${accountId}] Cache invalidated for QR update`);
+          }
+        } catch (error) {
+          console.error(`❌ [${accountId}] QR generation failed:`, error.message);
+        }
       }
 
-      if (update.connection === 'close') {
+      if (connection === 'open') {
+        console.log(`✅ [${accountId}] Restored and connected`);
+
+        // Clear connecting timeout - CRITICAL FIX
+        if (account.connectingTimeout) {
+          clearTimeout(account.connectingTimeout);
+          account.connectingTimeout = null;
+        }
+
+        account.status = 'connected';
+        account.qrCode = null;
+        account.phone = sock.user?.id?.split(':')[0] || account.phone;
+        account.waJid = sock.user?.id;
+        account.lastUpdate = new Date().toISOString();
+
+        // Reset reconnect attempts
+        reconnectAttempts.delete(accountId);
+
+        if (featureFlags.isEnabled('API_CACHING')) {
+          await cache.delete('whatsapp:accounts');
+          console.log(`🗑️  [${accountId}] Cache invalidated for connection update`);
+        }
+
+        await saveAccountToFirestore(accountId, {
+          status: 'connected',
+          waJid: account.waJid,
+          phoneE164: account.phone,
+          lastConnectedAt: admin.firestore.FieldValue.serverTimestamp(),
+          qrCode: null,
+        });
+      }
+
+      if (connection === 'close') {
+        const shouldReconnect =
+          lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        const reason = lastDisconnect?.error?.output?.statusCode || 'unknown';
+
         console.log(`🔌 [${accountId}] Connection closed`);
+        console.log(`🔌 [${accountId}] Reason code: ${reason}, Reconnect: ${shouldReconnect}`);
+
         const health = connectionHealth.get(accountId);
         if (health) {
           health.isStale = true;
+        }
+
+        const EXPLICIT_CLEANUP_REASONS = [
+          DisconnectReason.loggedOut,
+          DisconnectReason.badSession,
+          DisconnectReason.unauthorized,
+        ];
+
+        const isExplicitCleanup = EXPLICIT_CLEANUP_REASONS.includes(reason);
+        const isPairingPhase = ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'].includes(
+          account.status
+        );
+
+        if (isPairingPhase && !isExplicitCleanup) {
+          console.log(
+            `⏸️  [${accountId}] Pairing phase (${account.status}), preserving account (reason: ${reason})`
+          );
+          account.status = 'awaiting_scan';
+          account.lastUpdate = new Date().toISOString();
+
+          await saveAccountToFirestore(accountId, {
+            status: 'awaiting_scan',
+            lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastDisconnectReason: 'qr_waiting_scan',
+            lastDisconnectCode: reason,
+          });
+
+          return;
+        }
+
+        account.status = shouldReconnect ? 'reconnecting' : 'logged_out';
+        account.lastUpdate = new Date().toISOString();
+
+        await saveAccountToFirestore(accountId, {
+          status: account.status,
+          lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastDisconnectReason: reason.toString(),
+          lastDisconnectCode: reason,
+        });
+
+        if (shouldReconnect) {
+          const attempts = reconnectAttempts.get(accountId) || 0;
+
+          if (attempts < MAX_RECONNECT_ATTEMPTS) {
+            const backoff = Math.min(1000 * Math.pow(2, attempts), 30000);
+            console.log(
+              `🔄 [${accountId}] Reconnecting in ${backoff}ms (attempt ${attempts + 1}/${MAX_RECONNECT_ATTEMPTS})...`
+            );
+
+            reconnectAttempts.set(accountId, attempts + 1);
+
+            setTimeout(() => {
+              if (connections.has(accountId)) {
+                createConnection(accountId, account.name, account.phone);
+              }
+            }, backoff);
+          } else {
+            console.log(`❌ [${accountId}] Max reconnect attempts reached, generating new QR...`);
+            account.status = 'needs_qr';
+
+            await saveAccountToFirestore(accountId, {
+              status: 'needs_qr',
+            });
+
+            connections.delete(accountId);
+            reconnectAttempts.delete(accountId);
+
+            setTimeout(() => {
+              createConnection(accountId, account.name, account.phone);
+            }, 5000);
+          }
+        } else {
+          console.log(`❌ [${accountId}] Explicit cleanup (${reason}), deleting account`);
+          account.status = 'needs_qr';
+
+          await saveAccountToFirestore(accountId, {
+            status: 'needs_qr',
+          });
+
+          connections.delete(accountId);
+
+          setTimeout(() => {
+            createConnection(accountId, account.name, account.phone);
+          }, 5000);
         }
       }
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    // Messages handler - CRITICAL for receiving messages
-    sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
-      updateConnectionHealth(accountId, 'message');
-      console.log(
-        `🔔 [${accountId}] messages.upsert EVENT: type=${type}, count=${newMessages.length}`
-      );
+    // Flush outbox on connect
+    sock.ev.on('connection.update', async update => {
+      if (update.connection === 'open') {
+        console.log(`🔄 [${accountId}] Connection open, flushing outbox...`);
 
-      for (const msg of newMessages) {
-        console.log(
-          `📩 [${accountId}] RAW MESSAGE:`,
-          JSON.stringify({
-            id: msg.key.id,
-            remoteJid: msg.key.remoteJid,
-            fromMe: msg.key.fromMe,
-            participant: msg.key.participant,
-            hasMessage: !!msg.message,
-            messageKeys: msg.message ? Object.keys(msg.message) : [],
-          })
-        );
-
-        if (!msg.message) {
-          console.log(`⚠️  [${accountId}] Skipping message ${msg.key.id} - no message content`);
-          continue;
+        if (!firestoreAvailable || !db) {
+          console.log(`⚠️  [${accountId}] Firestore not available, skipping outbox flush`);
+          return;
         }
 
-        const messageId = msg.key.id;
-        const from = msg.key.remoteJid;
-        const isFromMe = msg.key.fromMe;
-
-        console.log(
-          `📨 [${accountId}] PROCESSING: ${isFromMe ? 'OUTBOUND' : 'INBOUND'} message ${messageId} from ${from}`
-        );
-
         try {
-          const threadId = from;
-          const messageData = {
-            accountId,
-            clientJid: from,
-            direction: isFromMe ? 'outbound' : 'inbound',
-            body: msg.message.conversation || msg.message.extendedTextMessage?.text || '',
-            waMessageId: messageId,
-            status: 'delivered',
-            tsClient: new Date(msg.messageTimestamp * 1000).toISOString(),
-            tsServer: admin.firestore.FieldValue.serverTimestamp(),
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          };
+          const outboxSnapshot = await db
+            .collection('outbox')
+            .where('accountId', '==', accountId)
+            .where('status', '==', 'queued')
+            .get();
 
-          console.log(
-            `💾 [${accountId}] Saving to Firestore: threads/${threadId}/messages/${messageId}`,
-            {
-              direction: messageData.direction,
-              body: messageData.body.substring(0, 50),
+          console.log(`📤 [${accountId}] Found ${outboxSnapshot.size} queued messages`);
+
+          for (const doc of outboxSnapshot.docs) {
+            const data = doc.data();
+
+            try {
+              const jid = data.toJid;
+              const result = await sock.sendMessage(jid, data.payload);
+
+              await db.collection('outbox').doc(doc.id).update({
+                status: 'sent',
+                sentAt: admin.firestore.FieldValue.serverTimestamp(),
+                providerMessageId: result.key.id,
+              });
+
+              console.log(`✅ [${accountId}] Flushed message ${doc.id}`);
+            } catch (error) {
+              console.error(`❌ [${accountId}] Failed to flush ${doc.id}:`, error.message);
+
+              await db
+                .collection('outbox')
+                .doc(doc.id)
+                .update({
+                  status: 'failed',
+                  error: error.message,
+                  attempts: (data.attempts || 0) + 1,
+                });
             }
-          );
-
-          await db
-            .collection('threads')
-            .doc(threadId)
-            .collection('messages')
-            .doc(messageId)
-            .set(messageData);
-
-          console.log(`✅ [${accountId}] Message saved successfully`);
-
-          await db.collection('threads').doc(threadId).set(
-            {
-              accountId,
-              clientJid: from,
-              lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-          );
-
-          console.log(`💾 [${accountId}] Message saved to Firestore: ${messageId}`);
+          }
         } catch (error) {
-          console.error(`❌ [${accountId}] Message save failed:`, error.message);
+          console.error(`❌ [${accountId}] Outbox flush error:`, error.message);
         }
       }
     });
 
+    // Messages handler - CRITICAL for receiving messages
+    sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
+      try {
+        updateConnectionHealth(accountId, 'message');
+        console.log(
+          `🔔🔔🔔 [${accountId}] messages.upsert EVENT TRIGGERED: type=${type}, count=${newMessages.length}, timestamp=${new Date().toISOString()}`
+        );
+        console.log(
+          `🔔 [${accountId}] Account status: ${account?.status}, Socket exists: ${!!sock}`
+        );
+        console.log(
+          `🔔 [${accountId}] Firestore available: ${firestoreAvailable}, DB exists: ${!!db}`
+        );
+
+        for (const msg of newMessages) {
+          try {
+            console.log(
+              `📩 [${accountId}] RAW MESSAGE:`,
+              JSON.stringify({
+                id: msg.key.id,
+                remoteJid: msg.key.remoteJid,
+                fromMe: msg.key.fromMe,
+                participant: msg.key.participant,
+                hasMessage: !!msg.message,
+                messageKeys: msg.message ? Object.keys(msg.message) : [],
+              })
+            );
+
+            if (!msg.message) {
+              console.log(`⚠️  [${accountId}] Skipping message ${msg.key.id} - no message content`);
+              continue;
+            }
+
+            const messageId = msg.key.id;
+            const from = msg.key.remoteJid;
+            const isFromMe = msg.key.fromMe;
+
+            console.log(
+              `📨 [${accountId}] PROCESSING: ${isFromMe ? 'OUTBOUND' : 'INBOUND'} message ${messageId} from ${from}`
+            );
+
+            if (firestoreAvailable && db) {
+              try {
+                const threadId = from;
+                const messageData = {
+                  accountId,
+                  clientJid: from,
+                  direction: isFromMe ? 'outbound' : 'inbound',
+                  body: msg.message.conversation || msg.message.extendedTextMessage?.text || '',
+                  waMessageId: messageId,
+                  status: 'delivered',
+                  tsClient: new Date(msg.messageTimestamp * 1000).toISOString(),
+                  tsServer: admin.firestore.FieldValue.serverTimestamp(),
+                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                };
+
+                console.log(
+                  `💾 [${accountId}] Saving to Firestore: threads/${threadId}/messages/${messageId}`,
+                  {
+                    direction: messageData.direction,
+                    body: messageData.body.substring(0, 50),
+                  }
+                );
+
+                await db
+                  .collection('threads')
+                  .doc(threadId)
+                  .collection('messages')
+                  .doc(messageId)
+                  .set(messageData);
+
+                console.log(`✅ [${accountId}] Message saved successfully`);
+
+                await db.collection('threads').doc(threadId).set(
+                  {
+                    accountId,
+                    clientJid: from,
+                    lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+                  },
+                  { merge: true }
+                );
+
+                console.log(`💾 [${accountId}] Message saved to Firestore: ${messageId}`);
+              } catch (error) {
+                console.error(`❌ [${accountId}] Message save failed:`, error.message);
+                console.error(`❌ [${accountId}] Error stack:`, error.stack);
+              }
+            } else {
+              console.log(`⚠️  [${accountId}] Firestore not available, message not persisted`);
+            }
+          } catch (msgError) {
+            console.error(`❌ [${accountId}] Error processing message:`, msgError.message);
+            console.error(`❌ [${accountId}] Stack:`, msgError.stack);
+          }
+        }
+      } catch (eventError) {
+        console.error(`❌ [${accountId}] Error in messages.upsert handler:`, eventError.message);
+        console.error(`❌ [${accountId}] Stack:`, eventError.stack);
+      }
+    });
+
+    // Messages update handler (for status updates)
+    sock.ev.on('messages.update', updates => {
+      console.log(`🔄 [${accountId}] messages.update EVENT: ${updates.length} updates`);
+      for (const update of updates) {
+        console.log(`  - Message ${update.key.id}: ${JSON.stringify(update.update)}`);
+      }
+    });
+
+    // Message receipt handler
+    sock.ev.on('message-receipt.update', receipts => {
+      console.log(`📬 [${accountId}] message-receipt.update EVENT: ${receipts.length} receipts`);
+    });
+
     connections.set(accountId, account);
-    console.log(`✅ [${accountId}] Restored to memory`);
+    console.log(`✅ [${accountId}] Restored to memory with full event handlers`);
   } catch (error) {
     console.error(`❌ [${accountId}] Restore failed:`, error.message);
   }
@@ -3212,6 +3602,9 @@ app.listen(PORT, '0.0.0.0', async () => {
     `🏥 Health monitoring watchdog started (check every ${HEALTH_CHECK_INTERVAL / 1000}s)`
   );
 
+  // Start lease refresh
+  startLeaseRefresh();
+
   // Initialize long-run schema and evidence endpoints
   if (firestoreAvailable) {
     const baseUrl = process.env.BAILEYS_BASE_URL || 'https://whats-upp-production.up.railway.app';
@@ -3314,7 +3707,43 @@ process.on('SIGTERM', async () => {
 process.on('SIGINT', async () => {
   console.log('SIGINT received, closing connections...');
 
+  // Stop lease refresh
+  if (leaseRefreshTimer) {
+    clearInterval(leaseRefreshTimer);
+  }
+
+  // Release leases
+  await releaseLeases();
+
   // Stop long-run jobs first
+  if (longrunJobsModule && longrunJobsModule.stopJobs) {
+    await longrunJobsModule.stopJobs();
+  }
+
+  connections.forEach((account, id) => {
+    if (account.sock) {
+      try {
+        account.sock.end();
+      } catch (e) {
+        // Ignore
+      }
+    }
+  });
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, closing connections...');
+
+  // Stop lease refresh
+  if (leaseRefreshTimer) {
+    clearInterval(leaseRefreshTimer);
+  }
+
+  // Release leases
+  await releaseLeases();
+
+  // Stop long-run jobs
   if (longrunJobsModule && longrunJobsModule.stopJobs) {
     await longrunJobsModule.stopJobs();
   }
