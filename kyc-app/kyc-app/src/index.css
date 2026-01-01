@@ -421,11 +421,12 @@ input[type='radio'] {
   background: #1e293b;
   border-right: 2px solid #334155;
   transition: width 0.3s ease;
-  overflow: hidden;
+  overflow: hidden; /* Keep hidden to prevent horizontal scroll */
   z-index: 1000;
   display: flex;
   flex-direction: column;
   overscroll-behavior: contain;
+  touch-action: pan-y; /* Allow vertical scroll on touch devices */
 }
 
 .sidebar-left.open {
@@ -438,6 +439,8 @@ input[type='radio'] {
   overflow-x: hidden;
   padding: 20px 0;
   overscroll-behavior: contain;
+  max-height: calc(100vh - 80px); /* Reserve space for header/footer */
+  min-height: 0; /* Allow flex shrinking */
 }
 
 /* Custom scrollbar for sidebar */
