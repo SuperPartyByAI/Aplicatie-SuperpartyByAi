@@ -3816,9 +3816,40 @@ app.listen(PORT, '0.0.0.0', async () => {
         if (!account || !account.sock || account.status !== 'connected') {
           console.log(`⏸️  [${accountId}] Account not connected, skipping message ${requestId}`);
           
-          // Retry later with exponential backoff
           const newAttemptCount = attemptCount + 1;
-          const backoffMs = Math.min(1000 * Math.pow(2, newAttemptCount), 60000);
+          
+          // Mark as failed after MAX_RETRY_ATTEMPTS
+          if (newAttemptCount >= MAX_RETRY_ATTEMPTS) {
+            console.log(`❌ [${accountId}] Message ${requestId} failed after ${MAX_RETRY_ATTEMPTS} attempts (account not connected)`);
+            await db.collection('outbox').doc(requestId).update({
+              status: 'failed',
+              attemptCount: newAttemptCount,
+              lastError: 'Account not connected after max retries',
+              failedAt: admin.firestore.FieldValue.serverTimestamp(),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            
+            // Update message doc in thread
+            if (threadId) {
+              try {
+                const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(requestId);
+                const messageDoc = await messageRef.get();
+                if (messageDoc.exists) {
+                  await messageRef.update({
+                    status: 'failed',
+                    lastError: 'Account not connected after max retries',
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  });
+                }
+              } catch (msgError) {
+                console.error(`⚠️  [${accountId}] Failed to update message doc ${requestId}:`, msgError.message);
+              }
+            }
+            continue;
+          }
+          
+          // Retry later with exponential backoff
+          const backoffMs = Math.min(1000 * Math.pow(2, attemptCount), 60000);
           const nextAttemptAt = new Date(Date.now() + backoffMs);
           
           await db.collection('outbox').doc(requestId).update({
@@ -3827,6 +3858,8 @@ app.listen(PORT, '0.0.0.0', async () => {
             lastError: 'Account not connected',
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
+          
+          console.log(`🔄 [${accountId}] Message ${requestId} will retry in ${backoffMs}ms (attempt ${newAttemptCount}/${MAX_RETRY_ATTEMPTS})`);
           continue;
         }
 
