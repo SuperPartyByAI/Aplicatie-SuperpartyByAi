@@ -30,6 +30,52 @@ const RezervaClientiScreen = lazy(() => import('./screens/RezervaClientiScreen')
 const AnimatorChatClientiScreen = lazy(() => import('./screens/AnimatorChatClientiScreen'));
 
 function App() {
+  // Global sidebar scroll fix
+  useEffect(() => {
+    const setupSidebarScroll = () => {
+      const sidebarContent = document.querySelector('.sidebar-content');
+      if (!sidebarContent) return;
+
+      const preventScrollPropagation = (e) => {
+        const target = e.currentTarget;
+        const scrollTop = target.scrollTop;
+        const scrollHeight = target.scrollHeight;
+        const height = target.clientHeight;
+        const delta = e.deltaY;
+
+        const isAtTop = scrollTop === 0;
+        const isAtBottom = scrollTop + height >= scrollHeight;
+
+        if ((isAtTop && delta < 0) || (isAtBottom && delta > 0)) {
+          e.preventDefault();
+        }
+        
+        e.stopPropagation();
+      };
+
+      sidebarContent.addEventListener('wheel', preventScrollPropagation, { passive: false });
+      
+      return () => {
+        sidebarContent.removeEventListener('wheel', preventScrollPropagation);
+      };
+    };
+
+    // Setup immediately
+    const cleanup = setupSidebarScroll();
+
+    // Also setup after navigation (sidebar might be re-rendered)
+    const observer = new MutationObserver(() => {
+      setupSidebarScroll();
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      if (cleanup) cleanup();
+      observer.disconnect();
+    };
+  }, []);
+
   return (
     <>
       <Toast />
