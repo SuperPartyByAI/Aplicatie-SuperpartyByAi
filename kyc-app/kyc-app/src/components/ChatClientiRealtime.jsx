@@ -8,6 +8,8 @@ import {
   limit as limitQuery,
   onSnapshot,
   addDoc,
+  setDoc,
+  doc,
   serverTimestamp,
   getDocs,
 } from 'firebase/firestore';
@@ -32,10 +34,12 @@ function ChatClientiRealtime() {
   useEffect(() => {
     if (!connectedAccount) return;
 
-    console.log('📡 Setting up real-time listener for threads...');
+    console.log(`📡 Setting up real-time listener for threads (accountId: ${connectedAccount.id})...`);
 
+    // Filter threads by accountId to prevent mixing accounts
     const threadsQuery = query(
       collection(db, 'threads'),
+      where('accountId', '==', connectedAccount.id),
       orderBy('lastMessageAt', 'desc'),
       limitQuery(50)
     );
@@ -115,7 +119,10 @@ function ChatClientiRealtime() {
     setSending(true);
 
     try {
-      // Create outbox document
+      // Generate deterministic requestId for idempotency
+      const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Create outbox document with requestId as docId (idempotent)
       const outboxData = {
         accountId: connectedAccount.id,
         toJid: selectedThread.clientJid,
@@ -124,10 +131,11 @@ function ChatClientiRealtime() {
         status: 'queued',
         createdAt: serverTimestamp(),
         attempts: 0,
-        requestId: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        requestId,
       };
 
-      await addDoc(collection(db, 'outbox'), outboxData);
+      // Use setDoc with requestId as docId to prevent duplicates
+      await setDoc(doc(db, 'outbox', requestId), outboxData);
 
       console.log('✅ Message queued in outbox');
 

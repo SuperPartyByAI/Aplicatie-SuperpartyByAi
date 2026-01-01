@@ -55,22 +55,32 @@ service cloud.firestore {
     
     // Outbox - WhatsApp message queue
     match /outbox/{messageId} {
-      // All authenticated users can read and create
-      allow read, create: if isAuthenticated();
+      // Users can read their own outbox messages
+      allow read: if isAuthenticated() && (isAdmin() || resource.data.accountId in getUserAllowedAccounts());
       
-      // Backend can update status
+      // Users can create outbox messages for allowed accounts
+      allow create: if isAuthenticated() && (isAdmin() || request.resource.data.accountId in getUserAllowedAccounts());
+      
+      // Backend can update status (authenticated service account or admin)
       allow update: if isAuthenticated();
       
       // Only admin can delete
       allow delete: if isAdmin();
     }
     
+    // Helper function: get user's allowed account IDs
+    function getUserAllowedAccounts() {
+      // For now, admin has access to all accounts
+      // TODO: Implement allowlist in app_users/{uid}.allowedAccountIds
+      return isAdmin() ? ['*'] : [];
+    }
+    
     // Threads (WhatsApp Conversations) - USED BY BACKEND
     match /threads/{threadId} {
-      // All authenticated users can read all threads
-      allow read: if isAuthenticated();
+      // Users can read threads for allowed accounts only
+      allow read: if isAuthenticated() && (isAdmin() || resource.data.accountId in getUserAllowedAccounts());
       
-      // All authenticated users can create and update threads
+      // Backend can create and update threads
       allow create, update: if isAuthenticated();
       
       // Only admin can delete
@@ -78,13 +88,13 @@ service cloud.firestore {
       
       // Messages subcollection
       match /messages/{messageId} {
-        // All authenticated users can read all messages
-        allow read: if isAuthenticated();
+        // Users can read messages for allowed accounts only
+        allow read: if isAuthenticated() && (isAdmin() || get(/databases/$(database)/documents/threads/$(threadId)).data.accountId in getUserAllowedAccounts());
         
-        // All authenticated users can create messages
-        allow create: if isAuthenticated();
+        // Users can create messages for allowed accounts
+        allow create: if isAuthenticated() && (isAdmin() || get(/databases/$(database)/documents/threads/$(threadId)).data.accountId in getUserAllowedAccounts());
         
-        // Messages cannot be updated
+        // Messages cannot be updated (immutable)
         allow update: if false;
         
         // Only admin can delete
