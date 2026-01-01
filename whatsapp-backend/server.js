@@ -2702,13 +2702,16 @@ async function restoreAccountsFromFirestore() {
     // Start connections for restored accounts (P1B fix)
     console.log('🔌 Starting connections for restored accounts...');
     for (const [accountId, account] of connections.entries()) {
-      if (account.status === 'connected' || account.status === 'connecting') {
-        console.log(`🔌 [${accountId}] Starting connection...`);
+      // Only create connection if NOT already connected (no socket)
+      if (!account.sock && (account.status === 'connected' || account.status === 'connecting')) {
+        console.log(`🔌 [${accountId}] Starting connection (no socket)...`);
         try {
           await createConnection(accountId, account.name, account.phone);
         } catch (error) {
           console.error(`❌ [${accountId}] Failed to start connection:`, error.message);
         }
+      } else if (account.sock) {
+        console.log(`✅ [${accountId}] Socket already exists, skipping createConnection`);
       }
     }
   } catch (error) {
