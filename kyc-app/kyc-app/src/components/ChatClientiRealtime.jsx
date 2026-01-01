@@ -202,11 +202,13 @@ function ChatClientiRealtime({
       const outboxData = {
         accountId: connectedAccount.id,
         toJid: selectedThread.clientJid,
+        threadId: selectedThread.id,
         payload: { text: newMessage },
         body: newMessage,
         status: 'queued',
         createdAt: serverTimestamp(),
-        attempts: 0,
+        nextAttemptAt: serverTimestamp(),
+        attemptCount: 0,
         requestId,
       };
 
