@@ -1245,6 +1245,11 @@ app.get('/debug/listeners/:accountId', (req, res) => {
       evKeys: Object.keys(evEmitter),
       _eventsKeys: Object.keys(evListeners),
       evProto: Object.getOwnPropertyNames(Object.getPrototypeOf(evEmitter)),
+      // Check for internal listener storage
+      hasBuffer: !!evEmitter.buffer,
+      bufferLength: Array.isArray(evEmitter.buffer) ? evEmitter.buffer.length : 0,
+      // Try to inspect the actual event emitter internals
+      evInspect: JSON.stringify(evEmitter, null, 2).substring(0, 500),
     },
     accountDetails: {
       name: account.name,
