@@ -28,26 +28,6 @@ jobs:
           cd functions
           npm ci
           
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SUPERPARTY_FRONTEND }}
-          
-      - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-          
-      - name: Abort ongoing 2nd Gen upgrade and delete functions
-        continue-on-error: true
-        run: |
-          gcloud config set project superparty-frontend
-          # Abort any ongoing 2nd Gen upgrade
-          gcloud alpha functions abort-upgrade whatsapp --region=us-central1 --quiet || true
-          # Now delete the functions
-          gcloud functions delete whatsapp --region=us-central1 --quiet || true
-          gcloud functions delete whatsappV2 --region=us-central1 --quiet || true
-          gcloud functions delete whatsappV3 --region=us-central1 --quiet || true
-          gcloud functions delete testAI --region=us-central1 --quiet || true
-          
       - name: Deploy WhatsApp Functions to Firebase
         env:
           BUILD_SHA: ${{ github.sha }}
@@ -55,4 +35,5 @@ jobs:
           echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_SUPERPARTY_FRONTEND }}' > $HOME/gcloud-key.json
           export GOOGLE_APPLICATION_CREDENTIALS="$HOME/gcloud-key.json"
           npm install -g firebase-tools
-          firebase deploy --only functions --project superparty-frontend --non-interactive
+          # Deploy only 2nd Gen functions (skip old 1st Gen functions)
+          firebase deploy --only functions:whatsappV4,functions:chatWithAI,functions:aiManager --project superparty-frontend --non-interactive
