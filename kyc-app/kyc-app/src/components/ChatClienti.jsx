@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 
-const BACKEND_URL = 'https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV4';
+const BACKEND_URL = 'https://whats-upp-production.up.railway.app';
 
 // Mock data pentru testare
 const MOCK_CLIENTS = [
@@ -58,10 +58,38 @@ function ChatClienti() {
         await new Promise(resolve => setTimeout(resolve, 500));
         setClients(MOCK_CLIENTS);
       } else {
-        const response = await fetch(`${BACKEND_URL}/api/clients`);
-        const data = await response.json();
-        if (data.success) {
-          setClients(data.clients);
+        // Get WhatsApp account (assuming first connected account)
+        const accountsResponse = await fetch(`${BACKEND_URL}/api/whatsapp/accounts`);
+        const accountsData = await accountsResponse.json();
+        
+        if (!accountsData.accounts || accountsData.accounts.length === 0) {
+          console.warn('No WhatsApp accounts found');
+          setClients([]);
+          return;
+        }
+        
+        const connectedAccount = accountsData.accounts.find(acc => acc.status === 'connected');
+        if (!connectedAccount) {
+          console.warn('No connected WhatsApp account');
+          setClients([]);
+          return;
+        }
+        
+        // Get threads/conversations for this account
+        const messagesResponse = await fetch(`${BACKEND_URL}/api/whatsapp/messages?accountId=${connectedAccount.id}&limit=50`);
+        const messagesData = await messagesResponse.json();
+        
+        if (messagesData.success && messagesData.threads) {
+          // Convert threads to clients format
+          const clientsList = messagesData.threads.map(thread => ({
+            id: thread.id,
+            name: thread.clientJid.split('@')[0], // Extract phone/name from JID
+            phone: thread.clientJid,
+            unreadCount: 0, // TODO: implement unread count
+            lastMessage: thread.messages?.[0]?.body || '',
+            lastMessageAt: thread.lastMessageAt,
+          }));
+          setClients(clientsList);
         }
       }
     } catch (error) {
@@ -92,10 +120,34 @@ function ChatClienti() {
           },
         ]);
       } else {
-        const response = await fetch(`${BACKEND_URL}/api/clients/${clientId}/messages`);
+        // Get connected account
+        const accountsResponse = await fetch(`${BACKEND_URL}/api/whatsapp/accounts`);
+        const accountsData = await accountsResponse.json();
+        const connectedAccount = accountsData.accounts.find(acc => acc.status === 'connected');
+        
+        if (!connectedAccount) {
+          console.error('No connected account');
+          return;
+        }
+        
+        // Get messages for this thread
+        const response = await fetch(`${BACKEND_URL}/api/whatsapp/messages?accountId=${connectedAccount.id}&limit=50`);
         const data = await response.json();
-        if (data.success) {
-          setMessages(data.messages);
+        
+        if (data.success && data.threads) {
+          // Find the thread for this client
+          const thread = data.threads.find(t => t.id === clientId);
+          if (thread && thread.messages) {
+            // Convert to chat format
+            const chatMessages = thread.messages.map(msg => ({
+              id: msg.id,
+              text: msg.body,
+              fromClient: msg.direction === 'inbound',
+              timestamp: new Date(msg.tsClient).getTime(),
+            })).reverse(); // Reverse to show oldest first
+            
+            setMessages(chatMessages);
+          }
         }
       }
     } catch (error) {
