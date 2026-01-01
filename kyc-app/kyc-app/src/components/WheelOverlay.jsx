@@ -2,14 +2,8 @@ import { useWheel } from '../contexts/WheelContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './WheelOverlay.css';
 
-export default function WheelOverlay({
-  onLoadKycSubmissions,
-  onLoadAiConversations,
-  onLoadPerformanceMetrics,
-  onLoadGMUsers,
-  onSetCurrentView,
-}) {
-  const { wheelOpen, wheelActions, closeWheel, exitAdminMode, exitGMMode } = useWheel();
+export default function WheelOverlay() {
+  const { wheelOpen, wheelActions, closeWheel } = useWheel();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -25,14 +19,7 @@ export default function WheelOverlay({
         action: action.action,
         view: action.view,
       };
-      
-      if (action.action === 'exitAdminMode') {
-        exitAdminMode();
-      } else if (action.action === 'exitGMMode') {
-        exitGMMode();
-      } else {
-        navigate('/home', { state: { intent } });
-      }
+      navigate('/home', { state: { intent } });
       closeWheel();
     }
   };
@@ -43,7 +30,8 @@ export default function WheelOverlay({
         {/* Inner Ring */}
         <div className="wheel-inner-ring">
           {wheelActions.inner.map((action, index) => {
-            const angle = (index * 180) - 90; // Distribute evenly in circle
+            const stepInner = 360 / wheelActions.inner.length;
+            const angle = (index * stepInner) - 90;
             return (
               <button
                 key={action.id}
@@ -64,7 +52,8 @@ export default function WheelOverlay({
         {/* Outer Ring */}
         <div className="wheel-outer-ring">
           {wheelActions.outer.map((action, index) => {
-            const angle = (index * 90) - 45; // Distribute evenly in circle
+            const stepOuter = 360 / wheelActions.outer.length;
+            const angle = (index * stepOuter) - 90;
             return (
               <button
                 key={action.id}

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { auth, db, storage, callChatWithAI, callAIManager } from '../firebase';
+import { useWheel } from '../contexts/WheelContext';
+import { getWheelActions } from '../config/wheelActions';
 import {
   doc,
   getDoc,
@@ -20,6 +22,7 @@ import { signOut, onAuthStateChanged } from 'firebase/auth';
 function HomeScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { role, setWheelActions } = useWheel();
   const [currentUser, setCurrentUser] = useState(auth.currentUser);
   const [staffProfile, setStaffProfile] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -106,6 +109,12 @@ function HomeScreen() {
     localStorage.setItem('gmMode', gmMode.toString());
   }, [gmMode]);
 
+  // Update wheel actions when admin/gm mode changes
+  useEffect(() => {
+    const actions = getWheelActions(role, adminMode, gmMode);
+    setWheelActions(actions);
+  }, [role, adminMode, gmMode, setWheelActions]);
+
   // Handle navigation intent from Dock/Wheel
   useEffect(() => {
     const intent = location.state?.intent;
@@ -151,6 +160,14 @@ function HomeScreen() {
           if (intent.view) {
             setCurrentView(intent.view);
           }
+          break;
+        case 'exitAdminMode':
+          setAdminMode(false);
+          setCurrentView('dashboard');
+          break;
+        case 'exitGMMode':
+          setGmMode(false);
+          setCurrentView('dashboard');
           break;
         default:
           console.warn('Unknown intent action:', intent.action);

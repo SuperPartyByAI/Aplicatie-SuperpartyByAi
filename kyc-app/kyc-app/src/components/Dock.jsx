@@ -8,7 +8,7 @@ export default function Dock({ onOpenChatAI }) {
   const dockItems = [
     { id: 'calls', icon: '📞', label: 'Calls', route: '/centrala-telefonica' },
     { id: 'chat', icon: '💬', label: 'Chat', route: '/chat-clienti' },
-    { id: 'team', icon: '👥', label: 'Echipă', route: '/home', state: { intent: 'team' } },
+    { id: 'team', icon: '👥', label: 'Echipă', route: '/team' },
     { id: 'chat-ai', icon: '🤖', label: 'Chat AI', route: '/home', state: { intent: 'openChatAI' } },
   ];
 

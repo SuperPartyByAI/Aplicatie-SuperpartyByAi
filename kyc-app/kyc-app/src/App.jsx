@@ -28,6 +28,7 @@ const ClientiDisponibiliScreen = lazy(() => import('./screens/ClientiDisponibili
 const WhatsAppChatScreen = lazy(() => import('./screens/WhatsAppChatScreen'));
 const AccountsManagementScreen = lazy(() => import('./screens/AccountsManagementScreen'));
 const AnimatorChatClientiScreen = lazy(() => import('./screens/AnimatorChatClientiScreen'));
+const TeamScreen = lazy(() => import('./screens/TeamScreen'));
 
 function App() {
   // Global sidebar scroll fix
@@ -100,6 +101,7 @@ function App() {
             <Route path="/accounts-management" element={<AccountsManagementScreen />} />
             <Route path="/animator/chat-clienti" element={<AnimatorChatClientiScreen />} />
             <Route path="/settings" element={<SettingsScreen />} />
+            <Route path="/team" element={<TeamScreen />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

@@ -6,17 +6,8 @@ const WheelContext = createContext();
 
 export const WheelProvider = ({ children }) => {
   const [wheelOpen, setWheelOpen] = useState(false);
-  const [adminMode, setAdminMode] = useState(false);
-  const [gmMode, setGmMode] = useState(() => {
-    const saved = localStorage.getItem('gmMode');
-    return saved === 'true';
-  });
+  const [wheelActions, setWheelActions] = useState({ inner: [], outer: [] });
   const [currentUser, setCurrentUser] = useState(auth.currentUser);
-
-  // Persist GM Mode
-  useEffect(() => {
-    localStorage.setItem('gmMode', gmMode.toString());
-  }, [gmMode]);
 
   // Listen to auth changes
   useEffect(() => {
@@ -29,36 +20,18 @@ export const WheelProvider = ({ children }) => {
   // Detect role
   const role = currentUser?.email === 'ursache.andrei1995@gmail.com' ? 'admin' : 'user';
 
-  // Get dynamic actions
-  const wheelActions = getWheelActions(role, adminMode, gmMode);
-
   const toggleWheel = () => setWheelOpen((prev) => !prev);
   const closeWheel = () => setWheelOpen(false);
-
-  const exitAdminMode = () => {
-    setAdminMode(false);
-    closeWheel();
-  };
-
-  const exitGMMode = () => {
-    setGmMode(false);
-    closeWheel();
-  };
 
   return (
     <WheelContext.Provider
       value={{
         wheelOpen,
         wheelActions,
-        adminMode,
-        gmMode,
         role,
         toggleWheel,
         closeWheel,
-        setAdminMode,
-        setGmMode,
-        exitAdminMode,
-        exitGMMode,
+        setWheelActions,
       }}
     >
       {children}
