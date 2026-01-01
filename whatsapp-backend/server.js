@@ -1242,8 +1242,9 @@ app.get('/debug/listeners/:accountId', (req, res) => {
       evType: evEmitter.constructor.name,
       hasListenerCount: typeof evEmitter.listenerCount === 'function',
       hasListeners: typeof evEmitter.listeners === 'function',
-      evKeys: Object.keys(evEmitter).slice(0, 10),
-      _eventsKeys: Object.keys(evListeners).slice(0, 10),
+      evKeys: Object.keys(evEmitter),
+      _eventsKeys: Object.keys(evListeners),
+      evProto: Object.getOwnPropertyNames(Object.getPrototypeOf(evEmitter)),
     },
     accountDetails: {
       name: account.name,
