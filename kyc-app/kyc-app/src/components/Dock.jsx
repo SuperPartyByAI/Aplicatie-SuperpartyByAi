@@ -8,19 +8,13 @@ export default function Dock({ onOpenChatAI }) {
   const dockItems = [
     { id: 'calls', icon: '📞', label: 'Calls', route: '/centrala-telefonica' },
     { id: 'chat', icon: '💬', label: 'Chat', route: '/chat-clienti' },
-    { id: 'team', icon: '👥', label: 'Echipă', route: '/staff-setup' },
-    { id: 'chat-ai', icon: '🤖', label: 'Chat AI', action: 'openChatAI' },
+    { id: 'team', icon: '👥', label: 'Echipă', route: '/home', state: { intent: 'team' } },
+    { id: 'chat-ai', icon: '🤖', label: 'Chat AI', route: '/home', state: { intent: 'openChatAI' } },
   ];
 
   const handleClick = (item) => {
-    if (item.action === 'openChatAI') {
-      // Navigate to home and open chat sidebar
-      navigate('/home');
-      if (onOpenChatAI) {
-        setTimeout(() => onOpenChatAI(), 100);
-      }
-    } else if (item.route) {
-      navigate(item.route);
+    if (item.route) {
+      navigate(item.route, { state: item.state });
     }
   };
 

@@ -7,13 +7,15 @@ export const getWheelActions = (role, adminMode, gmMode) => {
   const baseActions = {
     inner: [
       { id: 'home', icon: '🏠', label: 'Home', route: '/home' },
-      { id: 'video', icon: '📹', label: 'Video', route: '/centrala-telefonica' },
+      { id: 'evenimente', icon: '📅', label: 'Evenimente', route: '/evenimente' },
     ],
     outer: [
-      { id: 'new-message', icon: '✉️', label: 'Mesaj Nou', route: '/chat-clienti' },
+      { id: 'chat', icon: '💬', label: 'Chat', route: '/chat-clienti' },
       { id: 'whatsapp', icon: '📱', label: 'WhatsApp', route: '/accounts-management' },
-      { id: 'event', icon: '📅', label: 'Eveniment', route: '/evenimente' },
-      { id: 'staff', icon: '👥', label: 'Staff', route: '/staff-setup' },
+      { id: 'disponibilitate', icon: '📋', label: 'Disponibilitate', route: '/disponibilitate' },
+      { id: 'salarizare', icon: '💰', label: 'Salarii', route: '/salarizare' },
+      { id: 'soferi', icon: '🚗', label: 'Șoferi', route: '/soferi' },
+      { id: 'settings', icon: '⚙️', label: 'Setări', route: '/settings' },
     ],
   };
 
@@ -28,6 +30,7 @@ export const getWheelActions = (role, adminMode, gmMode) => {
           label: 'Aprobări KYC',
           action: 'loadKycSubmissions',
           view: 'admin-kyc',
+          state: { intent: { action: 'loadKycSubmissions', view: 'admin-kyc' } },
         },
         {
           id: 'ai-conversations',
@@ -35,12 +38,19 @@ export const getWheelActions = (role, adminMode, gmMode) => {
           label: 'Conversații AI',
           action: 'loadAiConversations',
           view: 'admin-conversations',
+          state: { intent: { action: 'loadAiConversations', view: 'admin-conversations' } },
         },
         {
           id: 'admin-dashboard',
           icon: '📊',
           label: 'Admin Panel',
           route: '/admin',
+        },
+        {
+          id: 'evenimente',
+          icon: '📅',
+          label: 'Evenimente',
+          route: '/evenimente',
         },
         {
           id: 'exit-admin',
@@ -63,6 +73,7 @@ export const getWheelActions = (role, adminMode, gmMode) => {
           label: 'GM Overview',
           action: 'loadPerformanceMetrics',
           view: 'gm-overview',
+          state: { intent: { action: 'loadPerformanceMetrics', view: 'gm-overview' } },
         },
         {
           id: 'gm-conversations',
@@ -70,12 +81,27 @@ export const getWheelActions = (role, adminMode, gmMode) => {
           label: 'GM Conversații',
           action: 'loadGMUsers',
           view: 'gm-conversations',
+          state: { intent: { action: 'loadGMUsers', view: 'gm-conversations' } },
         },
         {
           id: 'gm-analytics',
           icon: '📈',
           label: 'GM Analytics',
+          action: 'setView',
           view: 'gm-analytics',
+          state: { intent: { action: 'setView', view: 'gm-analytics' } },
+        },
+        {
+          id: 'evenimente',
+          icon: '📅',
+          label: 'Evenimente',
+          route: '/evenimente',
+        },
+        {
+          id: 'disponibilitate',
+          icon: '📋',
+          label: 'Disponibilitate',
+          route: '/disponibilitate',
         },
         {
           id: 'exit-gm',

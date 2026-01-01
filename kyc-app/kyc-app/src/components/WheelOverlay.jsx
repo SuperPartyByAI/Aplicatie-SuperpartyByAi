@@ -17,34 +17,21 @@ export default function WheelOverlay({
 
   const handleAction = (action) => {
     if (action.route) {
-      navigate(action.route);
+      navigate(action.route, { state: action.state });
       closeWheel();
     } else if (action.action) {
-      switch (action.action) {
-        case 'loadKycSubmissions':
-          if (onLoadKycSubmissions) onLoadKycSubmissions();
-          if (action.view && onSetCurrentView) onSetCurrentView(action.view);
-          break;
-        case 'loadAiConversations':
-          if (onLoadAiConversations) onLoadAiConversations();
-          if (action.view && onSetCurrentView) onSetCurrentView(action.view);
-          break;
-        case 'loadPerformanceMetrics':
-          if (onLoadPerformanceMetrics) onLoadPerformanceMetrics();
-          if (action.view && onSetCurrentView) onSetCurrentView(action.view);
-          break;
-        case 'loadGMUsers':
-          if (onLoadGMUsers) onLoadGMUsers();
-          if (action.view && onSetCurrentView) onSetCurrentView(action.view);
-          break;
-        case 'exitAdminMode':
-          exitAdminMode();
-          break;
-        case 'exitGMMode':
-          exitGMMode();
-          break;
-        default:
-          console.warn('Unknown action:', action.action);
+      // Navigate to /home with intent for HomeScreen to handle
+      const intent = {
+        action: action.action,
+        view: action.view,
+      };
+      
+      if (action.action === 'exitAdminMode') {
+        exitAdminMode();
+      } else if (action.action === 'exitGMMode') {
+        exitGMMode();
+      } else {
+        navigate('/home', { state: { intent } });
       }
       closeWheel();
     }

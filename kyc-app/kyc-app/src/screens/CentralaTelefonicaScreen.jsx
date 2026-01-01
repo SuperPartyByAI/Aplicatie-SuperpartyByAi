@@ -4,7 +4,7 @@ import { auth } from '../firebase';
 import { io } from 'socket.io-client';
 import { Device } from '@twilio/voice-sdk';
 
-const BACKEND_URL = 'https://web-production-f0714.up.railway.app';
+const BACKEND_URL = import.meta.env.VITE_VOICE_BACKEND_URL || 'https://web-production-f0714.up.railway.app';
 
 export default function CentralaTelefonicaScreen() {
   const navigate = useNavigate();
