@@ -36,10 +36,13 @@ jobs:
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
           
-      - name: Delete old 1st Gen functions with gcloud
+      - name: Abort ongoing 2nd Gen upgrade and delete functions
         continue-on-error: true
         run: |
           gcloud config set project superparty-frontend
+          # Abort any ongoing 2nd Gen upgrade
+          gcloud alpha functions abort-upgrade whatsapp --region=us-central1 --quiet || true
+          # Now delete the functions
           gcloud functions delete whatsapp --region=us-central1 --quiet || true
           gcloud functions delete whatsappV2 --region=us-central1 --quiet || true
           gcloud functions delete whatsappV3 --region=us-central1 --quiet || true
