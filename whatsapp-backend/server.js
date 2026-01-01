@@ -22,7 +22,7 @@ const { Sentry, logger } = require('./sentry');
 const logtail = require('./logtail');
 
 // Initialize Cache (Redis with fallback to memory)
-const cache = require('../shared/redis-cache');
+const cache = require('./redis-cache');
 
 // Swagger documentation
 const swaggerUi = require('swagger-ui-express');
@@ -1559,12 +1559,12 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
     if (featureFlags.isEnabled('API_CACHING')) {
       const cacheKey = 'whatsapp:accounts';
       const cached = cache.get(cacheKey);
-      
+
       if (cached) {
         return res.json({ success: true, accounts: cached, cached: true });
       }
     }
-    
+
     const accounts = [];
     connections.forEach((conn, id) => {
       accounts.push({
@@ -1578,13 +1578,13 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
         lastUpdate: conn.lastUpdate,
       });
     });
-    
+
     // Cache if enabled
     if (featureFlags.isEnabled('API_CACHING')) {
       const ttl = featureFlags.get('CACHE_TTL_SECONDS', 30) * 1000;
       cache.set('whatsapp:accounts', accounts, ttl);
     }
-    
+
     res.json({ success: true, accounts, cached: false });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
