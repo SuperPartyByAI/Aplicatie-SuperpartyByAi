@@ -2307,62 +2307,7 @@ ${perf.tasksOverdue > 0 ? `⚠️ Ai ${perf.tasksOverdue} task-uri în întârzi
                 Bine ai venit, {staffProfile?.nume || currentUser?.email}!
               </h2>
 
-              {/* Stats Cards */}
-              {loading ? (
-                <div className="loading-container">
-                  <div className="spinner"></div>
-                  <p>Se încarcă statisticile...</p>
-                </div>
-              ) : (
-                <>
-                  <div className="dashboard-stats">
-                    <div className="stat-card" onClick={() => navigate('/evenimente')}>
-                      <h3>Evenimente Total</h3>
-                      <p>{stats.evenimenteTotal}</p>
-                      <span className="stat-subtitle">Vezi toate →</span>
-                    </div>
-                    <div className="stat-card" onClick={() => navigate('/evenimente')}>
-                      <h3>Evenimente Nealocate</h3>
-                      <p>{stats.evenimenteNealocate}</p>
-                      <span className="stat-subtitle">Alocă cu AI →</span>
-                    </div>
-                    <div className="stat-card">
-                      <h3>Staff Activ</h3>
-                      <p>{stats.staffTotal}</p>
-                      <span className="stat-subtitle">membri aprobați</span>
-                    </div>
-                  </div>
-
-                  {/* Quick Actions */}
-                  <div style={{ marginTop: '3rem' }}>
-                    <h3 style={{ marginBottom: '1.5rem', fontSize: '1.5rem', fontWeight: '600' }}>
-                      Acțiuni Rapide
-                    </h3>
-                    <div className="quick-actions">
-                      <button onClick={() => navigate('/evenimente')} className="action-card">
-                        <span className="action-icon">📅</span>
-                        <span className="action-title">Evenimente</span>
-                        <span className="action-subtitle">Vezi toate evenimentele</span>
-                      </button>
-                      <button onClick={() => setChatOpen(true)} className="action-card">
-                        <span className="action-icon">🤖</span>
-                        <span className="action-title">Alocare AI</span>
-                        <span className="action-subtitle">Cere AI-ului să aloce</span>
-                      </button>
-                      <button onClick={() => navigate('/disponibilitate')} className="action-card">
-                        <span className="action-icon">🗓️</span>
-                        <span className="action-title">Disponibilitate</span>
-                        <span className="action-subtitle">Marchează când ești liber</span>
-                      </button>
-                      <button onClick={() => navigate('/soferi')} className="action-card">
-                        <span className="action-icon">🚗</span>
-                        <span className="action-title">Șoferi</span>
-                        <span className="action-subtitle">Management șoferi</span>
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
+              {/* Dashboard content removed - use sidebar navigation */}
             </>
           )}
         </div>
