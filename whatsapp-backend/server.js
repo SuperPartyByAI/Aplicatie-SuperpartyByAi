@@ -218,6 +218,9 @@ app.use(
   })
 );
 
+// Handle preflight requests explicitly
+app.options('*', cors());
+
 app.use(express.json());
 
 // Serve static files from public directory
