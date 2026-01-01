@@ -1,0 +1,29 @@
+{
+  "rules": {
+    "javascript:S1192": {
+      "level": "on",
+      "parameters": {
+        "threshold": "3"
+      }
+    },
+    "javascript:S3776": {
+      "level": "on",
+      "parameters": {
+        "threshold": "15"
+      }
+    },
+    "javascript:S1541": {
+      "level": "on",
+      "parameters": {
+        "threshold": "10"
+      }
+    },
+    "javascript:S138": {
+      "level": "on",
+      "parameters": {
+        "max": "200"
+      }
+    }
+  },
+  "pathToNodeExecutable": "node"
+}

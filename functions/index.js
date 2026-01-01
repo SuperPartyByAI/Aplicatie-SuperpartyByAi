@@ -8,10 +8,13 @@ const { Sentry, logger } = require('./sentry');
 // Initialize Better Stack (Logtail)
 const logtail = require('./logtail');
 
+// Initialize Memory Cache
+const cache = require('./cache');
+
 // Set global options for v2 functions
 setGlobalOptions({
   region: 'us-central1',
-  maxInstances: 10
+  maxInstances: 10,
 });
 
 // Deployment marker
@@ -31,7 +34,7 @@ if (!admin.apps.length) {
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
-  cors: { origin: '*', methods: ['GET', 'POST'] }
+  cors: { origin: '*', methods: ['GET', 'POST'] },
 });
 
 app.use(cors());
@@ -57,19 +60,31 @@ app.get('/', (req, res) => {
       'POST /api/whatsapp/send-message',
       'GET /api/whatsapp/messages',
       'GET /api/clients',
-      'GET /health'
-    ]
+      'GET /health',
+    ],
   });
 });
 
 app.get('/api/whatsapp/accounts', (req, res) => {
+  // Try cache first (30 seconds TTL)
+  const cacheKey = 'whatsapp:accounts';
+  const cached = cache.get(cacheKey);
+  
+  if (cached) {
+    return res.json({ success: true, accounts: cached, cached: true });
+  }
+  
   const accounts = whatsappManager.getAccounts();
   // Remove non-serializable fields (timers)
   const cleanAccounts = accounts.map(acc => {
     const { qrExpiryTimer, ...rest } = acc;
     return rest;
   });
-  res.json({ success: true, accounts: cleanAccounts });
+  
+  // Cache for 30 seconds
+  cache.set(cacheKey, cleanAccounts, 30 * 1000);
+  
+  res.json({ success: true, accounts: cleanAccounts, cached: false });
 });
 
 app.post('/api/whatsapp/add-account', async (req, res) => {
@@ -81,7 +96,7 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
   } catch (error) {
     Sentry.captureException(error, {
       tags: { endpoint: 'add-account', function: 'whatsappV4' },
-      extra: { name, phone }
+      extra: { name, phone },
     });
     logtail.error('Failed to add WhatsApp account', { name, phone, error: error.message });
     res.status(500).json({ success: false, error: error.message });
@@ -96,7 +111,7 @@ app.post('/api/whatsapp/accounts/:accountId/regenerate-qr', async (req, res) => 
   } catch (error) {
     Sentry.captureException(error, {
       tags: { endpoint: 'regenerate-qr', function: 'whatsappV4' },
-      extra: { accountId: req.params.accountId }
+      extra: { accountId: req.params.accountId },
     });
     res.status(500).json({ success: false, error: error.message });
   }
@@ -126,7 +141,7 @@ app.post('/api/whatsapp/send', async (req, res) => {
 app.post('/api/whatsapp/send-message', async (req, res) => {
   try {
     const { accountId, to, message } = req.body;
-    
+
     // Get first connected account if no accountId provided
     let targetAccountId = accountId;
     if (!targetAccountId) {
@@ -137,7 +152,7 @@ app.post('/api/whatsapp/send-message', async (req, res) => {
       }
       targetAccountId = connected.id;
     }
-    
+
     await whatsappManager.sendMessage(targetAccountId, to, message);
     res.json({ success: true, message: 'Message sent' });
   } catch (error) {
@@ -171,11 +186,13 @@ app.get('/connect/:accountId', async (req, res) => {
   try {
     const { accountId } = req.params;
     const qrData = await whatsappManager.getQRForWeb(accountId);
-    
+
     if (!qrData) {
-      return res.send(`<html><body style="font-family: Arial; text-align: center; padding: 50px;"><h1>Account not found</h1><p>ID: ${accountId}</p></body></html>`);
+      return res.send(
+        `<html><body style="font-family: Arial; text-align: center; padding: 50px;"><h1>Account not found</h1><p>ID: ${accountId}</p></body></html>`
+      );
     }
-    
+
     res.send(`
       <html>
         <head>
@@ -197,15 +214,21 @@ app.get('/connect/:accountId', async (req, res) => {
             <h1>🔗 Connect WhatsApp</h1>
             <div class="status ${qrData.status}">${qrData.status.toUpperCase()}</div>
             
-            ${qrData.status === 'qr_ready' && qrData.qrCode ? `
+            ${
+              qrData.status === 'qr_ready' && qrData.qrCode
+                ? `
               <div class="qr-container"><img src="${qrData.qrCode}" /></div>
               ${qrData.pairingCode ? `<p>Pairing code:</p><div class="pairing-code">${qrData.pairingCode}</div>` : ''}
               <p><em>Scan with WhatsApp → Settings → Linked Devices</em></p>
-            ` : qrData.status === 'connected' ? `
+            `
+                : qrData.status === 'connected'
+                  ? `
               <h2>✅ Connected!</h2>
-            ` : `
+            `
+                  : `
               <p>Waiting... (${qrData.status})</p>
-            `}
+            `
+            }
           </div>
         </body>
       </html>
@@ -236,11 +259,14 @@ app.get('/health', (req, res) => {
 // exports.whatsappV3 = functions.https.onRequest(app);
 
 // WhatsApp Backend v2 (2nd Gen)
-exports.whatsappV4 = onRequest({
-  timeoutSeconds: 540,
-  memory: '512MiB',
-  maxInstances: 10
-}, app);
+exports.whatsappV4 = onRequest(
+  {
+    timeoutSeconds: 540,
+    memory: '512MiB',
+    maxInstances: 10,
+  },
+  app
+);
 
 // REMOVED: 1st Gen test function - cannot upgrade to 2nd Gen
 // exports.testAI = functions.https.onRequest((req, res) => {
@@ -248,34 +274,36 @@ exports.whatsappV4 = onRequest({
 // });
 
 // AI Chat Function (v2)
-exports.chatWithAI = onCall({
-  timeoutSeconds: 60,
-  memory: '256MiB'
-}, async (request) => {
-  const data = request.data;
-  const context = request.auth;
+exports.chatWithAI = onCall(
+  {
+    timeoutSeconds: 60,
+    memory: '256MiB',
+  },
+  async request => {
+    const data = request.data;
+    const context = request.auth;
     const startTime = Date.now();
     const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     console.log(`[${requestId}] chatWithAI called`, {
       hasAuth: !!context,
-      messageCount: data.messages?.length || 0
+      messageCount: data.messages?.length || 0,
     });
-    
+
     try {
       // Validate input
       if (!data.messages || !Array.isArray(data.messages)) {
         throw new Error('Messages array is required');
       }
-      
+
       // Get OpenAI API key from environment
       const openaiKey = process.env.OPENAI_API_KEY;
-      
+
       if (!openaiKey) {
         console.error(`[${requestId}] OpenAI API key not configured`);
         throw new Error('AI service not configured. Contact administrator.');
       }
-      
+
       // Call OpenAI API
       const https = require('https');
       const response = await new Promise((resolve, reject) => {
@@ -283,9 +311,9 @@ exports.chatWithAI = onCall({
           model: 'gpt-3.5-turbo',
           messages: data.messages,
           max_tokens: 500,
-          temperature: 0.7
+          temperature: 0.7,
         });
-        
+
         const options = {
           hostname: 'api.openai.com',
           port: 443,
@@ -293,170 +321,165 @@ exports.chatWithAI = onCall({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${openaiKey}`,
-            'Content-Length': Buffer.byteLength(postData)
+            Authorization: `Bearer ${openaiKey}`,
+            'Content-Length': Buffer.byteLength(postData),
           },
-          timeout: 30000 // 30s timeout
+          timeout: 30000, // 30s timeout
         };
-        
-        const req = https.request(options, (res) => {
+
+        const req = https.request(options, res => {
           let data = '';
-          
-          res.on('data', (chunk) => {
+
+          res.on('data', chunk => {
             data += chunk;
           });
-          
+
           res.on('end', () => {
             try {
               const parsed = JSON.parse(data);
-              
+
               if (res.statusCode !== 200) {
                 console.error(`[${requestId}] OpenAI error`, {
                   status: res.statusCode,
-                  error: parsed.error
+                  error: parsed.error,
                 });
-                
+
                 if (res.statusCode === 401) {
-                  reject(new functions.https.HttpsError(
-                    'unauthenticated',
-                    'Invalid API key'
-                  ));
+                  reject(new functions.https.HttpsError('unauthenticated', 'Invalid API key'));
                 } else if (res.statusCode === 429) {
-                  reject(new functions.https.HttpsError(
-                    'resource-exhausted',
-                    'Rate limit exceeded. Try again later.'
-                  ));
+                  reject(
+                    new functions.https.HttpsError(
+                      'resource-exhausted',
+                      'Rate limit exceeded. Try again later.'
+                    )
+                  );
                 } else {
-                  reject(new functions.https.HttpsError(
-                    'unavailable',
-                    'AI service temporarily unavailable'
-                  ));
+                  reject(
+                    new functions.https.HttpsError(
+                      'unavailable',
+                      'AI service temporarily unavailable'
+                    )
+                  );
                 }
                 return;
               }
-              
+
               resolve(parsed);
             } catch (e) {
-              reject(new functions.https.HttpsError(
-                'internal',
-                'Failed to parse AI response'
-              ));
+              reject(new functions.https.HttpsError('internal', 'Failed to parse AI response'));
             }
           });
         });
-        
-        req.on('error', (e) => {
+
+        req.on('error', e => {
           console.error(`[${requestId}] Request error:`, e.message);
-          reject(new functions.https.HttpsError(
-            'unavailable',
-            'Network error communicating with AI service'
-          ));
+          reject(
+            new functions.https.HttpsError(
+              'unavailable',
+              'Network error communicating with AI service'
+            )
+          );
         });
-        
+
         req.on('timeout', () => {
           req.destroy();
           console.error(`[${requestId}] Request timeout`);
-          reject(new functions.https.HttpsError(
-            'deadline-exceeded',
-            'AI request timed out. Try again.'
-          ));
+          reject(
+            new functions.https.HttpsError('deadline-exceeded', 'AI request timed out. Try again.')
+          );
         });
-        
+
         req.write(postData);
         req.end();
       });
-      
+
       const duration = Date.now() - startTime;
       const message = response.choices[0]?.message?.content || 'No response';
-      
+
       console.log(`[${requestId}] Success`, {
         duration: `${duration}ms`,
-        responseLength: message.length
+        responseLength: message.length,
       });
-      
+
       return {
         success: true,
-        message: message
+        message: message,
       };
-      
     } catch (error) {
       const duration = Date.now() - startTime;
-      
+
       console.error(`[${requestId}] Error`, {
         duration: `${duration}ms`,
         code: error.code,
-        message: error.message
+        message: error.message,
       });
-      
+
       // Re-throw HttpsError as-is
       if (error instanceof Error) {
         throw error;
       }
-      
+
       // Wrap other errors
-      throw new functions.https.HttpsError(
-        'internal',
-        'Internal error processing AI request'
-      );
+      throw new functions.https.HttpsError('internal', 'Internal error processing AI request');
     }
-  });
+  }
+);
 
 // AI Manager Function (v2)
-exports.aiManager = onCall({
-  timeoutSeconds: 60,
-  memory: '512MiB'
-}, async (request) => {
-  const data = request.data;
-  const context = request.auth;
+exports.aiManager = onCall(
+  {
+    timeoutSeconds: 60,
+    memory: '512MiB',
+  },
+  async request => {
+    const data = request.data;
+    const context = request.auth;
     const startTime = Date.now();
     const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     console.log(`[${requestId}] aiManager called`, {
       action: data.action,
-      hasAuth: !!context
+      hasAuth: !!context,
     });
-    
+
     try {
       const { action } = data;
-      
+
       if (!action) {
-        throw new functions.https.HttpsError(
-          'invalid-argument',
-          'Action is required'
-        );
+        throw new functions.https.HttpsError('invalid-argument', 'Action is required');
       }
-      
+
       // For now, return mock response
       // TODO: Implement actual AI manager logic
       const duration = Date.now() - startTime;
-      
+
       console.log(`[${requestId}] Success (mock)`, {
         duration: `${duration}ms`,
-        action
+        action,
       });
-      
+
       return {
         success: true,
         message: 'AI Manager response (mock)',
-        action: action
+        action: action,
       };
-      
     } catch (error) {
       const duration = Date.now() - startTime;
-      
+
       console.error(`[${requestId}] Error`, {
         duration: `${duration}ms`,
         code: error.code,
-        message: error.message
+        message: error.message,
       });
-      
+
       if (error instanceof Error) {
         throw error;
       }
-      
+
       throw new functions.https.HttpsError(
         'internal',
         'Internal error processing AI manager request'
       );
     }
-  });
+  }
+);
