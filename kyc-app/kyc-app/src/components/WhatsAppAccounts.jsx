@@ -123,13 +123,18 @@ function WhatsAppAccounts() {
   const getStatusColor = status => {
     switch (status) {
       case 'connected':
-        return '#10b981';
+        return '#10b981'; // green
       case 'qr_ready':
-        return '#f59e0b';
+      case 'awaiting_scan':
+        return '#f59e0b'; // orange
       case 'connecting':
-        return '#3b82f6';
+      case 'reconnecting':
+        return '#3b82f6'; // blue
+      case 'disconnected':
+      case 'logged_out':
+        return '#ef4444'; // red
       default:
-        return '#6b7280';
+        return '#6b7280'; // gray
     }
   };
 
@@ -138,11 +143,21 @@ function WhatsAppAccounts() {
       case 'connected':
         return '✅ Conectat';
       case 'qr_ready':
-        return '📱 Scanează QR';
+        return '📱 QR Gata - Scanează!';
+      case 'awaiting_scan':
+        return '⏳ Așteaptă Scanare QR';
       case 'connecting':
         return '🔄 Se conectează...';
-      default:
+      case 'reconnecting':
+        return '🔄 Reconectare...';
+      case 'disconnected':
         return '⏸️ Deconectat';
+      case 'logged_out':
+        return '🚪 Delogat';
+      case 'needs_qr':
+        return '🔑 Necesită QR';
+      default:
+        return `⚠️ ${status || 'Necunoscut'}`;
     }
   };
 
@@ -324,7 +339,9 @@ function WhatsAppAccounts() {
 
               {account.qrCode &&
                 (account.status === 'qr_ready' ||
+                  account.status === 'awaiting_scan' ||
                   account.status === 'reconnecting' ||
+                  account.status === 'needs_qr' ||
                   account.status === 'logged_out') && (
                   <div
                     style={{
