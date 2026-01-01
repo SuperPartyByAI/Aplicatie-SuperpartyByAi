@@ -44,7 +44,7 @@ function WhatsAppChatScreen() {
 
       <h1 style={{ color: 'white', marginBottom: '1rem' }}>💬 Chat WhatsApp - Conversații Clienți</h1>
 
-      <ChatClientiRealtime />
+      <ChatClientiRealtime isGMMode={true} />
     </div>
   );
 }
