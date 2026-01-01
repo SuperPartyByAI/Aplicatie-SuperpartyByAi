@@ -425,6 +425,7 @@ input[type='radio'] {
   z-index: 1000;
   display: flex;
   flex-direction: column;
+  overscroll-behavior: contain;
 }
 
 .sidebar-left.open {
@@ -436,6 +437,7 @@ input[type='radio'] {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 20px 0;
+  overscroll-behavior: contain;
 }
 
 /* Custom scrollbar for sidebar */
