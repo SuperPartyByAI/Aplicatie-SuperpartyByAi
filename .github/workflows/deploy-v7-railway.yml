@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'monitoring/**'
+      - '.github/workflows/deploy-v7-railway.yml'
   workflow_dispatch:
 
 jobs:

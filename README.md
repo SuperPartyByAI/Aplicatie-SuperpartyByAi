@@ -3,6 +3,9 @@
 ## Self-Managing AI Infrastructure
 
 [![Version](https://img.shields.io/badge/version-5.0.0-blue.svg)](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi)
+[![CI Status](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions/workflows/ci.yml/badge.svg)](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions/workflows/ci.yml)
+[![Deploy Frontend](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions/workflows/deploy-frontend.yml/badge.svg)](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions/workflows/deploy-frontend.yml)
+[![Deploy WhatsApp](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions/workflows/deploy-whatsapp-functions.yml/badge.svg)](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions/workflows/deploy-whatsapp-functions.yml)
 [![Status](https://img.shields.io/badge/status-production-green.svg)](https://railway.app)
 [![Uptime](https://img.shields.io/badge/uptime-99.99%25-brightgreen.svg)](https://railway.app)
 
@@ -24,7 +27,20 @@ cp .env.example .env
 
 # Start autonomous monitor
 npm start
+
+# Check CI status (HEAD only)
+npm run ci:status
 ```
+
+### 📊 CI Status
+
+To check the current build status (HEAD commit only, ignoring historical failures):
+
+```bash
+npm run ci:status
+```
+
+This shows only the status of workflows for the latest commit on `main` branch.
 
 ---
 

@@ -13,7 +13,8 @@
     "start:normal": "node monitoring/ultra-fast-monitor.js",
     "test": "node monitoring/test-recovery.js",
     "demo": "node monitoring/demo-auto-repair.js",
-    "chaos": "node -e \"const UltimateMonitor = require('./monitoring/ultimate-monitor'); const m = new UltimateMonitor(); m.runChaosTest();\""
+    "chaos": "node -e \"const UltimateMonitor = require('./monitoring/ultimate-monitor'); const m = new UltimateMonitor(); m.runChaosTest();\"",
+    "ci:status": "./scripts/ci-status.sh"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
