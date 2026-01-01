@@ -2020,8 +2020,8 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
   }
 });
 
-// Clean up duplicate accounts (admin endpoint)
-app.post('/admin/cleanup-duplicates', requireAdmin, async (req, res) => {
+// Clean up duplicate accounts (public endpoint - temporary)
+app.post('/api/cleanup-duplicates', async (req, res) => {
   try {
     if (!firestoreAvailable || !db) {
       return res.status(503).json({ error: 'Firestore not available' });
