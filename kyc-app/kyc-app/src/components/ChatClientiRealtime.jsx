@@ -9,6 +9,7 @@ import {
   onSnapshot,
   addDoc,
   setDoc,
+  updateDoc,
   doc,
   serverTimestamp,
   getDocs,
@@ -16,14 +17,19 @@ import {
 
 const BACKEND_URL = 'https://whats-upp-production.up.railway.app';
 
-function ChatClientiRealtime() {
+function ChatClientiRealtime({ 
+  isGMMode = false, // GM has FULL CONTROL
+  userCode = null // User's code (e.g., "B15", "Btrainer")
+}) {
   const [connectedAccount, setConnectedAccount] = useState(null);
   const [threads, setThreads] = useState([]);
+  const [filteredThreads, setFilteredThreads] = useState([]);
   const [selectedThread, setSelectedThread] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [filter, setFilter] = useState('all'); // 'my', 'team', 'all', 'unassigned'
 
   // Load connected WhatsApp account
   useEffect(() => {
@@ -63,6 +69,39 @@ function ChatClientiRealtime() {
 
     return () => unsubscribe();
   }, [connectedAccount]);
+
+  // Filter threads based on selected filter
+  useEffect(() => {
+    if (!userCode) {
+      setFilteredThreads(threads);
+      return;
+    }
+
+    const team = userCode.charAt(0); // Extract team letter (e.g., "B" from "B15" or "Btrainer")
+
+    let filtered = threads;
+    switch (filter) {
+      case 'my':
+        // Only threads assigned to me
+        filtered = threads.filter(t => t.assignedTo === userCode);
+        break;
+      case 'team':
+        // Threads assigned to my team (same letter)
+        filtered = threads.filter(t => t.assignedTo && t.assignedTo.startsWith(team));
+        break;
+      case 'unassigned':
+        // Only unassigned threads
+        filtered = threads.filter(t => !t.assignedTo);
+        break;
+      case 'all':
+      default:
+        // All threads
+        filtered = threads;
+        break;
+    }
+
+    setFilteredThreads(filtered);
+  }, [threads, filter, userCode]);
 
   // Real-time listener for messages in selected thread
   useEffect(() => {
@@ -116,11 +155,26 @@ function ChatClientiRealtime() {
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedThread || !connectedAccount) return;
 
+    // Check permissions (unless GM mode)
+    if (!isGMMode && selectedThread.assignedTo && selectedThread.assignedTo !== userCode) {
+      alert(`⚠️ Nu poți scrie! Client alocat lui ${selectedThread.assignedTo}`);
+      return;
+    }
+
     setSending(true);
 
     try {
       // Generate deterministic requestId for idempotency
       const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // If thread is unassigned, assign it to current user (unless GM)
+      if (!selectedThread.assignedTo && userCode && !isGMMode) {
+        await updateDoc(doc(db, 'threads', selectedThread.id), {
+          assignedTo: userCode,
+          assignedAt: serverTimestamp(),
+        });
+        console.log(`✅ Thread assigned to ${userCode}`);
+      }
       
       // Create outbox document with requestId as docId (idempotent)
       const outboxData = {
@@ -262,14 +316,78 @@ function ChatClientiRealtime() {
           style={{
             padding: '1rem',
             borderBottom: '1px solid #374151',
-            fontWeight: '600',
-            color: 'white',
           }}
         >
-          💬 Conversații ({threads.length})
+          <div style={{ fontWeight: '600', color: 'white', marginBottom: '0.75rem' }}>
+            💬 Conversații ({filteredThreads.length})
+          </div>
+          
+          {/* Filters - only show if userCode is provided */}
+          {userCode && (
+            <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => setFilter('my')}
+                style={{
+                  padding: '0.375rem 0.75rem',
+                  fontSize: '0.75rem',
+                  background: filter === 'my' ? '#3b82f6' : '#374151',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                Ai mei
+              </button>
+              <button
+                onClick={() => setFilter('team')}
+                style={{
+                  padding: '0.375rem 0.75rem',
+                  fontSize: '0.75rem',
+                  background: filter === 'team' ? '#3b82f6' : '#374151',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                Echipa
+              </button>
+              {isGMMode && (
+                <button
+                  onClick={() => setFilter('unassigned')}
+                  style={{
+                    padding: '0.375rem 0.75rem',
+                    fontSize: '0.75rem',
+                    background: filter === 'unassigned' ? '#3b82f6' : '#374151',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Nealocați
+                </button>
+              )}
+              <button
+                onClick={() => setFilter('all')}
+                style={{
+                  padding: '0.375rem 0.75rem',
+                  fontSize: '0.75rem',
+                  background: filter === 'all' ? '#3b82f6' : '#374151',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                Toți
+              </button>
+            </div>
+          )}
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {threads.map(thread => (
+          {filteredThreads.map(thread => (
             <div
               key={thread.id}
               onClick={() => handleThreadSelect(thread)}
@@ -291,8 +409,19 @@ function ChatClientiRealtime() {
                 }
               }}
             >
-              <div style={{ fontWeight: '500', color: 'white', marginBottom: '0.25rem' }}>
-                {thread.clientJid?.split('@')[0] || 'Unknown'}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                <div style={{ fontWeight: '500', color: 'white' }}>
+                  {thread.clientJid?.split('@')[0] || 'Unknown'}
+                </div>
+                {thread.assignedTo ? (
+                  <div style={{ fontSize: '0.625rem', padding: '0.125rem 0.375rem', background: '#10b981', borderRadius: '4px', color: 'white' }}>
+                    {thread.assignedTo}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.625rem', padding: '0.125rem 0.375rem', background: '#f59e0b', borderRadius: '4px', color: 'white' }}>
+                    Nealoctat
+                  </div>
+                )}
               </div>
               <div
                 style={{
@@ -377,47 +506,65 @@ function ChatClientiRealtime() {
             </div>
 
             {/* Input */}
-            <div
-              style={{
-                padding: '1rem',
-                borderTop: '1px solid #374151',
-                display: 'flex',
-                gap: '0.5rem',
-              }}
-            >
-              <input
-                type="text"
-                value={newMessage}
-                onChange={e => setNewMessage(e.target.value)}
-                onKeyPress={e => e.key === 'Enter' && sendMessage()}
-                placeholder="Scrie un mesaj..."
-                disabled={sending}
+            {(isGMMode || !selectedThread.assignedTo || selectedThread.assignedTo === userCode) ? (
+              <div
                 style={{
-                  flex: 1,
-                  padding: '0.75rem',
-                  borderRadius: '8px',
-                  border: '1px solid #374151',
-                  background: '#111827',
-                  color: 'white',
-                  outline: 'none',
-                }}
-              />
-              <button
-                onClick={sendMessage}
-                disabled={sending || !newMessage.trim()}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: sending || !newMessage.trim() ? '#4b5563' : '#3b82f6',
-                  color: 'white',
-                  cursor: sending || !newMessage.trim() ? 'not-allowed' : 'pointer',
-                  fontWeight: '500',
+                  padding: '1rem',
+                  borderTop: '1px solid #374151',
+                  display: 'flex',
+                  gap: '0.5rem',
                 }}
               >
-                {sending ? '⏳' : '📤'}
-              </button>
-            </div>
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={e => setNewMessage(e.target.value)}
+                  onKeyPress={e => e.key === 'Enter' && sendMessage()}
+                  placeholder={
+                    !selectedThread.assignedTo 
+                      ? "Scrie mesaj... (vei prelua clientul)" 
+                      : "Scrie un mesaj..."
+                  }
+                  disabled={sending}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #374151',
+                    background: '#111827',
+                    color: 'white',
+                    outline: 'none',
+                  }}
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={sending || !newMessage.trim()}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: sending || !newMessage.trim() ? '#4b5563' : '#3b82f6',
+                    color: 'white',
+                    cursor: sending || !newMessage.trim() ? 'not-allowed' : 'pointer',
+                    fontWeight: '500',
+                  }}
+                >
+                  {sending ? '⏳' : '📤'}
+                </button>
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: '1rem',
+                  borderTop: '1px solid #374151',
+                  textAlign: 'center',
+                  color: '#94a3b8',
+                  background: '#1f2937',
+                }}
+              >
+                🔒 Client alocat lui <strong>{selectedThread.assignedTo}</strong>. Doar vizualizare.
+              </div>
+            )}
           </>
         ) : (
           <div

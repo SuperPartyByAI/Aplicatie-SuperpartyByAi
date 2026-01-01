@@ -1,11 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import ChatClientiRealtime from '../components/ChatClientiRealtime';
 
 function ChatClientiScreen() {
   const navigate = useNavigate();
   const currentUser = auth.currentUser;
+  const [userCode, setUserCode] = useState(null);
+  const [loading, setLoading] = useState(true);
   
   // Allow access for GM and Admin
   const hasAccess = currentUser?.email === 'ursache.andrei1995@gmail.com' || 
@@ -17,9 +20,25 @@ function ChatClientiScreen() {
       navigate('/home');
       return;
     }
-  }, [hasAccess, navigate]);
 
-  if (!hasAccess) {
+    // Load user's code from Firestore
+    const loadUserCode = async () => {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDoc.exists()) {
+          setUserCode(userDoc.data().code);
+        }
+      } catch (error) {
+        console.error('Error loading user code:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserCode();
+  }, [hasAccess, navigate, currentUser]);
+
+  if (!hasAccess || loading) {
     return null;
   }
 
@@ -35,9 +54,9 @@ function ChatClientiScreen() {
           }}
         >
           <div>
-            <h1>💬 Chat Clienti - WhatsApp</h1>
+            <h1>💬 Chat Clienti - WhatsApp (GM)</h1>
             <p className="page-subtitle">
-              Conversații cu clienții prin WhatsApp
+              FULL CONTROL - Toate conversațiile WhatsApp
             </p>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -55,7 +74,7 @@ function ChatClientiScreen() {
         </div>
       </div>
 
-      <ChatClientiRealtime />
+      <ChatClientiRealtime isGMMode={true} userCode={userCode} />
     </div>
   );
 }
