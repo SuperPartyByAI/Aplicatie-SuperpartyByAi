@@ -486,6 +486,7 @@ async function createConnection(accountId, name, phone) {
     // Note: Store binding not required in Baileys 6.7.21
     // Events emit directly from sock.ev
     console.log(`📦 [${accountId}] Socket events configured`);
+    console.log(`📦 [${accountId}] messages.upsert listeners: ${sock.ev.listenerCount('messages.upsert')}`);
 
     // Save to Firestore
     await saveAccountToFirestore(accountId, {
@@ -768,8 +769,9 @@ async function createConnection(accountId, name, phone) {
     // Messages handler
     sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
       console.log(
-        `🔔 [${accountId}] messages.upsert EVENT: type=${type}, count=${newMessages.length}`
+        `🔔🔔🔔 [${accountId}] messages.upsert EVENT TRIGGERED: type=${type}, count=${newMessages.length}, timestamp=${new Date().toISOString()}`
       );
+      console.log(`🔔 [${accountId}] Account status: ${account?.status}, Socket exists: ${!!sock}`);
 
       for (const msg of newMessages) {
         console.log(
