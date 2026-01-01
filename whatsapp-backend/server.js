@@ -768,12 +768,15 @@ async function createConnection(accountId, name, phone) {
 
     // Messages handler
     sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
-      console.log(
-        `🔔🔔🔔 [${accountId}] messages.upsert EVENT TRIGGERED: type=${type}, count=${newMessages.length}, timestamp=${new Date().toISOString()}`
-      );
-      console.log(`🔔 [${accountId}] Account status: ${account?.status}, Socket exists: ${!!sock}`);
+      try {
+        console.log(
+          `🔔🔔🔔 [${accountId}] messages.upsert EVENT TRIGGERED: type=${type}, count=${newMessages.length}, timestamp=${new Date().toISOString()}`
+        );
+        console.log(`🔔 [${accountId}] Account status: ${account?.status}, Socket exists: ${!!sock}`);
+        console.log(`🔔 [${accountId}] Firestore available: ${firestoreAvailable}, DB exists: ${!!db}`);
 
       for (const msg of newMessages) {
+        try {
         console.log(
           `📩 [${accountId}] RAW MESSAGE:`,
           JSON.stringify({
@@ -845,6 +848,8 @@ async function createConnection(accountId, name, phone) {
             console.log(`💾 [${accountId}] Message saved to Firestore: ${messageId}`);
           } catch (error) {
             console.error(`❌ [${accountId}] Message save failed:`, error.message);
+            console.error(`❌ [${accountId}] Error stack:`, error.stack);
+            console.error(`❌ [${accountId}] Error details:`, JSON.stringify(error, null, 2));
           }
         } else {
           console.log(`⚠️  [${accountId}] Firestore not available, message not persisted`);
@@ -1067,6 +1072,39 @@ app.get('/api/cache/stats', async (req, res) => {
       error: 'Failed to get cache stats',
     });
   }
+});
+
+// Debug endpoint for event listeners
+app.get('/debug/listeners/:accountId', (req, res) => {
+  const { accountId } = req.params;
+  const account = connections.get(accountId);
+  
+  if (!account) {
+    return res.status(404).json({ error: 'Account not found' });
+  }
+  
+  const sock = account.sock;
+  if (!sock) {
+    return res.json({ error: 'Socket not found', account: { id: accountId, status: account.status } });
+  }
+  
+  res.json({
+    accountId,
+    status: account.status,
+    socketExists: !!sock,
+    eventListeners: {
+      'messages.upsert': sock.ev.listenerCount('messages.upsert'),
+      'connection.update': sock.ev.listenerCount('connection.update'),
+      'creds.update': sock.ev.listenerCount('creds.update'),
+      'messages.update': sock.ev.listenerCount('messages.update'),
+    },
+    accountDetails: {
+      name: account.name,
+      phone: account.phone,
+      createdAt: account.createdAt,
+      lastUpdate: account.lastUpdate,
+    }
+  });
 });
 
 app.get('/health', async (req, res) => {
