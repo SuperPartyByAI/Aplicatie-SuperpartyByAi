@@ -572,7 +572,7 @@ function HomeScreen() {
     if (lowerMsg === 'gm' || lowerMsg === 'g m' || lowerMsg.includes('modul gm')) {
       setGmMode(true);
       setCurrentView('gm-conversations');
-      return '🎮 Modul GM activat! Vezi conversațiile userilor în panoul din stânga.';
+      return null; // No message in chat
     }
 
     // Comandă alocare AI
@@ -712,7 +712,7 @@ function HomeScreen() {
       if (userEmail === adminEmail) {
         setAdminMode(true);
         setCurrentView('admin-kyc');
-        return '✅ Mod Admin activat! Verifică sidebar-ul - ai acum acces la:\n• 👥 Admin KYC\n• 💬 Conversații AI\n\n💡 Pentru a ieși din modul admin, apasă "Ieși din Admin" din sidebar.';
+        return null; // No message in chat
       } else {
         return '⛔ Acces interzis. Doar administratorul poate accesa Admin Panel.';
       }
@@ -735,7 +735,7 @@ function HomeScreen() {
       if (userEmail === adminEmail) {
         setGmMode(true);
         setCurrentView('gm-overview');
-        return '✅ Mod GM activat! Verifică sidebar-ul - ai acum acces la:\n• 🎮 GM Overview\n• 📊 Analytics\n\n💡 Pentru a ieși din modul GM, apasă "Ieși din GM" din sidebar.';
+        return null; // No message in chat
       } else {
         return '⛔ Acces interzis. Doar administratorul poate accesa GM Mode.';
       }
@@ -825,8 +825,12 @@ ${perf.tasksOverdue > 0 ? `⚠️ Ai ${perf.tasksOverdue} task-uri în întârzi
     // Verifică comenzi directe (doar dacă nu sunt imagini)
     if (images.length === 0) {
       const commandResponse = await processCommand(userMessage);
-      if (commandResponse) {
+      if (commandResponse !== undefined && commandResponse !== null) {
+        // Only add message if response is not null (null = silent command like GM/Admin mode)
         setMessages(prev => [...prev, { role: 'assistant', content: commandResponse }]);
+        return;
+      } else if (commandResponse === null) {
+        // Silent command executed, don't add any message
         return;
       }
     }
