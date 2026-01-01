@@ -1571,7 +1571,7 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
     // Try cache first (if enabled)
     if (featureFlags.isEnabled('API_CACHING')) {
       const cacheKey = 'whatsapp:accounts';
-      const cached = cache.get(cacheKey);
+      const cached = await cache.get(cacheKey);
 
       if (cached) {
         return res.json({ success: true, accounts: cached, cached: true });
@@ -1595,7 +1595,7 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
     // Cache if enabled
     if (featureFlags.isEnabled('API_CACHING')) {
       const ttl = featureFlags.get('CACHE_TTL_SECONDS', 30) * 1000;
-      cache.set('whatsapp:accounts', accounts, ttl);
+      await cache.set('whatsapp:accounts', accounts, ttl);
     }
 
     res.json({ success: true, accounts, cached: false });
