@@ -588,25 +588,29 @@ function ChatClientiRealtime({
                   disabled={sending}
                   style={{
                     flex: 1,
-                    padding: '0.75rem',
+                    padding: '1rem 1.25rem',
                     borderRadius: '8px',
                     border: '1px solid #374151',
                     background: '#111827',
                     color: 'white',
                     outline: 'none',
+                    fontSize: '1rem',
+                    minHeight: '48px',
                   }}
                 />
                 <button
                   onClick={sendMessage}
                   disabled={sending || !newMessage.trim()}
                   style={{
-                    padding: '0.75rem 1.5rem',
+                    padding: '0.75rem 1rem',
                     borderRadius: '8px',
                     border: 'none',
                     background: sending || !newMessage.trim() ? '#4b5563' : '#3b82f6',
                     color: 'white',
                     cursor: sending || !newMessage.trim() ? 'not-allowed' : 'pointer',
                     fontWeight: '500',
+                    minHeight: '48px',
+                    minWidth: '60px',
                   }}
                 >
                   {sending ? '⏳' : '📤'}

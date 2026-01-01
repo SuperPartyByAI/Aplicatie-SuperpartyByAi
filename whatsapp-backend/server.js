@@ -3778,8 +3778,8 @@ app.listen(PORT, '0.0.0.0', async () => {
   // Start lease refresh
   startLeaseRefresh();
 
-  // Start outbox worker (process queued messages every 5 seconds)
-  const OUTBOX_WORKER_INTERVAL = 5000;
+  // Start outbox worker (process queued messages every 2 seconds)
+  const OUTBOX_WORKER_INTERVAL = 2000;
   const MAX_RETRY_ATTEMPTS = 5;
   
   setInterval(async () => {
