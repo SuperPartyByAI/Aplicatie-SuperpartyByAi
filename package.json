@@ -14,7 +14,11 @@
     "test": "node monitoring/test-recovery.js",
     "demo": "node monitoring/demo-auto-repair.js",
     "chaos": "node -e \"const UltimateMonitor = require('./monitoring/ultimate-monitor'); const m = new UltimateMonitor(); m.runChaosTest();\"",
-    "ci:status": "./scripts/ci-status.sh"
+    "ci:status": "./scripts/ci-status.sh",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@logtail/node": "^0.5.6",
@@ -47,5 +51,12 @@
     "chaos-engineering",
     "canary-deployment",
     "perfect"
-  ]
+  ],
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.7.4"
+  }
 }

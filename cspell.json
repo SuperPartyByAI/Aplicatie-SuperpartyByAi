@@ -1,0 +1,43 @@
+{
+  "version": "0.2",
+  "language": "en,ro",
+  "words": [
+    "Aplicatie",
+    "SuperpartyByAi",
+    "Logtail",
+    "Sentry",
+    "Firestore",
+    "Baileys",
+    "whatsapp",
+    "accountid",
+    "qrcode",
+    "twilio",
+    "openai",
+    "elevenlabs",
+    "pino",
+    "socketio",
+    "vite",
+    "eslint",
+    "prettierrc",
+    "gitpod",
+    "devcontainer",
+    "Railway",
+    "Firebase",
+    "soferi",
+    "evenimente",
+    "disponibilitate",
+    "salarizare",
+    "centrala",
+    "telefonica"
+  ],
+  "ignorePaths": [
+    "node_modules/**",
+    "dist/**",
+    "build/**",
+    ".git/**",
+    "package-lock.json",
+    "*.min.js",
+    ".baileys_auth/**",
+    "coverage/**"
+  ]
+}

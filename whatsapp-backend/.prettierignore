@@ -1,0 +1,9 @@
+node_modules
+dist
+build
+.firebase
+coverage
+*.min.js
+package-lock.json
+.git
+.baileys_auth

@@ -1,5 +1,6 @@
 import js from '@eslint/js';
 import globals from 'globals';
+import prettier from 'eslint-plugin-prettier';
 
 export default [
   js.configs.recommended,
@@ -12,9 +13,25 @@ export default [
         ...globals.es2021,
       },
     },
+    plugins: {
+      prettier,
+    },
     rules: {
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      // Prettier integration
+      'prettier/prettier': 'error',
+
+      // Error prevention
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'no-console': 'off',
+      'no-undef': 'error',
+
+      // React specific
+      'react/prop-types': 'off', // Using TypeScript or runtime validation
+
+      // Best practices
+      eqeqeq: ['error', 'always'],
+      'no-var': 'error',
+      'prefer-const': 'warn',
     },
   },
   {
