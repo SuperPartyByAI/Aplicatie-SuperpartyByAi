@@ -1203,32 +1203,47 @@ app.get('/debug/listeners/:accountId', (req, res) => {
     });
   }
 
-  const evListeners = sock.ev._events || {};
+  // Check multiple possible event emitter structures
+  const evListeners = sock.ev._events || sock.ev.events || {};
+  const evEmitter = sock.ev;
+
+  // Helper to count listeners
+  const countListeners = eventName => {
+    // Try direct _events access
+    if (evListeners[eventName]) {
+      return Array.isArray(evListeners[eventName]) ? evListeners[eventName].length : 1;
+    }
+
+    // Try listenerCount method (EventEmitter standard)
+    if (typeof evEmitter.listenerCount === 'function') {
+      return evEmitter.listenerCount(eventName);
+    }
+
+    // Try listeners method
+    if (typeof evEmitter.listeners === 'function') {
+      const listeners = evEmitter.listeners(eventName);
+      return Array.isArray(listeners) ? listeners.length : 0;
+    }
+
+    return 0;
+  };
+
   res.json({
     accountId,
     status: account.status,
     socketExists: !!sock,
     eventListeners: {
-      'messages.upsert': Array.isArray(evListeners['messages.upsert'])
-        ? evListeners['messages.upsert'].length
-        : evListeners['messages.upsert']
-          ? 1
-          : 0,
-      'connection.update': Array.isArray(evListeners['connection.update'])
-        ? evListeners['connection.update'].length
-        : evListeners['connection.update']
-          ? 1
-          : 0,
-      'creds.update': Array.isArray(evListeners['creds.update'])
-        ? evListeners['creds.update'].length
-        : evListeners['creds.update']
-          ? 1
-          : 0,
-      'messages.update': Array.isArray(evListeners['messages.update'])
-        ? evListeners['messages.update'].length
-        : evListeners['messages.update']
-          ? 1
-          : 0,
+      'messages.upsert': countListeners('messages.upsert'),
+      'connection.update': countListeners('connection.update'),
+      'creds.update': countListeners('creds.update'),
+      'messages.update': countListeners('messages.update'),
+    },
+    debug: {
+      evType: evEmitter.constructor.name,
+      hasListenerCount: typeof evEmitter.listenerCount === 'function',
+      hasListeners: typeof evEmitter.listeners === 'function',
+      evKeys: Object.keys(evEmitter).slice(0, 10),
+      _eventsKeys: Object.keys(evListeners).slice(0, 10),
     },
     accountDetails: {
       name: account.name,
