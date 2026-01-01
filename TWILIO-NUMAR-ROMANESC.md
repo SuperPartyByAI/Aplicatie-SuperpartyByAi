@@ -5,7 +5,7 @@
 **Număr:** +40373805828  
 **Provider:** Twilio  
 **Tip:** Voice-enabled  
-**Status:** Active  
+**Status:** Active
 
 ---
 
@@ -22,6 +22,7 @@
 Scroll la secțiunea **Voice Configuration** și configurează:
 
 #### **A call comes in:**
+
 ```
 Configure with: Webhook
 URL: https://web-production-f0714.up.railway.app/api/voice/incoming
@@ -29,6 +30,7 @@ HTTP Method: HTTP POST
 ```
 
 #### **Primary handler fails:**
+
 ```
 Configure with: Webhook
 URL: https://web-production-f0714.up.railway.app/api/voice/incoming
@@ -36,12 +38,14 @@ HTTP Method: HTTP POST
 ```
 
 #### **Call status changes:**
+
 ```
 URL: https://web-production-f0714.up.railway.app/api/voice/status
 HTTP Method: HTTP POST
 ```
 
 #### **Caller Name Lookup:**
+
 ```
 Status: Disabled
 ```
@@ -55,11 +59,13 @@ Click **Save** jos de tot pe pagină.
 ## 🧪 Testare
 
 ### Test 1: Verifică Backend
+
 ```bash
 curl https://web-production-f0714.up.railway.app/health
 ```
 
 **Răspuns așteptat:**
+
 ```json
 {
   "status": "healthy",
@@ -69,11 +75,13 @@ curl https://web-production-f0714.up.railway.app/health
 ```
 
 ### Test 2: Sună la Numărul Românesc
+
 ```
 Sună la: +40373805828
 ```
 
 **Ar trebui să auzi:**
+
 > "Bună ziua, SuperParty, cu ce vă ajut?"
 
 Cu voce **ElevenLabs (PREMIUM)** - naturală și profesională.
@@ -85,11 +93,12 @@ Cu voce **ElevenLabs (PREMIUM)** - naturală și profesională.
 3. Click **Deployments** → **View Logs**
 
 **Ar trebui să vezi:**
+
 ```
-[Twilio] Incoming call: { 
-  callSid: 'CA...', 
-  from: '+40...', 
-  to: '+40373805828' 
+[Twilio] Incoming call: {
+  callSid: 'CA...',
+  from: '+40...',
+  to: '+40373805828'
 }
 [VoiceAI] Initialized with OpenAI
 [ElevenLabs] Generating speech...
@@ -107,40 +116,40 @@ Cu voce **ElevenLabs (PREMIUM)** - naturală și profesională.
 
 ### Număr Românesc Twilio (Prețuri Oficiale):
 
-| Item | Cost | Sursa |
-|------|------|-------|
-| Număr lunar | $1.00-2.00/lună | Twilio |
-| Apel incoming | $0.0085/min | Twilio oficial |
-| OpenAI GPT-4o | $0.006/apel (2 min) | ~1,400 tokens |
-| ElevenLabs | $0.06-0.11/apel (2 min) | Depinde de plan |
-| **Total per apel** | **$0.08-0.13** | **REAL** |
+| Item               | Cost                    | Sursa           |
+| ------------------ | ----------------------- | --------------- |
+| Număr lunar        | $1.00-2.00/lună         | Twilio          |
+| Apel incoming      | $0.0085/min             | Twilio oficial  |
+| OpenAI GPT-4o      | $0.006/apel (2 min)     | ~1,400 tokens   |
+| ElevenLabs         | $0.06-0.11/apel (2 min) | Depinde de plan |
+| **Total per apel** | **$0.08-0.13**          | **REAL**        |
 
 ### Breakdown per Plan ElevenLabs:
 
-| Plan | Cost ElevenLabs | Total/apel | Recomandat pentru |
-|------|-----------------|------------|-------------------|
-| Creator ($22/lună) | $0.11 | **$0.13** | 0-200 apeluri/lună |
-| Pro ($99/lună) | $0.10 | **$0.12** | 200-1000 apeluri/lună |
-| Business ($1,320/lună) | $0.06 | **$0.08** | 5000+ apeluri/lună |
+| Plan                   | Cost ElevenLabs | Total/apel | Recomandat pentru     |
+| ---------------------- | --------------- | ---------- | --------------------- |
+| Creator ($22/lună)     | $0.11           | **$0.13**  | 0-200 apeluri/lună    |
+| Pro ($99/lună)         | $0.10           | **$0.12**  | 200-1000 apeluri/lună |
+| Business ($1,320/lună) | $0.06           | **$0.08**  | 5000+ apeluri/lună    |
 
 ### Opțiune Economică (Coqui XTTS):
 
-| Item | Cost |
-|------|------|
-| Twilio RO | $0.017/apel |
-| OpenAI GPT-4o-mini | $0.0003/apel |
+| Item                     | Cost                     |
+| ------------------------ | ------------------------ |
+| Twilio RO                | $0.017/apel              |
+| OpenAI GPT-4o-mini       | $0.0003/apel             |
 | Coqui XTTS (self-hosted) | $0.00 (Railway $10/lună) |
-| **Total per apel** | **~$0.02** |
+| **Total per apel**       | **~$0.02**               |
 
 **Trade-off:** Calitate voce mai slabă, AI mai puțin inteligent
 
 ### Comparație Costuri per 100 Apeluri:
 
-| Configurație | Cost/apel | Cost 100 apeluri | Cost lunar total |
-|--------------|-----------|------------------|------------------|
-| ElevenLabs Creator + GPT-4o | $0.13 | $13 | **$36** |
-| ElevenLabs Pro + GPT-4o | $0.12 | $12 | **$112** |
-| Coqui + GPT-4o-mini | $0.02 | $2 | **$13** |
+| Configurație                | Cost/apel | Cost 100 apeluri | Cost lunar total |
+| --------------------------- | --------- | ---------------- | ---------------- |
+| ElevenLabs Creator + GPT-4o | $0.13     | $13              | **$36**          |
+| ElevenLabs Pro + GPT-4o     | $0.12     | $12              | **$112**         |
+| Coqui + GPT-4o-mini         | $0.02     | $2               | **$13**          |
 
 ⚠️ **Notă:** Costurile variază MULT în funcție de volum și plan ales.
 
@@ -151,11 +160,13 @@ Cu voce **ElevenLabs (PREMIUM)** - naturală și profesională.
 ## 🎯 Avantaje Număr Românesc
 
 ### Pentru Clienți:
+
 - ✅ Apel local (fără costuri internaționale)
 - ✅ Încredere mai mare (număr local)
 - ✅ Latență mai mică (~50-100ms vs 150-200ms)
 
 ### Pentru Business:
+
 - ✅ Cost mai mic per apel (-28%)
 - ✅ Conversie mai mare (oamenii sună mai ușor)
 - ✅ Profesional (număr local)
@@ -216,8 +227,10 @@ Cu voce **ElevenLabs (PREMIUM)** - naturală și profesională.
 ## ❌ Troubleshooting
 
 ### Problema: "Webhook Error" în Twilio
+
 **Cauză:** Backend nu răspunde  
 **Soluție:**
+
 ```bash
 # Verifică backend
 curl https://web-production-f0714.up.railway.app/health
@@ -227,16 +240,20 @@ Railway → Deployments → View Logs
 ```
 
 ### Problema: Apelul se închide imediat
+
 **Cauză:** Eroare în TwiML response  
 **Soluție:**
+
 ```bash
 # Verifică logs Railway pentru erori
 # Caută: "[Twilio] Error" sau "[VoiceAI] Error"
 ```
 
 ### Problema: Nu se aude vocea
+
 **Cauză:** ElevenLabs API key invalid  
 **Soluție:**
+
 ```bash
 # Verifică variabila în Railway
 ELEVENLABS_API_KEY=...
@@ -246,8 +263,10 @@ https://elevenlabs.io/
 ```
 
 ### Problema: AI nu răspunde corect
+
 **Cauză:** OpenAI API key invalid  
 **Soluție:**
+
 ```bash
 # Verifică variabila în Railway
 OPENAI_API_KEY=sk-...
@@ -261,21 +280,25 @@ https://platform.openai.com/usage
 ## 🚀 Next Steps
 
 ### 1. Configurează Webhook-urile (5 min)
+
 - Mergi la Twilio Console
 - Configurează cele 3 webhook-uri
 - Salvează
 
 ### 2. Testează (2 min)
+
 - Sună la +40373805828
 - Verifică că AI răspunde
 - Testează conversație
 
 ### 3. Verifică Logs (2 min)
+
 - Railway logs
 - Twilio logs
 - Caută erori
 
 ### 4. Promovează Numărul (continuu)
+
 - Update website cu +40373805828
 - Update social media
 - Update materiale marketing
@@ -288,7 +311,7 @@ https://platform.openai.com/usage
 **Backend:** https://web-production-f0714.up.railway.app  
 **Voice Engine:** ElevenLabs (PREMIUM)  
 **AI Engine:** OpenAI GPT-4o  
-**Cost:** ~$0.034 per apel (2 min)  
+**Cost:** ~$0.034 per apel (2 min)
 
 ---
 

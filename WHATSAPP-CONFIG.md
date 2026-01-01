@@ -3,6 +3,7 @@
 ## Firebase Configuration
 
 ### Project Details
+
 ```json
 {
   "projectId": "superparty-frontend",
@@ -14,6 +15,7 @@
 ```
 
 ### URLs
+
 ```
 Production: https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 Health Check: https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/
@@ -52,12 +54,14 @@ API Base: https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/ap
 ## Environment Variables
 
 ### Firebase Functions (nu necesită .env)
+
 ```bash
 # Toate configurările sunt în firebase.json și .firebaserc
 # Firebase Admin SDK se autentifică automat în Cloud Functions
 ```
 
 ### Local Development (opțional)
+
 ```bash
 # .env (dacă rulezi local)
 FIREBASE_PROJECT_ID=superparty-frontend
@@ -69,6 +73,7 @@ GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json
 ## Firestore Collections
 
 ### whatsapp_sessions
+
 ```javascript
 {
   "accountId": "account_1766951966844",
@@ -86,6 +91,7 @@ GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json
 ```
 
 ### whatsapp_messages (opțional)
+
 ```javascript
 {
   "accountId": "account_xxx",
@@ -101,6 +107,7 @@ GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json
 ## Baileys Configuration
 
 ### Socket Options
+
 ```javascript
 {
   auth: state,
@@ -123,6 +130,7 @@ GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json
 ## Rate Limits
 
 ### WhatsApp Limits (estimat)
+
 ```
 Messages per second: ~1-2
 Messages per minute: ~60
@@ -131,6 +139,7 @@ Messages per day: ~10000
 ```
 
 ### Implemented Limits
+
 ```javascript
 {
   minDelay: 2000,        // 2 seconds between messages
@@ -145,6 +154,7 @@ Messages per day: ~10000
 ## Session Storage
 
 ### Local (Development)
+
 ```
 Path: .baileys_auth/
 Structure:
@@ -156,6 +166,7 @@ Structure:
 ```
 
 ### Cloud (Production)
+
 ```
 Firestore: whatsapp_sessions collection
 Cloud Storage: gs://superparty-frontend.appspot.com/whatsapp-sessions/
@@ -166,12 +177,14 @@ Cloud Storage: gs://superparty-frontend.appspot.com/whatsapp-sessions/
 ## Monitoring & Logging
 
 ### Firebase Console
+
 ```
 URL: https://console.firebase.google.com/project/superparty-frontend/functions
 Logs: https://console.firebase.google.com/project/superparty-frontend/logs
 ```
 
 ### Log Levels
+
 ```javascript
 {
   error: 'Connection failures, send errors',
@@ -186,6 +199,7 @@ Logs: https://console.firebase.google.com/project/superparty-frontend/logs
 ## Security
 
 ### CORS Configuration
+
 ```javascript
 {
   origin: true,  // Allow all origins (adjust for production)
@@ -195,12 +209,13 @@ Logs: https://console.firebase.google.com/project/superparty-frontend/logs
 ```
 
 ### Authentication (TODO)
+
 ```javascript
 // Add Firebase Auth middleware
 app.use(async (req, res, next) => {
   const token = req.headers.authorization?.split('Bearer ')[1];
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
-  
+
   try {
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = decodedToken;
@@ -216,6 +231,7 @@ app.use(async (req, res, next) => {
 ## Backup & Recovery
 
 ### Session Backup
+
 ```javascript
 // Auto-backup every 5 minutes
 setInterval(async () => {
@@ -226,6 +242,7 @@ setInterval(async () => {
 ```
 
 ### Recovery on Restart
+
 ```javascript
 // Auto-restore on Cloud Function cold start
 async autoRestoreSessions() {
@@ -243,6 +260,7 @@ async autoRestoreSessions() {
 ## Performance Optimization
 
 ### Connection Pooling
+
 ```javascript
 {
   maxAccounts: 20,
@@ -253,6 +271,7 @@ async autoRestoreSessions() {
 ```
 
 ### Message Queue
+
 ```javascript
 {
   batchSize: 10,
@@ -267,6 +286,7 @@ async autoRestoreSessions() {
 ## Testing
 
 ### Local Testing
+
 ```bash
 # Start emulator
 firebase emulators:start --only functions
@@ -276,6 +296,7 @@ curl http://localhost:5001/superparty-frontend/us-central1/whatsapp/
 ```
 
 ### Production Testing
+
 ```bash
 # Health check
 curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/
@@ -291,22 +312,26 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ## Troubleshooting Commands
 
 ### Check Function Status
+
 ```bash
 firebase functions:list
 ```
 
 ### View Logs
+
 ```bash
 firebase functions:log --only whatsapp
 firebase functions:log --only whatsapp --follow
 ```
 
 ### Redeploy
+
 ```bash
 firebase deploy --only functions:whatsapp
 ```
 
 ### Delete Function
+
 ```bash
 firebase functions:delete whatsapp
 ```
@@ -316,6 +341,7 @@ firebase functions:delete whatsapp
 ## Cost Estimation
 
 ### Firebase Functions (Gen 1)
+
 ```
 Invocations: Free tier 2M/month
 Compute time: Free tier 400,000 GB-seconds/month
@@ -325,6 +351,7 @@ Estimated cost for 10,000 messages/day: ~$0-5/month
 ```
 
 ### Firestore
+
 ```
 Reads: Free tier 50,000/day
 Writes: Free tier 20,000/day
@@ -334,6 +361,7 @@ Estimated cost: ~$0-1/month
 ```
 
 ### Total Estimated Cost
+
 ```
 Development: $0/month (free tier)
 Production (low volume): $5-10/month
@@ -345,21 +373,26 @@ Production (high volume): $20-50/month
 ## Migration to Gen 2 (Future)
 
 ### Benefits
+
 - Longer timeout (540s vs 60s)
 - Better cold start performance
 - More memory options
 - Better scaling
 
 ### Migration Steps
+
 ```javascript
 // Change in index.js
 const { onRequest } = require('firebase-functions/v2/https');
 
-exports.whatsapp = onRequest({
-  timeoutSeconds: 540,
-  memory: '512MiB',
-  maxInstances: 10
-}, app);
+exports.whatsapp = onRequest(
+  {
+    timeoutSeconds: 540,
+    memory: '512MiB',
+    maxInstances: 10,
+  },
+  app
+);
 ```
 
 ---

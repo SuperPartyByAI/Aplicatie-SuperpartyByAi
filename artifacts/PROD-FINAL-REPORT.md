@@ -8,14 +8,14 @@
 
 ## DOD CHECKLIST - FINAL STATUS
 
-| DoD | Status | Evidence | Metric |
-|-----|--------|----------|--------|
-| DoD-1: Deploy + Health OK | ✅ PASS | /health returns 200, version 2.0.0, commit 8cb141f6 | uptime: 14s |
-| DoD-2: QR/Pairing REAL | ✅ PASS | QR generated in 30s, 6335+ bytes | generation time: 30s |
-| DoD-3: Min 1 Connected | ✅ PASS | account_1767014419146 connected, phone 40737571397 | Firestore status: connected |
-| DoD-4: MTTR < 60s P95 | ✅ PASS | Initial connection MTTR: 2.4s | P95: 2.4s < 60s |
-| DoD-5: Message Queue | ✅ PASS | 3 messages sent successfully | delivery: 100% |
-| DoD-6: Soak Test 2h | ⏳ RUNNING | Script created, requires 2h execution | target: >99% uptime |
+| DoD                       | Status     | Evidence                                            | Metric                      |
+| ------------------------- | ---------- | --------------------------------------------------- | --------------------------- |
+| DoD-1: Deploy + Health OK | ✅ PASS    | /health returns 200, version 2.0.0, commit 8cb141f6 | uptime: 14s                 |
+| DoD-2: QR/Pairing REAL    | ✅ PASS    | QR generated in 30s, 6335+ bytes                    | generation time: 30s        |
+| DoD-3: Min 1 Connected    | ✅ PASS    | account_1767014419146 connected, phone 40737571397  | Firestore status: connected |
+| DoD-4: MTTR < 60s P95     | ✅ PASS    | Initial connection MTTR: 2.4s                       | P95: 2.4s < 60s             |
+| DoD-5: Message Queue      | ✅ PASS    | 3 messages sent successfully                        | delivery: 100%              |
+| DoD-6: Soak Test 2h       | ⏳ RUNNING | Script created, requires 2h execution               | target: >99% uptime         |
 
 **Current Score:** 5/6 PASS (83%), 1 RUNNING
 
@@ -28,6 +28,7 @@
 **URL:** https://whats-upp-production.up.railway.app
 
 **curl /health:**
+
 ```json
 {
   "status": "healthy",
@@ -57,6 +58,7 @@
 ### DoD-3: Connected Account
 
 **API Response:**
+
 ```json
 {
   "id": "account_1767014419146",
@@ -69,6 +71,7 @@
 ```
 
 **Firestore Data:**
+
 ```json
 {
   "status": "connected",
@@ -81,6 +84,7 @@
 ### DoD-4: MTTR
 
 **Initial Connection:**
+
 - Created: 2025-12-29T13:24:35.721Z
 - Connected: 2025-12-29T13:24:38.110Z
 - **MTTR: 2.389s**
@@ -90,6 +94,7 @@
 ### DoD-5: Message Queue
 
 **Test:** 3 messages sent to +40700999999
+
 - Message 1: ✅ Sent
 - Message 2: ✅ Sent
 - Message 3: ✅ Sent

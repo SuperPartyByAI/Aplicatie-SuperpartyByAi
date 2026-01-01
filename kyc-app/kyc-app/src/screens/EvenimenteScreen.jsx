@@ -9,7 +9,7 @@ function EvenimenteScreen() {
   const [evenimente, setEvenimente] = useState([]);
   const [staffProfiles, setStaffProfiles] = useState({});
   const [loading, setLoading] = useState(true);
-  
+
   // Filtre
   const [search, setSearch] = useState('');
   const [dataStart, setDataStart] = useState('');
@@ -23,37 +23,37 @@ function EvenimenteScreen() {
 
   useEffect(() => {
     loadData();
-    
+
     // OPTIMIZATION: Real-time updates for evenimente
     // onSnapshot listener provides live updates when evenimente change
     // This eliminates the need for manual polling or page refreshes
-    const unsubscribe = onSnapshot(collection(db, 'evenimente'), (snapshot) => {
+    const unsubscribe = onSnapshot(collection(db, 'evenimente'), snapshot => {
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
-      
+
       data.sort((a, b) => {
         const dateA = a.data || a.dataStart || '';
         const dateB = b.data || b.dataStart || '';
         return dateA.localeCompare(dateB);
       });
-      
+
       setEvenimente(data);
     });
-    
+
     // Cleanup listener on unmount to prevent memory leaks
     return () => unsubscribe();
   }, [currentUser]);
 
-  const isValidStaffCode = (cod) => {
+  const isValidStaffCode = cod => {
     const trimmed = cod.trim().toUpperCase();
     const trainerPattern = /^[A-Z]TRAINER$/;
     const memberPattern = /^[A-Z]([1-9]|[1-4][0-9]|50)$/;
     return trainerPattern.test(trimmed) || memberPattern.test(trimmed);
   };
 
-  const validateCeCodAi = async (cod) => {
+  const validateCeCodAi = async cod => {
     setCodCeCodAi(cod);
     if (!cod.trim()) {
       setValidareCeCodAi('');
@@ -69,7 +69,7 @@ function EvenimenteScreen() {
       const staffSnapshot = await getDocs(
         query(collection(db, 'staffProfiles'), where('code', '==', cod.trim()))
       );
-      
+
       if (!staffSnapshot.empty) {
         setValidareCeCodAi('✓ Cod acceptat');
       } else {
@@ -81,7 +81,7 @@ function EvenimenteScreen() {
     }
   };
 
-  const validateCineNoteaza = async (cod) => {
+  const validateCineNoteaza = async cod => {
     setCodCineNoteaza(cod);
     if (!cod.trim()) {
       setValidareCineNoteaza('');
@@ -97,7 +97,7 @@ function EvenimenteScreen() {
       const staffSnapshot = await getDocs(
         query(collection(db, 'staffProfiles'), where('code', '==', cod.trim()))
       );
-      
+
       if (!staffSnapshot.empty) {
         setValidareCineNoteaza('✓ Cod acceptat');
       } else {
@@ -116,14 +116,14 @@ function EvenimenteScreen() {
       // Using Promise.all to fetch both collections simultaneously reduces total load time
       const [evenimenteSnap, staffSnap] = await Promise.all([
         getDocs(collection(db, 'evenimente')),
-        getDocs(collection(db, 'staffProfiles'))
+        getDocs(collection(db, 'staffProfiles')),
       ]);
 
       const data = evenimenteSnap.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
-      
+
       data.sort((a, b) => {
         const dateA = a.data || a.dataStart || '';
         const dateB = b.data || b.dataStart || '';
@@ -138,7 +138,7 @@ function EvenimenteScreen() {
         const data = doc.data();
         profiles[data.uid] = data;
       });
-      
+
       setEvenimente(data);
       setStaffProfiles(profiles);
     } catch (error) {
@@ -202,7 +202,9 @@ function EvenimenteScreen() {
             <p className="page-subtitle">
               {filteredEvenimente.length} evenimente
               {codCeCodAi && validareCeCodAi === '✓ Cod acceptat' && ` cu cod ${codCeCodAi}`}
-              {codCineNoteaza && validareCineNoteaza === '✓ Cod acceptat' && ` notate de ${codCineNoteaza}`}
+              {codCineNoteaza &&
+                validareCineNoteaza === '✓ Cod acceptat' &&
+                ` notate de ${codCineNoteaza}`}
             </p>
           </div>
           <button onClick={() => navigate('/home')} className="btn-secondary">
@@ -217,39 +219,35 @@ function EvenimenteScreen() {
           type="text"
           placeholder="Caută eveniment..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={e => setSearch(e.target.value)}
           className="filter-input"
         />
-        
+
         <input
           type="date"
           placeholder="Data start"
           value={dataStart}
-          onChange={(e) => setDataStart(e.target.value)}
+          onChange={e => setDataStart(e.target.value)}
           className="filter-input"
         />
-        
+
         <input
           type="date"
           placeholder="Data end"
           value={dataEnd}
-          onChange={(e) => setDataEnd(e.target.value)}
+          onChange={e => setDataEnd(e.target.value)}
           className="filter-input"
         />
-        
+
         <input
           type="text"
           placeholder="Locație..."
           value={locatie}
-          onChange={(e) => setLocatie(e.target.value)}
+          onChange={e => setLocatie(e.target.value)}
           className="filter-input"
         />
-        
-        <select
-          value={rol}
-          onChange={(e) => setRol(e.target.value)}
-          className="filter-input"
-        >
+
+        <select value={rol} onChange={e => setRol(e.target.value)} className="filter-input">
           <option value="">Toate rolurile</option>
           <option value="ospatar">Ospătar</option>
           <option value="barman">Barman</option>
@@ -272,14 +270,16 @@ function EvenimenteScreen() {
             type="text"
             placeholder="Introdu cod..."
             value={codCeCodAi}
-            onChange={(e) => validateCeCodAi(e.target.value)}
+            onChange={e => validateCeCodAi(e.target.value)}
             className="filter-input"
           />
           {validareCeCodAi && (
-            <span style={{ 
-              fontSize: '0.875rem', 
-              color: validareCeCodAi.includes('acceptat') ? '#10b981' : '#ef4444' 
-            }}>
+            <span
+              style={{
+                fontSize: '0.875rem',
+                color: validareCeCodAi.includes('acceptat') ? '#10b981' : '#ef4444',
+              }}
+            >
               {validareCeCodAi}
             </span>
           )}
@@ -293,14 +293,16 @@ function EvenimenteScreen() {
             type="text"
             placeholder="Introdu cod..."
             value={codCineNoteaza}
-            onChange={(e) => validateCineNoteaza(e.target.value)}
+            onChange={e => validateCineNoteaza(e.target.value)}
             className="filter-input"
           />
           {validareCineNoteaza && (
-            <span style={{ 
-              fontSize: '0.875rem', 
-              color: validareCineNoteaza.includes('acceptat') ? '#10b981' : '#ef4444' 
-            }}>
+            <span
+              style={{
+                fontSize: '0.875rem',
+                color: validareCineNoteaza.includes('acceptat') ? '#10b981' : '#ef4444',
+              }}
+            >
               {validareCineNoteaza}
             </span>
           )}
@@ -331,11 +333,20 @@ function EvenimenteScreen() {
 
               return (
                 <div key={ev.id} className="eveniment-card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      marginBottom: '1rem',
+                    }}
+                  >
                     <h3>{ev.nume}</h3>
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                       {esteAlocat ? (
-                        <span className={`badge ${esteComplet ? 'badge-disponibil' : 'badge-warning'}`}>
+                        <span
+                          className={`badge ${esteComplet ? 'badge-disponibil' : 'badge-warning'}`}
+                        >
                           {esteComplet ? '✓ Complet' : '⚠ Parțial'}
                         </span>
                       ) : (
@@ -345,25 +356,41 @@ function EvenimenteScreen() {
                     </div>
                   </div>
 
-                  <p><strong>Data:</strong> {ev.data || ev.dataStart}</p>
-                  <p><strong>Locație:</strong> {ev.locatie}</p>
-                  {ev.durataOre && <p><strong>Durată:</strong> {ev.durataOre} ore</p>}
-                  
+                  <p>
+                    <strong>Data:</strong> {ev.data || ev.dataStart}
+                  </p>
+                  <p>
+                    <strong>Locație:</strong> {ev.locatie}
+                  </p>
+                  {ev.durataOre && (
+                    <p>
+                      <strong>Durată:</strong> {ev.durataOre} ore
+                    </p>
+                  )}
+
                   {esteAlocat && (
                     <>
-                      <p><strong>Staff alocat:</strong> {staffAlocat.length}/{nrStaffNecesar}</p>
+                      <p>
+                        <strong>Staff alocat:</strong> {staffAlocat.length}/{nrStaffNecesar}
+                      </p>
                       {ev.bugetStaff && (
-                        <p><strong>Buget staff:</strong> {ev.bugetStaff} RON</p>
+                        <p>
+                          <strong>Buget staff:</strong> {ev.bugetStaff} RON
+                        </p>
                       )}
                     </>
                   )}
 
                   {!esteAlocat && nrStaffNecesar > 0 && (
-                    <p><strong>Staff necesar:</strong> {nrStaffNecesar}</p>
+                    <p>
+                      <strong>Staff necesar:</strong> {nrStaffNecesar}
+                    </p>
                   )}
 
                   {ev.cineNoteaza && (
-                    <p><strong>Cine notează:</strong> {ev.cineNoteaza}</p>
+                    <p>
+                      <strong>Cine notează:</strong> {ev.cineNoteaza}
+                    </p>
                   )}
                 </div>
               );

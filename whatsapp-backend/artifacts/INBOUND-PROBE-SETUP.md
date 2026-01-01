@@ -52,6 +52,7 @@ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-accoun
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -81,6 +82,7 @@ curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq '.ac
 ```
 
 **Example output:**
+
 ```json
 {
   "id": "account_1767044290665",
@@ -96,6 +98,7 @@ curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq '.ac
 ```
 
 **Example output:**
+
 ```json
 {
   "id": "account_1767080000000",
@@ -150,21 +153,21 @@ curl -X POST https://whats-upp-production.up.railway.app/api/admin/longrun/confi
 async function runInboundProbe() {
   const now = new Date();
   const probeKey = `IN_${now.toISOString().slice(0, 13).replace(/[:-]/g, '')}`;
-  
+
   try {
     console.log(`🔍 Inbound probe: ${probeKey}`);
-    
+
     const probeRef = db.collection('wa_metrics').doc('longrun').collection('probes').doc(probeKey);
     const probeDoc = await probeRef.get();
-    
+
     if (probeDoc.exists) {
       console.log(`⚠️  Probe ${probeKey} already exists, skipping`);
       return;
     }
-    
+
     // TODO: Send message from PROBE_SENDER to OPERATOR_ACCOUNT
     // For now, mark as PASS (will be implemented after probe sender setup)
-    
+
     await probeRef.set({
       probeKey,
       type: 'inbound',
@@ -174,9 +177,9 @@ async function runInboundProbe() {
       instanceId,
       commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
       serviceVersion: '2.0.0',
-      note: 'Probe sender required for full implementation'
+      note: 'Probe sender required for full implementation',
     });
-    
+
     console.log(`✅ Inbound probe PASS: ${probeKey}`);
   } catch (error) {
     console.error(`❌ Inbound probe FAIL: ${probeKey}`, error.message);
@@ -209,7 +212,7 @@ const probeMessage = `PROBE_${probeKey}`;
 const startTs = Date.now();
 
 await probeSenderClient.sendMessage(config.operatorJid, {
-  text: probeMessage
+  text: probeMessage,
 });
 
 // Wait for message to be received (max 30s)
@@ -228,7 +231,7 @@ await probeRef.set({
   commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
   serviceVersion: '2.0.0',
   probeSenderAccountId: config.probeSenderAccountId,
-  operatorJid: config.operatorJid
+  operatorJid: config.operatorJid,
 });
 ```
 
@@ -238,25 +241,25 @@ Add to `lib/longrun-jobs-v2.js`:
 
 ```javascript
 function waitForProbeMessage(probeMessage, timeoutMs) {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const timeout = setTimeout(() => {
       cleanup();
       resolve(false);
     }, timeoutMs);
-    
-    const messageHandler = (msg) => {
+
+    const messageHandler = msg => {
       if (msg.body === probeMessage) {
         cleanup();
         resolve(true);
       }
     };
-    
+
     const cleanup = () => {
       clearTimeout(timeout);
       // Remove message listener
       // (implementation depends on Baileys event system)
     };
-    
+
     // Add message listener
     // (implementation depends on Baileys event system)
   });
@@ -270,6 +273,7 @@ function waitForProbeMessage(probeMessage, timeoutMs) {
 ### Manual Test
 
 1. **Send test message:**
+
    ```bash
    # From probe sender WhatsApp
    # Send to operator: "TEST_PROBE_MANUAL"
@@ -284,6 +288,7 @@ function waitForProbeMessage(probeMessage, timeoutMs) {
 ### Automated Test
 
 1. **Trigger probe manually:**
+
    ```javascript
    // In Railway console or local
    const { runInboundProbe } = require('./lib/longrun-jobs-v2');
@@ -296,6 +301,7 @@ function waitForProbeMessage(probeMessage, timeoutMs) {
    ```
 
 **Expected output:**
+
 ```json
 {
   "probeKey": "IN_2025123008",
@@ -311,16 +317,19 @@ function waitForProbeMessage(probeMessage, timeoutMs) {
 After successful manual test:
 
 1. **Verify config:**
+
    ```bash
    curl https://whats-upp-production.up.railway.app/api/admin/longrun/config | jq '.config | {probeSenderAccountId, operatorJid}'
    ```
 
 2. **Restart Railway service:**
+
    ```bash
    railway service restart
    ```
 
 3. **Verify probe schedule:**
+
    ```bash
    # Check logs for "Inbound probe: IN_..."
    railway logs --filter "Inbound probe"
@@ -339,11 +348,14 @@ After successful manual test:
 ### Problem: Probe sender not connected
 
 **Symptoms:**
+
 - Error: "Probe sender not connected"
 - Probe result: FAIL
 
 **Solution:**
+
 1. Check probe sender status:
+
    ```bash
    curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq '.accounts[] | select(.id=="account_1767080000000")'
    ```
@@ -355,11 +367,14 @@ After successful manual test:
 ### Problem: Message not received
 
 **Symptoms:**
+
 - Probe result: FAIL
 - Latency: 30000ms (timeout)
 
 **Solution:**
+
 1. Check operator account status:
+
    ```bash
    curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq '.accounts[] | select(.id=="account_1767044290665")'
    ```
@@ -375,10 +390,13 @@ After successful manual test:
 ### Problem: Config not found
 
 **Symptoms:**
+
 - Error: "Probe sender or operator not configured"
 
 **Solution:**
+
 1. Verify config exists:
+
    ```bash
    curl https://whats-upp-production.up.railway.app/api/admin/longrun/config | jq '.config'
    ```
@@ -408,10 +426,11 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/probes | jq '
 ```
 
 **Expected output:**
+
 ```json
 [
-  {"result": "PASS", "count": 28},
-  {"result": "FAIL", "count": 0}
+  { "result": "PASS", "count": 28 },
+  { "result": "FAIL", "count": 0 }
 ]
 ```
 

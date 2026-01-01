@@ -5,6 +5,7 @@
 **Pentru 1 SINGUR cont WhatsApp pe AdsPower:**
 
 ### FREE Plan
+
 - **Profiles:** 2 (poți folosi 1 pentru WhatsApp)
 - **Cost:** **$0/lună FOREVER**
 - **Adevăr:** 100% ✅
@@ -15,11 +16,11 @@
 
 ### Opțiuni pentru 1 cont WhatsApp:
 
-| Plan | Profiles | Cost/lună | Cost/cont | Adevăr |
-|------|----------|-----------|-----------|--------|
-| **FREE** | 2 | $0 | $0 | 100% ✅ |
-| **Professional 10** | 10 | $5.94 (annually) | $0.59 | 100% ✅ |
-| **Professional 20** | 20 | $11.34 (annually) | $0.57 | 100% ✅ |
+| Plan                | Profiles | Cost/lună         | Cost/cont | Adevăr  |
+| ------------------- | -------- | ----------------- | --------- | ------- |
+| **FREE**            | 2        | $0                | $0        | 100% ✅ |
+| **Professional 10** | 10       | $5.94 (annually)  | $0.59     | 100% ✅ |
+| **Professional 20** | 20       | $11.34 (annually) | $0.57     | 100% ✅ |
 
 ---
 
@@ -30,6 +31,7 @@
 **GRATUIT - $0/lună**
 
 **Cum:**
+
 1. Sign up pe AdsPower
 2. Primești 2 profile GRATUIT (forever)
 3. Folosești 1 profile pentru WhatsApp
@@ -43,14 +45,14 @@
 
 ### Baileys vs AdsPower FREE
 
-| Aspect | Baileys | AdsPower FREE |
-|--------|---------|---------------|
-| **Cost** | $0 | $0 |
-| **Profiles** | Nelimitate | 2 |
-| **Risc ban** | 2% | 0.5% |
-| **Uptime** | 99.9% | 99.95% |
-| **Oficial** | ❌ | ✅ |
-| **Implementat** | ✅ DA | ❌ NU (8h) |
+| Aspect          | Baileys    | AdsPower FREE |
+| --------------- | ---------- | ------------- |
+| **Cost**        | $0         | $0            |
+| **Profiles**    | Nelimitate | 2             |
+| **Risc ban**    | 2%         | 0.5%          |
+| **Uptime**      | 99.9%      | 99.95%        |
+| **Oficial**     | ❌         | ✅            |
+| **Implementat** | ✅ DA      | ❌ NU (8h)    |
 
 ---
 
@@ -59,6 +61,7 @@
 ### Pentru 1 SINGUR cont WhatsApp:
 
 **Opțiunea 1: Baileys (RECOMANDAT)**
+
 - ✅ $0/lună
 - ✅ Deja implementat cu TIER 3
 - ✅ 99.9% uptime
@@ -66,6 +69,7 @@
 - ⚠️ 2% risc ban
 
 **Opțiunea 2: AdsPower FREE**
+
 - ✅ $0/lună
 - ✅ 0.5% risc ban (4x mai sigur)
 - ✅ Browser real (oficial)
@@ -77,6 +81,7 @@
 ## 🎯 VERDICT FINAL
 
 ### Întrebarea ta:
+
 > "Sau un cont" (presupun că întrebi: cât costă pentru 1 singur cont?)
 
 ### Răspuns:
@@ -93,13 +98,13 @@
 
 ### Dacă vrei să plătești pentru mai multe conturi:
 
-| Număr Conturi | Plan | Cost/lună | Cost/cont/lună |
-|---------------|------|-----------|----------------|
-| **1-2** | FREE | $0 | $0 |
-| **3-10** | Professional 10 | $5.94 (annually) | $0.59 |
-| **11-20** | Professional 20 | $11.34 (annually) | $0.57 |
-| **21-50** | Professional 50 | $25.74 (annually) | $0.51 |
-| **51-100** | Professional 100 | $43.74 (annually) | $0.44 |
+| Număr Conturi | Plan             | Cost/lună         | Cost/cont/lună |
+| ------------- | ---------------- | ----------------- | -------------- |
+| **1-2**       | FREE             | $0                | $0             |
+| **3-10**      | Professional 10  | $5.94 (annually)  | $0.59          |
+| **11-20**     | Professional 20  | $11.34 (annually) | $0.57          |
+| **21-50**     | Professional 50  | $25.74 (annually) | $0.51          |
+| **51-100**    | Professional 100 | $43.74 (annually) | $0.44          |
 
 **Adevăr: 100%** (verificat pe site oficial)
 

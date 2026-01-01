@@ -1,7 +1,7 @@
 /**
  * LONG-RUN FIRESTORE SCHEMA - COMPLETE (DoD-LR-1 to DoD-LR-27)
  * NO BULLSHIT: All writes idempotent, all reads deterministic
- * 
+ *
  * Collections:
  * - wa_metrics/longrun/config/current
  * - wa_metrics/longrun/locks/{lockName}
@@ -31,7 +31,7 @@ class LongRunSchemaComplete {
    */
   async initConfig(baseUrl, commitHash, serviceVersion, instanceId) {
     const configRef = this.db.doc(`${this.collectionPrefix}/config/current`);
-    
+
     const config = {
       // Basic
       baseUrl,
@@ -39,35 +39,35 @@ class LongRunSchemaComplete {
       serviceVersion,
       expectedAccounts: 4,
       updatedAt: FieldValue.serverTimestamp(),
-      
+
       // Heartbeat settings
       heartbeatIntervalSec: 60,
       driftSec: 10,
-      
+
       // Insufficient data threshold
       insufficientDataThreshold: 0.8,
-      
+
       // Probe schedules
       probeSchedules: {
         outboundHours: 6,
         queueHours: 24,
-        inboundHours: 6
+        inboundHours: 6,
       },
-      
+
       // Alert thresholds
       alertThresholds: {
         missedHbPerHour: 3,
         consecutiveProbeFails: 2,
         queueDepthThreshold: 100,
-        reconnectLoopThreshold: 10
+        reconnectLoopThreshold: 10,
       },
-      
+
       // Account IDs
       operatorAccountId: null, // Set manually
       probeSenderAccountId: null, // Set manually
       operatorJid: null,
       operatorPhone: null,
-      
+
       // Persistence policy (DoD-LR-22, DoD-LR-24)
       persistencePolicy: {
         authStatePath: '/app/.wa-auth',
@@ -76,18 +76,18 @@ class LongRunSchemaComplete {
         backupRetentionCount: 50,
         walEnabled: true,
         walPath: '/app/.wa-wal',
-        walFlushIntervalSec: 60
+        walFlushIntervalSec: 60,
       },
-      
+
       // Failover policy (DoD-LR-18)
       failoverPolicy: {
         enabled: true,
         leaseSec: 120,
         renewEverySec: 60,
         takeoverAfterLeaseExpirySec: 5,
-        maxStandbyReplicasAllowed: 1
+        maxStandbyReplicasAllowed: 1,
       },
-      
+
       // Circuit breaker policy (DoD-LR-19)
       circuitBreakerPolicy: {
         reconnectLoopThreshold: 10, // in 10 min
@@ -95,26 +95,26 @@ class LongRunSchemaComplete {
         maxRemediationsPerHour: 3,
         backoffBaseMs: 1000,
         backoffMaxMs: 60000,
-        jitter: true
+        jitter: true,
       },
-      
+
       // Preflight policy (DoD-LR-20)
       preflightPolicy: {
         enabled: true,
         canaryMode: false,
         requireConfigPresent: true,
         requireAuthStatePresent: true, // except first-time
-        requireNoOtherLeader: true
+        requireNoOtherLeader: true,
       },
-      
+
       // Restart policy (DoD-LR-27)
       restartPolicy: {
         crashToRecoverEnabled: true,
         maxCrashesPerHour: 2,
-        stuckThresholdSec: 300 // 5 min without heartbeat
-      }
+        stuckThresholdSec: 300, // 5 min without heartbeat
+      },
     };
-    
+
     await configRef.set(config, { merge: true });
     return config;
   }
@@ -124,31 +124,31 @@ class LongRunSchemaComplete {
    */
   async acquireLock(lockName, holderInstanceId, leaseDurationMs = 120000) {
     const lockRef = this.db.doc(`${this.collectionPrefix}/locks/${lockName}`);
-    
+
     try {
-      const result = await this.db.runTransaction(async (transaction) => {
+      const result = await this.db.runTransaction(async transaction => {
         const lockDoc = await transaction.get(lockRef);
         const now = Date.now();
-        
+
         if (lockDoc.exists) {
           const data = lockDoc.data();
           if (data.leaseUntilTs > now) {
             return false; // Lock held by someone else
           }
         }
-        
+
         const renewCount = lockDoc.exists ? (lockDoc.data().renewCount || 0) + 1 : 1;
-        
+
         transaction.set(lockRef, {
           holderInstanceId,
           leaseUntilTs: now + leaseDurationMs,
           updatedAt: FieldValue.serverTimestamp(),
-          renewCount
+          renewCount,
         });
-        
+
         return true;
       });
-      
+
       return result;
     } catch (error) {
       console.error(`[Schema] Lock acquisition failed for ${lockName}:`, error);
@@ -161,11 +161,11 @@ class LongRunSchemaComplete {
    */
   async releaseLock(lockName, holderInstanceId) {
     const lockRef = this.db.doc(`${this.collectionPrefix}/locks/${lockName}`);
-    
+
     try {
-      await this.db.runTransaction(async (transaction) => {
+      await this.db.runTransaction(async transaction => {
         const lockDoc = await transaction.get(lockRef);
-        
+
         if (lockDoc.exists) {
           const data = lockDoc.data();
           if (data.holderInstanceId === holderInstanceId) {
@@ -183,7 +183,7 @@ class LongRunSchemaComplete {
    */
   async createRun(runKey, commitHash, deploymentId, instanceId, mode) {
     const runRef = this.db.doc(`${this.collectionPrefix}/runs/${runKey}`);
-    
+
     const runDoc = {
       runKey,
       startTs: Date.now(),
@@ -192,9 +192,9 @@ class LongRunSchemaComplete {
       instanceId,
       mode, // leader|standby|canary
       status: 'running',
-      createdAt: FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp(),
     };
-    
+
     await runRef.set(runDoc);
     return runDoc;
   }
@@ -204,7 +204,7 @@ class LongRunSchemaComplete {
    */
   async writeHeartbeat(bucketId, data) {
     const hbRef = this.db.doc(`${this.collectionPrefix}/heartbeats/${bucketId}`);
-    
+
     const hbDoc = {
       bucketId,
       ts: data.ts,
@@ -221,9 +221,9 @@ class LongRunSchemaComplete {
       queueDepth: data.queueDepth,
       expectedIntervalSec: data.expectedIntervalSec,
       driftSec: data.driftSec,
-      createdAt: FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp(),
     };
-    
+
     await hbRef.set(hbDoc);
     return hbDoc;
   }
@@ -233,7 +233,7 @@ class LongRunSchemaComplete {
    */
   async writeProbe(probeKey, data) {
     const probeRef = this.db.doc(`${this.collectionPrefix}/probes/${probeKey}`);
-    
+
     const probeDoc = {
       probeKey,
       type: data.type, // outbound|inbound|queue|EXT_HTTP
@@ -247,9 +247,9 @@ class LongRunSchemaComplete {
       commitHash: data.commitHash,
       serviceVersion: data.serviceVersion,
       instanceId: data.instanceId,
-      createdAt: FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp(),
     };
-    
+
     await probeRef.set(probeDoc);
     return probeDoc;
   }
@@ -259,7 +259,7 @@ class LongRunSchemaComplete {
    */
   async createIncident(incidentId, data) {
     const incidentRef = this.db.doc(`${this.collectionPrefix}/incidents/${incidentId}`);
-    
+
     const incidentDoc = {
       incidentId,
       type: data.type, // logged_out|reconnect_loop|missed_heartbeat|probe_fail|queue_depth|auth_state_missing|failover|preflight_fail
@@ -271,9 +271,9 @@ class LongRunSchemaComplete {
       lastDisconnect: data.lastDisconnect || null,
       commitHash: data.commitHash,
       instanceId: data.instanceId,
-      createdAt: FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp(),
     };
-    
+
     await incidentRef.set(incidentDoc);
     return incidentDoc;
   }
@@ -283,7 +283,7 @@ class LongRunSchemaComplete {
    */
   async writeRollup(date, data) {
     const rollupRef = this.db.doc(`${this.collectionPrefix}/rollups/${date}`);
-    
+
     const rollupDoc = {
       date,
       expectedHb: data.expectedHb,
@@ -300,9 +300,9 @@ class LongRunSchemaComplete {
       commitHash: data.commitHash,
       serviceVersion: data.serviceVersion,
       instanceId: data.instanceId,
-      createdAt: FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp(),
     };
-    
+
     await rollupRef.set(rollupDoc);
     return rollupDoc;
   }
@@ -312,7 +312,7 @@ class LongRunSchemaComplete {
    */
   async updateState(data) {
     const stateRef = this.db.doc(`${this.collectionPrefix}/state/current`);
-    
+
     const stateDoc = {
       schedulerOwnerInstanceId: data.schedulerOwnerInstanceId,
       standbyInstanceId: data.standbyInstanceId || null,
@@ -326,9 +326,9 @@ class LongRunSchemaComplete {
       preflightReason: data.preflightReason || null,
       commitHash: data.commitHash,
       instanceId: data.instanceId,
-      updatedAt: FieldValue.serverTimestamp()
+      updatedAt: FieldValue.serverTimestamp(),
     };
-    
+
     await stateRef.set(stateDoc, { merge: true });
     return stateDoc;
   }
@@ -338,7 +338,7 @@ class LongRunSchemaComplete {
    */
   async createRemediation(remediationId, data) {
     const remediationRef = this.db.doc(`${this.collectionPrefix}/remediations/${remediationId}`);
-    
+
     const remediationDoc = {
       remediationId,
       type: data.type, // REACQUIRE_LOCK|RESET_BAILEYS|RESTART_SCHEDULER|RESTART_PROCESS|ENTER_SAFE_MODE|EXIT_SAFE_MODE|BACKOFF_RECONNECT|FAILOVER_TAKEOVER
@@ -351,9 +351,9 @@ class LongRunSchemaComplete {
       relatedIds: data.relatedIds || [],
       commitHash: data.commitHash,
       instanceId: data.instanceId,
-      createdAt: FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp(),
     };
-    
+
     await remediationRef.set(remediationDoc);
     return remediationDoc;
   }
@@ -363,7 +363,7 @@ class LongRunSchemaComplete {
    */
   async createAudit(auditId, data) {
     const auditRef = this.db.doc(`${this.collectionPrefix}/audits/${auditId}`);
-    
+
     const auditDoc = {
       auditId,
       type: data.type, // PREFLIGHT|CANARY|CHAOS_RESTART|CHAOS_LOCK|CHAOS_IDEMPOTENCY|STATE_PERSISTENCE|FAILOVER|CIRCUIT_BREAKER
@@ -375,9 +375,9 @@ class LongRunSchemaComplete {
       relatedIds: data.relatedIds || [],
       commitHash: data.commitHash,
       instanceId: data.instanceId,
-      createdAt: FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp(),
     };
-    
+
     await auditRef.set(auditDoc);
     return auditDoc;
   }
@@ -387,7 +387,7 @@ class LongRunSchemaComplete {
    */
   async createAuthBackup(backupId, data) {
     const backupRef = this.db.doc(`${this.collectionPrefix}/auth_backups/${backupId}`);
-    
+
     const backupDoc = {
       backupId,
       ts: data.ts,
@@ -399,9 +399,9 @@ class LongRunSchemaComplete {
       storageRef: data.storageRef, // path to backup file
       commitHash: data.commitHash,
       instanceId: data.instanceId,
-      createdAt: FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp(),
     };
-    
+
     await backupRef.set(backupDoc);
     return backupDoc;
   }
@@ -411,7 +411,7 @@ class LongRunSchemaComplete {
    */
   async writeWALEvent(eventId, data) {
     const walRef = this.db.doc(`${this.collectionPrefix}/wal/${eventId}`);
-    
+
     const walDoc = {
       eventId,
       ts: data.ts,
@@ -423,9 +423,9 @@ class LongRunSchemaComplete {
       ackTs: data.ackTs || null,
       commitHash: data.commitHash,
       instanceId: data.instanceId,
-      createdAt: FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp(),
     };
-    
+
     await walRef.set(walDoc);
     return walDoc;
   }
@@ -435,11 +435,11 @@ class LongRunSchemaComplete {
    */
   async ackWALEvent(eventId) {
     const walRef = this.db.doc(`${this.collectionPrefix}/wal/${eventId}`);
-    
+
     await walRef.update({
       ack: true,
       ackTs: Date.now(),
-      updatedAt: FieldValue.serverTimestamp()
+      updatedAt: FieldValue.serverTimestamp(),
     });
   }
 
@@ -448,7 +448,7 @@ class LongRunSchemaComplete {
    */
   async markMissingBucket(bucketId, data) {
     const missingRef = this.db.doc(`${this.collectionPrefix}/missing_buckets/${bucketId}`);
-    
+
     const missingDoc = {
       bucketId,
       expectedTs: data.expectedTs,
@@ -456,9 +456,9 @@ class LongRunSchemaComplete {
       reason: data.reason, // gap|restart|crash
       commitHash: data.commitHash,
       instanceId: data.instanceId,
-      createdAt: FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp(),
     };
-    
+
     await missingRef.set(missingDoc);
     return missingDoc;
   }
@@ -467,13 +467,14 @@ class LongRunSchemaComplete {
    * Query heartbeats in time range
    */
   async queryHeartbeats(startTs, endTs, limit = 1000) {
-    const snapshot = await this.db.collection(`${this.collectionPrefix}/heartbeats`)
+    const snapshot = await this.db
+      .collection(`${this.collectionPrefix}/heartbeats`)
       .where('ts', '>=', startTs)
       .where('ts', '<=', endTs)
       .orderBy('ts', 'asc')
       .limit(limit)
       .get();
-    
+
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   }
 
@@ -481,14 +482,15 @@ class LongRunSchemaComplete {
    * Query probes by type and time range
    */
   async queryProbes(type, startTs, endTs, limit = 1000) {
-    const snapshot = await this.db.collection(`${this.collectionPrefix}/probes`)
+    const snapshot = await this.db
+      .collection(`${this.collectionPrefix}/probes`)
       .where('type', '==', type)
       .where('ts', '>=', startTs)
       .where('ts', '<=', endTs)
       .orderBy('ts', 'asc')
       .limit(limit)
       .get();
-    
+
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   }
 
@@ -498,11 +500,11 @@ class LongRunSchemaComplete {
   async getState() {
     const stateRef = this.db.doc(`${this.collectionPrefix}/state/current`);
     const doc = await stateRef.get();
-    
+
     if (!doc.exists) {
       return null;
     }
-    
+
     return { id: doc.id, ...doc.data() };
   }
 
@@ -512,11 +514,11 @@ class LongRunSchemaComplete {
   async getConfig() {
     const configRef = this.db.doc(`${this.collectionPrefix}/config/current`);
     const doc = await configRef.get();
-    
+
     if (!doc.exists) {
       return null;
     }
-    
+
     return doc.data();
   }
 
@@ -526,11 +528,11 @@ class LongRunSchemaComplete {
   async getRollup(date) {
     const rollupRef = this.db.doc(`${this.collectionPrefix}/rollups/${date}`);
     const doc = await rollupRef.get();
-    
+
     if (!doc.exists) {
       return null;
     }
-    
+
     return { id: doc.id, ...doc.data() };
   }
 
@@ -545,7 +547,7 @@ class LongRunSchemaComplete {
     const HH = String(date.getUTCHours()).padStart(2, '0');
     const mm = String(date.getUTCMinutes()).padStart(2, '0');
     const ss = String(date.getUTCSeconds()).padStart(2, '0');
-    
+
     return `${yyyy}-${MM}-${dd}T${HH}-${mm}-${ss}`;
   }
 
@@ -558,7 +560,7 @@ class LongRunSchemaComplete {
     const MM = String(date.getUTCMonth() + 1).padStart(2, '0');
     const dd = String(date.getUTCDate()).padStart(2, '0');
     const HH = String(date.getUTCHours()).padStart(2, '0');
-    
+
     return `${type}_${yyyy}${MM}${dd}${HH}`;
   }
 
@@ -573,7 +575,7 @@ class LongRunSchemaComplete {
     const HH = String(date.getUTCHours()).padStart(2, '0');
     const mm = String(date.getUTCMinutes()).padStart(2, '0');
     const ss = String(date.getUTCSeconds()).padStart(2, '0');
-    
+
     return `REM_${yyyy}${MM}${dd}${HH}${mm}${ss}_${type}`;
   }
 
@@ -588,7 +590,7 @@ class LongRunSchemaComplete {
     const HH = String(date.getUTCHours()).padStart(2, '0');
     const mm = String(date.getUTCMinutes()).padStart(2, '0');
     const ss = String(date.getUTCSeconds()).padStart(2, '0');
-    
+
     return `AUD_${yyyy}${MM}${dd}${HH}${mm}${ss}_${type}`;
   }
 
@@ -602,7 +604,7 @@ class LongRunSchemaComplete {
     const dd = String(date.getUTCDate()).padStart(2, '0');
     const HH = String(date.getUTCHours()).padStart(2, '0');
     const mm = String(date.getUTCMinutes()).padStart(2, '0');
-    
+
     return `AUTH_${yyyy}${MM}${dd}${HH}${mm}`;
   }
 
@@ -618,7 +620,7 @@ class LongRunSchemaComplete {
     const mm = String(date.getUTCMinutes()).padStart(2, '0');
     const ss = String(date.getUTCSeconds()).padStart(2, '0');
     const ms = String(date.getUTCMilliseconds()).padStart(3, '0');
-    
+
     return `WAL_${yyyy}${MM}${dd}${HH}${mm}${ss}${ms}_${type}`;
   }
 }

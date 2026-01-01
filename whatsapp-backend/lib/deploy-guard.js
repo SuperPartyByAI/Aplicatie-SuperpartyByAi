@@ -20,10 +20,10 @@ class DeployGuard {
   start() {
     console.log('[DeployGuard] Starting deploy guard...');
     console.log(`[DeployGuard] Expected commit: ${this.expectedCommit}`);
-    
+
     // Check immediately
     this.checkDeployStatus();
-    
+
     // Then check every 5 minutes
     this.interval = setInterval(() => {
       this.checkDeployStatus();
@@ -40,14 +40,14 @@ class DeployGuard {
   async checkDeployStatus() {
     try {
       const healthData = await this.fetchHealth();
-      
+
       if (!healthData || !healthData.commit) {
         console.error('[DeployGuard] Failed to fetch health data');
         return;
       }
 
       const deployedCommit = healthData.commit;
-      
+
       if (deployedCommit === this.expectedCommit) {
         // Match - reset mismatch tracking
         if (this.lastMismatchDetected) {
@@ -60,15 +60,17 @@ class DeployGuard {
 
       // Mismatch detected
       const now = Date.now();
-      
+
       if (!this.lastMismatchDetected) {
         this.lastMismatchDetected = now;
-        console.log(`[DeployGuard] ⚠️ Deploy mismatch detected: expected ${this.expectedCommit}, got ${deployedCommit}`);
+        console.log(
+          `[DeployGuard] ⚠️ Deploy mismatch detected: expected ${this.expectedCommit}, got ${deployedCommit}`
+        );
         return;
       }
 
       const mismatchDuration = now - this.lastMismatchDetected;
-      
+
       if (mismatchDuration > this.mismatchThreshold && !this.incidentCreated) {
         // Create incident
         await this.createDeployStuckIncident(deployedCommit, mismatchDuration);
@@ -82,7 +84,7 @@ class DeployGuard {
   async createDeployStuckIncident(deployedCommit, mismatchDuration) {
     try {
       const incidentId = `INC_DEPLOY_STUCK_${Date.now()}`;
-      
+
       const incident = {
         incidentId,
         type: 'deploy_stuck',
@@ -100,21 +102,21 @@ class DeployGuard {
             '1. Go to Railway dashboard',
             '2. Click "Deployments" tab',
             '3. Find latest commit and click "Redeploy"',
-            '4. OR run: railway up --service whatsapp-backend'
-          ]
+            '4. OR run: railway up --service whatsapp-backend',
+          ],
         },
         commitHash: this.expectedCommit,
         instanceId: process.env.RAILWAY_DEPLOYMENT_ID || 'unknown',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       };
 
       await this.schema.createIncident(incidentId, incident);
-      
+
       console.error('[DeployGuard] 🚨 INCIDENT CREATED:', incidentId);
       console.error('[DeployGuard] Expected:', this.expectedCommit);
       console.error('[DeployGuard] Deployed:', deployedCommit);
       console.error('[DeployGuard] Duration:', Math.floor(mismatchDuration / 1000), 'seconds');
-      
+
       // TODO: Send Telegram alert if configured
     } catch (error) {
       console.error('[DeployGuard] Failed to create incident:', error);
@@ -124,18 +126,20 @@ class DeployGuard {
   fetchHealth() {
     return new Promise((resolve, reject) => {
       const url = `${this.baseUrl}/health`;
-      
-      https.get(url, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          try {
-            resolve(JSON.parse(data));
-          } catch (e) {
-            reject(e);
-          }
-        });
-      }).on('error', reject);
+
+      https
+        .get(url, res => {
+          let data = '';
+          res.on('data', chunk => (data += chunk));
+          res.on('end', () => {
+            try {
+              resolve(JSON.parse(data));
+            } catch (e) {
+              reject(e);
+            }
+          });
+        })
+        .on('error', reject);
     });
   }
 }

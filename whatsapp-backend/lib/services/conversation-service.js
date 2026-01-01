@@ -1,6 +1,6 @@
 /**
  * Conversation Service
- * 
+ *
  * Handles conversation operations and business logic
  */
 
@@ -32,12 +32,12 @@ class ConversationService {
     const newConv = new Conversation({
       client_phone: clientPhone,
       status: 'AVAILABLE',
-      unread_count_for_operator: 0
+      unread_count_for_operator: 0,
     });
 
     const docRef = await this.conversationsRef.add(newConv.toFirestore());
     newConv.conversation_id = docRef.id;
-    
+
     return newConv;
   }
 
@@ -89,14 +89,14 @@ class ConversationService {
    */
   async addClientMessage(conversationId, content) {
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
-    
+
     const message = Message.createClientMessage(conversationId, content, timestamp);
     await this.messagesRef.add(message.toFirestore());
 
     // Update conversation
     await this.conversationsRef.doc(conversationId).update({
       last_client_message_at: timestamp,
-      unread_count_for_operator: admin.firestore.FieldValue.increment(1)
+      unread_count_for_operator: admin.firestore.FieldValue.increment(1),
     });
 
     return message;
@@ -120,13 +120,13 @@ class ConversationService {
     }
 
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
-    
+
     const message = Message.createOperatorMessage(conversationId, operatorCode, content, timestamp);
     await this.messagesRef.add(message.toFirestore());
 
     // Update conversation - reset 5h timer
     await docRef.update({
-      last_human_operator_message_at: timestamp
+      last_human_operator_message_at: timestamp,
     });
 
     return message;
@@ -137,13 +137,13 @@ class ConversationService {
    */
   async addAIMessage(conversationId, content, isAutoResponse = false) {
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
-    
+
     const message = Message.createAIMessage(conversationId, content, timestamp, isAutoResponse);
     await this.messagesRef.add(message.toFirestore());
 
     // Update conversation
     await this.conversationsRef.doc(conversationId).update({
-      last_ai_message_at: timestamp
+      last_ai_message_at: timestamp,
     });
 
     return message;
@@ -166,7 +166,7 @@ class ConversationService {
    */
   async getConversation(conversationId) {
     const doc = await this.conversationsRef.doc(conversationId).get();
-    
+
     if (!doc.exists) {
       throw new Error('Conversation not found');
     }
@@ -178,9 +178,7 @@ class ConversationService {
    * Get available conversations
    */
   async getAvailableConversations() {
-    const snapshot = await this.conversationsRef
-      .where('status', '==', 'AVAILABLE')
-      .get();
+    const snapshot = await this.conversationsRef.where('status', '==', 'AVAILABLE').get();
 
     return snapshot.docs.map(doc => Conversation.fromFirestore(doc));
   }
@@ -189,9 +187,7 @@ class ConversationService {
    * Get reserved conversations
    */
   async getReservedConversations() {
-    const snapshot = await this.conversationsRef
-      .where('status', '==', 'RESERVED')
-      .get();
+    const snapshot = await this.conversationsRef.where('status', '==', 'RESERVED').get();
 
     return snapshot.docs.map(doc => Conversation.fromFirestore(doc));
   }

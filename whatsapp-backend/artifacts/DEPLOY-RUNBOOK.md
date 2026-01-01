@@ -3,12 +3,14 @@
 ## Problem: Deploy Stuck (Commit Mismatch)
 
 **Symptoms:**
+
 - `/health` shows old commit hash
 - New code not reflected in production
 - Uptime keeps increasing (no restart)
 - New endpoints return 404
 
 **Detection:**
+
 - Deploy Guard creates incident `deploy_stuck` after 10 minutes of mismatch
 - Check: `curl https://whats-upp-production.up.railway.app/health | jq '.commit'`
 - Compare with: `git log --oneline -1` (latest commit)
@@ -18,6 +20,7 @@
 ## Solution A: Railway UI (RECOMMENDED)
 
 **Steps:**
+
 1. Go to: https://railway.app/project/<your-project-id>
 2. Click on "whatsapp-backend" service
 3. Click "Deployments" tab
@@ -28,6 +31,7 @@
 8. Confirm commit hash matches latest
 
 **If "Approval Required" appears:**
+
 - Click "Approve" button
 - Wait for deploy to complete
 
@@ -36,12 +40,14 @@
 ## Solution B: Railway CLI
 
 **One-time setup:**
+
 ```bash
 npm install -g @railway/cli
 railway login
 ```
 
 **Deploy commands:**
+
 ```bash
 cd /path/to/Aplicatie-SuperpartyByAi
 railway link  # Select project + service when prompted
@@ -49,11 +55,13 @@ railway up --service whatsapp-backend
 ```
 
 **Verify:**
+
 ```bash
 curl https://whats-upp-production.up.railway.app/health | jq '.commit'
 ```
 
 **Check logs if deploy fails:**
+
 ```bash
 railway logs --service whatsapp-backend
 ```
@@ -71,6 +79,7 @@ git push origin main
 ```
 
 **Wait 90 seconds, then verify:**
+
 ```bash
 curl https://whats-upp-production.up.railway.app/health | jq '.commit'
 ```
@@ -80,6 +89,7 @@ curl https://whats-upp-production.up.railway.app/health | jq '.commit'
 ## Solution D: Manual Restart (Last Resort)
 
 **Railway UI:**
+
 1. Go to service settings
 2. Click "Restart" button
 3. Wait for service to come back up
@@ -116,6 +126,7 @@ curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
 **Symptoms:** Railway shows "Deploying..." but never completes
 
 **Solution:**
+
 1. Check Railway build logs for errors
 2. Common causes:
    - Missing dependencies in package.json
@@ -134,6 +145,7 @@ curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
 **Symptoms:** Railway builds but doesn't find code
 
 **Solution:**
+
 1. Check railway.json or railway.toml
 2. Verify `build.buildCommand` includes `cd whatsapp-backend`
 3. Verify `deploy.startCommand` includes `cd whatsapp-backend`
@@ -143,6 +155,7 @@ curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
 **Symptoms:** Changes to certain files don't trigger deploy
 
 **Solution:**
+
 1. Railway Settings → Watch Paths
 2. Ensure includes: `whatsapp-backend/**`
 3. Or remove watch paths to watch entire repo
@@ -152,6 +165,7 @@ curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
 ## Prevention: Deploy Guard
 
 **Automatic detection:**
+
 - Deploy Guard checks every 5 minutes
 - Creates incident if mismatch > 10 minutes
 - Incident includes:
@@ -161,6 +175,7 @@ curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
   - Remediation steps
 
 **Check incidents:**
+
 ```bash
 # Via Firestore console
 # Collection: wa_metrics/longrun/incidents
@@ -172,6 +187,7 @@ curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
 ## Emergency Contacts
 
 **If all solutions fail:**
+
 1. Check Railway status page: https://status.railway.app
 2. Check Railway Discord: https://discord.gg/railway
 3. File Railway support ticket with:
@@ -188,11 +204,13 @@ curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
 After successful deploy:
 
 1. **Verify evidence endpoints:**
+
    ```bash
    curl "https://whats-upp-production.up.railway.app/api/longrun/status-now?token=YOUR_TOKEN"
    ```
 
 2. **Run bootstrap:**
+
    ```bash
    curl -X POST "https://whats-upp-production.up.railway.app/api/longrun/bootstrap?token=YOUR_TOKEN"
    ```
@@ -200,7 +218,7 @@ After successful deploy:
 3. **Check Firestore docs created:**
    - wa_metrics/longrun/runs/{runKey}
    - wa_metrics/longrun/state/current
-   - wa_metrics/longrun/probes/* (bootstrap probes)
+   - wa_metrics/longrun/probes/\* (bootstrap probes)
 
 4. **Monitor for 10 minutes:**
    - Check heartbeats continue
@@ -219,6 +237,7 @@ After successful deploy:
    - Click "Redeploy"
 
 2. **Git revert:**
+
    ```bash
    git revert HEAD
    git push origin main
@@ -234,6 +253,7 @@ After successful deploy:
 ## Maintenance Window
 
 **For major changes:**
+
 1. Announce maintenance window
 2. Set service to "Sleep" in Railway (optional)
 3. Deploy changes
@@ -246,17 +266,20 @@ After successful deploy:
 ## Logs Access
 
 **Railway UI:**
+
 - Service → Logs tab
 - Filter by level (error, warn, info)
 - Search for specific terms
 
 **Railway CLI:**
+
 ```bash
 railway logs --service whatsapp-backend --tail 100
 railway logs --service whatsapp-backend --follow
 ```
 
 **Firestore incidents:**
+
 ```
 Collection: wa_metrics/longrun/incidents
 Query: ORDER BY tsStart DESC LIMIT 10
@@ -267,6 +290,7 @@ Query: ORDER BY tsStart DESC LIMIT 10
 ## Success Criteria
 
 Deploy is successful when:
+
 - ✅ `/health` commit == latest GitHub commit
 - ✅ New endpoints return 200 (not 404)
 - ✅ Boot timestamp is recent (< 5 min ago)

@@ -1,6 +1,6 @@
 /**
  * Timer Service
- * 
+ *
  * Handles automated timers:
  * - 5 minute AI auto-response
  * - 5 hour conversation release
@@ -15,14 +15,14 @@ class TimerService {
     this.conversationService = new ConversationService(db);
     this.conversationsRef = db.collection('whatsappConversations');
     this.messagesRef = db.collection('whatsappMessages');
-    
+
     // Timers
     this.AI_RESPONSE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
     this.RELEASE_TIMEOUT = 5 * 60 * 60 * 1000; // 5 hours
-    
+
     // Check intervals
     this.CHECK_INTERVAL = 30 * 1000; // Check every 30 seconds
-    
+
     this.isRunning = false;
     this.intervalId = null;
   }
@@ -38,10 +38,10 @@ class TimerService {
 
     console.log('⏰ Starting timer service...');
     this.isRunning = true;
-    
+
     // Run immediately
     this.checkTimers();
-    
+
     // Then run periodically
     this.intervalId = setInterval(() => {
       this.checkTimers();
@@ -58,7 +58,7 @@ class TimerService {
 
     console.log('⏰ Stopping timer service...');
     this.isRunning = false;
-    
+
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
@@ -70,10 +70,7 @@ class TimerService {
    */
   async checkTimers() {
     try {
-      await Promise.all([
-        this.checkAIResponseTimers(),
-        this.checkReleaseTimers()
-      ]);
+      await Promise.all([this.checkAIResponseTimers(), this.checkReleaseTimers()]);
     } catch (error) {
       console.error('❌ Error checking timers:', error);
     }
@@ -165,7 +162,7 @@ class TimerService {
       .get();
 
     const messages = messagesSnapshot.docs.map(doc => doc.data());
-    
+
     // Generate AI response (placeholder - integrate with actual AI)
     const aiResponse = await this.generateAIResponse(messages, clientPhone);
 

@@ -18,7 +18,7 @@ class FirestoreService {
       console.error('❌ Failed to initialize Firestore:', error.message);
     }
   }
-  
+
   get admin() {
     return admin;
   }
@@ -37,24 +37,22 @@ class FirestoreService {
         .doc(message.id)
         .set({
           ...message,
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-      
+
       // Update chat metadata (legacy)
-      await this.db
-        .collection('accounts')
-        .doc(accountId)
-        .collection('chats')
-        .doc(chatId)
-        .set({
+      await this.db.collection('accounts').doc(accountId).collection('chats').doc(chatId).set(
+        {
           lastMessage: message.body,
           lastMessageTimestamp: message.timestamp,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
 
       // ALSO save to flat collections for frontend
       const threadId = `${accountId}_${chatId}`;
-      
+
       // Save message to whatsapp_messages
       await this.db
         .collection('whatsapp_messages')
@@ -69,24 +67,26 @@ class FirestoreService {
           timestamp: message.timestamp || Date.now(),
           fromMe: message.fromMe || false,
           status: message.status || 'received',
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-      
+
       // Update thread in whatsapp_threads
       await this.db
         .collection('whatsapp_threads')
         .doc(threadId)
-        .set({
-          id: threadId,
-          accountId: accountId,
-          phoneNumber: chatId.replace('@s.whatsapp.net', ''),
-          name: message.pushName || chatId.replace('@s.whatsapp.net', ''),
-          lastMessageTime: message.timestamp || Date.now(),
-          lastMessage: message.body || '',
-          unreadCount: message.fromMe ? 0 : admin.firestore.FieldValue.increment(1),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-
+        .set(
+          {
+            id: threadId,
+            accountId: accountId,
+            phoneNumber: chatId.replace('@s.whatsapp.net', ''),
+            name: message.pushName || chatId.replace('@s.whatsapp.net', ''),
+            lastMessageTime: message.timestamp || Date.now(),
+            lastMessage: message.body || '',
+            unreadCount: message.fromMe ? 0 : admin.firestore.FieldValue.increment(1),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
     } catch (error) {
       console.error('❌ Failed to save message to Firestore:', error.message);
     }
@@ -133,7 +133,7 @@ class FirestoreService {
       snapshot.forEach(doc => {
         chats.push({
           id: doc.id,
-          ...doc.data()
+          ...doc.data(),
         });
       });
 
@@ -153,10 +153,13 @@ class FirestoreService {
         .doc(accountId)
         .collection('chats')
         .doc(chatId)
-        .set({
-          ...chatData,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
+        .set(
+          {
+            ...chatData,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
     } catch (error) {
       console.error('❌ Failed to save chat to Firestore:', error.message);
     }
@@ -193,10 +196,10 @@ class FirestoreService {
 
     try {
       const batch = this.db.batch();
-      
+
       for (const item of messageBatch) {
         const { accountId, chatId, messageData, pushName } = item;
-        
+
         // Message
         const messageRef = this.db
           .collection('accounts')
@@ -205,27 +208,31 @@ class FirestoreService {
           .doc(chatId)
           .collection('messages')
           .doc(messageData.id);
-        
+
         batch.set(messageRef, {
           ...messageData,
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-        
+
         // Chat metadata
         const chatRef = this.db
           .collection('accounts')
           .doc(accountId)
           .collection('chats')
           .doc(chatId);
-        
-        batch.set(chatRef, {
-          name: pushName || chatId.split('@')[0],
-          lastMessage: messageData.body,
-          lastMessageTimestamp: messageData.timestamp,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
+
+        batch.set(
+          chatRef,
+          {
+            name: pushName || chatId.split('@')[0],
+            lastMessage: messageData.body,
+            lastMessageTimestamp: messageData.timestamp,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
       }
-      
+
       await batch.commit();
     } catch (error) {
       console.error('❌ Failed to save batch to Firestore:', error.message);
@@ -240,13 +247,10 @@ class FirestoreService {
     if (!this.db) return;
 
     try {
-      await this.db
-        .collection('message_queues')
-        .doc(queueId)
-        .set({
-          queue: queue,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
+      await this.db.collection('message_queues').doc(queueId).set({
+        queue: queue,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
     } catch (error) {
       console.error('❌ Failed to save queue to Firestore:', error.message);
     }
@@ -259,10 +263,7 @@ class FirestoreService {
     if (!this.db) return [];
 
     try {
-      const doc = await this.db
-        .collection('message_queues')
-        .doc(queueId)
-        .get();
+      const doc = await this.db.collection('message_queues').doc(queueId).get();
 
       if (doc.exists) {
         return doc.data().queue || [];
@@ -281,12 +282,10 @@ class FirestoreService {
     if (!this.db) return;
 
     try {
-      await this.db
-        .collection('monitoring_events')
-        .add({
-          ...event,
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
-        });
+      await this.db.collection('monitoring_events').add({
+        ...event,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
     } catch (error) {
       // Silent fail - don't crash on logging errors
     }

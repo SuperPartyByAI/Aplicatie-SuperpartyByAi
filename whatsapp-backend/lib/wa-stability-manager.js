@@ -1,6 +1,6 @@
 /**
  * WA STABILITY MANAGER
- * 
+ *
  * Integrates all WA connection stability components:
  * - Distributed lock (single-instance)
  * - Firestore auth state
@@ -21,7 +21,7 @@ class WAStabilityManager {
   constructor(db, instanceId) {
     this.db = db;
     this.instanceId = instanceId;
-    
+
     // Initialize components
     this.lock = new WAConnectionLock(db, instanceId);
     this.authState = new FirestoreAuthState(db);
@@ -29,10 +29,10 @@ class WAStabilityManager {
     this.keepalive = new WAKeepaliveMonitor();
     this.autoHeal = new WAAutoHeal(db, instanceId, this.reconnectManager, this.lock);
     this.disconnectGuard = new WADisconnectGuard(db, instanceId, this.reconnectManager);
-    
+
     this.waMode = 'passive'; // active or passive
     this.sock = null;
-    
+
     console.log('[WAStability] Initialized');
   }
 
@@ -41,7 +41,7 @@ class WAStabilityManager {
    */
   async tryActivate() {
     const result = await this.lock.tryAcquire();
-    
+
     if (result.acquired) {
       this.waMode = 'active';
       console.log('[WAStability] ✅ ACTIVE MODE - can start WA connection');
@@ -58,21 +58,21 @@ class WAStabilityManager {
    */
   startMonitoring(sock) {
     this.sock = sock;
-    
+
     // Start keepalive monitoring
-    this.keepalive.start(async (reason) => {
+    this.keepalive.start(async reason => {
       console.log(`[WAStability] Keepalive triggered reconnect: ${reason}`);
       if (this.sock) {
         this.sock.end();
       }
     });
-    
+
     // Start auto-heal monitoring
     this.autoHeal.start();
-    
+
     // Start disconnect guard
     this.disconnectGuard.start();
-    
+
     console.log('[WAStability] All monitors started');
   }
 
@@ -83,7 +83,7 @@ class WAStabilityManager {
     this.keepalive.stop();
     this.autoHeal.stop();
     this.disconnectGuard.stop();
-    
+
     console.log('[WAStability] All monitors stopped');
   }
 
@@ -119,7 +119,7 @@ class WAStabilityManager {
     const keepaliveStatus = this.keepalive.getStatus();
     const authInfo = await this.authState.getAuthStateInfo();
     const disconnectIncident = await this.disconnectGuard.getIncidentStatus();
-    
+
     return {
       waMode: this.waMode,
       lock: lockStatus,
@@ -127,7 +127,7 @@ class WAStabilityManager {
       keepalive: keepaliveStatus,
       authStore: 'firestore',
       authInfo,
-      disconnectIncident: disconnectIncident.exists ? disconnectIncident : null
+      disconnectIncident: disconnectIncident.exists ? disconnectIncident : null,
     };
   }
 

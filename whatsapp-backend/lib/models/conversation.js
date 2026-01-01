@@ -1,6 +1,6 @@
 /**
  * Conversation Model
- * 
+ *
  * Represents a WhatsApp conversation with a client
  */
 
@@ -28,7 +28,7 @@ class Conversation {
       last_human_operator_message_at: this.last_human_operator_message_at,
       last_ai_message_at: this.last_ai_message_at,
       unread_count_for_operator: this.unread_count_for_operator,
-      released_at: this.released_at
+      released_at: this.released_at,
     };
   }
 
@@ -36,7 +36,7 @@ class Conversation {
     const data = doc.data();
     return new Conversation({
       conversation_id: doc.id,
-      ...data
+      ...data,
     });
   }
 

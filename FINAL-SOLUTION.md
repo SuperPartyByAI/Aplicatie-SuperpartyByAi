@@ -50,6 +50,7 @@ firebase deploy --only functions
 https://console.firebase.google.com/project/superparty-frontend/functions/logs
 
 Caută:
+
 - `chatWithAI called`
 - `Success { duration: "XXXms" }`
 

@@ -31,11 +31,14 @@
     "firebase-admin": "^13.6.0",
     "firebase-functions": "^7.0.2",
     "https-proxy-agent": "^7.0.2",
+    "ioredis": "^5.8.2",
     "libphonenumber-js": "^1.10.51",
     "pino": "^8.16.2",
     "qrcode": "^1.5.3",
     "socket.io": "^4.6.1",
-    "socks-proxy-agent": "^8.0.2"
+    "socks-proxy-agent": "^8.0.2",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

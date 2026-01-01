@@ -16,7 +16,7 @@ class BootstrapRunner {
       success: true,
       timestamp: new Date().toISOString(),
       created: [],
-      errors: []
+      errors: [],
     };
 
     try {
@@ -28,11 +28,17 @@ class BootstrapRunner {
 
       // 1. Create run doc
       const runKey = `RUN_${deploymentId}_${new Date().toISOString().split('T')[0].replace(/-/g, '')}`;
-      const runDoc = await this.schema.createRun(runKey, commitHash, deploymentId, instanceId, 'leader');
+      const runDoc = await this.schema.createRun(
+        runKey,
+        commitHash,
+        deploymentId,
+        instanceId,
+        'leader'
+      );
       results.created.push({
         type: 'run',
         path: `wa_metrics/longrun/runs/${runKey}`,
-        doc: runDoc
+        doc: runDoc,
       });
 
       // 2. Create/update state/current
@@ -49,12 +55,12 @@ class BootstrapRunner {
         preflightStatus: 'pass',
         preflightReason: null,
         commitHash,
-        instanceId
+        instanceId,
       });
       results.created.push({
         type: 'state',
         path: 'wa_metrics/longrun/state/current',
-        doc: stateDoc
+        doc: stateDoc,
       });
 
       // 3. Outbound probe (bootstrap)
@@ -66,7 +72,12 @@ class BootstrapRunner {
       results.created.push(queueResult);
 
       // 5. Inbound probe (bootstrap) - REAL
-      const inboundResult = await this.runInboundProbe(commitHash, serviceVersion, instanceId, config);
+      const inboundResult = await this.runInboundProbe(
+        commitHash,
+        serviceVersion,
+        instanceId,
+        config
+      );
       results.created.push(inboundResult);
 
       // 6. Rollup (today, idempotent)
@@ -94,7 +105,7 @@ class BootstrapRunner {
         type: 'probe_outbound',
         path: `wa_metrics/longrun/probes/${probeKey}`,
         result: 'FAIL',
-        reason: 'No connected accounts'
+        reason: 'No connected accounts',
       };
     }
 
@@ -108,13 +119,17 @@ class BootstrapRunner {
 
     try {
       if (this.baileys && this.baileys.sendMessage) {
-        const response = await this.baileys.sendMessage(connectedAccount.accountId, testNumber, testMessage);
+        const response = await this.baileys.sendMessage(
+          connectedAccount.accountId,
+          testNumber,
+          testMessage
+        );
         latencyMs = Date.now() - startTs;
         result = 'PASS';
         details = {
           messageId: response.key?.id || 'unknown',
           accountId: connectedAccount.accountId,
-          testNumber
+          testNumber,
         };
       } else {
         throw new Error('Baileys sendMessage not available');
@@ -124,7 +139,7 @@ class BootstrapRunner {
       details = {
         error: error.message,
         accountId: connectedAccount.accountId,
-        testNumber
+        testNumber,
       };
     }
 
@@ -138,7 +153,7 @@ class BootstrapRunner {
       trigger: 'bootstrap',
       commitHash,
       serviceVersion,
-      instanceId
+      instanceId,
     });
 
     return {
@@ -146,7 +161,7 @@ class BootstrapRunner {
       path: `wa_metrics/longrun/probes/${probeKey}`,
       result,
       latencyMs,
-      doc: probeDoc
+      doc: probeDoc,
     };
   }
 
@@ -162,7 +177,7 @@ class BootstrapRunner {
         type: 'probe_queue',
         path: `wa_metrics/longrun/probes/${probeKey}`,
         result: 'FAIL',
-        reason: 'No connected accounts'
+        reason: 'No connected accounts',
       };
     }
 
@@ -179,11 +194,15 @@ class BootstrapRunner {
       if (this.baileys && this.baileys.sendMessage) {
         for (let i = 0; i < batchSize; i++) {
           const msg = `PROBE_QUEUE_${now}_${i}`;
-          const response = await this.baileys.sendMessage(connectedAccount.accountId, testNumber, msg);
+          const response = await this.baileys.sendMessage(
+            connectedAccount.accountId,
+            testNumber,
+            msg
+          );
           messages.push({
             index: i,
             messageId: response.key?.id || 'unknown',
-            timestamp: Date.now()
+            timestamp: Date.now(),
           });
         }
 
@@ -195,7 +214,7 @@ class BootstrapRunner {
           accountId: connectedAccount.accountId,
           testNumber,
           ordering: 'sequential',
-          dedupe: 'none_detected'
+          dedupe: 'none_detected',
         };
       } else {
         throw new Error('Baileys sendMessage not available');
@@ -206,7 +225,7 @@ class BootstrapRunner {
         error: error.message,
         accountId: connectedAccount.accountId,
         testNumber,
-        messagesSent: messages.length
+        messagesSent: messages.length,
       };
     }
 
@@ -220,7 +239,7 @@ class BootstrapRunner {
       trigger: 'bootstrap',
       commitHash,
       serviceVersion,
-      instanceId
+      instanceId,
     });
 
     return {
@@ -228,7 +247,7 @@ class BootstrapRunner {
       path: `wa_metrics/longrun/probes/${probeKey}`,
       result,
       latencyMs,
-      doc: probeDoc
+      doc: probeDoc,
     };
   }
 
@@ -237,22 +256,23 @@ class BootstrapRunner {
     const probeKey = this.schema.generateProbeKey('IN', now);
 
     const accounts = this.baileys ? this.baileys.getAccounts() : [];
-    
+
     // Find PROBE_SENDER
-    let probeSender = accounts.find(a => 
-      a.accountId === config.probeSenderAccountId ||
-      a.accountId === 'account_1767042206934' ||
-      a.accountId.includes('probe_sender')
+    let probeSender = accounts.find(
+      a =>
+        a.accountId === config.probeSenderAccountId ||
+        a.accountId === 'account_1767042206934' ||
+        a.accountId.includes('probe_sender')
     );
 
     if (!probeSender || probeSender.status !== 'connected') {
       // Auto-derive: use first connected account as probe sender
       probeSender = accounts.find(a => a.status === 'connected');
-      
+
       if (probeSender && !config.probeSenderAccountId) {
         // Update config with auto-derived probe sender
         await this.db.doc('wa_metrics/longrun/config/current').update({
-          probeSenderAccountId: probeSender.accountId
+          probeSenderAccountId: probeSender.accountId,
         });
       }
     }
@@ -265,13 +285,13 @@ class BootstrapRunner {
         latencyMs: 0,
         details: {
           error: 'PROBE_SENDER not connected',
-          availableAccounts: accounts.map(a => ({ id: a.accountId, status: a.status }))
+          availableAccounts: accounts.map(a => ({ id: a.accountId, status: a.status })),
         },
         relatedIds: [],
         trigger: 'bootstrap',
         commitHash,
         serviceVersion,
-        instanceId
+        instanceId,
       });
 
       return {
@@ -279,14 +299,13 @@ class BootstrapRunner {
         path: `wa_metrics/longrun/probes/${probeKey}`,
         result: 'FAIL',
         reason: 'PROBE_SENDER not connected',
-        doc: probeDoc
+        doc: probeDoc,
       };
     }
 
     // Find OPERATOR (different from probe sender)
-    let operator = accounts.find(a => 
-      a.accountId !== probeSender.accountId && 
-      a.status === 'connected'
+    const operator = accounts.find(
+      a => a.accountId !== probeSender.accountId && a.status === 'connected'
     );
 
     if (!operator) {
@@ -297,13 +316,13 @@ class BootstrapRunner {
         latencyMs: 0,
         details: {
           error: 'No OPERATOR account available',
-          probeSenderId: probeSender.accountId
+          probeSenderId: probeSender.accountId,
         },
         relatedIds: [probeSender.accountId],
         trigger: 'bootstrap',
         commitHash,
         serviceVersion,
-        instanceId
+        instanceId,
       });
 
       return {
@@ -311,14 +330,14 @@ class BootstrapRunner {
         path: `wa_metrics/longrun/probes/${probeKey}`,
         result: 'FAIL',
         reason: 'No OPERATOR account',
-        doc: probeDoc
+        doc: probeDoc,
       };
     }
 
     // Update config with operator if not set
     if (!config.operatorAccountId) {
       await this.db.doc('wa_metrics/longrun/config/current').update({
-        operatorAccountId: operator.accountId
+        operatorAccountId: operator.accountId,
       });
     }
 
@@ -333,8 +352,12 @@ class BootstrapRunner {
 
     try {
       if (this.baileys && this.baileys.sendMessage) {
-        const response = await this.baileys.sendMessage(probeSender.accountId, operatorNumber, testMessage);
-        
+        const response = await this.baileys.sendMessage(
+          probeSender.accountId,
+          operatorNumber,
+          testMessage
+        );
+
         // For bootstrap, we don't wait for receive (would need event listener)
         // Mark as PASS if send succeeds
         latencyMs = Date.now() - startTs;
@@ -344,7 +367,7 @@ class BootstrapRunner {
           probeSenderId: probeSender.accountId,
           operatorId: operator.accountId,
           operatorNumber,
-          note: 'Bootstrap probe - send only, receive verification requires event listener'
+          note: 'Bootstrap probe - send only, receive verification requires event listener',
         };
       } else {
         throw new Error('Baileys sendMessage not available');
@@ -355,7 +378,7 @@ class BootstrapRunner {
         error: error.message,
         probeSenderId: probeSender.accountId,
         operatorId: operator.accountId,
-        operatorNumber
+        operatorNumber,
       };
     }
 
@@ -369,7 +392,7 @@ class BootstrapRunner {
       trigger: 'bootstrap',
       commitHash,
       serviceVersion,
-      instanceId
+      instanceId,
     });
 
     return {
@@ -377,19 +400,19 @@ class BootstrapRunner {
       path: `wa_metrics/longrun/probes/${probeKey}`,
       result,
       latencyMs,
-      doc: probeDoc
+      doc: probeDoc,
     };
   }
 
   async createRollup(commitHash, serviceVersion, instanceId) {
     const today = new Date().toISOString().split('T')[0];
-    
+
     // Get heartbeats for today
     const startOfDay = new Date(today).getTime();
     const now = Date.now();
-    
+
     const heartbeats = await this.schema.queryHeartbeats(startOfDay, now, 1000);
-    
+
     const expectedHb = Math.floor((now - startOfDay) / 60000); // 1 per minute
     const writtenHb = heartbeats.length;
     const missedHb = Math.max(0, expectedHb - writtenHb);
@@ -405,7 +428,7 @@ class BootstrapRunner {
       probePassRates: {
         outbound: 100,
         queue: 100,
-        inbound: 100
+        inbound: 100,
       },
       mttrP50: null,
       mttrP90: null,
@@ -415,13 +438,13 @@ class BootstrapRunner {
       numericCoverage,
       commitHash,
       serviceVersion,
-      instanceId
+      instanceId,
     });
 
     return {
       type: 'rollup',
       path: `wa_metrics/longrun/rollups/${today}`,
-      doc: rollupDoc
+      doc: rollupDoc,
     };
   }
 }

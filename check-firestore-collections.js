@@ -6,7 +6,7 @@ if (!admin.apps.length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
       admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+        credential: admin.credential.cert(serviceAccount),
       });
       console.log('✅ Firebase Admin initialized');
     } else {
@@ -23,11 +23,13 @@ const db = admin.firestore();
 
 async function checkCollections() {
   console.log('\n📊 Checking Firestore collections...\n');
-  
+
   try {
     // Check whatsappConversations
     const conversationsSnapshot = await db.collection('whatsappConversations').limit(5).get();
-    console.log(`📱 whatsappConversations: ${conversationsSnapshot.size} documents (showing first 5)`);
+    console.log(
+      `📱 whatsappConversations: ${conversationsSnapshot.size} documents (showing first 5)`
+    );
     if (conversationsSnapshot.size > 0) {
       conversationsSnapshot.forEach(doc => {
         console.log(`  - ${doc.id}:`, doc.data());
@@ -35,9 +37,9 @@ async function checkCollections() {
     } else {
       console.log('  ⚠️  Collection is empty');
     }
-    
+
     console.log('');
-    
+
     // Check whatsappMessages
     const messagesSnapshot = await db.collection('whatsappMessages').limit(5).get();
     console.log(`💬 whatsappMessages: ${messagesSnapshot.size} documents (showing first 5)`);
@@ -48,9 +50,9 @@ async function checkCollections() {
     } else {
       console.log('  ⚠️  Collection is empty');
     }
-    
+
     console.log('');
-    
+
     // Check staffProfiles
     const staffSnapshot = await db.collection('staffProfiles').limit(5).get();
     console.log(`👥 staffProfiles: ${staffSnapshot.size} documents (showing first 5)`);
@@ -62,13 +64,12 @@ async function checkCollections() {
     } else {
       console.log('  ⚠️  Collection is empty');
     }
-    
+
     console.log('\n✅ Check complete\n');
-    
   } catch (error) {
     console.error('❌ Error checking collections:', error);
   }
-  
+
   process.exit(0);
 }
 

@@ -12,16 +12,17 @@
 
 ### 1. Baza de Date (Firestore)
 
-| Aspect | Firebase | Railway | Adevăr |
-|--------|----------|---------|--------|
-| **Firestore integrat** | ✅ Native | ❌ Trebuie configurat | 100% |
-| **Latență** | 10-50ms | 100-200ms | 90% |
-| **Session storage** | ✅ Direct | ⚠️ Prin API | 100% |
-| **Cost** | Inclus | Separat | 100% |
+| Aspect                 | Firebase  | Railway               | Adevăr |
+| ---------------------- | --------- | --------------------- | ------ |
+| **Firestore integrat** | ✅ Native | ❌ Trebuie configurat | 100%   |
+| **Latență**            | 10-50ms   | 100-200ms             | 90%    |
+| **Session storage**    | ✅ Direct | ⚠️ Prin API           | 100%   |
+| **Cost**               | Inclus    | Separat               | 100%   |
 
 **Adevăr:** **100%** - Firebase e **mult mai bun** pentru Firestore
 
 **De ce:** WhatsApp folosește Firestore pentru:
+
 - Session storage (QR codes, auth)
 - Message queue
 - Account status
@@ -35,21 +36,21 @@ Pe Firebase = **0 latență**, pe Railway = **API calls** (mai lent)
 
 #### Firebase Functions:
 
-| Item | Cost/lună | Detalii |
-|------|-----------|---------|
-| **Functions** | $0-5 | 2M invocations gratuite |
-| **Firestore** | $0-2 | 50K reads/20K writes gratuite |
-| **Bandwidth** | $0-1 | 10GB gratuit |
-| **TOTAL** | **$0-8** | Pentru 20 conturi WhatsApp |
+| Item          | Cost/lună | Detalii                       |
+| ------------- | --------- | ----------------------------- |
+| **Functions** | $0-5      | 2M invocations gratuite       |
+| **Firestore** | $0-2      | 50K reads/20K writes gratuite |
+| **Bandwidth** | $0-1      | 10GB gratuit                  |
+| **TOTAL**     | **$0-8**  | Pentru 20 conturi WhatsApp    |
 
 #### Railway:
 
-| Item | Cost/lună | Detalii |
-|------|-----------|---------|
-| **Service** | $5-10 | Always-on |
-| **Firestore API** | $0-2 | Aceleași costuri |
-| **Bandwidth** | Inclus | - |
-| **TOTAL** | **$5-12** | Pentru 20 conturi WhatsApp |
+| Item              | Cost/lună | Detalii                    |
+| ----------------- | --------- | -------------------------- |
+| **Service**       | $5-10     | Always-on                  |
+| **Firestore API** | $0-2      | Aceleași costuri           |
+| **Bandwidth**     | Inclus    | -                          |
+| **TOTAL**         | **$5-12** | Pentru 20 conturi WhatsApp |
 
 **Adevăr:** **95%** - Firebase e **mai ieftin** cu $5-7/lună
 
@@ -61,25 +62,26 @@ Pe Firebase = **0 latență**, pe Railway = **API calls** (mai lent)
 
 #### Firebase Functions:
 
-| Metric | Valoare | Probă |
-|--------|---------|-------|
-| **Cold start** | 2-5s | Documentat Google |
-| **Warm requests** | 50-200ms | Testat |
-| **Firestore latency** | 10-50ms | Native |
-| **Uptime** | 99.95% | SLA Google |
+| Metric                | Valoare  | Probă             |
+| --------------------- | -------- | ----------------- |
+| **Cold start**        | 2-5s     | Documentat Google |
+| **Warm requests**     | 50-200ms | Testat            |
+| **Firestore latency** | 10-50ms  | Native            |
+| **Uptime**            | 99.95%   | SLA Google        |
 
 #### Railway:
 
-| Metric | Valoare | Probă |
-|--------|---------|-------|
-| **Cold start** | 0s | Always-on |
-| **Requests** | 50-100ms | Testat |
-| **Firestore latency** | 100-200ms | API calls |
-| **Uptime** | 99.9% | SLA Railway |
+| Metric                | Valoare   | Probă       |
+| --------------------- | --------- | ----------- |
+| **Cold start**        | 0s        | Always-on   |
+| **Requests**          | 50-100ms  | Testat      |
+| **Firestore latency** | 100-200ms | API calls   |
+| **Uptime**            | 99.9%     | SLA Railway |
 
 **Adevăr:** **90%** - Railway e **mai rapid** pentru requests, dar Firebase e **mai rapid** pentru Firestore
 
 **Trade-off:**
+
 - Railway: Mai rapid pentru API, mai lent pentru database
 - Firebase: Mai lent la cold start, mai rapid pentru database
 
@@ -89,19 +91,19 @@ Pe Firebase = **0 latență**, pe Railway = **API calls** (mai lent)
 
 #### Firebase Functions (Istoric Real):
 
-| Data | Status | Probă |
-|------|--------|-------|
+| Data   | Status       | Probă                |
+| ------ | ------------ | -------------------- |
 | 26 Dec | ✅ Funcționa | Te-ai conectat cu QR |
-| 27 Dec | ✅ Optimizat | Commit af4518cf |
-| 27 Dec | ❌ Șters | Commit 6f5a14e3 |
+| 27 Dec | ✅ Optimizat | Commit af4518cf      |
+| 27 Dec | ❌ Șters     | Commit 6f5a14e3      |
 
 **Adevăr:** **100%** - A funcționat când era deployed
 
 #### Railway (Istoric Real):
 
-| Data | Status | Probă |
-|------|--------|-------|
-| NICIODATĂ | ❌ Nu testat | - |
+| Data      | Status       | Probă |
+| --------- | ------------ | ----- |
+| NICIODATĂ | ❌ Nu testat | -     |
 
 **Adevăr:** **100%** - Nu știm dacă merge pe Railway
 
@@ -111,28 +113,30 @@ Pe Firebase = **0 latență**, pe Railway = **API calls** (mai lent)
 
 #### Firebase:
 
-| Task | Timp | Dificultate |
-|------|------|-------------|
-| Setup inițial | 10 min | Medie |
-| Deploy | 2 min | Ușor |
-| Update | 1 min | Foarte ușor |
-| Rollback | 30s | Foarte ușor |
+| Task          | Timp   | Dificultate |
+| ------------- | ------ | ----------- |
+| Setup inițial | 10 min | Medie       |
+| Deploy        | 2 min  | Ușor        |
+| Update        | 1 min  | Foarte ușor |
+| Rollback      | 30s    | Foarte ușor |
 
 **Comenzi:**
+
 ```bash
 firebase deploy --only functions
 ```
 
 #### Railway:
 
-| Task | Timp | Dificultate |
-|------|------|-------------|
-| Setup inițial | 5 min | Ușor |
-| Deploy | Auto | Foarte ușor |
-| Update | Auto | Foarte ușor |
-| Rollback | 1 min | Ușor |
+| Task          | Timp  | Dificultate |
+| ------------- | ----- | ----------- |
+| Setup inițial | 5 min | Ușor        |
+| Deploy        | Auto  | Foarte ușor |
+| Update        | Auto  | Foarte ușor |
+| Rollback      | 1 min | Ușor        |
 
 **Comenzi:**
+
 ```bash
 git push  # Auto-deploy
 ```
@@ -145,12 +149,12 @@ git push  # Auto-deploy
 
 #### Firebase Functions:
 
-| Limitare | Valoare | Impact WhatsApp |
-|----------|---------|-----------------|
-| **Timeout** | 540s (9 min) | ✅ OK |
-| **Memory** | 8GB max | ✅ OK (folosim 2GB) |
-| **Concurrent** | 1000 | ✅ OK (avem 20 conturi) |
-| **Cold start** | 2-5s | ⚠️ Poate deconecta WhatsApp |
+| Limitare       | Valoare      | Impact WhatsApp             |
+| -------------- | ------------ | --------------------------- |
+| **Timeout**    | 540s (9 min) | ✅ OK                       |
+| **Memory**     | 8GB max      | ✅ OK (folosim 2GB)         |
+| **Concurrent** | 1000         | ✅ OK (avem 20 conturi)     |
+| **Cold start** | 2-5s         | ⚠️ Poate deconecta WhatsApp |
 
 **Adevăr:** **90%** - Cold start e **problema principală**
 
@@ -158,12 +162,12 @@ git push  # Auto-deploy
 
 #### Railway:
 
-| Limitare | Valoare | Impact WhatsApp |
-|----------|---------|-----------------|
-| **Timeout** | Nelimitat | ✅ Perfect |
-| **Memory** | 8GB max | ✅ OK |
-| **Concurrent** | Nelimitat | ✅ Perfect |
-| **Cold start** | 0s | ✅ Perfect |
+| Limitare       | Valoare   | Impact WhatsApp |
+| -------------- | --------- | --------------- |
+| **Timeout**    | Nelimitat | ✅ Perfect      |
+| **Memory**     | 8GB max   | ✅ OK           |
+| **Concurrent** | Nelimitat | ✅ Perfect      |
+| **Cold start** | 0s        | ✅ Perfect      |
 
 **Adevăr:** **100%** - Railway **nu are cold start**
 
@@ -174,6 +178,7 @@ git push  # Auto-deploy
 ### Pentru WhatsApp cu 20 Conturi:
 
 **FIREBASE e mai bun dacă:**
+
 - ✅ Vrei cost mai mic ($0-8 vs $5-12)
 - ✅ Vrei integrare nativă cu Firestore
 - ✅ Vrei latență mică la database (10-50ms)
@@ -181,6 +186,7 @@ git push  # Auto-deploy
 - ✅ Știi că a funcționat deja (26-27 Dec)
 
 **RAILWAY e mai bun dacă:**
+
 - ✅ Vrei zero cold start (always-on)
 - ✅ Vrei deployment mai simplu (auto)
 - ✅ Vrei uptime maxim (99.9%)
@@ -194,6 +200,7 @@ git push  # Auto-deploy
 ### **FIREBASE** (80% încredere)
 
 **De ce:**
+
 1. ✅ **A funcționat deja** pe 26-27 Dec (probă reală)
 2. ✅ **Firestore nativ** = mai rapid pentru WhatsApp
 3. ✅ **Cost mai mic** = $0-8/lună
@@ -201,6 +208,7 @@ git push  # Auto-deploy
 5. ⚠️ **Cold start** = rezolvabil cu keep-alive
 
 **Aberație:** 20%
+
 - Cold start poate cauza probleme
 - Trebuie keep-alive la 5 min
 - Poate fi mai greu de debug
@@ -212,6 +220,7 @@ git push  # Auto-deploy
 ### Opțiunea 1: Firebase (RECOMANDAT)
 
 **Pași:**
+
 1. Redeploy WhatsApp pe Firebase Functions (5 min)
 2. Configurare keep-alive (2 min)
 3. Test conexiune WhatsApp (5 min)
@@ -222,6 +231,7 @@ git push  # Auto-deploy
 ### Opțiunea 2: Railway
 
 **Pași:**
+
 1. Deploy WhatsApp pe Railway (5 min)
 2. Configurare Firestore API (2 min)
 3. Test conexiune WhatsApp (5 min)
@@ -233,15 +243,15 @@ git push  # Auto-deploy
 
 ## 📊 Tabel Comparativ Final
 
-| Criteriu | Firebase | Railway | Câștigător |
-|----------|----------|---------|------------|
-| **Cost** | $0-8 | $5-12 | 🔥 Firebase |
-| **Firestore** | Native | API | 🔥 Firebase |
-| **Cold start** | 2-5s | 0s | 🚂 Railway |
-| **Deployment** | Manual | Auto | 🚂 Railway |
-| **Istoric** | ✅ A mers | ❌ Nu testat | 🔥 Firebase |
-| **Uptime** | 99.95% | 99.9% | 🔥 Firebase |
-| **Debug** | Mediu | Ușor | 🚂 Railway |
+| Criteriu       | Firebase  | Railway      | Câștigător  |
+| -------------- | --------- | ------------ | ----------- |
+| **Cost**       | $0-8      | $5-12        | 🔥 Firebase |
+| **Firestore**  | Native    | API          | 🔥 Firebase |
+| **Cold start** | 2-5s      | 0s           | 🚂 Railway  |
+| **Deployment** | Manual    | Auto         | 🚂 Railway  |
+| **Istoric**    | ✅ A mers | ❌ Nu testat | 🔥 Firebase |
+| **Uptime**     | 99.95%    | 99.9%        | 🔥 Firebase |
+| **Debug**      | Mediu     | Ușor         | 🚂 Railway  |
 
 **Scor:** Firebase 5 - Railway 2
 

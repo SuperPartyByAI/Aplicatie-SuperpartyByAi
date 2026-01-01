@@ -7,12 +7,14 @@
 ## Metrics
 
 ### Uptime
+
 - Heartbeats collected: 0
 - Heartbeats expected: 259200
 - Uptime: 0.00%
 - Target: 99.0%
 
 ### Probes
+
 - Total: 0
 - Pass: 0
 - Fail: 0
@@ -20,4 +22,5 @@
 - Target: 99.0%
 
 ## Status
+
 ⚠️ INSUFFICIENT_DATA

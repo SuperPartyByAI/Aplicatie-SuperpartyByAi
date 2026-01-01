@@ -7,6 +7,7 @@ Serviciul `web-production-f0714.up.railway.app` rulează alt cod și nu pot schi
 ## Soluție: Serviciu nou (2 minute)
 
 ### Pasul 1: Creează serviciu nou
+
 1. https://railway.app
 2. Click "New Project"
 3. Click "Deploy from GitHub repo"
@@ -14,6 +15,7 @@ Serviciul `web-production-f0714.up.railway.app` rulează alt cod și nu pot schi
 5. Branch: `main` (NU master!)
 
 ### Pasul 2: Adaugă variabilele
+
 Click Variables → Raw Editor → Paste:
 
 ```
@@ -27,25 +29,30 @@ PORT=5001
 ```
 
 ### Pasul 3: Generate Domain
+
 1. Settings → Networking
 2. Click "Generate Domain"
 3. Copiază URL-ul (ex: `voice-ai-production-abc.up.railway.app`)
 
 ### Pasul 4: Update BACKEND_URL
+
 1. Variables → Edit `BACKEND_URL`
 2. Pune URL-ul de la Pasul 3
 
 SAU adaugă variabila:
+
 ```
 BACKEND_URL=https://URL-UL-TAU.up.railway.app
 ```
 
 ### Pasul 5: Update Twilio
+
 1. https://console.twilio.com/
 2. Phone Numbers → +1 (218) 220-4425
 3. A call comes in: `https://URL-UL-TAU.up.railway.app/api/voice/incoming`
 
 ### Pasul 6: Test
+
 Sună la: **+1 (218) 220-4425**
 
 Ar trebui să auzi: "Bună ziua, SuperParty, cu ce vă ajut?" cu vocea Kasya!

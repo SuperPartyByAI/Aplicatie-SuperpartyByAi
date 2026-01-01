@@ -2,14 +2,14 @@
 
 ## 🎯 REZULTAT FINAL
 
-| Metric | Înainte | Normal | **EXTREME** | Îmbunătățire |
-|--------|---------|--------|-------------|--------------|
-| **Uptime** | 95% | 99.9% | **99.99%** | ✅ **+4.99%** |
-| **Downtime/lună** | 36 ore | 43 min | **4.3 min** | ✅ **500x mai puțin** |
-| **Detection** | Manual | 20s | **5s** | ✅ **Automat + 4x mai rapid** |
-| **Failover** | 60s | <1s | **<0.1s** | ✅ **600x mai rapid** |
-| **Recovery** | 5-60 min | <5 min | **<90s** | ✅ **40x mai rapid** |
-| **Cost** | $0 | $0 | **$0** | ✅ **Gratis** |
+| Metric            | Înainte  | Normal | **EXTREME** | Îmbunătățire                  |
+| ----------------- | -------- | ------ | ----------- | ----------------------------- |
+| **Uptime**        | 95%      | 99.9%  | **99.99%**  | ✅ **+4.99%**                 |
+| **Downtime/lună** | 36 ore   | 43 min | **4.3 min** | ✅ **500x mai puțin**         |
+| **Detection**     | Manual   | 20s    | **5s**      | ✅ **Automat + 4x mai rapid** |
+| **Failover**      | 60s      | <1s    | **<0.1s**   | ✅ **600x mai rapid**         |
+| **Recovery**      | 5-60 min | <5 min | **<90s**    | ✅ **40x mai rapid**          |
+| **Cost**          | $0       | $0     | **$0**      | ✅ **Gratis**                 |
 
 ---
 
@@ -85,21 +85,21 @@ TOTAL: <90 SECUNDE DOWNTIME ✅✅✅
 
 ### **Înainte:**
 
-| Item | Cost/lună |
-|------|-----------|
-| Manual monitoring | Developer time (~18 ore) |
-| Manual recovery | Developer time (~18 ore) |
-| Downtime | Lost revenue (36 ore) |
-| **TOTAL** | **~$2,000+** (developer time + lost revenue) |
+| Item              | Cost/lună                                    |
+| ----------------- | -------------------------------------------- |
+| Manual monitoring | Developer time (~18 ore)                     |
+| Manual recovery   | Developer time (~18 ore)                     |
+| Downtime          | Lost revenue (36 ore)                        |
+| **TOTAL**         | **~$2,000+** (developer time + lost revenue) |
 
 ### **EXTREME:**
 
-| Item | Cost/lună |
-|------|-----------|
+| Item               | Cost/lună              |
+| ------------------ | ---------------------- |
 | Monitoring service | $0 (Railway free tier) |
-| Auto-recovery | $0 (Railway API) |
-| Downtime | Minimal (4.3 min) |
-| **TOTAL** | **$0** |
+| Auto-recovery      | $0 (Railway API)       |
+| Downtime           | Minimal (4.3 min)      |
+| **TOTAL**          | **$0**                 |
 
 **Economisești $2,000+/lună!** 💰
 
@@ -142,11 +142,11 @@ Rezultat: Client perfect fericit (zero probleme)
 
 ### **Downtime:**
 
-| Versiune | Downtime/an | Ore pierdute | Zile pierdute |
-|----------|-------------|--------------|---------------|
-| Înainte | 438 ore | 438 | **18.25 zile** |
-| Normal | 8.7 ore | 8.7 | 0.36 zile |
-| **EXTREME** | **52 min** | **0.87** | **0.036 zile** |
+| Versiune    | Downtime/an | Ore pierdute | Zile pierdute  |
+| ----------- | ----------- | ------------ | -------------- |
+| Înainte     | 438 ore     | 438          | **18.25 zile** |
+| Normal      | 8.7 ore     | 8.7          | 0.36 zile      |
+| **EXTREME** | **52 min**  | **0.87**     | **0.036 zile** |
 
 **Economisești 437 ore/an = 18 zile!**
 
@@ -154,11 +154,11 @@ Rezultat: Client perfect fericit (zero probleme)
 
 ### **Developer Time:**
 
-| Versiune | Incidente/an | Timp/incident | Total ore/an |
-|----------|--------------|---------------|--------------|
-| Înainte | ~864 | 15 min | **216 ore** |
-| Normal | ~120 | 5 min | 10 ore |
-| **EXTREME** | **~12** | **2 min** | **24 min** |
+| Versiune    | Incidente/an | Timp/incident | Total ore/an |
+| ----------- | ------------ | ------------- | ------------ |
+| Înainte     | ~864         | 15 min        | **216 ore**  |
+| Normal      | ~120         | 5 min         | 10 ore       |
+| **EXTREME** | **~12**      | **2 min**     | **24 min**   |
 
 **Economisești 215 ore developer time/an!**
 
@@ -170,11 +170,11 @@ La $50/oră = **$10,750 economisiți/an!**
 
 Presupunem 1000 apeluri/zi, $5 profit/apel:
 
-| Versiune | Apeluri pierdute/an | Revenue pierdut |
-|----------|---------------------|-----------------|
-| Înainte | ~18,250 | **$91,250** |
-| Normal | ~362 | $1,810 |
-| **EXTREME** | **~36** | **$180** |
+| Versiune    | Apeluri pierdute/an | Revenue pierdut |
+| ----------- | ------------------- | --------------- |
+| Înainte     | ~18,250             | **$91,250**     |
+| Normal      | ~362                | $1,810          |
+| **EXTREME** | **~36**             | **$180**        |
 
 **Economisești $91,070/an în revenue!**
 
@@ -182,11 +182,11 @@ Presupunem 1000 apeluri/zi, $5 profit/apel:
 
 ## 🎯 TOTAL SAVINGS PER AN
 
-| Category | Savings/an |
-|----------|------------|
-| Developer time | $10,750 |
-| Lost revenue | $91,070 |
-| **TOTAL** | **$101,820** |
+| Category       | Savings/an   |
+| -------------- | ------------ |
+| Developer time | $10,750      |
+| Lost revenue   | $91,070      |
+| **TOTAL**      | **$101,820** |
 
 **ROI: INFINIT (cost $0, savings $100k+)**
 
@@ -194,18 +194,18 @@ Presupunem 1000 apeluri/zi, $5 profit/apel:
 
 ## 🏆 FEATURES COMPARISON
 
-| Feature | Înainte | Normal | EXTREME |
-|---------|---------|--------|---------|
-| Auto-detection | ❌ | ✅ 20s | ✅ 5s |
-| Auto-failover | ❌ | ✅ <1s | ✅ <0.1s |
-| Auto-restart | ❌ | ✅ 3x | ✅ 3x parallel |
-| Auto-redeploy | ❌ | ✅ 2x | ✅ 2x parallel |
-| Auto-rollback | ❌ | ✅ | ✅ |
-| Predictive restart | ❌ | ❌ | ✅ |
-| Multi-region | ❌ | ❌ | ✅ |
-| Parallel recovery | ❌ | ❌ | ✅ |
-| Health checks | ❌ | 10s | 5s |
-| Pre-warming | ❌ | 30s | 15s |
+| Feature            | Înainte | Normal | EXTREME        |
+| ------------------ | ------- | ------ | -------------- |
+| Auto-detection     | ❌      | ✅ 20s | ✅ 5s          |
+| Auto-failover      | ❌      | ✅ <1s | ✅ <0.1s       |
+| Auto-restart       | ❌      | ✅ 3x  | ✅ 3x parallel |
+| Auto-redeploy      | ❌      | ✅ 2x  | ✅ 2x parallel |
+| Auto-rollback      | ❌      | ✅     | ✅             |
+| Predictive restart | ❌      | ❌     | ✅             |
+| Multi-region       | ❌      | ❌     | ✅             |
+| Parallel recovery  | ❌      | ❌     | ✅             |
+| Health checks      | ❌      | 10s    | 5s             |
+| Pre-warming        | ❌      | 30s    | 15s            |
 
 ---
 
@@ -214,6 +214,7 @@ Presupunem 1000 apeluri/zi, $5 profit/apel:
 ### **Pentru business serios:**
 
 🏆 **Folosește EXTREME**
+
 - 99.99% uptime
 - 4.3 min downtime/lună
 - $0 cost
@@ -222,6 +223,7 @@ Presupunem 1000 apeluri/zi, $5 profit/apel:
 ### **Pentru început:**
 
 ✅ **Folosește NORMAL**
+
 - 99.9% uptime
 - 43 min downtime/lună
 - $0 cost

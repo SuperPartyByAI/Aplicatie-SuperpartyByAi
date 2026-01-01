@@ -6,12 +6,15 @@ class ElevenLabsHandler {
     this.voiceId = process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL'; // Default: Sarah (Romanian)
     this.enabled = false;
 
-    console.log('[ElevenLabs] Checking API key:', process.env.ELEVENLABS_API_KEY ? 'EXISTS' : 'MISSING');
-    
+    console.log(
+      '[ElevenLabs] Checking API key:',
+      process.env.ELEVENLABS_API_KEY ? 'EXISTS' : 'MISSING'
+    );
+
     if (process.env.ELEVENLABS_API_KEY) {
       try {
         this.client = new ElevenLabsClient({
-          apiKey: process.env.ELEVENLABS_API_KEY
+          apiKey: process.env.ELEVENLABS_API_KEY,
         });
         this.enabled = true;
         console.log('[ElevenLabs] ✅ Initialized successfully with voice:', this.voiceId);
@@ -47,8 +50,8 @@ class ElevenLabsHandler {
           stability: 0.5,
           similarity_boost: 0.75,
           style: 0.0,
-          use_speaker_boost: true
-        }
+          use_speaker_boost: true,
+        },
       });
 
       // Convert audio stream to buffer
@@ -64,7 +67,6 @@ class ElevenLabsHandler {
 
       console.log(`[ElevenLabs] Generated ${buffer.length} bytes`);
       return dataUrl;
-
     } catch (error) {
       console.error('[ElevenLabs] Generation failed:', error.message);
       return null;

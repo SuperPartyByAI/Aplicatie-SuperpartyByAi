@@ -5,17 +5,20 @@
 ### ✅ Ce FUNCȚIONEAZĂ:
 
 **Funcția deployed pe Firebase:**
+
 - URL: `https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp`
 - Version: `5.0.0`
 - Status: `online`
 - Commit deployed: `7cc8300d` (28 Dec 2025)
 
 **Endpoint-uri disponibile:**
+
 - ✅ `GET /` - Health check
 - ✅ `GET /api/whatsapp/accounts` - List accounts
 - ✅ `POST /api/whatsapp/add-account` - Add new account
 
 **Cont WhatsApp activ:**
+
 - ID: `account_1766991966020`
 - Name: `Test Account`
 - Status: `connected`
@@ -24,6 +27,7 @@
 ### ❌ Ce NU FUNCȚIONEAZĂ:
 
 **Endpoint-uri LIPSĂ (există în cod dar NU sunt deployed):**
+
 - ❌ `DELETE /api/whatsapp/accounts/:id` - Șterge cont
 - ❌ `POST /api/whatsapp/send` - Trimite mesaj
 - ❌ `POST /api/whatsapp/send-message` - Trimite mesaj (alias)
@@ -32,6 +36,7 @@
 - ❌ `GET /health` - Health check detaliat
 
 **Teste efectuate:**
+
 ```bash
 # DELETE - FAILED
 curl -X DELETE https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/accounts/test
@@ -76,6 +81,7 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ### De ce GitHub Actions NU rulează:
 
 **Posibile cauze:**
+
 1. ✅ Workflow-ul există și e valid
 2. ❓ Secret `FIREBASE_SERVICE_ACCOUNT_SUPERPARTY_FRONTEND` lipsește sau e invalid
 3. ❓ GitHub Actions disabled pentru repository
@@ -90,17 +96,20 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 **Pași:**
 
 1. **Pe mașina ta locală (Windows):**
+
    ```cmd
    cd C:\Users\ursac\Aplicatie-SuperpartyByAi
    git pull
    ```
 
 2. **Autentificare Firebase:**
+
    ```cmd
    firebase login
    ```
 
 3. **Deploy:**
+
    ```cmd
    firebase deploy --only functions --project superparty-frontend
    ```
@@ -147,18 +156,21 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ### Opțiunea 3: Folosește Railway (alternativă)
 
 **Status Railway:**
+
 - URL: `https://whats-upp-production.up.railway.app`
 - Status: `online`
 - Version: `1.0.0`
 - Accounts: 1 (status: connecting)
 
 **Avantaje:**
+
 - ✅ Deploy instant (git push)
 - ✅ Nu are cold starts
 - ✅ Logs real-time
 - ✅ Toate endpoint-urile funcționează
 
 **Dezavantaje:**
+
 - ❌ Frontend-ul e configurat pentru Firebase
 - ❌ Trebuie să migrezi frontend-ul
 
@@ -178,6 +190,7 @@ firebase deploy --only functions --project superparty-frontend
 ```
 
 **Verificare după deploy:**
+
 ```bash
 # Health check
 curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/
@@ -237,6 +250,7 @@ După deploy, testează:
 ## 🚨 IMPORTANT:
 
 **NU folosi soluții temporare!**
+
 - ❌ NU ignora problema de deploy
 - ❌ NU folosi Railway ca workaround fără să migrezi complet
 - ❌ NU lăsa codul nedeployed

@@ -41,6 +41,7 @@ După ce Railway termină deploy-ul:
 **Sună la: +1 (218) 220-4425**
 
 Ar trebui să auzi:
+
 > "Bună ziua, SuperParty, cu ce vă ajut?"
 
 Cu vocea Kasya (clonată cu Coqui XTTS).
@@ -48,6 +49,7 @@ Cu vocea Kasya (clonată cu Coqui XTTS).
 ## 📊 Verificare:
 
 După ce suni, verifică în Railway logs:
+
 ```
 🚀 SuperParty Backend - WhatsApp + Voice
 📡 Server running on port 5001
@@ -60,14 +62,17 @@ După ce suni, verifică în Railway logs:
 ## ❌ Troubleshooting:
 
 **Dacă nu răspunde:**
+
 - Verifică că Railway a terminat deploy-ul
 - Verifică că serviciul e conectat la `superparty-ai-backend`
 - Verifică logs pentru erori
 
 **Dacă răspunde dar nu e vocea Kasya:**
+
 - Verifică că Coqui service rulează pe: `https://web-production-00dca9.up.railway.app`
 - Verifică că `COQUI_API_URL` e setat în Railway Variables
 
 **Dacă se închide imediat:**
+
 - Verifică Railway logs pentru erori
 - Verifică că toate variabilele sunt setate corect

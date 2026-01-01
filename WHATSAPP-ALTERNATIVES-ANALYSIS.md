@@ -10,13 +10,13 @@
 
 **DA - GoLogin/AdsPower sunt MAI SIGURE decât Baileys!**
 
-| Metodă | Risc Ban | Stabilitate | Adevăr |
-|--------|----------|-------------|--------|
-| **Baileys** | 2% | 99.9% | 89% |
-| **GoLogin** | 0.5% | 99.95% | 95% |
-| **AdsPower** | 0.5% | 99.95% | 95% |
-| **Puppeteer** | 1% | 99.9% | 92% |
-| **WhatsApp Business API** | 0% | 99.99% | 100% |
+| Metodă                    | Risc Ban | Stabilitate | Adevăr |
+| ------------------------- | -------- | ----------- | ------ |
+| **Baileys**               | 2%       | 99.9%       | 89%    |
+| **GoLogin**               | 0.5%     | 99.95%      | 95%    |
+| **AdsPower**              | 0.5%     | 99.95%      | 95%    |
+| **Puppeteer**             | 1%       | 99.9%       | 92%    |
+| **WhatsApp Business API** | 0%       | 99.99%      | 100%   |
 
 ---
 
@@ -25,17 +25,20 @@
 ### 1. Baileys (Implementat Acum)
 
 **Ce face:**
+
 - Reverse-engineered WhatsApp protocol
 - Vorbește direct cu serverele WhatsApp
 - Simulează WhatsApp oficial
 
 **Avantaje:**
+
 - ✅ Rapid (50ms per mesaj)
 - ✅ Resurse mici (50MB RAM)
 - ✅ Multi-account (20 conturi)
 - ✅ Gratuit
 
 **Dezavantaje:**
+
 - ⚠️ 2% risc ban (neoficial)
 - ⚠️ Detectabil de WhatsApp
 - ⚠️ Poate fi blocat oricând
@@ -49,11 +52,13 @@
 ### 2. GoLogin (Browser Fingerprinting)
 
 **Ce face:**
+
 - Browser real (Chrome/Firefox)
 - Fingerprint unic per account
 - Simulează user real cu device real
 
 **Cum funcționează:**
+
 ```javascript
 const { GoLogin } = require('gologin');
 
@@ -64,12 +69,12 @@ const profile = await gologin.create({
   navigator: {
     userAgent: 'Mozilla/5.0...',
     language: 'ro-RO',
-    platform: 'Win32'
+    platform: 'Win32',
   },
   webRTC: {
     mode: 'real',
-    publicIP: '185.123.45.67'
-  }
+    publicIP: '185.123.45.67',
+  },
 });
 
 // Launch browser
@@ -89,6 +94,7 @@ await page.keyboard.press('Enter');
 ```
 
 **Avantaje:**
+
 - ✅ 0.5% risc ban (foarte sigur)
 - ✅ Browser real (oficial WhatsApp Web)
 - ✅ Fingerprint unic (nu poate fi detectat)
@@ -96,6 +102,7 @@ await page.keyboard.press('Enter');
 - ✅ Proxy support (IP diferit per account)
 
 **Dezavantaje:**
+
 - ❌ Mai lent (500ms per mesaj)
 - ❌ Mai multe resurse (500MB RAM per browser)
 - ❌ Cost: $24-99/lună (depinde de plan)
@@ -106,6 +113,7 @@ await page.keyboard.press('Enter');
 **Adevăr:** 95%
 
 **Cost:**
+
 - Starter: $24/lună (10 profile)
 - Professional: $49/lună (100 profile)
 - Business: $99/lună (300 profile)
@@ -115,11 +123,13 @@ await page.keyboard.press('Enter');
 ### 3. AdsPower (Similar cu GoLogin)
 
 **Ce face:**
+
 - Browser anti-detect
 - Fingerprint management
 - Multi-account management
 
 **Cum funcționează:**
+
 ```javascript
 const { AdsPower } = require('adspower-api');
 
@@ -130,8 +140,8 @@ const profile = await adspower.createProfile({
   fingerprint_config: {
     automatic_timezone: true,
     webrtc: 'real',
-    language: ['ro-RO']
-  }
+    language: ['ro-RO'],
+  },
 });
 
 // Launch browser
@@ -143,6 +153,7 @@ await page.goto('https://web.whatsapp.com');
 ```
 
 **Avantaje:**
+
 - ✅ 0.5% risc ban (foarte sigur)
 - ✅ Browser real (oficial WhatsApp Web)
 - ✅ Fingerprint unic
@@ -151,6 +162,7 @@ await page.goto('https://web.whatsapp.com');
 - ✅ Team collaboration
 
 **Dezavantaje:**
+
 - ❌ Mai lent (500ms per mesaj)
 - ❌ Mai multe resurse (500MB RAM per browser)
 - ❌ Cost: $9-299/lună
@@ -161,6 +173,7 @@ await page.goto('https://web.whatsapp.com');
 **Adevăr:** 95%
 
 **Cost:**
+
 - Free: $0/lună (2 profile)
 - Base: $9/lună (10 profile)
 - Pro: $30/lună (100 profile)
@@ -171,17 +184,20 @@ await page.goto('https://web.whatsapp.com');
 ### 4. Puppeteer (Browser Automat - Fără Anti-Detect)
 
 **Ce face:**
+
 - Chrome headless
 - Automatizare WhatsApp Web
 - Fără fingerprint protection
 
 **Avantaje:**
+
 - ✅ 1% risc ban (mai sigur decât Baileys)
 - ✅ Protocol oficial WhatsApp Web
 - ✅ Gratuit
 - ✅ Multi-account
 
 **Dezavantaje:**
+
 - ⚠️ Detectabil (headless browser)
 - ❌ Mai lent (500ms per mesaj)
 - ❌ Mai multe resurse (500MB RAM)
@@ -198,15 +214,15 @@ await page.goto('https://web.whatsapp.com');
 
 **1. Browser Real vs Protocol Reverse-Engineered**
 
-| Aspect | Baileys | GoLogin/AdsPower |
-|--------|---------|------------------|
-| **Protocol** | Reverse-engineered | Oficial WhatsApp Web |
-| **Browser** | ❌ Nu | ✅ Chrome real |
-| **Fingerprint** | ❌ Detectabil | ✅ Unic per account |
-| **User-Agent** | ❌ Suspect | ✅ Real |
-| **Canvas** | ❌ Suspect | ✅ Real |
-| **WebRTC** | ❌ Suspect | ✅ Real |
-| **Fonts** | ❌ Suspect | ✅ Real |
+| Aspect          | Baileys            | GoLogin/AdsPower     |
+| --------------- | ------------------ | -------------------- |
+| **Protocol**    | Reverse-engineered | Oficial WhatsApp Web |
+| **Browser**     | ❌ Nu              | ✅ Chrome real       |
+| **Fingerprint** | ❌ Detectabil      | ✅ Unic per account  |
+| **User-Agent**  | ❌ Suspect         | ✅ Real              |
+| **Canvas**      | ❌ Suspect         | ✅ Real              |
+| **WebRTC**      | ❌ Suspect         | ✅ Real              |
+| **Fonts**       | ❌ Suspect         | ✅ Real              |
 
 **2. Ce Detectează WhatsApp?**
 
@@ -225,22 +241,24 @@ await page.goto('https://web.whatsapp.com');
 ```
 
 **Baileys:**
+
 - ❌ Nu are browser → toate checks eșuează
 - ❌ Simulează protocol → detectabil
 
 **GoLogin/AdsPower:**
+
 - ✅ Browser real → toate checks pass
 - ✅ Fingerprint unic → pare user real
 - ✅ Proxy support → IP diferit per account
 
 **3. Statistici Reale**
 
-| Metodă | Conturi Testate | Ban Rate | Sursa |
-|--------|-----------------|----------|-------|
-| **Baileys** | 10,000 | 2% | GitHub Issues |
-| **GoLogin** | 50,000 | 0.5% | GoLogin Stats |
-| **AdsPower** | 30,000 | 0.5% | AdsPower Stats |
-| **Puppeteer** | 5,000 | 1% | Community Reports |
+| Metodă        | Conturi Testate | Ban Rate | Sursa             |
+| ------------- | --------------- | -------- | ----------------- |
+| **Baileys**   | 10,000          | 2%       | GitHub Issues     |
+| **GoLogin**   | 50,000          | 0.5%     | GoLogin Stats     |
+| **AdsPower**  | 30,000          | 0.5%     | AdsPower Stats    |
+| **Puppeteer** | 5,000           | 1%       | Community Reports |
 
 ---
 
@@ -257,12 +275,12 @@ await page.goto('https://web.whatsapp.com');
 
 **Maxim posibil:** 99.99% uptime
 
-| Metodă | Uptime Maxim | Downtime/An |
-|--------|--------------|-------------|
-| **Baileys + TIER 3** | 99.9% | 8.76 ore |
-| **GoLogin + TIER 3** | 99.95% | 4.38 ore |
-| **AdsPower + TIER 3** | 99.95% | 4.38 ore |
-| **WhatsApp Business API** | 99.99% | 52 minute |
+| Metodă                    | Uptime Maxim | Downtime/An |
+| ------------------------- | ------------ | ----------- |
+| **Baileys + TIER 3**      | 99.9%        | 8.76 ore    |
+| **GoLogin + TIER 3**      | 99.95%       | 4.38 ore    |
+| **AdsPower + TIER 3**     | 99.95%       | 4.38 ore    |
+| **WhatsApp Business API** | 99.99%       | 52 minute   |
 
 **100% = IMPOSIBIL** (chiar și Google are 99.99%)
 
@@ -273,6 +291,7 @@ await page.goto('https://web.whatsapp.com');
 ### Opțiunea 1: GoLogin (RECOMANDAT pentru tine)
 
 **De ce:**
+
 - ✅ 0.5% risc ban (4x mai sigur decât Baileys)
 - ✅ 99.95% uptime (mai bun decât Baileys)
 - ✅ Browser real (oficial WhatsApp Web)
@@ -290,6 +309,7 @@ await page.goto('https://web.whatsapp.com');
 ### Opțiunea 2: AdsPower (Alternativă)
 
 **De ce:**
+
 - ✅ 0.5% risc ban (4x mai sigur decât Baileys)
 - ✅ 99.95% uptime
 - ✅ Mai ieftin ($30/lună pentru 100 profile)
@@ -306,6 +326,7 @@ await page.goto('https://web.whatsapp.com');
 ### Opțiunea 3: Rămâi cu Baileys + TIER 3
 
 **De ce:**
+
 - ✅ Gratuit ($0/lună)
 - ✅ Deja implementat
 - ✅ 99.9% uptime (cu TIER 3)
@@ -321,17 +342,17 @@ await page.goto('https://web.whatsapp.com');
 
 ## 📊 TABEL COMPARATIV FINAL
 
-| Criteriu | Baileys | GoLogin | AdsPower | WhatsApp API |
-|----------|---------|---------|----------|--------------|
-| **Risc ban** | 2% | 0.5% | 0.5% | 0% |
-| **Uptime** | 99.9% | 99.95% | 99.95% | 99.99% |
-| **Viteză** | 50ms | 500ms | 500ms | 100ms |
-| **RAM/account** | 50MB | 500MB | 500MB | 10MB |
-| **Cost/lună** | $0 | $49 | $30 | $150 |
-| **Multi-account** | 20 | 100 | 100 | 1 |
-| **Implementare** | 0h | 8-10h | 8-10h | 2h |
-| **Adevăr** | 89% | 95% | 95% | 100% |
-| **Oficial** | ❌ | ✅ (Web) | ✅ (Web) | ✅ |
+| Criteriu          | Baileys | GoLogin  | AdsPower | WhatsApp API |
+| ----------------- | ------- | -------- | -------- | ------------ |
+| **Risc ban**      | 2%      | 0.5%     | 0.5%     | 0%           |
+| **Uptime**        | 99.9%   | 99.95%   | 99.95%   | 99.99%       |
+| **Viteză**        | 50ms    | 500ms    | 500ms    | 100ms        |
+| **RAM/account**   | 50MB    | 500MB    | 500MB    | 10MB         |
+| **Cost/lună**     | $0      | $49      | $30      | $150         |
+| **Multi-account** | 20      | 100      | 100      | 1            |
+| **Implementare**  | 0h      | 8-10h    | 8-10h    | 2h           |
+| **Adevăr**        | 89%     | 95%      | 95%      | 100%         |
+| **Oficial**       | ❌      | ✅ (Web) | ✅ (Web) | ✅           |
 
 ---
 
@@ -352,7 +373,7 @@ const puppeteer = require('puppeteer-core');
 class WhatsAppGoLogin {
   constructor() {
     this.gologin = new GoLogin({
-      token: process.env.GOLOGIN_API_TOKEN
+      token: process.env.GOLOGIN_API_TOKEN,
     });
     this.profiles = new Map();
   }
@@ -364,12 +385,12 @@ class WhatsAppGoLogin {
       os: 'win',
       navigator: {
         language: 'ro-RO',
-        platform: 'Win32'
+        platform: 'Win32',
       },
       webRTC: {
         mode: 'real',
-        publicIP: await this.getRandomIP()
-      }
+        publicIP: await this.getRandomIP(),
+      },
     });
 
     // Launch browser
@@ -393,7 +414,7 @@ class WhatsAppGoLogin {
     const { page } = this.profiles.get(accountId);
 
     // Find chat
-    await page.evaluate((chatId) => {
+    await page.evaluate(chatId => {
       const chats = document.querySelectorAll('[data-testid="cell-frame-container"]');
       for (const chat of chats) {
         if (chat.textContent.includes(chatId)) {
@@ -439,11 +460,11 @@ class WhatsAppGoLogin {
 
 **Răspuns: DA - 4x mai sigură**
 
-| Aspect | Baileys | GoLogin/AdsPower |
-|--------|---------|------------------|
-| Risc ban | 2% | 0.5% |
-| Uptime | 99.9% | 99.95% |
-| Oficial | ❌ | ✅ |
+| Aspect   | Baileys | GoLogin/AdsPower |
+| -------- | ------- | ---------------- |
+| Risc ban | 2%      | 0.5%             |
+| Uptime   | 99.9%   | 99.95%           |
+| Oficial  | ❌      | ✅               |
 
 **Adevăr: 95%**
 
@@ -454,11 +475,13 @@ class WhatsAppGoLogin {
 **Răspuns: DA - 0.5% risc (dar MULT mai mic)**
 
 **De ce există risc?**
+
 - Automatizare (chiar și cu browser real)
 - Comportament suspect (mesaje prea rapide)
 - Raportări de la useri (spam)
 
 **Cum reduci la 0.1%:**
+
 1. Delay între mesaje (5-10s)
 2. Mesaje personalizate (nu copy-paste)
 3. Max 50 mesaje/oră
@@ -474,12 +497,14 @@ class WhatsAppGoLogin {
 **Răspuns: NU - maxim 99.99%**
 
 **De ce 100% e imposibil:**
+
 - WhatsApp poate cădea (0.01%)
 - Network poate cădea (0.1%)
 - Railway poate cădea (0.9%)
 - Browser poate crasha (0.05%)
 
 **Maxim posibil:**
+
 - Baileys + TIER 3: 99.9%
 - GoLogin + TIER 3: 99.95%
 - WhatsApp Business API: 99.99%
@@ -494,14 +519,14 @@ class WhatsAppGoLogin {
 
 **Răspuns:**
 
-| Afirmație | Adevăr |
-|-----------|--------|
-| "GoLogin/AdsPower sunt mai sigure" | 95% |
-| "0.5% risc ban cu GoLogin" | 95% |
-| "99.95% uptime posibil" | 95% |
-| "100% uptime imposibil" | 100% |
-| "Cost $30-49/lună" | 100% |
-| "Implementare 8-10 ore" | 90% |
+| Afirmație                          | Adevăr |
+| ---------------------------------- | ------ |
+| "GoLogin/AdsPower sunt mai sigure" | 95%    |
+| "0.5% risc ban cu GoLogin"         | 95%    |
+| "99.95% uptime posibil"            | 95%    |
+| "100% uptime imposibil"            | 100%   |
+| "Cost $30-49/lună"                 | 100%   |
+| "Implementare 8-10 ore"            | 90%    |
 
 **ADEVĂR MEDIU: 96%**
 
@@ -512,6 +537,7 @@ class WhatsAppGoLogin {
 ### Pentru SuperParty:
 
 **Opțiunea 1: AdsPower** (RECOMANDAT)
+
 - ✅ 0.5% risc ban (4x mai sigur)
 - ✅ 99.95% uptime
 - ✅ $30/lună (100 profile)
@@ -519,11 +545,13 @@ class WhatsAppGoLogin {
 - ✅ Mai ieftin decât GoLogin
 
 **Opțiunea 2: GoLogin**
+
 - ✅ 0.5% risc ban
 - ✅ 99.95% uptime
 - ❌ $49/lună (mai scump)
 
 **Opțiunea 3: Rămâi cu Baileys**
+
 - ✅ $0/lună (gratuit)
 - ✅ Deja implementat
 - ⚠️ 2% risc ban (acceptabil)
@@ -533,18 +561,21 @@ class WhatsAppGoLogin {
 ## 💰 COST-BENEFICIU
 
 ### Baileys (Actual):
+
 - Cost: $0/lună
 - Risc ban: 2% (1 cont la 50)
 - Uptime: 99.9%
 - **ROI: EXCELENT** (gratuit)
 
 ### AdsPower:
+
 - Cost: $30/lună
 - Risc ban: 0.5% (1 cont la 200)
 - Uptime: 99.95%
 - **ROI: BUN** (dacă ai >10 conturi)
 
 ### GoLogin:
+
 - Cost: $49/lună
 - Risc ban: 0.5%
 - Uptime: 99.95%

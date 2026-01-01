@@ -26,7 +26,7 @@ app.get('/', (req, res) => {
     service: 'SuperParty Backend - WhatsApp + Voice',
     activeCalls: twilioHandler.getActiveCalls().length,
     voiceAI: voiceAI.isConfigured() ? 'enabled' : 'disabled',
-    coqui: voiceAI.coqui?.isConfigured() ? 'enabled' : 'disabled'
+    coqui: voiceAI.coqui?.isConfigured() ? 'enabled' : 'disabled',
   });
 });
 
@@ -34,7 +34,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     service: 'SuperParty Voice AI',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -76,7 +76,7 @@ app.listen(PORT, () => {
   console.log('║  ✅ Ready to accept connections                       ║');
   console.log('╚═══════════════════════════════════════════════════════╝');
   console.log('');
-  
+
   if (!process.env.OPENAI_API_KEY) {
     console.log('⚠️  OPENAI_API_KEY missing - Voice AI disabled');
   }

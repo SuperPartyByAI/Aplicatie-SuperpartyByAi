@@ -14,7 +14,7 @@ class FirestoreService {
       if (process.env.FIREBASE_SERVICE_ACCOUNT) {
         const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
         admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount)
+          credential: admin.credential.cert(serviceAccount),
         });
       } else {
         console.log('⚠️ No Firebase credentials - running without persistence');
@@ -42,21 +42,18 @@ class FirestoreService {
         .doc(message.id)
         .set({
           ...message,
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-      
+
       // Update chat metadata
-      await this.db
-        .collection('accounts')
-        .doc(accountId)
-        .collection('chats')
-        .doc(chatId)
-        .set({
+      await this.db.collection('accounts').doc(accountId).collection('chats').doc(chatId).set(
+        {
           lastMessage: message.body,
           lastMessageTimestamp: message.timestamp,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
     } catch (error) {
       console.error('❌ Failed to save message to Firestore:', error.message);
     }
@@ -103,7 +100,7 @@ class FirestoreService {
       snapshot.forEach(doc => {
         chats.push({
           id: doc.id,
-          ...doc.data()
+          ...doc.data(),
         });
       });
 
@@ -123,10 +120,13 @@ class FirestoreService {
         .doc(accountId)
         .collection('chats')
         .doc(chatId)
-        .set({
-          ...chatData,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
+        .set(
+          {
+            ...chatData,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
     } catch (error) {
       console.error('❌ Failed to save chat to Firestore:', error.message);
     }
@@ -163,10 +163,10 @@ class FirestoreService {
 
     try {
       const batch = this.db.batch();
-      
+
       for (const item of messageBatch) {
         const { accountId, chatId, messageData, pushName } = item;
-        
+
         // Message
         const messageRef = this.db
           .collection('accounts')
@@ -175,27 +175,31 @@ class FirestoreService {
           .doc(chatId)
           .collection('messages')
           .doc(messageData.id);
-        
+
         batch.set(messageRef, {
           ...messageData,
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-        
+
         // Chat metadata
         const chatRef = this.db
           .collection('accounts')
           .doc(accountId)
           .collection('chats')
           .doc(chatId);
-        
-        batch.set(chatRef, {
-          name: pushName || chatId.split('@')[0],
-          lastMessage: messageData.body,
-          lastMessageTimestamp: messageData.timestamp,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
+
+        batch.set(
+          chatRef,
+          {
+            name: pushName || chatId.split('@')[0],
+            lastMessage: messageData.body,
+            lastMessageTimestamp: messageData.timestamp,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
       }
-      
+
       await batch.commit();
     } catch (error) {
       console.error('❌ Failed to save batch to Firestore:', error.message);
@@ -210,13 +214,10 @@ class FirestoreService {
     if (!this.db) return;
 
     try {
-      await this.db
-        .collection('message_queues')
-        .doc(queueId)
-        .set({
-          queue: queue,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
+      await this.db.collection('message_queues').doc(queueId).set({
+        queue: queue,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
     } catch (error) {
       console.error('❌ Failed to save queue to Firestore:', error.message);
     }
@@ -229,10 +230,7 @@ class FirestoreService {
     if (!this.db) return [];
 
     try {
-      const doc = await this.db
-        .collection('message_queues')
-        .doc(queueId)
-        .get();
+      const doc = await this.db.collection('message_queues').doc(queueId).get();
 
       if (doc.exists) {
         return doc.data().queue || [];
@@ -251,12 +249,10 @@ class FirestoreService {
     if (!this.db) return;
 
     try {
-      await this.db
-        .collection('monitoring_events')
-        .add({
-          ...event,
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
-        });
+      await this.db.collection('monitoring_events').add({
+        ...event,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
     } catch (error) {
       // Silent fail - don't crash on logging errors
     }

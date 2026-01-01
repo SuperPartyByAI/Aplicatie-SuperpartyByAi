@@ -4,17 +4,17 @@
 
 ### Timeline Breakdown
 
-| Event | Time | Action |
-|-------|------|--------|
-| Service fails | 0s | - |
-| Detection | 10-20s | Health check detects failure (2 consecutive failures) |
-| Instant failover | <1s | Circuit breaker activates fallback |
-| Auto-restart attempt 1 | 20-30s | Railway restart command |
-| Auto-restart attempt 2 | 30-40s | Second restart attempt |
-| Auto-restart attempt 3 | 40-50s | Third restart attempt |
-| Auto-redeploy attempt 1 | 50s-2m50s | Full redeploy from source |
-| Auto-redeploy attempt 2 | 2m50s-4m50s | Second redeploy attempt |
-| Auto-rollback | 4m50s-5m50s | Rollback to last working version |
+| Event                   | Time        | Action                                                |
+| ----------------------- | ----------- | ----------------------------------------------------- |
+| Service fails           | 0s          | -                                                     |
+| Detection               | 10-20s      | Health check detects failure (2 consecutive failures) |
+| Instant failover        | <1s         | Circuit breaker activates fallback                    |
+| Auto-restart attempt 1  | 20-30s      | Railway restart command                               |
+| Auto-restart attempt 2  | 30-40s      | Second restart attempt                                |
+| Auto-restart attempt 3  | 40-50s      | Third restart attempt                                 |
+| Auto-redeploy attempt 1 | 50s-2m50s   | Full redeploy from source                             |
+| Auto-redeploy attempt 2 | 2m50s-4m50s | Second redeploy attempt                               |
+| Auto-rollback           | 4m50s-5m50s | Rollback to last working version                      |
 
 **Worst case: 5 minutes 50 seconds**
 **Best case: 20 seconds (restart succeeds)**
@@ -24,50 +24,57 @@
 
 ## 📊 Performance Improvements
 
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| **Detection time** | Manual | 10-20s | ✅ Automated |
-| **Failover time** | 60s | <1s | ✅ 60x faster |
-| **Restart attempts** | 1 | 3 | ✅ 3x more resilient |
-| **Recovery methods** | 1 (manual) | 3 (auto) | ✅ Escalation |
-| **Health checks** | 30s | 10s | ✅ 3x faster detection |
-| **Uptime** | ~95% | ~99.9% | ✅ +4.9% |
+| Metric               | Before     | After    | Improvement            |
+| -------------------- | ---------- | -------- | ---------------------- |
+| **Detection time**   | Manual     | 10-20s   | ✅ Automated           |
+| **Failover time**    | 60s        | <1s      | ✅ 60x faster          |
+| **Restart attempts** | 1          | 3        | ✅ 3x more resilient   |
+| **Recovery methods** | 1 (manual) | 3 (auto) | ✅ Escalation          |
+| **Health checks**    | 30s        | 10s      | ✅ 3x faster detection |
+| **Uptime**           | ~95%       | ~99.9%   | ✅ +4.9%               |
 
 ---
 
 ## 🎯 Features
 
 ### 1. Ultra-Fast Detection (10s)
+
 - Health checks every 10 seconds
 - 2 consecutive failures trigger auto-repair
 - Detection in 20 seconds worst case
 
 ### 2. Instant Failover (<1s)
+
 - Circuit breaker pattern
 - Automatic fallback to backup services
 - Zero user-facing downtime
 
 ### 3. Aggressive Auto-Restart (30s)
+
 - 3 restart attempts
 - 10 second intervals
 - Success rate: ~80%
 
 ### 4. Smart Auto-Redeploy (2min)
+
 - Full redeploy from source
 - 2 attempts with 2 minute timeout
 - Success rate: ~15%
 
 ### 5. Safe Auto-Rollback (1min)
+
 - Rollback to last working deployment
 - Guaranteed recovery
 - Success rate: ~100%
 
 ### 6. Predictive Monitoring
+
 - Detects slow responses (>3s)
 - Tracks response time trends
 - Alerts before complete failure
 
 ### 7. Pre-Warming
+
 - Keep-alive requests every 30s
 - Zero cold starts
 - Always ready to serve
@@ -79,6 +86,7 @@
 ### Step 1: Deploy Monitoring Service
 
 1. **Create new Railway service:**
+
    ```
    Name: superparty-monitor
    Source: GitHub repo
@@ -86,6 +94,7 @@
    ```
 
 2. **Add environment variables:**
+
    ```bash
    RAILWAY_TOKEN=<your_railway_token>
    BACKEND_URL=https://web-production-00dca9.up.railway.app
@@ -95,6 +104,7 @@
    ```
 
 3. **Set start command:**
+
    ```bash
    node ultra-fast-monitor.js
    ```
@@ -126,6 +136,7 @@ railway service list
 ### Step 4: Verify
 
 Check logs for:
+
 ```
 🚀 Ultra-Fast Monitor initialized
 ⚡ Health checks every 10s
@@ -173,6 +184,7 @@ npm test
 ```
 
 This will:
+
 1. Start monitoring
 2. Simulate failures
 3. Measure recovery times
@@ -193,6 +205,7 @@ This will:
 ## 🎯 Recovery Scenarios
 
 ### Scenario 1: Service Crash
+
 ```
 Detection: 20s
 Action: Auto-restart (3 attempts)
@@ -201,6 +214,7 @@ Success rate: 80%
 ```
 
 ### Scenario 2: Deployment Failure
+
 ```
 Detection: 20s
 Action: Auto-restart → Auto-redeploy
@@ -209,6 +223,7 @@ Success rate: 95%
 ```
 
 ### Scenario 3: Code Bug
+
 ```
 Detection: 20s
 Action: Auto-restart → Auto-redeploy → Rollback
@@ -234,14 +249,14 @@ Edit `ultra-fast-monitor.js` to adjust:
 
 ```javascript
 this.config = {
-  healthCheckInterval: 10000,        // 10s (faster = quicker detection)
-  maxConsecutiveFailures: 2,         // 2 failures (lower = more sensitive)
-  restartMaxAttempts: 3,             // 3 attempts (more = more resilient)
-  restartAttemptDelay: 10000,        // 10s (faster = quicker recovery)
-  redeployMaxAttempts: 2,            // 2 attempts
-  redeployTimeout: 120000,           // 2 min
-  rollbackTimeout: 60000,            // 1 min
-  preWarmInterval: 30000,            // 30s keep-alive
+  healthCheckInterval: 10000, // 10s (faster = quicker detection)
+  maxConsecutiveFailures: 2, // 2 failures (lower = more sensitive)
+  restartMaxAttempts: 3, // 3 attempts (more = more resilient)
+  restartAttemptDelay: 10000, // 10s (faster = quicker recovery)
+  redeployMaxAttempts: 2, // 2 attempts
+  redeployTimeout: 120000, // 2 min
+  rollbackTimeout: 60000, // 1 min
+  preWarmInterval: 30000, // 30s keep-alive
 };
 ```
 

@@ -43,12 +43,14 @@ Railway service returns 404 because **Root Directory is not set**.
 ## AFTER CONFIGURATION
 
 Once Root Directory is set, Railway will:
+
 1. Auto-detect railway.toml in whatsapp-backend/
 2. Build: `npm install`
 3. Start: `node server.js`
 4. Health check: `/health` every 20s
 
 Then I will automatically:
+
 1. ✅ Verify /health endpoint (DoD-1)
 2. ✅ Add account and generate QR (DoD-2)
 3. ⏳ Request QR scan (only human intervention)

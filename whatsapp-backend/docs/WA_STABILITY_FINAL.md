@@ -9,6 +9,7 @@ Toate cerințele WA Stability Pack implementate cu reconectare <=120s.
 ## MODIFIED FILES
 
 ### Core Implementation (8 files)
+
 1. `lib/wa-reconnect-manager.js` - Backoff jitter 0..250ms + log reconnect_scheduled_backoff_sec
 2. `lib/wa-keepalive-monitor.js` - Connect timeout 15s (fast fail)
 3. `lib/wa-integration.js` - Outbox ACK tracking + dependency gating + circuit breaker + stopMonitoring
@@ -19,6 +20,7 @@ Toate cerințele WA Stability Pack implementate cu reconectare <=120s.
 8. `lib/wa-disconnect-guard.js` - Existing (disconnect >10min incident)
 
 ### Evidence Runner (1 file)
+
 1. `scripts/longrun_evidence.sh` - Evidence runner (redacts token)
 
 **Total**: 9 files modified/created
@@ -28,17 +30,20 @@ Toate cerințele WA Stability Pack implementate cu reconectare <=120s.
 ## LOG EXAMPLES
 
 ### connect_attempt
+
 ```
 [WAReconnect] connect_attempt retryCount=3 nextRetryAt=2025-12-30T01:45:08Z
 ```
 
 ### reconnect_scheduled_backoff_sec
+
 ```
 [WAReconnect] reconnect_scheduled_backoff_sec=4.2
 [WAReconnect] Scheduling reconnect #3 in 4200ms
 ```
 
 ### lock_lost_entering_passive
+
 ```
 [WABootstrap] 🚨 LOCK LOST - entering PASSIVE mode
 [WABootstrap] lock_lost_entering_passive instanceId=instance_abc123 leaseEpoch=5
@@ -47,24 +52,28 @@ Toate cerințele WA Stability Pack implementate cu reconectare <=120s.
 ```
 
 ### fencing_abort_epoch_changed
+
 ```
 [WAIntegration] fencing_abort_outbox_send outboxId=OUT_123 reason=lock_not_held
 [WAIntegration] fencing_abort_inbound_dedupe waMessageId=msg_456 reason=lock_not_held
 ```
 
 ### degraded_firestore_enter/exit
+
 ```
 [WAIntegration] degraded_firestore_enter consecutiveErrors=3
 [WAIntegration] degraded_firestore_exit
 ```
 
 ### cooldown_enter/exit
+
 ```
 [WAIntegration] cooldown_enter disconnects=5 cooldownUntil=2025-12-30T01:50:00Z
 [WAIntegration] cooldown_exit
 ```
 
 ### shutdown_graceful_complete
+
 ```
 [WABootstrap] Graceful shutdown initiated signal=SIGTERM
 [WABootstrap] Closing Baileys socket...
@@ -125,6 +134,7 @@ Toate cerințele WA Stability Pack implementate cu reconectare <=120s.
 ## FIRESTORE PATHS
 
 ### Lock
+
 ```
 wa_metrics/longrun/locks/wa_connection
 {
@@ -136,6 +146,7 @@ wa_metrics/longrun/locks/wa_connection
 ```
 
 ### Outbox
+
 ```
 wa_metrics/longrun/outbox/{outboxId}
 {
@@ -154,6 +165,7 @@ wa_metrics/longrun/outbox/{outboxId}
 ```
 
 ### Inbound Dedupe
+
 ```
 wa_metrics/longrun/inbound_dedupe/{waMessageId}
 {
@@ -166,6 +178,7 @@ wa_metrics/longrun/inbound_dedupe/{waMessageId}
 ```
 
 ### State
+
 ```
 wa_metrics/longrun/state/current
 {
@@ -180,6 +193,7 @@ wa_metrics/longrun/state/current
 ```
 
 ### Incidents (Deduped)
+
 ```
 wa_metrics/longrun/incidents/wa_logged_out_requires_pairing
 wa_metrics/longrun/incidents/wa_disconnect_stuck_active
@@ -193,6 +207,7 @@ wa_metrics/longrun/incidents/wa_disconnect_storm_cooldown
 ## DoD VERIFICATION
 
 ### DoD-WA-0: PASSIVE MODE GATING ✅
+
 - Lock acquisition BEFORE Baileys init
 - canStartBaileys() returns false when lock not held
 - canProcessOutbox() returns false when lock not held
@@ -200,40 +215,48 @@ wa_metrics/longrun/incidents/wa_disconnect_storm_cooldown
 - waStatus="NOT_RUNNING" in PASSIVE
 
 ### DoD-WA-1: status-now fields ✅
+
 All fields present (see payload above)
 
 ### DoD-WA-2: Reconnect backoff ✅
+
 - Deterministic: 1,2,4,8,16,32,60s cap
 - Jitter: 0..250ms
 - Log: reconnect_scheduled_backoff_sec
 
 ### DoD-WA-3: loggedOut handling ✅
+
 - waStatus="NEEDS_PAIRING"
 - pairingRequired=true
 - Incident: wa_logged_out_requires_pairing
 - STOP auto-reconnect
 
 ### DoD-WA-4: Disconnect >10min ✅
+
 - Incident: wa_disconnect_stuck_active (deduped)
 - lastCheckedAt updates
 
 ### DoD-WA-5: Reconnect loop ✅
-- >=10 retries in 10min
+
+- > =10 retries in 10min
 - Incident: wa_reconnect_loop
 - Graceful shutdown + exit(1)
 
 ### DoD-WA-6: Outbox persistent ✅
+
 - PENDING survive restart
 - SENT without ACK retry after 5min
 - ACK tracking with ackedAt timestamp
 - status-now: outboxPendingCount, outboxOldestPendingAgeSec
 
 ### DoD-WA-7: Inbound idempotent ✅
+
 - Transaction create-if-absent
 - Same waMessageId not processed twice
 - Dedupe doc with leaseEpoch
 
 ### DoD-WA-8: Graceful shutdown ✅
+
 - SIGTERM/SIGINT handlers
 - Stop timers
 - Close socket
@@ -242,24 +265,28 @@ All fields present (see payload above)
 - Log: shutdown_graceful_complete
 
 ### DoD-WA-9: Fencing ✅
+
 - Lock check before side-effects
 - leaseEpoch in writes
 - Log: fencing_abort_epoch_changed
 
 ### DoD-WA-10: Dependency gating ✅
-- >=3 Firestore errors → degraded_firestore
+
+- > =3 Firestore errors → degraded_firestore
 - STOP reconnect/outbox/inbound
 - Incident: degraded_firestore_active
 - Log: degraded_firestore_enter/exit
 
 ### DoD-WA-11: Circuit breaker ✅
-- >=5 disconnects in 2min → cooldown 5min
+
+- > =5 disconnects in 2min → cooldown 5min
 - STOP reconnect
 - Incident: wa_disconnect_storm_cooldown
 - Log: cooldown_enter/exit
 - status-now: cooldownUntil
 
 ### DoD-WA-12: Watchdogs ✅
+
 - Event-loop stall detection (existing)
 - Memory pressure detection (existing)
 - Controlled exit(1)
@@ -269,17 +296,20 @@ All fields present (see payload above)
 ## FAST RECONNECT VERIFICATION
 
 ### Timeouts
+
 - connectTimeoutMs: **15000** (15s fast fail)
 - defaultQueryTimeoutMs: **30000** (30s)
 - keepAliveIntervalMs: **25000** (25s)
 
 ### Backoff
+
 - Delays: 1, 2, 4, 8, 16, 32, 60s (cap)
 - Jitter: 0..250ms
 - Worst case: 1+2+4+8+16+32 = **63s** to reach 60s cap
 - With jitter: **~63.5s max**
 
 ### Total Reconnect Time
+
 - Connect attempt: 15s (timeout)
 - Backoff wait: 1-60s
 - **Worst case: 15s + 60s = 75s** ✅ **<= 120s requirement**
@@ -294,6 +324,7 @@ export LONGRUN_ADMIN_TOKEN="superparty2024"
 ```
 
 Output includes:
+
 1. Health (commitHash + uptime)
 2. status-now (DoD-WA-1 fields)
 3. firestore-write-test
@@ -326,13 +357,14 @@ d3307d83 - Add evidence runner + complete DoD-WA-1 fields
 ✅ Outbox/inbound dedupe confirmed (Firestore docs + status-now)  
 ✅ Graceful shutdown confirmed (logs + lock release)  
 ✅ Dependency gating + cooldown confirmed (status-now/incidents)  
-✅ All DoD-WA-1 through DoD-WA-12 verified  
+✅ All DoD-WA-1 through DoD-WA-12 verified
 
 ---
 
 ## FINAL STATEMENT
 
 WA Stability Pack **COMPLETE** cu:
+
 - Reconectare automată **<=120s** (worst case 75s)
 - ZERO pierdere date outbound (outbox persistent + ACK)
 - Idempotency inbound (dedupe atomic)

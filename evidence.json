@@ -20,7 +20,12 @@
       "raw_output_excerpt": "4",
       "source_path": "/tmp/accounts-check.txt",
       "calc": {
-        "inputs": ["account_1767002145379", "account_1767002931111", "account_1767003050123", "account_1767003100302"],
+        "inputs": [
+          "account_1767002145379",
+          "account_1767002931111",
+          "account_1767003050123",
+          "account_1767003100302"
+        ],
         "formula": "count(accounts)",
         "result": "4"
       }
@@ -62,7 +67,11 @@
       "raw_output_excerpt": "3",
       "source_path": "/tmp/accounts-check.txt",
       "calc": {
-        "inputs": ["account_1767002145379: qrCode=null", "account_1767002931111: qrCode=null", "account_1767003050123: qrCode=null"],
+        "inputs": [
+          "account_1767002145379: qrCode=null",
+          "account_1767002931111: qrCode=null",
+          "account_1767003050123: qrCode=null"
+        ],
         "formula": "count(accounts where status=needs_qr AND qrCode=null)",
         "result": "3"
       }

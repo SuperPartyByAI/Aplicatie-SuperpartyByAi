@@ -10,12 +10,15 @@
 ## 0) Domeniu de aplicare și definiții
 
 ### 0.1 Domeniu
+
 Se aplică la orice activitate care implică:
+
 - planificare, implementare, inițializare, publicare, migrații, exporturi/build-uri
 - modificări de cod/configurații
 - creare/modificare de fișiere sau resurse (locale ori la distanță)
 
 ### 0.2 Definiții (normative)
+
 - **Acțiune:** orice operațiune care creează/modifică/stochează/publică/inițializează sau generează artefacte.
 - **Dovadă:** element verificabil (log, output comandă, fișier citit, test executat, citire după scriere, link la issue/incident).
 - **RCA (Root Cause Analysis):** analiza cauzei rădăcină, bazată pe loguri/metrici/stacktrace și validată prin teste/confirmări.
@@ -27,12 +30,15 @@ Se aplică la orice activitate care implică:
 ## 1) Priorități și reguli de rezolvare a conflictelor
 
 ### 1.1 Priorități
+
 - **CRITIC:** încălcarea blochează execuția (STOP).
 - **IMPORTANT:** trebuie satisfăcut înainte de finalizare (gate).
 - **RECOMANDAT:** bună practică (nu blochează dacă există justificare + risc acceptat).
 
 ### 1.2 Rezolvare conflicte (CRITIC)
+
 Dacă două politici intră în conflict:
+
 1. Se aplică politica cu prioritate mai mare.
 2. Dacă au aceeași prioritate: se oprește execuția și se intră în **mod investigație** (fără creare/modificare).
 3. Se documentează conflictul și decizia.
@@ -55,6 +61,7 @@ Dacă două politici intră în conflict:
 ## 3) Workflow standard (obligatoriu)
 
 ### 3.1 Pași (în ordine)
+
 1. **Investigare RCA**
    - colectează loguri/erori/metrici/stare sistem
    - formulează ipoteze și le validează
@@ -75,7 +82,9 @@ Dacă două politici intră în conflict:
    - verificări post-deploy, monitorizare, criterii de succes
 
 ### 3.2 Criterii de oprire (CRITIC)
+
 Se oprește imediat și se intră în **mod investigație** dacă:
+
 - nu se poate determina progresul anterior sau existența resurselor țintă
 - există dovezi contradictorii (ex: „finalizat" dar lipsesc artefacte)
 - nu există mecanism sigur de gestionare a secretelor pentru secretele primite
@@ -86,6 +95,7 @@ Se oprește imediat și se intră în **mod investigație** dacă:
 ## 4) Politici (în format standard, aplicabil și testabil)
 
 > **Șablon pentru fiecare politică:**
+>
 > - Scop
 > - Trigger
 > - MUST / MUST NOT
@@ -102,27 +112,33 @@ Se oprește imediat și se intră în **mod investigație** dacă:
 **Trigger:** orice propunere de remediere/implementare.
 
 **MUST**
+
 - RCA bazat pe loguri/erori/metrici.
 - soluție „production-grade" cu: error handling, testare, documentație, observabilitate, considerente de scalabilitate și securitate.
 
 **MUST NOT**
+
 - workaround-uri temporare, forțări, reîncercări „oarbe", ștergere/recreare fără analiză.
 
 **Dovezi minime**
+
 - identificator incident / problem statement
 - loguri/stacktrace relevante
 - ipoteze testate + rezultat
 - plan de remediere + criterii de acceptanță
 
 **La eșec**
+
 - STOP implementare; continuă doar investigația și colectarea de dovezi.
 
 **Metrici**
+
 - % schimbări cu RCA atașat
 - recurență incident (same root cause)
 - MTTR (diagnostic vs remediere)
 
 **Teste/Quality Gates**
+
 - checklist de revizie: fără RCA → respinge schimbarea
 
 ---
@@ -133,6 +149,7 @@ Se oprește imediat și se intră în **mod investigație** dacă:
 **Trigger:** înainte de planificare finală / creare / inițializare / publicare / modificare.
 
 **MUST**
+
 1. Definește:
    - numele operațiunii
    - semnătura deterministă (intrări + rezultate așteptate + plan pași)
@@ -146,20 +163,25 @@ Se oprește imediat și se intră în **mod investigație** dacă:
    - ce se reutilizează vs ce se reia
 
 **MUST NOT**
+
 - creare/scaffold/reimplementare înainte de căutare și reconciliere.
 
 **Dovezi minime**
+
 - surse verificate + rezultat (găsit/negăsit)
 - decizie: reutilizează / reia de la pasul X / investighează
 
 **La eșec**
+
 - dacă nu poți verifica istoricul → STOP orice creare/modificare; doar investigație.
 
 **Metrici**
+
 - # reutilizări vs reimplementări
 - % cazuri cu progres anterior recuperat
 
 **Teste/Quality Gates**
+
 - schimbarea trebuie să includă secțiunea „Istoric verificat" (șablon în doc)
 
 ---
@@ -170,6 +192,7 @@ Se oprește imediat și se intră în **mod investigație** dacă:
 **Trigger:** orice acțiune care poate crea/modifica resurse.
 
 **MUST**
+
 - verificare existență înainte de scriere/creare (tip, dimensiune, permisiuni, integritate minimă)
 - cheie idempotentă pentru operațiuni
 - execuție pe pași cu:
@@ -179,22 +202,27 @@ Se oprește imediat și se intră în **mod investigație** dacă:
   - checkpoint după fiecare pas
 
 **MUST NOT**
+
 - suprascriere fără plan reversibil
 - dubluri sau execuție când progresul e incert
 
 **Dovezi minime**
+
 - pre-check rezultate
 - confirmare post-check (citire după scriere)
 
 **La eșec**
+
 - STOP; marchează pasul ca „necesită investigație".
 
 **Metrici**
+
 - duplicate prevented
 - lock contention rate
 - failed post-check rate
 
 **Teste/Quality Gates**
+
 - teste idempotency (rulare de 2 ori) pentru operațiunile critice
 
 ---
@@ -205,26 +233,32 @@ Se oprește imediat și se intră în **mod investigație** dacă:
 **Trigger:** orice lucru în mai mulți pași.
 
 **MUST**
+
 - checkpoint pe operațiune cu:
   - versiune, amprentă plan pași, ultimul pas reușit, dovezi
 - manifest cu inventarul rezultatelor (căi/id-uri + verificări)
 - audit append-only cu chei de idempotentă
 
 **Stări pași**
+
 - NEINCEPUT, IN_DESFASURARE, FINALIZAT, ESUAT, SARIT_DEOARECE_E_DEJA_FACUT, NECESITA_INVESTIGATIE
 
 **MUST NOT**
+
 - reluare de la zero dacă există progres confirmat
 - continuare dacă starea e contradictorie
 
 **Dovezi minime**
+
 - link/locație checkpoint + manifest
 - ultimul pas reușit + dovadă
 
 **La eșec**
+
 - STOP; investigație de integritate (de ce starea nu corespunde artefactelor).
 
 **Metrici**
+
 - % operațiuni reluate corect din checkpoint
 - # incidente de „stare contradictorie"
 
@@ -236,27 +270,33 @@ Se oprește imediat și se intră în **mod investigație** dacă:
 **Trigger:** detectarea unui secret (token/cheie/parolă/cheie privată etc.) sau necesitatea de a folosi un secret.
 
 **MUST**
+
 - nu reafișa secretul în clar
 - nu loga secretul în clar (nici în jurnale)
 - stochează în mecanism securizat; în loguri păstrează doar hash/redactare
 - când e necesar un secret: caută în seif după context; dacă există un singur rezultat, folosește-l fără a cere valoarea din nou
 
 **MUST NOT**
+
 - păstrarea secretelor în clar în fișiere de log sau conversații
 - cererea repetată a valorii secretului dacă există deja stocat
 
 **Dovezi minime**
+
 - etichetă secret + context + timestamp
 - dovadă de redactare în loguri
 
 **La eșec**
+
 - dacă stocarea securizată nu este funcțională: STOP stocare; cere doar minimul necesar pentru a configura mecanismul securizat (fără reintroducerea secretului).
 
 **Metrici**
+
 - # incidente de expunere (target: 0)
 - % detectare/redactare corectă
 
 **Teste/Quality Gates**
+
 - scanner de output/log pentru pattern-uri sensibile
 - test unit pentru funcția de redactare
 
@@ -268,6 +308,7 @@ Se oprește imediat și se intră în **mod investigație** dacă:
 **Trigger:** mesajul utilizatorului este întrebare (ex: conține „?" sau începe cu: ce/de ce/cum/când/unde/cine/care/cât/dacă).
 
 **MUST**
+
 - calculează pe afirmații: VERIFICAT vs NEVERIFICAT
 - raportează procente întregi; nu 100% dacă există măcar o ipoteză
 
@@ -282,11 +323,13 @@ Se oprește imediat și se intră în **mod investigație** dacă:
 **Trigger:** interval la 20 minute (cu dezordine max 30 sec) + la pornire.
 
 **MUST**
+
 - lock exclusiv înainte de scriere; dacă lock nu se obține → sari salvarea (fără creare necontrolată)
 - scriere atomică pentru snapshot; append-only pentru JSONL
 - skip dacă nu există schimbări (pe bază de hash conținut)
 
 **Artefacte**
+
 - conversation_log.jsonl
 - changes_log.jsonl
 - state_snapshot.json
@@ -294,10 +337,12 @@ Se oprește imediat și se intră în **mod investigație** dacă:
 - fișier de lock
 
 **MUST NOT**
+
 - duplicate / suprascrieri fără verificare
 - salvare dacă nu poți verifica existența/starea sau nu ai lock exclusiv
 
 **Metrici**
+
 - autosave success rate
 - lock contention rate
 - IO error rate
@@ -307,12 +352,14 @@ Se oprește imediat și se intră în **mod investigație** dacă:
 ## 5) Observabilitate & Securitate (minim obligatoriu)
 
 ### 5.1 Observabilitate (IMPORTANT)
+
 - loguri structurate (fără secrete)
 - metrici de sănătate (health)
 - alerte pe degradări (error rate, latency, availability)
 - corelare (request-id / trace-id unde e posibil)
 
 ### 5.2 Securitate (IMPORTANT)
+
 - principiul „least privilege"
 - validare input, sanitizare, rate limiting unde e relevant
 - audit pentru acțiuni critice
@@ -323,6 +370,7 @@ Se oprește imediat și se intră în **mod investigație** dacă:
 ## 6) Calitatea livrării (Quality Gates) (IMPORTANT)
 
 Înainte de publicare:
+
 - RCA complet (când e incident/bug)
 - test plan executat (unit/integration/e2e după caz)
 - rollback plan (sau strategie de revenire)
@@ -334,6 +382,7 @@ Se oprește imediat și se intră în **mod investigație** dacă:
 ## 7) Anexe (șabloane)
 
 ### A1) Șablon „Istoric verificat"
+
 - Operațiune: `<nume>`
 - Semnătură: `<hash intrări + rezultate + plan pași>`
 - Surse verificate:
@@ -348,6 +397,7 @@ Se oprește imediat și se intră în **mod investigație** dacă:
   - necesită investigație: `<motiv>`
 
 ### A2) Schelet minim checkpoint (exemplu)
+
 ```json
 {
   "nume_operatiune": "exemplu",

@@ -7,6 +7,7 @@
 ## 1️⃣ TRIMITERE MESAJ SIMPLU (cu comportament uman)
 
 ### API Call:
+
 ```bash
 curl -X POST http://localhost:3000/api/whatsapp/send/acc1/1234567890@s.whatsapp.net \
   -H "Content-Type: application/json" \
@@ -19,6 +20,7 @@ curl -X POST http://localhost:3000/api/whatsapp/send/acc1/1234567890@s.whatsapp.
 ```
 
 ### Ce se întâmplă:
+
 1. ✅ Delay random (500ms-2s) înainte de typing
 2. ✅ Typing indicator (composing)
 3. ✅ Typing duration bazat pe lungime mesaj
@@ -32,6 +34,7 @@ curl -X POST http://localhost:3000/api/whatsapp/send/acc1/1234567890@s.whatsapp.
 ## 2️⃣ TRIMITERE MESAJ CU VARIAȚIE (anti-spam)
 
 ### API Call:
+
 ```bash
 curl -X POST http://localhost:3000/api/whatsapp/send/acc1/1234567890@s.whatsapp.net \
   -H "Content-Type: application/json" \
@@ -54,6 +57,7 @@ curl -X POST http://localhost:3000/api/whatsapp/send/acc1/1234567890@s.whatsapp.
 ```
 
 ### Exemple de Variații Generate:
+
 ```
 1. "Hi John, how are you? 😊"
 2. "Hey John, how are you doing?"
@@ -66,6 +70,7 @@ curl -X POST http://localhost:3000/api/whatsapp/send/acc1/1234567890@s.whatsapp.
 ## 3️⃣ TRIMITERE BULK (mai multe destinatari)
 
 ### API Call:
+
 ```bash
 curl -X POST http://localhost:3000/api/whatsapp/send-bulk/acc1 \
   -H "Content-Type: application/json" \
@@ -99,6 +104,7 @@ curl -X POST http://localhost:3000/api/whatsapp/send-bulk/acc1 \
 ```
 
 ### Ce se întâmplă:
+
 1. ✅ Generează mesaje unice pentru fiecare destinatar
 2. ✅ Aplică variații (sinonime, punctuație, emoji)
 3. ✅ Verifică rate limiting pentru fiecare mesaj
@@ -107,6 +113,7 @@ curl -X POST http://localhost:3000/api/whatsapp/send-bulk/acc1 \
 6. ✅ Circuit breaker monitorizează fiecare trimitere
 
 ### Response:
+
 ```json
 {
   "success": true,
@@ -134,11 +141,13 @@ curl -X POST http://localhost:3000/api/whatsapp/send-bulk/acc1 \
 ## 4️⃣ VERIFICARE STATISTICI
 
 ### Toate Statisticile ULTIMATE:
+
 ```bash
 curl http://localhost:3000/api/ultimate/stats
 ```
 
 ### Response:
+
 ```json
 {
   "success": true,
@@ -186,11 +195,13 @@ curl http://localhost:3000/api/ultimate/stats
 ## 5️⃣ VERIFICARE RATE LIMITER
 
 ### Check Queue Status:
+
 ```bash
 curl http://localhost:3000/api/ultimate/rate-limiter
 ```
 
 ### Response:
+
 ```json
 {
   "success": true,
@@ -212,11 +223,13 @@ curl http://localhost:3000/api/ultimate/rate-limiter
 ## 6️⃣ VERIFICARE CIRCUIT BREAKER
 
 ### Check Health:
+
 ```bash
 curl http://localhost:3000/api/ultimate/circuit-breaker
 ```
 
 ### Response:
+
 ```json
 {
   "success": true,
@@ -250,6 +263,7 @@ curl http://localhost:3000/api/ultimate/circuit-breaker
 ## 7️⃣ CONFIGURARE ACCOUNT AGE
 
 ### Pentru conturi noi (< 7 zile):
+
 ```bash
 curl -X POST http://localhost:3000/api/whatsapp/send-bulk/acc1 \
   -H "Content-Type: application/json" \
@@ -263,28 +277,33 @@ curl -X POST http://localhost:3000/api/whatsapp/send-bulk/acc1 \
 ```
 
 **Limite:**
+
 - 20 mesaje/oră
 - 100 mesaje/zi
 - 3 burst size
 - 3s delay minim
 
 ### Pentru conturi normale (7-30 zile):
+
 ```bash
 "options": { "accountAge": "normal" }
 ```
 
 **Limite:**
+
 - 50 mesaje/oră
 - 300 mesaje/zi
 - 5 burst size
 - 2s delay minim
 
 ### Pentru conturi stabilite (> 30 zile):
+
 ```bash
 "options": { "accountAge": "established" }
 ```
 
 **Limite:**
+
 - 100 mesaje/oră
 - 600 mesaje/zi
 - 10 burst size
@@ -295,16 +314,19 @@ curl -X POST http://localhost:3000/api/whatsapp/send-bulk/acc1 \
 ## 8️⃣ TEMPLATE EXAMPLES
 
 ### Template Simplu:
+
 ```
 "Hello {{name}}, how are you?"
 ```
 
 ### Template cu Timp:
+
 ```
 "Good {{time}} {{name}}, hope you're having a great {{day}}!"
 ```
 
 **Variabile disponibile:**
+
 - `{{name}}` - Numele complet
 - `{{firstName}}` - Prenumele
 - `{{time}}` - morning/afternoon/evening (automat)
@@ -312,6 +334,7 @@ curl -X POST http://localhost:3000/api/whatsapp/send-bulk/acc1 \
 - `{{date}}` - MM/DD/YYYY (automat)
 
 ### Template Complex:
+
 ```
 "Hey {{firstName}}! 👋
 
@@ -327,6 +350,7 @@ Best regards"
 ## 9️⃣ BEST PRACTICES
 
 ### ✅ DO:
+
 1. **Folosește `useBehavior: true`** pentru toate mesajele
 2. **Folosește `useVariation: true`** pentru bulk messages
 3. **Setează `accountAge`** corect pentru fiecare cont
@@ -336,6 +360,7 @@ Best regards"
 7. **Adaugă delays** între bulk sends (automat)
 
 ### ❌ DON'T:
+
 1. **Nu trimite** același mesaj la mai mulți destinatari fără variație
 2. **Nu ignora** rate limiting warnings
 3. **Nu forța** trimiterea când circuit breaker e OPEN
@@ -348,6 +373,7 @@ Best regards"
 ## 🔟 TROUBLESHOOTING
 
 ### Problema: Mesaje în Queue
+
 **Cauză:** Rate limiting activ  
 **Soluție:** Așteaptă procesarea automată sau verifică limite
 
@@ -356,6 +382,7 @@ curl http://localhost:3000/api/ultimate/rate-limiter
 ```
 
 ### Problema: Circuit Breaker OPEN
+
 **Cauză:** Prea multe erori (5+)  
 **Soluție:** Așteaptă 60s pentru auto-recovery sau verifică conexiunea
 
@@ -364,6 +391,7 @@ curl http://localhost:3000/api/ultimate/circuit-breaker
 ```
 
 ### Problema: Mesaje identice
+
 **Cauză:** `useVariation: false` sau template lipsă  
 **Soluție:** Activează variație și folosește template
 
@@ -377,6 +405,7 @@ curl -X POST ... -d '{
 ```
 
 ### Problema: Rate Limit Hit
+
 **Cauză:** Prea multe mesaje prea repede  
 **Soluție:** Verifică `accountAge` și reduce frecvența
 
@@ -393,21 +422,25 @@ curl http://localhost:3000/api/ultimate/rate-limiter
 ## 📊 MONITORING
 
 ### Health Check:
+
 ```bash
 curl http://localhost:3000/
 ```
 
 ### Metrics:
+
 ```bash
 curl http://localhost:3000/api/metrics
 ```
 
 ### Events:
+
 ```bash
 curl http://localhost:3000/api/events?limit=50
 ```
 
 ### ULTIMATE Stats:
+
 ```bash
 curl http://localhost:3000/api/ultimate/stats
 ```
@@ -440,6 +473,7 @@ curl -X POST http://localhost:3000/api/whatsapp/send-bulk/acc1 \
 ```
 
 **Rezultat:**
+
 - ✅ 50 mesaje unice generate
 - ✅ Rate limiting automat (1s delay între mesaje)
 - ✅ Queue automat dacă limita atinsă
@@ -463,6 +497,7 @@ curl -X POST http://localhost:3000/api/whatsapp/send/acc1/1234567890@s.whatsapp.
 ```
 
 **Rezultat:**
+
 - ✅ Delay 500ms-2s înainte de typing
 - ✅ Typing indicator 3-5s
 - ✅ Mesaj trimis
@@ -473,6 +508,7 @@ curl -X POST http://localhost:3000/api/whatsapp/send/acc1/1234567890@s.whatsapp.
 ## 🚀 DEPLOYMENT
 
 ### Railway (Automatic):
+
 ```bash
 git push origin main
 # Automatic deploy
@@ -480,6 +516,7 @@ git push origin main
 ```
 
 ### Local:
+
 ```bash
 npm start
 # Check: http://localhost:3000/
@@ -490,6 +527,7 @@ npm start
 ## 📞 SUPPORT
 
 ### Check Logs:
+
 ```bash
 # Railway
 railway logs
@@ -499,11 +537,13 @@ npm start
 ```
 
 ### Check Health:
+
 ```bash
 curl http://localhost:3000/
 ```
 
 ### Check ULTIMATE:
+
 ```bash
 curl http://localhost:3000/api/ultimate/stats
 ```

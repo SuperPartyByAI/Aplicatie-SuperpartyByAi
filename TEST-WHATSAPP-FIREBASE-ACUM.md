@@ -3,6 +3,7 @@
 ## ✅ STATUS
 
 **Firebase Function:** DEPLOYED și FUNCȚIONEAZĂ
+
 - URL: https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 - Versiune: 5.0.0 (veche, dar funcționează)
 
@@ -16,11 +17,13 @@
 ### Pas 1: Adaugă Cont
 
 **Pe Windows, rulează:**
+
 ```bash
 curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/add-account -H "Content-Type: application/json" -d "{\"name\":\"Test Account\"}"
 ```
 
 **Răspuns așteptat:**
+
 ```json
 {
   "success": true,
@@ -41,12 +44,14 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ### Pas 2: Verifică QR Code în Logs
 
 **Opțiunea A: Firebase Console (RECOMANDAT)**
+
 1. Deschide: https://console.firebase.google.com/project/superparty-frontend/functions/logs
 2. Caută: "QR Code generated"
 3. Vei vedea: `📱 [account_xxx] QR Code generated`
 4. QR code-ul e salvat în account object
 
 **Opțiunea B: CLI**
+
 ```bash
 firebase functions:log --only whatsapp
 ```
@@ -64,6 +69,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ```
 
 **Răspuns așteptat:**
+
 ```json
 {
   "success": true,
@@ -105,6 +111,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ```
 
 **Răspuns așteptat:**
+
 ```json
 {
   "success": true,
@@ -127,6 +134,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ## 🎯 REZULTAT AȘTEPTAT
 
 După test:
+
 - ✅ Cont creat pe Firebase
 - ✅ QR code generat
 - ✅ WhatsApp conectat
@@ -142,6 +150,7 @@ După test:
 **Cauză:** Funcția nu generează QR code
 
 **Soluție:** Verifică logs în Firebase Console:
+
 ```
 https://console.firebase.google.com/project/superparty-frontend/functions/logs
 ```
@@ -165,6 +174,7 @@ Caută erori sau "QR Code generated"
 ## 🚀 NEXT STEPS
 
 După primul cont conectat:
+
 1. Adaugă mai multe conturi (până la 20)
 2. Testează trimitere mesaje
 3. Verifică că sessions persistă (restart function)
@@ -174,16 +184,19 @@ După primul cont conectat:
 ## 📞 COMENZI RAPIDE
 
 ### Adaugă cont:
+
 ```bash
 curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/add-account -H "Content-Type: application/json" -d "{\"name\":\"Account 1\"}"
 ```
 
 ### Lista conturi:
+
 ```bash
 curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/accounts
 ```
 
 ### Logs:
+
 ```bash
 firebase functions:log --only whatsapp
 ```

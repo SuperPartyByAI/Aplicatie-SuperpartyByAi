@@ -66,13 +66,13 @@ async function getLatestDeployment() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${RAILWAY_TOKEN}`
+        Authorization: `Bearer ${RAILWAY_TOKEN}`,
       },
-      body: JSON.stringify({ query })
+      body: JSON.stringify({ query }),
     });
 
     const result = await response.json();
-    
+
     if (result.errors) {
       console.error('❌ GraphQL errors:', result.errors);
       return null;
@@ -98,18 +98,18 @@ async function triggerRedeploy() {
 
   try {
     console.log('🔄 Triggering redeploy...');
-    
+
     const response = await fetch('https://backboard.railway.app/graphql/v2', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${RAILWAY_TOKEN}`
+        Authorization: `Bearer ${RAILWAY_TOKEN}`,
       },
-      body: JSON.stringify({ query: mutation })
+      body: JSON.stringify({ query: mutation }),
     });
 
     const result = await response.json();
-    
+
     if (result.errors) {
       console.error('❌ Redeploy failed:', result.errors);
       return false;
@@ -130,7 +130,7 @@ async function checkAndRedeploy() {
   }
 
   const health = await checkHealth();
-  
+
   if (!health) {
     console.log('⚠️  Health check failed, skipping');
     return;
@@ -138,16 +138,17 @@ async function checkAndRedeploy() {
 
   const deployedCommit = health.commit;
   const uptime = health.uptime;
-  
+
   console.log(`📊 Status: commit=${deployedCommit}, uptime=${uptime}s`);
 
   // For now, we don't have expectedCommit in health
   // So we check if uptime is very high (> 2 hours) as a proxy for stuck deploy
   const uptimeMs = uptime * 1000;
-  
-  if (uptimeMs > 7200000) { // 2 hours
+
+  if (uptimeMs > 7200000) {
+    // 2 hours
     console.log('⚠️  Service uptime > 2 hours, may need redeploy');
-    
+
     if (!lastMismatchDetected) {
       lastMismatchDetected = Date.now();
       console.log('🔍 Mismatch detected, starting timer');
@@ -155,18 +156,18 @@ async function checkAndRedeploy() {
     }
 
     const mismatchAge = Date.now() - lastMismatchDetected;
-    
+
     if (mismatchAge > MISMATCH_THRESHOLD_MS) {
       console.log(`🚨 Mismatch age ${mismatchAge}ms > threshold ${MISMATCH_THRESHOLD_MS}ms`);
       console.log('🔄 Triggering automatic redeploy...');
-      
+
       redeployInProgress = true;
       const success = await triggerRedeploy();
-      
+
       if (success) {
         console.log('✅ Redeploy triggered successfully');
         lastMismatchDetected = null;
-        
+
         // Wait 2 minutes before checking again
         setTimeout(() => {
           redeployInProgress = false;

@@ -1,6 +1,6 @@
 /**
  * Webhooks Module
- * 
+ *
  * Real-time notifications for external systems:
  * - Account events (connected, disconnected, qr)
  * - Message events (sent, received, failed)
@@ -8,7 +8,7 @@
  * - Health events (degraded, recovered)
  * - Retry logic with exponential backoff
  * - Queue management for failed webhooks
- * 
+ *
  * Truth: 90% - Webhooks are simple and reliable
  */
 
@@ -18,30 +18,30 @@ const EventEmitter = require('events');
 class WebhookManager extends EventEmitter {
   constructor() {
     super();
-    
+
     // Webhook endpoints
     this.endpoints = new Map(); // name -> { url, events, enabled, secret }
-    
+
     // Queue for failed webhooks
     this.queue = [];
     this.processing = false;
-    
+
     // Retry configuration
     this.retryConfig = {
       maxRetries: 3,
-      initialDelay: 1000,      // 1s
-      maxDelay: 30000,         // 30s
-      backoffMultiplier: 2
+      initialDelay: 1000, // 1s
+      maxDelay: 30000, // 30s
+      backoffMultiplier: 2,
     };
-    
+
     // Stats
     this.stats = {
       sent: 0,
       failed: 0,
       retried: 0,
-      queued: 0
+      queued: 0,
     };
-    
+
     // Start queue processor
     this.startQueueProcessor();
   }
@@ -53,16 +53,16 @@ class WebhookManager extends EventEmitter {
     if (!config.url) {
       throw new Error('Webhook URL is required');
     }
-    
+
     this.endpoints.set(name, {
       url: config.url,
       events: config.events || ['*'], // '*' = all events
       enabled: config.enabled !== false,
       secret: config.secret || null,
       headers: config.headers || {},
-      timeout: config.timeout || 5000
+      timeout: config.timeout || 5000,
     });
-    
+
     console.log(`✅ Webhook registered: ${name} -> ${config.url}`);
   }
 
@@ -96,34 +96,32 @@ class WebhookManager extends EventEmitter {
    */
   async send(eventType, data) {
     const timestamp = Date.now();
-    
+
     // Find matching endpoints
     const matchingEndpoints = [];
     for (const [name, endpoint] of this.endpoints.entries()) {
       if (!endpoint.enabled) continue;
-      
+
       // Check if endpoint listens to this event
       if (endpoint.events.includes('*') || endpoint.events.includes(eventType)) {
         matchingEndpoints.push({ name, ...endpoint });
       }
     }
-    
+
     if (matchingEndpoints.length === 0) {
       return; // No endpoints listening
     }
-    
+
     // Prepare payload
     const payload = {
       event: eventType,
       timestamp,
-      data
+      data,
     };
-    
+
     // Send to all matching endpoints
-    const promises = matchingEndpoints.map(endpoint => 
-      this.sendToEndpoint(endpoint, payload)
-    );
-    
+    const promises = matchingEndpoints.map(endpoint => this.sendToEndpoint(endpoint, payload));
+
     await Promise.allSettled(promises);
   }
 
@@ -136,9 +134,9 @@ class WebhookManager extends EventEmitter {
       const headers = {
         'Content-Type': 'application/json',
         'User-Agent': 'SuperParty-WhatsApp-Webhook/4.0',
-        ...endpoint.headers
+        ...endpoint.headers,
       };
-      
+
       // Add signature if secret provided
       if (endpoint.secret) {
         const crypto = require('crypto');
@@ -148,25 +146,25 @@ class WebhookManager extends EventEmitter {
           .digest('hex');
         headers['X-Webhook-Signature'] = signature;
       }
-      
+
       // Send request
       const response = await axios.post(endpoint.url, payload, {
         headers,
-        timeout: endpoint.timeout
+        timeout: endpoint.timeout,
       });
-      
+
       // Success
       this.stats.sent++;
-      
+
       if (retryCount > 0) {
         this.stats.retried++;
         console.log(`✅ Webhook retry success: ${endpoint.name} (attempt ${retryCount + 1})`);
       }
-      
+
       return { success: true, status: response.status };
     } catch (error) {
       console.error(`❌ Webhook failed: ${endpoint.name} - ${error.message}`);
-      
+
       // Check if should retry
       if (retryCount < this.retryConfig.maxRetries) {
         // Add to queue for retry
@@ -178,10 +176,10 @@ class WebhookManager extends EventEmitter {
           endpoint: endpoint.name,
           event: payload.event,
           error: error.message,
-          retries: retryCount
+          retries: retryCount,
         });
       }
-      
+
       return { success: false, error: error.message };
     }
   }
@@ -195,19 +193,21 @@ class WebhookManager extends EventEmitter {
       this.retryConfig.initialDelay * Math.pow(this.retryConfig.backoffMultiplier, retryCount - 1),
       this.retryConfig.maxDelay
     );
-    
+
     const retryAt = Date.now() + delay;
-    
+
     this.queue.push({
       endpoint,
       payload,
       retryCount,
-      retryAt
+      retryAt,
     });
-    
+
     this.stats.queued++;
-    
-    console.log(`⏳ Webhook queued for retry: ${endpoint.name} (attempt ${retryCount + 1} in ${delay}ms)`);
+
+    console.log(
+      `⏳ Webhook queued for retry: ${endpoint.name} (attempt ${retryCount + 1} in ${delay}ms)`
+    );
   }
 
   /**
@@ -219,14 +219,14 @@ class WebhookManager extends EventEmitter {
         setTimeout(processQueue, 1000);
         return;
       }
-      
+
       this.processing = true;
       const now = Date.now();
-      
+
       // Find items ready for retry
       const readyItems = [];
       const remainingItems = [];
-      
+
       for (const item of this.queue) {
         if (item.retryAt <= now) {
           readyItems.push(item);
@@ -234,18 +234,18 @@ class WebhookManager extends EventEmitter {
           remainingItems.push(item);
         }
       }
-      
+
       this.queue = remainingItems;
-      
+
       // Process ready items
       for (const item of readyItems) {
         await this.sendToEndpoint(item.endpoint, item.payload, item.retryCount);
       }
-      
+
       this.processing = false;
       setTimeout(processQueue, 1000);
     };
-    
+
     processQueue();
   }
 
@@ -256,7 +256,7 @@ class WebhookManager extends EventEmitter {
     await this.send('account', {
       accountId,
       event,
-      ...data
+      ...data,
     });
   }
 
@@ -267,7 +267,7 @@ class WebhookManager extends EventEmitter {
     await this.send('message', {
       accountId,
       event,
-      ...data
+      ...data,
     });
   }
 
@@ -277,7 +277,7 @@ class WebhookManager extends EventEmitter {
   async sendSystemEvent(event, data = {}) {
     await this.send('system', {
       event,
-      ...data
+      ...data,
     });
   }
 
@@ -287,7 +287,7 @@ class WebhookManager extends EventEmitter {
   async sendHealthEvent(event, data = {}) {
     await this.send('health', {
       event,
-      ...data
+      ...data,
     });
   }
 
@@ -301,7 +301,7 @@ class WebhookManager extends EventEmitter {
         url: endpoint.url,
         events: endpoint.events,
         enabled: endpoint.enabled,
-        hasSecret: !!endpoint.secret
+        hasSecret: !!endpoint.secret,
       };
     }
     return endpoints;
@@ -315,7 +315,7 @@ class WebhookManager extends EventEmitter {
       ...this.stats,
       queueLength: this.queue.length,
       endpoints: this.endpoints.size,
-      processing: this.processing
+      processing: this.processing,
     };
   }
 
@@ -337,15 +337,15 @@ class WebhookManager extends EventEmitter {
     if (!endpoint) {
       throw new Error(`Webhook not found: ${name}`);
     }
-    
+
     const testPayload = {
       event: 'test',
       timestamp: Date.now(),
       data: {
-        message: 'This is a test webhook from SuperParty WhatsApp'
-      }
+        message: 'This is a test webhook from SuperParty WhatsApp',
+      },
     };
-    
+
     const result = await this.sendToEndpoint(endpoint, testPayload);
     return result;
   }

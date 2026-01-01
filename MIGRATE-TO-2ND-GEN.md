@@ -15,12 +15,14 @@ Error: [whatsapp(us-central1)] Upgrading from 1st Gen to 2nd Gen is not yet supp
 ## 📊 1st Gen vs 2nd Gen
 
 ### 1st Gen (Cloud Functions)
+
 - ❌ Deprecated (va fi eliminat în viitor)
 - ❌ Cold starts mai lente
 - ❌ Scalare limitată
 - ✅ Funcția actuală rulează pe 1st Gen
 
 ### 2nd Gen (Cloud Run)
+
 - ✅ Modern și suportat long-term
 - ✅ Cold starts mai rapide (până la 10x)
 - ✅ Scalare mai bună (până la 1000 instanțe)
@@ -32,6 +34,7 @@ Error: [whatsapp(us-central1)] Upgrading from 1st Gen to 2nd Gen is not yet supp
 ## 🔧 Modificări Aplicate în Cod
 
 ### Înainte (v1 - 1st Gen):
+
 ```javascript
 const functions = require('firebase-functions');
 
@@ -45,6 +48,7 @@ exports.whatsapp = functions.https.onRequest(
 ```
 
 ### După (v2 - 2nd Gen):
+
 ```javascript
 const { onRequest } = require('firebase-functions/v2/https');
 
@@ -86,6 +90,7 @@ firebase functions:delete whatsapp --region us-central1
 **Confirmă cu:** `y`
 
 **Output așteptat:**
+
 ```
 i  functions: deleting function whatsapp(us-central1)...
 ✔  functions[whatsapp(us-central1)]: Successful delete operation.
@@ -100,6 +105,7 @@ firebase deploy --only functions
 ```
 
 **Output așteptat:**
+
 ```
 i  functions: creating 2nd gen function whatsapp(us-central1)...
 ✔  functions[whatsapp(us-central1)] Successful create operation.
@@ -117,6 +123,7 @@ gcloud run services add-iam-policy-binding whatsapp --region=us-central1 --membe
 ```
 
 **Output așteptat:**
+
 ```
 Updated IAM policy for service [whatsapp].
 bindings:
@@ -134,6 +141,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
 
 **Output așteptat:**
+
 ```json
 {
   "status": "online",
@@ -161,16 +169,19 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ## 🎯 Beneficii 2nd Gen
 
 ### ✅ Performance
+
 - **Cold starts:** 10x mai rapide (1-2s vs 10-20s)
 - **Concurrency:** 1000 requests/instanță (vs 1 în 1st Gen)
 - **Scalare:** Până la 1000 instanțe (vs 100 în 1st Gen)
 
 ### ✅ Costuri
+
 - **Pay-per-use:** Mai eficient pentru trafic variabil
 - **Concurrency:** Mai puține instanțe necesare
 - **Estimat:** $0-5/lună pentru 20 conturi WhatsApp
 
 ### ✅ Features
+
 - **WebSockets:** Suport nativ (important pentru WhatsApp)
 - **HTTP/2:** Mai rapid
 - **Streaming:** Suport pentru responses mari
@@ -184,6 +195,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 **Cauză:** Funcția veche nu a fost ștearsă complet
 
 **Fix:**
+
 ```cmd
 gcloud functions delete whatsapp --region=us-central1 --project=superparty-frontend
 ```
@@ -197,6 +209,7 @@ Apoi retry deploy.
 **Cauză:** IAM permissions nu sunt configurate
 
 **Fix:**
+
 ```cmd
 gcloud run services add-iam-policy-binding whatsapp --region=us-central1 --member=allUsers --role=roles/run.invoker --project=superparty-frontend
 ```
@@ -208,6 +221,7 @@ gcloud run services add-iam-policy-binding whatsapp --region=us-central1 --membe
 **Cauză:** Deployment-ul nu s-a finalizat
 
 **Fix:** Așteaptă 1-2 minute și verifică din nou:
+
 ```cmd
 gcloud run services list --region=us-central1 --project=superparty-frontend
 ```
@@ -217,12 +231,14 @@ gcloud run services list --region=us-central1 --project=superparty-frontend
 ## 📊 Comparație Costuri
 
 ### 1st Gen (Actual):
+
 - **Compute:** $0.0000025/GB-sec
 - **Invocations:** $0.40/million
 - **Networking:** $0.12/GB
 - **Estimat:** $5-10/lună
 
 ### 2nd Gen (După Migrare):
+
 - **Compute:** $0.00002400/vCPU-sec + $0.00000250/GiB-sec
 - **Requests:** $0.40/million
 - **Networking:** $0.12/GB

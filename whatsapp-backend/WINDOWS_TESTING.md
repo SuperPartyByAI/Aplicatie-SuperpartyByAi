@@ -9,6 +9,7 @@
 ## Get Your Admin Token
 
 ### Option 1: From Railway Dashboard
+
 1. Go to https://railway.app
 2. Open your project
 3. Click "Variables" tab
@@ -16,6 +17,7 @@
 5. Copy it
 
 ### Option 2: From Railway CLI
+
 ```bash
 railway variables get ADMIN_TOKEN
 ```
@@ -26,16 +28,19 @@ railway variables get ADMIN_TOKEN
 
 1. Open Command Prompt
 2. Navigate to the repository:
+
    ```cmd
    cd path\to\Aplicatie-SuperpartyByAi\whatsapp-backend
    ```
 
 3. Run the test with your token:
+
    ```cmd
    test-wa-status.bat YOUR_ADMIN_TOKEN_HERE
    ```
 
    Example:
+
    ```cmd
    test-wa-status.bat dev-token-abc123
    ```
@@ -43,6 +48,7 @@ railway variables get ADMIN_TOKEN
 ### Method 2: Using Node Directly
 
 1. Set environment variable:
+
    ```cmd
    set ADMIN_TOKEN=YOUR_ADMIN_TOKEN_HERE
    ```
@@ -55,6 +61,7 @@ railway variables get ADMIN_TOKEN
 ## Expected Output
 
 ### Successful Test
+
 ```
 ========================================
 WA STATUS TEST
@@ -93,6 +100,7 @@ Full response saved to wa-status.json
 ```
 
 ### If Disconnected
+
 ```
 === Status Interpretation ===
 ⚠️ WhatsApp DISCONNECTED (retry #3)
@@ -100,6 +108,7 @@ Full response saved to wa-status.json
 ```
 
 ### If Needs Pairing
+
 ```
 === Status Interpretation ===
 ❌ WhatsApp NEEDS_PAIRING (logged out)
@@ -107,6 +116,7 @@ Full response saved to wa-status.json
 ```
 
 ### If Passive Mode
+
 ```
 === Status Interpretation ===
 ⚠️ Instance in PASSIVE mode (lock not acquired)
@@ -116,6 +126,7 @@ Full response saved to wa-status.json
 ## Troubleshooting
 
 ### Error: "Authentication failed"
+
 ```
 ❌ Error: HTTP 401: Unauthorized
 ⚠️ Authentication failed. Check ADMIN_TOKEN environment variable.
@@ -124,21 +135,25 @@ Full response saved to wa-status.json
 **Solution**: Check your ADMIN_TOKEN is correct
 
 ### Error: "Cannot reach server"
+
 ```
 ❌ Error: getaddrinfo ENOTFOUND whats-upp-production.up.railway.app
 ⚠️ Cannot reach server. Check BASE_URL.
 ```
 
-**Solution**: 
+**Solution**:
+
 - Check your internet connection
 - Verify Railway app is running: https://whats-upp-production.up.railway.app/health
 
 ### Error: "Cannot find module"
+
 ```
 Error: Cannot find module 'C:\Users\ursac\scripts\test-wa-status.js'
 ```
 
 **Solution**: Make sure you're in the `whatsapp-backend` directory:
+
 ```cmd
 cd Aplicatie-SuperpartyByAi\whatsapp-backend
 ```
@@ -173,7 +188,9 @@ curl -H "X-Admin-Token: YOUR_ADMIN_TOKEN_HERE" https://whats-upp-production.up.r
 ## What to Look For
 
 ### DoD-WA-1 Verification ✅
+
 The test verifies all required fields are present:
+
 - `waMode` - active or passive
 - `waStatus` - CONNECTED, DISCONNECTED, or NEEDS_PAIRING
 - `lastDisconnectReason` - reason for last disconnect
@@ -182,6 +199,7 @@ The test verifies all required fields are present:
 - `authStore` - should be "firestore"
 
 ### Connection Health
+
 - **CONNECTED** = Everything working ✅
 - **DISCONNECTED** = Temporary issue, auto-reconnecting ⚠️
 - **NEEDS_PAIRING** = Logged out, QR scan needed ❌
@@ -193,7 +211,7 @@ After verifying the status:
 
 1. **If CONNECTED**: Everything is working! ✅
 
-2. **If DISCONNECTED**: 
+2. **If DISCONNECTED**:
    - Check `retryCount` and `nextRetryAt`
    - Wait for auto-reconnect
    - Check Railway logs if retryCount > 5
@@ -209,6 +227,7 @@ After verifying the status:
 ## Support
 
 If you encounter issues:
+
 1. Check Railway logs: `railway logs`
 2. Verify app is running: https://whats-upp-production.up.railway.app/health
 3. Check Firestore for incidents: `wa_metrics/longrun/incidents`

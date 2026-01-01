@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
-import { collection, addDoc, query, where, getDocs, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import {
+  collection,
+  addDoc,
+  query,
+  where,
+  getDocs,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+} from 'firebase/firestore';
 
 function DisponibilitateScreen() {
   const navigate = useNavigate();
@@ -9,7 +18,7 @@ function DisponibilitateScreen() {
   const [disponibilitati, setDisponibilitati] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  
+
   // Form state
   const [dataStart, setDataStart] = useState('');
   const [dataEnd, setDataEnd] = useState('');
@@ -20,24 +29,21 @@ function DisponibilitateScreen() {
 
   useEffect(() => {
     loadDisponibilitati();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser]);
 
   const loadDisponibilitati = async () => {
     if (!currentUser) return;
-    
+
     setLoading(true);
     try {
-      const q = query(
-        collection(db, 'disponibilitati'),
-        where('userId', '==', currentUser.uid)
-      );
+      const q = query(collection(db, 'disponibilitati'), where('userId', '==', currentUser.uid));
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
-      
+
       // Sortează după dată
       data.sort((a, b) => new Date(a.dataStart) - new Date(b.dataStart));
       setDisponibilitati(data);
@@ -48,9 +54,9 @@ function DisponibilitateScreen() {
     }
   };
 
-  const handleAddDisponibilitate = async (e) => {
+  const handleAddDisponibilitate = async e => {
     e.preventDefault();
-    
+
     if (!dataStart || !dataEnd) {
       alert('Completează datele de început și sfârșit!');
       return;
@@ -66,7 +72,7 @@ function DisponibilitateScreen() {
         oraEnd,
         tipDisponibilitate,
         notita,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
       });
 
       alert('Disponibilitate adăugată!');
@@ -79,7 +85,7 @@ function DisponibilitateScreen() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async id => {
     if (!confirm('Ștergi această disponibilitate?')) return;
 
     try {
@@ -101,12 +107,16 @@ function DisponibilitateScreen() {
     setNotita('');
   };
 
-  const getTipBadgeClass = (tip) => {
-    switch(tip) {
-      case 'disponibil': return 'badge-disponibil';
-      case 'indisponibil': return 'badge-indisponibil';
-      case 'preferinta': return 'badge-preferinta';
-      default: return 'badge-disponibil';
+  const getTipBadgeClass = tip => {
+    switch (tip) {
+      case 'disponibil':
+        return 'badge-disponibil';
+      case 'indisponibil':
+        return 'badge-indisponibil';
+      case 'preferinta':
+        return 'badge-preferinta';
+      default:
+        return 'badge-disponibil';
     }
   };
 
@@ -164,9 +174,17 @@ function DisponibilitateScreen() {
                   </button>
                 </div>
                 <div className="disp-body">
-                  <p><strong>Perioada:</strong> {disp.dataStart} → {disp.dataEnd}</p>
-                  <p><strong>Interval orar:</strong> {disp.oraStart} - {disp.oraEnd}</p>
-                  {disp.notita && <p><strong>Notiță:</strong> {disp.notita}</p>}
+                  <p>
+                    <strong>Perioada:</strong> {disp.dataStart} → {disp.dataEnd}
+                  </p>
+                  <p>
+                    <strong>Interval orar:</strong> {disp.oraStart} - {disp.oraEnd}
+                  </p>
+                  {disp.notita && (
+                    <p>
+                      <strong>Notiță:</strong> {disp.notita}
+                    </p>
+                  )}
                 </div>
               </div>
             ))
@@ -177,18 +195,20 @@ function DisponibilitateScreen() {
       {/* Modal Adăugare */}
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Adaugă Disponibilitate</h2>
-              <button onClick={() => setShowAddModal(false)} className="btn-close">×</button>
+              <button onClick={() => setShowAddModal(false)} className="btn-close">
+                ×
+              </button>
             </div>
             <div className="modal-body">
               <form onSubmit={handleAddDisponibilitate}>
                 <div className="form-group">
                   <label>Tip Disponibilitate</label>
-                  <select 
-                    value={tipDisponibilitate} 
-                    onChange={(e) => setTipDisponibilitate(e.target.value)}
+                  <select
+                    value={tipDisponibilitate}
+                    onChange={e => setTipDisponibilitate(e.target.value)}
                     className="filter-input"
                   >
                     <option value="disponibil">✓ Disponibil</option>
@@ -200,20 +220,20 @@ function DisponibilitateScreen() {
                 <div className="form-row">
                   <div className="form-group">
                     <label>Data Start *</label>
-                    <input 
-                      type="date" 
+                    <input
+                      type="date"
                       value={dataStart}
-                      onChange={(e) => setDataStart(e.target.value)}
+                      onChange={e => setDataStart(e.target.value)}
                       className="filter-input"
                       required
                     />
                   </div>
                   <div className="form-group">
                     <label>Data End *</label>
-                    <input 
-                      type="date" 
+                    <input
+                      type="date"
                       value={dataEnd}
-                      onChange={(e) => setDataEnd(e.target.value)}
+                      onChange={e => setDataEnd(e.target.value)}
                       className="filter-input"
                       required
                     />
@@ -223,19 +243,19 @@ function DisponibilitateScreen() {
                 <div className="form-row">
                   <div className="form-group">
                     <label>Ora Start</label>
-                    <input 
-                      type="time" 
+                    <input
+                      type="time"
                       value={oraStart}
-                      onChange={(e) => setOraStart(e.target.value)}
+                      onChange={e => setOraStart(e.target.value)}
                       className="filter-input"
                     />
                   </div>
                   <div className="form-group">
                     <label>Ora End</label>
-                    <input 
-                      type="time" 
+                    <input
+                      type="time"
                       value={oraEnd}
-                      onChange={(e) => setOraEnd(e.target.value)}
+                      onChange={e => setOraEnd(e.target.value)}
                       className="filter-input"
                     />
                   </div>
@@ -243,9 +263,9 @@ function DisponibilitateScreen() {
 
                 <div className="form-group">
                   <label>Notiță (opțional)</label>
-                  <textarea 
+                  <textarea
                     value={notita}
-                    onChange={(e) => setNotita(e.target.value)}
+                    onChange={e => setNotita(e.target.value)}
                     className="filter-input"
                     rows="3"
                     placeholder="Ex: Prefer evenimente în București"
@@ -253,7 +273,11 @@ function DisponibilitateScreen() {
                 </div>
 
                 <div className="modal-actions">
-                  <button type="button" onClick={() => setShowAddModal(false)} className="btn-secondary">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="btn-secondary"
+                  >
                     Anulează
                   </button>
                   <button type="submit" className="btn-refresh">

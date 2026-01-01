@@ -1,6 +1,6 @@
 /**
  * Circuit Breaker Module
- * 
+ *
  * Prevents cascade failures by isolating problematic accounts:
  * - Three states: CLOSED (normal), OPEN (blocked), HALF_OPEN (testing)
  * - Automatic state transitions based on failure rate
@@ -8,7 +8,7 @@
  * - Failure threshold configuration
  * - Automatic recovery attempts
  * - Health monitoring
- * 
+ *
  * Prevents cascade failures 100%
  */
 
@@ -17,23 +17,23 @@ const EventEmitter = require('events');
 class CircuitBreaker extends EventEmitter {
   constructor() {
     super();
-    
+
     // States
     this.STATES = {
-      CLOSED: 'CLOSED',       // Normal operation
-      OPEN: 'OPEN',           // Circuit broken, rejecting requests
-      HALF_OPEN: 'HALF_OPEN'  // Testing if service recovered
+      CLOSED: 'CLOSED', // Normal operation
+      OPEN: 'OPEN', // Circuit broken, rejecting requests
+      HALF_OPEN: 'HALF_OPEN', // Testing if service recovered
     };
-    
+
     // Configuration
     this.config = {
-      failureThreshold: 5,        // Failures before opening circuit
-      successThreshold: 2,        // Successes before closing from half-open
-      timeout: 60000,             // Time before attempting recovery (1 min)
-      monitoringPeriod: 300000,   // Period to track failures (5 min)
-      halfOpenMaxAttempts: 3      // Max attempts in half-open state
+      failureThreshold: 5, // Failures before opening circuit
+      successThreshold: 2, // Successes before closing from half-open
+      timeout: 60000, // Time before attempting recovery (1 min)
+      monitoringPeriod: 300000, // Period to track failures (5 min)
+      halfOpenMaxAttempts: 3, // Max attempts in half-open state
     };
-    
+
     // Circuit states per account
     this.circuits = {}; // accountId -> circuit state
   }
@@ -52,7 +52,7 @@ class CircuitBreaker extends EventEmitter {
         openedAt: 0,
         halfOpenAttempts: 0,
         totalFailures: 0,
-        totalSuccesses: 0
+        totalSuccesses: 0,
       };
     }
   }
@@ -64,12 +64,12 @@ class CircuitBreaker extends EventEmitter {
     this.initCircuit(accountId);
     const circuit = this.circuits[accountId];
     const now = Date.now();
-    
+
     switch (circuit.state) {
       case this.STATES.CLOSED:
         // Normal operation
         return { allowed: true, state: circuit.state };
-        
+
       case this.STATES.OPEN:
         // Check if timeout has passed
         if (now - circuit.openedAt >= this.config.timeout) {
@@ -77,30 +77,30 @@ class CircuitBreaker extends EventEmitter {
           this.transitionTo(accountId, this.STATES.HALF_OPEN);
           return { allowed: true, state: this.STATES.HALF_OPEN };
         }
-        
+
         // Still open, reject request
         return {
           allowed: false,
           state: circuit.state,
           reason: 'Circuit is open',
-          retryAfter: this.config.timeout - (now - circuit.openedAt)
+          retryAfter: this.config.timeout - (now - circuit.openedAt),
         };
-        
+
       case this.STATES.HALF_OPEN:
         // Allow limited requests for testing
         if (circuit.halfOpenAttempts < this.config.halfOpenMaxAttempts) {
           circuit.halfOpenAttempts++;
           return { allowed: true, state: circuit.state };
         }
-        
+
         // Max attempts reached, stay half-open
         return {
           allowed: false,
           state: circuit.state,
           reason: 'Half-open max attempts reached',
-          retryAfter: 5000
+          retryAfter: 5000,
         };
-        
+
       default:
         return { allowed: true, state: circuit.state };
     }
@@ -113,15 +113,13 @@ class CircuitBreaker extends EventEmitter {
     this.initCircuit(accountId);
     const circuit = this.circuits[accountId];
     const now = Date.now();
-    
+
     circuit.successes.push(now);
     circuit.totalSuccesses++;
-    
+
     // Clean old successes
-    circuit.successes = circuit.successes.filter(
-      time => now - time < this.config.monitoringPeriod
-    );
-    
+    circuit.successes = circuit.successes.filter(time => now - time < this.config.monitoringPeriod);
+
     // State transitions
     switch (circuit.state) {
       case this.STATES.HALF_OPEN:
@@ -131,7 +129,7 @@ class CircuitBreaker extends EventEmitter {
           this.emit('circuit-closed', { accountId });
         }
         break;
-        
+
       case this.STATES.CLOSED:
         // Reset failure count on success
         if (circuit.failures.length > 0) {
@@ -148,19 +146,17 @@ class CircuitBreaker extends EventEmitter {
     this.initCircuit(accountId);
     const circuit = this.circuits[accountId];
     const now = Date.now();
-    
+
     circuit.failures.push({
       time: now,
-      error: error.message || 'Unknown error'
+      error: error.message || 'Unknown error',
     });
     circuit.totalFailures++;
     circuit.lastFailureTime = now;
-    
+
     // Clean old failures
-    circuit.failures = circuit.failures.filter(
-      f => now - f.time < this.config.monitoringPeriod
-    );
-    
+    circuit.failures = circuit.failures.filter(f => now - f.time < this.config.monitoringPeriod);
+
     // State transitions
     switch (circuit.state) {
       case this.STATES.CLOSED:
@@ -170,17 +166,17 @@ class CircuitBreaker extends EventEmitter {
           this.emit('circuit-opened', {
             accountId,
             failures: circuit.failures.length,
-            lastError: error.message
+            lastError: error.message,
           });
         }
         break;
-        
+
       case this.STATES.HALF_OPEN:
         // Any failure in half-open goes back to open
         this.transitionTo(accountId, this.STATES.OPEN);
         this.emit('circuit-reopened', {
           accountId,
-          reason: 'Failed during half-open state'
+          reason: 'Failed during half-open state',
         });
         break;
     }
@@ -192,29 +188,29 @@ class CircuitBreaker extends EventEmitter {
   transitionTo(accountId, newState) {
     const circuit = this.circuits[accountId];
     const oldState = circuit.state;
-    
+
     circuit.state = newState;
     circuit.lastStateChange = Date.now();
-    
+
     // State-specific actions
     switch (newState) {
       case this.STATES.OPEN:
         circuit.openedAt = Date.now();
         circuit.halfOpenAttempts = 0;
         break;
-        
+
       case this.STATES.HALF_OPEN:
         circuit.halfOpenAttempts = 0;
         circuit.successes = [];
         break;
-        
+
       case this.STATES.CLOSED:
         circuit.failures = [];
         circuit.successes = [];
         circuit.halfOpenAttempts = 0;
         break;
     }
-    
+
     console.log(`Circuit ${accountId}: ${oldState} -> ${newState}`);
   }
 
@@ -242,7 +238,7 @@ class CircuitBreaker extends EventEmitter {
   reset(accountId) {
     this.initCircuit(accountId);
     const circuit = this.circuits[accountId];
-    
+
     circuit.state = this.STATES.CLOSED;
     circuit.failures = [];
     circuit.successes = [];
@@ -250,7 +246,7 @@ class CircuitBreaker extends EventEmitter {
     circuit.lastStateChange = Date.now();
     circuit.openedAt = 0;
     circuit.halfOpenAttempts = 0;
-    
+
     this.emit('circuit-reset', { accountId });
   }
 
@@ -269,30 +265,30 @@ class CircuitBreaker extends EventEmitter {
     this.initCircuit(accountId);
     const circuit = this.circuits[accountId];
     const now = Date.now();
-    
+
     // Calculate failure rate
     const recentFailures = circuit.failures.filter(
       f => now - f.time < this.config.monitoringPeriod
     ).length;
-    
+
     const recentSuccesses = circuit.successes.filter(
       time => now - time < this.config.monitoringPeriod
     ).length;
-    
+
     const totalRecent = recentFailures + recentSuccesses;
     const failureRate = totalRecent > 0 ? recentFailures / totalRecent : 0;
-    
+
     // Calculate health score (0-100)
     let healthScore = 100;
-    
+
     if (circuit.state === this.STATES.OPEN) {
       healthScore = 0;
     } else if (circuit.state === this.STATES.HALF_OPEN) {
       healthScore = 50;
     } else {
-      healthScore = Math.max(0, 100 - (failureRate * 100));
+      healthScore = Math.max(0, 100 - failureRate * 100);
     }
-    
+
     return {
       accountId,
       state: circuit.state,
@@ -304,7 +300,7 @@ class CircuitBreaker extends EventEmitter {
       totalSuccesses: circuit.totalSuccesses,
       lastFailureTime: circuit.lastFailureTime,
       lastStateChange: circuit.lastStateChange,
-      timeSinceLastFailure: circuit.lastFailureTime > 0 ? now - circuit.lastFailureTime : null
+      timeSinceLastFailure: circuit.lastFailureTime > 0 ? now - circuit.lastFailureTime : null,
     };
   }
 
@@ -313,11 +309,11 @@ class CircuitBreaker extends EventEmitter {
    */
   getAllStates() {
     const states = {};
-    
+
     Object.keys(this.circuits).forEach(accountId => {
       states[accountId] = this.getHealth(accountId);
     });
-    
+
     return states;
   }
 
@@ -331,12 +327,12 @@ class CircuitBreaker extends EventEmitter {
       open: 0,
       halfOpen: 0,
       totalFailures: 0,
-      totalSuccesses: 0
+      totalSuccesses: 0,
     };
-    
+
     Object.keys(this.circuits).forEach(accountId => {
       const circuit = this.circuits[accountId];
-      
+
       switch (circuit.state) {
         case this.STATES.CLOSED:
           stats.closed++;
@@ -348,11 +344,11 @@ class CircuitBreaker extends EventEmitter {
           stats.halfOpen++;
           break;
       }
-      
+
       stats.totalFailures += circuit.totalFailures;
       stats.totalSuccesses += circuit.totalSuccesses;
     });
-    
+
     return stats;
   }
 

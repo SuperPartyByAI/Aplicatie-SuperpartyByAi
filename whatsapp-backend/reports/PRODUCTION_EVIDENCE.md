@@ -3,7 +3,7 @@
 **Date:** 2025-12-29  
 **Service:** WhatsApp Backend (Baileys)  
 **Base URL:** https://whats-upp-production.up.railway.app  
-**Commit:** 7c439325  
+**Commit:** 7c439325
 
 ---
 
@@ -46,6 +46,7 @@ wa_metrics/
 ### Sample Documents
 
 **Heartbeat:**
+
 ```json
 {
   "bucketId": "2025-12-29T23-07-30",
@@ -65,6 +66,7 @@ wa_metrics/
 ```
 
 **Probe:**
+
 ```json
 {
   "probeKey": "OUT_20251229T22",
@@ -164,23 +166,23 @@ Setup Guide: docs/PROBE_SENDER_SETUP.md
 
 ### Metrics
 
-| Metric | Value |
-|--------|-------|
-| **Period** | 2025-12-29T22:14:29Z - 2025-12-29T23:07:30Z |
-| **Duration** | 0.9 hours (53 minutes) |
-| **Expected HB** | 53 |
-| **Actual HB** | 43 |
-| **Missed HB** | 10 |
-| **Coverage** | 81.1% |
-| **Status** | ✅ SUFFICIENT (>80%) |
+| Metric          | Value                                       |
+| --------------- | ------------------------------------------- |
+| **Period**      | 2025-12-29T22:14:29Z - 2025-12-29T23:07:30Z |
+| **Duration**    | 0.9 hours (53 minutes)                      |
+| **Expected HB** | 53                                          |
+| **Actual HB**   | 43                                          |
+| **Missed HB**   | 10                                          |
+| **Coverage**    | 81.1%                                       |
+| **Status**      | ✅ SUFFICIENT (>80%)                        |
 
 ### Gaps Analysis
 
-| Gap | Start | End | Duration | Missed HB |
-|-----|-------|-----|----------|-----------|
-| 1 | 22:19:29 | 22:21:21 | 112s | 0 |
-| 2 | 22:28:21 | 22:29:47 | 86s | 0 |
-| 3 | 22:34:47 | 22:45:30 | 643s | 9 |
+| Gap | Start    | End      | Duration | Missed HB |
+| --- | -------- | -------- | -------- | --------- |
+| 1   | 22:19:29 | 22:21:21 | 112s     | 0         |
+| 2   | 22:28:21 | 22:29:47 | 86s      | 0         |
+| 3   | 22:34:47 | 22:45:30 | 643s     | 9         |
 
 **Gap 3 Explanation:** Railway deployment restart (expected behavior)
 
@@ -190,11 +192,11 @@ Setup Guide: docs/PROBE_SENDER_SETUP.md
 
 ### Unique Instances
 
-| Instance ID | First HB | Last HB | Total HB | Duration |
-|-------------|----------|---------|----------|----------|
-| `undefined` | 22:14:29 | 22:28:21 | 14 | 14 min |
-| `b44d8ae9-...` | 22:29:47 | 22:34:47 | 6 | 5 min |
-| `bcfe891c-...` | 22:45:30 | 23:07:30 | 23 | 22 min |
+| Instance ID    | First HB | Last HB  | Total HB | Duration |
+| -------------- | -------- | -------- | -------- | -------- |
+| `undefined`    | 22:14:29 | 22:28:21 | 14       | 14 min   |
+| `b44d8ae9-...` | 22:29:47 | 22:34:47 | 6        | 5 min    |
+| `bcfe891c-...` | 22:45:30 | 23:07:30 | 23       | 22 min   |
 
 **Total:** 3 instances (sequential, no overlaps)
 
@@ -405,6 +407,7 @@ d900ea6f - docs: long-run production artifacts (READY+COLLECTING)
 **PRODUCTION-GRADE LONG-RUN MONITORING: ✅ OPERATIONAL**
 
 All core requirements met:
+
 - ✅ Restart-safe (distributed lock, idempotent writes)
 - ✅ Gap detection (92.9% coverage)
 - ✅ Heartbeat coverage (81.1%, above 80% threshold)

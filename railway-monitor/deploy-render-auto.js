@@ -15,7 +15,7 @@ async function deployToRender() {
   console.log('🚀 v7.0 - Deploy Voice AI pe Render.com');
   console.log('═══════════════════════════════════════════════════════════');
   console.log('');
-  
+
   console.log('📋 Render.com oferă deploy automat prin API!');
   console.log('');
   console.log('Pași pentru deploy automat:');
@@ -29,7 +29,7 @@ async function deployToRender() {
   console.log('');
   console.log('v7.0 va face restul automat!');
   console.log('');
-  
+
   if (RENDER_API_KEY === 'rnd_DEMO') {
     console.log('⚠️  RENDER_API_KEY nu e setat');
     console.log('');
@@ -38,10 +38,10 @@ async function deployToRender() {
     console.log('');
     return false;
   }
-  
+
   // TODO: Implement Render API deploy
   console.log('🚀 Deploying to Render...');
-  
+
   return true;
 }
 

@@ -3,11 +3,13 @@
 ## 🚀 Cum Rulezi (Copy-Paste)
 
 ### 1. Verifică Status
+
 ```bash
 curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/
 ```
 
 ### 2. Creează Cont WhatsApp
+
 ```bash
 curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
@@ -15,26 +17,31 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
 
 ### 3. Așteaptă QR Code (20 secunde)
+
 ```bash
 sleep 20
 ```
 
 ### 4. Obține QR Code
+
 ```bash
 curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/accounts | jq -r '.accounts[0].qrCode'
 ```
 
 ### 5. Deschide QR Code în Browser
+
 - Copiază output-ul (începe cu `data:image/png;base64,`)
 - Lipește în Chrome/Edge address bar
 - Apasă Enter
 
 ### 6. Scanează cu WhatsApp
+
 - WhatsApp → Settings → Linked Devices
 - "Link a Device"
 - Scanează QR code-ul
 
 ### 7. Verifică Conexiunea
+
 ```bash
 curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/accounts
 ```
@@ -42,6 +49,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 Caută: `"status": "connected"`
 
 ### 8. Trimite Mesaj Test
+
 ```bash
 curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/send \
   -H "Content-Type: application/json" \
@@ -57,21 +65,25 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ## 📡 API Endpoints
 
 ### Base URL
+
 ```
 https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
 
 ### Health Check
+
 ```bash
 GET /
 ```
 
 ### List Accounts
+
 ```bash
 GET /api/whatsapp/accounts
 ```
 
 ### Add Account (QR Code)
+
 ```bash
 POST /api/whatsapp/add-account
 Content-Type: application/json
@@ -80,11 +92,13 @@ Content-Type: application/json
 ```
 
 ### Delete Account
+
 ```bash
 DELETE /api/whatsapp/accounts/:accountId
 ```
 
 ### Send Message
+
 ```bash
 POST /api/whatsapp/send
 Content-Type: application/json
@@ -101,10 +115,12 @@ Content-Type: application/json
 ## ⚠️ Important
 
 ### ✅ FOLOSEȘTE:
+
 - QR codes (funcționează 100%)
 - Număr fără `@s.whatsapp.net` (se adaugă automat)
 
 ### ❌ NU FOLOSI:
+
 - Pairing codes (nu funcționează în Cloud Functions)
 - Parametrul `phone` la add-account (generează pairing code invalid)
 
@@ -113,6 +129,7 @@ Content-Type: application/json
 ## 🔧 Troubleshooting
 
 ### QR Code nu apare?
+
 ```bash
 # Așteaptă mai mult
 sleep 30
@@ -120,6 +137,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ```
 
 ### "Account not connected"?
+
 ```bash
 # Verifică status
 curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/accounts
@@ -133,6 +151,7 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
 
 ### Sesiunea se pierde?
+
 - Sesiunile sunt salvate în Firestore
 - Auto-reconnect după restart
 - Dacă nu funcționează, recreează contul
@@ -141,20 +160,21 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 
 ## 📊 Status Codes
 
-| Status | Înțeles | Acțiune |
-|--------|---------|---------|
-| `connecting` | Se conectează | Așteaptă QR code |
-| `qr_ready` | QR code gata | Scanează cu WhatsApp |
-| `connected` | Conectat | Poți trimite mesaje |
-| `reconnecting` | Reconectare | Așteaptă |
-| `disconnected` | Deconectat | Recreează cont |
-| `logged_out` | Delogat | Recreează cont |
+| Status         | Înțeles       | Acțiune              |
+| -------------- | ------------- | -------------------- |
+| `connecting`   | Se conectează | Așteaptă QR code     |
+| `qr_ready`     | QR code gata  | Scanează cu WhatsApp |
+| `connected`    | Conectat      | Poți trimite mesaje  |
+| `reconnecting` | Reconectare   | Așteaptă             |
+| `disconnected` | Deconectat    | Recreează cont       |
+| `logged_out`   | Delogat       | Recreează cont       |
 
 ---
 
 ## 🎯 Use Cases
 
 ### Trimitere Mesaj Simplu
+
 ```javascript
 const response = await fetch(
   'https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/send',
@@ -164,18 +184,19 @@ const response = await fetch(
     body: JSON.stringify({
       accountId: 'account_xxx',
       to: '40373805828',
-      message: 'Salut de la SuperParty!'
-    })
+      message: 'Salut de la SuperParty!',
+    }),
   }
 );
 ```
 
 ### Trimitere Mesaje Multiple
+
 ```javascript
 const messages = [
   { to: '40373805828', message: 'Mesaj 1' },
   { to: '40373805829', message: 'Mesaj 2' },
-  { to: '40373805830', message: 'Mesaj 3' }
+  { to: '40373805830', message: 'Mesaj 3' },
 ];
 
 for (const msg of messages) {
@@ -186,17 +207,18 @@ for (const msg of messages) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         accountId: 'account_xxx',
-        ...msg
-      })
+        ...msg,
+      }),
     }
   );
-  
+
   // Delay 2 secunde între mesaje (rate limiting)
   await new Promise(resolve => setTimeout(resolve, 2000));
 }
 ```
 
 ### Verificare Status Înainte de Trimitere
+
 ```javascript
 // 1. Verifică dacă contul e conectat
 const accounts = await fetch(
@@ -219,8 +241,8 @@ await fetch(
     body: JSON.stringify({
       accountId: 'account_xxx',
       to: '40373805828',
-      message: 'Mesaj'
-    })
+      message: 'Mesaj',
+    }),
   }
 );
 ```
@@ -264,6 +286,7 @@ firebase.json                   # Firebase config
 ## ⚡ One-Liner Complete
 
 ### Setup Complet (Copy-Paste)
+
 ```bash
 # Creează cont
 ACCOUNT_ID=$(curl -s -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/add-account \
@@ -276,6 +299,7 @@ curl -s https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/
 ```
 
 ### Trimite Mesaj (După Conectare)
+
 ```bash
 curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/send \
   -H "Content-Type: application/json" \

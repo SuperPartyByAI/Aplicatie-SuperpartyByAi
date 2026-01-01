@@ -7,7 +7,7 @@ const BACKEND_URL = 'https://us-central1-superparty-frontend.cloudfunctions.net/
 const MOCK_CLIENTS = [
   { id: '1', name: 'Ion Popescu', phone: '+40721234567', unreadCount: 2 },
   { id: '2', name: 'Maria Ionescu', phone: '+40722345678', unreadCount: 0 },
-  { id: '3', name: 'Andrei Georgescu', phone: '+40723456789', unreadCount: 1 }
+  { id: '3', name: 'Andrei Georgescu', phone: '+40723456789', unreadCount: 1 },
 ];
 
 const USE_MOCK_DATA = false; // Backend deploiat pe Railway!
@@ -21,27 +21,30 @@ function ChatClienti() {
 
   useEffect(() => {
     loadClients();
-    
+
     // Socket.io connection for real-time updates
     const socket = io(BACKEND_URL);
-    
+
     socket.on('connect', () => {
       console.log('✅ Connected to backend');
     });
-    
-    socket.on('whatsapp:message', (data) => {
+
+    socket.on('whatsapp:message', data => {
       console.log('💬 New message received:', data);
-      
+
       // If viewing this client's messages, add to list
       if (selectedClient && data.message.from === selectedClient.id) {
-        setMessages(prev => [...prev, {
-          id: data.message.id,
-          text: data.message.body,
-          fromClient: !data.message.fromMe,
-          timestamp: data.message.timestamp * 1000
-        }]);
+        setMessages(prev => [
+          ...prev,
+          {
+            id: data.message.id,
+            text: data.message.body,
+            fromClient: !data.message.fromMe,
+            timestamp: data.message.timestamp * 1000,
+          },
+        ]);
       }
-      
+
       // Reload client list to update unread count
       loadClients();
     });
@@ -69,14 +72,24 @@ function ChatClienti() {
     }
   };
 
-  const loadMessages = async (clientId) => {
+  const loadMessages = async clientId => {
     try {
       if (USE_MOCK_DATA) {
         await new Promise(resolve => setTimeout(resolve, 300));
         setMessages([
           { id: '1', text: 'Bună ziua!', fromClient: true, timestamp: Date.now() - 600000 },
-          { id: '2', text: 'Bună! Cu ce vă pot ajuta?', fromClient: false, timestamp: Date.now() - 500000 },
-          { id: '3', text: 'Aș dori să rezerv pentru sâmbătă', fromClient: true, timestamp: Date.now() - 400000 }
+          {
+            id: '2',
+            text: 'Bună! Cu ce vă pot ajuta?',
+            fromClient: false,
+            timestamp: Date.now() - 500000,
+          },
+          {
+            id: '3',
+            text: 'Aș dori să rezerv pentru sâmbătă',
+            fromClient: true,
+            timestamp: Date.now() - 400000,
+          },
         ]);
       } else {
         const response = await fetch(`${BACKEND_URL}/api/clients/${clientId}/messages`);
@@ -100,7 +113,7 @@ function ChatClienti() {
           id: `msg_${Date.now()}`,
           text: newMessage,
           fromClient: false,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
         setMessages(prev => [...prev, msg]);
         setNewMessage('');
@@ -108,7 +121,7 @@ function ChatClienti() {
         const response = await fetch(`${BACKEND_URL}/api/clients/${selectedClient.id}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: newMessage })
+          body: JSON.stringify({ message: newMessage }),
         });
 
         const data = await response.json();
@@ -123,50 +136,58 @@ function ChatClienti() {
     }
   };
 
-  const handleClientSelect = (client) => {
+  const handleClientSelect = client => {
     setSelectedClient(client);
     loadMessages(client.id);
   };
 
   if (loading) {
     return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '400px',
-        color: '#9ca3af'
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '400px',
+          color: '#9ca3af',
+        }}
+      >
         <div>Se încarcă...</div>
       </div>
     );
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      gap: '1rem',
-      height: '600px',
-      background: '#1f2937',
-      borderRadius: '8px',
-      overflow: 'hidden'
-    }}>
-      {/* Client list */}
-      <div style={{
-        width: '300px',
-        borderRight: '1px solid #374151',
+    <div
+      style={{
         display: 'flex',
-        flexDirection: 'column'
-      }}>
-        <div style={{
-          padding: '1rem',
-          borderBottom: '1px solid #374151',
-          fontWeight: '600',
-          color: 'white',
+        gap: '1rem',
+        height: '600px',
+        background: '#1f2937',
+        borderRadius: '8px',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Client list */}
+      <div
+        style={{
+          width: '300px',
+          borderRight: '1px solid #374151',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
+          flexDirection: 'column',
+        }}
+      >
+        <div
+          style={{
+            padding: '1rem',
+            borderBottom: '1px solid #374151',
+            fontWeight: '600',
+            color: 'white',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
           <span>💬 Clienți ({clients.length})</span>
           <button
             onClick={() => {
@@ -180,23 +201,27 @@ function ChatClienti() {
               borderRadius: '4px',
               padding: '0.5rem',
               cursor: 'pointer',
-              fontSize: '1rem'
+              fontSize: '1rem',
             }}
             title="Reîmprospătează lista"
           >
             🔄
           </button>
         </div>
-        <div style={{
-          flex: 1,
-          overflowY: 'auto'
-        }}>
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+          }}
+        >
           {clients.length === 0 ? (
-            <div style={{
-              padding: '2rem',
-              textAlign: 'center',
-              color: '#9ca3af'
-            }}>
+            <div
+              style={{
+                padding: '2rem',
+                textAlign: 'center',
+                color: '#9ca3af',
+              }}
+            >
               <p>Niciun client disponibil</p>
             </div>
           ) : (
@@ -209,43 +234,49 @@ function ChatClienti() {
                   background: selectedClient?.id === client.id ? '#3b82f6' : 'transparent',
                   borderBottom: '1px solid #374151',
                   cursor: 'pointer',
-                  transition: 'background 0.2s'
+                  transition: 'background 0.2s',
                 }}
-                onMouseEnter={(e) => {
+                onMouseEnter={e => {
                   if (selectedClient?.id !== client.id) {
                     e.currentTarget.style.background = '#374151';
                   }
                 }}
-                onMouseLeave={(e) => {
+                onMouseLeave={e => {
                   if (selectedClient?.id !== client.id) {
                     e.currentTarget.style.background = 'transparent';
                   }
                 }}
               >
-                <div style={{
-                  fontWeight: '600',
-                  color: 'white',
-                  marginBottom: '0.25rem'
-                }}>
+                <div
+                  style={{
+                    fontWeight: '600',
+                    color: 'white',
+                    marginBottom: '0.25rem',
+                  }}
+                >
                   {client.name}
                 </div>
-                <div style={{
-                  fontSize: '0.875rem',
-                  color: selectedClient?.id === client.id ? '#e0e7ff' : '#9ca3af'
-                }}>
+                <div
+                  style={{
+                    fontSize: '0.875rem',
+                    color: selectedClient?.id === client.id ? '#e0e7ff' : '#9ca3af',
+                  }}
+                >
                   {client.phone}
                 </div>
                 {client.unreadCount > 0 && (
-                  <div style={{
-                    marginTop: '0.5rem',
-                    display: 'inline-block',
-                    background: '#ef4444',
-                    color: 'white',
-                    padding: '0.125rem 0.5rem',
-                    borderRadius: '12px',
-                    fontSize: '0.75rem',
-                    fontWeight: '600'
-                  }}>
+                  <div
+                    style={{
+                      marginTop: '0.5rem',
+                      display: 'inline-block',
+                      background: '#ef4444',
+                      color: 'white',
+                      padding: '0.125rem 0.5rem',
+                      borderRadius: '12px',
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                    }}
+                  >
                     {client.unreadCount} nou{client.unreadCount > 1 ? 'e' : ''}
                   </div>
                 )}
@@ -256,49 +287,61 @@ function ChatClienti() {
       </div>
 
       {/* Chat area */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         {selectedClient ? (
           <>
             {/* Chat header */}
-            <div style={{
-              padding: '1rem',
-              borderBottom: '1px solid #374151',
-              background: '#374151'
-            }}>
-              <div style={{
-                fontWeight: '600',
-                fontSize: '1.125rem',
-                color: 'white'
-              }}>
+            <div
+              style={{
+                padding: '1rem',
+                borderBottom: '1px solid #374151',
+                background: '#374151',
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: '600',
+                  fontSize: '1.125rem',
+                  color: 'white',
+                }}
+              >
                 {selectedClient.name}
               </div>
-              <div style={{
-                fontSize: '0.875rem',
-                color: '#9ca3af'
-              }}>
+              <div
+                style={{
+                  fontSize: '0.875rem',
+                  color: '#9ca3af',
+                }}
+              >
                 {selectedClient.phone}
               </div>
             </div>
 
             {/* Messages */}
-            <div style={{
-              flex: 1,
-              overflowY: 'auto',
-              padding: '1rem',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.5rem'
-            }}>
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '1rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem',
+              }}
+            >
               {messages.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  color: '#9ca3af',
-                  padding: '2rem'
-                }}>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    color: '#9ca3af',
+                    padding: '2rem',
+                  }}
+                >
                   Niciun mesaj încă
                 </div>
               ) : (
@@ -307,26 +350,30 @@ function ChatClienti() {
                     key={idx}
                     style={{
                       alignSelf: msg.fromClient ? 'flex-start' : 'flex-end',
-                      maxWidth: '70%'
+                      maxWidth: '70%',
                     }}
                   >
-                    <div style={{
-                      padding: '0.75rem',
-                      borderRadius: '8px',
-                      background: msg.fromClient ? '#374151' : '#3b82f6',
-                      color: 'white'
-                    }}>
+                    <div
+                      style={{
+                        padding: '0.75rem',
+                        borderRadius: '8px',
+                        background: msg.fromClient ? '#374151' : '#3b82f6',
+                        color: 'white',
+                      }}
+                    >
                       {msg.text}
                     </div>
-                    <div style={{
-                      fontSize: '0.75rem',
-                      color: '#9ca3af',
-                      marginTop: '0.25rem',
-                      textAlign: msg.fromClient ? 'left' : 'right'
-                    }}>
+                    <div
+                      style={{
+                        fontSize: '0.75rem',
+                        color: '#9ca3af',
+                        marginTop: '0.25rem',
+                        textAlign: msg.fromClient ? 'left' : 'right',
+                      }}
+                    >
                       {new Date(msg.timestamp).toLocaleTimeString('ro-RO', {
                         hour: '2-digit',
-                        minute: '2-digit'
+                        minute: '2-digit',
                       })}
                     </div>
                   </div>
@@ -335,17 +382,19 @@ function ChatClienti() {
             </div>
 
             {/* Message input */}
-            <div style={{
-              padding: '1rem',
-              borderTop: '1px solid #374151',
-              display: 'flex',
-              gap: '0.5rem'
-            }}>
+            <div
+              style={{
+                padding: '1rem',
+                borderTop: '1px solid #374151',
+                display: 'flex',
+                gap: '0.5rem',
+              }}
+            >
               <input
                 type="text"
                 value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                onChange={e => setNewMessage(e.target.value)}
+                onKeyPress={e => e.key === 'Enter' && sendMessage()}
                 placeholder="Scrie un mesaj..."
                 style={{
                   flex: 1,
@@ -354,7 +403,7 @@ function ChatClienti() {
                   border: '1px solid #4b5563',
                   borderRadius: '8px',
                   color: 'white',
-                  fontSize: '1rem'
+                  fontSize: '1rem',
                 }}
               />
               <button
@@ -368,7 +417,7 @@ function ChatClienti() {
                   borderRadius: '8px',
                   cursor: newMessage.trim() ? 'pointer' : 'not-allowed',
                   fontSize: '1rem',
-                  fontWeight: '600'
+                  fontWeight: '600',
                 }}
               >
                 Trimite
@@ -376,20 +425,20 @@ function ChatClienti() {
             </div>
           </>
         ) : (
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#9ca3af',
-            flexDirection: 'column',
-            gap: '1rem'
-          }}>
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#9ca3af',
+              flexDirection: 'column',
+              gap: '1rem',
+            }}
+          >
             <div style={{ fontSize: '4rem' }}>💬</div>
             <p style={{ fontSize: '1.25rem' }}>Selectează un client</p>
-            <p style={{ fontSize: '0.875rem' }}>
-              pentru a vedea conversația
-            </p>
+            <p style={{ fontSize: '0.875rem' }}>pentru a vedea conversația</p>
           </div>
         )}
       </div>

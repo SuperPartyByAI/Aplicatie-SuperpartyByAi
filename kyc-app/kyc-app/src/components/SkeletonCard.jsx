@@ -1,7 +1,5 @@
 function SkeletonCard() {
-  return (
-    <div className="skeleton-card skeleton"></div>
-  );
+  return <div className="skeleton-card skeleton"></div>;
 }
 
 export function SkeletonList({ count = 3 }) {

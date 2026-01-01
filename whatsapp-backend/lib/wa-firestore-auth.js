@@ -1,8 +1,8 @@
 /**
  * FIRESTORE AUTH STATE FOR BAILEYS
- * 
+ *
  * Persists Baileys auth state (creds + keys) in Firestore instead of filesystem.
- * 
+ *
  * Structure:
  * - wa_metrics/longrun/baileys_auth/creds -> { creds: {...} }
  * - wa_metrics/longrun/baileys_auth/keys/{type}/{id} -> { data: {...} }
@@ -16,7 +16,7 @@ class FirestoreAuthState {
     this.db = db;
     this.basePath = 'wa_metrics/longrun/baileys_auth';
     this.lastAuthWriteAt = null;
-    
+
     console.log('[FirestoreAuth] Initialized');
   }
 
@@ -30,7 +30,7 @@ class FirestoreAuthState {
       // Load creds
       const credsDoc = await this.db.doc(`${this.basePath}/creds`).get();
       let creds;
-      
+
       if (credsDoc.exists) {
         creds = credsDoc.data().creds;
         console.log('[FirestoreAuth] ✅ Loaded existing creds');
@@ -42,12 +42,12 @@ class FirestoreAuthState {
       // Load keys
       const keysSnapshot = await this.db.collection(`${this.basePath}/keys`).get();
       const keys = {};
-      
+
       keysSnapshot.forEach(doc => {
         const parts = doc.id.split('_');
         const type = parts[0];
         const id = parts.slice(1).join('_');
-        
+
         if (!keys[type]) {
           keys[type] = {};
         }
@@ -62,7 +62,7 @@ class FirestoreAuthState {
       // Return fresh creds on error
       return {
         creds: initAuthCreds(),
-        keys: {}
+        keys: {},
       };
     }
   }
@@ -78,7 +78,7 @@ class FirestoreAuthState {
         // Save creds
         await this.db.doc(`${this.basePath}/creds`).set({
           creds: JSON.parse(JSON.stringify(creds, BufferJSON.replacer)),
-          updatedAt: FieldValue.serverTimestamp()
+          updatedAt: FieldValue.serverTimestamp(),
         });
 
         // Save keys
@@ -91,7 +91,7 @@ class FirestoreAuthState {
             const ref = this.db.doc(`${this.basePath}/keys/${docId}`);
             batch.set(ref, {
               data: JSON.parse(JSON.stringify(data, BufferJSON.replacer)),
-              updatedAt: FieldValue.serverTimestamp()
+              updatedAt: FieldValue.serverTimestamp(),
             });
             keyCount++;
           }
@@ -111,14 +111,14 @@ class FirestoreAuthState {
     return {
       state: {
         creds,
-        keys
+        keys,
       },
       saveCreds: async () => {
         await saveState();
       },
       saveKeys: async () => {
         await saveState();
-      }
+      },
     };
   }
 
@@ -142,7 +142,7 @@ class FirestoreAuthState {
       // Delete all keys
       const keysSnapshot = await this.db.collection(`${this.basePath}/keys`).get();
       const batch = this.db.batch();
-      
+
       keysSnapshot.forEach(doc => {
         batch.delete(doc.ref);
       });
@@ -183,13 +183,13 @@ class FirestoreAuthState {
         hasAuth: credsDoc.exists,
         credsUpdatedAt: credsDoc.exists ? credsDoc.data().updatedAt : null,
         keyCount: keysSnapshot.size,
-        lastAuthWriteAt: this.lastAuthWriteAt
+        lastAuthWriteAt: this.lastAuthWriteAt,
       };
     } catch (error) {
       console.error('[FirestoreAuth] Error getting auth state info:', error);
       return {
         hasAuth: false,
-        error: error.message
+        error: error.message,
       };
     }
   }

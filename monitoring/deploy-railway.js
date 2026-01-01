@@ -12,18 +12,18 @@ async function railwayQuery(query, variables = {}) {
   const response = await fetch(RAILWAY_API, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${RAILWAY_TOKEN}`,
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${RAILWAY_TOKEN}`,
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ query, variables })
+    body: JSON.stringify({ query, variables }),
   });
 
   const data = await response.json();
-  
+
   if (data.errors) {
     throw new Error(JSON.stringify(data.errors, null, 2));
   }
-  
+
   return data.data;
 }
 
@@ -46,7 +46,7 @@ async function deployV7() {
     console.log('📋 Step 2: Finding SuperParty project...');
     const projectsQuery = `query { projects { edges { node { id name } } } }`;
     const projects = await railwayQuery(projectsQuery);
-    
+
     console.log('Available projects:');
     projects.projects.edges.forEach((edge, i) => {
       console.log(`  ${i + 1}. ${edge.node.name} (${edge.node.id})`);
@@ -55,11 +55,12 @@ async function deployV7() {
 
     // Find SuperParty project or use first one
     let projectId = projects.projects.edges[0]?.node.id;
-    const superpartyProject = projects.projects.edges.find(e => 
-      e.node.name.toLowerCase().includes('superparty') ||
-      e.node.name.toLowerCase().includes('aplicatie')
+    const superpartyProject = projects.projects.edges.find(
+      e =>
+        e.node.name.toLowerCase().includes('superparty') ||
+        e.node.name.toLowerCase().includes('aplicatie')
     );
-    
+
     if (superpartyProject) {
       projectId = superpartyProject.node.id;
       console.log(`✅ Found SuperParty project: ${superpartyProject.node.name}`);
@@ -78,52 +79,52 @@ async function deployV7() {
         }
       }
     `;
-    
+
     const serviceInput = {
       projectId: projectId,
       name: 'v7-singularity-monitor',
       source: {
         repo: 'SuperPartyByAI/Aplicatie-SuperpartyByAi',
-        branch: 'main'
-      }
+        branch: 'main',
+      },
     };
 
     const service = await railwayQuery(createServiceMutation, { input: serviceInput });
     const serviceId = service.serviceCreate.id;
-    
+
     console.log(`✅ Service created: ${service.serviceCreate.name}`);
     console.log(`   ID: ${serviceId}`);
     console.log('');
 
     // Step 4: Configure service
     console.log('📋 Step 4: Configuring service...');
-    
+
     // Set root directory
     const updateServiceMutation = `
       mutation ServiceUpdate($id: String!, $input: ServiceUpdateInput!) {
         serviceUpdate(id: $id, input: $input)
       }
     `;
-    
+
     await railwayQuery(updateServiceMutation, {
       id: serviceId,
       input: {
         rootDirectory: 'monitoring',
-        startCommand: 'npm start'
-      }
+        startCommand: 'npm start',
+      },
     });
-    
+
     console.log('✅ Root directory set: monitoring');
     console.log('✅ Start command set: npm start');
     console.log('');
 
     // Step 5: Add environment variables
     console.log('📋 Step 5: Adding environment variables...');
-    
+
     const variables = [
       { key: 'RAILWAY_TOKEN', value: RAILWAY_TOKEN },
       { key: 'PORT', value: '3001' },
-      { key: 'NODE_ENV', value: 'production' }
+      { key: 'NODE_ENV', value: 'production' },
     ];
 
     const upsertVariableMutation = `
@@ -139,10 +140,12 @@ async function deployV7() {
           environmentId: null, // Production environment
           serviceId: serviceId,
           name: variable.key,
-          value: variable.value
-        }
+          value: variable.value,
+        },
       });
-      console.log(`✅ ${variable.key} = ${variable.key === 'RAILWAY_TOKEN' ? '***' : variable.value}`);
+      console.log(
+        `✅ ${variable.key} = ${variable.key === 'RAILWAY_TOKEN' ? '***' : variable.value}`
+      );
     }
     console.log('');
 
@@ -153,7 +156,7 @@ async function deployV7() {
         serviceInstanceRedeploy(serviceId: $serviceId)
       }
     `;
-    
+
     await railwayQuery(deployMutation, { serviceId });
     console.log('✅ Deployment triggered');
     console.log('');
@@ -168,14 +171,14 @@ async function deployV7() {
         }
       }
     `;
-    
+
     try {
       const domain = await railwayQuery(domainMutation, {
         input: {
-          serviceId: serviceId
-        }
+          serviceId: serviceId,
+        },
       });
-      
+
       console.log(`✅ Domain generated: https://${domain.serviceDomainCreate.domain}`);
       console.log('');
 
@@ -199,13 +202,11 @@ async function deployV7() {
       console.log('');
       console.log('============================================================');
       console.log('');
-
     } catch (error) {
       console.log('⚠️  Could not generate domain automatically');
       console.log('   Generate it manually: Railway → Service → Settings → Networking');
       console.log('');
     }
-
   } catch (error) {
     console.error('');
     console.error('❌ DEPLOYMENT FAILED');

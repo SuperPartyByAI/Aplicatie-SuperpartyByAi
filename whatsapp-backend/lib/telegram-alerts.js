@@ -1,6 +1,6 @@
 /**
  * TELEGRAM ALERTS - PRODUCTION GRADE
- * 
+ *
  * Sends alerts for:
  * - Missed heartbeats (>3/hour)
  * - Consecutive probe fails (>2)
@@ -16,11 +16,11 @@ class TelegramAlerts {
     this.botToken = botToken;
     this.chatId = chatId;
     this.enabled = !!(botToken && chatId);
-    
+
     // Alert throttling (prevent spam)
     this.lastAlerts = new Map(); // alertKey -> timestamp
     this.throttleMs = 3600000; // 1 hour
-    
+
     if (this.enabled) {
       console.log('[TelegramAlerts] Enabled');
     } else {
@@ -42,31 +42,35 @@ class TelegramAlerts {
       chat_id: this.chatId,
       text,
       parse_mode: parseMode,
-      disable_web_page_preview: true
+      disable_web_page_preview: true,
     });
 
     return new Promise((resolve, reject) => {
-      const req = https.request(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(payload)
+      const req = https.request(
+        url,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(payload),
+          },
+        },
+        res => {
+          let data = '';
+          res.on('data', chunk => (data += chunk));
+          res.on('end', () => {
+            if (res.statusCode === 200) {
+              console.log('[TelegramAlerts] Message sent');
+              resolve(JSON.parse(data));
+            } else {
+              console.error('[TelegramAlerts] Failed:', res.statusCode, data);
+              reject(new Error(`Telegram API error: ${res.statusCode}`));
+            }
+          });
         }
-      }, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          if (res.statusCode === 200) {
-            console.log('[TelegramAlerts] Message sent');
-            resolve(JSON.parse(data));
-          } else {
-            console.error('[TelegramAlerts] Failed:', res.statusCode, data);
-            reject(new Error(`Telegram API error: ${res.statusCode}`));
-          }
-        });
-      });
+      );
 
-      req.on('error', (error) => {
+      req.on('error', error => {
         console.error('[TelegramAlerts] Request error:', error);
         reject(error);
       });
@@ -82,7 +86,7 @@ class TelegramAlerts {
   shouldThrottle(alertKey) {
     const lastAlert = this.lastAlerts.get(alertKey);
     if (!lastAlert) return false;
-    
+
     const elapsed = Date.now() - lastAlert;
     return elapsed < this.throttleMs;
   }
@@ -99,12 +103,13 @@ class TelegramAlerts {
    */
   async alertMissedHeartbeats(missedCount, hourStart, hourEnd) {
     const alertKey = `missed_hb_${hourStart}`;
-    
+
     if (this.shouldThrottle(alertKey)) {
       return;
     }
 
-    const text = `🚨 *MISSED HEARTBEATS*\n\n` +
+    const text =
+      `🚨 *MISSED HEARTBEATS*\n\n` +
       `⏰ Period: ${new Date(hourStart).toISOString()} - ${new Date(hourEnd).toISOString()}\n` +
       `❌ Missed: ${missedCount} heartbeats\n` +
       `📊 Threshold: 3/hour\n\n` +
@@ -119,16 +124,17 @@ class TelegramAlerts {
    */
   async alertConsecutiveProbeFails(probeType, failCount, lastProbes) {
     const alertKey = `probe_fail_${probeType}_${Date.now()}`;
-    
+
     if (this.shouldThrottle(alertKey)) {
       return;
     }
 
-    const probeDetails = lastProbes.map(p => 
-      `  - ${new Date(p.ts).toISOString()}: ${p.result} (${p.latencyMs}ms)`
-    ).join('\n');
+    const probeDetails = lastProbes
+      .map(p => `  - ${new Date(p.ts).toISOString()}: ${p.result} (${p.latencyMs}ms)`)
+      .join('\n');
 
-    const text = `🚨 *CONSECUTIVE PROBE FAILS*\n\n` +
+    const text =
+      `🚨 *CONSECUTIVE PROBE FAILS*\n\n` +
       `🔍 Type: ${probeType}\n` +
       `❌ Consecutive fails: ${failCount}\n` +
       `📊 Threshold: 2\n\n` +
@@ -144,12 +150,13 @@ class TelegramAlerts {
    */
   async alertQueueDepth(currentDepth, threshold) {
     const alertKey = `queue_depth_${Math.floor(Date.now() / this.throttleMs)}`;
-    
+
     if (this.shouldThrottle(alertKey)) {
       return;
     }
 
-    const text = `🚨 *QUEUE DEPTH THRESHOLD*\n\n` +
+    const text =
+      `🚨 *QUEUE DEPTH THRESHOLD*\n\n` +
       `📊 Current depth: ${currentDepth}\n` +
       `⚠️ Threshold: ${threshold}\n` +
       `⏰ Time: ${new Date().toISOString()}\n\n` +
@@ -164,12 +171,13 @@ class TelegramAlerts {
    */
   async alertReconnectLoop(accountId, reconnectCount, hourStart, hourEnd) {
     const alertKey = `reconnect_loop_${accountId}_${hourStart}`;
-    
+
     if (this.shouldThrottle(alertKey)) {
       return;
     }
 
-    const text = `🚨 *RECONNECT LOOP DETECTED*\n\n` +
+    const text =
+      `🚨 *RECONNECT LOOP DETECTED*\n\n` +
       `📱 Account: ${accountId}\n` +
       `🔄 Reconnects: ${reconnectCount}\n` +
       `📊 Threshold: 5/hour\n` +
@@ -185,12 +193,13 @@ class TelegramAlerts {
    */
   async alertInsufficientData(date, coverage, threshold) {
     const alertKey = `insufficient_data_${date}`;
-    
+
     if (this.shouldThrottle(alertKey)) {
       return;
     }
 
-    const text = `⚠️ *INSUFFICIENT DATA*\n\n` +
+    const text =
+      `⚠️ *INSUFFICIENT DATA*\n\n` +
       `📅 Date: ${date}\n` +
       `📊 Coverage: ${(coverage * 100).toFixed(1)}%\n` +
       `⚠️ Threshold: ${(threshold * 100).toFixed(1)}%\n\n` +
@@ -204,7 +213,8 @@ class TelegramAlerts {
    * Alert: Daily summary
    */
   async sendDailySummary(date, stats) {
-    const text = `📊 *DAILY SUMMARY: ${date}*\n\n` +
+    const text =
+      `📊 *DAILY SUMMARY: ${date}*\n\n` +
       `✅ Uptime: ${stats.uptimePct.toFixed(1)}%\n` +
       `📡 Heartbeats: ${stats.writtenHb}/${stats.expectedHb} (${stats.missedHb} missed)\n` +
       `🔍 Probes:\n` +

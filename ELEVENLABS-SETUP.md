@@ -3,6 +3,7 @@
 ## De ce ElevenLabs?
 
 ElevenLabs oferă cea mai naturală voce AI din lume:
+
 - ✅ Sună EXACT ca o persoană reală
 - ✅ Suportă română perfect
 - ✅ Emoții și intonație naturală
@@ -44,11 +45,13 @@ Ar trebui să auzi vocea Kasya care sună EXACT ca o persoană reală!
 ## Verificare
 
 Verifică că funcționează:
+
 ```bash
 curl https://web-production-f0714.up.railway.app/
 ```
 
 Ar trebui să vezi:
+
 ```json
 {
   "voice": "ElevenLabs (PREMIUM)"
@@ -84,6 +87,7 @@ FREE tier = ~100 apeluri/lună
 4. Dacă ElevenLabs e down, va folosi automat Polly fallback
 
 **Logs:**
+
 ```
 [VoiceAI] ✅ ElevenLabs TTS enabled (PREMIUM VOICE)
 [Voice] ✅ Using ElevenLabs (PREMIUM VOICE)

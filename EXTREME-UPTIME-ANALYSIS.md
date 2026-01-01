@@ -5,11 +5,13 @@
 ### Calcul matematic:
 
 **Acum (99.9%):**
+
 - 30 zile = 43,200 minute
 - 0.1% downtime = 43.2 minute/lună
 - **43 minute downtime**
 
 **Target (99.99%):**
+
 - 30 zile = 43,200 minute
 - 0.01% downtime = 4.32 minute/lună
 - **~4 minute downtime** (sau mai bine: 1 min)
@@ -20,58 +22,69 @@
 
 ## 📊 Unde pierdem timp ACUM:
 
-| Fază | Timp | Cum reducem |
-|------|------|-------------|
-| Detection | 20s (2 failures x 10s) | → **5s** (1 failure x 5s) |
-| Failover | <1s | → **<1s** (deja perfect) |
-| Restart attempt | 30s (3 x 10s) | → **15s** (3 x 5s) |
-| Redeploy | 120s | → **60s** (parallel cu restart) |
-| Rollback | 60s | → **30s** (optimizat) |
+| Fază            | Timp                   | Cum reducem                     |
+| --------------- | ---------------------- | ------------------------------- |
+| Detection       | 20s (2 failures x 10s) | → **5s** (1 failure x 5s)       |
+| Failover        | <1s                    | → **<1s** (deja perfect)        |
+| Restart attempt | 30s (3 x 10s)          | → **15s** (3 x 5s)              |
+| Redeploy        | 120s                   | → **60s** (parallel cu restart) |
+| Rollback        | 60s                    | → **30s** (optimizat)           |
 
 ---
 
 ## 🔥 OPTIMIZĂRI EXTREME (cost $0):
 
 ### 1. **Health checks la 5s** (în loc de 10s)
+
 ```javascript
-healthCheckInterval: 5000  // 5s în loc de 10s
+healthCheckInterval: 5000; // 5s în loc de 10s
 ```
+
 - Detection: 20s → **10s**
 - Cost: $0 (doar mai multe HTTP requests)
 
 ### 2. **Trigger după 1 failure** (în loc de 2)
+
 ```javascript
-maxConsecutiveFailures: 1  // 1 în loc de 2
+maxConsecutiveFailures: 1; // 1 în loc de 2
 ```
+
 - Detection: 10s → **5s**
 - Cost: $0
 - ⚠️ Risc: Mai multe false positives
 
 ### 3. **Parallel restart + redeploy** (nu secvențial)
+
 ```javascript
 // În loc de: restart → redeploy → rollback
 // Facem: restart + redeploy în paralel
 ```
+
 - Recovery: 3min → **1min**
 - Cost: $0
 
 ### 4. **Predictive restart** (înainte să pice)
+
 ```javascript
 // Dacă response time > 5s pentru 3 checks consecutive
 // → Restart preventiv
 ```
+
 - Previne 50% din failures
 - Cost: $0
 
 ### 5. **Multi-region failover** (Railway regions)
+
 ```javascript
 // Primary: US West
 // Failover: US East (instant switch)
 ```
+
 - Failover: <1s → **<100ms**
 - Cost: $0 (Railway free tier suportă multiple regions)
 
 ### 6. **Railway restart ultra-rapid**
+
 ```json
 {
   "restartPolicyType": "ALWAYS",
@@ -80,6 +93,7 @@ maxConsecutiveFailures: 1  // 1 în loc de 2
   "healthcheckInterval": 5
 }
 ```
+
 - Railway restart: 10s → **5s**
 - Cost: $0
 
@@ -109,16 +123,19 @@ maxConsecutiveFailures: 1  // 1 în loc de 2
 ### Scenarii de failure:
 
 **Scenario 1: Service crash (80% din failures)**
+
 - Detection: 5s
 - Restart: 5-15s
 - **Total: 10-20s downtime**
 
 **Scenario 2: Deployment failure (15% din failures)**
+
 - Detection: 5s
 - Restart + Redeploy parallel: 60s
 - **Total: 65s downtime**
 
 **Scenario 3: Code bug (5% din failures)**
+
 - Detection: 5s
 - Restart + Redeploy + Rollback: 90s
 - **Total: 95s downtime**
@@ -126,6 +143,7 @@ maxConsecutiveFailures: 1  // 1 în loc de 2
 ### Calcul downtime/lună:
 
 Presupunem **10 failures/lună** (realist):
+
 - 8 crashes x 15s = 120s
 - 1.5 deployment failures x 65s = 97s
 - 0.5 code bugs x 95s = 47s
@@ -138,6 +156,7 @@ Presupunem **10 failures/lună** (realist):
 ## 💰 COST: $0
 
 Toate optimizările folosesc:
+
 - ✅ Railway features gratuite
 - ✅ Mai multe HTTP requests (gratuite)
 - ✅ Railway API calls (gratuite)
@@ -150,14 +169,17 @@ Toate optimizările folosesc:
 ## ⚠️ TRADE-OFFS:
 
 ### Health checks la 5s:
+
 - ✅ Pro: Detecție 2x mai rapidă
 - ⚠️ Con: Mai multe false positives (1-2/lună)
 
 ### Trigger după 1 failure:
+
 - ✅ Pro: Recovery instant
 - ⚠️ Con: Restart preventiv la spike-uri temporare
 
 ### Parallel restart + redeploy:
+
 - ✅ Pro: Recovery 3x mai rapid
 - ⚠️ Con: Mai multe resurse folosite simultan
 
@@ -166,6 +188,7 @@ Toate optimizările folosesc:
 ## 🎯 RECOMANDARE:
 
 ### Configurație EXTREME (99.99%):
+
 ```javascript
 {
   healthCheckInterval: 5000,         // 5s
@@ -179,6 +202,7 @@ Toate optimizările folosesc:
 ```
 
 **Rezultat:**
+
 - Detection: **5s**
 - Recovery: **10-90s**
 - Downtime: **~4 min/lună**

@@ -63,36 +63,44 @@ function FlowGuard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async firebaseUser => {
       try {
         if (firebaseUser) {
           setUser(firebaseUser);
-          
+
           // Bypass pentru admin
           if (firebaseUser.email === 'ursache.andrei1995@gmail.com') {
             // Setează datele în Firestore
             const userRef = doc(db, 'users', firebaseUser.uid);
             const staffRef = doc(db, 'staffProfiles', firebaseUser.uid);
-            
+
             await Promise.all([
-              setDoc(userRef, {
-                uid: firebaseUser.uid,
-                email: firebaseUser.email,
-                status: 'approved',
-                setupDone: true,
-                code: 'ADMIN001',
-                updatedAt: serverTimestamp(),
-              }, { merge: true }),
-              setDoc(staffRef, {
-                uid: firebaseUser.uid,
-                email: firebaseUser.email,
-                code: 'ADMIN001',
-                codIdentificare: 'ADMIN001',
-                ceCodAi: 'ADMIN001',
-                cineNoteaza: 'Admin',
-                setupDone: true,
-                updatedAt: serverTimestamp(),
-              }, { merge: true })
+              setDoc(
+                userRef,
+                {
+                  uid: firebaseUser.uid,
+                  email: firebaseUser.email,
+                  status: 'approved',
+                  setupDone: true,
+                  code: 'ADMIN001',
+                  updatedAt: serverTimestamp(),
+                },
+                { merge: true }
+              ),
+              setDoc(
+                staffRef,
+                {
+                  uid: firebaseUser.uid,
+                  email: firebaseUser.email,
+                  code: 'ADMIN001',
+                  codIdentificare: 'ADMIN001',
+                  ceCodAi: 'ADMIN001',
+                  cineNoteaza: 'Admin',
+                  setupDone: true,
+                  updatedAt: serverTimestamp(),
+                },
+                { merge: true }
+              ),
             ]);
 
             // Setează state-ul local
@@ -129,7 +137,11 @@ function FlowGuard() {
   }, []);
 
   if (loading) {
-    return <div className="screen-container"><div className="card">Loading...</div></div>;
+    return (
+      <div className="screen-container">
+        <div className="card">Loading...</div>
+      </div>
+    );
   }
 
   if (!user) {

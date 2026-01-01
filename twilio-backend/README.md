@@ -13,11 +13,13 @@ SMS service using Twilio API for SuperParty notifications.
 ## Endpoints
 
 ### Health Check
+
 ```bash
 GET /health
 ```
 
 ### Send Single SMS
+
 ```bash
 POST /sms/send
 Content-Type: application/json
@@ -29,6 +31,7 @@ Content-Type: application/json
 ```
 
 ### Send Bulk SMS
+
 ```bash
 POST /sms/send-bulk
 Content-Type: application/json

@@ -31,7 +31,7 @@ describe('AuthScreen', () => {
         <AuthScreen />
       </BrowserRouter>
     );
-    
+
     // Verifică că există câmpurile de email și parolă
     expect(screen.getByPlaceholderText(/email/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/password/i)).toBeInTheDocument();
@@ -43,7 +43,7 @@ describe('AuthScreen', () => {
         <AuthScreen />
       </BrowserRouter>
     );
-    
+
     // Verifică că butonul Login există
     const loginButton = screen.getByRole('button', { name: /login/i });
     expect(loginButton).toBeInTheDocument();
@@ -55,7 +55,7 @@ describe('AuthScreen', () => {
         <AuthScreen />
       </BrowserRouter>
     );
-    
+
     // Verifică că există link-ul pentru Register
     const registerLink = screen.getByText(/register/i);
     expect(registerLink).toBeInTheDocument();
@@ -67,7 +67,7 @@ describe('AuthScreen', () => {
         <AuthScreen />
       </BrowserRouter>
     );
-    
+
     // Inițial nu există eroare
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });

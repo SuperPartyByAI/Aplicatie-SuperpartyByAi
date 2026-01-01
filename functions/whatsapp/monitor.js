@@ -25,7 +25,7 @@ class WhatsAppMonitor {
         accountId,
         status,
         updatedAt: now.toISOString(),
-        ...data
+        ...data,
       };
 
       // Calculate MTTR if reconnecting
@@ -34,11 +34,11 @@ class WhatsAppMonitor {
         const mttrSeconds = Math.floor((now - disconnectedAt) / 1000);
         update.mttrLastSeconds = mttrSeconds;
         update.lastReconnectAt = now.toISOString();
-        
+
         // Log incident
         await this.logIncident(accountId, 'reconnect', {
           mttrSeconds,
-          previousStatus: 'disconnected'
+          previousStatus: 'disconnected',
         });
       }
 
@@ -76,7 +76,7 @@ class WhatsAppMonitor {
         accountId,
         type,
         ts: new Date().toISOString(),
-        ...data
+        ...data,
       };
 
       await this.db
@@ -104,7 +104,7 @@ class WhatsAppMonitor {
       const update = {
         lastHeartbeatAt: new Date().toISOString(),
         lastHeartbeatResult: result,
-        lastHeartbeatCid: cid
+        lastHeartbeatCid: cid,
       };
 
       await this.db
@@ -192,28 +192,28 @@ class WhatsAppMonitor {
 
       snapshot.forEach(doc => {
         const account = doc.data();
-        
+
         // Check disconnected > 3 minutes
         if (account.status === 'disconnected' && account.lastDisconnectedAt) {
           const disconnectedAt = new Date(account.lastDisconnectedAt);
           const minutesDisconnected = (now - disconnectedAt) / 1000 / 60;
-          
+
           if (minutesDisconnected > 3) {
             alerts.push({
               accountId: account.accountId,
               type: 'disconnected_timeout',
               minutesDisconnected: Math.floor(minutesDisconnected),
-              reason: account.disconnectReason || 'unknown'
+              reason: account.disconnectReason || 'unknown',
             });
           }
         }
-        
+
         // Check loggedOut
         if (account.status === 'loggedOut') {
           alerts.push({
             accountId: account.accountId,
             type: 'logged_out',
-            reason: account.disconnectReason || 'needs_qr'
+            reason: account.disconnectReason || 'needs_qr',
           });
         }
       });

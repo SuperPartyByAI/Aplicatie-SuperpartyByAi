@@ -1,6 +1,6 @@
 /**
  * Message Variation Module
- * 
+ *
  * Prevents spam detection by varying message content:
  * - Template system with variables
  * - Personalization (name, time, location)
@@ -9,7 +9,7 @@
  * - Punctuation variation
  * - Emoji variation
  * - Message uniqueness tracking
- * 
+ *
  * Reduces spam detection by 98% (from 5% to 0.1%)
  */
 
@@ -17,38 +17,38 @@ class MessageVariation {
   constructor() {
     // Synonym database
     this.synonyms = {
-      'hello': ['hi', 'hey', 'greetings', 'good day'],
-      'thanks': ['thank you', 'appreciate it', 'grateful', 'many thanks'],
-      'please': ['kindly', 'if you could', 'would you mind'],
-      'sorry': ['apologies', 'my bad', 'excuse me', 'pardon'],
-      'yes': ['yeah', 'sure', 'absolutely', 'definitely', 'of course'],
-      'no': ['nope', 'not really', 'negative', 'unfortunately not'],
-      'good': ['great', 'excellent', 'wonderful', 'fantastic', 'nice'],
-      'bad': ['poor', 'terrible', 'awful', 'unfortunate'],
-      'help': ['assist', 'support', 'aid', 'guide'],
-      'information': ['info', 'details', 'data', 'facts'],
-      'question': ['query', 'inquiry', 'concern', 'matter'],
-      'important': ['crucial', 'vital', 'essential', 'significant'],
-      'quickly': ['fast', 'rapidly', 'swiftly', 'promptly'],
-      'now': ['right now', 'immediately', 'at once', 'currently']
+      hello: ['hi', 'hey', 'greetings', 'good day'],
+      thanks: ['thank you', 'appreciate it', 'grateful', 'many thanks'],
+      please: ['kindly', 'if you could', 'would you mind'],
+      sorry: ['apologies', 'my bad', 'excuse me', 'pardon'],
+      yes: ['yeah', 'sure', 'absolutely', 'definitely', 'of course'],
+      no: ['nope', 'not really', 'negative', 'unfortunately not'],
+      good: ['great', 'excellent', 'wonderful', 'fantastic', 'nice'],
+      bad: ['poor', 'terrible', 'awful', 'unfortunate'],
+      help: ['assist', 'support', 'aid', 'guide'],
+      information: ['info', 'details', 'data', 'facts'],
+      question: ['query', 'inquiry', 'concern', 'matter'],
+      important: ['crucial', 'vital', 'essential', 'significant'],
+      quickly: ['fast', 'rapidly', 'swiftly', 'promptly'],
+      now: ['right now', 'immediately', 'at once', 'currently'],
     };
-    
+
     // Punctuation variations
     this.punctuations = {
       '.': ['.', '!', '...'],
       '!': ['!', '!!', '.'],
-      '?': ['?', '??', '?!']
+      '?': ['?', '??', '?!'],
     };
-    
+
     // Emoji variations
     this.emojis = {
       happy: ['😊', '🙂', '😄', '😃', '🙃'],
       thanks: ['🙏', '🙌', '👍', '✨'],
       wave: ['👋', '✋', '🖐️'],
       thinking: ['🤔', '💭', '🧐'],
-      celebration: ['🎉', '🎊', '🥳', '✨']
+      celebration: ['🎉', '🎊', '🥳', '✨'],
     };
-    
+
     // Sentence starters
     this.starters = [
       '', // No starter
@@ -56,18 +56,12 @@ class MessageVariation {
       'By the way, ',
       'Quick note: ',
       'FYI: ',
-      'Heads up: '
+      'Heads up: ',
     ];
-    
+
     // Sentence enders
-    this.enders = [
-      '',
-      ' Thanks!',
-      ' Appreciate it!',
-      ' Cheers!',
-      ' Best regards!'
-    ];
-    
+    this.enders = ['', ' Thanks!', ' Appreciate it!', ' Cheers!', ' Best regards!'];
+
     // Message history (for uniqueness tracking)
     this.messageHistory = {}; // accountId -> jid -> [messages]
     this.maxHistorySize = 100;
@@ -78,34 +72,34 @@ class MessageVariation {
    */
   generateVariation(template, variables = {}, options = {}) {
     let message = template;
-    
+
     // Replace variables
     Object.keys(variables).forEach(key => {
       const regex = new RegExp(`{{${key}}}`, 'g');
       message = message.replace(regex, variables[key]);
     });
-    
+
     // Apply variations
     if (!options.skipSynonyms) {
       message = this.applySynonyms(message);
     }
-    
+
     if (!options.skipPunctuation) {
       message = this.varyPunctuation(message);
     }
-    
+
     if (options.addEmoji) {
       message = this.addEmoji(message, options.emojiType);
     }
-    
+
     if (options.addStarter) {
       message = this.addStarter(message);
     }
-    
+
     if (options.addEnder) {
       message = this.addEnder(message);
     }
-    
+
     return message;
   }
 
@@ -114,22 +108,22 @@ class MessageVariation {
    */
   applySynonyms(text) {
     let result = text;
-    
+
     // Get all words
     const words = text.toLowerCase().split(/\b/);
-    
+
     // Replace with synonyms (30% chance per word)
     words.forEach(word => {
       if (this.synonyms[word] && Math.random() < 0.3) {
         const synonyms = this.synonyms[word];
         const synonym = synonyms[Math.floor(Math.random() * synonyms.length)];
-        
+
         // Replace first occurrence
         const regex = new RegExp(`\\b${word}\\b`, 'i');
         result = result.replace(regex, synonym);
       }
     });
-    
+
     return result;
   }
 
@@ -138,12 +132,12 @@ class MessageVariation {
    */
   varyPunctuation(text) {
     let result = text;
-    
+
     Object.keys(this.punctuations).forEach(punct => {
       if (result.includes(punct)) {
         const variations = this.punctuations[punct];
         const variation = variations[Math.floor(Math.random() * variations.length)];
-        
+
         // Replace last occurrence
         const lastIndex = result.lastIndexOf(punct);
         if (lastIndex !== -1) {
@@ -151,7 +145,7 @@ class MessageVariation {
         }
       }
     });
-    
+
     return result;
   }
 
@@ -161,7 +155,7 @@ class MessageVariation {
   addEmoji(text, emojiType = 'happy') {
     const emojis = this.emojis[emojiType] || this.emojis.happy;
     const emoji = emojis[Math.floor(Math.random() * emojis.length)];
-    
+
     // Add at end (70% chance) or beginning (30% chance)
     if (Math.random() < 0.7) {
       return `${text} ${emoji}`;
@@ -195,9 +189,9 @@ class MessageVariation {
       firstName: recipient.firstName || recipient.name || 'there',
       time: this.getTimeGreeting(),
       day: this.getDayName(),
-      date: this.getFormattedDate()
+      date: this.getFormattedDate(),
     };
-    
+
     return this.generateVariation(template, variables);
   }
 
@@ -206,7 +200,7 @@ class MessageVariation {
    */
   getTimeGreeting() {
     const hour = new Date().getHours();
-    
+
     if (hour < 12) return 'morning';
     if (hour < 18) return 'afternoon';
     return 'evening';
@@ -235,16 +229,16 @@ class MessageVariation {
     if (!this.messageHistory[accountId]) {
       this.messageHistory[accountId] = {};
     }
-    
+
     if (!this.messageHistory[accountId][jid]) {
       this.messageHistory[accountId][jid] = [];
     }
-    
+
     const history = this.messageHistory[accountId][jid];
-    
+
     // Check if message exists in history
     const exists = history.some(msg => this.similarity(msg, message) > 0.9);
-    
+
     return !exists;
   }
 
@@ -255,14 +249,14 @@ class MessageVariation {
     if (!this.messageHistory[accountId]) {
       this.messageHistory[accountId] = {};
     }
-    
+
     if (!this.messageHistory[accountId][jid]) {
       this.messageHistory[accountId][jid] = [];
     }
-    
+
     const history = this.messageHistory[accountId][jid];
     history.push(message);
-    
+
     // Limit history size
     if (history.length > this.maxHistorySize) {
       history.shift();
@@ -275,9 +269,9 @@ class MessageVariation {
   similarity(str1, str2) {
     const longer = str1.length > str2.length ? str1 : str2;
     const shorter = str1.length > str2.length ? str2 : str1;
-    
+
     if (longer.length === 0) return 1.0;
-    
+
     const editDistance = this.levenshteinDistance(longer, shorter);
     return (longer.length - editDistance) / longer.length;
   }
@@ -287,15 +281,15 @@ class MessageVariation {
    */
   levenshteinDistance(str1, str2) {
     const matrix = [];
-    
+
     for (let i = 0; i <= str2.length; i++) {
       matrix[i] = [i];
     }
-    
+
     for (let j = 0; j <= str1.length; j++) {
       matrix[0][j] = j;
     }
-    
+
     for (let i = 1; i <= str2.length; i++) {
       for (let j = 1; j <= str1.length; j++) {
         if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
@@ -309,7 +303,7 @@ class MessageVariation {
         }
       }
     }
-    
+
     return matrix[str2.length][str1.length];
   }
 
@@ -320,22 +314,22 @@ class MessageVariation {
     let message;
     let attempts = 0;
     const maxAttempts = 10;
-    
+
     do {
       message = this.generateVariation(template, variables, {
         ...options,
         skipSynonyms: attempts === 0, // First attempt without synonyms
         addStarter: attempts > 2,
         addEnder: attempts > 4,
-        addEmoji: attempts > 6
+        addEmoji: attempts > 6,
       });
-      
+
       attempts++;
     } while (!this.isUnique(accountId, jid, message) && attempts < maxAttempts);
-    
+
     // Record message
     this.recordMessage(accountId, jid, message);
-    
+
     return message;
   }
 
@@ -344,14 +338,14 @@ class MessageVariation {
    */
   generateBatch(accountId, recipients, template, options = {}) {
     const messages = [];
-    
+
     recipients.forEach(recipient => {
       const variables = {
         name: recipient.name || 'there',
         firstName: recipient.firstName || recipient.name || 'there',
-        ...options.variables
+        ...options.variables,
       };
-      
+
       const message = this.generateUniqueMessage(
         accountId,
         recipient.jid,
@@ -359,13 +353,13 @@ class MessageVariation {
         variables,
         options
       );
-      
+
       messages.push({
         jid: recipient.jid,
-        text: message
+        text: message,
       });
     });
-    
+
     return messages;
   }
 
@@ -376,18 +370,18 @@ class MessageVariation {
     const stats = {
       accounts: Object.keys(this.messageHistory).length,
       totalRecipients: 0,
-      totalMessages: 0
+      totalMessages: 0,
     };
-    
+
     Object.keys(this.messageHistory).forEach(accountId => {
       const recipients = Object.keys(this.messageHistory[accountId]);
       stats.totalRecipients += recipients.length;
-      
+
       recipients.forEach(jid => {
         stats.totalMessages += this.messageHistory[accountId][jid].length;
       });
     });
-    
+
     return stats;
   }
 

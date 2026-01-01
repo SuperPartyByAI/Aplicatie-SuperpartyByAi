@@ -7,6 +7,7 @@
 ---
 
 ## Table of Contents
+
 1. [Architecture Overview](#architecture-overview)
 2. [Normal Operations](#normal-operations)
 3. [Monitoring & Alerts](#monitoring--alerts)
@@ -20,6 +21,7 @@
 ## Architecture Overview
 
 ### Components
+
 ```
 Railway Container (Node.js)
   ├── longrun-jobs-v2.js (scheduler)
@@ -40,6 +42,7 @@ Railway Container (Node.js)
 ```
 
 ### Data Flow
+
 ```
 1. Heartbeat (every 60s)
    → Write to Firestore: wa_metrics/longrun/heartbeats/{bucketId}
@@ -68,6 +71,7 @@ Railway Container (Node.js)
 ### Starting the System
 
 **Automatic (Railway deployment):**
+
 ```bash
 # Railway automatically starts server.js
 # longrun-jobs-v2.js initializes on boot
@@ -75,6 +79,7 @@ Railway Container (Node.js)
 ```
 
 **Manual (local development):**
+
 ```bash
 cd whatsapp-backend
 export FIREBASE_SERVICE_ACCOUNT_JSON='...'
@@ -82,6 +87,7 @@ node server.js
 ```
 
 **Expected logs:**
+
 ```
 🔧 Initializing long-run jobs (instanceId: 126d3908-...)
 ✅ Config initialized
@@ -95,6 +101,7 @@ node server.js
 ### Stopping the System
 
 **Graceful shutdown:**
+
 ```bash
 # Send SIGTERM to process
 kill -TERM <pid>
@@ -104,6 +111,7 @@ kill -TERM <pid>
 ```
 
 **Expected behavior:**
+
 - Heartbeat job stops
 - Lock released (expires after 120s)
 - No data loss (last heartbeat persisted)
@@ -111,22 +119,26 @@ kill -TERM <pid>
 ### Health Checks
 
 **1. Check heartbeats (last hour):**
+
 ```bash
 curl https://whats-upp-production.up.railway.app/api/admin/longrun/heartbeats | jq '.count'
 # Expected: ~60 (1 per minute)
 ```
 
 **2. Check config:**
+
 ```bash
 curl https://whats-upp-production.up.railway.app/api/admin/longrun/config | jq '.config'
 ```
 
 **3. Check probes:**
+
 ```bash
 curl https://whats-upp-production.up.railway.app/api/admin/longrun/probes | jq '.count'
 ```
 
 **4. Check locks:**
+
 ```bash
 curl https://whats-upp-production.up.railway.app/api/admin/longrun/locks | jq '.locks'
 ```
@@ -138,6 +150,7 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/locks | jq '.
 ### Key Metrics
 
 **1. Heartbeat Coverage**
+
 - **What:** Percentage of expected heartbeats written
 - **Target:** ≥ 99% (7-day window)
 - **Alert:** < 95% for 1 hour
@@ -149,17 +162,20 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/locks | jq '.
   ```
 
 **2. Max Gap Between Heartbeats**
+
 - **What:** Longest interval between consecutive heartbeats
 - **Target:** ≤ 120s
 - **Alert:** > 180s
 - **Query:** See `verify-longrun-dataquality.js`
 
 **3. Probe Success Rate**
+
 - **What:** Percentage of probes returning PASS
 - **Target:** ≥ 95% (outbound/inbound), ≥ 98% (queue)
 - **Alert:** < 90% or 2+ consecutive failures
 
 **4. Incident Count**
+
 - **What:** Number of incidents per day
 - **Target:** ≤ 5
 - **Alert:** > 10
@@ -167,11 +183,13 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/locks | jq '.
 ### Alert Channels
 
 **Telegram (if configured):**
+
 - Missed heartbeats > 3 in 1 hour
 - Consecutive probe failures ≥ 2
 - Daily rollup failures
 
 **Firestore Incidents:**
+
 - All alerts create incident docs
 - Query: `wa_metrics/longrun/incidents`
 
@@ -182,10 +200,12 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/locks | jq '.
 ### Problem: No Heartbeats Written
 
 **Symptoms:**
+
 - `/api/admin/longrun/heartbeats` returns count=0
 - No recent heartbeat docs in Firestore
 
 **Diagnosis:**
+
 ```bash
 # Check if jobs are running
 curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
@@ -198,6 +218,7 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/locks | jq '.
 ```
 
 **Possible Causes:**
+
 1. **Lock held by another instance**
    - Check `locks` collection
    - If `leaseUntilTs` > now, another instance is active
@@ -213,6 +234,7 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/locks | jq '.
    - **Fix:** Restart Railway service
 
 **Recovery:**
+
 ```bash
 # Option 1: Wait for lock expiry (120s)
 # Option 2: Manual lock release (Firestore Console)
@@ -227,11 +249,13 @@ railway service restart
 ### Problem: Missed Heartbeats (Gaps)
 
 **Symptoms:**
+
 - Heartbeat count < expected
 - Max gap > 120s
 - Incident docs with type='missed_heartbeat'
 
 **Diagnosis:**
+
 ```bash
 # Run gap analysis
 cd whatsapp-backend
@@ -242,6 +266,7 @@ curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
 ```
 
 **Possible Causes:**
+
 1. **Railway container restart**
    - Check Railway dashboard for restart events
    - Check `deploymentId` changes in heartbeat docs
@@ -258,6 +283,7 @@ curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
    - **Fix:** Upgrade Firestore plan
 
 **Recovery:**
+
 - **If transient:** No action needed, system self-recovers
 - **If persistent:** Investigate root cause (memory, CPU, network)
 
@@ -266,11 +292,13 @@ curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
 ### Problem: Probe Failures
 
 **Symptoms:**
+
 - Probe docs with result='FAIL'
 - Incident docs with type='probe_fail'
 - Consecutive failures ≥ 2
 
 **Diagnosis:**
+
 ```bash
 # Check recent probes
 curl https://whats-upp-production.up.railway.app/api/admin/longrun/probes | jq '.probes[] | select(.result=="FAIL")'
@@ -282,6 +310,7 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/probes | jq '
 ```
 
 **Possible Causes:**
+
 1. **Outbound probe failure**
    - Firestore write permission denied
    - Network timeout
@@ -297,6 +326,7 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/probes | jq '
    - **Fix:** Set up probe sender account (see Inbound Probe Setup)
 
 **Recovery:**
+
 ```bash
 # Manual probe trigger (for testing)
 # Not exposed via API, requires code modification
@@ -307,10 +337,12 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/probes | jq '
 ### Problem: Daily Rollup Not Created
 
 **Symptoms:**
+
 - No rollup doc for yesterday's date
 - Missing data in long-run reports
 
 **Diagnosis:**
+
 ```bash
 # Check if rollup exists
 # Firestore Console: wa_metrics/longrun/rollups/{yyyy-mm-dd}
@@ -320,6 +352,7 @@ railway logs --filter "daily rollup"
 ```
 
 **Possible Causes:**
+
 1. **Rollup already exists (idempotency)**
    - Check Firestore for doc with date key
    - **Expected:** Log shows "already exists, skipping"
@@ -333,6 +366,7 @@ railway logs --filter "daily rollup"
    - **Fix:** Optimize query with pagination
 
 **Recovery:**
+
 ```bash
 # Manual rollup trigger (requires code modification)
 # Or wait for next midnight UTC
@@ -347,7 +381,9 @@ railway logs --filter "daily rollup"
 **When:** Lock stuck, no heartbeats for > 5 minutes
 
 **Steps:**
+
 1. Verify lock is stuck:
+
    ```bash
    curl https://whats-upp-production.up.railway.app/api/admin/longrun/locks | jq '.locks'
    # Check leaseUntilTs > now + 120s
@@ -359,6 +395,7 @@ railway logs --filter "daily rollup"
    - Click "Delete document"
 
 3. Restart Railway service:
+
    ```bash
    railway service restart
    ```
@@ -378,6 +415,7 @@ railway logs --filter "daily rollup"
 **When:** Gap > 1 hour due to outage
 
 **Steps:**
+
 1. **DO NOT backfill** - heartbeats are real-time only
 2. Document gap in incident:
    - Create incident doc manually in Firestore
@@ -397,6 +435,7 @@ railway logs --filter "daily rollup"
 **When:** Firestore unavailable, all writes failing
 
 **Steps:**
+
 1. Check Firestore status:
    - https://status.firebase.google.com/
 
@@ -418,6 +457,7 @@ railway logs --filter "daily rollup"
 **When:** Railway deployment, new container
 
 **Steps:**
+
 1. New instance starts:
    - Attempts to acquire lock
    - If lock held, waits for expiry (120s)
@@ -443,6 +483,7 @@ railway logs --filter "daily rollup"
 **Location:** `wa_metrics/longrun/config/current`
 
 **Editable fields:**
+
 ```json
 {
   "expectedAccounts": 3,
@@ -457,6 +498,7 @@ railway logs --filter "daily rollup"
 ```
 
 **Steps:**
+
 1. Update doc in Firestore Console
 2. Changes take effect on next job execution
 3. No restart required
@@ -468,12 +510,14 @@ railway logs --filter "daily rollup"
 ### Cleaning Old Data
 
 **Retention policy:**
+
 - Heartbeats: Keep 90 days
 - Probes: Keep 180 days
 - Incidents: Keep 365 days
 - Rollups: Keep forever
 
 **Manual cleanup:**
+
 ```bash
 # Delete heartbeats older than 90 days
 # Firestore Console: wa_metrics/longrun/heartbeats
@@ -488,13 +532,16 @@ railway logs --filter "daily rollup"
 ### Upgrading Service Version
 
 **Steps:**
+
 1. Update `serviceVersion` in code:
+
    ```javascript
    // lib/longrun-jobs-v2.js
-   serviceVersion: '2.1.0'
+   serviceVersion: '2.1.0';
    ```
 
 2. Commit and push:
+
    ```bash
    git add lib/longrun-jobs-v2.js
    git commit -m "Bump service version to 2.1.0"
@@ -515,21 +562,25 @@ railway logs --filter "daily rollup"
 ### Incident Types
 
 **1. missed_heartbeat**
+
 - **Severity:** P2 (High)
 - **Response time:** 15 minutes
 - **Action:** Investigate Railway logs, check lock status
 
 **2. probe_fail**
+
 - **Severity:** P3 (Medium)
 - **Response time:** 1 hour
 - **Action:** Check probe type, investigate failure reason
 
 **3. logged_out**
+
 - **Severity:** P1 (Critical)
 - **Response time:** 5 minutes
 - **Action:** Reconnect WhatsApp account, check auth state
 
 **4. reconnect_loop**
+
 - **Severity:** P2 (High)
 - **Response time:** 15 minutes
 - **Action:** Enter safe mode, investigate root cause
@@ -539,26 +590,31 @@ railway logs --filter "daily rollup"
 ### Incident Workflow
 
 **1. Detection**
+
 - Telegram alert (if configured)
 - Incident doc created in Firestore
 - Manual monitoring
 
 **2. Triage**
+
 - Check incident type
 - Assess severity
 - Assign owner
 
 **3. Investigation**
+
 - Check Railway logs
 - Query Firestore for related docs
 - Run diagnostic scripts
 
 **4. Resolution**
+
 - Apply recovery procedure
 - Verify system health
 - Update incident doc with `tsEnd` and `mttrSec`
 
 **5. Post-mortem**
+
 - Document root cause
 - Update runbook if needed
 - Implement preventive measures
@@ -568,14 +624,17 @@ railway logs --filter "daily rollup"
 ### Escalation Path
 
 **Level 1:** Platform Operator
+
 - Handle routine incidents
 - Follow runbook procedures
 
 **Level 2:** SRE Team
+
 - Complex incidents requiring code changes
 - Firestore schema migrations
 
 **Level 3:** Engineering Team
+
 - Architecture changes
 - New feature development
 

@@ -3,7 +3,7 @@ const serviceAccount = require('../.github/secrets-backup/firebase-service-accou
 
 if (!admin.apps.length) {
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(serviceAccount),
   });
 }
 

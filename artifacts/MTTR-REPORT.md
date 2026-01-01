@@ -25,12 +25,14 @@
 ## CALCULATION
 
 Percentile calculation formula:
+
 ```
 index = ceil((percentile / 100) * array.length) - 1
 value = sorted_array[index]
 ```
 
 For P95 with 1 values:
+
 ```
 index = ceil((95 / 100) * 1) - 1 = 0
 P95 = 285.63s

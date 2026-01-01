@@ -6,11 +6,11 @@
 
 ## 📊 COMPARAȚIE RAPIDĂ
 
-| Versiune | Uptime | Downtime/lună | Cost |
-|----------|--------|---------------|------|
-| **Înainte** | 95% | 36 ore | $0 |
-| **Normal** | 99.9% | 43 min | $0 |
-| **EXTREME** | **99.99%** | **4.3 min** | **$0** |
+| Versiune    | Uptime     | Downtime/lună | Cost   |
+| ----------- | ---------- | ------------- | ------ |
+| **Înainte** | 95%        | 36 ore        | $0     |
+| **Normal**  | 99.9%      | 43 min        | $0     |
+| **EXTREME** | **99.99%** | **4.3 min**   | **$0** |
 
 ---
 
@@ -38,6 +38,7 @@ COQUI_SERVICE_ID=<id_coqui>
 ```
 
 **Rezultat:**
+
 - ✅ Detection: 5s
 - ✅ Recovery: <90s
 - ✅ Downtime: 4.3 min/lună
@@ -62,6 +63,7 @@ COQUI_SERVICE_ID=<id_coqui>
 ```
 
 **Rezultat:**
+
 - ✅ Detection: 20s
 - ✅ Recovery: <5 min
 - ✅ Downtime: 43 min/lună
@@ -72,12 +74,14 @@ COQUI_SERVICE_ID=<id_coqui>
 ## 🎯 CE VERSIUNE SĂ ALEGI?
 
 ### **Alege EXTREME dacă:**
+
 - ✅ Vrei cel mai bun uptime posibil (99.99%)
 - ✅ Fiecare secundă de downtime contează
 - ✅ Ai trafic mare (1000+ apeluri/zi)
 - ✅ Vrei să previi failures înainte să apară
 
 ### **Alege NORMAL dacă:**
+
 - ✅ 99.9% uptime e suficient
 - ✅ Vrei mai puține false positives
 - ✅ Ai trafic mediu (<1000 apeluri/zi)
@@ -135,6 +139,7 @@ COQUI_SERVICE_ID=def456
 Verifică logs pentru:
 
 **EXTREME:**
+
 ```
 🚀 EXTREME Monitor initialized
 ⚡ Health checks every 5s
@@ -147,6 +152,7 @@ Verifică logs pentru:
 ```
 
 **NORMAL:**
+
 ```
 🚀 Ultra-Fast Monitor initialized
 ⚡ Health checks every 10s
@@ -193,23 +199,23 @@ Vei vedea status la fiecare minut:
 
 ```javascript
 this.config = {
-  healthCheckInterval: 5000,         // 5s (mai mic = mai rapid)
-  maxConsecutiveFailures: 1,         // 1 (mai mic = mai sensibil)
-  slowResponseThreshold: 5000,       // 5s (mai mic = mai strict)
-  degradationThreshold: 3,           // 3 (mai mic = mai preventiv)
-  parallelRecovery: true,            // true = mai rapid
-  predictiveRestart: true,           // true = previne failures
+  healthCheckInterval: 5000, // 5s (mai mic = mai rapid)
+  maxConsecutiveFailures: 1, // 1 (mai mic = mai sensibil)
+  slowResponseThreshold: 5000, // 5s (mai mic = mai strict)
+  degradationThreshold: 3, // 3 (mai mic = mai preventiv)
+  parallelRecovery: true, // true = mai rapid
+  predictiveRestart: true, // true = previne failures
 };
 ```
 
 ### **Recomandări:**
 
-| Setting | Conservative | Balanced | Aggressive |
-|---------|--------------|----------|------------|
-| healthCheckInterval | 10000 | 5000 | 3000 |
-| maxConsecutiveFailures | 2 | 1 | 1 |
-| slowResponseThreshold | 10000 | 5000 | 3000 |
-| degradationThreshold | 5 | 3 | 2 |
+| Setting                | Conservative | Balanced | Aggressive |
+| ---------------------- | ------------ | -------- | ---------- |
+| healthCheckInterval    | 10000        | 5000     | 3000       |
+| maxConsecutiveFailures | 2            | 1        | 1          |
+| slowResponseThreshold  | 10000        | 5000     | 3000       |
+| degradationThreshold   | 5            | 3        | 2          |
 
 **Default EXTREME = Aggressive** (99.99% uptime)
 
@@ -243,6 +249,7 @@ node test-recovery.js
 ### **După 1 săptămână:**
 
 Verifică în logs:
+
 - ✅ Uptime > 99.9%
 - ✅ Average response time < 500ms
 - ✅ Repairs < 5
@@ -251,6 +258,7 @@ Verifică în logs:
 ### **După 1 lună:**
 
 Verifică:
+
 - ✅ Uptime > 99.99% (EXTREME) sau > 99.9% (NORMAL)
 - ✅ Total downtime < 5 min
 - ✅ Zero manual interventions
@@ -262,25 +270,28 @@ Verifică:
 ### **Problem: Prea multe false positives**
 
 **Soluție:**
+
 ```javascript
 // Crește threshold
-maxConsecutiveFailures: 2  // în loc de 1
-healthCheckInterval: 10000  // în loc de 5000
+maxConsecutiveFailures: 2; // în loc de 1
+healthCheckInterval: 10000; // în loc de 5000
 ```
 
 ### **Problem: Recovery prea lent**
 
 **Soluție:**
+
 ```javascript
 // Activează parallel recovery
-parallelRecovery: true
+parallelRecovery: true;
 // Reduce delays
-restartAttemptDelay: 5000  // în loc de 10000
+restartAttemptDelay: 5000; // în loc de 10000
 ```
 
 ### **Problem: Railway API errors**
 
 **Verifică:**
+
 - ✅ RAILWAY_TOKEN e valid
 - ✅ Service IDs sunt corecte
 - ✅ Token are permissions pentru restart/redeploy
@@ -289,14 +300,14 @@ restartAttemptDelay: 5000  // în loc de 10000
 
 ## 💰 COST BREAKDOWN
 
-| Component | Cost |
-|-----------|------|
-| Monitoring service | $0 (Railway free tier) |
-| Health checks | $0 (HTTP requests) |
-| Railway API calls | $0 (included) |
-| Parallel recovery | $0 (Railway feature) |
-| Predictive monitoring | $0 (logic in code) |
-| **TOTAL** | **$0** |
+| Component             | Cost                   |
+| --------------------- | ---------------------- |
+| Monitoring service    | $0 (Railway free tier) |
+| Health checks         | $0 (HTTP requests)     |
+| Railway API calls     | $0 (included)          |
+| Parallel recovery     | $0 (Railway feature)   |
+| Predictive monitoring | $0 (logic in code)     |
+| **TOTAL**             | **$0**                 |
 
 **100% GRATUIT!**
 
@@ -306,29 +317,30 @@ restartAttemptDelay: 5000  // în loc de 10000
 
 ### **EXTREME (Recomandat):**
 
-| Metric | Valoare |
-|--------|---------|
-| **Uptime** | **99.99%** |
+| Metric            | Valoare     |
+| ----------------- | ----------- |
+| **Uptime**        | **99.99%**  |
 | **Downtime/lună** | **4.3 min** |
-| **Detection** | **5s** |
-| **Recovery** | **<90s** |
-| **Cost** | **$0** |
+| **Detection**     | **5s**      |
+| **Recovery**      | **<90s**    |
+| **Cost**          | **$0**      |
 
 ### **NORMAL (Alternativă):**
 
-| Metric | Valoare |
-|--------|---------|
-| **Uptime** | **99.9%** |
+| Metric            | Valoare    |
+| ----------------- | ---------- |
+| **Uptime**        | **99.9%**  |
 | **Downtime/lună** | **43 min** |
-| **Detection** | **20s** |
-| **Recovery** | **<5 min** |
-| **Cost** | **$0** |
+| **Detection**     | **20s**    |
+| **Recovery**      | **<5 min** |
+| **Cost**          | **$0**     |
 
 ---
 
 ## 📞 SUPPORT
 
 Dacă ai probleme:
+
 1. Verifică logs în Railway
 2. Verifică env vars sunt setate corect
 3. Verifică Railway token e valid

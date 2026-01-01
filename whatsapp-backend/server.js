@@ -21,8 +21,15 @@ const { Sentry, logger } = require('./sentry');
 // Initialize Better Stack (Logtail)
 const logtail = require('./logtail');
 
-// Initialize Memory Cache
-const cache = require('./cache');
+// Initialize Cache (Redis with fallback to memory)
+const cache = require('../shared/redis-cache');
+
+// Swagger documentation
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./swagger');
+
+// Feature Flags
+const featureFlags = require('./feature-flags');
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -853,6 +860,19 @@ async function createConnection(accountId, name, phone) {
 }
 
 // Root endpoint
+// Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: Get API status
+ *     description: Returns service status and available endpoints
+ *     responses:
+ *       200:
+ *         description: Service status
+ */
 app.get('/', (req, res) => {
   res.json({
     status: 'online',
@@ -864,6 +884,7 @@ app.get('/', (req, res) => {
     accounts: connections.size,
     maxAccounts: MAX_ACCOUNTS,
     firestore: admin.apps.length > 0 ? 'connected' : 'disconnected',
+    documentation: '/api-docs',
     endpoints: [
       'GET /',
       'GET /health',
@@ -1002,6 +1023,36 @@ async function recoverStaleConnection(accountId) {
 }
 
 // Health monitoring watchdog will be started after account restore
+
+/**
+ * @swagger
+ * /api/cache/stats:
+ *   get:
+ *     summary: Get cache statistics
+ *     tags: [Cache]
+ *     responses:
+ *       200:
+ *         description: Cache statistics
+ */
+app.get('/api/cache/stats', async (req, res) => {
+  try {
+    const stats = await cache.getStats();
+    res.json({
+      success: true,
+      cache: stats,
+      featureFlags: {
+        caching: featureFlags.isEnabled('API_CACHING'),
+        cacheTTL: featureFlags.featureFlags.CACHE_TTL,
+      },
+    });
+  } catch (error) {
+    logger.error('Failed to get cache stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get cache stats',
+    });
+  }
+});
 
 app.get('/health', async (req, res) => {
   const connected = Array.from(connections.values()).filter(c => c.status === 'connected').length;
@@ -1479,14 +1530,39 @@ app.get('/api/whatsapp/qr/:accountId', async (req, res) => {
 });
 
 // Get all accounts
+/**
+ * @swagger
+ * /api/whatsapp/accounts:
+ *   get:
+ *     summary: Get all WhatsApp accounts
+ *     description: Returns list of all WhatsApp accounts with their status
+ *     responses:
+ *       200:
+ *         description: List of accounts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 accounts:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Account'
+ *                 cached:
+ *                   type: boolean
+ */
 app.get('/api/whatsapp/accounts', async (req, res) => {
   try {
-    // Try cache first (30 seconds TTL)
-    const cacheKey = 'whatsapp:accounts';
-    const cached = cache.get(cacheKey);
-    
-    if (cached) {
-      return res.json({ success: true, accounts: cached, cached: true });
+    // Try cache first (if enabled)
+    if (featureFlags.isEnabled('API_CACHING')) {
+      const cacheKey = 'whatsapp:accounts';
+      const cached = cache.get(cacheKey);
+      
+      if (cached) {
+        return res.json({ success: true, accounts: cached, cached: true });
+      }
     }
     
     const accounts = [];
@@ -1503,8 +1579,11 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
       });
     });
     
-    // Cache for 30 seconds
-    cache.set(cacheKey, accounts, 30 * 1000);
+    // Cache if enabled
+    if (featureFlags.isEnabled('API_CACHING')) {
+      const ttl = featureFlags.get('CACHE_TTL_SECONDS', 30) * 1000;
+      cache.set('whatsapp:accounts', accounts, ttl);
+    }
     
     res.json({ success: true, accounts, cached: false });
   } catch (error) {

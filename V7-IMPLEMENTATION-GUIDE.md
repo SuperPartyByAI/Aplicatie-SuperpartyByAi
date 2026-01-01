@@ -5,29 +5,34 @@
 ### **4 Module Principale:**
 
 **1. v7-singularity.js** - Monitor principal
+
 - Self-replication
 - Multi-project management
 - Advanced learning
 - Intelligent auto-repair
 
 **2. self-replication.js** - Auto-scaling
+
 - Detectează overload
 - Creează clone-uri automat
 - Șterge clone-uri când nu e nevoie
 
 **3. multi-project-dashboard.js** - Dashboard web
+
 - Vezi toate proiectele dintr-un loc
 - Metrics în timp real
 - API REST
 - UI simplu și frumos
 
 **4. advanced-learning.js** - Machine learning
+
 - Învață pattern-uri
 - Prevede load-ul
 - Detectează probleme
 - Recomandări automate
 
 **5. v7-start.js** - Script de pornire
+
 - Pornește toate componentele
 - Configurare simplă
 
@@ -43,6 +48,7 @@ npm install
 ```
 
 Dependențe necesare (deja în package.json):
+
 - node-fetch
 - express (pentru dashboard)
 
@@ -63,12 +69,14 @@ MONITORING_PROJECT_ID=your_monitoring_project_id
 ```
 
 **Cum obții Railway token:**
+
 1. Mergi la [railway.app](https://railway.app)
 2. Settings → Tokens
 3. Create new token
 4. Copy token
 
 **Cum obții Project IDs:**
+
 1. Deschide proiectul în Railway
 2. Settings → Project ID
 3. Copy ID
@@ -83,6 +91,7 @@ node v7-start.js
 ```
 
 Vei vedea:
+
 ```
 ============================================================
 🧠 v7.0 SINGULARITY MONITOR
@@ -126,6 +135,7 @@ Press Ctrl+C to stop
 Deschide browser: [http://localhost:3001](http://localhost:3001)
 
 Vei vedea:
+
 - **Overview:** Total projects, uptime, cost
 - **Projects:** Lista cu toate proiectele
 - **Metrics:** Per project (services, uptime, response time, requests, errors, cost)
@@ -134,6 +144,7 @@ Vei vedea:
 ### **API Endpoints:**
 
 **GET /api/overview**
+
 ```json
 {
   "totalProjects": 3,
@@ -146,6 +157,7 @@ Vei vedea:
 ```
 
 **GET /api/projects**
+
 ```json
 [
   {
@@ -159,6 +171,7 @@ Vei vedea:
 ```
 
 **GET /api/projects/:id**
+
 ```json
 {
   "id": "project-id",
@@ -169,6 +182,7 @@ Vei vedea:
 ```
 
 **POST /api/projects**
+
 ```json
 {
   "projectId": "new-project-id",
@@ -177,6 +191,7 @@ Vei vedea:
 ```
 
 **DELETE /api/projects/:id**
+
 ```json
 {
   "success": true
@@ -190,12 +205,14 @@ Vei vedea:
 ### **Cum funcționează:**
 
 **1. Detectare overload:**
+
 ```
 CPU > 80% SAU Memory > 80% SAU Response time > 1s
 → Trigger scale UP
 ```
 
 **2. Creare clone:**
+
 ```
 🧬 Scaling UP SuperParty...
    ✅ Clone created: clone-id
@@ -204,6 +221,7 @@ CPU > 80% SAU Memory > 80% SAU Response time > 1s
 ```
 
 **3. Distribuție trafic:**
+
 ```
 Load balancer distribuie:
 - 50% la original
@@ -211,12 +229,14 @@ Load balancer distribuie:
 ```
 
 **4. Detectare underload:**
+
 ```
 CPU < 30% ȘI Memory < 30% ȘI Response time < 200ms
 → Trigger scale DOWN
 ```
 
 **5. Ștergere clone:**
+
 ```
 🧹 Scaling DOWN SuperParty...
    ✅ Clone deleted: clone-id
@@ -230,6 +250,7 @@ CPU < 30% ȘI Memory < 30% ȘI Response time < 200ms
 ### **Pattern Detection:**
 
 **Daily Spike:**
+
 ```
 🔮 Pattern detected: daily_spike
    Peak hour: 18:00
@@ -240,6 +261,7 @@ CPU < 30% ȘI Memory < 30% ȘI Response time < 200ms
 ```
 
 **Weekly Pattern:**
+
 ```
 🔮 Pattern detected: weekly_pattern
    Peak day: Friday
@@ -250,6 +272,7 @@ CPU < 30% ȘI Memory < 30% ȘI Response time < 200ms
 ```
 
 **Memory Leak:**
+
 ```
 ⚠️ Pattern detected: memory_leak
    Current memory: 75%
@@ -284,12 +307,12 @@ Result: Zero lag when spike actually happens!
 🔍 Diagnosis: memory_leak
    Memory: 92%
    Trend: Increasing
-   
+
 🔧 Applying fix: clear_cache_and_restart
    1. Clearing cache...
    2. Restarting service...
    3. Verifying recovery...
-   
+
 ✅ SuperParty repaired in 12s
 🎓 Learning: clear_cache works for memory_leak
 ```
@@ -301,12 +324,12 @@ Result: Zero lag when spike actually happens!
 🔍 Diagnosis: database_connection
    Database latency: 2.1s
    Connection pool: Exhausted
-   
+
 🔧 Applying fix: reconnect_database
    1. Closing old connections...
    2. Creating new connection pool...
    3. Testing connections...
-   
+
 ✅ SuperParty repaired in 8s
 🎓 Learning: reconnect_database works for database_connection
 ```
@@ -318,12 +341,12 @@ Result: Zero lag when spike actually happens!
 🔍 Diagnosis: code_bug
    Error: TypeError in /api/events
    Deployment: v1.5 (deployed 2h ago)
-   
+
 🔧 Applying fix: smart_rollback
    1. Identifying last working version: v1.4
    2. Rolling back to v1.4...
    3. Verifying rollback...
-   
+
 ✅ SuperParty repaired in 25s
 🎓 Learning: v1.5 has bugs, v1.4 is stable
 ```
@@ -385,14 +408,14 @@ Editează `v7-start.js`:
 
 ```javascript
 const monitor = new SingularityMonitor({
-  healthCheckInterval: 5000,      // Cât de des verifică (ms)
-  scaleUpThreshold: 80,           // CPU/Memory % pentru scale UP
-  scaleDownThreshold: 30,         // CPU/Memory % pentru scale DOWN
-  maxInstances: 5,                // Max clone-uri per service
-  minInstances: 1,                // Min instances (original)
-  cooldownPeriod: 300000,         // Timp între scale actions (5 min)
-  learningEnabled: true,          // Enable/disable learning
-  predictionWindow: 3600000       // Cât de departe prevede (1h)
+  healthCheckInterval: 5000, // Cât de des verifică (ms)
+  scaleUpThreshold: 80, // CPU/Memory % pentru scale UP
+  scaleDownThreshold: 30, // CPU/Memory % pentru scale DOWN
+  maxInstances: 5, // Max clone-uri per service
+  minInstances: 1, // Min instances (original)
+  cooldownPeriod: 300000, // Timp între scale actions (5 min)
+  learningEnabled: true, // Enable/disable learning
+  predictionWindow: 3600000, // Cât de departe prevede (1h)
 });
 ```
 
@@ -442,6 +465,7 @@ PORT=3001
 ### **Pasul 3: Deploy**
 
 Railway va deploy automat. Dashboard va fi disponibil la:
+
 ```
 https://your-monitoring-service.railway.app
 ```
@@ -502,16 +526,19 @@ console.log(`Total instances: ${replicationStats.totalInstances}`);
 ### **După implementare:**
 
 **Săptămâna 1:**
+
 - Monitorizează dashboard zilnic
 - Verifică că self-replication funcționează
 - Observă pattern-urile detectate
 
 **Săptămâna 2:**
+
 - Ajustează thresholds dacă e nevoie
 - Verifică că learning învață corect
 - Testează predictive actions
 
 **Luna 1:**
+
 - Analizează rapoartele
 - Calculează ROI real
 - Decizi dacă continui cu Faza 2-4
@@ -545,6 +572,7 @@ console.log(`Total instances: ${replicationStats.totalInstances}`);
 **v7.0 Singularity e LIVE!**
 
 Acum ai:
+
 - ✅ Self-replication (auto-scaling)
 - ✅ Multi-project dashboard
 - ✅ Advanced learning

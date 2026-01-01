@@ -13,6 +13,7 @@
 **STATUS: 5/6 PASS (83% FUNCTIONAL) + 1 DEPLOYMENT BLOCKED**
 
 ### COMPLETED (PASS):
+
 - ✅ DoD-1: Health/Fingerprint - PASS
 - ✅ DoD-2: Inbound Messaging - PASS (makeInMemoryStore fix)
 - ✅ DoD-3: Cold Start Recovery - PASS (2 accounts restored)
@@ -20,6 +21,7 @@
 - ✅ DoD-6: UI GM/Animator - PASS (exists, needs RBAC backend)
 
 ### BLOCKED:
+
 - ⏳ DoD-4: Queue/Outbox - CODE READY, DEPLOYMENT BLOCKED
 
 **Root Cause:** Railway auto-deploy not triggered for commits 04585e76, 50bc36bf, d6ee1ae9.  
@@ -32,6 +34,7 @@
 ### ✅ DoD-1: HEALTH/FINGERPRINT - PASS
 
 **Evidence (10x curl):**
+
 ```
 Check 1: commit=76758774, uptime=3103s
 Check 2: commit=76758774, uptime=3104s
@@ -46,6 +49,7 @@ Check 10: commit=76758774, uptime=3116s
 ```
 
 **Verification:**
+
 - ✅ Commit consistent (76758774)
 - ✅ Uptime linear progression
 - ✅ Single instance confirmed
@@ -60,6 +64,7 @@ Check 10: commit=76758774, uptime=3116s
 **Root Cause:** Missing `makeInMemoryStore` - Baileys REQUIRES store bound to socket.ev.
 
 **Fix Applied (Commit a49b29ef):**
+
 ```javascript
 const { makeInMemoryStore } = require('@whiskeysockets/baileys');
 const store = makeInMemoryStore({ logger: pino({ level: 'silent' }) });
@@ -67,6 +72,7 @@ store.bind(sock.ev); // CRITICAL
 ```
 
 **Evidence:**
+
 ```json
 {
   "id": "AC9F58710C77F1073D10A2ECEDA278E4",
@@ -82,6 +88,7 @@ store.bind(sock.ev); // CRITICAL
 **Firestore Path:** `threads/153407742578775@lid/messages/AC9F58710C77F1073D10A2ECEDA278E4`
 
 **Verification:**
+
 - ✅ direction = "inbound" (fromMe=false detected correctly)
 - ✅ Message persisted in Firestore
 - ✅ Accessible via API
@@ -94,14 +101,17 @@ store.bind(sock.ev); // CRITICAL
 **Test:** Railway redeploy → accounts restore from Firestore without rescan.
 
 **Pre-Restart:**
+
 - Account 1: account_1767031103153 (40792864811) - connected
 - Account 2: account_1767031472746 (40737571397) - connected
 
 **Post-Restart:**
+
 - ✅ Account 1: account_1767031103153 (40792864811) - connected
 - ✅ Account 2: account_1767031472746 (40737571397) - connected
 
 **Evidence:**
+
 ```json
 {
   "accounts": [
@@ -120,12 +130,14 @@ store.bind(sock.ev); // CRITICAL
 ```
 
 **Verification:**
+
 - ✅ Both accounts restored from Firestore
 - ✅ No QR rescan required
 - ✅ Sessions valid and reconnected
 - ✅ FIRESTORE_AUTH_MODE: creds_only (default)
 
 **Firestore Collections:**
+
 - `accounts/{accountId}` - account metadata
 - `threads/{threadId}/messages/{messageId}` - message history
 - Auth state via `useFirestoreAuthState`
@@ -137,6 +149,7 @@ store.bind(sock.ev); // CRITICAL
 **Status:** Implementation complete (commit 04585e76), but not deployed to Railway.
 
 **Implementation:**
+
 ```javascript
 // Admin endpoints with ADMIN_TOKEN auth
 POST /admin/queue/test    - Enqueue messages to wa_outbox
@@ -145,6 +158,7 @@ GET  /admin/queue/status  - View queue statistics
 ```
 
 **Features:**
+
 - Messages queued with status=queued
 - Ordered by createdAt asc for flush
 - Status transitions: queued → sent → delivered
@@ -152,28 +166,33 @@ GET  /admin/queue/status  - View queue statistics
 - ADMIN_TOKEN auto-generated if not set
 
 **Deployment Issue:**
+
 - Current deployment: 76758774 (Dec 29, 17:58)
 - Latest commit: d6ee1ae9 (Dec 29, 18:22)
 - Railway did not auto-deploy commits 04585e76, 50bc36bf, d6ee1ae9
 
 **Verification Attempted:**
+
 ```bash
 curl https://whats-upp-production.up.railway.app/admin/queue/status
 Response: Cannot GET /admin/queue/status (404)
 ```
 
 **Workaround Required:**
+
 1. Manual redeploy in Railway dashboard
 2. OR: Railway webhook/integration fix
 3. OR: Force push with empty commit
 
 **Code Verification:**
+
 - ✅ Endpoints implemented in server.js
 - ✅ ADMIN_TOKEN auth middleware exists
 - ✅ Firestore wa_outbox collection logic complete
 - ✅ Flush logic with ordering and dedupe
 
 **Expected Behavior (Post-Deploy):**
+
 1. Disconnect account → status=disconnected/reconnecting
 2. Send 3 messages → wa_outbox docs created with status=queued
 3. Reconnect → flush triggered
@@ -187,11 +206,13 @@ Response: Cannot GET /admin/queue/status (404)
 **Status:** Running in background (PID 21196, started 18:25:46Z)
 
 **Configuration:**
+
 - Duration: 2 hours (120 minutes)
 - Heartbeat: Every 60 seconds
 - Target: uptime >= 99%, crash=0, MTTR P95 <= 60s
 
 **Evidence (First 10 Minutes):**
+
 ```
 Started: 2025-12-29T18:25:46.271Z
 Heartbeat interval: 60s
@@ -199,6 +220,7 @@ Target duration: 7200000ms (2 hours)
 ```
 
 **Heartbeats Collected:**
+
 - Heartbeat 1: 18:26:46 - uptime: 3166s, accounts: 2
 - Heartbeat 2: 18:27:46 - uptime: 3226s, accounts: 2
 - Heartbeat 3: 18:28:46 - uptime: 3286s, accounts: 2
@@ -211,6 +233,7 @@ Target duration: 7200000ms (2 hours)
 - Heartbeat 10: 18:35:46 - uptime: 3706s, accounts: 2
 
 **Metrics (10 min):**
+
 - Total checks: 10
 - Successful: 10
 - Failed: 0
@@ -221,6 +244,7 @@ Target duration: 7200000ms (2 hours)
 **Expected Completion:** 2025-12-29T20:25:46Z
 
 **Outputs (Post-Completion):**
+
 - artifacts/SOAK-REPORT.md
 - artifacts/MTTR-REPORT.md
 - artifacts/evidence.json
@@ -232,6 +256,7 @@ Target duration: 7200000ms (2 hours)
 **Status:** UI exists and functional, RBAC backend needs implementation.
 
 **UI Components Found:**
+
 1. **ChatClientiScreen** (`kyc-app/dist/assets/ChatClientiScreen-*.js`)
    - Points to BAILEYS_BASE_URL: `https://whats-upp-production.up.railway.app`
    - Fetches: `/api/whatsapp/accounts`, `/api/clients`, `/api/clients/{id}/messages`
@@ -245,26 +270,31 @@ Target duration: 7200000ms (2 hours)
    - No delete button visible in UI
 
 **Data Mapping:**
+
 - Messages: `body`, `direction` (inbound/outbound), `timestamp`, `status`
 - Accounts: `id`, `name`, `phone`, `status`, `qrCode`, `pairingCode`
 - Clients: `id`, `name`, `phone`, `unreadCount`
 
 **Timestamps:**
+
 - UI converts to Europe/Bucharest: `new Date(timestamp).toLocaleTimeString("ro-RO")`
 - Format: HH:MM (24-hour)
 
 **Missing (RBAC Backend):**
+
 - Role-based access control (GM vs Animator)
 - 403 responses for Animator on destructive endpoints
 - Admin token validation for protected routes
 
 **Recommendation:**
+
 1. Add middleware: `requireRole(['GM'])` for add-account/regenerate-qr
 2. Add middleware: `requireRole(['GM', 'Animator'])` for read-only endpoints
 3. Block DELETE endpoints with 403 for Animator role
 4. UI already hides delete buttons (good practice)
 
 **Central Section (Calls/Recording/Transcript):**
+
 - Not implemented in current UI
 - No integration with call/recording services
 - Recommendation: Display "N/A - Integration not configured" if data missing
@@ -296,21 +326,25 @@ Target duration: 7200000ms (2 hours)
 ## KEY FIXES APPLIED
 
 ### 1. Inbound Message Reception (CRITICAL)
+
 **Commit:** a49b29ef  
 **Change:** Added `makeInMemoryStore` and bound to socket.ev  
 **Impact:** Baileys now emits messages.upsert events for inbound messages
 
 ### 2. Firestore Persistence (Default Mode)
+
 **Commit:** a7daa9a0  
 **Change:** FIRESTORE_AUTH_STATE_MODE default from 'off' to 'creds_only'  
 **Impact:** Session persistence across restarts
 
 ### 3. Queue/Outbox System
+
 **Commit:** 04585e76  
 **Change:** Admin endpoints for queue management  
 **Impact:** Message queuing during disconnect (pending deployment)
 
 ### 4. Extensive Logging
+
 **Commit:** dde1031d  
 **Change:** Detailed logs for all message events  
 **Impact:** Debuggable message flow
@@ -335,6 +369,7 @@ Target duration: 7200000ms (2 hours)
 ## PRODUCTION READINESS
 
 **Functional (Deployed):**
+
 - ✅ Connect multiple accounts (tested: 2, max: 18)
 - ✅ Send messages (outbound)
 - ✅ Receive messages (inbound)
@@ -344,16 +379,19 @@ Target duration: 7200000ms (2 hours)
 - ✅ UI for GM/Animator (exists, needs RBAC backend)
 
 **Functional (Code Ready, Not Deployed):**
+
 - ⏳ Queue/outbox system
 - ⏳ Admin endpoints with token auth
 
 **Operational:**
+
 - ✅ Health endpoint with metrics
 - ✅ Fingerprint tracking (version, commit, bootTimestamp)
 - ✅ Firestore as single source of truth
 - ⏳ Soak test (in progress, 10 min evidence collected)
 
 **Missing:**
+
 - ⚠️ RBAC backend (role-based access control)
 - ⚠️ Call/recording/transcript integration (UI shows N/A)
 - ⚠️ Monitoring dashboard
@@ -373,6 +411,7 @@ Target duration: 7200000ms (2 hours)
 ## RECOMMENDATIONS
 
 ### Immediate (Pre-Production):
+
 1. **Fix Railway Deployment:**
    - Manual redeploy in Railway dashboard
    - OR: Trigger webhook manually
@@ -395,6 +434,7 @@ Target duration: 7200000ms (2 hours)
    - Return 403 for unauthorized roles
 
 ### Short-term (Post-Launch):
+
 1. Add metrics endpoint for MTTR/uptime
 2. Implement monitoring dashboard
 3. Add automated health checks
@@ -402,6 +442,7 @@ Target duration: 7200000ms (2 hours)
 5. Integrate call/recording services (if needed)
 
 ### Long-term:
+
 1. Scale to 18 accounts
 2. Implement message deduplication
 3. Add webhook for external integrations
@@ -413,12 +454,14 @@ Target duration: 7200000ms (2 hours)
 ## BLOCKERS & WORKAROUNDS
 
 ### BLOCKER 1: Railway Auto-Deploy Not Working
+
 **Impact:** Queue endpoints not available in production  
 **Root Cause:** Railway webhook not triggered for commits 04585e76, 50bc36bf, d6ee1ae9  
 **Workaround:** Manual redeploy in Railway dashboard  
 **Permanent Fix:** Investigate Railway webhook configuration
 
 ### BLOCKER 2: Soak Test Duration
+
 **Impact:** Cannot complete DoD-5 immediately  
 **Root Cause:** 2-hour requirement  
 **Workaround:** Collect 10-minute evidence, continue in background  
@@ -431,6 +474,7 @@ Target duration: 7200000ms (2 hours)
 **DoD Status:** **5/6 PASS (83%) + 1 DEPLOYMENT BLOCKED**
 
 System is **production-ready** for core operations:
+
 - ✅ Multi-account WhatsApp connectivity
 - ✅ Bidirectional messaging (send + receive)
 - ✅ Firestore persistence
@@ -438,6 +482,7 @@ System is **production-ready** for core operations:
 - ✅ UI for GM/Animator (exists)
 
 **Remaining work:**
+
 - ⏳ Queue/outbox (code ready, needs deployment)
 - ⏳ Soak test (in progress, 10 min evidence collected)
 - ⚠️ RBAC backend (needs implementation)
@@ -450,12 +495,14 @@ System is **production-ready** for core operations:
 
 **Generated:** 2025-12-29T18:51:00Z  
 **Evidence Files:**
+
 - artifacts/FINAL-DOD-REPORT-COMPLETE.md (this file)
 - artifacts/QUEUE-E2E-REPORT.md
 - artifacts/SOAK-LIVE-STATUS.md
 - /tmp/soak-runner.log (in progress)
 
 **Next Steps:**
+
 1. Manual Railway redeploy
 2. Wait for soak completion (1h 35min remaining)
 3. Implement RBAC backend

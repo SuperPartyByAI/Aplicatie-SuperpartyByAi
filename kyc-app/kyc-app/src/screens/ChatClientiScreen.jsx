@@ -17,9 +17,11 @@ function ChatClientiScreen() {
       navigate('/home');
       return;
     }
-    
+
     // Check for connected account
-    fetch('https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV4/api/whatsapp/accounts')
+    fetch(
+      'https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV4/api/whatsapp/accounts'
+    )
       .then(r => r.json())
       .then(data => {
         const connected = data.accounts?.find(acc => acc.status === 'connected');
@@ -38,7 +40,14 @@ function ChatClientiScreen() {
   return (
     <div className="page-container">
       <div className="page-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            width: '100%',
+          }}
+        >
           <div>
             <h1>💬 Chat Clienti - WhatsApp</h1>
             <p className="page-subtitle">
@@ -48,15 +57,15 @@ function ChatClientiScreen() {
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             {connectedAccount && (
               <>
-                <button 
-                  onClick={() => setView('chat')} 
+                <button
+                  onClick={() => setView('chat')}
                   className={view === 'chat' ? 'btn-primary' : 'btn-secondary'}
                   style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
                 >
                   💬 Chat
                 </button>
-                <button 
-                  onClick={() => setView('accounts')} 
+                <button
+                  onClick={() => setView('accounts')}
                   className={view === 'accounts' ? 'btn-primary' : 'btn-secondary'}
                   style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
                 >

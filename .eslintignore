@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+.firebase
+coverage
+*.min.js
+package-lock.json
+.git
+.baileys_auth
+kyc-app/kyc-app/src/**
+kyc-app/kyc-app/public/**
+kyc-app/kyc-app/vite.config.js

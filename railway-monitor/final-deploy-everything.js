@@ -10,41 +10,45 @@ const SERVICE_ID = '1931479e-da65-4d3a-8c5b-77c4b8fb3e31';
 const GITHUB_REPO = 'SuperPartyByAI/superparty-ai-backend';
 
 const CREDENTIALS = {
-  OPENAI_API_KEY: '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',
+  OPENAI_API_KEY:
+    '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',
   TWILIO_ACCOUNT_SID: 'AC17c88873d670aab4aa4a50fae230d2df',
   TWILIO_AUTH_TOKEN: '5c6670d39a1dbf46d47ecdaa244b91d9',
   TWILIO_PHONE_NUMBER: '+12182204425',
   BACKEND_URL: 'https://web-production-f0714.up.railway.app',
   COQUI_API_URL: 'https://web-production-00dca9.up.railway.app',
   NODE_ENV: 'production',
-  PORT: '5001'
+  PORT: '5001',
 };
 
 async function railwayAPI(query, variables = {}) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify({ query, variables });
-    
-    const req = https.request({
-      hostname: 'backboard.railway.app',
-      path: '/graphql/v2',
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RAILWAY_TOKEN}`,
-        'Content-Type': 'application/json',
-        'Content-Length': data.length
+
+    const req = https.request(
+      {
+        hostname: 'backboard.railway.app',
+        path: '/graphql/v2',
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${RAILWAY_TOKEN}`,
+          'Content-Type': 'application/json',
+          'Content-Length': data.length,
+        },
+      },
+      res => {
+        let body = '';
+        res.on('data', chunk => (body += chunk));
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(body));
+          } catch (e) {
+            reject(e);
+          }
+        });
       }
-    }, (res) => {
-      let body = '';
-      res.on('data', chunk => body += chunk);
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(body));
-        } catch (e) {
-          reject(e);
-        }
-      });
-    });
-    
+    );
+
     req.on('error', reject);
     req.write(data);
     req.end();
@@ -70,9 +74,9 @@ async function deploy() {
         }
       }
     `;
-    
+
     const serviceResult = await railwayAPI(serviceQuery);
-    
+
     if (serviceResult.errors) {
       console.log('⚠️  Nu pot accesa Railway API direct');
       console.log('   Folosesc metoda alternativă...');
@@ -89,19 +93,19 @@ async function deploy() {
 
     // 3. Trigger Railway redeploy prin webhook
     console.log('🚀 Trigger Railway redeploy...');
-    
+
     // Create a dummy commit to trigger redeploy
     try {
       execSync('git commit --allow-empty -m "Trigger Railway redeploy for Voice AI"', {
         cwd: '/workspaces/superparty-ai-backend',
-        stdio: 'pipe'
+        stdio: 'pipe',
       });
-      
+
       execSync('git push origin master', {
         cwd: '/workspaces/superparty-ai-backend',
-        stdio: 'pipe'
+        stdio: 'pipe',
       });
-      
+
       console.log('✅ Railway va redeploya automat');
     } catch (e) {
       console.log('⚠️  Push skipped (already up to date)');
@@ -115,22 +119,24 @@ async function deploy() {
 
     // 5. Test endpoint
     console.log('🧪 Test backend...');
-    
-    const testResult = await new Promise((resolve) => {
-      https.get('https://web-production-f0714.up.railway.app/', (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          try {
-            const json = JSON.parse(data);
-            resolve(json);
-          } catch (e) {
-            resolve({ error: 'Invalid JSON' });
-          }
+
+    const testResult = await new Promise(resolve => {
+      https
+        .get('https://web-production-f0714.up.railway.app/', res => {
+          let data = '';
+          res.on('data', chunk => (data += chunk));
+          res.on('end', () => {
+            try {
+              const json = JSON.parse(data);
+              resolve(json);
+            } catch (e) {
+              resolve({ error: 'Invalid JSON' });
+            }
+          });
+        })
+        .on('error', e => {
+          resolve({ error: e.message });
         });
-      }).on('error', (e) => {
-        resolve({ error: e.message });
-      });
     });
 
     if (testResult.service && testResult.service.includes('Voice')) {
@@ -162,7 +168,6 @@ async function deploy() {
     console.log('');
 
     return true;
-
   } catch (error) {
     console.error('❌ Eroare:', error.message);
     console.log('');

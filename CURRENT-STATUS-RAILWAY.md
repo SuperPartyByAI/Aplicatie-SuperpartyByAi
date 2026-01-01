@@ -21,11 +21,13 @@
 7. ✅ No 405 errors (fetchLatestBaileysVersion fix verified)
 
 **Evidence:**
+
 - `LOCAL-TEST-SUCCESS.md` - Full test report
 - `evidence-local-test.json` - Machine-readable results
 - `whatsapp-backend/test-local.js` - Test server code
 
 **Key Metrics:**
+
 - QR generation: 18/18 success (100%)
 - Multi-account: 18 simultaneous ✅
 - 405 errors: 0 ✅
@@ -40,6 +42,7 @@
 **Status:** Railway service does NOT exist yet
 
 **What's needed:**
+
 1. Create Railway service from GitHub repo
 2. Configure root directory: `whatsapp-backend`
 3. Add Firebase environment variables
@@ -56,6 +59,7 @@
 **Status:** Requires Railway deployment first
 
 **What's needed:**
+
 1. Deploy to Railway (above)
 2. Add account via API
 3. Get QR code
@@ -71,6 +75,7 @@
 **Status:** Requires connected account
 
 **Tests remaining:**
+
 1. MTTR (reconnection speed) - Target: P95 < 30s
 2. Message queue - Target: 100% delivery
 3. Soak test - Target: >99% uptime over 2 hours
@@ -83,14 +88,14 @@
 
 **Current:** 50% (3/6 DoD criteria met)
 
-| Criteria | Status | Evidence |
-|----------|--------|----------|
-| QR generation works | ✅ PASS | 18/18 local tests |
-| Multi-account (18) | ✅ PASS | Limit enforced |
-| No 405 errors | ✅ PASS | Fix verified |
-| Min 1 connected | ⏳ PENDING | Needs Railway + QR scan |
-| MTTR < 30s P95 | ⏳ PENDING | Needs connected account |
-| Message queue 100% | ⏳ PENDING | Needs connected account |
+| Criteria            | Status     | Evidence                |
+| ------------------- | ---------- | ----------------------- |
+| QR generation works | ✅ PASS    | 18/18 local tests       |
+| Multi-account (18)  | ✅ PASS    | Limit enforced          |
+| No 405 errors       | ✅ PASS    | Fix verified            |
+| Min 1 connected     | ⏳ PENDING | Needs Railway + QR scan |
+| MTTR < 30s P95      | ⏳ PENDING | Needs connected account |
+| Message queue 100%  | ⏳ PENDING | Needs connected account |
 
 **Target:** 100% (6/6 criteria)
 
@@ -190,12 +195,14 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | \
 Once connected, run:
 
 1. **MTTR Test** (30 minutes)
+
    ```bash
    # Restart service 10 times, measure reconnect time
    # Target: P95 < 30 seconds
    ```
 
 2. **Message Queue Test** (15 minutes)
+
    ```bash
    # Send messages while disconnected
    # Verify 100% delivery on reconnect
@@ -212,20 +219,24 @@ Once connected, run:
 ## 📁 Files Created
 
 **Documentation:**
+
 - `LOCAL-TEST-SUCCESS.md` - Local test results (100% passed)
 - `RAILWAY-DEPLOY-INSTRUCTIONS.md` - Step-by-step deployment guide
 - `CURRENT-STATUS-RAILWAY.md` - This file
 
 **Evidence:**
+
 - `evidence-local-test.json` - Machine-readable test results
 
 **Code:**
+
 - `whatsapp-backend/server.js` - Production server (v2.0.0)
 - `whatsapp-backend/test-local.js` - Local test server
 - `whatsapp-backend/railway.toml` - Railway configuration
 - `whatsapp-backend/package.json` - Dependencies
 
 **Git:**
+
 - Commit `639acbb3` - Railway v2.0.0 complete backend
 - Commit `fd2a9842` - Railway config
 - Pushed to: `origin/main`
@@ -235,6 +246,7 @@ Once connected, run:
 ## 🎯 Summary
 
 **What works:**
+
 - ✅ Local testing 100% passed
 - ✅ QR generation verified (18/18 accounts)
 - ✅ Multi-account support (18 simultaneous)
@@ -242,10 +254,12 @@ Once connected, run:
 - ✅ Code ready for production
 
 **What's blocking:**
+
 - ❌ Railway service not deployed yet (YOU NEED TO DO THIS)
 - ❌ No connected WhatsApp accounts (needs Railway + manual QR scan)
 
 **What's next:**
+
 1. Deploy to Railway (10-15 min)
 2. Generate QR and scan (5 min)
 3. Run production tests (2-3 hours)

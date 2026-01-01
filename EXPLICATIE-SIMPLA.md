@@ -5,7 +5,7 @@
 ### **Ai 3 VERSIUNI de monitoring:**
 
 1. **NORMAL** (`ultra-fast-monitor.js`) - 99.9% uptime
-2. **EXTREME** (`extreme-monitor.js`) - 99.99% uptime  
+2. **EXTREME** (`extreme-monitor.js`) - 99.99% uptime
 3. **ULTIMATE** (`ultimate-monitor.js`) - 99.99% uptime + inteligent
 
 ---
@@ -15,6 +15,7 @@
 ### **1. NORMAL (99.9% uptime)**
 
 **Ce face:**
+
 ```
 Verifică service la 10s
   ↓
@@ -28,6 +29,7 @@ Dacă nu merge → rollback
 ```
 
 **Rezultat:**
+
 - Detection: 20s
 - Recovery: <5 min
 - Downtime: 43 min/lună
@@ -37,6 +39,7 @@ Dacă nu merge → rollback
 ### **2. EXTREME (99.99% uptime)**
 
 **Ce face:**
+
 ```
 Verifică service la 5s (mai rapid!)
   ↓
@@ -48,6 +51,7 @@ Dacă nu merge → rollback
 ```
 
 **Rezultat:**
+
 - Detection: 5s
 - Recovery: <90s
 - Downtime: 4.3 min/lună
@@ -57,6 +61,7 @@ Dacă nu merge → rollback
 ### **3. ULTIMATE (99.99% uptime + INTELIGENT)**
 
 **Ce face:**
+
 ```
 Verifică service la 5s
   ↓
@@ -82,6 +87,7 @@ Previne să se repete:
 ```
 
 **Rezultat:**
+
 - Detection: 5s
 - Prevention: 70% (nu mai pică!)
 - Recovery: <30s (când pică)
@@ -94,6 +100,7 @@ Previne să se repete:
 ### **Scenario: Memory Leak**
 
 #### **NORMAL:**
+
 ```
 1. Service folosește 95% memory
 2. Service PICĂ (crash)
@@ -104,6 +111,7 @@ TOTAL: 50s downtime
 ```
 
 #### **EXTREME:**
+
 ```
 1. Service folosește 95% memory
 2. Service PICĂ (crash)
@@ -114,6 +122,7 @@ TOTAL: 20s downtime
 ```
 
 #### **ULTIMATE:**
+
 ```
 1. Service folosește 85% memory
 2. Monitor detectează: "Memory mare!"
@@ -139,16 +148,19 @@ TOTAL: 15s downtime + prevenție viitoare
 ### **Cum repară fiecare versiune:**
 
 **NORMAL:**
+
 ```
 Service pică → Așteaptă 20s → Restart blind → 5 min
 ```
 
 **EXTREME:**
+
 ```
 Service pică → Așteaptă 5s → Restart rapid → 90s
 ```
 
 **ULTIMATE:**
+
 ```
 Service aproape pică → Previne → 0s
 SAU
@@ -160,16 +172,19 @@ Service pică → Diagnostichează → Fix specific → 30s → Învață
 ## 🎯 CARE E CEL MAI BUN?
 
 ### **Alege NORMAL dacă:**
+
 - ✅ 99.9% uptime e suficient
 - ✅ 43 min downtime/lună e OK
 - ✅ Vrei ceva simplu
 
 ### **Alege EXTREME dacă:**
+
 - ✅ Vrei 99.99% uptime
 - ✅ 4.3 min downtime/lună
 - ✅ Vrei recovery rapid
 
 ### **Alege ULTIMATE dacă:**
+
 - ✅ Vrei 99.99% uptime
 - ✅ 1.3 min downtime/lună
 - ✅ Vrei să PREVII failures (70%)
@@ -183,12 +198,14 @@ Service pică → Diagnostichează → Fix specific → 30s → Învață
 **Folosește ULTIMATE!**
 
 **De ce?**
+
 1. **Previne 70% din probleme** (nu mai pică!)
 2. **Învață din erori** (se îmbunătățește)
 3. **Recovery 3x mai rapid** (30s vs 90s)
 4. **Cost: $0** (la fel ca celelalte)
 
 **Diferența:**
+
 - EXTREME: Repară RAPID când pică
 - ULTIMATE: PREVINE să pice + repară INTELIGENT
 
@@ -218,6 +235,7 @@ Start Command: node ultra-fast-monitor.js
 ### **Pasul 3: Verifică logs**
 
 **ULTIMATE va arăta:**
+
 ```
 🚀 ULTIMATE MONITOR initialized
 🧠 Intelligent repair: ENABLED
@@ -228,6 +246,7 @@ Start Command: node ultra-fast-monitor.js
 ```
 
 **EXTREME va arăta:**
+
 ```
 🚀 EXTREME Monitor initialized
 ⚡ Health checks every 5s
@@ -240,25 +259,33 @@ Start Command: node ultra-fast-monitor.js
 ## ❓ ÎNTREBĂRI FRECVENTE
 
 ### **Q: Trebuie să fac ceva manual?**
+
 **A:** NU! Totul e automat. Deploy și uită.
 
 ### **Q: Costă ceva?**
+
 **A:** NU! Toate versiunile sunt $0.
 
 ### **Q: Care e diferența între EXTREME și ULTIMATE?**
-**A:** 
+
+**A:**
+
 - EXTREME: Repară rapid (90s)
 - ULTIMATE: Previne (70%) + repară inteligent (30s)
 
 ### **Q: Pot schimba între versiuni?**
+
 **A:** DA! Doar schimbi start command.
 
 ### **Q: Cum știu că funcționează?**
+
 **A:** Vezi în logs:
+
 - "Self-healing applied" = a prevenit un failure
 - "Intelligent repair successful" = a reparat inteligent
 
 ### **Q: Ce se întâmplă dacă totul pică?**
+
 **A:** Rollback automat la ultima versiune working.
 
 ---
@@ -267,15 +294,16 @@ Start Command: node ultra-fast-monitor.js
 
 **Ai 3 opțiuni, toate gratuite:**
 
-| Versiune | Uptime | Downtime/lună | Recovery | Prevenție | Cost |
-|----------|--------|---------------|----------|-----------|------|
-| NORMAL | 99.9% | 43 min | 5 min | ❌ | $0 |
-| EXTREME | 99.99% | 4.3 min | 90s | ❌ | $0 |
-| **ULTIMATE** | **99.99%** | **1.3 min** | **30s** | **✅ 70%** | **$0** |
+| Versiune     | Uptime     | Downtime/lună | Recovery | Prevenție  | Cost   |
+| ------------ | ---------- | ------------- | -------- | ---------- | ------ |
+| NORMAL       | 99.9%      | 43 min        | 5 min    | ❌         | $0     |
+| EXTREME      | 99.99%     | 4.3 min       | 90s      | ❌         | $0     |
+| **ULTIMATE** | **99.99%** | **1.3 min**   | **30s**  | **✅ 70%** | **$0** |
 
 **Recomandare: ULTIMATE** 🏆
 
 **De ce?** Pentru că:
+
 - Previne majoritatea problemelor
 - Repară inteligent când apar
 - Învață și se îmbunătățește

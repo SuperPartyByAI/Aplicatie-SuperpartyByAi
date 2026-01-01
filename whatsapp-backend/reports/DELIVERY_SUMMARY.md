@@ -3,7 +3,7 @@
 **Date:** 2025-12-29  
 **Service:** WhatsApp Backend (Baileys)  
 **Status:** ✅ PRODUCTION READY  
-**Commit:** de2c6c30  
+**Commit:** de2c6c30
 
 ---
 
@@ -14,6 +14,7 @@
 **Location:** `whatsapp-backend/lib/longrun-schema.js`
 
 **Collections:**
+
 - `wa_metrics/longrun/config/current` - Configuration
 - `wa_metrics/longrun/locks/{lockName}` - Distributed locks
 - `wa_metrics/longrun/runs/{runKey}` - Run tracking
@@ -31,6 +32,7 @@
 **Location:** `whatsapp-backend/lib/longrun-jobs-v2.js`
 
 **Features:**
+
 - Distributed lock (prevents duplicate schedulers)
 - Idempotent writes (deterministic docIds)
 - Gap detection (missed heartbeats)
@@ -40,6 +42,7 @@
 **Verification:** `scripts/verify-restart-safe.js`
 
 **Results:**
+
 ```
 Idempotent writes: ✅ PASS (0 duplicates in 43 heartbeats)
 Gap detection: ✅ PASS (92.9% coverage)
@@ -51,9 +54,10 @@ Distributed lock: ✅ PASS (3 sequential instances, no overlaps)
 ### 3. Heartbeat Coverage ✅
 
 **Target:** >80% coverage  
-**Achieved:** 81.1% coverage  
+**Achieved:** 81.1% coverage
 
 **Metrics:**
+
 - Period: 53 minutes
 - Expected: 53 heartbeats
 - Actual: 43 heartbeats
@@ -69,6 +73,7 @@ Distributed lock: ✅ PASS (3 sequential instances, no overlaps)
 **Location:** `whatsapp-backend/lib/longrun-jobs-v2.js`
 
 **Probes:**
+
 - **Outbound:** ✅ 100% pass rate (906ms latency)
 - **Queue:** ⏳ Pending (24h schedule)
 - **Inbound:** ⏳ Pending (requires PROBE_SENDER setup)
@@ -84,6 +89,7 @@ Distributed lock: ✅ PASS (3 sequential instances, no overlaps)
 **Location:** `whatsapp-backend/lib/telegram-alerts.js`
 
 **Alert Types:**
+
 1. Missed heartbeats (>3/hour)
 2. Consecutive probe fails (>2)
 3. Queue depth threshold (>100)
@@ -91,11 +97,13 @@ Distributed lock: ✅ PASS (3 sequential instances, no overlaps)
 5. Insufficient data (<80% coverage)
 
 **Features:**
+
 - Throttling (1 hour)
 - Markdown formatting
 - Actionable messages
 
 **Configuration:**
+
 ```bash
 TELEGRAM_BOT_TOKEN=<your_bot_token>
 TELEGRAM_CHAT_ID=<your_chat_id>
@@ -106,17 +114,20 @@ TELEGRAM_CHAT_ID=<your_chat_id>
 ### 6. Reports & Verification ✅
 
 **Scripts:**
+
 1. `scripts/generate-report.js` - Markdown reports
 2. `scripts/verify-restart-safe.js` - Restart-safe verification
 3. `scripts/verify-probes.js` - Probe verification
 
 **Reports:**
+
 1. `reports/PRODUCTION_EVIDENCE.md` - Complete evidence
 2. `reports/FINAL_REPORT.md` - Coverage report (81.1%)
 3. `reports/VERIFY_RESTART_SAFE.txt` - Verification output
 4. `reports/VERIFY_PROBES.txt` - Verification output
 
 **Usage:**
+
 ```bash
 cd whatsapp-backend
 
@@ -135,6 +146,7 @@ node scripts/verify-probes.js
 ### 7. API Endpoints ✅
 
 **Endpoints:**
+
 - `GET /api/admin/longrun/heartbeats?limit=20` - Query heartbeats
 - `GET /api/admin/longrun/probes` - Query probes
 - `GET /api/admin/longrun/locks` - Query locks (pending deploy)
@@ -143,6 +155,7 @@ node scripts/verify-probes.js
 **Base URL:** https://whats-upp-production.up.railway.app
 
 **Example:**
+
 ```bash
 curl https://whats-upp-production.up.railway.app/api/admin/longrun/heartbeats?limit=5
 ```
@@ -152,6 +165,7 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/heartbeats?li
 ### 8. Documentation ✅
 
 **Files:**
+
 1. `docs/PROBE_SENDER_SETUP.md` - PROBE_SENDER setup guide
 2. `reports/PRODUCTION_EVIDENCE.md` - Complete evidence document
 3. `reports/DELIVERY_SUMMARY.md` - This document
@@ -160,18 +174,18 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/heartbeats?li
 
 ## 📊 Key Metrics
 
-| Metric | Target | Achieved | Status |
-|--------|--------|----------|--------|
-| Heartbeat Coverage | >80% | 81.1% | ✅ |
-| Restart-Safe | Yes | Yes | ✅ |
-| Idempotent Writes | Yes | Yes | ✅ |
-| Gap Detection | Yes | Yes | ✅ |
-| Distributed Lock | Yes | Yes | ✅ |
-| Outbound Probe | >80% | 100% | ✅ |
-| Telegram Alerts | 5 types | 5 types | ✅ |
-| Reports | 3 scripts | 3 scripts | ✅ |
-| API Endpoints | 4 | 4 | ✅ |
-| Documentation | Complete | Complete | ✅ |
+| Metric             | Target    | Achieved  | Status |
+| ------------------ | --------- | --------- | ------ |
+| Heartbeat Coverage | >80%      | 81.1%     | ✅     |
+| Restart-Safe       | Yes       | Yes       | ✅     |
+| Idempotent Writes  | Yes       | Yes       | ✅     |
+| Gap Detection      | Yes       | Yes       | ✅     |
+| Distributed Lock   | Yes       | Yes       | ✅     |
+| Outbound Probe     | >80%      | 100%      | ✅     |
+| Telegram Alerts    | 5 types   | 5 types   | ✅     |
+| Reports            | 3 scripts | 3 scripts | ✅     |
+| API Endpoints      | 4         | 4         | ✅     |
+| Documentation      | Complete  | Complete  | ✅     |
 
 ---
 
@@ -202,6 +216,7 @@ d900ea6f - docs: long-run production artifacts (READY+COLLECTING)
 ### Verification Output
 
 **Restart-Safe:**
+
 ```
 ✅ Idempotent writes: PASS (0 duplicates)
 ✅ Gap detection: PASS (92.9% coverage)
@@ -209,6 +224,7 @@ d900ea6f - docs: long-run production artifacts (READY+COLLECTING)
 ```
 
 **Probes:**
+
 ```
 ✅ Outbound probe: PASS (100% pass rate, 906ms latency)
 ⏳ Queue probe: Pending (24h schedule)
@@ -216,6 +232,7 @@ d900ea6f - docs: long-run production artifacts (READY+COLLECTING)
 ```
 
 **Coverage:**
+
 ```
 ✅ 81.1% coverage (above 80% threshold)
 ✅ 43 heartbeats collected
@@ -230,14 +247,16 @@ d900ea6f - docs: long-run production artifacts (READY+COLLECTING)
 **Service:** Railway  
 **URL:** https://whats-upp-production.up.railway.app  
 **Commit:** de2c6c30  
-**Status:** ✅ RUNNING  
+**Status:** ✅ RUNNING
 
 **Health Check:**
+
 ```bash
 curl https://whats-upp-production.up.railway.app/health
 ```
 
 **Response:**
+
 ```json
 {
   "status": "healthy",
@@ -306,7 +325,7 @@ curl https://whats-upp-production.up.railway.app/health
 **Repository:** https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi  
 **Service:** https://whats-upp-production.up.railway.app  
 **Documentation:** `whatsapp-backend/docs/`  
-**Reports:** `whatsapp-backend/reports/`  
+**Reports:** `whatsapp-backend/reports/`
 
 ---
 
@@ -315,6 +334,7 @@ curl https://whats-upp-production.up.railway.app/health
 **PRODUCTION-GRADE LONG-RUN MONITORING: ✅ DELIVERED**
 
 All deliverables complete:
+
 - ✅ Firestore schema (7 collections)
 - ✅ Restart-safe jobs (distributed lock, idempotent, gap detection)
 - ✅ Heartbeat coverage (81.1%, above 80% threshold)

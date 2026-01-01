@@ -75,6 +75,7 @@ Latest probe:
 **Cause:** PROBE_SENDER account not configured or not connected
 
 **Solution:**
+
 1. Check account status: `curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts`
 2. Verify account is connected
 3. Verify role is set (Method 1, 2, or 3)
@@ -85,6 +86,7 @@ Latest probe:
 **Cause:** OPERATOR account not receiving messages
 
 **Solution:**
+
 1. Check OPERATOR account status
 2. Verify phone numbers are correct
 3. Check WhatsApp message delivery logs

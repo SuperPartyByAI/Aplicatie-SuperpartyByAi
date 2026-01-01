@@ -1,18 +1,18 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
-import { getAnalytics } from "firebase/analytics";
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
+import { getAnalytics } from 'firebase/analytics';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDcec3QIIpqrhmGSsvAeH2qEbuDKwZFG3o",
-  authDomain: "superparty-frontend.firebaseapp.com",
-  projectId: "superparty-frontend",
-  storageBucket: "superparty-frontend.firebasestorage.app",
-  messagingSenderId: "168752018174",
-  appId: "1:168752018174:web:819254dcc7d58147d82baf",
-  measurementId: "G-B2HBZK3FQ7"
+  apiKey: 'AIzaSyDcec3QIIpqrhmGSsvAeH2qEbuDKwZFG3o',
+  authDomain: 'superparty-frontend.firebaseapp.com',
+  projectId: 'superparty-frontend',
+  storageBucket: 'superparty-frontend.firebasestorage.app',
+  messagingSenderId: '168752018174',
+  appId: '1:168752018174:web:819254dcc7d58147d82baf',
+  measurementId: 'G-B2HBZK3FQ7',
 };
 
 const app = initializeApp(firebaseConfig);

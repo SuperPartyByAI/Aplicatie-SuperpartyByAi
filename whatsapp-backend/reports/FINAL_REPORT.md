@@ -12,38 +12,38 @@
 
 ## Heartbeat Coverage
 
-| Metric | Value |
-|--------|-------|
-| **Period** | 2025-12-29T22:14:29.929Z - 2025-12-29T23:07:30.205Z |
-| **Duration** | 0.9 hours |
-| **Expected HB** | 53 |
-| **Actual HB** | 43 |
-| **Missed HB** | 10 |
-| **Coverage** | 81.1% |
-| **Status** | ✅ SUFFICIENT |
+| Metric          | Value                                               |
+| --------------- | --------------------------------------------------- |
+| **Period**      | 2025-12-29T22:14:29.929Z - 2025-12-29T23:07:30.205Z |
+| **Duration**    | 0.9 hours                                           |
+| **Expected HB** | 53                                                  |
+| **Actual HB**   | 43                                                  |
+| **Missed HB**   | 10                                                  |
+| **Coverage**    | 81.1%                                               |
+| **Status**      | ✅ SUFFICIENT                                       |
 
 ### Detected Gaps
 
-| Start | End | Duration | Missed HB |
-|-------|-----|----------|----------|
-| 2025-12-29T22:19:29.932Z | 2025-12-29T22:21:21.550Z | 112s | 0 |
-| 2025-12-29T22:28:21.550Z | 2025-12-29T22:29:47.262Z | 86s | 0 |
-| 2025-12-29T22:34:47.306Z | 2025-12-29T22:45:30.181Z | 643s | 9 |
+| Start                    | End                      | Duration | Missed HB |
+| ------------------------ | ------------------------ | -------- | --------- |
+| 2025-12-29T22:19:29.932Z | 2025-12-29T22:21:21.550Z | 112s     | 0         |
+| 2025-12-29T22:28:21.550Z | 2025-12-29T22:29:47.262Z | 86s      | 0         |
+| 2025-12-29T22:34:47.306Z | 2025-12-29T22:45:30.181Z | 643s     | 9         |
 
 ## Probe Statistics
 
 ### OUTBOUND Probes
 
-| Metric | Value |
-|--------|-------|
-| **Total** | 1 |
-| **Pass** | 1 |
-| **Fail** | 0 |
-| **Pass Rate** | 100.0% |
-| **Avg Latency** | 906ms |
-| **P50 Latency** | 906ms |
-| **P90 Latency** | 906ms |
-| **P95 Latency** | 906ms |
+| Metric          | Value  |
+| --------------- | ------ |
+| **Total**       | 1      |
+| **Pass**        | 1      |
+| **Fail**        | 0      |
+| **Pass Rate**   | 100.0% |
+| **Avg Latency** | 906ms  |
+| **P50 Latency** | 906ms  |
+| **P90 Latency** | 906ms  |
+| **P95 Latency** | 906ms  |
 
 ## Instance Information
 
@@ -65,5 +65,3 @@
 ## Summary
 
 ✅ **ALL SYSTEMS OPERATIONAL**
-
-

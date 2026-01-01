@@ -24,9 +24,11 @@ firebase login
 ```
 
 **Dacă ești în Gitpod/Codespace:**
+
 ```bash
 firebase login --no-localhost
 ```
+
 Apoi deschide link-ul în browser și autentifică-te.
 
 ### Pas 2: Selectează Proiect (1 min)
@@ -36,6 +38,7 @@ firebase use superparty-frontend
 ```
 
 Sau dacă nu există:
+
 ```bash
 firebase projects:list
 firebase use <project-id>
@@ -49,6 +52,7 @@ firebase deploy --only functions
 ```
 
 **Output așteptat:**
+
 ```
 ✔  functions: Finished running predeploy script.
 i  functions: preparing functions directory for uploading...
@@ -75,6 +79,7 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
 
 **Răspuns așteptat:**
+
 ```json
 {
   "success": true,
@@ -104,6 +109,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ```
 
 **Răspuns așteptat:**
+
 ```json
 {
   "success": true,
@@ -125,9 +131,11 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 După deploy, verifică:
 
 1. **Function URL funcționează:**
+
    ```bash
    curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
    ```
+
    Trebuie să returneze `{"status":"online",...}`
 
 2. **Firestore e configurat:**
@@ -147,14 +155,17 @@ După deploy, verifică:
 ## 🎯 IMPORTANT
 
 ### ✅ FOLOSEȘTE:
+
 - **QR codes** - funcționează 100%
 - **NU trimite parametrul `phone`**
 
 ### ❌ NU FOLOSI:
+
 - **Pairing codes** - generează coduri invalide în Cloud Functions
 - **Parametrul `phone`** în `add-account`
 
 ### Exemplu CORECT:
+
 ```bash
 curl -X POST .../api/whatsapp/add-account \
   -H "Content-Type: application/json" \
@@ -162,6 +173,7 @@ curl -X POST .../api/whatsapp/add-account \
 ```
 
 ### Exemplu GREȘIT:
+
 ```bash
 curl -X POST .../api/whatsapp/add-account \
   -H "Content-Type: application/json" \
@@ -173,26 +185,33 @@ curl -X POST .../api/whatsapp/add-account \
 ## 🐛 Troubleshooting
 
 ### Problema: "firebase: command not found"
+
 ```bash
 npm install -g firebase-tools
 ```
 
 ### Problema: "Cannot run login in non-interactive mode"
+
 ```bash
 firebase login --no-localhost
 ```
+
 Apoi deschide link-ul în browser.
 
 ### Problema: "No project active"
+
 ```bash
 firebase use superparty-frontend
 ```
 
 ### Problema: "Pairing code invalid"
+
 **Soluție:** NU folosi pairing codes! Folosește doar QR codes.
 
 ### Problema: "Account dispare după restart"
+
 **Verifică:**
+
 1. Firestore e activat în Firebase Console
 2. Există colecția `whatsapp_sessions`
 3. Vezi în logs: "💾 Session saved to Firestore"
@@ -202,6 +221,7 @@ firebase use superparty-frontend
 ## 📊 REZULTAT FINAL
 
 După deploy:
+
 - ✅ WhatsApp pe Firebase Functions (1st Gen)
 - ✅ QR codes funcționează 100%
 - ✅ Sessions persistă în Firestore
@@ -216,6 +236,7 @@ După deploy:
 ## 🚀 NEXT STEPS
 
 După deploy:
+
 1. Adaugă 20 conturi WhatsApp
 2. Testează trimitere mesaje
 3. Monitorizează în Firebase Console → Functions → Logs

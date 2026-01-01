@@ -1,23 +1,28 @@
 # 🎯 OPȚIUNEA 2 - Pași Exacți (1 minut)
 
 ## Pasul 1: Railway Dashboard
+
 Mergi la: https://railway.app
 
 ## Pasul 2: Găsește serviciul
+
 Caută și click pe: **web-production-f0714.up.railway.app**
 
 ## Pasul 3: Disconnect sursa veche
+
 1. Click tab **Settings**
 2. Scroll la secțiunea **Source**
 3. Dacă vezi un repo conectat, click **Disconnect**
 
 ## Pasul 4: Connect repo nou
+
 1. Tot în **Source**, click **Connect Repo**
 2. Selectează: **SuperPartyByAI/superparty-ai-backend**
 3. Branch: **main** (IMPORTANT: main, nu master!)
 4. Click **Connect**
 
 ## Pasul 5: Adaugă variabilele
+
 1. Click tab **Variables**
 2. Click **Raw Editor** (sus dreapta)
 3. **ȘTERGE TOT** ce e acolo
@@ -37,11 +42,13 @@ PORT=5001
 5. Click **Save** (sau **Update Variables**)
 
 ## Pasul 6: Așteaptă deploy
+
 Railway va redeploya automat. Durează ~2-3 minute.
 
 Verifică în tab **Deployments** - când vezi "Success" e gata.
 
 ## Pasul 7: Verifică logs
+
 Click tab **Logs** - ar trebui să vezi:
 
 ```
@@ -56,6 +63,7 @@ Click tab **Logs** - ar trebui să vezi:
 **Sună la: +1 (218) 220-4425**
 
 Ar trebui să auzi:
+
 > "Bună ziua, SuperParty, cu ce vă ajut?"
 
 Cu vocea Kasya (clonată cu Coqui XTTS)!
@@ -65,6 +73,7 @@ Cu vocea Kasya (clonată cu Coqui XTTS)!
 ## ✅ Twilio e deja configurat!
 
 Webhook-ul e deja setat automat de v7.0:
+
 - URL: `https://web-production-f0714.up.railway.app/api/voice/incoming`
 - Method: POST
 

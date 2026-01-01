@@ -3,7 +3,7 @@ import { isValidEmail, isValidPassword, isValidCNP } from '../utils/validation.j
 
 /**
  * TESTE CRITICE - Verifică că funcționalitățile esențiale funcționează
- * 
+ *
  * Dacă ORICARE din aceste teste FAIL → NU DEPLOY!
  */
 
@@ -11,11 +11,11 @@ describe('🔴 CRITICAL TESTS - Authentication', () => {
   it('Firebase config există și e valid', () => {
     // Verifică că Firebase config e definit
     const firebaseConfig = {
-      apiKey: "AIzaSyDcec3QIIpqrhmGSsvAeH2qEbuDKwZFG3o",
-      authDomain: "superparty-frontend.firebaseapp.com",
-      projectId: "superparty-frontend",
+      apiKey: 'AIzaSyDcec3QIIpqrhmGSsvAeH2qEbuDKwZFG3o',
+      authDomain: 'superparty-frontend.firebaseapp.com',
+      projectId: 'superparty-frontend',
     };
-    
+
     expect(firebaseConfig.apiKey).toBeDefined();
     expect(firebaseConfig.authDomain).toBeDefined();
     expect(firebaseConfig.projectId).toBe('superparty-frontend');
@@ -27,7 +27,7 @@ describe('🔴 CRITICAL TESTS - Validation', () => {
     // Valid emails
     expect(isValidEmail('test@test.com')).toBe(true);
     expect(isValidEmail('user@example.ro')).toBe(true);
-    
+
     // Invalid emails
     expect(isValidEmail('test')).toBe(false);
     expect(isValidEmail('test@')).toBe(false);
@@ -38,7 +38,7 @@ describe('🔴 CRITICAL TESTS - Validation', () => {
     // Valid passwords
     expect(isValidPassword('parola123')).toBe(true);
     expect(isValidPassword('123456')).toBe(true);
-    
+
     // Invalid passwords
     expect(isValidPassword('12345')).toBe(false);
     expect(isValidPassword('')).toBe(false);
@@ -48,7 +48,7 @@ describe('🔴 CRITICAL TESTS - Validation', () => {
     // Valid CNP
     expect(isValidCNP('1234567890123')).toBe(true);
     expect(isValidCNP('5030515123456')).toBe(true);
-    
+
     // Invalid CNP
     expect(isValidCNP('123')).toBe(false);
     expect(isValidCNP('12345678901234')).toBe(false);
@@ -63,7 +63,7 @@ describe('🔴 CRITICAL TESTS - Error Messages', () => {
       'auth/user-not-found': '❌ Nu există cont cu acest email. Înregistrează-te mai întâi.',
       'auth/wrong-password': '❌ Parolă greșită. Verifică și încearcă din nou.',
     };
-    
+
     // Verifică că mesajele există și sunt în română
     expect(errorMessages['auth/invalid-credential']).toContain('Email sau parolă greșită');
     expect(errorMessages['auth/user-not-found']).toContain('Nu există cont');
@@ -78,10 +78,10 @@ describe('🔴 CRITICAL TESTS - Security', () => {
       const apiKey = process.env.OPENAI_API_KEY;
       const token = DEPLOY_TOKEN.value();
     `;
-    
+
     // Nu ar trebui să existe sk- (OpenAI key) hardcodat
     expect(codeSnippet).not.toMatch(/sk-[a-zA-Z0-9]{20,}/);
-    
+
     // Nu ar trebui să existe token-uri hardcodate
     expect(codeSnippet).not.toMatch(/1\/\/[a-zA-Z0-9]{50,}/);
   });
@@ -89,9 +89,9 @@ describe('🔴 CRITICAL TESTS - Security', () => {
   it('Firebase config e public (corect)', () => {
     // Firebase config TREBUIE să fie public în frontend
     const firebaseConfig = {
-      apiKey: "AIzaSyDcec3QIIpqrhmGSsvAeH2qEbuDKwZFG3o",
+      apiKey: 'AIzaSyDcec3QIIpqrhmGSsvAeH2qEbuDKwZFG3o',
     };
-    
+
     // Verifică că există (e OK să fie public)
     expect(firebaseConfig.apiKey).toBeDefined();
     expect(firebaseConfig.apiKey).toMatch(/^AIza/);
@@ -105,7 +105,7 @@ describe('🔴 CRITICAL TESTS - Build', () => {
       build: 'vite build',
       test: 'vitest',
     };
-    
+
     expect(scripts.dev).toBeDefined();
     expect(scripts.build).toBeDefined();
     expect(scripts.test).toBeDefined();

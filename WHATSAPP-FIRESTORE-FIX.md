@@ -25,6 +25,7 @@ Codul tău **deja are** `session-store.js` care salvează sesiunile în Firestor
 Mergi la **Firebase Console** → **Firestore Database** → caută colecția `whatsapp_sessions`.
 
 Ar trebui să vezi:
+
 ```
 whatsapp_sessions/
   └── account_1766947637246/
@@ -50,16 +51,16 @@ Modifică `functions/whatsapp/manager.js` să restaureze sesiunile **ÎNAINTE** 
 async createAccount(phoneNumber = null) {
   const accountId = `account_${Date.now()}`;
   const sessionPath = path.join(this.sessionsPath, accountId);
-  
+
   // ✅ ADAUGĂ AICI: Încearcă să restaurezi sesiunea din Firestore
   const restored = await sessionStore.restoreSession(accountId, sessionPath);
-  
+
   if (restored) {
     console.log(`✅ [${accountId}] Session restored from Firestore, connecting...`);
   } else {
     console.log(`ℹ️ [${accountId}] No saved session, will generate QR code`);
   }
-  
+
   // Continuă cu useMultiFileAuthState...
   const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
   // ...
@@ -73,13 +74,13 @@ async createAccount(phoneNumber = null) {
 Modifică event handler-ul `connection.update` să salveze sesiunea **imediat** după conectare:
 
 ```javascript
-sock.ev.on('connection.update', async (update) => {
+sock.ev.on('connection.update', async update => {
   const { connection, lastDisconnect, qr } = update;
-  
+
   if (connection === 'open') {
     console.log(`✅ [${accountId}] Connected!`);
     account.status = 'connected';
-    
+
     // ✅ ADAUGĂ AICI: Salvează sesiunea IMEDIAT
     await sessionStore.saveSession(accountId, sessionPath);
     console.log(`💾 [${accountId}] Session saved to Firestore`);
@@ -130,14 +131,14 @@ async saveSession(accountId, sessionPath, account = null) {
     if (!this.db) await this.initialize();
 
     const credsPath = path.join(sessionPath, 'creds.json');
-    
+
     if (!fs.existsSync(credsPath)) {
       console.log(`⚠️ [${accountId}] No creds.json found, skipping save`);
       return;
     }
 
     const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
-    
+
     // ✅ ADAUGĂ metadata
     const data = {
       accountId,
@@ -150,7 +151,7 @@ async saveSession(accountId, sessionPath, account = null) {
       updatedAt: new Date().toISOString(),
       savedAt: firestore.admin.firestore.FieldValue.serverTimestamp()
     };
-    
+
     await this.db.collection('whatsapp_sessions').doc(accountId).set(data);
     console.log(`💾 [${accountId}] Session saved to Firestore`);
   } catch (error) {
@@ -164,29 +165,34 @@ async saveSession(accountId, sessionPath, account = null) {
 ## 📋 Pași de Urmat
 
 ### 1. **Verifică Firestore** (ACUM)
-   - Firebase Console → Firestore → `whatsapp_sessions`
-   - Există sesiunea? Da/Nu?
+
+- Firebase Console → Firestore → `whatsapp_sessions`
+- Există sesiunea? Da/Nu?
 
 ### 2. **Aplică Fix-urile** (5 min)
-   - Fix 1: Restaurare la pornire
-   - Fix 2: Salvare imediată după conectare
-   - Fix 3: Keep-Alive (UptimeRobot - GRATIS)
-   - Fix 4: Metadata pentru sesiuni
+
+- Fix 1: Restaurare la pornire
+- Fix 2: Salvare imediată după conectare
+- Fix 3: Keep-Alive (UptimeRobot - GRATIS)
+- Fix 4: Metadata pentru sesiuni
 
 ### 3. **Deploy și Test** (2 min)
-   ```bash
-   firebase deploy --only functions
-   ```
+
+```bash
+firebase deploy --only functions
+```
 
 ### 4. **Reconectează WhatsApp** (1 min)
-   - Generează QR code nou
-   - Conectează-te
-   - Verifică că sesiunea se salvează în Firestore
+
+- Generează QR code nou
+- Conectează-te
+- Verifică că sesiunea se salvează în Firestore
 
 ### 5. **Test Cold Start** (15 min)
-   - Așteaptă 15 minute (sau forțează cold start)
-   - Apelează API-ul
-   - Verifică că sesiunea se restaurează automat
+
+- Așteaptă 15 minute (sau forțează cold start)
+- Apelează API-ul
+- Verifică că sesiunea se restaurează automat
 
 ---
 
@@ -197,7 +203,7 @@ După aplicarea fix-urilor:
 ✅ **Sesiunea se salvează** în Firestore la conectare  
 ✅ **Sesiunea se restaurează** automat la cold start  
 ✅ **Keep-Alive** previne cold starts (UptimeRobot GRATIS)  
-✅ **WhatsApp rămâne conectat** 24/7 fără intervenție manuală  
+✅ **WhatsApp rămâne conectat** 24/7 fără intervenție manuală
 
 ---
 
@@ -215,11 +221,13 @@ După aplicarea fix-urilor:
 ## 🆘 Dacă Nu Funcționează
 
 1. **Verifică logs:**
+
    ```bash
    firebase functions:log --only whatsapp
    ```
 
 2. **Verifică Firestore Rules:**
+
    ```javascript
    // Firestore Rules trebuie să permită read/write pentru Functions
    service cloud.firestore {

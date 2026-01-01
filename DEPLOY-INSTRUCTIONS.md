@@ -1,6 +1,7 @@
 # Instrucțiuni Deploy Firebase
 
 ## Problema
+
 Eroarea apare pentru că rulezi din `whatsapp-backend/` dar `firebase.json` și `firestore.rules` sunt în root.
 
 ## Soluție

@@ -4,7 +4,7 @@
 
 **Data:** 28 Decembrie 2024  
 **Versiune:** 5.0.0 (TIER ULTIMATE 2)  
-**Server:** ACTIV pe port 5002  
+**Server:** ACTIV pe port 5002
 
 ---
 
@@ -14,7 +14,7 @@
 ✅ **Firebase:** Configurat (superparty-frontend)  
 ✅ **API Endpoints:** Toate funcționale  
 ✅ **QR Code:** Generat pentru primul cont  
-✅ **Pairing Code:** EQY3F4BV  
+✅ **Pairing Code:** EQY3F4BV
 
 ---
 
@@ -28,6 +28,7 @@
 4. **Scanează QR Code-ul** de mai jos:
 
 **QR Code URL:**
+
 ```
 http://localhost:5002/api/whatsapp/accounts
 ```
@@ -49,11 +50,13 @@ Copiază `qrCode` din răspuns și deschide în browser (e data:image/png;base64
 **Base URL:** `http://localhost:5002`
 
 ### 1. Health Check
+
 ```bash
 GET /
 ```
 
 **Răspuns:**
+
 ```json
 {
   "status": "online",
@@ -64,11 +67,13 @@ GET /
 ```
 
 ### 2. Lista Conturi
+
 ```bash
 GET /api/whatsapp/accounts
 ```
 
 ### 3. Adaugă Cont
+
 ```bash
 POST /api/whatsapp/add-account
 Content-Type: application/json
@@ -80,16 +85,19 @@ Content-Type: application/json
 ```
 
 ### 4. Șterge Cont
+
 ```bash
 DELETE /api/whatsapp/account/:accountId
 ```
 
 ### 5. Lista Chat-uri
+
 ```bash
 GET /api/whatsapp/chats/:accountId
 ```
 
 ### 6. Trimite Mesaj
+
 ```bash
 POST /api/whatsapp/send/:accountId/:chatId
 Content-Type: application/json
@@ -100,6 +108,7 @@ Content-Type: application/json
 ```
 
 ### 7. Trimite Bulk (cu Message Variation)
+
 ```bash
 POST /api/whatsapp/send-bulk/:accountId
 Content-Type: application/json
@@ -120,38 +129,47 @@ Content-Type: application/json
 ## 📊 TIER ULTIMATE Features Active
 
 ### TIER ULTIMATE 1:
+
 ✅ **Human Behavior Simulation**
+
 - Typing indicators
 - Read receipts
 - Realistic delays
 
 ✅ **Intelligent Rate Limiting**
+
 - Adaptive throttling
 - Queue management
 - Priority handling
 
 ✅ **Message Variation**
+
 - Template system
 - Synonym replacement
 - Anti-spam protection
 
 ✅ **Circuit Breaker**
+
 - Cascade prevention
 - Account isolation
 - Auto-recovery
 
 ### TIER ULTIMATE 2:
+
 ✅ **Webhooks**
+
 - Real-time notifications
 - Retry logic
 - Event filtering
 
 ✅ **Advanced Health Checks**
+
 - Predictive failure detection
 - Pattern analysis
 - Risk scoring
 
 ✅ **Proxy Rotation** (când configurezi proxy)
+
 - IP rotation per account
 - Health checking
 - Auto-failover
@@ -160,13 +178,13 @@ Content-Type: application/json
 
 ## 🎯 Rezultate Estimate
 
-| Metric | Vanilla Baileys | Cu TIER ULTIMATE 2 | Îmbunătățire |
-|--------|-----------------|---------------------|--------------|
-| Downtime | 20.7s | 1-2s | -95% |
-| Pierdere mesaje | 6.36% | 0.5-1% | -90% |
-| Risc ban (fără proxy) | 5-10% | 2-3% | -60% |
-| Risc ban (cu proxy) | 5-10% | 1-2% | -80% |
-| Uptime | 95% | 98-99% | +3-4% |
+| Metric                | Vanilla Baileys | Cu TIER ULTIMATE 2 | Îmbunătățire |
+| --------------------- | --------------- | ------------------ | ------------ |
+| Downtime              | 20.7s           | 1-2s               | -95%         |
+| Pierdere mesaje       | 6.36%           | 0.5-1%             | -90%         |
+| Risc ban (fără proxy) | 5-10%           | 2-3%               | -60%         |
+| Risc ban (cu proxy)   | 5-10%           | 1-2%               | -80%         |
+| Uptime                | 95%             | 98-99%             | +3-4%        |
 
 **Adevăr:** 73% (mediu între toate tier-urile)
 
@@ -179,6 +197,7 @@ Content-Type: application/json
 **Folosește Pairing Code:** `EQY3F4BV`
 
 Sau scanează QR code-ul din:
+
 ```bash
 curl http://localhost:5002/api/whatsapp/accounts | jq -r '.accounts[0].qrCode'
 ```
@@ -186,6 +205,7 @@ curl http://localhost:5002/api/whatsapp/accounts | jq -r '.accounts[0].qrCode'
 ### 2. Verifică Conexiunea
 
 După scanare, verifică status:
+
 ```bash
 curl http://localhost:5002/api/whatsapp/accounts | jq '.accounts[0].status'
 ```
@@ -284,7 +304,7 @@ curl http://localhost:5002/api/ultimate/health | jq .
 ### Firebase Service Account
 
 **Project ID:** superparty-frontend  
-**Location:** `.github/secrets-backup/firebase-service-account.json`  
+**Location:** `.github/secrets-backup/firebase-service-account.json`
 
 ⚠️ **NU expune acest fișier public!**
 
@@ -303,6 +323,7 @@ NODE_ENV=production
 ### Opțiunea 1: Schimbă Start Command
 
 În Railway dashboard:
+
 1. Mergi la **Settings** → **Deploy**
 2. **Start Command:** `node whatsapp-server.js`
 3. **Save**
@@ -321,7 +342,9 @@ NODE_ENV=production
 ## ❌ Troubleshooting
 
 ### Problema: QR Code expirat
+
 **Soluție:** Șterge contul și adaugă din nou
+
 ```bash
 curl -X DELETE http://localhost:5002/api/whatsapp/account/account_1766943324317
 curl -X POST http://localhost:5002/api/whatsapp/add-account \
@@ -330,20 +353,26 @@ curl -X POST http://localhost:5002/api/whatsapp/add-account \
 ```
 
 ### Problema: Cont deconectat
+
 **Soluție:** Verifică status și reconectează
+
 ```bash
 curl http://localhost:5002/api/whatsapp/accounts | jq '.accounts[0].status'
 ```
 
 ### Problema: Mesaje nu se trimit
+
 **Soluție:** Verifică rate limiter și circuit breaker
+
 ```bash
 curl http://localhost:5002/api/ultimate/rate-limiter | jq .
 curl http://localhost:5002/api/ultimate/circuit-breaker | jq .
 ```
 
 ### Problema: Server nu pornește
+
 **Soluție:** Verifică dependențele
+
 ```bash
 npm install
 node whatsapp-server.js
@@ -357,7 +386,7 @@ node whatsapp-server.js
 **Railway URL:** (după deploy)  
 **Firebase Project:** superparty-frontend  
 **Versiune:** 5.0.0  
-**Tier:** ULTIMATE 2  
+**Tier:** ULTIMATE 2
 
 ---
 
@@ -379,6 +408,6 @@ node whatsapp-server.js
 
 **Status:** ✅ GATA DE UTILIZARE!  
 **Next:** Scanează QR code sau folosește pairing code `EQY3F4BV`  
-**Data:** 28 Decembrie 2024  
+**Data:** 28 Decembrie 2024
 
 🎉 **Sistemul WhatsApp este FUNCȚIONAL și gata pentru 20 conturi!**

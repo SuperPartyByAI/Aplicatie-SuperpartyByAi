@@ -8,15 +8,15 @@ export async function compressImage(file) {
 
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    
-    reader.onload = (e) => {
+
+    reader.onload = e => {
       const img = new Image();
-      
+
       img.onload = () => {
         const canvas = document.createElement('canvas');
         let width = img.width;
         let height = img.height;
-        
+
         // Calculează dimensiunile noi păstrând aspect ratio
         const maxDimension = 2048; // dimensiune maximă
         if (width > height && width > maxDimension) {
@@ -26,30 +26,30 @@ export async function compressImage(file) {
           width = (width * maxDimension) / height;
           height = maxDimension;
         }
-        
+
         canvas.width = width;
         canvas.height = height;
-        
+
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        
+
         // Încearcă diferite calități până ajunge sub 3MB
         let quality = 0.9;
         let base64 = canvas.toDataURL('image/jpeg', quality);
-        
+
         while (base64.length > MAX_SIZE * 1.37 && quality > 0.1) {
           // 1.37 = factor conversie base64 (4/3)
           quality -= 0.1;
           base64 = canvas.toDataURL('image/jpeg', quality);
         }
-        
+
         resolve(base64);
       };
-      
+
       img.onerror = () => reject(new Error('Failed to load image'));
       img.src = e.target.result;
     };
-    
+
     reader.onerror = () => reject(new Error('Failed to read file'));
     reader.readAsDataURL(file);
   });

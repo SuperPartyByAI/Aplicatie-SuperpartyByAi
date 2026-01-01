@@ -3,11 +3,13 @@
 ## 🎯 CE ÎNSEAMNĂ "MULTI-DOMAIN REASONING"
 
 ### **Simplu:**
+
 **Multi-domain = Înțelege mai multe domenii simultan (tech + business + users)**
 
 ### **Exemplu concret:**
 
 #### **Fără multi-domain (v5.0):**
+
 ```
 Tu: "CPU e 90%"
 Robot: "OK, scale up server"
@@ -15,22 +17,23 @@ Cost: +$20/month
 ```
 
 #### **Cu multi-domain (v6.0):**
+
 ```
 Tu: "CPU e 90%"
-Robot: 
+Robot:
   → Verifică: Ce face CPU-ul? (TECH)
   → Răspuns: Voice generation
-  
+
   → Verifică: Când e 90%? (BUSINESS)
   → Răspuns: Luni dimineața 9 AM
-  
+
   → Verifică: Cine folosește? (USERS)
   → Răspuns: 5 useri, aceleași 10 mesaje
-  
+
   → Decizie INTELIGENTĂ:
      "Nu trebuie server mai mare!
       Trebuie cache pentru cele 10 mesaje!"
-  
+
   → Acțiune: Add cache
   → Rezultat: CPU 90% → 20%
   → Cost: $0 (în loc de +$20)
@@ -45,6 +48,7 @@ Robot:
 ### **Robotul rulează pe Railway 24/7 și:**
 
 #### **1. Monitorizează aplicația ta**
+
 ```
 Verifică non-stop:
 - Backend OK?
@@ -54,6 +58,7 @@ Verifică non-stop:
 ```
 
 #### **2. Ia decizii automat**
+
 ```
 Dacă ceva nu e OK:
 - Analizează problema
@@ -63,6 +68,7 @@ Dacă ceva nu e OK:
 ```
 
 #### **3. Optimizează continuu**
+
 ```
 Învață din trafic:
 - Ce mesaje se cer des? → Cache
@@ -71,6 +77,7 @@ Dacă ceva nu e OK:
 ```
 
 #### **4. Raportează către tine**
+
 ```
 Zilnic:
 - Ce a făcut
@@ -88,11 +95,13 @@ Zilnic:
 #### **Scenariul 1: Creează proiect nou**
 
 **Tu spui:**
+
 ```
 "Vreau un backend Node.js cu Express și MongoDB"
 ```
 
 **Robotul face:**
+
 ```
 1. Creează proiect Railway
    ✅ Nume: "superparty-backend"
@@ -144,11 +153,13 @@ Zilnic:
 #### **Scenariul 2: Adaugă microservice**
 
 **Tu spui:**
+
 ```
 "Voice service e lent, extrage-l într-un microservice separat"
 ```
 
 **Robotul face:**
+
 ```
 1. Analizează codul actual
    ✅ Identifică voice logic în backend
@@ -202,11 +213,13 @@ Zilnic:
 #### **Exemplu: Creează WordPress în aplicație**
 
 **Tu spui:**
+
 ```
 "Vreau un blog WordPress integrat în aplicația SuperParty"
 ```
 
 **Robotul întreabă:**
+
 ```
 🤖 "OK, câteva întrebări:
 1. Unde vrei blog-ul? (subdomain sau /blog?)
@@ -216,6 +229,7 @@ Zilnic:
 ```
 
 **Tu răspunzi:**
+
 ```
 1. /blog
 2. Doar admin
@@ -224,6 +238,7 @@ Zilnic:
 ```
 
 **Robotul face:**
+
 ```
 1. Analizează aplicația actuală
    ✅ Detectează: React frontend
@@ -234,7 +249,7 @@ Zilnic:
    ✅ Opțiune 1: WordPress separat (heavy)
    ✅ Opțiune 2: Headless CMS (modern)
    ✅ Opțiune 3: Custom blog (lightweight)
-   
+
    ✅ Recomandare: Opțiune 3 (custom)
    ✅ Motivație: Mai rapid, mai ieftin, integrat perfect
 
@@ -280,6 +295,7 @@ Zilnic:
 ```
 
 **Tu doar:**
+
 - ✅ Verifici design-ul
 - ✅ Testezi funcționalitatea
 - ✅ Dai OK pentru deploy
@@ -293,10 +309,11 @@ Zilnic:
 ### **Workflow zilnic:**
 
 #### **Dimineața:**
+
 ```
 Tu: "Ce s-a întâmplat noaptea?"
 
-Robot: 
+Robot:
 "📊 Raport 24h:
 ✅ Uptime: 100%
 ✅ Requests: 1,234
@@ -319,12 +336,14 @@ Robot:
 ```
 
 **Tu decizi:**
+
 ```
 "OK pentru 1 și 2, implementează.
 Pentru 3, arată-mi mockup mai întâi."
 ```
 
 **Robot:**
+
 ```
 "✅ Implementez 1 și 2 acum (30 min)
 ✅ Generez mockup pentru 3 (5 min)
@@ -334,6 +353,7 @@ Pentru 3, arată-mi mockup mai întâi."
 ---
 
 #### **În timpul zilei:**
+
 ```
 Robot (notificare):
 "⚠️ Detectat: Spike de trafic (+200%)
@@ -349,6 +369,7 @@ Robot (notificare):
 ---
 
 #### **Seara:**
+
 ```
 Tu: "Vreau să adaug feature nou: notificări SMS"
 
@@ -432,6 +453,7 @@ Vrei Opțiunea 3 sau preferi WordPress?"
 **Tu:** "OK, Opțiunea 3. Dar vreau și editor WYSIWYG ca în WordPress"
 
 **Robot:**
+
 ```
 "✅ Perfect! Adaug editor WYSIWYG (TinyMCE sau Quill)
 
@@ -478,6 +500,7 @@ Features incluse:
 **Tu:** "Da!"
 
 **Robot:**
+
 ```
 "🚀 Începem!
 
@@ -544,6 +567,7 @@ Vreau să adaug ceva?"
 **Tu:** "Arată bine! Adaugă și newsletter signup"
 
 **Robot:**
+
 ```
 "✅ Adaug newsletter signup!
 
@@ -569,37 +593,44 @@ Vreau să adaug ceva?"
 ## 🎯 REZUMAT: CE FACE ROBOTUL
 
 ### **1. Monitorizare 24/7**
+
 - Verifică health
 - Detectează probleme
 - Previne failures
 
 ### **2. Auto-repair**
+
 - Fixează probleme automat
 - Rollback dacă ceva nu merge
 - Raportează ce a făcut
 
 ### **3. Optimizare continuă**
+
 - Învață din trafic
 - Reduce costuri
 - Îmbunătățește performance
 
 ### **4. Creează proiecte Railway**
+
 - Creează services
 - Adaugă env vars
 - Configurează tot
 
 ### **5. Generează cod**
+
 - Backend APIs
 - Frontend components
 - Database schemas
 - ZERO copy-paste
 
 ### **6. Deploy automat**
+
 - Push la Railway
 - Test automat
 - Rollback dacă fail
 
 ### **7. Raportează**
+
 - Ce a făcut
 - Ce a economisit
 - Ce sugerează
@@ -613,6 +644,7 @@ Vreau să adaug ceva?"
 ✅ **Decizi:** "OK, deploy" sau "Schimbă X"
 
 ❌ **NU mai faci:**
+
 - Copy-paste cod
 - Setup manual Railway
 - Debug ore întregi
@@ -624,6 +656,7 @@ Vreau să adaug ceva?"
 ## 🚀 DIFERENȚA
 
 ### **Înainte (fără robot):**
+
 ```
 Tu vrei blog:
 1. Cauți tutorial (30 min)
@@ -638,6 +671,7 @@ Rezultat: Blog funcțional (poate)
 ```
 
 ### **După (cu robot v6.0):**
+
 ```
 Tu: "Vreau blog"
 Robot: "OK, ce features?"
@@ -676,6 +710,7 @@ Rezultat: Blog funcțional garantat
 **Vrei să începem cu Faza 1?**
 
 În 6 zile ai:
+
 - ✅ Robot care monitorizează 24/7
 - ✅ Auto-repair când ceva pică
 - ✅ Optimizări automate (voice, database, CDN)
@@ -683,6 +718,7 @@ Rezultat: Blog funcțional garantat
 - ✅ $0 cost
 
 **Apoi adăugăm treptat:**
+
 - Creează proiecte Railway automat
 - Generează cod automat
 - Deploy automat

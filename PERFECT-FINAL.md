@@ -6,16 +6,16 @@
 
 ## 📊 REZULTAT FINAL
 
-| Metric | Normal | Extreme | Ultimate | **PERFECT** |
-|--------|--------|---------|----------|-------------|
-| **Downtime/lună** | 43 min | 4.3 min | 1.3 min | **<30 secunde** |
-| **Detection** | 20s | 5s | 5s | **1s** |
-| **Recovery** | 5 min | 90s | 30s | **<10s** |
-| **Prevenție** | 0% | 0% | 70% | **90%** |
-| **Predicție** | ❌ | ❌ | ❌ | **✅ 2h înainte** |
-| **Multi-region** | ❌ | ❌ | ❌ | **✅ <100ms** |
-| **False positives** | 10% | 5% | 1% | **0%** |
-| **Cost** | $0 | $0 | $0 | **$0-5/lună** |
+| Metric              | Normal | Extreme | Ultimate | **PERFECT**       |
+| ------------------- | ------ | ------- | -------- | ----------------- |
+| **Downtime/lună**   | 43 min | 4.3 min | 1.3 min  | **<30 secunde**   |
+| **Detection**       | 20s    | 5s      | 5s       | **1s**            |
+| **Recovery**        | 5 min  | 90s     | 30s      | **<10s**          |
+| **Prevenție**       | 0%     | 0%      | 70%      | **90%**           |
+| **Predicție**       | ❌     | ❌      | ❌       | **✅ 2h înainte** |
+| **Multi-region**    | ❌     | ❌      | ❌       | **✅ <100ms**     |
+| **False positives** | 10%    | 5%      | 1%       | **0%**            |
+| **Cost**            | $0     | $0      | $0       | **$0-5/lună**     |
 
 ---
 
@@ -170,12 +170,14 @@ Railway va detecta automat și va deploy-a.
 ## 💰 COST
 
 **PERFECT Monitor:**
+
 - Base features: **$0**
 - Multi-region: **$0** (Railway free tier)
 - Auto-scaling: **$0-5/lună** (doar când scalează)
 - **TOTAL: $0-5/lună**
 
 **Worth it?** ABSOLUT! Pentru:
+
 - **<30s downtime/lună** (vs 1.3 min)
 - **90% prevenție** (vs 70%)
 - **Predicție 2h înainte**
@@ -187,90 +189,100 @@ Railway va detecta automat și va deploy-a.
 
 ### **Downtime/an:**
 
-| Versiune | Downtime/an | Ore pierdute |
-|----------|-------------|--------------|
-| Normal | 8.6 ore | 8.6 |
-| Extreme | 52 min | 0.87 |
-| Ultimate | 15.6 min | 0.26 |
-| **PERFECT** | **<6 min** | **<0.1** |
+| Versiune    | Downtime/an | Ore pierdute |
+| ----------- | ----------- | ------------ |
+| Normal      | 8.6 ore     | 8.6          |
+| Extreme     | 52 min      | 0.87         |
+| Ultimate    | 15.6 min    | 0.26         |
+| **PERFECT** | **<6 min**  | **<0.1**     |
 
 ### **Prevenție:**
 
-| Versiune | Failures/lună | Previne | Pică efectiv |
-|----------|---------------|---------|--------------|
-| Normal | 10 | 0 (0%) | 10 |
-| Extreme | 10 | 0 (0%) | 10 |
-| Ultimate | 10 | 7 (70%) | 3 |
-| **PERFECT** | **10** | **9 (90%)** | **1** |
+| Versiune    | Failures/lună | Previne     | Pică efectiv |
+| ----------- | ------------- | ----------- | ------------ |
+| Normal      | 10            | 0 (0%)      | 10           |
+| Extreme     | 10            | 0 (0%)      | 10           |
+| Ultimate    | 10            | 7 (70%)     | 3            |
+| **PERFECT** | **10**        | **9 (90%)** | **1**        |
 
 ### **Recovery:**
 
-| Versiune | Detection | Failover | Repair | Total |
-|----------|-----------|----------|--------|-------|
-| Normal | 20s | 60s | 5 min | ~6 min |
-| Extreme | 5s | <1s | 90s | ~2 min |
-| Ultimate | 5s | <1s | 30s | ~40s |
-| **PERFECT** | **1s** | **<0.1s** | **<10s** | **<15s** |
+| Versiune    | Detection | Failover  | Repair   | Total    |
+| ----------- | --------- | --------- | -------- | -------- |
+| Normal      | 20s       | 60s       | 5 min    | ~6 min   |
+| Extreme     | 5s        | <1s       | 90s      | ~2 min   |
+| Ultimate    | 5s        | <1s       | 30s      | ~40s     |
+| **PERFECT** | **1s**    | **<0.1s** | **<10s** | **<15s** |
 
 ---
 
 ## 🎯 FEATURES BREAKDOWN
 
 ### **1. AI Prediction (🔮)**
+
 - Analizează trend-uri
 - Prevede cu 2h înainte
 - Linear regression
 - 85%+ confidence
 
 ### **2. Multi-Region (🌍)**
+
 - 3 regions: US West, US East, EU West
 - Failover <100ms
 - Auto-failback
 - Load balancing
 
 ### **3. Distributed (🌐)**
+
 - 3 monitoare independente
 - Consensus 2/3
 - Zero false positives
 - Redundanță completă
 
 ### **4. Quantum (⚡)**
+
 - Health checks la 1s
 - 5x mai rapid
 - Adaptive checking
 - Component-specific
 
 ### **5. Auto-Scaling (📈)**
+
 - Detectează load
 - Scale up/down automat
 - Predictive scaling
 - Cost optimization
 
 ### **6. AI Learning (🧠)**
+
 - Pattern recognition
 - Traffic patterns
 - Behavior analysis
 - Continuous improvement
 
 ### **7. Zero-Downtime (🚀)**
+
 - Blue-green deployment
 - Traffic shadowing
 - Instant rollback
 - 0ms downtime
 
 ### **8. Self-Optimization (⚙️)**
+
 - Auto-tune thresholds
 - Adaptive config
 - Performance optimization
 - Zero manual tuning
 
 ### **9. Advanced Diagnostics (🔬)**
+
 - 50+ failure types
 - Root cause analysis
 - Specific fixes
 - Detailed logging
 
 ### **10. Dashboard (📊)**
+
 - Real-time metrics
 - Live graphs
 - Predictions view

@@ -38,7 +38,7 @@ export default function CentralaTelefonicaScreen() {
       const response = await fetch(`${BACKEND_URL}/api/voice/token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identity })
+        body: JSON.stringify({ identity }),
       });
 
       const data = await response.json();
@@ -50,7 +50,7 @@ export default function CentralaTelefonicaScreen() {
       // Create Twilio Device
       const device = new Device(data.token, {
         logLevel: 1,
-        codecPreferences: ['opus', 'pcmu']
+        codecPreferences: ['opus', 'pcmu'],
       });
 
       // Setup device event listeners
@@ -58,11 +58,11 @@ export default function CentralaTelefonicaScreen() {
         console.log('✅ Twilio Device registered');
       });
 
-      device.on('error', (error) => {
+      device.on('error', error => {
         console.error('❌ Twilio Device error:', error);
       });
 
-      device.on('incoming', (connection) => {
+      device.on('incoming', connection => {
         console.log('📞 Incoming Twilio call');
         setActiveConnection(connection);
 
@@ -110,22 +110,20 @@ export default function CentralaTelefonicaScreen() {
     });
 
     // Listen for incoming calls
-    socketInstance.on('call:incoming', (callData) => {
+    socketInstance.on('call:incoming', callData => {
       console.log('📞 Incoming call:', callData);
       setIncomingCall(callData);
       setActiveCalls(prev => [...prev, callData]);
     });
 
     // Listen for call status updates
-    socketInstance.on('call:status', (callData) => {
+    socketInstance.on('call:status', callData => {
       console.log('📊 Call status update:', callData);
-      setActiveCalls(prev => 
-        prev.map(call => call.callId === callData.callId ? callData : call)
-      );
+      setActiveCalls(prev => prev.map(call => (call.callId === callData.callId ? callData : call)));
     });
 
     // Listen for call ended
-    socketInstance.on('call:ended', (callData) => {
+    socketInstance.on('call:ended', callData => {
       console.log('✕ Call ended:', callData);
       setActiveCalls(prev => prev.filter(call => call.callId !== callData.callId));
       if (incomingCall?.callId === callData.callId) {
@@ -189,7 +187,7 @@ export default function CentralaTelefonicaScreen() {
     }
   };
 
-  const answerCall = async (callId) => {
+  const answerCall = async callId => {
     if (!activeConnection) {
       console.error('No active connection to answer');
       return;
@@ -197,7 +195,7 @@ export default function CentralaTelefonicaScreen() {
 
     try {
       setIsConnecting(true);
-      
+
       // Accept the Twilio connection (this enables audio)
       activeConnection.accept();
 
@@ -205,7 +203,7 @@ export default function CentralaTelefonicaScreen() {
       if (socket) {
         socket.emit('call:answer', {
           callId,
-          operatorId: auth.currentUser?.uid || 'unknown'
+          operatorId: auth.currentUser?.uid || 'unknown',
         });
       }
 
@@ -217,7 +215,7 @@ export default function CentralaTelefonicaScreen() {
     }
   };
 
-  const rejectCall = (callId) => {
+  const rejectCall = callId => {
     if (activeConnection) {
       activeConnection.reject();
     }
@@ -225,7 +223,7 @@ export default function CentralaTelefonicaScreen() {
     if (socket) {
       socket.emit('call:reject', {
         callId,
-        reason: 'rejected_by_operator'
+        reason: 'rejected_by_operator',
       });
     }
 
@@ -243,7 +241,7 @@ export default function CentralaTelefonicaScreen() {
   const playRecording = async (callId, uniqueId) => {
     try {
       setPlayingRecording(uniqueId || callId);
-      
+
       // Use proxy endpoint that handles Twilio auth
       const audioUrl = `${BACKEND_URL}/api/voice/calls/${callId}/recording/audio`;
       console.log('Playing recording from:', audioUrl);
@@ -252,17 +250,17 @@ export default function CentralaTelefonicaScreen() {
       const audio = new Audio();
       audioRef.current = audio;
       audio.src = audioUrl;
-      
+
       audio.onended = () => {
         setPlayingRecording(null);
       };
-      
-      audio.onerror = (e) => {
+
+      audio.onerror = e => {
         console.error('Audio playback error:', e);
         alert('Eroare la redarea înregistrării. Verifică că înregistrarea este disponibilă.');
         setPlayingRecording(null);
       };
-      
+
       await audio.play();
     } catch (error) {
       console.error('Error playing recording:', error);
@@ -279,16 +277,16 @@ export default function CentralaTelefonicaScreen() {
     setPlayingRecording(null);
   };
 
-  const formatDuration = (seconds) => {
+  const formatDuration = seconds => {
     if (!seconds) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${String(secs).padStart(2, '0')}`;
   };
 
-  const formatDate = (dateString) => {
+  const formatDate = dateString => {
     if (!dateString) return '-';
-    
+
     try {
       // Handle Firestore Timestamp format
       let date;
@@ -302,19 +300,19 @@ export default function CentralaTelefonicaScreen() {
         console.error('Unknown date format:', dateString);
         return '-';
       }
-      
+
       // Check if date is valid
       if (isNaN(date.getTime())) {
         console.error('Invalid date:', dateString);
         return '-';
       }
-      
+
       return date.toLocaleString('ro-RO', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
       });
     } catch (error) {
       console.error('Error formatting date:', error, dateString);
@@ -323,7 +321,13 @@ export default function CentralaTelefonicaScreen() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: '20px' }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        padding: '20px',
+      }}
+    >
       {/* Header */}
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '30px' }}>
@@ -337,7 +341,7 @@ export default function CentralaTelefonicaScreen() {
               color: 'white',
               fontSize: '20px',
               cursor: 'pointer',
-              transition: 'all 0.3s'
+              transition: 'all 0.3s',
             }}
           >
             ←
@@ -349,29 +353,35 @@ export default function CentralaTelefonicaScreen() {
 
         {/* Active Call with Audio */}
         {activeConnection && !incomingCall && (
-          <div style={{
-            position: 'fixed',
-            bottom: '20px',
-            right: '20px',
-            background: 'white',
-            borderRadius: '15px',
-            padding: '20px',
-            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
-            zIndex: 9999,
-            minWidth: '300px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px' }}>
-              <div style={{
-                width: '50px',
-                height: '50px',
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '24px',
-                animation: 'pulse 2s ease-in-out infinite'
-              }}>
+          <div
+            style={{
+              position: 'fixed',
+              bottom: '20px',
+              right: '20px',
+              background: 'white',
+              borderRadius: '15px',
+              padding: '20px',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3)',
+              zIndex: 9999,
+              minWidth: '300px',
+            }}
+          >
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px' }}
+            >
+              <div
+                style={{
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '24px',
+                  animation: 'pulse 2s ease-in-out infinite',
+                }}
+              >
                 📞
               </div>
               <div style={{ flex: 1 }}>
@@ -395,7 +405,7 @@ export default function CentralaTelefonicaScreen() {
                 fontSize: '16px',
                 fontWeight: '600',
                 cursor: 'pointer',
-                boxShadow: '0 4px 15px rgba(235, 51, 73, 0.3)'
+                boxShadow: '0 4px 15px rgba(235, 51, 73, 0.3)',
               }}
             >
               🔴 Închide Apelul
@@ -405,39 +415,45 @@ export default function CentralaTelefonicaScreen() {
 
         {/* Incoming Call Modal */}
         {incomingCall && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10000
-          }}>
-            <div style={{
-              background: 'white',
-              borderRadius: '20px',
-              padding: '40px',
-              maxWidth: '400px',
-              width: '90%',
-              textAlign: 'center',
-              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
-            }}>
-              <div style={{
-                width: '100px',
-                height: '100px',
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                margin: '0 auto 20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '48px',
-                animation: 'pulse 2s ease-in-out infinite'
-              }}>
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 10000,
+            }}
+          >
+            <div
+              style={{
+                background: 'white',
+                borderRadius: '20px',
+                padding: '40px',
+                maxWidth: '400px',
+                width: '90%',
+                textAlign: 'center',
+                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+              }}
+            >
+              <div
+                style={{
+                  width: '100px',
+                  height: '100px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  margin: '0 auto 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '48px',
+                  animation: 'pulse 2s ease-in-out infinite',
+                }}
+              >
                 📞
               </div>
               <h2 style={{ fontSize: '24px', marginBottom: '10px', color: '#333' }}>
@@ -446,7 +462,14 @@ export default function CentralaTelefonicaScreen() {
               <p style={{ fontSize: '18px', color: '#666', marginBottom: '20px' }}>
                 {incomingCall.from}
               </p>
-              <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', marginTop: '30px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '20px',
+                  justifyContent: 'center',
+                  marginTop: '30px',
+                }}
+              >
                 <button
                   onClick={() => answerCall(incomingCall.callId)}
                   style={{
@@ -458,7 +481,7 @@ export default function CentralaTelefonicaScreen() {
                     color: 'white',
                     fontSize: '28px',
                     cursor: 'pointer',
-                    boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)'
+                    boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)',
                   }}
                 >
                   ✓
@@ -474,7 +497,7 @@ export default function CentralaTelefonicaScreen() {
                     color: 'white',
                     fontSize: '28px',
                     cursor: 'pointer',
-                    boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)'
+                    boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)',
                   }}
                 >
                   ✕
@@ -486,64 +509,132 @@ export default function CentralaTelefonicaScreen() {
 
         {/* Statistics Cards */}
         {callStats && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-            <div style={{ background: 'white', borderRadius: '15px', padding: '20px', boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)' }}>
-              <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Total Apeluri</div>
-              <div style={{ fontSize: '32px', fontWeight: '700', color: '#667eea' }}>{callStats.total}</div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+              gap: '20px',
+              marginBottom: '30px',
+            }}
+          >
+            <div
+              style={{
+                background: 'white',
+                borderRadius: '15px',
+                padding: '20px',
+                boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)',
+              }}
+            >
+              <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>
+                Total Apeluri
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: '700', color: '#667eea' }}>
+                {callStats.total}
+              </div>
             </div>
-            <div style={{ background: 'white', borderRadius: '15px', padding: '20px', boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)' }}>
+            <div
+              style={{
+                background: 'white',
+                borderRadius: '15px',
+                padding: '20px',
+                boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)',
+              }}
+            >
               <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Răspunse</div>
-              <div style={{ fontSize: '32px', fontWeight: '700', color: '#10b981' }}>{callStats.answered}</div>
+              <div style={{ fontSize: '32px', fontWeight: '700', color: '#10b981' }}>
+                {callStats.answered}
+              </div>
             </div>
-            <div style={{ background: 'white', borderRadius: '15px', padding: '20px', boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)' }}>
+            <div
+              style={{
+                background: 'white',
+                borderRadius: '15px',
+                padding: '20px',
+                boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)',
+              }}
+            >
               <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Pierdute</div>
-              <div style={{ fontSize: '32px', fontWeight: '700', color: '#ef4444' }}>{callStats.missed}</div>
+              <div style={{ fontSize: '32px', fontWeight: '700', color: '#ef4444' }}>
+                {callStats.missed}
+              </div>
             </div>
-            <div style={{ background: 'white', borderRadius: '15px', padding: '20px', boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)' }}>
-              <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>Durata Medie</div>
-              <div style={{ fontSize: '32px', fontWeight: '700', color: '#f59e0b' }}>{formatDuration(callStats.avgDuration)}</div>
+            <div
+              style={{
+                background: 'white',
+                borderRadius: '15px',
+                padding: '20px',
+                boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)',
+              }}
+            >
+              <div style={{ fontSize: '14px', color: '#666', marginBottom: '8px' }}>
+                Durata Medie
+              </div>
+              <div style={{ fontSize: '32px', fontWeight: '700', color: '#f59e0b' }}>
+                {formatDuration(callStats.avgDuration)}
+              </div>
             </div>
           </div>
         )}
 
         {/* Active Calls */}
         {activeCalls.length > 0 && (
-          <div style={{ background: 'white', borderRadius: '15px', padding: '20px', marginBottom: '30px', boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '15px', color: '#333' }}>
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '15px',
+              padding: '20px',
+              marginBottom: '30px',
+              boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)',
+            }}
+          >
+            <h3
+              style={{ fontSize: '18px', fontWeight: '700', marginBottom: '15px', color: '#333' }}
+            >
               📞 Apeluri Active ({activeCalls.length})
             </h3>
             {activeCalls.map(call => (
-              <div key={call.callId} style={{
-                padding: '15px',
-                borderBottom: '1px solid #f0f0f0',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '15px'
-              }}>
-                <div style={{
-                  width: '45px',
-                  height: '45px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              <div
+                key={call.callId}
+                style={{
+                  padding: '15px',
+                  borderBottom: '1px solid #f0f0f0',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '20px'
-                }}>
+                  gap: '15px',
+                }}
+              >
+                <div
+                  style={{
+                    width: '45px',
+                    height: '45px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '20px',
+                  }}
+                >
                   📞
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: '600', color: '#333', fontSize: '14px' }}>{call.from}</div>
-                  <div style={{ fontSize: '12px', color: '#666', marginTop: '3px' }}>{call.status}</div>
+                  <div style={{ fontWeight: '600', color: '#333', fontSize: '14px' }}>
+                    {call.from}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: '3px' }}>
+                    {call.status}
+                  </div>
                 </div>
-                <div style={{
-                  fontSize: '11px',
-                  padding: '3px 8px',
-                  borderRadius: '10px',
-                  background: call.status === 'in-progress' ? '#e8f5e9' : '#fff3e0',
-                  color: call.status === 'in-progress' ? '#388e3c' : '#f57c00',
-                  fontWeight: '500'
-                }}>
+                <div
+                  style={{
+                    fontSize: '11px',
+                    padding: '3px 8px',
+                    borderRadius: '10px',
+                    background: call.status === 'in-progress' ? '#e8f5e9' : '#fff3e0',
+                    color: call.status === 'in-progress' ? '#388e3c' : '#f57c00',
+                    fontWeight: '500',
+                  }}
+                >
                   {call.status === 'in-progress' ? '📞 În curs' : '🔔 Sună'}
                 </div>
               </div>
@@ -552,7 +643,14 @@ export default function CentralaTelefonicaScreen() {
         )}
 
         {/* Recent Calls */}
-        <div style={{ background: 'white', borderRadius: '15px', padding: '20px', boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)' }}>
+        <div
+          style={{
+            background: 'white',
+            borderRadius: '15px',
+            padding: '20px',
+            boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)',
+          }}
+        >
           <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '15px', color: '#333' }}>
             📋 Istoric Apeluri
           </h3>
@@ -560,28 +658,86 @@ export default function CentralaTelefonicaScreen() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #f0f0f0' }}>
-                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', color: '#666', fontWeight: '600' }}>Data</th>
-                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', color: '#666', fontWeight: '600' }}>Număr</th>
-                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', color: '#666', fontWeight: '600' }}>Durata</th>
-                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', color: '#666', fontWeight: '600' }}>Status</th>
-                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', color: '#666', fontWeight: '600' }}>Înregistrare</th>
+                  <th
+                    style={{
+                      padding: '12px',
+                      textAlign: 'left',
+                      fontSize: '12px',
+                      color: '#666',
+                      fontWeight: '600',
+                    }}
+                  >
+                    Data
+                  </th>
+                  <th
+                    style={{
+                      padding: '12px',
+                      textAlign: 'left',
+                      fontSize: '12px',
+                      color: '#666',
+                      fontWeight: '600',
+                    }}
+                  >
+                    Număr
+                  </th>
+                  <th
+                    style={{
+                      padding: '12px',
+                      textAlign: 'left',
+                      fontSize: '12px',
+                      color: '#666',
+                      fontWeight: '600',
+                    }}
+                  >
+                    Durata
+                  </th>
+                  <th
+                    style={{
+                      padding: '12px',
+                      textAlign: 'left',
+                      fontSize: '12px',
+                      color: '#666',
+                      fontWeight: '600',
+                    }}
+                  >
+                    Status
+                  </th>
+                  <th
+                    style={{
+                      padding: '12px',
+                      textAlign: 'left',
+                      fontSize: '12px',
+                      color: '#666',
+                      fontWeight: '600',
+                    }}
+                  >
+                    Înregistrare
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {recentCalls.map(call => (
                   <tr key={call.id || call.callId} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                    <td style={{ padding: '12px', fontSize: '14px', color: '#333' }}>{formatDate(call.createdAt)}</td>
-                    <td style={{ padding: '12px', fontSize: '14px', color: '#333' }}>{call.from}</td>
-                    <td style={{ padding: '12px', fontSize: '14px', color: '#333' }}>{formatDuration(call.duration)}</td>
+                    <td style={{ padding: '12px', fontSize: '14px', color: '#333' }}>
+                      {formatDate(call.createdAt)}
+                    </td>
+                    <td style={{ padding: '12px', fontSize: '14px', color: '#333' }}>
+                      {call.from}
+                    </td>
+                    <td style={{ padding: '12px', fontSize: '14px', color: '#333' }}>
+                      {formatDuration(call.duration)}
+                    </td>
                     <td style={{ padding: '12px' }}>
-                      <span style={{
-                        fontSize: '12px',
-                        padding: '4px 8px',
-                        borderRadius: '10px',
-                        background: call.status === 'completed' ? '#e8f5e9' : '#fee2e2',
-                        color: call.status === 'completed' ? '#388e3c' : '#dc2626',
-                        fontWeight: '500'
-                      }}>
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          padding: '4px 8px',
+                          borderRadius: '10px',
+                          background: call.status === 'completed' ? '#e8f5e9' : '#fee2e2',
+                          color: call.status === 'completed' ? '#388e3c' : '#dc2626',
+                          fontWeight: '500',
+                        }}
+                      >
                         {call.status === 'completed' ? '✓ Finalizat' : '✕ ' + call.status}
                       </span>
                     </td>
@@ -598,7 +754,7 @@ export default function CentralaTelefonicaScreen() {
                               color: 'white',
                               fontSize: '12px',
                               cursor: 'pointer',
-                              fontWeight: '500'
+                              fontWeight: '500',
                             }}
                           >
                             ⏸ Stop
@@ -614,7 +770,7 @@ export default function CentralaTelefonicaScreen() {
                               color: 'white',
                               fontSize: '12px',
                               cursor: 'pointer',
-                              fontWeight: '500'
+                              fontWeight: '500',
                             }}
                           >
                             ▶ Ascultă

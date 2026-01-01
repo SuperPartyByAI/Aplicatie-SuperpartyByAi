@@ -12,18 +12,18 @@ class MonitoringService {
       disconnectsPerHour: 10,
       messageLossRate: 0.01, // 1%
       rateLimitsPerHour: 5,
-      reconnectFailRate: 0.2 // 20%
+      reconnectFailRate: 0.2, // 20%
     };
-    
+
     this.hourlyMetrics = {
       disconnects: 0,
       reconnects: 0,
       reconnectFails: 0,
       messageLoss: 0,
       rateLimits: 0,
-      messagesProcessed: 0
+      messagesProcessed: 0,
     };
-    
+
     this.startMonitoring();
   }
 
@@ -49,7 +49,7 @@ class MonitoringService {
       await firestore.logEvent({
         type,
         data,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
 
       // Update hourly metrics
@@ -95,19 +95,20 @@ class MonitoringService {
     if (this.hourlyMetrics.disconnects > this.alertThresholds.disconnectsPerHour) {
       alerts.push({
         level: 'warning',
-        message: `⚠️ High disconnect rate: ${this.hourlyMetrics.disconnects} disconnects in last hour (threshold: ${this.alertThresholds.disconnectsPerHour})`
+        message: `⚠️ High disconnect rate: ${this.hourlyMetrics.disconnects} disconnects in last hour (threshold: ${this.alertThresholds.disconnectsPerHour})`,
       });
     }
 
     // Check message loss
-    const messageLossRate = this.hourlyMetrics.messagesProcessed > 0
-      ? this.hourlyMetrics.messageLoss / this.hourlyMetrics.messagesProcessed
-      : 0;
-    
+    const messageLossRate =
+      this.hourlyMetrics.messagesProcessed > 0
+        ? this.hourlyMetrics.messageLoss / this.hourlyMetrics.messagesProcessed
+        : 0;
+
     if (messageLossRate > this.alertThresholds.messageLossRate) {
       alerts.push({
         level: 'critical',
-        message: `🚨 High message loss rate: ${(messageLossRate * 100).toFixed(2)}% (threshold: ${(this.alertThresholds.messageLossRate * 100).toFixed(2)}%)`
+        message: `🚨 High message loss rate: ${(messageLossRate * 100).toFixed(2)}% (threshold: ${(this.alertThresholds.messageLossRate * 100).toFixed(2)}%)`,
       });
     }
 
@@ -115,20 +116,19 @@ class MonitoringService {
     if (this.hourlyMetrics.rateLimits > this.alertThresholds.rateLimitsPerHour) {
       alerts.push({
         level: 'warning',
-        message: `⚠️ High rate limit hits: ${this.hourlyMetrics.rateLimits} in last hour (threshold: ${this.alertThresholds.rateLimitsPerHour})`
+        message: `⚠️ High rate limit hits: ${this.hourlyMetrics.rateLimits} in last hour (threshold: ${this.alertThresholds.rateLimitsPerHour})`,
       });
     }
 
     // Check reconnect fail rate
     const totalReconnects = this.hourlyMetrics.reconnects + this.hourlyMetrics.reconnectFails;
-    const reconnectFailRate = totalReconnects > 0
-      ? this.hourlyMetrics.reconnectFails / totalReconnects
-      : 0;
-    
+    const reconnectFailRate =
+      totalReconnects > 0 ? this.hourlyMetrics.reconnectFails / totalReconnects : 0;
+
     if (reconnectFailRate > this.alertThresholds.reconnectFailRate) {
       alerts.push({
         level: 'critical',
-        message: `🚨 High reconnect fail rate: ${(reconnectFailRate * 100).toFixed(2)}% (threshold: ${(this.alertThresholds.reconnectFailRate * 100).toFixed(2)}%)`
+        message: `🚨 High reconnect fail rate: ${(reconnectFailRate * 100).toFixed(2)}% (threshold: ${(this.alertThresholds.reconnectFailRate * 100).toFixed(2)}%)`,
       });
     }
 
@@ -143,12 +143,12 @@ class MonitoringService {
    */
   async sendAlert(alert) {
     console.error(`🚨 ALERT [${alert.level}]:`, alert.message);
-    
+
     // Log to Firestore
     await firestore.logEvent({
       type: 'alert',
       data: alert,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     // TODO: Send email/SMS/Slack notification
@@ -165,7 +165,7 @@ class MonitoringService {
       reconnectFails: 0,
       messageLoss: 0,
       rateLimits: 0,
-      messagesProcessed: 0
+      messagesProcessed: 0,
     };
   }
 
@@ -177,9 +177,9 @@ class MonitoringService {
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
-    
+
     const msUntilMidnight = tomorrow - now;
-    
+
     setTimeout(() => {
       this.generateDailyReport();
       // Schedule next report
@@ -195,14 +195,14 @@ class MonitoringService {
   async generateDailyReport() {
     try {
       const report = await this.manager.generateDailyReport();
-      
+
       console.log('📊 Daily Report Generated:', report);
-      
+
       // Log to Firestore
       await firestore.logEvent({
         type: 'daily_report',
         data: report,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
     } catch (error) {
       console.error('❌ Failed to generate daily report:', error.message);
@@ -220,7 +220,7 @@ class MonitoringService {
       activeConnections: this.manager.clients.size,
       backupConnections: this.manager.backupClients.size,
       queueSize: this.manager.messageQueue.length,
-      batchSize: this.manager.messageBatch.length
+      batchSize: this.manager.messageBatch.length,
     };
   }
 }

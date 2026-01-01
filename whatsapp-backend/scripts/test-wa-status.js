@@ -1,6 +1,6 @@
 /**
  * TEST WA STATUS - Simple HTTP test for Windows
- * 
+ *
  * Tests the status-now endpoint to verify WA stability fields
  */
 
@@ -12,23 +12,23 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'your-admin-token-here';
 function makeRequest(path) {
   return new Promise((resolve, reject) => {
     const url = new URL(path, BASE_URL);
-    
+
     const options = {
       hostname: url.hostname,
       path: url.pathname + url.search,
       method: 'GET',
       headers: {
-        'X-Admin-Token': ADMIN_TOKEN
-      }
+        'X-Admin-Token': ADMIN_TOKEN,
+      },
     };
-    
-    const req = https.request(options, (res) => {
+
+    const req = https.request(options, res => {
       let data = '';
-      
-      res.on('data', (chunk) => {
+
+      res.on('data', chunk => {
         data += chunk;
       });
-      
+
       res.on('end', () => {
         if (res.statusCode === 200) {
           try {
@@ -41,11 +41,11 @@ function makeRequest(path) {
         }
       });
     });
-    
-    req.on('error', (error) => {
+
+    req.on('error', error => {
       reject(error);
     });
-    
+
     req.end();
   });
 }
@@ -57,18 +57,18 @@ async function testWAStatus() {
   console.log(`Base URL: ${BASE_URL}`);
   console.log(`Token: ${ADMIN_TOKEN.substring(0, 10)}...`);
   console.log('');
-  
+
   try {
     console.log('Fetching status-now...');
     const response = await makeRequest('/api/longrun/status-now');
-    
+
     if (!response.success) {
       console.error('❌ Request failed:', response.error);
       return;
     }
-    
+
     console.log('✅ Request successful\n');
-    
+
     // Check WA fields (DoD-WA-1)
     if (response.wa) {
       console.log('=== WA Connection Status (DoD-WA-1) ===');
@@ -82,15 +82,10 @@ async function testWAStatus() {
       console.log(`authKeyCount: ${response.wa.authKeyCount}`);
       console.log(`lockHolder: ${response.wa.lockHolder || 'null'}`);
       console.log('');
-      
+
       // Verify required fields
-      const requiredFields = [
-        'waMode',
-        'waStatus',
-        'retryCount',
-        'authStore'
-      ];
-      
+      const requiredFields = ['waMode', 'waStatus', 'retryCount', 'authStore'];
+
       let allPresent = true;
       console.log('=== Field Verification ===');
       for (const field of requiredFields) {
@@ -101,13 +96,13 @@ async function testWAStatus() {
           allPresent = false;
         }
       }
-      
+
       if (allPresent) {
         console.log('\n✅ DoD-WA-1: All required fields present');
       } else {
         console.log('\n❌ DoD-WA-1: Some fields missing');
       }
-      
+
       // Connection status interpretation
       console.log('\n=== Status Interpretation ===');
       if (response.wa.waMode === 'passive') {
@@ -124,23 +119,21 @@ async function testWAStatus() {
         console.log('❌ WhatsApp NEEDS_PAIRING (logged out)');
         console.log('   QR code scan required');
       }
-      
     } else {
       console.log('❌ No WA status in response');
       console.log('Response keys:', Object.keys(response));
     }
-    
+
     console.log('\n========================================');
     console.log('Full response saved to wa-status.json');
     console.log('========================================');
-    
+
     // Save full response
     const fs = require('fs');
     fs.writeFileSync('wa-status.json', JSON.stringify(response, null, 2));
-    
   } catch (error) {
     console.error('❌ Error:', error.message);
-    
+
     if (error.message.includes('401')) {
       console.error('\n⚠️ Authentication failed. Check ADMIN_TOKEN environment variable.');
     } else if (error.message.includes('ENOTFOUND')) {

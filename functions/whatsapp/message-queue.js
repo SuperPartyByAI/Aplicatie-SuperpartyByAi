@@ -36,13 +36,10 @@ class MessageQueue {
         sentAt: null,
         deliveredAt: null,
         error: null,
-        ...metadata
+        ...metadata,
       };
 
-      await this.db
-        .collection('whatsapp_messages')
-        .doc(messageId)
-        .set(messageDoc);
+      await this.db.collection('whatsapp_messages').doc(messageId).set(messageDoc);
 
       console.log(`📥 [Queue] Message queued: ${messageId} for ${accountId}`);
       return messageId;
@@ -88,7 +85,7 @@ class MessageQueue {
 
       const update = {
         status,
-        ...data
+        ...data,
       };
 
       if (status === 'sending') {
@@ -99,10 +96,7 @@ class MessageQueue {
         update.deliveredAt = new Date().toISOString();
       }
 
-      await this.db
-        .collection('whatsapp_messages')
-        .doc(messageId)
-        .update(update);
+      await this.db.collection('whatsapp_messages').doc(messageId).update(update);
 
       console.log(`📝 [Queue] Message ${messageId} status: ${status}`);
       return true;
@@ -127,7 +121,7 @@ class MessageQueue {
       console.log(`🚀 [Queue] Starting flush for ${accountId}`);
 
       const messages = await this.getQueuedMessages(accountId);
-      
+
       if (messages.length === 0) {
         console.log(`✅ [Queue] No queued messages for ${accountId}`);
         return { success: true, sent: 0, failed: 0 };
@@ -142,7 +136,7 @@ class MessageQueue {
         try {
           // Update status to sending
           await this.updateMessageStatus(msg.messageId, 'sending', {
-            attempts: (msg.attempts || 0) + 1
+            attempts: (msg.attempts || 0) + 1,
           });
 
           // Send message
@@ -150,7 +144,7 @@ class MessageQueue {
 
           // Update status to sent
           await this.updateMessageStatus(msg.messageId, 'sent', {
-            whatsappMessageId: result?.key?.id || null
+            whatsappMessageId: result?.key?.id || null,
           });
 
           sent++;
@@ -158,24 +152,24 @@ class MessageQueue {
 
           // Small delay between messages
           await new Promise(resolve => setTimeout(resolve, 500));
-
         } catch (error) {
           console.error(`❌ [Queue] Failed to send ${msg.messageId}:`, error.message);
 
           // Check if recoverable
-          const isRecoverable = error.message.includes('timeout') || 
-                               error.message.includes('network') ||
-                               error.message.includes('rate');
+          const isRecoverable =
+            error.message.includes('timeout') ||
+            error.message.includes('network') ||
+            error.message.includes('rate');
 
           if (isRecoverable && (msg.attempts || 0) < 3) {
             // Keep as queued for retry
             await this.updateMessageStatus(msg.messageId, 'queued', {
-              error: error.message
+              error: error.message,
             });
           } else {
             // Mark as failed
             await this.updateMessageStatus(msg.messageId, 'failed', {
-              error: error.message
+              error: error.message,
             });
             failed++;
           }
@@ -184,7 +178,6 @@ class MessageQueue {
 
       console.log(`✅ [Queue] Flush complete for ${accountId}: ${sent} sent, ${failed} failed`);
       return { success: true, sent, failed };
-
     } catch (error) {
       console.error(`❌ [Queue] Flush error for ${accountId}:`, error.message);
       return { success: false, error: error.message };

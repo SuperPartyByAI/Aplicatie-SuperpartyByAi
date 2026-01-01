@@ -1,9 +1,9 @@
 /**
  * WA CONNECTION DISTRIBUTED LOCK
- * 
+ *
  * Ensures only ONE instance runs Baileys connection at a time.
  * Other instances run in PASSIVE MODE (no WA connection).
- * 
+ *
  * Lock path: wa_metrics/longrun/locks/wa_connection
  * Lease: 90s, refresh every 30s
  */
@@ -19,7 +19,7 @@ class WAConnectionLock {
     this.refreshIntervalMs = 30000; // 30s
     this.isHolder = false;
     this.refreshTimer = null;
-    
+
     console.log(`[WALock] Initialized for instance: ${instanceId}`);
   }
 
@@ -32,7 +32,7 @@ class WAConnectionLock {
       const now = Date.now();
       const leaseUntil = now + this.leaseDurationMs;
 
-      const result = await this.db.runTransaction(async (transaction) => {
+      const result = await this.db.runTransaction(async transaction => {
         const lockDoc = await transaction.get(lockRef);
 
         if (!lockDoc.exists) {
@@ -41,7 +41,7 @@ class WAConnectionLock {
             holderInstanceId: this.instanceId,
             leaseUntil,
             acquiredAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp()
+            updatedAt: FieldValue.serverTimestamp(),
           });
           return { acquired: true, reason: 'no_existing_lock' };
         }
@@ -56,7 +56,7 @@ class WAConnectionLock {
             leaseUntil,
             acquiredAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
-            previousHolder: lockData.holderInstanceId
+            previousHolder: lockData.holderInstanceId,
           });
           return { acquired: true, reason: 'expired_lock_taken' };
         }
@@ -65,7 +65,7 @@ class WAConnectionLock {
           // We already hold it, refresh
           transaction.update(lockRef, {
             leaseUntil,
-            updatedAt: FieldValue.serverTimestamp()
+            updatedAt: FieldValue.serverTimestamp(),
           });
           return { acquired: true, reason: 'refreshed_own_lock' };
         }
@@ -75,7 +75,7 @@ class WAConnectionLock {
           acquired: false,
           reason: 'held_by_other',
           holder: lockData.holderInstanceId,
-          leaseUntil: currentLeaseUntil
+          leaseUntil: currentLeaseUntil,
         };
       });
 
@@ -86,7 +86,9 @@ class WAConnectionLock {
       } else {
         this.isHolder = false;
         const remainingMs = result.leaseUntil - now;
-        console.log(`[WALock] ❌ Not acquired - held by ${result.holder} (expires in ${Math.round(remainingMs/1000)}s)`);
+        console.log(
+          `[WALock] ❌ Not acquired - held by ${result.holder} (expires in ${Math.round(remainingMs / 1000)}s)`
+        );
       }
 
       return result;
@@ -119,7 +121,7 @@ class WAConnectionLock {
       }
     }, this.refreshIntervalMs);
 
-    console.log(`[WALock] Refresh timer started (every ${this.refreshIntervalMs/1000}s)`);
+    console.log(`[WALock] Refresh timer started (every ${this.refreshIntervalMs / 1000}s)`);
   }
 
   /**
@@ -146,9 +148,9 @@ class WAConnectionLock {
       this.stopRefreshTimer();
 
       const lockRef = this.db.doc(this.lockPath);
-      await this.db.runTransaction(async (transaction) => {
+      await this.db.runTransaction(async transaction => {
         const lockDoc = await transaction.get(lockRef);
-        
+
         if (lockDoc.exists) {
           const lockData = lockDoc.data();
           if (lockData.holderInstanceId === this.instanceId) {
@@ -172,11 +174,11 @@ class WAConnectionLock {
   async getStatus() {
     try {
       const lockDoc = await this.db.doc(this.lockPath).get();
-      
+
       if (!lockDoc.exists) {
         return {
           exists: false,
-          isHolder: this.isHolder
+          isHolder: this.isHolder,
         };
       }
 
@@ -190,7 +192,7 @@ class WAConnectionLock {
         leaseUntil: lockData.leaseUntil,
         isExpired,
         isHolder: this.isHolder,
-        remainingMs: Math.max(0, lockData.leaseUntil - now)
+        remainingMs: Math.max(0, lockData.leaseUntil - now),
       };
     } catch (error) {
       console.error('[WALock] Error getting status:', error);

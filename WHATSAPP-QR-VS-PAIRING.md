@@ -2,10 +2,10 @@
 
 ## Rezumat Executiv
 
-| Metodă | Status | Recomandat | Motiv |
-|--------|--------|------------|-------|
-| **QR Code** | ✅ FUNCȚIONEAZĂ | ✅ DA | Stabil, rapid, fiabil |
-| **Pairing Code** | ❌ NU FUNCȚIONEAZĂ | ❌ NU | Coduri invalide în Cloud Functions |
+| Metodă           | Status             | Recomandat | Motiv                              |
+| ---------------- | ------------------ | ---------- | ---------------------------------- |
+| **QR Code**      | ✅ FUNCȚIONEAZĂ    | ✅ DA      | Stabil, rapid, fiabil              |
+| **Pairing Code** | ❌ NU FUNCȚIONEAZĂ | ❌ NU      | Coduri invalide în Cloud Functions |
 
 ---
 
@@ -14,6 +14,7 @@
 ### Cum Funcționează
 
 1. **Client Request:**
+
 ```bash
 POST /api/whatsapp/add-account
 {
@@ -23,9 +24,10 @@ POST /api/whatsapp/add-account
 ```
 
 2. **Server Process:**
+
 ```javascript
 // Baileys generează QR code
-sock.ev.on('connection.update', async (update) => {
+sock.ev.on('connection.update', async update => {
   if (update.qr) {
     const qrCodeDataUrl = await QRCode.toDataURL(update.qr);
     // Salvează în Firestore
@@ -36,12 +38,14 @@ sock.ev.on('connection.update', async (update) => {
 ```
 
 3. **Client Retrieval:**
+
 ```bash
 GET /api/whatsapp/accounts
 # Răspuns include qrCode: "data:image/png;base64,..."
 ```
 
 4. **User Scans:**
+
 - WhatsApp → Settings → Linked Devices → Link a Device
 - Scanează QR code-ul
 - Conexiune stabilită instant
@@ -86,26 +90,26 @@ GET /api/whatsapp/accounts
 
 ```javascript
 // manager.js - linia ~660
-sock.ev.on('connection.update', async (update) => {
+sock.ev.on('connection.update', async update => {
   const { qr } = update;
-  
+
   if (qr) {
     console.log(`📱 [${accountId}] QR Code generated`);
-    
+
     // Convertește QR string în imagine base64
     const qrCodeDataUrl = await QRCode.toDataURL(qr);
-    
+
     // Salvează în account
     const account = this.accounts.get(accountId);
     if (account) {
       account.qrCode = qrCodeDataUrl;
       account.status = 'qr_ready';
     }
-    
+
     // Emit prin Socket.IO pentru real-time
-    this.io.emit('whatsapp:qr', { 
-      accountId, 
-      qrCode: qrCodeDataUrl 
+    this.io.emit('whatsapp:qr', {
+      accountId,
+      qrCode: qrCodeDataUrl,
     });
   }
 });
@@ -139,6 +143,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ### Cum AR TREBUI să Funcționeze
 
 1. **Client Request:**
+
 ```bash
 POST /api/whatsapp/add-account
 {
@@ -148,6 +153,7 @@ POST /api/whatsapp/add-account
 ```
 
 2. **Server Process:**
+
 ```javascript
 // Baileys generează pairing code
 const code = await sock.requestPairingCode(phoneNumber);
@@ -156,6 +162,7 @@ const code = await sock.requestPairingCode(phoneNumber);
 ```
 
 3. **User Enters:**
+
 - WhatsApp → Settings → Linked Devices → Link with Phone Number
 - Introduce codul
 - Conexiune stabilită
@@ -163,22 +170,25 @@ const code = await sock.requestPairingCode(phoneNumber);
 ### Ce SE ÎNTÂMPLĂ în Realitate ❌
 
 1. **Cod Invalid:**
+
 ```javascript
-const code = await sock.requestPairingCode("40373805828");
+const code = await sock.requestPairingCode('40373805828');
 console.log(code); // "NVY2JECM" - 8 caractere ✅
 // DAR WhatsApp respinge: "Invalid code"
 ```
 
 2. **Cod cu Lungime Greșită:**
+
 ```javascript
-const code = await sock.requestPairingCode("40373805828");
+const code = await sock.requestPairingCode('40373805828');
 console.log(code); // "7W4ART59K" - 9 caractere ❌
 // WhatsApp așteaptă exact 8 caractere
 ```
 
 3. **Cod Expirat:**
+
 ```javascript
-const code = await sock.requestPairingCode("40373805828");
+const code = await sock.requestPairingCode('40373805828');
 // Cod generat: "KMGAYSAW"
 // După 60 secunde: "Code expired"
 ```
@@ -186,6 +196,7 @@ const code = await sock.requestPairingCode("40373805828");
 ### Probleme Identificate
 
 #### 1. Lungime Cod Inconsistentă
+
 ```
 Așteptat: 8 caractere (ex: "ABCD-EFGH")
 Primit:   8-9 caractere (ex: "NVY2JECM" sau "7W4ART59K")
@@ -194,6 +205,7 @@ Primit:   8-9 caractere (ex: "NVY2JECM" sau "7W4ART59K")
 **Cauză:** Baileys generează coduri care nu respectă formatul WhatsApp
 
 #### 2. Validare WhatsApp
+
 ```
 WhatsApp verifică:
 - Lungime exactă: 8 caractere
@@ -205,6 +217,7 @@ WhatsApp verifică:
 **Cauză:** Codurile generate de Baileys nu trec validarea WhatsApp
 
 #### 3. Latență Cloud Functions
+
 ```
 Timp generare cod: ~2-5 secunde
 Timp user introduce cod: ~10-30 secunde
@@ -218,6 +231,7 @@ Marjă de eroare: 15-43 secunde (prea puțin)
 **Cauză:** Latența serverless reduce timpul disponibil pentru introducere cod
 
 #### 4. Format Număr Telefon
+
 ```
 Testat:
 - "40373805828" ❌
@@ -237,17 +251,17 @@ Toate generează coduri invalide
 if (phoneNumber) {
   try {
     console.log(`🔢 [${accountId}] Requesting pairing code for ${phoneNumber}...`);
-    
+
     // PROBLEMĂ: Generează cod invalid
     const code = await sock.requestPairingCode(phoneNumber);
-    
+
     console.log(`🔢 [${accountId}] Pairing code: ${code}`);
     // Output: "NVY2JECM" (8 chars) sau "7W4ART59K" (9 chars)
-    
+
     if (account) {
       account.pairingCode = code;
     }
-    
+
     this.io.emit('whatsapp:pairing_code', { accountId, code });
   } catch (error) {
     console.error(`❌ [${accountId}] Failed to get pairing code:`, error.message);
@@ -307,36 +321,41 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 
 ## 📊 Comparație Detaliată
 
-| Aspect | QR Code | Pairing Code |
-|--------|---------|--------------|
-| **Funcționează în Cloud Functions** | ✅ DA | ❌ NU |
-| **Timp generare** | 2-3s | 2-5s |
-| **Timp expirare** | ~120s | ~60s |
-| **Success rate** | 100% | 0% |
-| **User experience** | Scanare (5s) | Introducere manuală (20s) |
-| **Erori comune** | Niciuna | Invalid code, Expired |
-| **Necesită display** | ✅ DA | ❌ NU |
-| **Automatizabil** | ❌ NU | ✅ DA (teoretic) |
-| **Securitate** | ✅ Înaltă | ✅ Înaltă |
-| **Debugging** | ✅ Ușor | ❌ Dificil |
+| Aspect                              | QR Code      | Pairing Code              |
+| ----------------------------------- | ------------ | ------------------------- |
+| **Funcționează în Cloud Functions** | ✅ DA        | ❌ NU                     |
+| **Timp generare**                   | 2-3s         | 2-5s                      |
+| **Timp expirare**                   | ~120s        | ~60s                      |
+| **Success rate**                    | 100%         | 0%                        |
+| **User experience**                 | Scanare (5s) | Introducere manuală (20s) |
+| **Erori comune**                    | Niciuna      | Invalid code, Expired     |
+| **Necesită display**                | ✅ DA        | ❌ NU                     |
+| **Automatizabil**                   | ❌ NU        | ✅ DA (teoretic)          |
+| **Securitate**                      | ✅ Înaltă    | ✅ Înaltă                 |
+| **Debugging**                       | ✅ Ușor      | ❌ Dificil                |
 
 ---
 
 ## 🎯 Recomandări Finale
 
 ### Pentru Dezvoltare/Testare:
+
 ✅ **Folosește QR Code**
+
 - Funcționează garantat
 - Setup rapid (30 secunde)
 - Nu necesită debugging
 
 ### Pentru Producție:
+
 ⚠️ **NU folosi Baileys**
+
 - Risc de ban WhatsApp
 - Împotriva Terms of Service
 - Nu este suportat oficial
 
 ✅ **Folosește API Oficial:**
+
 1. **Twilio WhatsApp API** - $0.005/mesaj, setup 30 min
 2. **WhatsApp Business API** - Oficial, necesită aprobare
 3. **MessageBird** - Alternativă la Twilio
@@ -348,28 +367,30 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ### De la Pairing Code la QR Code
 
 **Înainte (NU FUNCȚIONEAZĂ):**
+
 ```javascript
 // ❌ NU FOLOSI
 const account = await fetch('/api/whatsapp/add-account', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ 
+  body: JSON.stringify({
     name: 'SuperParty',
-    phone: '40373805828'  // ❌ Generează pairing code invalid
-  })
+    phone: '40373805828', // ❌ Generează pairing code invalid
+  }),
 });
 ```
 
 **După (FUNCȚIONEAZĂ):**
+
 ```javascript
 // ✅ FOLOSEȘTE ASTA
 const account = await fetch('/api/whatsapp/add-account', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ 
-    name: 'SuperParty'
+  body: JSON.stringify({
+    name: 'SuperParty',
     // NU trimite 'phone' - generează QR code
-  })
+  }),
 });
 
 // Așteaptă QR code
@@ -403,6 +424,7 @@ window.open(qrCode); // Deschide în tab nou
 **Pairing codes NU sunt suportate de Baileys în Cloud Functions.**
 
 Motivele:
+
 - Baileys este optimizat pentru WhatsApp Web (desktop)
 - Cloud Functions au environment diferit de desktop
 - WhatsApp mobile are validare mai strictă

@@ -11,6 +11,7 @@
 **STATUS:** ⚠️ PARTIAL SUCCESS - Major improvements implemented, one bug remaining
 
 **Key Achievements:**
+
 - ✅ State machine with timeouts implemented
 - ✅ Logged out detection working
 - ✅ Message queue system implemented
@@ -25,6 +26,7 @@
 ### 1. Reconnect State Machine + Timeout ✅
 
 **Code Changes:**
+
 - `manager.js`: +197 lines
 - Added connection timeout: 30 seconds
 - Max reconnect attempts: 5
@@ -32,6 +34,7 @@
 - MTTR calculation on successful reconnect
 
 **Evidence:**
+
 ```javascript
 // New tracking maps
 this.reconnectAttempts = new Map();
@@ -51,6 +54,7 @@ this.CONNECTION_TIMEOUT_MS = 30000; // 30s per attempt
 ### 2. Fallback to QR/Pairing ⚠️
 
 **Code Changes:**
+
 - Detect `loggedOut` status
 - Set account status to `needs_qr`
 - Log incident to Firestore
@@ -58,6 +62,7 @@ this.CONNECTION_TIMEOUT_MS = 30000; // 30s per attempt
 - Trigger QR regeneration
 
 **Evidence from Logs:**
+
 ```
 2025-12-29T10:57:48.953909Z ? whatsappV3: 📊 [Monitor] Account account_1767002145379 status: logged_out
 2025-12-29T10:57:51.591033Z ? whatsappV3: 📝 [Monitor] Incident logged: logged_out for account_1767002145379
@@ -66,6 +71,7 @@ this.CONNECTION_TIMEOUT_MS = 30000; // 30s per attempt
 ```
 
 **Test Result:** ⚠️ PARTIAL
+
 - ✅ Detection: Works
 - ✅ Status update: Works
 - ✅ Incident logging: Works
@@ -73,12 +79,13 @@ this.CONNECTION_TIMEOUT_MS = 30000; // 30s per attempt
 - ❌ QR generation: Bug (calls addAccount instead of regenerate)
 
 **Bug Details:**
+
 ```javascript
 // Current code (WRONG):
-this.addAccount(account.name, phoneNumber) // Creates NEW account
+this.addAccount(account.name, phoneNumber); // Creates NEW account
 
 // Should be:
-this.regenerateQR(accountId) // Regenerates QR for EXISTING account
+this.regenerateQR(accountId); // Regenerates QR for EXISTING account
 ```
 
 ---
@@ -86,6 +93,7 @@ this.regenerateQR(accountId) // Regenerates QR for EXISTING account
 ### 3. Message Queue (Outbox) ✅
 
 **Code Changes:**
+
 - `message-queue.js`: +223 lines (new file)
 - Queue messages when disconnected
 - Store in Firestore with status tracking
@@ -93,6 +101,7 @@ this.regenerateQR(accountId) // Regenerates QR for EXISTING account
 - Retry logic with backoff
 
 **Implementation:**
+
 ```javascript
 // Queue structure
 {
@@ -113,6 +122,7 @@ this.regenerateQR(accountId) // Regenerates QR for EXISTING account
 ```
 
 **Integration:**
+
 - `sendMessage()`: Auto-queue if not connected
 - `connection.update` (open): Auto-flush after 2s
 - Flush logic: Sequential send with 500ms delay
@@ -124,6 +134,7 @@ this.regenerateQR(accountId) // Regenerates QR for EXISTING account
 ### 4. Monitoring Integration ✅
 
 **Code Changes:**
+
 - `monitor.js`: Already created (previous phase)
 - Integration in manager.js:
   - Update status on connect/disconnect
@@ -132,6 +143,7 @@ this.regenerateQR(accountId) // Regenerates QR for EXISTING account
   - Track alerts
 
 **Evidence:**
+
 ```
 📊 [Monitor] Account account_1767002145379 status: logged_out
 📝 [Monitor] Incident logged: logged_out for account_1767002145379
@@ -147,20 +159,22 @@ this.regenerateQR(accountId) // Regenerates QR for EXISTING account
 ### Cold Start Test (After Fix)
 
 **Procedure:**
+
 1. Deploy fix at 10:52:10 UTC
 2. Wait 30s for cold start
 3. Monitor for 150s
 
 **Results:**
 
-| Time | Account 1 | Account 2 | Account 3 | Account 4 |
-|------|-----------|-----------|-----------|-----------|
-| 0s | connecting | connecting | connecting | connecting |
-| 30s | needs_qr | needs_qr | reconnecting | connecting |
-| 60s | connecting | connecting | connecting | connecting |
-| 150s | connecting | connecting | connecting | connecting |
+| Time | Account 1  | Account 2  | Account 3    | Account 4  |
+| ---- | ---------- | ---------- | ------------ | ---------- |
+| 0s   | connecting | connecting | connecting   | connecting |
+| 30s  | needs_qr   | needs_qr   | reconnecting | connecting |
+| 60s  | connecting | connecting | connecting   | connecting |
+| 150s | connecting | connecting | connecting   | connecting |
 
 **Analysis:**
+
 - ✅ Logged out detected (status changed to needs_qr)
 - ✅ Incidents logged to Firestore
 - ❌ QR not generated (bug in regeneration logic)
@@ -172,27 +186,27 @@ this.regenerateQR(accountId) // Regenerates QR for EXISTING account
 
 ### Before Fix
 
-| Metric | Value |
-|--------|-------|
-| MTTR | ∞ (infinite) |
-| Stuck accounts | 4/4 (100%) |
-| Logged out detection | ❌ No |
-| Fallback to QR | ❌ No |
-| Message queue | ❌ No |
-| Monitoring | ❌ No |
-| Alerts | ❌ No |
+| Metric               | Value        |
+| -------------------- | ------------ |
+| MTTR                 | ∞ (infinite) |
+| Stuck accounts       | 4/4 (100%)   |
+| Logged out detection | ❌ No        |
+| Fallback to QR       | ❌ No        |
+| Message queue        | ❌ No        |
+| Monitoring           | ❌ No        |
+| Alerts               | ❌ No        |
 
 ### After Fix
 
-| Metric | Value |
-|--------|-------|
-| MTTR | Not measured (no valid session) |
-| Stuck accounts | 0/4 (0%) - transitions to needs_qr |
-| Logged out detection | ✅ Yes |
-| Fallback to QR | ⚠️ Partial (detection works, generation has bug) |
-| Message queue | ✅ Yes (implemented, not tested) |
-| Monitoring | ✅ Yes |
-| Alerts | ✅ Yes (Firestore fallback) |
+| Metric               | Value                                            |
+| -------------------- | ------------------------------------------------ |
+| MTTR                 | Not measured (no valid session)                  |
+| Stuck accounts       | 0/4 (0%) - transitions to needs_qr               |
+| Logged out detection | ✅ Yes                                           |
+| Fallback to QR       | ⚠️ Partial (detection works, generation has bug) |
+| Message queue        | ✅ Yes (implemented, not tested)                 |
+| Monitoring           | ✅ Yes                                           |
+| Alerts               | ✅ Yes (Firestore fallback)                      |
 
 ---
 
@@ -205,24 +219,25 @@ this.regenerateQR(accountId) // Regenerates QR for EXISTING account
 **Impact:** Accounts stuck in "connecting" after fallback detection
 
 **Fix Required:**
+
 ```javascript
 // Add new method in manager.js
 async regenerateQR(accountId) {
   const account = this.accounts.get(accountId);
   if (!account) throw new Error('Account not found');
-  
+
   // Clean up old client
   const oldSock = this.clients.get(accountId);
   if (oldSock) {
     try { oldSock.end(); } catch (e) {}
     this.clients.delete(accountId);
   }
-  
+
   // Reset status
   account.status = 'connecting';
   account.qrCode = null;
   account.pairingCode = null;
-  
+
   // Reconnect (will generate QR)
   await this.connectBaileys(accountId, account.phone);
 }
@@ -243,6 +258,7 @@ if (attempts >= this.MAX_RECONNECT_ATTEMPTS) {
 **Problem:** All 4 accounts have invalid/expired sessions
 
 **Impact:** Cannot test:
+
 - Successful reconnect after cold start
 - MTTR measurement
 - Message queue flush
@@ -251,6 +267,7 @@ if (attempts >= this.MAX_RECONNECT_ATTEMPTS) {
 **Fix Required:** Manual QR scan for at least one account
 
 **Steps:**
+
 1. Access UI or use API to get QR code
 2. Scan with WhatsApp on phone +40737571397
 3. Wait for connection
@@ -264,11 +281,11 @@ if (attempts >= this.MAX_RECONNECT_ATTEMPTS) {
 
 ### Files Modified
 
-| File | Lines Added | Lines Removed | Net Change |
-|------|-------------|---------------|------------|
-| manager.js | 203 | 6 | +197 |
-| message-queue.js | 223 | 0 | +223 (new) |
-| **Total** | **426** | **6** | **+420** |
+| File             | Lines Added | Lines Removed | Net Change |
+| ---------------- | ----------- | ------------- | ---------- |
+| manager.js       | 203         | 6             | +197       |
+| message-queue.js | 223         | 0             | +223 (new) |
+| **Total**        | **426**     | **6**         | **+420**   |
 
 ### Commits
 
@@ -327,17 +344,17 @@ if (attempts >= this.MAX_RECONNECT_ATTEMPTS) {
 
 ## Acceptance Criteria Status
 
-| Criteria | Status | Evidence |
-|----------|--------|----------|
-| No stuck accounts | ✅ PASS | Transitions to needs_qr |
-| Reconnect timeout | ✅ PASS | 30s per attempt, 5 max |
-| Logged out detection | ✅ PASS | Logs confirm detection |
-| Fallback to QR | ⚠️ PARTIAL | Detection works, generation has bug |
-| Message queue | ✅ PASS | Implemented, not tested |
-| Monitoring | ✅ PASS | Status tracking works |
-| Alerts | ✅ PASS | Firestore fallback works |
-| MTTR < 60s | ⏳ PENDING | Need valid session to test |
-| Zero message loss | ⏳ PENDING | Need connected account to test |
+| Criteria             | Status     | Evidence                            |
+| -------------------- | ---------- | ----------------------------------- |
+| No stuck accounts    | ✅ PASS    | Transitions to needs_qr             |
+| Reconnect timeout    | ✅ PASS    | 30s per attempt, 5 max              |
+| Logged out detection | ✅ PASS    | Logs confirm detection              |
+| Fallback to QR       | ⚠️ PARTIAL | Detection works, generation has bug |
+| Message queue        | ✅ PASS    | Implemented, not tested             |
+| Monitoring           | ✅ PASS    | Status tracking works               |
+| Alerts               | ✅ PASS    | Firestore fallback works            |
+| MTTR < 60s           | ⏳ PENDING | Need valid session to test          |
+| Zero message loss    | ⏳ PENDING | Need connected account to test      |
 
 **Overall:** 5/9 PASS, 2/9 PARTIAL, 2/9 PENDING
 
@@ -346,6 +363,7 @@ if (attempts >= this.MAX_RECONNECT_ATTEMPTS) {
 ## Conclusion
 
 **Major Progress:** The fix addresses the root causes of cold start failure:
+
 - ✅ State machine prevents infinite stuck states
 - ✅ Timeout ensures transitions happen
 - ✅ Logged out detection works
@@ -354,7 +372,8 @@ if (attempts >= this.MAX_RECONNECT_ATTEMPTS) {
 
 **Remaining Work:** One bug (QR regeneration) and testing with valid session
 
-**Recommendation:** 
+**Recommendation:**
+
 1. Apply QR regeneration fix (15 min)
 2. Connect one account manually (5 min)
 3. Run full test suite (1 hour)

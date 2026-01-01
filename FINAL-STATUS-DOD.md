@@ -7,14 +7,14 @@
 
 ## DoD CHECKLIST
 
-| DoD | Status | Evidence |
-|-----|--------|----------|
-| DoD-1: Deploy + Health OK | ✅ PASS | Health endpoint responds, service live |
-| DoD-2: QR/Pairing REAL | ✅ PASS | QR generated in 30s, 6335 bytes |
-| DoD-3: Min 1 Connected | ⏳ WAITING | QR ready, waiting for manual scan |
-| DoD-4: MTTR < 60s P95 | ⏳ PENDING | Requires connected account |
-| DoD-5: Message Queue 100% | ⏳ PENDING | Requires connected account |
-| DoD-6: Soak Test 2h | ⏳ PENDING | Requires connected account |
+| DoD                       | Status     | Evidence                               |
+| ------------------------- | ---------- | -------------------------------------- |
+| DoD-1: Deploy + Health OK | ✅ PASS    | Health endpoint responds, service live |
+| DoD-2: QR/Pairing REAL    | ✅ PASS    | QR generated in 30s, 6335 bytes        |
+| DoD-3: Min 1 Connected    | ⏳ WAITING | QR ready, waiting for manual scan      |
+| DoD-4: MTTR < 60s P95     | ⏳ PENDING | Requires connected account             |
+| DoD-5: Message Queue 100% | ⏳ PENDING | Requires connected account             |
+| DoD-6: Soak Test 2h       | ⏳ PENDING | Requires connected account             |
 
 **Progress:** 2/6 PASS (33%)
 
@@ -25,11 +25,13 @@
 ### ✅ COMPLETED
 
 **DoD-1: Deploy + Health OK**
+
 - Service: https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3
 - Health: {"status":"healthy","timestamp":1767011726190}
 - Result: PASS
 
 **DoD-2: QR/Pairing REAL**
+
 - Account: account_1767011755513
 - Status: qr_ready
 - QR Length: 6335 bytes
@@ -39,6 +41,7 @@
 ### ⏳ WAITING FOR USER
 
 **DoD-3: Min 1 Connected**
+
 - **ACTION REQUIRED:** Scanează QR pentru accountId=account_1767011755513
 - **Endpoint:** https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3/api/whatsapp/accounts
 - **Instructions:**
@@ -55,6 +58,7 @@
 Once account connects, these will run AUTOMATICALLY:
 
 **DoD-4: MTTR Benchmark**
+
 - Script: scripts/mttr-benchmark-prod.js
 - N=10 reconnections
 - Calculate P50/P90/P95
@@ -62,6 +66,7 @@ Once account connects, these will run AUTOMATICALLY:
 - Auto-start: YES
 
 **DoD-5: Message Queue Test**
+
 - Script: scripts/test-queue-prod.js
 - 3 messages queued while disconnected
 - Verify 100% delivery on reconnect
@@ -69,6 +74,7 @@ Once account connects, these will run AUTOMATICALLY:
 - Auto-start: YES
 
 **DoD-6: Soak Test 2h**
+
 - Script: scripts/soak-prod.js
 - Duration: 2 hours
 - Heartbeat: every 15 min
@@ -80,10 +86,12 @@ Once account connects, these will run AUTOMATICALLY:
 ## EVIDENCE FILES
 
 **Created:**
+
 - artifacts/PROD-DEPLOY-REPORT.md (DoD-1)
 - artifacts/QR-PROD-REPORT.md (DoD-2)
 
 **Pending:**
+
 - artifacts/CONNECTION-REPORT.md (DoD-3)
 - artifacts/MTTR-REPORT.md (DoD-4)
 - artifacts/QUEUE-REPORT.md (DoD-5)

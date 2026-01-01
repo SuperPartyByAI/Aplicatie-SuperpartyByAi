@@ -11,17 +11,19 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // CORS configuration for production
-app.use(cors({
-  origin: [
-    'https://superparty-frontend.web.app',
-    'https://superparty-frontend.firebaseapp.com',
-    'http://localhost:5173',
-    'http://localhost:3000'
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(
+  cors({
+    origin: [
+      'https://superparty-frontend.web.app',
+      'https://superparty-frontend.firebaseapp.com',
+      'http://localhost:5173',
+      'http://localhost:3000',
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 
 app.use(express.json());
 
@@ -48,8 +50,8 @@ app.get('/', (req, res) => {
       'POST /api/whatsapp/add-account',
       'POST /api/whatsapp/send',
       'GET /api/whatsapp/messages',
-      'DELETE /api/whatsapp/accounts/:id'
-    ]
+      'DELETE /api/whatsapp/accounts/:id',
+    ],
   });
 });
 
@@ -63,7 +65,7 @@ app.get('/api/whatsapp/accounts', (req, res) => {
       phone: conn.phone,
       status: conn.status,
       qrCode: conn.qrCode,
-      createdAt: conn.createdAt
+      createdAt: conn.createdAt,
     });
   });
   res.json({ success: true, accounts });
@@ -74,14 +76,14 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
   try {
     const { name, phone } = req.body;
     const accountId = `account_${Date.now()}`;
-    
+
     const sessionPath = path.join(authDir, accountId);
     const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
-    
+
     const sock = makeWASocket({
       auth: state,
       printQRInTerminal: false,
-      logger: pino({ level: 'silent' })
+      logger: pino({ level: 'silent' }),
     });
 
     const account = {
@@ -91,14 +93,14 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
       status: 'connecting',
       qrCode: null,
       sock,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
 
     connections.set(accountId, account);
     messages.set(accountId, []);
 
     // QR Code handler
-    sock.ev.on('connection.update', async (update) => {
+    sock.ev.on('connection.update', async update => {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
@@ -116,59 +118,60 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
 
       if (connection === 'close') {
         console.log(`❌ ${accountId} disconnected - generating new QR`);
-        
+
         // Clean up old session
         const sessionPath = path.join(authDir, accountId);
         if (fs.existsSync(sessionPath)) {
           fs.rmSync(sessionPath, { recursive: true, force: true });
         }
-        
+
         // Create new socket for fresh QR
         (async () => {
-          const { state: newState, saveCreds: newSaveCreds } = await useMultiFileAuthState(sessionPath);
+          const { state: newState, saveCreds: newSaveCreds } =
+            await useMultiFileAuthState(sessionPath);
           const newSock = makeWASocket({
             auth: newState,
             printQRInTerminal: false,
-            logger: pino({ level: 'silent' })
+            logger: pino({ level: 'silent' }),
           });
-          
+
           account.sock = newSock;
           account.status = 'connecting';
           account.qrCode = null;
-          
+
           // Re-attach handlers
-          newSock.ev.on('connection.update', async (update) => {
+          newSock.ev.on('connection.update', async update => {
             const { connection: newConn, qr: newQr } = update;
-            
+
             if (newQr) {
               const qrCode = await QRCode.toDataURL(newQr);
               account.qrCode = qrCode;
               account.status = 'qr_ready';
               console.log(`📱 New QR Code ready for ${accountId}`);
             }
-            
+
             if (newConn === 'open') {
               account.status = 'connected';
               account.qrCode = null;
               console.log(`✅ ${accountId} reconnected`);
             }
           });
-          
+
           newSock.ev.on('creds.update', newSaveCreds);
-          
+
           newSock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
             if (type !== 'notify') return;
-            
+
             for (const msg of newMessages) {
               if (!msg.message) continue;
-              
+
               const messageData = {
                 id: msg.key.id,
                 from: msg.key.remoteJid,
                 fromMe: msg.key.fromMe,
                 text: msg.message?.conversation || msg.message?.extendedTextMessage?.text || '',
                 timestamp: msg.messageTimestamp,
-                createdAt: new Date().toISOString()
+                createdAt: new Date().toISOString(),
               };
 
               const accountMessages = messages.get(accountId) || [];
@@ -185,17 +188,17 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
     // Message handler
     sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
       if (type !== 'notify') return;
-      
+
       for (const msg of newMessages) {
         if (!msg.message) continue;
-        
+
         const messageData = {
           id: msg.key.id,
           from: msg.key.remoteJid,
           fromMe: msg.key.fromMe,
           text: msg.message?.conversation || msg.message?.extendedTextMessage?.text || '',
           timestamp: msg.messageTimestamp,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
         };
 
         const accountMessages = messages.get(accountId) || [];
@@ -220,7 +223,7 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
 app.post('/api/whatsapp/send', async (req, res) => {
   try {
     const { accountId, chatId, message } = req.body;
-    
+
     const account = connections.get(accountId);
     if (!account) {
       return res.status(404).json({ success: false, error: 'Account not found' });
@@ -231,7 +234,7 @@ app.post('/api/whatsapp/send', async (req, res) => {
     }
 
     await account.sock.sendMessage(chatId, { text: message });
-    
+
     console.log(`📤 [${accountId}] Message sent to ${chatId}`);
     res.json({ success: true });
   } catch (error) {
@@ -251,18 +254,18 @@ app.get('/api/whatsapp/messages', (req, res) => {
 app.delete('/api/whatsapp/accounts/:id', (req, res) => {
   const { id } = req.params;
   const account = connections.get(id);
-  
+
   if (account) {
     account.sock.end();
     connections.delete(id);
     messages.delete(id);
-    
+
     // Delete session files
     const sessionPath = path.join(authDir, id);
     if (fs.existsSync(sessionPath)) {
       fs.rmSync(sessionPath, { recursive: true, force: true });
     }
-    
+
     res.json({ success: true });
   } else {
     res.status(404).json({ success: false, error: 'Account not found' });

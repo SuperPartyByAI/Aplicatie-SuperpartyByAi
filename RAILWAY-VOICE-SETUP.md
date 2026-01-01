@@ -46,12 +46,14 @@ Railway va redeploya automat în ~2-3 minute.
 Sună la: **+1 (218) 220-4425**
 
 Ar trebui să auzi:
+
 - "Bună ziua, SuperParty, cu ce vă ajut?" (cu vocea Kasya)
 - AI-ul te va întreba despre rezervare
 
 ## ✅ Verificare
 
 După deploy, verifică logs-urile în Railway:
+
 - Ar trebui să vezi: `🚀 SuperParty Backend - WhatsApp + Voice`
 - Ar trebui să vezi: `Server running on port 5001`
 - Ar trebui să vezi: `Voice: Kasya (Coqui XTTS)`

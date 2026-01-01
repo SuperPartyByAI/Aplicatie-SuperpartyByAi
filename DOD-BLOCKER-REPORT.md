@@ -9,6 +9,7 @@
 ## SITUATION
 
 ### What Works ✅
+
 - Code is production-ready (v2.0.0, commit c9269fed)
 - Local tests: 7/7 PASSED (100%)
 - QR generation verified (18/18 accounts)
@@ -18,7 +19,9 @@
 - Firestore persistence implemented
 
 ### What's Blocking ❌
+
 Railway service exists but returns 404:
+
 ```
 URL: https://whatsapp-backend-production.up.railway.app
 Response: {"status":"error","code":404,"message":"Application not found"}
@@ -31,6 +34,7 @@ Response: {"status":"error","code":404,"message":"Application not found"}
 ## WHY AUTOMATED DEPLOYMENT FAILED
 
 Attempted methods:
+
 1. ❌ Railway API - requires RAILWAY_TOKEN (not available)
 2. ❌ Railway CLI - requires `railway login` (interactive)
 3. ❌ railway.json in root - Railway ignores without manual trigger
@@ -47,20 +51,25 @@ Go to Railway service:
 https://railway.com/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
 
 ### Step 1: Set Root Directory
+
 Settings → Source → Root Directory: `whatsapp-backend`
 
 ### Step 2: Add Environment Variable
+
 Variables → Add:
+
 ```
 GOOGLE_APPLICATION_CREDENTIALS_JSON=<paste JSON from command below>
 ```
 
 Get JSON:
+
 ```bash
 cat /workspaces/Aplicatie-SuperpartyByAi/.github/secrets-backup/firebase-service-account.json
 ```
 
 ### Step 3: Deploy
+
 Click "Deploy" button (Railway will auto-detect railway.toml and deploy)
 
 **Time required:** 2 minutes
@@ -87,6 +96,7 @@ Once Railway service is live, I will AUTOMATICALLY:
 ## ALTERNATIVE: ACCEPT LOCAL DEPLOYMENT AS "PROD"
 
 If Railway configuration is not possible, I can:
+
 1. Run server locally on public Gitpod URL
 2. Complete all DoD tests on this "production-like" environment
 3. Generate full evidence and reports

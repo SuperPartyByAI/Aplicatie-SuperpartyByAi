@@ -9,8 +9,9 @@
 ## ISSUE IDENTIFIED
 
 Railway service exists and has a domain, but returns 404 error:
+
 ```json
-{"status":"error","code":404,"message":"Application not found"}
+{ "status": "error", "code": 404, "message": "Application not found" }
 ```
 
 **Root Cause:** Service root directory not set to `whatsapp-backend`

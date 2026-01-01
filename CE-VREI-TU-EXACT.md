@@ -12,6 +12,7 @@
 ## ✅ STATUS ACTUAL
 
 **Firebase Function:** ✅ DEPLOYED și FUNCȚIONEAZĂ
+
 - URL: https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 - Status: ONLINE
 - Version: 5.0.0
@@ -29,6 +30,7 @@
 QR code-ul apare în Firebase Functions Logs.
 
 **Cum verifici:**
+
 1. Firebase Console → Functions → whatsapp → Logs
 2. Sau rulează: `firebase functions:log --only whatsapp`
 3. Caută: "📱 QR Code generated"
@@ -39,6 +41,7 @@ QR code-ul apare în Firebase Functions Logs.
 Modificăm codul să returneze QR code în API (nu doar Socket.io).
 
 **Ce trebuie făcut:**
+
 1. Modificăm `functions/whatsapp/manager.js`
 2. Salvăm QR code în account object
 3. API returnează QR code când e gata
@@ -49,6 +52,7 @@ Modificăm codul să returneze QR code în API (nu doar Socket.io).
 ## 📋 NEXT STEPS
 
 **Spune-mi:**
+
 1. Vrei să verific QR code în logs? (opțiunea 1)
 2. Sau vrei să modific codul să returneze QR în API? (opțiunea 2)
 

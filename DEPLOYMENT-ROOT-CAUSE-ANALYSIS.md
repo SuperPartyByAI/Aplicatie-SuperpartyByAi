@@ -3,15 +3,18 @@
 ## 📊 Observed Symptoms
 
 1. **Deployment Error:**
+
    ```
    !  functions: failed to update function projects/superparty-frontend/locations/us-central1/functions/whatsapp
    Failed to update function projects/superparty-frontend/locations/us-central1/functions/whatsapp
    ```
 
 2. **Firebase CLI Issue:**
+
    ```
    error: unknown option '--limit'
    ```
+
    - Firebase CLI version may be outdated or command syntax incorrect
 
 3. **Function Status:**
@@ -55,6 +58,7 @@ firebase functions:list
 ```
 
 This will show:
+
 - Current deployed version
 - Function state (ACTIVE, DEPLOYING, FAILED)
 - Last deployment time
@@ -69,6 +73,7 @@ gcloud projects get-iam-policy superparty-frontend --flatten="bindings[].members
 ```
 
 Required roles:
+
 - `roles/cloudfunctions.developer` or
 - `roles/editor` or
 - `roles/owner`
@@ -83,6 +88,7 @@ npm list --depth=0
 ```
 
 Check for:
+
 - Large dependencies (>100MB total can cause issues)
 - Deprecated packages
 - Conflicting versions
@@ -105,17 +111,20 @@ This checks for syntax errors without running the function.
 ### 1. **Outdated Firebase CLI**
 
 **Symptoms:**
+
 - Unknown option errors
 - Deployment failures without details
 - Inconsistent behavior
 
 **Diagnosis:**
+
 ```cmd
 firebase --version
 npm list -g firebase-tools
 ```
 
 **Solution:**
+
 ```cmd
 npm install -g firebase-tools@latest
 firebase login --reauth
@@ -126,11 +135,13 @@ firebase login --reauth
 ### 2. **Function Size Exceeds Limits**
 
 **Limits:**
+
 - Source code: 100MB (compressed)
 - Deployed code: 500MB (uncompressed)
 - Dependencies: Should be <50MB for optimal performance
 
 **Diagnosis:**
+
 ```cmd
 cd functions
 npm run build
@@ -139,6 +150,7 @@ du -sh node_modules
 ```
 
 **Solution:**
+
 - Remove unused dependencies
 - Use `.gcloudignore` to exclude unnecessary files
 - Split into multiple smaller functions
@@ -148,11 +160,13 @@ du -sh node_modules
 ### 3. **Concurrent Deployment Conflict**
 
 **Symptoms:**
+
 - Deployment fails without clear error
 - Function shows as "DEPLOYING" for extended time
 - Previous deployment didn't complete
 
 **Diagnosis:**
+
 ```cmd
 firebase functions:list
 ```
@@ -160,6 +174,7 @@ firebase functions:list
 Look for state: `DEPLOYING` or `UPDATING`
 
 **Solution:**
+
 - Wait for previous deployment to complete (timeout: 10 minutes)
 - If stuck, contact Firebase support to unlock
 
@@ -168,17 +183,20 @@ Look for state: `DEPLOYING` or `UPDATING`
 ### 4. **IAM Permission Issues**
 
 **Symptoms:**
+
 - "Permission denied" errors
 - "Caller does not have permission"
 - Deployment fails at upload stage
 
 **Diagnosis:**
+
 ```cmd
 gcloud auth list
 gcloud projects get-iam-policy superparty-frontend
 ```
 
 **Solution:**
+
 - Verify account has `cloudfunctions.developer` role
 - Re-authenticate: `firebase login --reauth`
 - Check project permissions in Google Cloud Console
@@ -188,12 +206,14 @@ gcloud projects get-iam-policy superparty-frontend
 ### 5. **Runtime Version Mismatch**
 
 **Symptoms:**
+
 - Deployment succeeds but function doesn't start
 - Runtime errors in logs
 - "Node.js version not supported"
 
 **Diagnosis:**
 Check `functions/package.json`:
+
 ```json
 {
   "engines": {
@@ -203,6 +223,7 @@ Check `functions/package.json`:
 ```
 
 Check `firebase.json`:
+
 ```json
 {
   "functions": {
@@ -212,6 +233,7 @@ Check `firebase.json`:
 ```
 
 **Solution:**
+
 - Ensure both files specify same Node.js version
 - Use supported runtime (18, 20, or 22)
 
@@ -220,17 +242,20 @@ Check `firebase.json`:
 ### 6. **Firestore/Firebase Admin SDK Issues**
 
 **Symptoms:**
+
 - Deployment succeeds but function crashes on start
 - "Cannot read properties of null" errors
 - Firebase Admin initialization fails
 
 **Diagnosis:**
 Check logs for:
+
 ```
 Error: Cannot read properties of null (reading 'collection')
 ```
 
 **Solution:**
+
 - Ensure Firebase Admin is initialized before use
 - Check service account permissions
 - Verify Firestore is enabled in project
@@ -270,37 +295,37 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: functions/package-lock.json
-      
+
       - name: Install dependencies
         run: |
           cd functions
           npm ci
-      
+
       - name: Run tests
         run: |
           cd functions
           npm test
-      
+
       - name: Lint code
         run: |
           cd functions
           npm run lint
-      
+
       - name: Build function
         run: |
           cd functions
           npm run build
-      
+
       - name: Deploy to Firebase
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
@@ -322,13 +347,13 @@ exports.healthCheck = functions.https.onRequest(async (req, res) => {
   const checks = {
     timestamp: new Date().toISOString(),
     status: 'healthy',
-    checks: {}
+    checks: {},
   };
 
   // Check Firestore connectivity
   try {
     await admin.firestore().collection('_health').doc('check').set({
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
     checks.checks.firestore = 'ok';
   } catch (error) {
@@ -341,7 +366,7 @@ exports.healthCheck = functions.https.onRequest(async (req, res) => {
     const whatsappManager = require('./whatsapp/manager');
     checks.checks.whatsapp = {
       accounts: whatsappManager.accounts.size,
-      clients: whatsappManager.clients.size
+      clients: whatsappManager.clients.size,
     };
   } catch (error) {
     checks.checks.whatsapp = 'error: ' + error.message;
@@ -371,16 +396,17 @@ class DeploymentMonitor {
       status,
       metadata,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      environment: process.env.FUNCTIONS_EMULATOR ? 'local' : 'production'
+      environment: process.env.FUNCTIONS_EMULATOR ? 'local' : 'production',
     });
   }
 
   async getDeploymentHistory(limit = 10) {
-    const snapshot = await this.db.collection('deployments')
+    const snapshot = await this.db
+      .collection('deployments')
       .orderBy('timestamp', 'desc')
       .limit(limit)
       .get();
-    
+
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   }
 }
@@ -405,7 +431,8 @@ exports.rollback = functions.https.onRequest(async (req, res) => {
 
   try {
     // Get previous version from Firestore
-    const snapshot = await admin.firestore()
+    const snapshot = await admin
+      .firestore()
       .collection('deployments')
       .where('status', '==', 'success')
       .orderBy('timestamp', 'desc')
@@ -417,14 +444,14 @@ exports.rollback = functions.https.onRequest(async (req, res) => {
     }
 
     const previousVersion = snapshot.docs[1].data();
-    
+
     // Trigger rollback deployment
     // This would typically be done via Cloud Build or GitHub Actions
-    
+
     res.json({
       message: 'Rollback initiated',
       version: previousVersion.version,
-      timestamp: previousVersion.timestamp
+      timestamp: previousVersion.timestamp,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -460,6 +487,7 @@ firebase functions:log --lines 100
 Based on diagnosis results:
 
 **If CLI outdated:**
+
 ```cmd
 npm install -g firebase-tools@latest
 firebase login --reauth
@@ -467,10 +495,12 @@ firebase deploy --only functions
 ```
 
 **If function stuck in DEPLOYING:**
+
 - Wait 10 minutes for timeout
 - Contact Firebase support if still stuck
 
 **If IAM permission issue:**
+
 ```cmd
 gcloud auth list
 gcloud auth application-default login
@@ -478,6 +508,7 @@ firebase deploy --only functions
 ```
 
 **If function size issue:**
+
 ```cmd
 cd functions
 npm prune --production
@@ -513,22 +544,27 @@ firebase deploy --only functions
 After implementing long-term solution:
 
 ✅ **Automated Deployments**
+
 - Push to main → automatic deployment
 - No manual `firebase deploy` needed
 
 ✅ **Health Monitoring**
+
 - `/health` endpoint returns system status
 - Automated alerts on failures
 
 ✅ **Deployment Tracking**
+
 - All deployments logged in Firestore
 - Deployment history visible in dashboard
 
 ✅ **Rollback Capability**
+
 - One-click rollback to previous version
 - Automated rollback on health check failure
 
 ✅ **Zero Downtime**
+
 - Blue-green deployment strategy
 - Health checks before traffic switch
 

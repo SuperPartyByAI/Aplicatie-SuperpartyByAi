@@ -9,14 +9,14 @@ class AdvancedLearning {
       retentionPeriod: config.retentionPeriod || 30 * 24 * 60 * 60 * 1000, // 30 days
       minDataPoints: config.minDataPoints || 100,
       confidenceThreshold: config.confidenceThreshold || 70,
-      ...config
+      ...config,
     };
 
     this.metrics = []; // Historical metrics
     this.events = []; // Historical events
     this.patterns = new Map(); // Learned patterns
     this.predictions = new Map(); // Active predictions
-    
+
     console.log('🎓 Advanced Learning System initialized');
   }
 
@@ -27,7 +27,7 @@ class AdvancedLearning {
     this.metrics.push({
       serviceId,
       timestamp: Date.now(),
-      ...metric
+      ...metric,
     });
 
     // Cleanup old metrics
@@ -42,7 +42,7 @@ class AdvancedLearning {
     this.events.push({
       serviceId,
       timestamp: Date.now(),
-      ...event
+      ...event,
     });
 
     // Cleanup old events
@@ -58,7 +58,7 @@ class AdvancedLearning {
    */
   learnFromEvent(serviceId, event) {
     const patternKey = `${serviceId}:${event.type}`;
-    
+
     if (!this.patterns.has(patternKey)) {
       this.patterns.set(patternKey, {
         type: event.type,
@@ -66,7 +66,7 @@ class AdvancedLearning {
         successfulFixes: [],
         failedFixes: [],
         avgRecoveryTime: 0,
-        lastOccurrence: null
+        lastOccurrence: null,
       });
     }
 
@@ -80,19 +80,21 @@ class AdvancedLearning {
         pattern.successfulFixes.push({
           action: event.fix.action,
           recoveryTime: event.fix.recoveryTime,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
       } else {
         pattern.failedFixes.push({
           action: event.fix.action,
           error: event.fix.error,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
       }
 
       // Update avg recovery time
       if (pattern.successfulFixes.length > 0) {
-        pattern.avgRecoveryTime = pattern.successfulFixes.reduce((sum, f) => sum + f.recoveryTime, 0) / pattern.successfulFixes.length;
+        pattern.avgRecoveryTime =
+          pattern.successfulFixes.reduce((sum, f) => sum + f.recoveryTime, 0) /
+          pattern.successfulFixes.length;
       }
     }
   }
@@ -130,7 +132,7 @@ class AdvancedLearning {
       action: bestFix,
       successRate,
       occurrences: maxCount,
-      avgRecoveryTime: pattern.avgRecoveryTime
+      avgRecoveryTime: pattern.avgRecoveryTime,
     };
   }
 
@@ -144,11 +146,11 @@ class AdvancedLearning {
       return {
         prediction: null,
         confidence: 0,
-        reason: 'Insufficient data'
+        reason: 'Insufficient data',
       };
     }
 
-    const targetTime = Date.now() + (hoursAhead * 60 * 60 * 1000);
+    const targetTime = Date.now() + hoursAhead * 60 * 60 * 1000;
     const targetHour = new Date(targetTime).getHours();
     const targetDay = new Date(targetTime).getDay();
 
@@ -163,14 +165,15 @@ class AdvancedLearning {
       return {
         prediction: null,
         confidence: 0,
-        reason: 'Insufficient similar data'
+        reason: 'Insufficient similar data',
       };
     }
 
     // Calculate averages
     const avgCpu = similar.reduce((sum, m) => sum + (m.cpu || 0), 0) / similar.length;
     const avgMemory = similar.reduce((sum, m) => sum + (m.memory || 0), 0) / similar.length;
-    const avgResponseTime = similar.reduce((sum, m) => sum + (m.responseTime || 0), 0) / similar.length;
+    const avgResponseTime =
+      similar.reduce((sum, m) => sum + (m.responseTime || 0), 0) / similar.length;
     const avgRequests = similar.reduce((sum, m) => sum + (m.requests || 0), 0) / similar.length;
 
     // Calculate confidence (based on data consistency)
@@ -185,11 +188,11 @@ class AdvancedLearning {
         requests: avgRequests,
         targetTime,
         targetHour,
-        targetDay
+        targetDay,
       },
       confidence,
       dataPoints: similar.length,
-      reason: 'success'
+      reason: 'success',
     };
   }
 
@@ -263,7 +266,7 @@ class AdvancedLearning {
         peakValue,
         avgValue,
         increase: ((peakValue - avgValue) / avgValue) * 100,
-        recommendation: `Pre-scale at ${peakHour - 1}:00 to handle spike at ${peakHour}:00`
+        recommendation: `Pre-scale at ${peakHour - 1}:00 to handle spike at ${peakHour}:00`,
       };
     }
 
@@ -310,7 +313,7 @@ class AdvancedLearning {
         peakValue,
         avgValue,
         increase: ((peakValue - avgValue) / avgValue) * 100,
-        recommendation: `Expect higher load on ${days[peakDay]}`
+        recommendation: `Expect higher load on ${days[peakDay]}`,
       };
     }
 
@@ -333,16 +336,17 @@ class AdvancedLearning {
     const trend = this.calculateTrend(memoryValues);
 
     // If memory is consistently increasing
-    if (trend > 0.5) { // 0.5% increase per data point
+    if (trend > 0.5) {
+      // 0.5% increase per data point
       const currentMemory = memoryValues[memoryValues.length - 1];
-      const projectedMemory = currentMemory + (trend * 100);
+      const projectedMemory = currentMemory + trend * 100;
 
       return {
         type: 'memory_leak',
         currentMemory,
         trend,
         projectedMemory,
-        recommendation: 'Schedule periodic cache clearing or restart'
+        recommendation: 'Schedule periodic cache clearing or restart',
       };
     }
 
@@ -364,16 +368,17 @@ class AdvancedLearning {
     const trend = this.calculateTrend(responseTimes);
 
     // If response time is consistently increasing
-    if (trend > 2) { // 2ms increase per data point
+    if (trend > 2) {
+      // 2ms increase per data point
       const currentResponseTime = responseTimes[responseTimes.length - 1];
-      const projectedResponseTime = currentResponseTime + (trend * 100);
+      const projectedResponseTime = currentResponseTime + trend * 100;
 
       return {
         type: 'gradual_degradation',
         currentResponseTime,
         trend,
         projectedResponseTime,
-        recommendation: 'Investigate performance bottlenecks'
+        recommendation: 'Investigate performance bottlenecks',
       };
     }
 
@@ -395,7 +400,10 @@ class AdvancedLearning {
    */
   calculateTrend(values) {
     const n = values.length;
-    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+    let sumX = 0,
+      sumY = 0,
+      sumXY = 0,
+      sumX2 = 0;
 
     for (let i = 0; i < n; i++) {
       sumX += i;
@@ -424,8 +432,8 @@ class AdvancedLearning {
         successfulFixes: pattern.successfulFixes.length,
         failedFixes: pattern.failedFixes.length,
         avgRecoveryTime: pattern.avgRecoveryTime,
-        lastOccurrence: pattern.lastOccurrence
-      }))
+        lastOccurrence: pattern.lastOccurrence,
+      })),
     };
   }
 }

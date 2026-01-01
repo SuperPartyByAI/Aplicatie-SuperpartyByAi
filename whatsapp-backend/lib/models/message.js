@@ -1,6 +1,6 @@
 /**
  * Message Model
- * 
+ *
  * Represents a message in a WhatsApp conversation
  */
 
@@ -24,7 +24,7 @@ class Message {
       timestamp: this.timestamp,
       content: this.content,
       delivery_status: this.delivery_status,
-      ai_auto_response: this.ai_auto_response
+      ai_auto_response: this.ai_auto_response,
     };
   }
 
@@ -32,7 +32,7 @@ class Message {
     const data = doc.data();
     return new Message({
       message_id: doc.id,
-      ...data
+      ...data,
     });
   }
 
@@ -58,7 +58,7 @@ class Message {
       sender_type: 'CLIENT',
       content: content,
       timestamp: timestamp,
-      delivery_status: 'received'
+      delivery_status: 'received',
     });
   }
 
@@ -69,7 +69,7 @@ class Message {
       sender_operator_code: operatorCode,
       content: content,
       timestamp: timestamp,
-      delivery_status: 'sent'
+      delivery_status: 'sent',
     });
   }
 
@@ -80,7 +80,7 @@ class Message {
       content: content,
       timestamp: timestamp,
       delivery_status: 'sent',
-      ai_auto_response: isAutoResponse
+      ai_auto_response: isAutoResponse,
     });
   }
 }

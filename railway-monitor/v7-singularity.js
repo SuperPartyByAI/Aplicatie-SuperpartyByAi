@@ -1,12 +1,12 @@
 /**
  * v7.0 SINGULARITY MONITOR
- * 
+ *
  * Features:
  * - Self-replication (auto-scaling)
  * - Multi-project management
  * - Advanced learning system
  * - Intelligent auto-repair
- * 
+ *
  * Target: <5s downtime/month, 95% prevention
  */
 
@@ -22,28 +22,28 @@ class SingularityMonitor {
       scaleDownThreshold: config.scaleDownThreshold || 30,
       maxInstances: config.maxInstances || 5,
       minInstances: config.minInstances || 1,
-      
+
       // Learning settings
       learningEnabled: config.learningEnabled !== false,
       predictionWindow: config.predictionWindow || 3600000, // 1 hour
-      
+
       // Monitoring
       healthCheckInterval: config.healthCheckInterval || 5000, // 5s
       metricsRetention: config.metricsRetention || 7 * 24 * 60 * 60 * 1000, // 7 days
-      
-      ...config
+
+      ...config,
     };
 
     this.railway = new RailwayAPI(process.env.RAILWAY_TOKEN);
     this.repair = new IntelligentRepair();
-    
+
     // State
     this.projects = new Map();
     this.instances = new Map();
     this.metrics = [];
     this.learnings = [];
     this.clones = [];
-    
+
     console.log('🧠 v7.0 SINGULARITY MONITOR initialized');
     console.log('⚡ Self-replication: ENABLED');
     console.log('🎓 Advanced learning: ENABLED');
@@ -55,12 +55,12 @@ class SingularityMonitor {
    */
   async checkScaling(service) {
     const metrics = await this.getServiceMetrics(service);
-    
+
     // Scale UP
     if (this.shouldScaleUp(metrics)) {
       await this.scaleUp(service);
     }
-    
+
     // Scale DOWN
     if (this.shouldScaleDown(metrics)) {
       await this.scaleDown(service);
@@ -69,29 +69,31 @@ class SingularityMonitor {
 
   shouldScaleUp(metrics) {
     const currentInstances = this.instances.get(metrics.serviceId)?.length || 1;
-    
+
     return (
-      metrics.cpu > this.config.scaleUpThreshold ||
-      metrics.memory > this.config.scaleUpThreshold ||
-      metrics.responseTime > 1000 ||
-      metrics.queueLength > 100
-    ) && currentInstances < this.config.maxInstances;
+      (metrics.cpu > this.config.scaleUpThreshold ||
+        metrics.memory > this.config.scaleUpThreshold ||
+        metrics.responseTime > 1000 ||
+        metrics.queueLength > 100) &&
+      currentInstances < this.config.maxInstances
+    );
   }
 
   shouldScaleDown(metrics) {
     const currentInstances = this.instances.get(metrics.serviceId)?.length || 1;
-    
+
     return (
       metrics.cpu < this.config.scaleDownThreshold &&
       metrics.memory < this.config.scaleDownThreshold &&
       metrics.responseTime < 200 &&
-      metrics.queueLength < 10
-    ) && currentInstances > this.config.minInstances;
+      metrics.queueLength < 10 &&
+      currentInstances > this.config.minInstances
+    );
   }
 
   async scaleUp(service) {
     console.log(`🧬 Self-replicating ${service.name}...`);
-    
+
     try {
       // Create clone
       const clone = await this.railway.services.create({
@@ -99,32 +101,31 @@ class SingularityMonitor {
         projectId: service.projectId,
         source: service.source,
         variables: service.variables,
-        region: service.region
+        region: service.region,
       });
 
       console.log(`✅ Clone created: ${clone.id}`);
-      
+
       // Wait for healthy
       await this.waitForHealthy(clone);
-      
+
       // Add to load balancer
       await this.addToLoadBalancer(clone);
-      
+
       // Track clone
       const clones = this.instances.get(service.id) || [];
       clones.push(clone);
       this.instances.set(service.id, clones);
-      
+
       console.log(`✅ ${service.name} scaled to ${clones.length + 1} instances`);
-      
+
       // Learn from this
       this.learn({
         type: 'scale_up',
         service: service.id,
         reason: 'high_load',
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
-      
     } catch (error) {
       console.error('❌ Scale up failed:', error.message);
     }
@@ -132,34 +133,33 @@ class SingularityMonitor {
 
   async scaleDown(service) {
     const clones = this.instances.get(service.id) || [];
-    
+
     if (clones.length === 0) return;
-    
+
     console.log(`🧹 Scaling down ${service.name}...`);
-    
+
     try {
       // Remove last clone
       const clone = clones.pop();
-      
+
       // Remove from load balancer
       await this.removeFromLoadBalancer(clone);
-      
+
       // Delete service
       await this.railway.services.delete(clone.id);
-      
+
       console.log(`✅ Clone deleted: ${clone.id}`);
       console.log(`✅ ${service.name} scaled to ${clones.length + 1} instances`);
-      
+
       this.instances.set(service.id, clones);
-      
+
       // Learn from this
       this.learn({
         type: 'scale_down',
         service: service.id,
         reason: 'low_load',
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
-      
     } catch (error) {
       console.error('❌ Scale down failed:', error.message);
     }
@@ -170,7 +170,7 @@ class SingularityMonitor {
    */
   async addProject(projectConfig) {
     console.log(`📦 Adding project: ${projectConfig.name}`);
-    
+
     const project = {
       id: projectConfig.id,
       name: projectConfig.name,
@@ -180,9 +180,9 @@ class SingularityMonitor {
         totalRequests: 0,
         totalErrors: 0,
         avgResponseTime: 0,
-        cost: 0
+        cost: 0,
       },
-      status: 'healthy'
+      status: 'healthy',
     };
 
     // If services provided directly, use them
@@ -192,20 +192,20 @@ class SingularityMonitor {
         name: s.name,
         url: s.url,
         status: 'unknown',
-        metrics: {}
+        metrics: {},
       }));
     } else {
       // Otherwise, get all services from Railway API
       try {
         const services = await this.railway.projects.getServices(projectConfig.id);
-        
+
         for (const service of services) {
           project.services.push({
             id: service.id,
             name: service.name,
             url: service.url,
             status: 'unknown',
-            metrics: {}
+            metrics: {},
           });
         }
       } catch (error) {
@@ -215,9 +215,9 @@ class SingularityMonitor {
     }
 
     this.projects.set(project.id, project);
-    
+
     console.log(`✅ Project added: ${project.name} (${project.services.length} services)`);
-    
+
     return project;
   }
 
@@ -229,7 +229,7 @@ class SingularityMonitor {
       unhealthyServices: 0,
       totalCost: 0,
       totalUptime: 0,
-      projects: []
+      projects: [],
     };
 
     for (const [id, project] of this.projects) {
@@ -240,13 +240,13 @@ class SingularityMonitor {
         status: project.status,
         uptime: project.metrics.uptime,
         cost: project.metrics.cost,
-        responseTime: project.metrics.avgResponseTime
+        responseTime: project.metrics.avgResponseTime,
       };
 
       status.totalServices += project.services.length;
       status.totalCost += project.metrics.cost;
       status.totalUptime += project.metrics.uptime;
-      
+
       if (project.status === 'healthy') {
         status.healthyServices += project.services.length;
       } else {
@@ -269,7 +269,7 @@ class SingularityMonitor {
 
     this.learnings.push({
       ...event,
-      timestamp: event.timestamp || Date.now()
+      timestamp: event.timestamp || Date.now(),
     });
 
     // Keep only recent learnings
@@ -279,9 +279,8 @@ class SingularityMonitor {
 
   async predictLoad(service, timeAhead = 3600000) {
     // Get historical metrics
-    const history = this.metrics.filter(m => 
-      m.serviceId === service.id &&
-      m.timestamp > Date.now() - 7 * 24 * 60 * 60 * 1000 // 7 days
+    const history = this.metrics.filter(
+      m => m.serviceId === service.id && m.timestamp > Date.now() - 7 * 24 * 60 * 60 * 1000 // 7 days
     );
 
     if (history.length < 100) {
@@ -311,13 +310,13 @@ class SingularityMonitor {
       cpu: avgCpu,
       memory: avgMemory,
       responseTime: avgResponseTime,
-      confidence: Math.min(similar.length / 100, 1) * 100
+      confidence: Math.min(similar.length / 100, 1) * 100,
     };
   }
 
   async applyPredictiveActions(service) {
     const prediction = await this.predictLoad(service, this.config.predictionWindow);
-    
+
     if (!prediction || prediction.confidence < 70) {
       return; // Not confident enough
     }
@@ -347,44 +346,43 @@ class SingularityMonitor {
     try {
       // Health check
       const health = await this.checkHealth(service);
-      
+
       if (!health.healthy) {
         console.log(`⚠️ ${service.name} unhealthy: ${health.reason}`);
-        
+
         // Intelligent diagnosis and repair
         const diagnosis = await this.repair.diagnose(service, health);
         console.log(`🔍 Diagnosis: ${diagnosis.type}`);
-        
+
         const fix = await this.repair.fix(service, diagnosis);
-        
+
         if (fix.success) {
           console.log(`✅ ${service.name} repaired: ${fix.action}`);
-          
+
           // Learn from successful repair
           this.learn({
             type: 'repair_success',
             service: service.id,
             diagnosis: diagnosis.type,
             fix: fix.action,
-            timestamp: Date.now()
+            timestamp: Date.now(),
           });
         } else {
           console.log(`❌ Repair failed: ${fix.error}`);
-          
+
           // Fallback to restart
           await this.railway.services.restart(service.id);
         }
       }
-      
+
       // Collect metrics
       await this.collectMetrics(service, health);
-      
+
       // Check if scaling needed
       await this.checkScaling(service);
-      
+
       // Apply predictive actions
       await this.applyPredictiveActions(service);
-      
     } catch (error) {
       console.error(`❌ Error monitoring ${service.name}:`, error.message);
     }
@@ -398,7 +396,7 @@ class SingularityMonitor {
       const start = Date.now();
       const response = await fetch(service.url, {
         timeout: 10000,
-        headers: { 'User-Agent': 'Singularity-Monitor/7.0' }
+        headers: { 'User-Agent': 'Singularity-Monitor/7.0' },
       });
       const responseTime = Date.now() - start;
 
@@ -406,14 +404,14 @@ class SingularityMonitor {
         healthy: response.ok,
         status: response.status,
         responseTime,
-        reason: response.ok ? 'ok' : `HTTP ${response.status}`
+        reason: response.ok ? 'ok' : `HTTP ${response.status}`,
       };
     } catch (error) {
       return {
         healthy: false,
         status: 0,
         responseTime: 0,
-        reason: error.message
+        reason: error.message,
       };
     }
   }
@@ -428,7 +426,7 @@ class SingularityMonitor {
         memory: metrics.memory || 0,
         responseTime: metrics.responseTime || 0,
         queueLength: metrics.queueLength || 0,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     } catch (error) {
       return {
@@ -437,7 +435,7 @@ class SingularityMonitor {
         memory: 0,
         responseTime: 0,
         queueLength: 0,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     }
   }
@@ -449,7 +447,7 @@ class SingularityMonitor {
       healthy: health.healthy,
       responseTime: health.responseTime,
       cpu: 0,
-      memory: 0
+      memory: 0,
     };
 
     // Get additional metrics
@@ -470,17 +468,17 @@ class SingularityMonitor {
 
   async waitForHealthy(service, timeout = 120000) {
     const start = Date.now();
-    
+
     while (Date.now() - start < timeout) {
       const health = await this.checkHealth(service);
-      
+
       if (health.healthy) {
         return true;
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 5000));
     }
-    
+
     throw new Error('Service did not become healthy in time');
   }
 
@@ -504,7 +502,7 @@ class SingularityMonitor {
    */
   async start() {
     console.log('🚀 Starting v7.0 Singularity Monitor...');
-    
+
     // Monitor all projects
     setInterval(async () => {
       for (const [id, project] of this.projects) {
@@ -524,18 +522,20 @@ class SingularityMonitor {
 
   async printStatus() {
     const status = await this.getAllProjectsStatus();
-    
+
     console.log('\n============================================================');
     console.log('🧠 v7.0 SINGULARITY STATUS');
     console.log('============================================================\n');
-    
+
     console.log(`📊 OVERVIEW`);
     console.log(`   Projects: ${status.totalProjects}`);
-    console.log(`   Services: ${status.totalServices} (${status.healthyServices} healthy, ${status.unhealthyServices} unhealthy)`);
+    console.log(
+      `   Services: ${status.totalServices} (${status.healthyServices} healthy, ${status.unhealthyServices} unhealthy)`
+    );
     console.log(`   Avg Uptime: ${status.totalUptime.toFixed(2)}%`);
     console.log(`   Total Cost: $${status.totalCost.toFixed(2)}/month`);
     console.log('');
-    
+
     console.log(`🎯 PROJECTS`);
     for (const project of status.projects) {
       const icon = project.status === 'healthy' ? '✅' : '⚠️';
@@ -546,7 +546,7 @@ class SingularityMonitor {
       console.log(`      Cost: $${project.cost.toFixed(2)}/month`);
     }
     console.log('');
-    
+
     console.log(`🧬 SELF-REPLICATION`);
     let totalInstances = 0;
     for (const [serviceId, clones] of this.instances) {
@@ -555,12 +555,14 @@ class SingularityMonitor {
     console.log(`   Total instances: ${totalInstances}`);
     console.log(`   Active clones: ${totalInstances - this.projects.size}`);
     console.log('');
-    
+
     console.log(`🎓 LEARNING`);
     console.log(`   Total learnings: ${this.learnings.length}`);
-    console.log(`   Recent events: ${this.learnings.filter(l => l.timestamp > Date.now() - 3600000).length} (last hour)`);
+    console.log(
+      `   Recent events: ${this.learnings.filter(l => l.timestamp > Date.now() - 3600000).length} (last hour)`
+    );
     console.log('');
-    
+
     console.log('============================================================\n');
   }
 }

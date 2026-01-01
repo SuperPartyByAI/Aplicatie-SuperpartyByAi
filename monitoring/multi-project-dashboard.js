@@ -11,15 +11,15 @@ class MultiProjectDashboard {
     this.config = {
       port: config.port || process.env.PORT || 3001,
       updateInterval: config.updateInterval || 60000, // 1 min
-      ...config
+      ...config,
     };
 
     this.railway = new RailwayAPI(process.env.RAILWAY_TOKEN);
     this.projects = new Map();
     this.app = express();
-    
+
     this.setupRoutes();
-    
+
     console.log('📊 Multi-Project Dashboard initialized');
   }
 
@@ -28,7 +28,7 @@ class MultiProjectDashboard {
    */
   async addProject(projectId, name) {
     console.log(`📦 Adding project: ${name || projectId}`);
-    
+
     try {
       // Get project details from Railway
       const projectData = await this.railway.projects.get(projectId);
@@ -48,30 +48,29 @@ class MultiProjectDashboard {
             requests: 0,
             errors: 0,
             cpu: 0,
-            memory: 0
+            memory: 0,
           },
-          lastCheck: null
+          lastCheck: null,
         })),
         metrics: {
           totalUptime: 100,
           totalRequests: 0,
           totalErrors: 0,
           avgResponseTime: 0,
-          totalCost: 0
+          totalCost: 0,
         },
         status: 'healthy',
-        addedAt: Date.now()
+        addedAt: Date.now(),
       };
 
       this.projects.set(projectId, project);
-      
+
       console.log(`✅ Project added: ${project.name} (${project.services.length} services)`);
-      
+
       // Start monitoring
       await this.updateProjectMetrics(projectId);
-      
+
       return project;
-      
     } catch (error) {
       console.error(`❌ Failed to add project:`, error.message);
       throw error;
@@ -98,7 +97,7 @@ class MultiProjectDashboard {
     const project = this.projects.get(projectId);
     if (!project) return;
 
-    let totalUptime = 0;
+    const totalUptime = 0;
     let totalRequests = 0;
     let totalErrors = 0;
     let totalResponseTime = 0;
@@ -132,7 +131,6 @@ class MultiProjectDashboard {
         totalRequests += service.metrics.requests;
         totalErrors += service.metrics.errors;
         totalResponseTime += service.metrics.responseTime;
-
       } catch (error) {
         console.error(`❌ Error updating service ${service.name}:`, error.message);
         service.status = 'error';
@@ -144,7 +142,7 @@ class MultiProjectDashboard {
     project.metrics.totalRequests = totalRequests;
     project.metrics.totalErrors = totalErrors;
     project.metrics.avgResponseTime = totalResponseTime / project.services.length;
-    
+
     // Update project status
     if (healthyServices === project.services.length) {
       project.status = 'healthy';
@@ -167,7 +165,7 @@ class MultiProjectDashboard {
       const start = Date.now();
       const response = await fetch(service.url, {
         timeout: 10000,
-        headers: { 'User-Agent': 'MultiProject-Dashboard/1.0' }
+        headers: { 'User-Agent': 'MultiProject-Dashboard/1.0' },
       });
       const responseTime = Date.now() - start;
 
@@ -175,13 +173,13 @@ class MultiProjectDashboard {
         healthy: response.ok,
         responseTime,
         status: response.status,
-        reason: response.ok ? 'ok' : `HTTP ${response.status}`
+        reason: response.ok ? 'ok' : `HTTP ${response.status}`,
       };
     } catch (error) {
       return {
         healthy: false,
         responseTime: 0,
-        reason: error.message
+        reason: error.message,
       };
     }
   }
@@ -198,7 +196,7 @@ class MultiProjectDashboard {
       downProjects: 0,
       totalUptime: 0,
       totalCost: 0,
-      projects: []
+      projects: [],
     };
 
     for (const [id, project] of this.projects) {
@@ -219,7 +217,7 @@ class MultiProjectDashboard {
         responseTime: project.metrics.avgResponseTime,
         requests: project.metrics.totalRequests,
         errors: project.metrics.totalErrors,
-        cost: project.metrics.totalCost
+        cost: project.metrics.totalCost,
       });
     }
 
@@ -256,7 +254,7 @@ class MultiProjectDashboard {
         services: p.services.length,
         status: p.status,
         uptime: p.metrics.totalUptime,
-        addedAt: p.addedAt
+        addedAt: p.addedAt,
       }));
       res.json(projects);
     });
@@ -308,7 +306,7 @@ class MultiProjectDashboard {
    */
   generateHTML() {
     const overview = this.getOverview();
-    
+
     return `
 <!DOCTYPE html>
 <html>
@@ -370,7 +368,9 @@ class MultiProjectDashboard {
     </div>
     
     <div class="projects">
-      ${overview.projects.map(p => `
+      ${overview.projects
+        .map(
+          p => `
         <div class="project">
           <div class="project-header">
             <div class="project-name">${p.name}</div>
@@ -403,7 +403,9 @@ class MultiProjectDashboard {
             </div>
           </div>
         </div>
-      `).join('')}
+      `
+        )
+        .join('')}
     </div>
   </div>
   
@@ -430,7 +432,7 @@ class MultiProjectDashboard {
     }, this.config.updateInterval);
 
     // Start Express server
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       this.app.listen(this.config.port, () => {
         console.log(`✅ Dashboard running at http://localhost:${this.config.port}`);
         resolve();

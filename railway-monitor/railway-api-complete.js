@@ -8,41 +8,45 @@ const https = require('https');
 const RAILWAY_TOKEN = 'b74c098c-1777-4601-b4c5-1f9298377cd9';
 
 const VARIABLES = {
-  OPENAI_API_KEY: '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',
+  OPENAI_API_KEY:
+    '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',
   TWILIO_ACCOUNT_SID: 'AC17c88873d670aab4aa4a50fae230d2df',
   TWILIO_AUTH_TOKEN: '5c6670d39a1dbf46d47ecdaa244b91d9',
   TWILIO_PHONE_NUMBER: '+12182204425',
   BACKEND_URL: 'https://web-production-f0714.up.railway.app',
   COQUI_API_URL: 'https://web-production-00dca9.up.railway.app',
   NODE_ENV: 'production',
-  PORT: '5001'
+  PORT: '5001',
 };
 
 async function railwayGraphQL(query, variables = {}) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify({ query, variables });
-    
-    const req = https.request({
-      hostname: 'backboard.railway.app',
-      path: '/graphql/v2',
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RAILWAY_TOKEN}`,
-        'Content-Type': 'application/json',
-        'Content-Length': data.length
+
+    const req = https.request(
+      {
+        hostname: 'backboard.railway.app',
+        path: '/graphql/v2',
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${RAILWAY_TOKEN}`,
+          'Content-Type': 'application/json',
+          'Content-Length': data.length,
+        },
+      },
+      res => {
+        let body = '';
+        res.on('data', chunk => (body += chunk));
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(body));
+          } catch (e) {
+            reject(e);
+          }
+        });
       }
-    }, (res) => {
-      let body = '';
-      res.on('data', chunk => body += chunk);
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(body));
-        } catch (e) {
-          reject(e);
-        }
-      });
-    });
-    
+    );
+
     req.on('error', reject);
     req.write(data);
     req.end();
@@ -79,9 +83,9 @@ async function configureRailway() {
         }
       }
     `;
-    
+
     const projectsResult = await railwayGraphQL(projectsQuery);
-    
+
     if (projectsResult.errors) {
       console.log('❌ Eroare Railway API:', projectsResult.errors[0].message);
       console.log('');
@@ -93,7 +97,7 @@ async function configureRailway() {
     }
 
     console.log('✅ Acces Railway API');
-    
+
     // Find the service
     let targetService = null;
     for (const project of projectsResult.data.projects.edges) {
@@ -104,7 +108,7 @@ async function configureRailway() {
           targetService = {
             id: service.node.id,
             projectId: project.node.id,
-            name: service.node.name
+            name: service.node.name,
           };
         }
       }
@@ -134,7 +138,7 @@ async function configureRailway() {
         }
       }
     `;
-    
+
     const envResult = await railwayGraphQL(envQuery);
     const environmentId = envResult.data.project.environments.edges[0].node.id;
     console.log(`✅ Environment: ${environmentId}`);
@@ -144,7 +148,7 @@ async function configureRailway() {
     console.log('🔐 Adăugare variabile...');
     for (const [key, value] of Object.entries(VARIABLES)) {
       console.log(`   ➕ ${key}...`);
-      
+
       const varMutation = `
         mutation {
           variableUpsert(input: {
@@ -156,9 +160,9 @@ async function configureRailway() {
           })
         }
       `;
-      
+
       const varResult = await railwayGraphQL(varMutation);
-      
+
       if (varResult.errors) {
         console.log(`   ⚠️  Eroare: ${varResult.errors[0].message}`);
       } else {
@@ -180,9 +184,9 @@ async function configureRailway() {
         }
       }
     `;
-    
+
     const updateResult = await railwayGraphQL(updateMutation);
-    
+
     if (updateResult.errors) {
       console.log(`⚠️  Nu pot conecta repo: ${updateResult.errors[0].message}`);
       console.log('   Probabil trebuie conectat manual prima dată');
@@ -198,9 +202,9 @@ async function configureRailway() {
         serviceInstanceRedeploy(serviceId: "${targetService.id}")
       }
     `;
-    
+
     const redeployResult = await railwayGraphQL(redeployMutation);
-    
+
     if (redeployResult.errors) {
       console.log(`⚠️  ${redeployResult.errors[0].message}`);
     } else {
@@ -219,7 +223,6 @@ async function configureRailway() {
     console.log('');
 
     return true;
-
   } catch (error) {
     console.error('❌ Eroare:', error.message);
     return false;

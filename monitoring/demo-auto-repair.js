@@ -15,18 +15,18 @@ async function demo() {
   console.log('✅ Backend Node.js: 123ms');
   console.log('✅ Coqui Voice Service: 456ms');
   await sleep(2000);
-  
+
   console.log('\n' + '='.repeat(60));
   console.log('💥 SIMULARE: Backend pică!');
   console.log('='.repeat(60) + '\n');
   await sleep(1000);
-  
+
   // Detection
   console.log('⏱️  T+0s: Service pică');
   await sleep(1000);
   console.log('⏱️  T+1s: Health check detectează problema');
   await sleep(1000);
-  
+
   // Multi-region failover
   console.log('\n🌍 Attempting multi-region failover...');
   await sleep(500);
@@ -39,12 +39,12 @@ async function demo() {
   console.log('✅ Failover complete in 87ms');
   console.log('   New active: us-east (latency: 52ms)');
   await sleep(2000);
-  
+
   console.log('\n📊 REZULTAT:');
   console.log('   Total downtime: 87ms');
   console.log('   Users: NU au observat (prea rapid!)');
   await sleep(2000);
-  
+
   // Repair în background
   console.log('\n🔧 Repar US West în background...');
   await sleep(1000);
@@ -62,7 +62,7 @@ async function demo() {
   await sleep(1000);
   console.log('   ✅ US West is healthy again!');
   await sleep(2000);
-  
+
   // Failback
   console.log('\n🔄 Failing back to primary region...');
   await sleep(1000);
@@ -70,7 +70,7 @@ async function demo() {
   await sleep(500);
   console.log('✅ Failback complete');
   await sleep(2000);
-  
+
   // Learning
   console.log('\n📚 Learning from failure...');
   await sleep(500);
@@ -78,7 +78,7 @@ async function demo() {
   await sleep(500);
   console.log('   Next time: Will use restart immediately');
   await sleep(2000);
-  
+
   // Final status
   console.log('\n' + '='.repeat(60));
   console.log('✅ AUTO-REPAIR COMPLETE');
@@ -90,14 +90,14 @@ async function demo() {
   console.log('   Total user-facing downtime: 87ms');
   console.log('   Learning: ✅ Saved for next time');
   console.log('\n✅ Service funcționează normal din nou!\n');
-  
+
   // AI Prediction demo
   await sleep(2000);
   console.log('\n' + '='.repeat(60));
   console.log('🔮 BONUS: AI PREDICTION');
   console.log('='.repeat(60) + '\n');
   await sleep(1000);
-  
+
   console.log('📊 Analyzing metrics...');
   await sleep(1000);
   console.log('   Memory: 70% (trend: +5%/hour)');
@@ -106,7 +106,7 @@ async function demo() {
   await sleep(500);
   console.log('   Response time: 150ms (stable)');
   await sleep(1000);
-  
+
   console.log('\n🔮 PREDICTION:');
   console.log('   Type: memory_leak');
   console.log('   Time to failure: 90 minutes');
@@ -114,7 +114,7 @@ async function demo() {
   console.log('   Current: 70%');
   console.log('   Predicted: 92%');
   await sleep(2000);
-  
+
   console.log('\n🛡️ Taking preventive action...');
   await sleep(1000);
   console.log('   Clearing cache...');
@@ -125,7 +125,7 @@ async function demo() {
   await sleep(1000);
   console.log('\n✅ Failure PREVENTED! (90 minutes before it would happen)');
   await sleep(2000);
-  
+
   console.log('\n' + '='.repeat(60));
   console.log('🎉 DEMO COMPLETE');
   console.log('='.repeat(60));

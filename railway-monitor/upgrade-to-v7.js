@@ -1,6 +1,6 @@
 /**
  * v5.0 → v7.0 SELF-UPGRADE
- * 
+ *
  * v5.0 se upgrade-ază SINGUR la v7.0!
  * Folosește Railway API să-și modifice propriul start command
  */
@@ -27,11 +27,11 @@ console.log('');
 async function selfUpgrade() {
   try {
     console.log('📋 Step 1: Finding my own service ID...');
-    
+
     // Get service info from environment
     const serviceId = process.env.RAILWAY_SERVICE_ID;
     const projectId = process.env.RAILWAY_PROJECT_ID;
-    
+
     if (!serviceId) {
       console.log('⚠️  RAILWAY_SERVICE_ID not found in environment');
       console.log('');
@@ -46,13 +46,13 @@ async function selfUpgrade() {
       console.log('');
       process.exit(1);
     }
-    
+
     console.log(`✅ Service ID: ${serviceId}`);
     console.log(`✅ Project ID: ${projectId}`);
     console.log('');
 
     console.log('📋 Step 2: Updating my start command via Railway API...');
-    
+
     const mutation = `
       mutation ServiceInstanceUpdate($environmentId: String!, $serviceId: String!) {
         serviceInstanceUpdate(
@@ -64,34 +64,34 @@ async function selfUpgrade() {
         )
       }
     `;
-    
+
     const response = await fetch('https://backboard.railway.app/graphql/v2', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${RAILWAY_TOKEN}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${RAILWAY_TOKEN}`,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         query: mutation,
         variables: {
           environmentId: process.env.RAILWAY_ENVIRONMENT_ID,
-          serviceId: serviceId
-        }
-      })
+          serviceId: serviceId,
+        },
+      }),
     });
 
     const result = await response.json();
-    
+
     if (result.errors) {
       console.log('❌ API Error:', JSON.stringify(result.errors, null, 2));
       throw new Error('Failed to update service');
     }
-    
+
     console.log('✅ Start command updated to: node v7-start.js');
     console.log('');
 
     console.log('📋 Step 3: Triggering redeploy...');
-    
+
     const redeployMutation = `
       mutation ServiceInstanceRedeploy($environmentId: String!, $serviceId: String!) {
         serviceInstanceRedeploy(
@@ -100,24 +100,24 @@ async function selfUpgrade() {
         )
       }
     `;
-    
+
     const redeployResponse = await fetch('https://backboard.railway.app/graphql/v2', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${RAILWAY_TOKEN}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${RAILWAY_TOKEN}`,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         query: redeployMutation,
         variables: {
           environmentId: process.env.RAILWAY_ENVIRONMENT_ID,
-          serviceId: serviceId
-        }
-      })
+          serviceId: serviceId,
+        },
+      }),
     });
 
     const redeployResult = await redeployResponse.json();
-    
+
     if (redeployResult.errors) {
       console.log('⚠️  Could not trigger redeploy automatically');
       console.log('   Please redeploy manually in Railway Dashboard');
@@ -146,7 +146,6 @@ async function selfUpgrade() {
     console.log('');
     console.log('============================================================');
     console.log('');
-
   } catch (error) {
     console.error('');
     console.error('❌ SELF-UPGRADE FAILED');

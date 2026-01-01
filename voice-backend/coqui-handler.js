@@ -13,7 +13,7 @@ class CoquiHandler {
     this.tempDir = path.join(__dirname, '../../temp');
     this.cacheDir = path.join(__dirname, '../../cache');
     this.enabled = false;
-    
+
     // Circuit breaker state
     this.failureCount = 0;
     this.lastFailureTime = null;
@@ -22,7 +22,7 @@ class CoquiHandler {
     this.resetTimeout = 60000; // Try again after 1 minute
     this.halfOpenAttempts = 0;
     this.maxHalfOpenAttempts = 1;
-    
+
     // Performance tracking
     this.stats = {
       requests: 0,
@@ -33,9 +33,9 @@ class CoquiHandler {
       lastCheck: Date.now(),
       uptime: 0,
       lastSuccess: null,
-      lastFailure: null
+      lastFailure: null,
     };
-    
+
     // Create directories
     if (!fs.existsSync(this.tempDir)) {
       fs.mkdirSync(this.tempDir, { recursive: true });
@@ -43,17 +43,17 @@ class CoquiHandler {
     if (!fs.existsSync(this.cacheDir)) {
       fs.mkdirSync(this.cacheDir, { recursive: true });
     }
-    
+
     // Initial health check
     this.checkAvailability();
-    
+
     // Periodic health check every 30 seconds
     setInterval(() => this.periodicHealthCheck(), 30000);
-    
+
     // Reset circuit breaker periodically
     setInterval(() => this.tryResetCircuit(), this.resetTimeout);
   }
-  
+
   /**
    * Circuit breaker logic
    */
@@ -62,39 +62,41 @@ class CoquiHandler {
     if (!this.circuitOpen) {
       return true;
     }
-    
+
     // Circuit is open - check if we should try half-open
     const timeSinceFailure = Date.now() - this.lastFailureTime;
     if (timeSinceFailure >= this.resetTimeout) {
       console.log('[Coqui] Circuit half-open - attempting test request');
       return true;
     }
-    
+
     return false;
   }
-  
+
   recordSuccess(responseTime) {
     this.failureCount = 0;
     this.circuitOpen = false;
     this.halfOpenAttempts = 0;
-    
+
     this.stats.requests++;
     this.stats.successes++;
     this.stats.totalResponseTime += responseTime;
     this.stats.avgResponseTime = this.stats.totalResponseTime / this.stats.successes;
     this.stats.lastSuccess = new Date().toISOString();
-    
-    console.log(`[Coqui] Success - Response time: ${responseTime}ms, Avg: ${Math.round(this.stats.avgResponseTime)}ms`);
+
+    console.log(
+      `[Coqui] Success - Response time: ${responseTime}ms, Avg: ${Math.round(this.stats.avgResponseTime)}ms`
+    );
   }
-  
+
   recordFailure(error) {
     this.failureCount++;
     this.lastFailureTime = Date.now();
-    
+
     this.stats.requests++;
     this.stats.failures++;
     this.stats.lastFailure = new Date().toISOString();
-    
+
     if (this.failureCount >= this.maxFailures) {
       this.circuitOpen = true;
       console.error(`[Coqui] Circuit OPEN - Too many failures (${this.failureCount})`);
@@ -103,7 +105,7 @@ class CoquiHandler {
       console.warn(`[Coqui] Failure ${this.failureCount}/${this.maxFailures}: ${error.message}`);
     }
   }
-  
+
   tryResetCircuit() {
     if (this.circuitOpen) {
       const timeSinceFailure = Date.now() - this.lastFailureTime;
@@ -113,27 +115,27 @@ class CoquiHandler {
       }
     }
   }
-  
+
   async periodicHealthCheck() {
     if (!this.circuitOpen) {
       await this.checkAvailability();
     }
   }
-  
+
   async checkAvailability() {
     try {
       const startTime = Date.now();
       const response = await fetch(`${this.apiUrl}/health`, {
-        timeout: 5000
+        timeout: 5000,
       });
-      
+
       const responseTime = Date.now() - startTime;
-      
+
       if (response.ok) {
         const data = await response.json();
         const wasDisabled = !this.enabled;
         this.enabled = data.status === 'healthy';
-        
+
         if (this.enabled) {
           this.recordSuccess(responseTime);
           if (wasDisabled) {
@@ -148,27 +150,29 @@ class CoquiHandler {
       this.recordFailure(error);
     }
   }
-  
+
   isConfigured() {
     return this.enabled && !this.circuitOpen;
   }
-  
+
   getStats() {
-    const uptime = this.stats.successes > 0 ? 
-      (this.stats.successes / this.stats.requests * 100).toFixed(2) : 0;
-    
+    const uptime =
+      this.stats.successes > 0
+        ? ((this.stats.successes / this.stats.requests) * 100).toFixed(2)
+        : 0;
+
     return {
       ...this.stats,
       uptime: `${uptime}%`,
       circuitOpen: this.circuitOpen,
-      failureCount: this.failureCount
+      failureCount: this.failureCount,
     };
   }
-  
+
   getCacheKey(text) {
     return crypto.createHash('md5').update(text).digest('hex');
   }
-  
+
   /**
    * Generate speech with circuit breaker protection
    */
@@ -178,59 +182,58 @@ class CoquiHandler {
       console.warn('[Coqui] Circuit OPEN - skipping request');
       return null;
     }
-    
+
     if (!this.enabled) {
       console.warn('[Coqui] Service not available');
       return null;
     }
-    
+
     try {
       // Check cache first
       const cacheKey = this.getCacheKey(text);
       const cachedFile = path.join(this.cacheDir, `${cacheKey}.wav`);
-      
+
       if (fs.existsSync(cachedFile)) {
         console.log('[Coqui] Cache hit:', cacheKey);
         this.recordSuccess(0); // Cache hit = instant
         return `/audio/${cacheKey}.wav`;
       }
-      
+
       console.log('[Coqui] Generating speech:', text.substring(0, 50) + '...');
       const startTime = Date.now();
-      
+
       // Call Coqui API
       const response = await fetch(`${this.apiUrl}/tts`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           text: text,
-          use_cache: true
+          use_cache: true,
         }),
-        timeout: 30000
+        timeout: 30000,
       });
-      
+
       if (!response.ok) {
         const error = await response.text();
         throw new Error(`API error: ${response.status} - ${error}`);
       }
-      
+
       // Save audio file
       const buffer = await response.buffer();
       fs.writeFileSync(cachedFile, buffer);
-      
+
       const responseTime = Date.now() - startTime;
       this.recordSuccess(responseTime);
-      
+
       return `/audio/${cacheKey}.wav`;
-      
     } catch (error) {
       this.recordFailure(error);
       return null;
     }
   }
-  
+
   /**
    * Clean up old audio files
    */
@@ -238,22 +241,22 @@ class CoquiHandler {
     try {
       const now = Date.now();
       const maxAge = 60 * 60 * 1000; // 1 hour
-      
+
       let cleaned = 0;
-      
+
       if (fs.existsSync(this.tempDir)) {
         const files = fs.readdirSync(this.tempDir);
         for (const file of files) {
           const filePath = path.join(this.tempDir, file);
           const stats = fs.statSync(filePath);
-          
+
           if (now - stats.mtimeMs > maxAge) {
             fs.unlinkSync(filePath);
             cleaned++;
           }
         }
       }
-      
+
       if (cleaned > 0) {
         console.log(`[Coqui] Cleaned up ${cleaned} old files`);
       }

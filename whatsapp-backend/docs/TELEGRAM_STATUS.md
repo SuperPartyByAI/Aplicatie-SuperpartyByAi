@@ -7,9 +7,11 @@ The Telegram alert system is **already implemented and integrated** into the lon
 ## Implementation Details
 
 ### Core Module
+
 **File**: `lib/telegram-alerts.js`
 
 **Features**:
+
 - Production-grade alert system with throttling (1 hour cooldown)
 - Native HTTPS implementation (no external dependencies)
 - Markdown formatting support
@@ -21,6 +23,7 @@ The Telegram alert system is **already implemented and integrated** into the lon
 **File**: `lib/longrun-jobs-v2.js`
 
 **Initialized**: Line ~20
+
 ```javascript
 const TelegramAlerts = require('./telegram-alerts');
 let telegramAlerts;
@@ -32,6 +35,7 @@ telegramAlerts = new TelegramAlerts(botToken, chatId);
 ```
 
 **Alert Triggers**:
+
 1. **Missed Heartbeats** (hourly check):
    - Threshold: >3 missed per hour
    - Function: `telegramAlerts.alertMissedHeartbeats()`
@@ -61,6 +65,7 @@ telegramAlerts = new TelegramAlerts(botToken, chatId);
 ### Required Environment Variables
 
 Set in Railway:
+
 ```bash
 TELEGRAM_BOT_TOKEN=<your_bot_token>
 TELEGRAM_CHAT_ID=<your_chat_id>
@@ -82,6 +87,7 @@ TELEGRAM_CHAT_ID=<your_chat_id>
      Look for `"chat":{"id":-123456789}`
 
 3. **Configure Railway**:
+
    ```bash
    railway variables set TELEGRAM_BOT_TOKEN="your_token"
    railway variables set TELEGRAM_CHAT_ID="your_chat_id"
@@ -95,6 +101,7 @@ TELEGRAM_CHAT_ID=<your_chat_id>
 ## Alert Examples
 
 ### Missed Heartbeats
+
 ```
 🚨 MISSED HEARTBEATS
 
@@ -106,6 +113,7 @@ Action: Check service health and logs
 ```
 
 ### Consecutive Probe Fails
+
 ```
 🚨 CONSECUTIVE PROBE FAILS
 
@@ -122,6 +130,7 @@ Action: Check outbound functionality
 ```
 
 ### Queue Depth
+
 ```
 🚨 QUEUE DEPTH THRESHOLD
 
@@ -133,6 +142,7 @@ Action: Check message processing rate
 ```
 
 ### Daily Summary
+
 ```
 📊 DAILY SUMMARY: 2025-12-30
 
@@ -151,6 +161,7 @@ Action: Check message processing rate
 ## Throttling
 
 **Mechanism**: 1-hour cooldown per alert type
+
 - Prevents spam during extended outages
 - Each alert type tracked independently
 - Cooldown resets after 1 hour
@@ -160,26 +171,30 @@ Action: Check message processing rate
 ## Testing
 
 ### Manual Test (if needed)
+
 Create test endpoint in `lib/evidence-endpoints.js`:
+
 ```javascript
 this.app.post('/api/longrun/test-telegram', this.verifyToken.bind(this), async (req, res) => {
   const TelegramAlerts = require('./telegram-alerts');
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
   const alerts = new TelegramAlerts(botToken, chatId);
-  
+
   await alerts.sendMessage('🧪 Test alert from WhatsApp Backend');
-  
+
   res.json({ success: true, message: 'Test alert sent' });
 });
 ```
 
 ### Verify in Logs
+
 ```bash
 railway logs | grep TelegramAlerts
 ```
 
 Expected output:
+
 ```
 [TelegramAlerts] Enabled
 [TelegramAlerts] Message sent
@@ -187,14 +202,14 @@ Expected output:
 
 ## Status Summary
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Core Module | ✅ Complete | `lib/telegram-alerts.js` |
-| Integration | ✅ Complete | `lib/longrun-jobs-v2.js` |
-| Alert Types | ✅ 6 types | All implemented |
-| Throttling | ✅ Active | 1-hour cooldown |
-| Configuration | ⚠️ Pending | Needs Railway env vars |
-| Testing | ⚠️ Pending | Needs bot token setup |
+| Component     | Status      | Notes                    |
+| ------------- | ----------- | ------------------------ |
+| Core Module   | ✅ Complete | `lib/telegram-alerts.js` |
+| Integration   | ✅ Complete | `lib/longrun-jobs-v2.js` |
+| Alert Types   | ✅ 6 types  | All implemented          |
+| Throttling    | ✅ Active   | 1-hour cooldown          |
+| Configuration | ⚠️ Pending  | Needs Railway env vars   |
+| Testing       | ⚠️ Pending  | Needs bot token setup    |
 
 ## Next Steps
 

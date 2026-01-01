@@ -1,10 +1,10 @@
 /**
  * v7.0 SINGULARITY - SELF DEPLOYMENT
- * 
+ *
  * Robotul se deploy-ează SINGUR pe Railway
  * Apoi se monitorizează SINGUR
  * Apoi se repară SINGUR
- * 
+ *
  * META-LEVEL AUTOMATION 🤯
  */
 
@@ -30,7 +30,7 @@ console.log('');
 async function selfDeploy() {
   try {
     console.log('📋 Step 1: Checking if I exist on Railway...');
-    
+
     // Check if Railway CLI is available
     try {
       execSync('which railway', { stdio: 'pipe' });
@@ -44,11 +44,11 @@ async function selfDeploy() {
 
     console.log('📋 Step 2: Authenticating with Railway...');
     process.env.RAILWAY_TOKEN = RAILWAY_TOKEN;
-    
+
     try {
-      const whoami = execSync('railway whoami', { 
+      const whoami = execSync('railway whoami', {
         env: { ...process.env, RAILWAY_TOKEN },
-        encoding: 'utf-8' 
+        encoding: 'utf-8',
       });
       console.log('✅ Authenticated:', whoami.trim());
     } catch (error) {
@@ -71,9 +71,9 @@ async function selfDeploy() {
     console.log('📋 Step 3: Linking to project...');
     try {
       // Try to link to existing project
-      execSync('railway link', { 
+      execSync('railway link', {
         env: { ...process.env, RAILWAY_TOKEN },
-        stdio: 'inherit' 
+        stdio: 'inherit',
       });
       console.log('✅ Linked to project');
     } catch (error) {
@@ -83,9 +83,9 @@ async function selfDeploy() {
 
     console.log('📋 Step 4: Deploying MYSELF...');
     try {
-      execSync('railway up', { 
+      execSync('railway up', {
         env: { ...process.env, RAILWAY_TOKEN },
-        stdio: 'inherit' 
+        stdio: 'inherit',
       });
       console.log('✅ Deployment initiated');
     } catch (error) {
@@ -95,17 +95,13 @@ async function selfDeploy() {
     console.log('');
 
     console.log('📋 Step 5: Setting environment variables...');
-    const variables = [
-      `RAILWAY_TOKEN=${RAILWAY_TOKEN}`,
-      'PORT=3001',
-      'NODE_ENV=production'
-    ];
+    const variables = [`RAILWAY_TOKEN=${RAILWAY_TOKEN}`, 'PORT=3001', 'NODE_ENV=production'];
 
     for (const variable of variables) {
       try {
-        execSync(`railway variables set ${variable}`, { 
+        execSync(`railway variables set ${variable}`, {
           env: { ...process.env, RAILWAY_TOKEN },
-          stdio: 'pipe' 
+          stdio: 'pipe',
         });
         const [key] = variable.split('=');
         console.log(`✅ ${key} set`);
@@ -117,9 +113,9 @@ async function selfDeploy() {
 
     console.log('📋 Step 6: Getting deployment status...');
     try {
-      const status = execSync('railway status', { 
+      const status = execSync('railway status', {
         env: { ...process.env, RAILWAY_TOKEN },
-        encoding: 'utf-8' 
+        encoding: 'utf-8',
       });
       console.log(status);
     } catch (error) {
@@ -147,7 +143,6 @@ async function selfDeploy() {
     console.log('');
     console.log('============================================================');
     console.log('');
-
   } catch (error) {
     console.error('');
     console.error('❌ SELF-DEPLOYMENT FAILED');

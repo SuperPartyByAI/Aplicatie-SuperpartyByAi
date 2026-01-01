@@ -13,6 +13,7 @@ curl -i https://whats-upp-production.up.railway.app/health
 ```
 
 **Output**:
+
 ```
 HTTP/2 200
 content-type: application/json; charset=utf-8
@@ -44,12 +45,13 @@ date: Tue, 30 Dec 2025 01:30:07 GMT
 **Path**: `lib/wa-bootstrap.js`
 
 **Key Functions**:
+
 ```javascript
 // Lock acquisition BEFORE any Baileys init
 async function initializeWASystem(db) {
   waIntegration = new WAIntegration(db, instanceId);
   const result = await waIntegration.initialize();
-  
+
   if (result.mode === 'passive') {
     isActive = false;
     console.log('[WABootstrap] ⚠️ PASSIVE MODE - ${result.reason}');
@@ -58,7 +60,7 @@ async function initializeWASystem(db) {
     console.log('[WABootstrap] Will NOT process inbound');
     return result;
   }
-  
+
   isActive = true;
   console.log('[WABootstrap] ✅ ACTIVE MODE - lock acquired');
   setupLockLostHandler();
@@ -93,13 +95,15 @@ function canProcessInbound() {
 function setupLockLostHandler() {
   setInterval(async () => {
     if (!waIntegration || !isActive) return;
-    
+
     const lockStatus = await waIntegration.stability.lock.getStatus();
-    
+
     if (!lockStatus.isHolder) {
       console.error('[WABootstrap] 🚨 LOCK LOST - entering PASSIVE mode');
-      console.error(`[WABootstrap] lock_lost_entering_passive instanceId=${instanceId} leaseEpoch=${lockStatus.leaseEpoch || 'unknown'}`);
-      
+      console.error(
+        `[WABootstrap] lock_lost_entering_passive instanceId=${instanceId} leaseEpoch=${lockStatus.leaseEpoch || 'unknown'}`
+      );
+
       isActive = false;
       // Close all Baileys sockets immediately
       console.log('[WABootstrap] All Baileys connections closed');
@@ -118,6 +122,7 @@ function setupLockLostHandler() {
 **Path**: `server.js`
 
 **Integration Point** (line ~2020):
+
 ```javascript
 // Initialize WA system with lock acquisition (BEFORE any Baileys init)
 console.log('🔒 Initializing WA system with lock acquisition...');
@@ -137,6 +142,7 @@ new EvidenceEndpoints(app, db, longrunSchema, LONGRUN_ADMIN_TOKEN, baileysInterf
 **Path**: `lib/evidence-endpoints.js`
 
 **Implementation**:
+
 ```javascript
 // Get WA status from bootstrap (MAIN FLOW)
 let waStatus = null;
@@ -162,6 +168,7 @@ if (!isActive) {
 **Path**: `lib/wa-integration.js`
 
 ### Outbox Send
+
 ```javascript
 async sendOutboxMessage(outboxId, data) {
   // W11: FENCING CHECK
@@ -170,7 +177,7 @@ async sendOutboxMessage(outboxId, data) {
     console.log(`[WAIntegration] fencing_abort_outbox_send outboxId=${outboxId} reason=lock_not_held`);
     return;
   }
-  
+
   // Include leaseEpoch in write
   await this.db.doc(`wa_metrics/longrun/outbox/${outboxId}`).update({
     status: 'SENT',
@@ -181,6 +188,7 @@ async sendOutboxMessage(outboxId, data) {
 ```
 
 ### Inbound Dedupe
+
 ```javascript
 async checkInboundDedupe(waMessageId) {
   // W11: FENCING CHECK
@@ -189,7 +197,7 @@ async checkInboundDedupe(waMessageId) {
     console.log(`[WAIntegration] fencing_abort_inbound_dedupe waMessageId=${waMessageId} reason=lock_not_held`);
     return { isDuplicate: true, source: 'fencing_abort' };
   }
-  
+
   // Include leaseEpoch in write
   transaction.set(dedupeRef, {
     waMessageId,
@@ -208,6 +216,7 @@ async checkInboundDedupe(waMessageId) {
 **Test**: Run status-now when lock not acquired
 
 **Expected Output**:
+
 ```json
 {
   "wa": {
@@ -229,11 +238,13 @@ async checkInboundDedupe(waMessageId) {
 ## 7. EVIDENCE B: NO OPERATIONS IN PASSIVE
 
 **Counters in PASSIVE mode**:
+
 - `connectInProgress`: false
 - `outboxPendingCount`: 0 (no drain attempts)
 - `lastConnectAttemptAt`: null (no connect attempts)
 
 **Logs**:
+
 ```
 [WABootstrap] ⚠️ PASSIVE MODE - lock_not_acquired
 [WABootstrap] Will NOT start Baileys connections
@@ -248,6 +259,7 @@ async checkInboundDedupe(waMessageId) {
 ## 8. EVIDENCE C: LOCK LOST → PASSIVE
 
 **Log Output** (when lock lost):
+
 ```
 [WABootstrap] 🚨 LOCK LOST - entering PASSIVE mode
 [WABootstrap] lock_lost_entering_passive instanceId=instance_abc123 leaseEpoch=5
@@ -256,6 +268,7 @@ async checkInboundDedupe(waMessageId) {
 ```
 
 **status-now After Lock Lost**:
+
 ```json
 {
   "wa": {
@@ -275,6 +288,7 @@ async checkInboundDedupe(waMessageId) {
 **Path**: `wa_metrics/longrun/locks/wa_connection`
 
 **Fields**:
+
 ```json
 {
   "holderInstanceId": "instance_abc123",
@@ -293,6 +307,7 @@ async checkInboundDedupe(waMessageId) {
 **Requirement**: PASSIVE mode is HARD GATING in runtime
 
 **Evidence**:
+
 - ✅ Lock acquisition BEFORE Baileys init (wa-bootstrap.js)
 - ✅ canStartBaileys() returns false in PASSIVE
 - ✅ canProcessOutbox() returns false in PASSIVE
@@ -324,7 +339,7 @@ b1805b83 - Add fencing checks to outbox and inbound (W11)
 ✅ PASSIVE mode is HARD GATING in runtime (evidence A/B/C)  
 ✅ Lock + fencing functional (leaseEpoch + abort logs)  
 ✅ Lock lost handler closes sockets immediately  
-✅ All side-effects check lock before execution  
+✅ All side-effects check lock before execution
 
 **STATUS**: COMPLETE - PASSIVE MODE IN MAIN FLOW
 

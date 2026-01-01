@@ -11,6 +11,7 @@
 **LOCAL TESTS: 7/7 PASSED (100%)**
 
 All critical functionality verified locally before Railway deployment:
+
 - ✅ QR generation works (18/18 accounts)
 - ✅ Multi-account support (18 simultaneous)
 - ✅ Account limit enforced (19th rejected)
@@ -147,7 +148,7 @@ const { version } = await fetchLatestBaileysVersion();
 const sock = makeWASocket({
   auth: state,
   version, // CRITICAL FIX
-  printQRInTerminal: false
+  printQRInTerminal: false,
 });
 ```
 
@@ -157,14 +158,14 @@ const sock = makeWASocket({
 
 ## Definition of Done (DoD) Status
 
-| Criteria | Status | Evidence | Metric |
-|----------|--------|----------|--------|
-| **DoD-1:** QR generation works | ✅ PASS | 18/18 accounts generated QR | 100% success |
-| **DoD-2:** Multi-account support | ✅ PASS | 18 accounts simultaneous | 18/18 limit |
-| **DoD-3:** No 405 errors | ✅ PASS | fetchLatestBaileysVersion fix | 0 errors |
-| **DoD-4:** Min 1 connected | ⏳ PENDING | Requires manual QR scan | 0/18 |
-| **DoD-5:** MTTR < 30s P95 | ⏳ PENDING | Requires connected account | N/A |
-| **DoD-6:** Message queue 100% | ⏳ PENDING | Requires connected account | N/A |
+| Criteria                         | Status     | Evidence                      | Metric       |
+| -------------------------------- | ---------- | ----------------------------- | ------------ |
+| **DoD-1:** QR generation works   | ✅ PASS    | 18/18 accounts generated QR   | 100% success |
+| **DoD-2:** Multi-account support | ✅ PASS    | 18 accounts simultaneous      | 18/18 limit  |
+| **DoD-3:** No 405 errors         | ✅ PASS    | fetchLatestBaileysVersion fix | 0 errors     |
+| **DoD-4:** Min 1 connected       | ⏳ PENDING | Requires manual QR scan       | 0/18         |
+| **DoD-5:** MTTR < 30s P95        | ⏳ PENDING | Requires connected account    | N/A          |
+| **DoD-6:** Message queue 100%    | ⏳ PENDING | Requires connected account    | N/A          |
 
 **Local Readiness:** 100% (all local tests passed)  
 **Production Readiness:** 50% (3/6 DoD criteria met)
@@ -184,7 +185,7 @@ const sock = makeWASocket({
   auth: state,
   version, // Prevents 405 errors from WhatsApp server
   printQRInTerminal: false,
-  browser: ['SuperParty', 'Chrome', '1.0.0']
+  browser: ['SuperParty', 'Chrome', '1.0.0'],
 });
 ```
 
@@ -196,20 +197,20 @@ const sock = makeWASocket({
 **Lines:** 142-180
 
 ```javascript
-sock.ev.on('connection.update', async (update) => {
+sock.ev.on('connection.update', async update => {
   const { connection, lastDisconnect, qr } = update;
-  
+
   if (qr) {
     const qrDataURL = await QRCode.toDataURL(qr);
     account.qrCode = qrDataURL;
     account.status = 'qr_ready';
   }
-  
+
   if (connection === 'open') {
     account.status = 'connected';
     account.qrCode = null;
   }
-  
+
   if (connection === 'close') {
     account.status = 'disconnected';
   }
@@ -225,6 +226,7 @@ sock.ev.on('connection.update', async (update) => {
 ### 1. Deploy to Railway (IMMEDIATE)
 
 **Option A: Manual Deploy via Railway Dashboard**
+
 1. Go to Railway dashboard
 2. Create new service from GitHub repo
 3. Set root directory: `whatsapp-backend`
@@ -235,6 +237,7 @@ sock.ev.on('connection.update', async (update) => {
 5. Deploy
 
 **Option B: Railway CLI**
+
 ```bash
 cd whatsapp-backend
 railway login
@@ -321,12 +324,14 @@ curl -X POST https://YOUR-SERVICE.up.railway.app/api/whatsapp/send-message \
 ## Git Status
 
 **Commits:**
+
 - `fd2a9842` - Add Railway config for whatsapp-backend v2.0.0
 - `639acbb3` - Railway v2.0.0: Complete WhatsApp backend with Firestore + 18 accounts
 
 **Pushed to:** `origin/main`
 
 **Untracked files:**
+
 - `evidence-local-test.json`
 - `whatsapp-backend/test-local.js`
 
@@ -337,6 +342,7 @@ curl -X POST https://YOUR-SERVICE.up.railway.app/api/whatsapp/send-message \
 **Local testing confirms Railway v2.0.0 code is production-ready for deployment.**
 
 All critical bugs fixed:
+
 - ✅ QR generation works (fetchLatestBaileysVersion fix)
 - ✅ Multi-account support (18 simultaneous)
 - ✅ No 405 errors

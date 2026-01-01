@@ -13,6 +13,7 @@
 **Evidence:**
 
 ### Add Account Request
+
 ```bash
 $ curl -s -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
@@ -20,6 +21,7 @@ $ curl -s -X POST https://us-central1-superparty-frontend.cloudfunctions.net/wha
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -36,12 +38,14 @@ $ curl -s -X POST https://us-central1-superparty-frontend.cloudfunctions.net/wha
 ```
 
 ### QR Generation (after 30s)
+
 ```bash
 $ curl -s https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3/api/whatsapp/accounts | \
   jq '.accounts[] | select(.id == "account_1767011755513")'
 ```
 
 **Response:**
+
 ```json
 {
   "id": "account_1767011755513",
@@ -55,6 +59,7 @@ $ curl -s https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3/
 ```
 
 **Verification:**
+
 - ✅ Account created successfully
 - ✅ Status changed from "connecting" to "qr_ready" in 30s
 - ✅ qrCode is NOT null (6335+ bytes base64 PNG)
@@ -70,6 +75,7 @@ $ curl -s https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV3/
 **Status:** qr_ready
 
 **To display QR:**
+
 1. Copy QR data URL from response
 2. Paste in browser address bar
 3. QR code will display

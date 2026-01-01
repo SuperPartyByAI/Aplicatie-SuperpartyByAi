@@ -1,6 +1,6 @@
 /**
  * Conversation Permissions Middleware
- * 
+ *
  * Enforces permission rules for conversation operations
  */
 
@@ -27,7 +27,7 @@ class ConversationPermissions {
    */
   async canReserve(operatorCode, conversationId) {
     const doc = await this.conversationsRef.doc(conversationId).get();
-    
+
     if (!doc.exists) {
       return false;
     }
@@ -42,13 +42,13 @@ class ConversationPermissions {
    */
   async canWrite(operatorCode, conversationId) {
     const doc = await this.conversationsRef.doc(conversationId).get();
-    
+
     if (!doc.exists) {
       return false;
     }
 
     const conversation = doc.data();
-    
+
     // Must be RESERVED
     if (conversation.status !== 'RESERVED') {
       return false;
@@ -78,14 +78,14 @@ class ConversationPermissions {
         if (!operatorCode) {
           return res.status(401).json({
             success: false,
-            error: 'Operator code required'
+            error: 'Operator code required',
           });
         }
 
         if (!conversationId) {
           return res.status(400).json({
             success: false,
-            error: 'Conversation ID required'
+            error: 'Conversation ID required',
           });
         }
 
@@ -94,7 +94,7 @@ class ConversationPermissions {
         if (!canWrite) {
           return res.status(403).json({
             success: false,
-            error: 'Doar operatorul rezervant poate răspunde'
+            error: 'Doar operatorul rezervant poate răspunde',
           });
         }
 
@@ -103,7 +103,7 @@ class ConversationPermissions {
         console.error('Permission check error:', error);
         res.status(500).json({
           success: false,
-          error: 'Permission check failed'
+          error: 'Permission check failed',
         });
       }
     };
@@ -121,14 +121,14 @@ class ConversationPermissions {
         if (!operatorCode) {
           return res.status(401).json({
             success: false,
-            error: 'Operator code required'
+            error: 'Operator code required',
           });
         }
 
         if (!conversationId) {
           return res.status(400).json({
             success: false,
-            error: 'Conversation ID required'
+            error: 'Conversation ID required',
           });
         }
 
@@ -137,7 +137,7 @@ class ConversationPermissions {
         if (!canReserve) {
           return res.status(403).json({
             success: false,
-            error: 'Conversația nu poate fi rezervată'
+            error: 'Conversația nu poate fi rezervată',
           });
         }
 
@@ -146,7 +146,7 @@ class ConversationPermissions {
         console.error('Permission check error:', error);
         res.status(500).json({
           success: false,
-          error: 'Permission check failed'
+          error: 'Permission check failed',
         });
       }
     };

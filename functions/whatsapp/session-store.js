@@ -17,7 +17,7 @@ class SessionStore {
 
   /**
    * Salvează session în Firestore
-   * @param {string} accountId 
+   * @param {string} accountId
    * @param {string} sessionPath - Path la .baileys_auth/{accountId}
    * @param {object} account - Account metadata (optional)
    */
@@ -26,28 +26,30 @@ class SessionStore {
       if (!this.db) await this.initialize();
 
       const credsPath = path.join(sessionPath, 'creds.json');
-      
+
       if (!fs.existsSync(credsPath)) {
         console.log(`⚠️ [${accountId}] No creds.json found, skipping save`);
         return;
       }
 
       const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
-      
+
       // Salvează în Firestore cu metadata
       const data = {
         accountId,
         creds: creds,
-        metadata: account ? {
-          name: account.name,
-          phone: account.phone,
-          status: account.status,
-          createdAt: account.createdAt
-        } : null,
+        metadata: account
+          ? {
+              name: account.name,
+              phone: account.phone,
+              status: account.status,
+              createdAt: account.createdAt,
+            }
+          : null,
         updatedAt: new Date().toISOString(),
-        savedAt: firestore.admin.firestore.FieldValue.serverTimestamp()
+        savedAt: firestore.admin.firestore.FieldValue.serverTimestamp(),
       };
-      
+
       await this.db.collection('whatsapp_sessions').doc(accountId).set(data);
 
       console.log(`💾 [${accountId}] Session saved to Firestore with metadata`);
@@ -60,7 +62,7 @@ class SessionStore {
 
   /**
    * Restaurează session din Firestore
-   * @param {string} accountId 
+   * @param {string} accountId
    * @param {string} sessionPath - Path la .baileys_auth/{accountId}
    */
   async restoreSession(accountId, sessionPath) {
@@ -68,14 +70,14 @@ class SessionStore {
       if (!this.db) await this.initialize();
 
       const doc = await this.db.collection('whatsapp_sessions').doc(accountId).get();
-      
+
       if (!doc.exists) {
         console.log(`ℹ️ [${accountId}] No saved session in Firestore`);
         return false;
       }
 
       const data = doc.data();
-      
+
       // Creează director dacă nu există
       if (!fs.existsSync(sessionPath)) {
         fs.mkdirSync(sessionPath, { recursive: true });
@@ -95,7 +97,7 @@ class SessionStore {
 
   /**
    * Șterge session din Firestore
-   * @param {string} accountId 
+   * @param {string} accountId
    */
   async deleteSession(accountId) {
     try {
@@ -117,11 +119,11 @@ class SessionStore {
 
       const snapshot = await this.db.collection('whatsapp_sessions').get();
       const sessions = [];
-      
+
       snapshot.forEach(doc => {
         sessions.push({
           accountId: doc.id,
-          ...doc.data()
+          ...doc.data(),
         });
       });
 

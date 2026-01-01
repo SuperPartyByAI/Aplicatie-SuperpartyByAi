@@ -16,8 +16,8 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST']
-  }
+    methods: ['GET', 'POST'],
+  },
 });
 
 // Middleware
@@ -38,7 +38,7 @@ const multiRegion = new MultiRegionManager();
 app.get('/', (req, res) => {
   const accounts = whatsappManager.getAccounts();
   const metrics = monitoring.getMetricsSummary();
-  
+
   res.json({
     status: 'online',
     service: 'SuperParty WhatsApp Server',
@@ -49,12 +49,9 @@ app.get('/', (req, res) => {
         'Keep-alive: 10s (was 15s)',
         'Health check: 15s (was 30s)',
         'Reconnect delay: 1s (was 5s)',
-        'Message deduplication: enabled'
+        'Message deduplication: enabled',
       ],
-      tier2: [
-        'Retry logic: 3 attempts',
-        'Graceful shutdown: enabled'
-      ],
+      tier2: ['Retry logic: 3 attempts', 'Graceful shutdown: enabled'],
       tier3: [
         'Dual connection (backup)',
         'Persistent queue (Firestore)',
@@ -62,19 +59,19 @@ app.get('/', (req, res) => {
         'Message batching (10x faster)',
         'Proactive reconnect (predictive)',
         'Multi-region failover',
-        'Monitoring & alerting'
+        'Monitoring & alerting',
       ],
       tierUltimate1: [
         'Human behavior simulation (typing, delays, read receipts)',
         'Intelligent rate limiting (adaptive throttling)',
         'Message variation (anti-spam, templates)',
-        'Circuit breaker (cascade prevention)'
+        'Circuit breaker (cascade prevention)',
       ],
       tierUltimate2: [
         'Webhooks (real-time notifications)',
         'Advanced health checks (predictive failure detection)',
-        'Proxy rotation (IP rotation per account)'
-      ]
+        'Proxy rotation (IP rotation per account)',
+      ],
     },
     expectedResults: {
       downtime: '1-2s (realistic)',
@@ -82,13 +79,13 @@ app.get('/', (req, res) => {
       banRisk: '1-2% (realistic with proxy)',
       detectionRisk: '3-4% (realistic)',
       uptime: '98-99% (realistic)',
-      truthPercentage: '75% (honest)'
+      truthPercentage: '75% (honest)',
     },
     accounts: accounts.length,
     connected: accounts.filter(a => a.status === 'connected').length,
     metrics: metrics,
     region: multiRegion.getActiveRegionName(),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -169,7 +166,7 @@ app.get('/api/ultimate/stats', (req, res) => {
     const webhookManager = require('./src/whatsapp/webhooks');
     const advancedHealthChecker = require('./src/whatsapp/advanced-health');
     const proxyRotationManager = require('./src/whatsapp/proxy-rotation');
-    
+
     res.json({
       success: true,
       tier: 'ULTIMATE 2',
@@ -179,12 +176,12 @@ app.get('/api/ultimate/stats', (req, res) => {
         messageVariation: messageVariation.getStats(),
         circuitBreaker: {
           stats: circuitBreaker.getStats(),
-          states: circuitBreaker.getAllStates()
+          states: circuitBreaker.getAllStates(),
         },
         webhooks: webhookManager.getStats(),
         advancedHealth: advancedHealthChecker.getStats(),
-        proxyRotation: proxyRotationManager.getStats()
-      }
+        proxyRotation: proxyRotationManager.getStats(),
+      },
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -196,7 +193,7 @@ app.post('/api/ultimate/webhooks/register', (req, res) => {
   try {
     const { name, url, events, secret, enabled } = req.body;
     const webhookManager = require('./src/whatsapp/webhooks');
-    
+
     webhookManager.register(name, { url, events, secret, enabled });
     res.json({ success: true });
   } catch (error) {
@@ -208,7 +205,7 @@ app.delete('/api/ultimate/webhooks/:name', (req, res) => {
   try {
     const { name } = req.params;
     const webhookManager = require('./src/whatsapp/webhooks');
-    
+
     const result = webhookManager.unregister(name);
     res.json({ success: result });
   } catch (error) {
@@ -220,7 +217,7 @@ app.post('/api/ultimate/webhooks/:name/test', async (req, res) => {
   try {
     const { name } = req.params;
     const webhookManager = require('./src/whatsapp/webhooks');
-    
+
     const result = await webhookManager.test(name);
     res.json({ success: result.success, result });
   } catch (error) {
@@ -243,7 +240,7 @@ app.get('/api/ultimate/health/:accountId', (req, res) => {
   try {
     const { accountId } = req.params;
     const advancedHealthChecker = require('./src/whatsapp/advanced-health');
-    
+
     const health = advancedHealthChecker.getHealthData(accountId);
     res.json({ success: true, health });
   } catch (error) {
@@ -266,7 +263,7 @@ app.post('/api/ultimate/proxy/add', (req, res) => {
   try {
     const { proxyId, url, type, username, password, enabled, sticky } = req.body;
     const proxyRotationManager = require('./src/whatsapp/proxy-rotation');
-    
+
     proxyRotationManager.addProxy(proxyId, { url, type, username, password, enabled, sticky });
     res.json({ success: true });
   } catch (error) {
@@ -278,7 +275,7 @@ app.delete('/api/ultimate/proxy/:proxyId', (req, res) => {
   try {
     const { proxyId } = req.params;
     const proxyRotationManager = require('./src/whatsapp/proxy-rotation');
-    
+
     const result = proxyRotationManager.removeProxy(proxyId);
     res.json({ success: result });
   } catch (error) {
@@ -290,13 +287,13 @@ app.post('/api/ultimate/proxy/assign', (req, res) => {
   try {
     const { accountId, proxyId } = req.body;
     const proxyRotationManager = require('./src/whatsapp/proxy-rotation');
-    
+
     if (proxyId) {
       proxyRotationManager.assignProxy(accountId, proxyId);
     } else {
       proxyRotationManager.autoAssignProxy(accountId);
     }
-    
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -307,7 +304,7 @@ app.post('/api/ultimate/proxy/rotate/:accountId', (req, res) => {
   try {
     const { accountId } = req.params;
     const proxyRotationManager = require('./src/whatsapp/proxy-rotation');
-    
+
     const newProxyId = proxyRotationManager.rotateProxy(accountId);
     res.json({ success: true, proxyId: newProxyId });
   } catch (error) {
@@ -389,16 +386,21 @@ app.post('/api/whatsapp/send-bulk/:accountId', async (req, res) => {
   try {
     const { accountId } = req.params;
     const { recipients, template, options } = req.body;
-    
+
     if (!recipients || !Array.isArray(recipients)) {
       return res.status(400).json({ success: false, error: 'Recipients array required' });
     }
-    
+
     if (!template) {
       return res.status(400).json({ success: false, error: 'Template required' });
     }
-    
-    const results = await whatsappManager.sendBulkMessages(accountId, recipients, template, options || {});
+
+    const results = await whatsappManager.sendBulkMessages(
+      accountId,
+      recipients,
+      template,
+      options || {}
+    );
     res.json({ success: true, results });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -406,9 +408,9 @@ app.post('/api/whatsapp/send-bulk/:accountId', async (req, res) => {
 });
 
 // Socket.io connection
-io.on('connection', (socket) => {
+io.on('connection', socket => {
   console.log('🔌 Client connected:', socket.id);
-  
+
   socket.on('disconnect', () => {
     console.log('🔌 Client disconnected:', socket.id);
   });
@@ -417,16 +419,16 @@ io.on('connection', (socket) => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('🛑 SIGTERM received, starting graceful shutdown...');
-  
+
   try {
     // Close server
     server.close(() => {
       console.log('🔌 HTTP server closed');
     });
-    
+
     // Graceful shutdown WhatsApp
     await whatsappManager.gracefulShutdown();
-    
+
     console.log('✅ Graceful shutdown complete');
     process.exit(0);
   } catch (error) {
@@ -437,14 +439,14 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   console.log('🛑 SIGINT received, starting graceful shutdown...');
-  
+
   try {
     server.close(() => {
       console.log('🔌 HTTP server closed');
     });
-    
+
     await whatsappManager.gracefulShutdown();
-    
+
     console.log('✅ Graceful shutdown complete');
     process.exit(0);
   } catch (error) {
@@ -488,7 +490,7 @@ server.listen(PORT, () => {
   console.log('║  ✅ Ready to accept connections                           ║');
   console.log('╚═══════════════════════════════════════════════════════════╝');
   console.log('');
-  
+
   if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
     console.log('⚠️  WARNING: FIREBASE_SERVICE_ACCOUNT not set');
     console.log('   Messages will NOT be saved to Firestore');

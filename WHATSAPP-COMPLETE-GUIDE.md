@@ -9,6 +9,7 @@
 ## 📋 Ce Funcționează
 
 ### ✅ Implementat și Testat:
+
 - Firebase Cloud Functions (Gen 1, Node.js 20)
 - Baileys 6.5.0 pentru WhatsApp Web API
 - Express.js cu CORS
@@ -19,6 +20,7 @@
 - Auto-reconnect după disconnect
 
 ### ❌ NU Funcționează:
+
 - **Pairing Codes** - generează coduri invalide în Cloud Functions
 - **SOLUȚIE:** Folosește doar QR codes
 
@@ -54,6 +56,7 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 **IMPORTANT:** NU trimite parametrul `phone` - vrei QR code, nu pairing code!
 
 **Răspuns:**
+
 ```json
 {
   "success": true,
@@ -82,6 +85,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ```
 
 **Răspuns cu QR Code:**
+
 ```json
 {
   "success": true,
@@ -104,6 +108,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ### 4️⃣ Scanează QR Code
 
 **Metoda 1: Browser**
+
 1. Copiază string-ul `qrCode` (începe cu `data:image/png;base64,`)
 2. Deschide Chrome/Edge
 3. Lipește în address bar
@@ -111,6 +116,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 5. Vei vedea QR code-ul
 
 **Metoda 2: Salvează ca fișier**
+
 ```bash
 # Extrage QR code din răspuns și salvează
 curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/accounts | \
@@ -120,6 +126,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ```
 
 **Metoda 3: În aplicație web**
+
 ```html
 <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..." alt="QR Code" />
 ```
@@ -144,6 +151,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ```
 
 **Status după conectare:**
+
 ```json
 {
   "success": true,
@@ -151,10 +159,10 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
     {
       "id": "account_1766951966844",
       "name": "SuperParty Main",
-      "status": "connected",  // ✅ CONECTAT!
+      "status": "connected", // ✅ CONECTAT!
       "qrCode": null,
       "pairingCode": null,
-      "phone": "40373805828",  // Numărul tău
+      "phone": "40373805828", // Numărul tău
       "createdAt": "2025-12-28T19:59:26.844Z"
     }
   ]
@@ -176,6 +184,7 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
 
 **Răspuns:**
+
 ```json
 {
   "success": true
@@ -189,21 +198,25 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ## 📡 API Endpoints Complete
 
 ### Base URL
+
 ```
 https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
 
 ### 1. Health Check
+
 ```bash
 GET /
 ```
 
 ### 2. Listare Conturi
+
 ```bash
 GET /api/whatsapp/accounts
 ```
 
 ### 3. Adăugare Cont (QR Code)
+
 ```bash
 POST /api/whatsapp/add-account
 Content-Type: application/json
@@ -214,6 +227,7 @@ Content-Type: application/json
 ```
 
 ### 4. Adăugare Cont (Pairing Code - NU RECOMANDAT)
+
 ```bash
 POST /api/whatsapp/add-account
 Content-Type: application/json
@@ -223,14 +237,17 @@ Content-Type: application/json
   "phone": "40373805828"
 }
 ```
+
 ⚠️ **ATENȚIE:** Pairing codes NU funcționează în Cloud Functions!
 
 ### 5. Ștergere Cont
+
 ```bash
 DELETE /api/whatsapp/accounts/:accountId
 ```
 
 ### 6. Trimitere Mesaj
+
 ```bash
 POST /api/whatsapp/send
 Content-Type: application/json
@@ -243,6 +260,7 @@ Content-Type: application/json
 ```
 
 **Note:**
+
 - `to` poate fi cu sau fără `@s.whatsapp.net`
 - Contul trebuie să fie `status: "connected"`
 
@@ -255,6 +273,7 @@ Content-Type: application/json
 **Cauză:** Generarea durează 15-20 secunde
 
 **Soluție:**
+
 ```bash
 # Așteaptă și verifică din nou
 sleep 20
@@ -268,6 +287,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 **Cauză:** Contul nu e conectat sau s-a deconectat
 
 **Soluție:**
+
 ```bash
 # Verifică status
 curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/accounts
@@ -295,7 +315,8 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 
 **Cauză:** Cloud Functions timeout sau restart
 
-**Soluție:** 
+**Soluție:**
+
 - Sesiunile sunt salvate în Firestore
 - Auto-reconnect după restart
 - Dacă nu funcționează, recreează contul
@@ -305,6 +326,7 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ## 📊 Arhitectura Tehnică
 
 ### Stack:
+
 - **Runtime:** Node.js 20
 - **Platform:** Firebase Cloud Functions (Gen 1)
 - **WhatsApp Library:** @whiskeysockets/baileys 6.5.0
@@ -314,6 +336,7 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 - **QR Generation:** qrcode 1.5.3
 
 ### Fișiere Principale:
+
 ```
 functions/
 ├── index.js                    # Entry point, Express routes
@@ -334,17 +357,20 @@ functions/
 ## ⚠️ Limitări și Riscuri
 
 ### Limitări Tehnice:
+
 1. **Pairing Codes NU funcționează** în Cloud Functions
 2. **Timeout:** Cloud Functions au timeout de 60 secunde (Gen 1) sau 540 secunde (Gen 2)
 3. **Cold Start:** Prima cerere poate dura 5-10 secunde
 4. **Sesiuni:** Se pot pierde la restart (salvate în Firestore pentru recovery)
 
 ### Riscuri Legale:
+
 1. **Împotriva ToS WhatsApp:** Baileys folosește WhatsApp Web API neoficial
 2. **Risc de BAN:** WhatsApp poate bana contul dacă detectează automatizare
 3. **NU pentru producție:** Recomandat doar pentru testare/MVP
 
 ### Recomandări pentru Producție:
+
 1. **Twilio WhatsApp API** - Oficial, legal, $0.005/mesaj
 2. **WhatsApp Business API** - Cel mai sigur, necesită aprobare
 3. **MessageBird** - Alternativă la Twilio
@@ -354,6 +380,7 @@ functions/
 ## 🚀 Deploy și Maintenance
 
 ### Deploy Nou:
+
 ```bash
 cd functions
 npm install
@@ -362,11 +389,13 @@ firebase deploy --only functions
 ```
 
 ### Verifică Logs:
+
 ```bash
 firebase functions:log
 ```
 
 ### Monitorizare:
+
 - Firebase Console: https://console.firebase.google.com/project/superparty-frontend/functions
 - Logs în timp real: `firebase functions:log --follow`
 
@@ -376,9 +405,10 @@ firebase functions:log
 
 **Firebase Project:** superparty-frontend  
 **Region:** us-central1  
-**Function Name:** whatsapp  
+**Function Name:** whatsapp
 
 **Documentație:**
+
 - Baileys: https://github.com/WhiskeySockets/Baileys
 - Firebase Functions: https://firebase.google.com/docs/functions
 - Twilio WhatsApp: https://www.twilio.com/whatsapp

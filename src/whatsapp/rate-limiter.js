@@ -1,6 +1,6 @@
 /**
  * Intelligent Rate Limiting Module
- * 
+ *
  * Prevents ban by intelligently throttling messages:
  * - Adaptive rate limiting based on account age and activity
  * - Queue management with priority
@@ -8,7 +8,7 @@
  * - Per-recipient limits
  * - Time-window based throttling
  * - Automatic backoff on rate limit detection
- * 
+ *
  * Reduces ban risk by 75% (from 2% to 0.5%)
  */
 
@@ -22,41 +22,41 @@ class RateLimiter {
         messagesPerDay: 100,
         burstSize: 3,
         burstWindow: 60000, // 1 minute
-        minDelay: 3000      // 3s between messages
+        minDelay: 3000, // 3s between messages
       },
-      
+
       // Normal accounts (7-30 days)
       normal: {
         messagesPerHour: 50,
         messagesPerDay: 300,
         burstSize: 5,
         burstWindow: 60000,
-        minDelay: 2000      // 2s between messages
+        minDelay: 2000, // 2s between messages
       },
-      
+
       // Established accounts (> 30 days)
       established: {
         messagesPerHour: 100,
         messagesPerDay: 600,
         burstSize: 10,
         burstWindow: 60000,
-        minDelay: 1000      // 1s between messages
-      }
+        minDelay: 1000, // 1s between messages
+      },
     };
-    
+
     // Per-recipient limits
     this.recipientLimits = {
       messagesPerHour: 10,
       messagesPerDay: 30,
-      minDelay: 5000 // 5s between messages to same recipient
+      minDelay: 5000, // 5s between messages to same recipient
     };
-    
+
     // Tracking
     this.accountStats = {}; // accountId -> stats
     this.recipientStats = {}; // accountId -> jid -> stats
     this.queues = {}; // accountId -> message queue
     this.processing = {}; // accountId -> boolean
-    
+
     // Backoff state
     this.backoff = {}; // accountId -> backoff info
   }
@@ -73,14 +73,14 @@ class RateLimiter {
         lastMessageTime: 0,
         burstMessages: [],
         rateLimitHits: 0,
-        backoffUntil: 0
+        backoffUntil: 0,
       };
     }
-    
+
     if (!this.queues[accountId]) {
       this.queues[accountId] = [];
     }
-    
+
     if (!this.recipientStats[accountId]) {
       this.recipientStats[accountId] = {};
     }
@@ -92,7 +92,7 @@ class RateLimiter {
   getAccountLimits(accountId) {
     const stats = this.accountStats[accountId];
     if (!stats) return this.limits.normal;
-    
+
     return this.limits[stats.age] || this.limits.normal;
   }
 
@@ -102,61 +102,59 @@ class RateLimiter {
   canSendNow(accountId, jid) {
     const stats = this.accountStats[accountId];
     if (!stats) return { allowed: false, reason: 'Account not initialized' };
-    
+
     const limits = this.getAccountLimits(accountId);
     const now = Date.now();
-    
+
     // Check backoff
     if (stats.backoffUntil > now) {
       return {
         allowed: false,
         reason: 'In backoff period',
-        retryAfter: stats.backoffUntil - now
+        retryAfter: stats.backoffUntil - now,
       };
     }
-    
+
     // Clean old entries
     this.cleanOldEntries(accountId);
-    
+
     // Check hourly limit
     if (stats.messagesLastHour.length >= limits.messagesPerHour) {
       return {
         allowed: false,
         reason: 'Hourly limit reached',
-        retryAfter: 3600000 - (now - stats.messagesLastHour[0])
+        retryAfter: 3600000 - (now - stats.messagesLastHour[0]),
       };
     }
-    
+
     // Check daily limit
     if (stats.messagesLastDay.length >= limits.messagesPerDay) {
       return {
         allowed: false,
         reason: 'Daily limit reached',
-        retryAfter: 86400000 - (now - stats.messagesLastDay[0])
+        retryAfter: 86400000 - (now - stats.messagesLastDay[0]),
       };
     }
-    
+
     // Check burst limit
-    const recentBurst = stats.burstMessages.filter(
-      time => now - time < limits.burstWindow
-    );
+    const recentBurst = stats.burstMessages.filter(time => now - time < limits.burstWindow);
     if (recentBurst.length >= limits.burstSize) {
       return {
         allowed: false,
         reason: 'Burst limit reached',
-        retryAfter: limits.burstWindow - (now - recentBurst[0])
+        retryAfter: limits.burstWindow - (now - recentBurst[0]),
       };
     }
-    
+
     // Check minimum delay
     if (now - stats.lastMessageTime < limits.minDelay) {
       return {
         allowed: false,
         reason: 'Minimum delay not met',
-        retryAfter: limits.minDelay - (now - stats.lastMessageTime)
+        retryAfter: limits.minDelay - (now - stats.lastMessageTime),
       };
     }
-    
+
     // Check per-recipient limits
     if (jid) {
       const recipientCheck = this.checkRecipientLimits(accountId, jid);
@@ -164,7 +162,7 @@ class RateLimiter {
         return recipientCheck;
       }
     }
-    
+
     return { allowed: true };
   }
 
@@ -177,13 +175,13 @@ class RateLimiter {
       this.recipientStats[accountId][jid] = {
         messagesLastHour: [],
         messagesLastDay: [],
-        lastMessageTime: 0
+        lastMessageTime: 0,
       };
       return { allowed: true };
     }
-    
+
     const now = Date.now();
-    
+
     // Clean old entries
     recipientStats.messagesLastHour = recipientStats.messagesLastHour.filter(
       time => now - time < 3600000
@@ -191,34 +189,34 @@ class RateLimiter {
     recipientStats.messagesLastDay = recipientStats.messagesLastDay.filter(
       time => now - time < 86400000
     );
-    
+
     // Check hourly limit
     if (recipientStats.messagesLastHour.length >= this.recipientLimits.messagesPerHour) {
       return {
         allowed: false,
         reason: 'Recipient hourly limit reached',
-        retryAfter: 3600000 - (now - recipientStats.messagesLastHour[0])
+        retryAfter: 3600000 - (now - recipientStats.messagesLastHour[0]),
       };
     }
-    
+
     // Check daily limit
     if (recipientStats.messagesLastDay.length >= this.recipientLimits.messagesPerDay) {
       return {
         allowed: false,
         reason: 'Recipient daily limit reached',
-        retryAfter: 86400000 - (now - recipientStats.messagesLastDay[0])
+        retryAfter: 86400000 - (now - recipientStats.messagesLastDay[0]),
       };
     }
-    
+
     // Check minimum delay
     if (now - recipientStats.lastMessageTime < this.recipientLimits.minDelay) {
       return {
         allowed: false,
         reason: 'Recipient minimum delay not met',
-        retryAfter: this.recipientLimits.minDelay - (now - recipientStats.lastMessageTime)
+        retryAfter: this.recipientLimits.minDelay - (now - recipientStats.lastMessageTime),
       };
     }
-    
+
     return { allowed: true };
   }
 
@@ -228,15 +226,15 @@ class RateLimiter {
   recordMessage(accountId, jid) {
     const stats = this.accountStats[accountId];
     if (!stats) return;
-    
+
     const now = Date.now();
-    
+
     // Update account stats
     stats.messagesLastHour.push(now);
     stats.messagesLastDay.push(now);
     stats.burstMessages.push(now);
     stats.lastMessageTime = now;
-    
+
     // Update recipient stats
     if (jid && this.recipientStats[accountId][jid]) {
       const recipientStats = this.recipientStats[accountId][jid];
@@ -252,24 +250,18 @@ class RateLimiter {
   cleanOldEntries(accountId) {
     const stats = this.accountStats[accountId];
     if (!stats) return;
-    
+
     const now = Date.now();
-    
+
     // Clean hourly
-    stats.messagesLastHour = stats.messagesLastHour.filter(
-      time => now - time < 3600000
-    );
-    
+    stats.messagesLastHour = stats.messagesLastHour.filter(time => now - time < 3600000);
+
     // Clean daily
-    stats.messagesLastDay = stats.messagesLastDay.filter(
-      time => now - time < 86400000
-    );
-    
+    stats.messagesLastDay = stats.messagesLastDay.filter(time => now - time < 86400000);
+
     // Clean burst
     const limits = this.getAccountLimits(accountId);
-    stats.burstMessages = stats.burstMessages.filter(
-      time => now - time < limits.burstWindow
-    );
+    stats.burstMessages = stats.burstMessages.filter(time => now - time < limits.burstWindow);
   }
 
   /**
@@ -277,26 +269,26 @@ class RateLimiter {
    */
   async queueMessage(accountId, jid, messageText, priority = 0) {
     this.initAccount(accountId);
-    
+
     const message = {
       id: `${Date.now()}-${Math.random()}`,
       jid,
       text: messageText,
       priority,
       queuedAt: Date.now(),
-      attempts: 0
+      attempts: 0,
     };
-    
+
     this.queues[accountId].push(message);
-    
+
     // Sort by priority (higher first)
     this.queues[accountId].sort((a, b) => b.priority - a.priority);
-    
+
     // Start processing if not already
     if (!this.processing[accountId]) {
       this.processQueue(accountId);
     }
-    
+
     return message.id;
   }
 
@@ -305,28 +297,28 @@ class RateLimiter {
    */
   async processQueue(accountId) {
     if (this.processing[accountId]) return;
-    
+
     this.processing[accountId] = true;
-    
+
     while (this.queues[accountId].length > 0) {
       const message = this.queues[accountId][0];
-      
+
       // Check if can send
       const check = this.canSendNow(accountId, message.jid);
-      
+
       if (check.allowed) {
         // Remove from queue
         this.queues[accountId].shift();
-        
+
         try {
           // Send message (will be handled by manager)
           await this.sendMessage(accountId, message);
-          
+
           // Record success
           this.recordMessage(accountId, message.jid);
         } catch (error) {
           console.error('Error sending queued message:', error.message);
-          
+
           // Requeue if not too many attempts
           if (message.attempts < 3) {
             message.attempts++;
@@ -339,7 +331,7 @@ class RateLimiter {
         await this.delay(waitTime);
       }
     }
-    
+
     this.processing[accountId] = false;
   }
 
@@ -356,9 +348,9 @@ class RateLimiter {
   handleRateLimit(accountId, severity = 'medium') {
     const stats = this.accountStats[accountId];
     if (!stats) return;
-    
+
     stats.rateLimitHits++;
-    
+
     // Calculate backoff duration
     let backoffDuration;
     switch (severity) {
@@ -374,12 +366,12 @@ class RateLimiter {
       default:
         backoffDuration = 300000;
     }
-    
+
     // Exponential backoff based on hits
     backoffDuration *= Math.pow(2, Math.min(stats.rateLimitHits - 1, 5));
-    
+
     stats.backoffUntil = Date.now() + backoffDuration;
-    
+
     console.warn(`Rate limit detected for ${accountId}, backing off for ${backoffDuration}ms`);
   }
 
@@ -390,7 +382,7 @@ class RateLimiter {
     return {
       queueLength: this.queues[accountId]?.length || 0,
       processing: this.processing[accountId] || false,
-      stats: this.accountStats[accountId] || null
+      stats: this.accountStats[accountId] || null,
     };
   }
 
@@ -399,15 +391,15 @@ class RateLimiter {
    */
   getStats() {
     const stats = {};
-    
+
     Object.keys(this.accountStats).forEach(accountId => {
       stats[accountId] = {
         ...this.accountStats[accountId],
         queueLength: this.queues[accountId]?.length || 0,
-        processing: this.processing[accountId] || false
+        processing: this.processing[accountId] || false,
       };
     });
-    
+
     return stats;
   }
 

@@ -11,17 +11,19 @@ Am migrat cu succes de la firebase-functions v4.9.0 la v5.x.x.
 ### 1. **Sintaxă `runWith()` → Opțiuni Direct în `onRequest()`**
 
 #### ❌ Sintaxă Veche (v4):
+
 ```javascript
 exports.whatsapp = functions
-  .runWith({ 
-    memory: '2GB', 
+  .runWith({
+    memory: '2GB',
     timeoutSeconds: 540,
-    invoker: 'public'
+    invoker: 'public',
   })
   .https.onRequest(app);
 ```
 
 #### ✅ Sintaxă Nouă (v5):
+
 ```javascript
 exports.whatsapp = functions.https.onRequest(
   {
@@ -37,19 +39,24 @@ exports.whatsapp = functions.https.onRequest(
 ## 📋 Breaking Changes în v5
 
 ### 1. **`runWith()` Deprecat**
+
 - **v4:** `functions.runWith(options).https.onRequest(app)`
 - **v5:** `functions.https.onRequest(options, app)`
 
 ### 2. **Memory Units**
+
 - **v4:** `'2GB'` (string)
 - **v5:** `'2GiB'` (proper binary unit)
 
 ### 3. **`invoker: 'public'` Removed**
+
 - **v4:** Putea fi setat în `runWith()`
 - **v5:** Trebuie configurat prin IAM permissions în Google Cloud Console
 
 ### 4. **Runtime Options**
+
 Opțiunile disponibile în v5:
+
 ```javascript
 {
   memory: '256MiB' | '512MiB' | '1GiB' | '2GiB' | '4GiB' | '8GiB',
@@ -114,8 +121,8 @@ resource "google_cloudfunctions_function_iam_member" "invoker" {
 ```json
 {
   "dependencies": {
-    "firebase-functions": "^5.1.1",  // upgraded from 4.9.0
-    "firebase-admin": "^12.7.0"      // upgraded from 11.11.0
+    "firebase-functions": "^5.1.1", // upgraded from 4.9.0
+    "firebase-admin": "^12.7.0" // upgraded from 11.11.0
   }
 }
 ```
@@ -132,12 +139,14 @@ firebase emulators:start
 ```
 
 **Expected Output:**
+
 ```
 ✔  functions: Loaded functions definitions from source
 ✔  All emulators ready!
 ```
 
 **No more errors:**
+
 - ❌ `TypeError: functions.runWith is not a function`
 - ✅ Function loads successfully
 
@@ -148,6 +157,7 @@ firebase deploy --only functions
 ```
 
 **Expected:**
+
 ```
 ✔  functions[whatsapp(us-central1)] Successful update operation
 ✔  Deploy complete!
@@ -203,6 +213,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
 
 **Expected:**
+
 ```json
 {
   "status": "online",

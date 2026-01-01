@@ -25,6 +25,7 @@ firebase login
 ```
 
 **Ce se întâmplă:**
+
 1. Se deschide browser
 2. Selectează contul Google (cel cu care ai creat Firebase project)
 3. Acceptă permisiunile
@@ -47,6 +48,7 @@ firebase projects:list
 ```
 
 **Ar trebui să vezi:**
+
 ```
 ┌──────────────────────┬────────────────────┬────────────────┐
 │ Project Display Name │ Project ID         │ Resource       │
@@ -64,6 +66,7 @@ firebase deploy --only functions
 ```
 
 **Output așteptat:**
+
 ```
 === Deploying to 'superparty-frontend'...
 
@@ -83,6 +86,7 @@ Function URL (whatsapp): https://us-central1-superparty-frontend.cloudfunctions.
 ```
 
 **URL-ul tău va fi:**
+
 ```
 https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
@@ -96,6 +100,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
 
 **Răspuns așteptat:**
+
 ```json
 {
   "status": "online",
@@ -116,6 +121,7 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
 
 **Răspuns:**
+
 ```json
 {
   "success": true,
@@ -144,23 +150,30 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ## ⚠️ Troubleshooting
 
 ### Problema: "firebase: command not found"
+
 **Soluție:**
+
 ```bash
 npm install -g firebase-tools
 ```
 
 ### Problema: "Error: Failed to authenticate"
+
 **Soluție:**
+
 ```bash
 firebase logout
 firebase login
 ```
 
 ### Problema: "Permission denied"
+
 **Soluție:** Verifică că ești owner pe project `superparty-frontend` în Firebase Console
 
 ### Problema: "Billing account required"
-**Soluție:** 
+
+**Soluție:**
+
 1. Mergi la https://console.firebase.google.com
 2. Selectează project `superparty-frontend`
 3. Upgrade to Blaze plan (pay-as-you-go)
@@ -170,13 +183,13 @@ firebase login
 
 ## 💰 Cost Real Firebase
 
-| Item | Gratuit | După Gratuit |
-|------|---------|--------------|
-| **Functions invocations** | 2M/lună | $0.40/1M |
-| **Functions compute** | 400K GB-s | $0.0000025/GB-s |
-| **Firestore reads** | 50K/zi | $0.06/100K |
-| **Firestore writes** | 20K/zi | $0.18/100K |
-| **Bandwidth** | 10GB/lună | $0.12/GB |
+| Item                      | Gratuit   | După Gratuit    |
+| ------------------------- | --------- | --------------- |
+| **Functions invocations** | 2M/lună   | $0.40/1M        |
+| **Functions compute**     | 400K GB-s | $0.0000025/GB-s |
+| **Firestore reads**       | 50K/zi    | $0.06/100K      |
+| **Firestore writes**      | 20K/zi    | $0.18/100K      |
+| **Bandwidth**             | 10GB/lună | $0.12/GB        |
 
 **Pentru 20 conturi WhatsApp:** $0-8/lună (probabil $2-5)
 
@@ -191,6 +204,7 @@ Firebase Functions au cold start după 15 min inactivitate. Pentru WhatsApp, tre
 **Opțiunea 1: Cron Job (Recomandat)**
 
 Folosește un serviciu gratuit gen [cron-job.org](https://cron-job.org):
+
 - URL: `https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp`
 - Interval: La 5 minute
 - Cost: Gratuit

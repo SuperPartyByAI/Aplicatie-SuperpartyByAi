@@ -2,13 +2,13 @@
 
 /**
  * Soak Test Runner - 2 Hour Production Stability Test
- * 
+ *
  * Monitors:
  * - Service uptime (heartbeat every 60s)
  * - Disconnect/reconnect events
  * - MTTR (Mean Time To Recovery)
  * - Crash detection
- * 
+ *
  * Outputs:
  * - artifacts/SOAK-REPORT.md
  * - artifacts/MTTR-REPORT.md
@@ -34,22 +34,24 @@ const metrics = {
   crashes: 0,
   totalChecks: 0,
   successfulChecks: 0,
-  failedChecks: 0
+  failedChecks: 0,
 };
 
 function httpGet(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          resolve({ status: res.statusCode, data: JSON.parse(data) });
-        } catch (e) {
-          resolve({ status: res.statusCode, data: data });
-        }
-      });
-    }).on('error', reject);
+    https
+      .get(url, res => {
+        let data = '';
+        res.on('data', chunk => (data += chunk));
+        res.on('end', () => {
+          try {
+            resolve({ status: res.statusCode, data: JSON.parse(data) });
+          } catch (e) {
+            resolve({ status: res.statusCode, data: data });
+          }
+        });
+      })
+      .on('error', reject);
   });
 }
 
@@ -60,13 +62,13 @@ async function checkHealth() {
       success: result.status === 200,
       status: result.status,
       data: result.data,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   } catch (error) {
     return {
       success: false,
       error: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 }
@@ -84,7 +86,7 @@ async function runSoakTest() {
 
   const interval = setInterval(async () => {
     const elapsed = Date.now() - startTime;
-    
+
     if (elapsed >= DURATION_MS) {
       clearInterval(interval);
       await finalizeSoakTest();
@@ -96,17 +98,19 @@ async function runSoakTest() {
 
     if (health.success) {
       metrics.successfulChecks++;
-      
+
       const heartbeat = {
         timestamp: health.timestamp,
         uptime: health.data.uptime,
         accounts: health.data.accounts,
-        commit: health.data.commit
+        commit: health.data.commit,
       };
-      
+
       metrics.heartbeats.push(heartbeat);
-      
-      console.log(`✅ [${Math.floor(elapsed / 1000)}s] Healthy - uptime: ${health.data.uptime}s, accounts: ${health.data.accounts.total}`);
+
+      console.log(
+        `✅ [${Math.floor(elapsed / 1000)}s] Healthy - uptime: ${health.data.uptime}s, accounts: ${health.data.accounts.total}`
+      );
 
       // Check if recovering from incident
       if (lastStatus === 'down' && incidentStart) {
@@ -120,8 +124,10 @@ async function runSoakTest() {
       lastStatus = 'up';
     } else {
       metrics.failedChecks++;
-      
-      console.log(`❌ [${Math.floor(elapsed / 1000)}s] Health check failed: ${health.error || health.status}`);
+
+      console.log(
+        `❌ [${Math.floor(elapsed / 1000)}s] Health check failed: ${health.error || health.status}`
+      );
 
       // Detect new incident
       if (lastStatus !== 'down') {
@@ -130,7 +136,7 @@ async function runSoakTest() {
           type: 'disconnect',
           startedAt: health.timestamp,
           recoveredAt: null,
-          mttr: null
+          mttr: null,
         });
         console.log(`⚠️  Incident detected`);
       }
@@ -150,7 +156,7 @@ async function runSoakTest() {
 
 async function finalizeSoakTest() {
   metrics.endTime = new Date().toISOString();
-  
+
   const actualDuration = Date.now() - new Date(metrics.startTime).getTime();
   const uptimePercent = (metrics.successfulChecks / metrics.totalChecks) * 100;
 
@@ -240,13 +246,21 @@ async function generateSoakReport(metrics, uptimePercent, actualDuration) {
 
 ## INCIDENTS
 
-${metrics.incidents.length === 0 ? 'No incidents detected.' : metrics.incidents.map((inc, i) => `
+${
+  metrics.incidents.length === 0
+    ? 'No incidents detected.'
+    : metrics.incidents
+        .map(
+          (inc, i) => `
 ### Incident ${i + 1}
 - Type: ${inc.type}
 - Started: ${inc.startedAt}
 - Recovered: ${inc.recoveredAt || 'N/A'}
 - MTTR: ${inc.mttr ? inc.mttr.toFixed(2) + 's' : 'N/A'}
-`).join('\n')}
+`
+        )
+        .join('\n')
+}
 
 ---
 
@@ -323,15 +337,12 @@ async function generateEvidence(metrics, mttrValues, mttrStats) {
     incidents: metrics.incidents,
     mttr: {
       values: mttrValues,
-      stats: mttrStats
+      stats: mttrStats,
     },
-    heartbeats: metrics.heartbeats
+    heartbeats: metrics.heartbeats,
   };
 
-  fs.writeFileSync(
-    path.join(__dirname, 'evidence.json'),
-    JSON.stringify(evidence, null, 2)
-  );
+  fs.writeFileSync(path.join(__dirname, 'evidence.json'), JSON.stringify(evidence, null, 2));
 }
 
 // Start soak test

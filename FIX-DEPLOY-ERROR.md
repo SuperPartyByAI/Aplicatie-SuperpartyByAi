@@ -12,15 +12,19 @@ Failed to update function projects/superparty-frontend/locations/us-central1/fun
 ## 🔍 Cauze Posibile
 
 ### 1. **Timeout la Deploy** (cel mai probabil)
+
 Firebase Functions are un timeout de 60s pentru deploy. Dacă funcția este prea mare sau deployment-ul durează prea mult, eșuează.
 
 ### 2. **Eroare de Sintaxă în Cod**
+
 Deși codul a trecut de validare locală, poate exista o eroare care apare doar la runtime pe Firebase.
 
 ### 3. **Permisiuni IAM Insuficiente**
+
 Contul tău poate să nu aibă permisiuni să UPDATE funcția existentă.
 
 ### 4. **Funcția este Locked** (în uz)
+
 Dacă funcția este în uz (primește requests), Firebase nu poate face update.
 
 ---
@@ -34,6 +38,7 @@ firebase functions:log --only whatsapp --limit 50
 ```
 
 Caută erori de tipul:
+
 - `SyntaxError`
 - `ReferenceError`
 - `Cannot find module`
@@ -70,6 +75,7 @@ firebase deploy --only functions
 Mergi la: [Google Cloud Console - IAM](https://console.cloud.google.com/iam-admin/iam?project=superparty-frontend)
 
 Verifică că contul tău are rolul:
+
 - **Cloud Functions Admin** sau
 - **Editor** sau
 - **Owner**
@@ -199,7 +205,7 @@ firebase deploy --only functions
 
 ✅ **Code pushed to GitHub** - Commit `a87d0c46`  
 ❌ **Deploy failed** - Funcția nu s-a actualizat  
-⏳ **Funcția veche încă rulează** - URL-ul funcționează dar cu codul vechi  
+⏳ **Funcția veche încă rulează** - URL-ul funcționează dar cu codul vechi
 
 ---
 

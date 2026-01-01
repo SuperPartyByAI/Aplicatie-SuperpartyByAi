@@ -16,7 +16,9 @@ const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
 
 // Validate required env vars
 if (!accountSid || !authToken || !twilioPhone) {
-  console.error('❌ Missing Twilio credentials. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER');
+  console.error(
+    '❌ Missing Twilio credentials. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER'
+  );
   process.exit(1);
 }
 
@@ -30,8 +32,8 @@ const globalLimiter = rateLimit({
   max: 100,
   message: {
     success: false,
-    error: 'Too many requests. Limit: 100 per minute per IP.'
-  }
+    error: 'Too many requests. Limit: 100 per minute per IP.',
+  },
 });
 
 app.use(globalLimiter);
@@ -42,10 +44,10 @@ const smsLimiter = rateLimit({
   max: 10,
   message: {
     success: false,
-    error: 'Too many SMS requests. Limit: 10 per minute per IP.'
+    error: 'Too many SMS requests. Limit: 10 per minute per IP.',
   },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
 });
 
 // Rate limiting for bulk: 3 requests per IP per minute
@@ -54,10 +56,10 @@ const bulkLimiter = rateLimit({
   max: 3,
   message: {
     success: false,
-    error: 'Too many bulk SMS requests. Limit: 3 per minute per IP.'
+    error: 'Too many bulk SMS requests. Limit: 3 per minute per IP.',
   },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
 });
 
 // Health check
@@ -66,7 +68,7 @@ app.get('/health', (req, res) => {
     status: 'healthy',
     service: 'Twilio SMS Backend',
     uptime: process.uptime(),
-    twilioConfigured: !!(accountSid && authToken && twilioPhone)
+    twilioConfigured: !!(accountSid && authToken && twilioPhone),
   });
 });
 
@@ -77,7 +79,7 @@ app.post('/sms/send', smsLimiter, async (req, res) => {
   if (!to || !message) {
     return res.status(400).json({
       success: false,
-      error: 'Missing required fields: to, message'
+      error: 'Missing required fields: to, message',
     });
   }
 
@@ -85,7 +87,7 @@ app.post('/sms/send', smsLimiter, async (req, res) => {
     const result = await client.messages.create({
       body: message,
       from: twilioPhone,
-      to: to
+      to: to,
     });
 
     res.json({
@@ -93,14 +95,14 @@ app.post('/sms/send', smsLimiter, async (req, res) => {
       messageSid: result.sid,
       status: result.status,
       to: result.to,
-      from: result.from
+      from: result.from,
     });
   } catch (error) {
     console.error('Twilio error:', error);
     res.status(500).json({
       success: false,
       error: error.message,
-      code: error.code
+      code: error.code,
     });
   }
 });
@@ -112,14 +114,14 @@ app.post('/sms/send-bulk', bulkLimiter, async (req, res) => {
   if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
     return res.status(400).json({
       success: false,
-      error: 'Missing or invalid recipients array'
+      error: 'Missing or invalid recipients array',
     });
   }
 
   if (!message) {
     return res.status(400).json({
       success: false,
-      error: 'Missing message field'
+      error: 'Missing message field',
     });
   }
 
@@ -131,21 +133,21 @@ app.post('/sms/send-bulk', bulkLimiter, async (req, res) => {
       const result = await client.messages.create({
         body: message,
         from: twilioPhone,
-        to: recipient
+        to: recipient,
       });
 
       results.push({
         to: recipient,
         success: true,
         messageSid: result.sid,
-        status: result.status
+        status: result.status,
       });
     } catch (error) {
       errors.push({
         to: recipient,
         success: false,
         error: error.message,
-        code: error.code
+        code: error.code,
       });
     }
   }
@@ -155,7 +157,7 @@ app.post('/sms/send-bulk', bulkLimiter, async (req, res) => {
     sent: results.length,
     failed: errors.length,
     results,
-    errors
+    errors,
   });
 });
 

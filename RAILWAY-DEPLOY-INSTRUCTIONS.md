@@ -29,16 +29,19 @@
 #### Step 2: Configure Service
 
 **Root Directory:**
+
 ```
 whatsapp-backend
 ```
 
 **Build Command:** (auto-detected from railway.toml)
+
 ```
 npm install
 ```
 
 **Start Command:** (from railway.toml)
+
 ```
 node server.js
 ```
@@ -59,6 +62,7 @@ PORT=8080
 ```
 
 **Important:** Get Firebase credentials from Firebase Console:
+
 1. Go to Project Settings → Service Accounts
 2. Click "Generate new private key"
 3. Copy values from downloaded JSON:
@@ -156,6 +160,7 @@ curl https://YOUR-SERVICE.up.railway.app/health | jq .
 ```
 
 **Expected:**
+
 ```json
 {
   "status": "healthy",
@@ -176,6 +181,7 @@ curl -X POST https://YOUR-SERVICE.up.railway.app/api/whatsapp/add-account \
 ```
 
 **Expected:**
+
 ```json
 {
   "success": true,
@@ -196,6 +202,7 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0
 ```
 
 **Expected:**
+
 ```json
 {
   "id": "account_XXXXXXXXXX",
@@ -209,6 +216,7 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0
 ### 4. Display QR Code
 
 **Option A: Browser**
+
 1. Copy the `qrCode` value (entire data URL)
 2. Open browser
 3. Paste in address bar
@@ -216,6 +224,7 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0
 5. QR code displays
 
 **Option B: Terminal (if qrencode installed)**
+
 ```bash
 curl -s https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | \
   jq -r '.accounts[0].qrCode' | \
@@ -249,6 +258,7 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0
 **Cause:** Service not deployed or wrong URL
 
 **Solution:**
+
 1. Check Railway dashboard for deployment status
 2. Verify service is running (not sleeping)
 3. Check logs: `railway logs`
@@ -258,6 +268,7 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0
 **Cause:** Missing environment variables or Firebase credentials invalid
 
 **Solution:**
+
 1. Check Railway variables are set correctly
 2. Verify FIREBASE_PRIVATE_KEY has \n characters preserved
 3. Check logs for specific error: `railway logs`
@@ -267,6 +278,7 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0
 **Cause:** fetchLatestBaileysVersion not called or Baileys version mismatch
 
 **Solution:**
+
 1. Verify server.js has the fix (line ~135):
    ```javascript
    const { version } = await fetchLatestBaileysVersion();
@@ -280,6 +292,7 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0
 **Cause:** Connection timeout or WhatsApp server unreachable
 
 **Solution:**
+
 1. Wait 30 seconds (connection timeout)
 2. Status should change to "needs_qr"
 3. Generate new QR code
@@ -292,11 +305,13 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0
 ### View Logs
 
 **Railway Dashboard:**
+
 1. Go to service → Deployments
 2. Click on latest deployment
 3. View logs in real-time
 
 **Railway CLI:**
+
 ```bash
 railway logs
 ```
@@ -304,6 +319,7 @@ railway logs
 ### Key Log Messages
 
 **Success:**
+
 ```
 🚀 WhatsApp Backend v2.0.0 running on port 8080
 📱 [account_XXX] QR Code generated
@@ -311,6 +327,7 @@ railway logs
 ```
 
 **Errors:**
+
 ```
 ❌ [account_XXX] Connection failed: <reason>
 ⚠️ [account_XXX] Connection timeout after 30s

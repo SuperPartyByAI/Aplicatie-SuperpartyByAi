@@ -6,16 +6,16 @@ function Toast() {
 
   useEffect(() => {
     const timeouts = new Map();
-    
+
     const callback = (message, type) => {
       const id = Date.now();
       setToasts(prev => [...prev, { id, message, type }]);
-      
+
       const timeoutId = setTimeout(() => {
         setToasts(prev => prev.filter(t => t.id !== id));
         timeouts.delete(id);
       }, 4000);
-      
+
       timeouts.set(id, timeoutId);
     };
 

@@ -39,7 +39,7 @@ Exemplu format răspuns:
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model: 'gpt-4o',
@@ -52,18 +52,18 @@ Exemplu format răspuns:
               type: 'image_url',
               image_url: {
                 url: idFrontBase64,
-                detail: 'high'
-              }
+                detail: 'high',
+              },
             },
             {
               type: 'image_url',
               image_url: {
                 url: idBackBase64,
-                detail: 'high'
-              }
-            }
-          ]
-        }
+                detail: 'high',
+              },
+            },
+          ],
+        },
       ],
       max_tokens: 500,
       temperature: 0.1,
@@ -73,8 +73,7 @@ Exemplu format răspuns:
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(
-      errorData.error?.message || 
-      `API Error: ${response.status} ${response.statusText}`
+      errorData.error?.message || `API Error: ${response.status} ${response.statusText}`
     );
   }
 
@@ -89,32 +88,43 @@ Exemplu format răspuns:
   try {
     // Curăță răspunsul de markdown sau text extra
     let jsonStr = content;
-    
+
     // Elimină markdown code blocks dacă există
     jsonStr = jsonStr.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-    
+
     // Găsește primul { și ultimul }
     const firstBrace = jsonStr.indexOf('{');
     const lastBrace = jsonStr.lastIndexOf('}');
-    
+
     if (firstBrace !== -1 && lastBrace !== -1) {
       jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
     }
-    
+
     const extracted = JSON.parse(jsonStr);
-    
+
     // Validează că avem câmpurile necesare
-    const requiredFields = ['fullName', 'cnp', 'gender', 'address', 'series', 'number', 'issuedAt', 'expiresAt'];
+    const requiredFields = [
+      'fullName',
+      'cnp',
+      'gender',
+      'address',
+      'series',
+      'number',
+      'issuedAt',
+      'expiresAt',
+    ];
     const result = {};
-    
+
     for (const field of requiredFields) {
       result[field] = extracted[field] || '';
     }
-    
+
     return result;
   } catch (parseError) {
     console.error('Parse error:', parseError);
     console.error('GPT response:', content);
-    throw new Error(`Nu am putut parsa răspunsul GPT. Răspuns primit: ${content.substring(0, 200)}...`);
+    throw new Error(
+      `Nu am putut parsa răspunsul GPT. Răspuns primit: ${content.substring(0, 200)}...`
+    );
   }
 }

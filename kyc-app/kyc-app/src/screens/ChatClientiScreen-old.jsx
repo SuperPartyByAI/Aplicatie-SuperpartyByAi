@@ -30,7 +30,7 @@ function ChatClientiScreen() {
     }
   };
 
-  const saveAccounts = (newAccounts) => {
+  const saveAccounts = newAccounts => {
     localStorage.setItem('whatsapp-accounts', JSON.stringify(newAccounts));
     setAccounts(newAccounts);
   };
@@ -41,7 +41,7 @@ function ChatClientiScreen() {
       phoneNumber,
       name: name || phoneNumber,
       addedAt: new Date().toISOString(),
-      webViewKey: `whatsapp-${Date.now()}`
+      webViewKey: `whatsapp-${Date.now()}`,
     };
 
     const updated = [...accounts, newAccount];
@@ -50,14 +50,14 @@ function ChatClientiScreen() {
     setSelectedAccount(newAccount);
   };
 
-  const removeAccount = (accountId) => {
+  const removeAccount = accountId => {
     if (!confirm('Sigur vrei să ștergi acest cont WhatsApp? Vei trebui să scanezi QR din nou.')) {
       return;
     }
 
     const updated = accounts.filter(acc => acc.id !== accountId);
     saveAccounts(updated);
-    
+
     if (selectedAccount?.id === accountId) {
       setSelectedAccount(null);
     }
@@ -85,15 +85,17 @@ function ChatClientiScreen() {
 
       <div style={{ display: 'flex', gap: '1rem', height: 'calc(100vh - 200px)' }}>
         {/* Sidebar cu lista conturi */}
-        <div style={{
-          width: '300px',
-          background: '#1f2937',
-          borderRadius: '8px',
-          padding: '1rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem'
-        }}>
+        <div
+          style={{
+            width: '300px',
+            background: '#1f2937',
+            borderRadius: '8px',
+            padding: '1rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+          }}
+        >
           <button
             onClick={() => setShowAddAccount(true)}
             style={{
@@ -108,25 +110,29 @@ function ChatClientiScreen() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '0.5rem'
+              gap: '0.5rem',
             }}
           >
             ➕ Adaugă Cont WhatsApp
           </button>
 
-          <div style={{
-            flex: 1,
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.5rem'
-          }}>
+          <div
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+            }}
+          >
             {accounts.length === 0 ? (
-              <div style={{
-                padding: '2rem',
-                textAlign: 'center',
-                color: '#9ca3af'
-              }}>
+              <div
+                style={{
+                  padding: '2rem',
+                  textAlign: 'center',
+                  color: '#9ca3af',
+                }}
+              >
                 <p>📱 Niciun cont adăugat</p>
                 <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
                   Apasă butonul de mai sus pentru a adăuga primul cont WhatsApp
@@ -143,38 +149,48 @@ function ChatClientiScreen() {
                     borderRadius: '8px',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
-                    position: 'relative'
+                    position: 'relative',
                   }}
-                  onMouseEnter={(e) => {
+                  onMouseEnter={e => {
                     if (selectedAccount?.id !== account.id) {
                       e.currentTarget.style.background = '#4b5563';
                     }
                   }}
-                  onMouseLeave={(e) => {
+                  onMouseLeave={e => {
                     if (selectedAccount?.id !== account.id) {
                       e.currentTarget.style.background = '#374151';
                     }
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'start',
+                    }}
+                  >
                     <div style={{ flex: 1 }}>
-                      <div style={{ 
-                        fontSize: '1rem', 
-                        fontWeight: '600', 
-                        color: 'white',
-                        marginBottom: '0.25rem'
-                      }}>
+                      <div
+                        style={{
+                          fontSize: '1rem',
+                          fontWeight: '600',
+                          color: 'white',
+                          marginBottom: '0.25rem',
+                        }}
+                      >
                         📱 {account.name}
                       </div>
-                      <div style={{ 
-                        fontSize: '0.875rem', 
-                        color: selectedAccount?.id === account.id ? '#e0e7ff' : '#9ca3af'
-                      }}>
+                      <div
+                        style={{
+                          fontSize: '0.875rem',
+                          color: selectedAccount?.id === account.id ? '#e0e7ff' : '#9ca3af',
+                        }}
+                      >
                         {account.phoneNumber}
                       </div>
                     </div>
                     <button
-                      onClick={(e) => {
+                      onClick={e => {
                         e.stopPropagation();
                         removeAccount(account.id);
                       }}
@@ -185,7 +201,7 @@ function ChatClientiScreen() {
                         borderRadius: '4px',
                         padding: '0.25rem 0.5rem',
                         cursor: 'pointer',
-                        fontSize: '0.75rem'
+                        fontSize: '0.75rem',
                       }}
                     >
                       🗑️
@@ -198,36 +214,35 @@ function ChatClientiScreen() {
         </div>
 
         {/* Main content area */}
-        <div style={{
-          flex: 1,
-          background: '#1f2937',
-          borderRadius: '8px',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column'
-        }}>
+        <div
+          style={{
+            flex: 1,
+            background: '#1f2937',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
           {showAddAccount ? (
-            <AddAccountModal
-              onAdd={addAccount}
-              onCancel={() => setShowAddAccount(false)}
-            />
+            <AddAccountModal onAdd={addAccount} onCancel={() => setShowAddAccount(false)} />
           ) : selectedAccount ? (
             <WhatsAppWebView account={selectedAccount} />
           ) : (
-            <div style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#9ca3af',
-              flexDirection: 'column',
-              gap: '1rem'
-            }}>
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#9ca3af',
+                flexDirection: 'column',
+                gap: '1rem',
+              }}
+            >
               <div style={{ fontSize: '4rem' }}>💬</div>
               <p style={{ fontSize: '1.25rem' }}>Selectează un cont WhatsApp</p>
-              <p style={{ fontSize: '0.875rem' }}>
-                sau adaugă un cont nou pentru a începe
-              </p>
+              <p style={{ fontSize: '0.875rem' }}>sau adaugă un cont nou pentru a începe</p>
             </div>
           )}
         </div>
@@ -241,7 +256,7 @@ function AddAccountModal({ onAdd, onCancel }) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [name, setName] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = e => {
     e.preventDefault();
     if (!phoneNumber.trim()) {
       alert('Te rog introdu numărul de telefon');
@@ -251,38 +266,42 @@ function AddAccountModal({ onAdd, onCancel }) {
   };
 
   return (
-    <div style={{
-      flex: 1,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '2rem'
-    }}>
-      <div style={{
-        background: '#374151',
-        borderRadius: '12px',
+    <div
+      style={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         padding: '2rem',
-        maxWidth: '500px',
-        width: '100%'
-      }}>
-        <h2 style={{ marginBottom: '1.5rem', color: 'white' }}>
-          ➕ Adaugă Cont WhatsApp
-        </h2>
+      }}
+    >
+      <div
+        style={{
+          background: '#374151',
+          borderRadius: '12px',
+          padding: '2rem',
+          maxWidth: '500px',
+          width: '100%',
+        }}
+      >
+        <h2 style={{ marginBottom: '1.5rem', color: 'white' }}>➕ Adaugă Cont WhatsApp</h2>
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '1rem' }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '0.5rem', 
-              color: '#d1d5db',
-              fontSize: '0.875rem'
-            }}>
+            <label
+              style={{
+                display: 'block',
+                marginBottom: '0.5rem',
+                color: '#d1d5db',
+                fontSize: '0.875rem',
+              }}
+            >
               Nume cont (opțional)
             </label>
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={e => setName(e.target.value)}
               placeholder="Ex: Support 1, Vânzări, etc."
               style={{
                 width: '100%',
@@ -291,24 +310,26 @@ function AddAccountModal({ onAdd, onCancel }) {
                 border: '1px solid #4b5563',
                 borderRadius: '8px',
                 color: 'white',
-                fontSize: '1rem'
+                fontSize: '1rem',
               }}
             />
           </div>
 
           <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '0.5rem', 
-              color: '#d1d5db',
-              fontSize: '0.875rem'
-            }}>
+            <label
+              style={{
+                display: 'block',
+                marginBottom: '0.5rem',
+                color: '#d1d5db',
+                fontSize: '0.875rem',
+              }}
+            >
               Număr telefon *
             </label>
             <input
               type="text"
               value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
+              onChange={e => setPhoneNumber(e.target.value)}
               placeholder="+40 721 XXX XXX"
               required
               style={{
@@ -318,23 +339,27 @@ function AddAccountModal({ onAdd, onCancel }) {
                 border: '1px solid #4b5563',
                 borderRadius: '8px',
                 color: 'white',
-                fontSize: '1rem'
+                fontSize: '1rem',
               }}
             />
-            <p style={{ 
-              fontSize: '0.75rem', 
-              color: '#9ca3af', 
-              marginTop: '0.5rem' 
-            }}>
+            <p
+              style={{
+                fontSize: '0.75rem',
+                color: '#9ca3af',
+                marginTop: '0.5rem',
+              }}
+            >
               Acest număr va fi folosit pentru identificare
             </p>
           </div>
 
-          <div style={{ 
-            display: 'flex', 
-            gap: '1rem',
-            justifyContent: 'flex-end'
-          }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: '1rem',
+              justifyContent: 'flex-end',
+            }}
+          >
             <button
               type="button"
               onClick={onCancel}
@@ -345,7 +370,7 @@ function AddAccountModal({ onAdd, onCancel }) {
                 border: 'none',
                 borderRadius: '8px',
                 cursor: 'pointer',
-                fontSize: '1rem'
+                fontSize: '1rem',
               }}
             >
               Anulează
@@ -360,7 +385,7 @@ function AddAccountModal({ onAdd, onCancel }) {
                 borderRadius: '8px',
                 cursor: 'pointer',
                 fontSize: '1rem',
-                fontWeight: '600'
+                fontWeight: '600',
               }}
             >
               Continuă →
@@ -368,14 +393,16 @@ function AddAccountModal({ onAdd, onCancel }) {
           </div>
         </form>
 
-        <div style={{
-          marginTop: '1.5rem',
-          padding: '1rem',
-          background: '#1f2937',
-          borderRadius: '8px',
-          fontSize: '0.875rem',
-          color: '#9ca3af'
-        }}>
+        <div
+          style={{
+            marginTop: '1.5rem',
+            padding: '1rem',
+            background: '#1f2937',
+            borderRadius: '8px',
+            fontSize: '0.875rem',
+            color: '#9ca3af',
+          }}
+        >
           <p style={{ fontWeight: '600', marginBottom: '0.5rem', color: '#d1d5db' }}>
             ℹ️ Următorii pași:
           </p>
@@ -399,30 +426,32 @@ function WhatsAppWebView({ account }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div style={{
-        padding: '1rem',
-        background: '#374151',
-        borderBottom: '1px solid #4b5563',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '1rem'
-      }}>
+      <div
+        style={{
+          padding: '1rem',
+          background: '#374151',
+          borderBottom: '1px solid #4b5563',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+        }}
+      >
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: '1.125rem', fontWeight: '600', color: 'white' }}>
             📱 {account.name}
           </div>
-          <div style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
-            {account.phoneNumber}
-          </div>
+          <div style={{ fontSize: '0.875rem', color: '#9ca3af' }}>{account.phoneNumber}</div>
         </div>
-        <div style={{
-          padding: '0.5rem 1rem',
-          background: '#10b981',
-          borderRadius: '6px',
-          fontSize: '0.875rem',
-          color: 'white',
-          fontWeight: '600'
-        }}>
+        <div
+          style={{
+            padding: '0.5rem 1rem',
+            background: '#10b981',
+            borderRadius: '6px',
+            fontSize: '0.875rem',
+            color: 'white',
+            fontWeight: '600',
+          }}
+        >
           ✓ Conectat
         </div>
       </div>
@@ -430,18 +459,20 @@ function WhatsAppWebView({ account }) {
       {/* WhatsApp Web iframe */}
       <div style={{ flex: 1, position: 'relative' }}>
         {isLoading && (
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: '#1f2937',
-            zIndex: 10
-          }}>
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#1f2937',
+              zIndex: 10,
+            }}
+          >
             <div style={{ textAlign: 'center' }}>
               <div className="spinner" style={{ margin: '0 auto 1rem' }}></div>
               <p style={{ color: '#9ca3af' }}>Se încarcă WhatsApp Web...</p>
@@ -451,14 +482,14 @@ function WhatsAppWebView({ account }) {
             </div>
           </div>
         )}
-        
+
         <iframe
           key={account.webViewKey}
           src="https://web.whatsapp.com"
           style={{
             width: '100%',
             height: '100%',
-            border: 'none'
+            border: 'none',
           }}
           onLoad={() => setIsLoading(false)}
           title={`WhatsApp - ${account.name}`}

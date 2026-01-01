@@ -17,29 +17,32 @@ async function configureTwilio() {
   try {
     // Get phone number SID
     const auth = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64');
-    
+
     // Search for phone number
     const searchUrl = `/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(TWILIO_PHONE_NUMBER)}`;
-    
+
     const phoneData = await new Promise((resolve, reject) => {
-      const req = https.request({
-        hostname: 'api.twilio.com',
-        path: searchUrl,
-        method: 'GET',
-        headers: {
-          'Authorization': `Basic ${auth}`
+      const req = https.request(
+        {
+          hostname: 'api.twilio.com',
+          path: searchUrl,
+          method: 'GET',
+          headers: {
+            Authorization: `Basic ${auth}`,
+          },
+        },
+        res => {
+          let data = '';
+          res.on('data', chunk => (data += chunk));
+          res.on('end', () => {
+            try {
+              resolve(JSON.parse(data));
+            } catch (e) {
+              reject(e);
+            }
+          });
         }
-      }, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          try {
-            resolve(JSON.parse(data));
-          } catch (e) {
-            reject(e);
-          }
-        });
-      });
+      );
       req.on('error', reject);
       req.end();
     });
@@ -54,30 +57,33 @@ async function configureTwilio() {
 
     // Update webhook
     const updateData = `VoiceUrl=${encodeURIComponent(WEBHOOK_URL)}&VoiceMethod=POST&StatusCallback=${encodeURIComponent(WEBHOOK_URL.replace('/incoming', '/status'))}&StatusCallbackMethod=POST`;
-    
+
     const updateUrl = `/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/IncomingPhoneNumbers/${phoneSid}.json`;
-    
+
     await new Promise((resolve, reject) => {
-      const req = https.request({
-        hostname: 'api.twilio.com',
-        path: updateUrl,
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${auth}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Content-Length': updateData.length
+      const req = https.request(
+        {
+          hostname: 'api.twilio.com',
+          path: updateUrl,
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${auth}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': updateData.length,
+          },
+        },
+        res => {
+          let data = '';
+          res.on('data', chunk => (data += chunk));
+          res.on('end', () => {
+            if (res.statusCode === 200) {
+              resolve(data);
+            } else {
+              reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+            }
+          });
         }
-      }, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          if (res.statusCode === 200) {
-            resolve(data);
-          } else {
-            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
-          }
-        });
-      });
+      );
       req.on('error', reject);
       req.write(updateData);
       req.end();
@@ -88,9 +94,8 @@ async function configureTwilio() {
     console.log(`   Voice URL: ${WEBHOOK_URL}`);
     console.log(`   Status URL: ${WEBHOOK_URL.replace('/incoming', '/status')}`);
     console.log('');
-    
-    return true;
 
+    return true;
   } catch (error) {
     console.error('❌ Eroare Twilio:', error.message);
     return false;

@@ -21,12 +21,14 @@ const port = process.env.PORT || 3000;
 const server = http.createServer((req, res) => {
   if (req.url === '/' || req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      status: 'healthy',
-      service: 'Autonomous Monitor',
-      uptime: process.uptime(),
-      stats: monitor.getAutonomousStats()
-    }));
+    res.end(
+      JSON.stringify({
+        status: 'healthy',
+        service: 'Autonomous Monitor',
+        uptime: process.uptime(),
+        stats: monitor.getAutonomousStats(),
+      })
+    );
   } else if (req.url === '/stats') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(monitor.getAutonomousStats(), null, 2));

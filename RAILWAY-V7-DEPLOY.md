@@ -7,6 +7,7 @@
 ## 📋 PREGĂTIRE
 
 ### **Ce ai nevoie:**
+
 1. ✅ Cont Railway ([railway.app](https://railway.app))
 2. ✅ Railway CLI (opțional, dar recomandat)
 3. ✅ Git repository (acest repo)
@@ -26,17 +27,20 @@
 ### **Pasul 2: Configurează Service**
 
 **Settings → General:**
+
 ```
 Service Name: v7-singularity-monitor
 ```
 
 **Settings → Deploy:**
+
 ```
 Root Directory: monitoring
 Start Command: npm start
 ```
 
 **Settings → Environment:**
+
 ```
 Build Command: npm install
 ```
@@ -46,6 +50,7 @@ Build Command: npm install
 **Settings → Variables:**
 
 **OBLIGATORII:**
+
 ```bash
 # Railway API Token
 RAILWAY_TOKEN=<your_railway_token>
@@ -58,6 +63,7 @@ NODE_ENV=production
 ```
 
 **OPȚIONALE (Project IDs):**
+
 ```bash
 # Dacă vrei să adaugi proiecte automat la start
 SUPERPARTY_PROJECT_ID=<project_id>
@@ -66,12 +72,14 @@ MONITORING_PROJECT_ID=<project_id>
 ```
 
 **Cum obții RAILWAY_TOKEN:**
+
 1. Railway Dashboard → Account Settings
 2. Tokens → Create New Token
 3. Copy token
 4. Paste în Variables
 
 **Cum obții Project IDs:**
+
 1. Deschide proiectul în Railway
 2. Settings → General
 3. Copy Project ID
@@ -81,6 +89,7 @@ MONITORING_PROJECT_ID=<project_id>
 Railway va deploy automat după ce adaugi variables.
 
 Vei vedea în logs:
+
 ```
 ============================================================
 🧠 v7.0 SINGULARITY MONITOR
@@ -101,11 +110,13 @@ Features:
 ### **Pasul 5: Accesează Dashboard**
 
 **Settings → Networking:**
+
 1. Click **"Generate Domain"**
 2. Vei primi URL: `https://v7-singularity-monitor.up.railway.app`
 3. Accesează URL-ul în browser
 
 **Dashboard va fi live la:**
+
 ```
 https://v7-singularity-monitor.up.railway.app
 ```
@@ -140,6 +151,7 @@ railway init
 ```
 
 Selectează:
+
 - **"Create new project"**
 - Nume: `v7-singularity-monitor`
 
@@ -168,6 +180,7 @@ railway up
 ```
 
 Railway va:
+
 1. Upload code
 2. Install dependencies
 3. Start service
@@ -190,11 +203,13 @@ railway open
 ### **Custom Domain (opțional)**
 
 **Settings → Networking → Custom Domain:**
+
 ```
 monitor.superparty.app
 ```
 
 Apoi adaugă CNAME record în DNS:
+
 ```
 CNAME monitor.superparty.app → v7-singularity-monitor.up.railway.app
 ```
@@ -202,11 +217,13 @@ CNAME monitor.superparty.app → v7-singularity-monitor.up.railway.app
 ### **Health Check**
 
 Railway va verifica automat:
+
 ```
 GET https://v7-singularity-monitor.up.railway.app/health
 ```
 
 Răspuns:
+
 ```json
 {
   "status": "ok",
@@ -233,11 +250,13 @@ Railway detectează push-ul și redeploy-ează automat.
 ### **URL-uri disponibile:**
 
 **Dashboard principal:**
+
 ```
 https://v7-singularity-monitor.up.railway.app
 ```
 
 **API Endpoints:**
+
 ```
 GET  https://v7-singularity-monitor.up.railway.app/api/overview
 GET  https://v7-singularity-monitor.up.railway.app/api/projects
@@ -250,11 +269,13 @@ GET  https://v7-singularity-monitor.up.railway.app/health
 ### **Exemple API:**
 
 **Get overview:**
+
 ```bash
 curl https://v7-singularity-monitor.up.railway.app/api/overview
 ```
 
 **Add project:**
+
 ```bash
 curl -X POST https://v7-singularity-monitor.up.railway.app/api/projects \
   -H "Content-Type: application/json" \
@@ -270,20 +291,19 @@ curl -X POST https://v7-singularity-monitor.up.railway.app/api/projects \
 **Opțiunea 1: Basic Auth (simplu)**
 
 Adaugă în `v7-start.js`:
+
 ```javascript
 // Basic auth middleware
 app.use((req, res, next) => {
   const auth = req.headers.authorization;
-  
+
   if (!auth) {
     res.setHeader('WWW-Authenticate', 'Basic');
     return res.status(401).send('Authentication required');
   }
-  
-  const [user, pass] = Buffer.from(auth.split(' ')[1], 'base64')
-    .toString()
-    .split(':');
-  
+
+  const [user, pass] = Buffer.from(auth.split(' ')[1], 'base64').toString().split(':');
+
   if (user === process.env.DASHBOARD_USER && pass === process.env.DASHBOARD_PASS) {
     next();
   } else {
@@ -293,6 +313,7 @@ app.use((req, res, next) => {
 ```
 
 Apoi adaugă în Railway Variables:
+
 ```bash
 DASHBOARD_USER=admin
 DASHBOARD_PASS=your_secure_password
@@ -301,6 +322,7 @@ DASHBOARD_PASS=your_secure_password
 **Opțiunea 2: IP Whitelist (avansat)**
 
 În Railway Settings → Networking → Access Control:
+
 - Adaugă IP-urile tale
 - Doar acele IP-uri pot accesa
 
@@ -309,6 +331,7 @@ DASHBOARD_PASS=your_secure_password
 ## 💰 COST RAILWAY
 
 ### **Free Tier:**
+
 ```
 $5 credit/month gratuit
 Suficient pentru:
@@ -318,6 +341,7 @@ Suficient pentru:
 ```
 
 ### **Hobby Plan ($5/month):**
+
 ```
 $5/month + usage
 Include:
@@ -327,6 +351,7 @@ Include:
 ```
 
 ### **Cost estimat v7.0:**
+
 ```
 Service: $0-5/month (depinde de usage)
 Bandwidth: $0-2/month
@@ -342,12 +367,14 @@ Cu Free Tier: $0/month (primele luni)
 ### **Vezi logs în timp real:**
 
 **În Railway Dashboard:**
+
 1. Deschide service-ul
 2. Tab "Deployments"
 3. Click pe deployment activ
 4. Vezi logs live
 
 **Cu CLI:**
+
 ```bash
 railway logs --follow
 ```
@@ -355,6 +382,7 @@ railway logs --follow
 ### **Logs importante:**
 
 **La start:**
+
 ```
 🧠 v7.0 SINGULARITY MONITOR initialized
 ⚡ Self-replication: ENABLED
@@ -365,6 +393,7 @@ railway logs --follow
 ```
 
 **În timpul rulării:**
+
 ```
 🧬 Scaling UP SuperParty...
 ✅ SuperParty scaled to 2 instances
@@ -384,6 +413,7 @@ railway logs --follow
 ### **Update code:**
 
 **Metoda 1: Git push (auto-deploy)**
+
 ```bash
 git add .
 git commit -m "Update v7.0"
@@ -393,6 +423,7 @@ git push origin main
 Railway redeploy-ează automat.
 
 **Metoda 2: Railway CLI**
+
 ```bash
 railway up
 ```
@@ -403,6 +434,7 @@ railway up
 Settings → Deployments → Restart
 
 **Cu CLI:**
+
 ```bash
 railway restart
 ```
@@ -410,11 +442,13 @@ railway restart
 ### **Rollback:**
 
 **În Dashboard:**
+
 1. Deployments tab
 2. Click pe deployment anterior
 3. Click "Redeploy"
 
 **Cu CLI:**
+
 ```bash
 railway rollback
 ```
@@ -426,16 +460,19 @@ railway rollback
 ### **Service nu pornește:**
 
 **Verifică logs:**
+
 ```bash
 railway logs
 ```
 
 **Cauze comune:**
+
 - ❌ RAILWAY_TOKEN lipsă sau invalid
 - ❌ PORT nu e setat
 - ❌ Dependencies nu s-au instalat
 
 **Fix:**
+
 ```bash
 # Verifică variables
 railway variables
@@ -448,11 +485,13 @@ railway variables set PORT=3001
 ### **Dashboard nu se încarcă:**
 
 **Verifică:**
+
 1. Service e running? (Dashboard → Status)
 2. Domain e generat? (Settings → Networking)
 3. Health check OK? (accesează /health)
 
 **Fix:**
+
 ```bash
 # Restart service
 railway restart
@@ -464,16 +503,19 @@ railway logs
 ### **Self-replication nu funcționează:**
 
 **Cauze:**
+
 - ❌ RAILWAY_TOKEN nu are permissions
 - ❌ Project IDs greșite
 
 **Fix:**
+
 1. Regenerează Railway token cu permissions complete
 2. Verifică Project IDs în Railway Dashboard
 
 ### **Learning nu învață:**
 
 **Normal!** Learning are nevoie de:
+
 - Minim 100 data points
 - Minim 24 ore de rulare
 - Trafic consistent
@@ -505,16 +547,19 @@ railway logs
 ### **Verifică că totul funcționează:**
 
 **1. Accesează dashboard:**
+
 ```
 https://v7-singularity-monitor.up.railway.app
 ```
 
 **2. Verifică API:**
+
 ```bash
 curl https://v7-singularity-monitor.up.railway.app/api/overview
 ```
 
 **3. Adaugă proiecte:**
+
 ```bash
 curl -X POST https://v7-singularity-monitor.up.railway.app/api/projects \
   -H "Content-Type: application/json" \
@@ -522,6 +567,7 @@ curl -X POST https://v7-singularity-monitor.up.railway.app/api/projects \
 ```
 
 **4. Monitorizează logs:**
+
 ```bash
 railway logs --follow
 ```
@@ -537,6 +583,7 @@ railway logs --follow
 **Dashboard:** `https://v7-singularity-monitor.up.railway.app`
 
 **Features active:**
+
 - ✅ Self-replication (auto-scaling)
 - ✅ Multi-project management
 - ✅ Advanced learning

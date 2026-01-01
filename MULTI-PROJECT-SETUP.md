@@ -143,12 +143,14 @@ Self-healing pentru toate
 ## 💰 **COST:**
 
 **1 monitor pentru 4 proiecte:**
+
 - Monitor: **$5/lună**
 - **TOTAL: $5/lună**
 
 vs
 
 **4 monitoare separate:**
+
 - 4 x $5 = **$20/lună**
 
 **Economisești: $15/lună!** 💰

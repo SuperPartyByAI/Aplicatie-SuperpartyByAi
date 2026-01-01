@@ -13,13 +13,13 @@ class SelfReplication {
       maxInstances: config.maxInstances || 5,
       minInstances: config.minInstances || 1,
       cooldownPeriod: config.cooldownPeriod || 300000, // 5 min
-      ...config
+      ...config,
     };
 
     this.railway = new RailwayAPI(process.env.RAILWAY_TOKEN);
     this.instances = new Map(); // serviceId -> [clones]
     this.lastScaleAction = new Map(); // serviceId -> timestamp
-    
+
     console.log('🧬 Self-Replication System initialized');
   }
 
@@ -29,7 +29,7 @@ class SelfReplication {
   async checkAndScale(service, metrics) {
     const now = Date.now();
     const lastAction = this.lastScaleAction.get(service.id) || 0;
-    
+
     // Cooldown period
     if (now - lastAction < this.config.cooldownPeriod) {
       return { action: 'cooldown', reason: 'Too soon since last action' };
@@ -87,10 +87,10 @@ class SelfReplication {
    */
   async scaleUp(service) {
     console.log(`🧬 Scaling UP ${service.name}...`);
-    
+
     try {
       const cloneName = `${service.name}-clone-${Date.now()}`;
-      
+
       // Create clone via Railway API
       const clone = await this.railway.services.create({
         projectId: service.projectId,
@@ -98,10 +98,10 @@ class SelfReplication {
         source: {
           type: service.source.type,
           repo: service.source.repo,
-          branch: service.source.branch
+          branch: service.source.branch,
         },
         variables: service.variables,
-        region: service.region
+        region: service.region,
       });
 
       console.log(`   ✅ Clone created: ${clone.id}`);
@@ -115,7 +115,7 @@ class SelfReplication {
       clones.push({
         id: clone.id,
         name: cloneName,
-        createdAt: Date.now()
+        createdAt: Date.now(),
       });
       this.instances.set(service.id, clones);
 
@@ -126,15 +126,14 @@ class SelfReplication {
         action: 'scale_up',
         success: true,
         instanceCount: newCount,
-        cloneId: clone.id
+        cloneId: clone.id,
       };
-
     } catch (error) {
       console.error(`❌ Scale UP failed:`, error.message);
       return {
         action: 'scale_up',
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -144,12 +143,12 @@ class SelfReplication {
    */
   async scaleDown(service) {
     const clones = this.instances.get(service.id) || [];
-    
+
     if (clones.length === 0) {
       return {
         action: 'scale_down',
         success: false,
-        reason: 'No clones to remove'
+        reason: 'No clones to remove',
       };
     }
 
@@ -158,10 +157,10 @@ class SelfReplication {
     try {
       // Remove oldest clone
       const clone = clones.shift();
-      
+
       // Delete via Railway API
       await this.railway.services.delete(clone.id);
-      
+
       console.log(`   ✅ Clone deleted: ${clone.id}`);
 
       this.instances.set(service.id, clones);
@@ -173,15 +172,14 @@ class SelfReplication {
         action: 'scale_down',
         success: true,
         instanceCount: newCount,
-        cloneId: clone.id
+        cloneId: clone.id,
       };
-
     } catch (error) {
       console.error(`❌ Scale DOWN failed:`, error.message);
       return {
         action: 'scale_down',
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -201,7 +199,7 @@ class SelfReplication {
     return {
       original: serviceId,
       clones: this.instances.get(serviceId) || [],
-      total: this.getCurrentInstanceCount(serviceId)
+      total: this.getCurrentInstanceCount(serviceId),
     };
   }
 
@@ -210,28 +208,27 @@ class SelfReplication {
    */
   async waitForDeployment(serviceId, timeout = 300000) {
     const start = Date.now();
-    
+
     while (Date.now() - start < timeout) {
       try {
         const deployment = await this.railway.services.getLatestDeployment(serviceId);
-        
+
         if (deployment.status === 'SUCCESS') {
           return true;
         }
-        
+
         if (deployment.status === 'FAILED') {
           throw new Error('Deployment failed');
         }
-        
+
         // Wait 10s before checking again
         await new Promise(resolve => setTimeout(resolve, 10000));
-        
       } catch (error) {
         console.error(`   ⚠️ Error checking deployment:`, error.message);
         await new Promise(resolve => setTimeout(resolve, 10000));
       }
     }
-    
+
     throw new Error('Deployment timeout');
   }
 
@@ -243,19 +240,19 @@ class SelfReplication {
       totalServices: this.instances.size,
       totalClones: 0,
       totalInstances: 0,
-      services: []
+      services: [],
     };
 
     for (const [serviceId, clones] of this.instances) {
       const instanceCount = clones.length + 1;
       stats.totalClones += clones.length;
       stats.totalInstances += instanceCount;
-      
+
       stats.services.push({
         serviceId,
         instances: instanceCount,
         clones: clones.length,
-        oldestClone: clones.length > 0 ? clones[0].createdAt : null
+        oldestClone: clones.length > 0 ? clones[0].createdAt : null,
       });
     }
 
@@ -271,7 +268,7 @@ class SelfReplication {
 
     for (const [serviceId, clones] of this.instances) {
       const oldClones = clones.filter(c => now - c.createdAt > maxAge);
-      
+
       for (const clone of oldClones) {
         try {
           await this.railway.services.delete(clone.id);

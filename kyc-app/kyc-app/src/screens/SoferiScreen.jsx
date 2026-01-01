@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import {
+  collection,
+  addDoc,
+  getDocs,
+  updateDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+} from 'firebase/firestore';
 
 function SoferiScreen() {
   const navigate = useNavigate();
@@ -9,7 +17,7 @@ function SoferiScreen() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingSofer, setEditingSofer] = useState(null);
-  
+
   // Form state
   const [nume, setNume] = useState('');
   const [telefon, setTelefon] = useState('');
@@ -30,7 +38,7 @@ function SoferiScreen() {
       const snapshot = await getDocs(collection(db, 'soferi'));
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
       }));
       setSoferi(data);
     } catch (error) {
@@ -40,9 +48,9 @@ function SoferiScreen() {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async e => {
     e.preventDefault();
-    
+
     if (!nume || !telefon) {
       alert('Completează numele și telefonul!');
       return;
@@ -58,7 +66,7 @@ function SoferiScreen() {
         capacitate: capacitate ? parseInt(capacitate) : null,
         status,
         notite,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       };
 
       if (editingSofer) {
@@ -67,7 +75,7 @@ function SoferiScreen() {
       } else {
         await addDoc(collection(db, 'soferi'), {
           ...soferData,
-          createdAt: serverTimestamp()
+          createdAt: serverTimestamp(),
         });
         alert('Șofer adăugat!');
       }
@@ -81,7 +89,7 @@ function SoferiScreen() {
     }
   };
 
-  const handleEdit = (sofer) => {
+  const handleEdit = sofer => {
     setEditingSofer(sofer);
     setNume(sofer.nume);
     setTelefon(sofer.telefon);
@@ -94,7 +102,7 @@ function SoferiScreen() {
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async id => {
     if (!confirm('Ștergi acest șofer?')) return;
 
     try {
@@ -124,12 +132,16 @@ function SoferiScreen() {
     setShowModal(true);
   };
 
-  const getStatusBadge = (status) => {
-    switch(status) {
-      case 'activ': return 'badge-disponibil';
-      case 'inactiv': return 'badge-indisponibil';
-      case 'concediu': return 'badge-warning';
-      default: return 'badge-disponibil';
+  const getStatusBadge = status => {
+    switch (status) {
+      case 'activ':
+        return 'badge-disponibil';
+      case 'inactiv':
+        return 'badge-indisponibil';
+      case 'concediu':
+        return 'badge-warning';
+      default:
+        return 'badge-disponibil';
     }
   };
 
@@ -213,12 +225,34 @@ function SoferiScreen() {
                   </div>
                 </div>
                 <div className="sofer-body">
-                  <p><strong>📞 Telefon:</strong> {sofer.telefon}</p>
-                  {sofer.email && <p><strong>📧 Email:</strong> {sofer.email}</p>}
-                  {sofer.tipVehicul && <p><strong>🚗 Vehicul:</strong> {sofer.tipVehicul}</p>}
-                  {sofer.numarInmatriculare && <p><strong>🔢 Nr. Înmatriculare:</strong> {sofer.numarInmatriculare}</p>}
-                  {sofer.capacitate && <p><strong>👥 Capacitate:</strong> {sofer.capacitate} persoane</p>}
-                  {sofer.notite && <p><strong>📝 Notițe:</strong> {sofer.notite}</p>}
+                  <p>
+                    <strong>📞 Telefon:</strong> {sofer.telefon}
+                  </p>
+                  {sofer.email && (
+                    <p>
+                      <strong>📧 Email:</strong> {sofer.email}
+                    </p>
+                  )}
+                  {sofer.tipVehicul && (
+                    <p>
+                      <strong>🚗 Vehicul:</strong> {sofer.tipVehicul}
+                    </p>
+                  )}
+                  {sofer.numarInmatriculare && (
+                    <p>
+                      <strong>🔢 Nr. Înmatriculare:</strong> {sofer.numarInmatriculare}
+                    </p>
+                  )}
+                  {sofer.capacitate && (
+                    <p>
+                      <strong>👥 Capacitate:</strong> {sofer.capacitate} persoane
+                    </p>
+                  )}
+                  {sofer.notite && (
+                    <p>
+                      <strong>📝 Notițe:</strong> {sofer.notite}
+                    </p>
+                  )}
                 </div>
               </div>
             ))
@@ -229,19 +263,21 @@ function SoferiScreen() {
       {/* Modal Adăugare/Editare */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{editingSofer ? 'Editează Șofer' : 'Adaugă Șofer'}</h2>
-              <button onClick={() => setShowModal(false)} className="btn-close">×</button>
+              <button onClick={() => setShowModal(false)} className="btn-close">
+                ×
+              </button>
             </div>
             <div className="modal-body">
               <form onSubmit={handleSubmit}>
                 <div className="form-group">
                   <label>Nume Complet *</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={nume}
-                    onChange={(e) => setNume(e.target.value)}
+                    onChange={e => setNume(e.target.value)}
                     className="filter-input"
                     placeholder="Ex: Ion Popescu"
                     required
@@ -251,10 +287,10 @@ function SoferiScreen() {
                 <div className="form-row">
                   <div className="form-group">
                     <label>Telefon *</label>
-                    <input 
-                      type="tel" 
+                    <input
+                      type="tel"
                       value={telefon}
-                      onChange={(e) => setTelefon(e.target.value)}
+                      onChange={e => setTelefon(e.target.value)}
                       className="filter-input"
                       placeholder="0712345678"
                       required
@@ -262,10 +298,10 @@ function SoferiScreen() {
                   </div>
                   <div className="form-group">
                     <label>Email</label>
-                    <input 
-                      type="email" 
+                    <input
+                      type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={e => setEmail(e.target.value)}
                       className="filter-input"
                       placeholder="email@example.com"
                     />
@@ -275,20 +311,20 @@ function SoferiScreen() {
                 <div className="form-row">
                   <div className="form-group">
                     <label>Tip Vehicul</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={tipVehicul}
-                      onChange={(e) => setTipVehicul(e.target.value)}
+                      onChange={e => setTipVehicul(e.target.value)}
                       className="filter-input"
                       placeholder="Ex: Microbuz Mercedes"
                     />
                   </div>
                   <div className="form-group">
                     <label>Nr. Înmatriculare</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={numarInmatriculare}
-                      onChange={(e) => setNumarInmatriculare(e.target.value)}
+                      onChange={e => setNumarInmatriculare(e.target.value)}
                       className="filter-input"
                       placeholder="B-123-ABC"
                     />
@@ -298,10 +334,10 @@ function SoferiScreen() {
                 <div className="form-row">
                   <div className="form-group">
                     <label>Capacitate (persoane)</label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       value={capacitate}
-                      onChange={(e) => setCapacitate(e.target.value)}
+                      onChange={e => setCapacitate(e.target.value)}
                       className="filter-input"
                       placeholder="8"
                       min="1"
@@ -309,9 +345,9 @@ function SoferiScreen() {
                   </div>
                   <div className="form-group">
                     <label>Status</label>
-                    <select 
+                    <select
                       value={status}
-                      onChange={(e) => setStatus(e.target.value)}
+                      onChange={e => setStatus(e.target.value)}
                       className="filter-input"
                     >
                       <option value="activ">✓ Activ</option>
@@ -323,9 +359,9 @@ function SoferiScreen() {
 
                 <div className="form-group">
                   <label>Notițe</label>
-                  <textarea 
+                  <textarea
                     value={notite}
-                    onChange={(e) => setNotite(e.target.value)}
+                    onChange={e => setNotite(e.target.value)}
                     className="filter-input"
                     rows="3"
                     placeholder="Informații adiționale..."
@@ -333,7 +369,11 @@ function SoferiScreen() {
                 </div>
 
                 <div className="modal-actions">
-                  <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="btn-secondary"
+                  >
                     Anulează
                   </button>
                   <button type="submit" className="btn-refresh">

@@ -9,12 +9,14 @@ Self-replication, Multi-project management, Advanced learning, Intelligent auto-
 ## 🚀 DEPLOY PE RAILWAY (RAPID)
 
 ### **1. Creează Service**
+
 - Railway Dashboard → New Project
 - Deploy from GitHub: `SuperPartyByAI/Aplicatie-SuperpartyByAi`
 - Root Directory: `monitoring`
 - Start Command: `npm start`
 
 ### **2. Adaugă Variables**
+
 ```bash
 RAILWAY_TOKEN=<your_railway_token>
 PORT=3001
@@ -22,9 +24,11 @@ NODE_ENV=production
 ```
 
 ### **3. Deploy**
+
 Railway deploy-ează automat.
 
 ### **4. Accesează Dashboard**
+
 Settings → Networking → Generate Domain
 
 Dashboard live la: `https://your-service.railway.app`
@@ -57,11 +61,13 @@ $0-7/month pe Railway (Free tier: $5 credit/month)
 ## 🎯 SUPPORT
 
 Issues? Check logs:
+
 ```bash
 railway logs
 ```
 
 Verifică:
+
 - RAILWAY_TOKEN e corect?
 - PORT e setat?
 - Service e running?

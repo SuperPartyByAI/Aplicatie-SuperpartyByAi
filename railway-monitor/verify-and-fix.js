@@ -10,20 +10,22 @@ async function verify() {
   console.log('');
 
   // Test backend
-  const response = await new Promise((resolve) => {
-    https.get('https://web-production-f0714.up.railway.app/', (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          resolve({ error: data });
-        }
+  const response = await new Promise(resolve => {
+    https
+      .get('https://web-production-f0714.up.railway.app/', res => {
+        let data = '';
+        res.on('data', chunk => (data += chunk));
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            resolve({ error: data });
+          }
+        });
+      })
+      .on('error', e => {
+        resolve({ error: e.message });
       });
-    }).on('error', (e) => {
-      resolve({ error: e.message });
-    });
   });
 
   console.log('Backend response:', response);

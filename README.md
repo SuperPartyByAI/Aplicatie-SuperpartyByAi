@@ -70,7 +70,9 @@ This shows only the status of workflows for the latest commit on `main` branch.
 
 #### 🚀 Performance
 
-- **In-Memory Cache**: TTL-based caching with getOrSet pattern
+- **Redis Cache**: Distributed caching with automatic fallback to in-memory
+- **TanStack Query**: Frontend caching and data synchronization (70% Firebase read reduction)
+- **In-Memory Cache**: TTL-based caching with getOrSet pattern (fallback)
 - **Feature Flags**: Runtime feature toggling without deployments
 
 #### 📚 Documentation
@@ -82,6 +84,50 @@ This shows only the status of workflows for the latest commit on `main` branch.
 
 - **Rate Limiting**: Express rate limiter
 - **Environment Variables**: Secure configuration management
+
+---
+
+## 📖 Documentation
+
+- **[PRODUCTION_FEATURES.md](./PRODUCTION_FEATURES.md)** - Complete guide to all production features
+- **[TOOL_INTEGRATION_STATUS.md](./TOOL_INTEGRATION_STATUS.md)** - Current tool integrations and gaps
+- **[RECOMMENDED_TOOLS.md](./RECOMMENDED_TOOLS.md)** - Top 3 high-value tool recommendations
+- **[INTEGRATION_PRIORITIES.md](./INTEGRATION_PRIORITIES.md)** - Implementation roadmap and priorities
+
+### Quick Links
+
+- **API Documentation**: Navigate to `/api-docs` on your server
+- **Cache Statistics**: `GET /api/cache/stats`
+- **Feature Flags**: See `shared/feature-flags.js`
+
+### Recommended Next Steps
+
+1. ✅ **Redis Implemented** - Add Redis to Railway (see REDIS_SETUP.md)
+2. ✅ **TanStack Query Implemented** - Frontend caching ready (see kyc-app/kyc-app/TANSTACK_QUERY_USAGE.md)
+3. **Add Monitoring** - Datadog or Prometheus (see RECOMMENDED_TOOLS.md)
+4. **Review Documentation** - See PRODUCTION_FEATURES.md for usage guides
+
+### Quick Setup
+
+**Redis (Backend Caching):**
+```bash
+# Add Redis in Railway Dashboard
+# App will automatically detect and use it
+# See REDIS_SETUP.md for details
+```
+
+**TanStack Query (Frontend Caching):**
+```javascript
+// Already configured! Just use the hooks:
+import { useEvents } from './hooks/useEvents';
+
+function MyComponent() {
+  const { data, isLoading } = useEvents();
+  // Data is automatically cached!
+}
+```
+
+---
 
 ### AUTONOMOUS MONITOR v5.0 ⭐
 

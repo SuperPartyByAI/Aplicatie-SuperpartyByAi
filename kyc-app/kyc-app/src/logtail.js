@@ -12,9 +12,9 @@ function log(level, message, context = {}) {
     environment: import.meta.env.MODE || 'production',
     url: window.location.href,
     userAgent: navigator.userAgent,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
-  
+
   logtail[level](message, logData);
 }
 
@@ -23,5 +23,5 @@ export default {
   info: (msg, ctx) => log('info', msg, ctx),
   warn: (msg, ctx) => log('warn', msg, ctx),
   error: (msg, ctx) => log('error', msg, ctx),
-  debug: (msg, ctx) => log('debug', msg, ctx)
+  debug: (msg, ctx) => log('debug', msg, ctx),
 };

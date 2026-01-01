@@ -3,6 +3,7 @@
 ## ❌ Problema
 
 Deploy-ul a eșuat cu:
+
 ```
 Failed to update function projects/superparty-frontend/locations/us-central1/functions/whatsapp
 ```
@@ -115,6 +116,7 @@ Voi analiza logs-urile și voi găsi problema exactă.
 ## 💡 De Ce Se Întâmplă Asta?
 
 Cauze posibile:
+
 1. **Firebase are probleme temporare** (cel mai probabil)
 2. **Funcția este locked** (primește requests în timpul deploy-ului)
 3. **Timeout la deployment** (funcția este prea mare)

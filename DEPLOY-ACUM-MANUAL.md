@@ -3,6 +3,7 @@
 ## ✅ TOT E GATA - Doar trebuie să te autentifici
 
 **Status:**
+
 - ✅ Cod fix aplicat (`functions/index.js` - QR codes only)
 - ✅ Firebase CLI instalat
 - ✅ Proiect configurat (`superparty-frontend`)
@@ -15,11 +16,13 @@
 ### Pas 1: Autentificare Firebase
 
 **În terminal, rulează:**
+
 ```bash
 firebase login --no-localhost
 ```
 
 **Output:**
+
 ```
 Visit this URL on this device to log in:
 https://accounts.google.com/o/oauth2/auth?client_id=...
@@ -28,6 +31,7 @@ Waiting for authentication...
 ```
 
 **Ce faci:**
+
 1. **Copiază URL-ul** din terminal
 2. **Deschide în browser** (tab nou)
 3. **Selectează contul Google** (cel cu acces la Firebase)
@@ -36,6 +40,7 @@ Waiting for authentication...
 6. **Paste în terminal**
 
 **Succes când vezi:**
+
 ```
 ✔  Success! Logged in as your-email@gmail.com
 ```
@@ -50,6 +55,7 @@ firebase deploy --only functions
 ```
 
 **Output așteptat:**
+
 ```
 === Deploying to 'superparty-frontend'...
 
@@ -82,6 +88,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
 
 **Răspuns așteptat:**
+
 ```json
 {
   "status": "online",
@@ -102,6 +109,7 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
 
 **Răspuns așteptat:**
+
 ```json
 {
   "success": true,
@@ -138,6 +146,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ```
 
 **Răspuns așteptat:**
+
 ```json
 {
   "success": true,
@@ -157,6 +166,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ## ✅ GATA!
 
 După acești pași:
+
 - ✅ WhatsApp deployed pe Firebase
 - ✅ QR codes funcționează 100%
 - ✅ Sessions persistă în Firestore
@@ -168,17 +178,20 @@ După acești pași:
 ## 🎯 COMENZI RAPIDE
 
 ### Deploy:
+
 ```bash
 firebase login --no-localhost
 firebase deploy --only functions
 ```
 
 ### Test:
+
 ```bash
 curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
 
 ### Adaugă cont:
+
 ```bash
 curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
@@ -186,6 +199,7 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
 
 ### Lista conturi:
+
 ```bash
 curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/accounts
 ```
@@ -195,6 +209,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ## 🚀 NEXT
 
 După primul cont conectat:
+
 1. Adaugă restul conturilor (până la 20)
 2. Testează trimitere mesaje
 3. Verifică că sessions persistă (restart function)

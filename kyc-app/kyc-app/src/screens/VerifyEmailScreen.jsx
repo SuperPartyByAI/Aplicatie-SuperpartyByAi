@@ -46,9 +46,15 @@ function VerifyEmailScreen() {
         <p>Email: {currentUser?.email}</p>
         <p>Verifică emailul și apasă butonul.</p>
         {message && <p className="success">{message}</p>}
-        <button onClick={handleVerified} disabled={busy}>Am verificat</button>
-        <button onClick={handleResend} disabled={busy}>Retrimite email</button>
-        <button onClick={handleSignOut} disabled={busy}>Sign out</button>
+        <button onClick={handleVerified} disabled={busy}>
+          Am verificat
+        </button>
+        <button onClick={handleResend} disabled={busy}>
+          Retrimite email
+        </button>
+        <button onClick={handleSignOut} disabled={busy}>
+          Sign out
+        </button>
       </div>
     </div>
   );

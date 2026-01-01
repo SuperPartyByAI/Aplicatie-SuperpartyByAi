@@ -16,6 +16,7 @@
 **Fișier:** `src/whatsapp/webhooks.js` (400+ linii)
 
 **Funcționalități:**
+
 - ✅ Real-time notifications pentru evenimente
 - ✅ Retry logic cu exponential backoff
 - ✅ Queue management pentru failed webhooks
@@ -24,34 +25,34 @@
 - ✅ Event filtering (account, message, system, health)
 
 **Evenimente Suportate:**
+
 ```javascript
 // Account events
-- connected
-- disconnected
-- qr
-- pairing_code
-
-// Message events
-- sent
-- received
-- failed
-
-// System events
-- rate_limit
-- circuit_break
-- error
-
-// Health events
-- degraded
-- recovered
+-connected -
+  disconnected -
+  qr -
+  pairing_code -
+  // Message events
+  sent -
+  received -
+  failed -
+  // System events
+  rate_limit -
+  circuit_break -
+  error -
+  // Health events
+  degraded -
+  recovered;
 ```
 
 **Beneficii REALE:**
+
 - Vizibilitate: +100% ✅
 - Response time: -50%
 - External monitoring: 100%
 
 **API:**
+
 ```bash
 # Register webhook
 POST /api/ultimate/webhooks/register
@@ -79,6 +80,7 @@ DELETE /api/ultimate/webhooks/my-webhook
 **Fișier:** `src/whatsapp/advanced-health.js` (450+ linii)
 
 **Funcționalități:**
+
 - ✅ Pattern analysis (disconnect frequency, timing)
 - ✅ Connection quality scoring (0-100)
 - ✅ Predictive alerts (low/medium/high risk)
@@ -87,6 +89,7 @@ DELETE /api/ultimate/webhooks/my-webhook
 - ✅ Failure prediction (pattern-based)
 
 **Health Score Calculation:**
+
 ```
 Score = 100 - weighted penalties
 
@@ -99,6 +102,7 @@ Weights:
 ```
 
 **Prediction Logic:**
+
 ```
 Risk Levels:
 - Low: Score > 70, < 2 disconnects
@@ -113,11 +117,13 @@ Confidence:
 ```
 
 **Beneficii REALE:**
+
 - Downtime: -30% (nu -80%)
 - Failure detection: +50% (nu +100%)
 - Predictive accuracy: 60-70%
 
 **API:**
+
 ```bash
 # Get health for account
 GET /api/ultimate/health/acc1
@@ -127,6 +133,7 @@ GET /api/ultimate/health
 ```
 
 **Response:**
+
 ```json
 {
   "score": 85,
@@ -151,6 +158,7 @@ GET /api/ultimate/health
 **Fișier:** `src/whatsapp/proxy-rotation.js` (450+ linii)
 
 **Funcționalități:**
+
 - ✅ Proxy pool management
 - ✅ Per-account proxy assignment
 - ✅ Automatic rotation on failure
@@ -160,6 +168,7 @@ GET /api/ultimate/health
 - ✅ Sticky proxies (no rotation)
 
 **Proxy Types Supported:**
+
 ```
 - HTTP: http://host:port
 - HTTPS: https://host:port
@@ -168,6 +177,7 @@ GET /api/ultimate/health
 ```
 
 **Health Checking:**
+
 ```
 - Interval: 5 minutes
 - Timeout: 10 seconds
@@ -176,16 +186,19 @@ GET /api/ultimate/health
 ```
 
 **Beneficii REALE:**
+
 - Ban masă: -50% (nu -99%)
 - Detectie: -20% (nu -50%)
 - IP isolation: 100%
 
 **Cost:**
+
 - Proxy service: $5-20/proxy/lună
 - Pentru 20 conturi: $100-400/lună
 - Recomandare: Bright Data, Oxylabs, SmartProxy
 
 **API:**
+
 ```bash
 # Add proxy
 POST /api/ultimate/proxy/add
@@ -229,6 +242,7 @@ DELETE /api/ultimate/proxy/proxy1
 ### Modificări:
 
 1. **Import modules:**
+
 ```javascript
 const webhookManager = require('./webhooks');
 const advancedHealthChecker = require('./advanced-health');
@@ -236,6 +250,7 @@ const proxyRotationManager = require('./proxy-rotation');
 ```
 
 2. **Initialize modules:**
+
 ```javascript
 initializeUltimate2Modules() {
   // Setup webhook event handlers
@@ -246,35 +261,39 @@ initializeUltimate2Modules() {
 ```
 
 3. **Connection open:**
+
 ```javascript
 if (connection === 'open') {
   // Initialize advanced health
   advancedHealthChecker.initAccount(accountId);
   advancedHealthChecker.recordEvent(accountId, 'connect');
-  
+
   // Send webhook
   webhookManager.onAccountConnected(accountId, phone);
 }
 ```
 
 4. **Connection close:**
+
 ```javascript
 if (connection === 'close') {
   // Record disconnect
   advancedHealthChecker.recordEvent(accountId, 'disconnect', { reason });
-  
+
   // Send webhook
   webhookManager.onAccountDisconnected(accountId, reason);
 }
 ```
 
 5. **QR code:**
+
 ```javascript
 // Send webhook
 webhookManager.onAccountQR(accountId, qrCode);
 ```
 
 6. **Message sent:**
+
 ```javascript
 // Record message sent
 advancedHealthChecker.recordEvent(accountId, 'message_sent');
@@ -284,6 +303,7 @@ webhookManager.onMessageSent(accountId, chatId, messageId);
 ```
 
 7. **Message failed:**
+
 ```javascript
 // Record message failed
 advancedHealthChecker.recordEvent(accountId, 'message_failed', { error });
@@ -298,17 +318,19 @@ if (proxyRotationManager.getProxy(accountId)) {
 ```
 
 8. **Proxy integration:**
+
 ```javascript
 // Get proxy agent if configured
 const proxyAgent = proxyRotationManager.getProxyAgent(accountId);
 
 const sock = makeWASocket({
   ...config,
-  agent: proxyAgent || undefined
+  agent: proxyAgent || undefined,
 });
 ```
 
 9. **Cleanup:**
+
 ```javascript
 async destroy() {
   // ULTIMATE 2 cleanup
@@ -327,6 +349,7 @@ async destroy() {
 ### Noi Endpoint-uri:
 
 #### Webhooks:
+
 ```
 POST   /api/ultimate/webhooks/register
 DELETE /api/ultimate/webhooks/:name
@@ -335,12 +358,14 @@ GET    /api/ultimate/webhooks
 ```
 
 #### Advanced Health:
+
 ```
 GET /api/ultimate/health/:accountId
 GET /api/ultimate/health
 ```
 
 #### Proxy Rotation:
+
 ```
 POST   /api/ultimate/proxy/add
 DELETE /api/ultimate/proxy/:proxyId
@@ -350,6 +375,7 @@ GET    /api/ultimate/proxy
 ```
 
 #### Stats:
+
 ```
 GET /api/ultimate/stats (updated cu ULTIMATE 2)
 ```
@@ -359,6 +385,7 @@ GET /api/ultimate/stats (updated cu ULTIMATE 2)
 ## 📈 Rezultate REALE (NU MARKETING)
 
 ### Înainte (TIER ULTIMATE 1):
+
 ```
 Downtime:           2-3s
 Pierdere mesaje:    0.5-1%
@@ -369,6 +396,7 @@ Vizibilitate:       70%
 ```
 
 ### După (TIER ULTIMATE 2):
+
 ```
 Downtime:           1-2s (-40%) ✅
 Pierdere mesaje:    0.5-1% (unchanged)
@@ -379,6 +407,7 @@ Vizibilitate:       100% (+30%) ✅
 ```
 
 ### Îmbunătățiri Cheie:
+
 - ✅ **Downtime: -40%** (2-3s → 1-2s)
 - ✅ **Ban masă: -80%** (5-10% → 1-2% cu proxy)
 - ✅ **Vizibilitate: +30%** (70% → 100%)
@@ -388,27 +417,30 @@ Vizibilitate:       100% (+30%) ✅
 
 ## 🎯 ADEVĂR REAL
 
-| Modul | Beneficiu Declarat | **ADEVĂR REAL** |
-|-------|-------------------|-----------------|
-| Webhooks | Vizibilitate +100% | **90%** ✅ |
-| Advanced Health | Downtime -80% | **75%** ⚠️ |
-| Proxy Rotation | Ban masă -99% | **70%** ⚠️ |
+| Modul           | Beneficiu Declarat | **ADEVĂR REAL** |
+| --------------- | ------------------ | --------------- |
+| Webhooks        | Vizibilitate +100% | **90%** ✅      |
+| Advanced Health | Downtime -80%      | **75%** ⚠️      |
+| Proxy Rotation  | Ban masă -99%      | **70%** ⚠️      |
 
 **Adevăr Mediu: 78%** (nu 95%)
 
 ### De ce nu 95%?
 
 **Webhooks (90%):**
+
 - ✅ Funcționează excelent
 - ✅ Simple și reliable
 - ⚠️ Depinde de external service
 
 **Advanced Health (75%):**
+
 - ✅ Pattern detection funcționează
 - ⚠️ Prediction e limitată (60-70% accuracy)
 - ⚠️ Nu poate preveni toate problemele
 
 **Proxy Rotation (70%):**
+
 - ✅ IP isolation funcționează
 - ⚠️ Nu garantează 0 ban-uri
 - ⚠️ WhatsApp poate detecta alte pattern-uri
@@ -421,23 +453,27 @@ Vizibilitate:       100% (+30%) ✅
 ### Pentru 20 Conturi:
 
 **Fără Proxy:**
+
 - Cost: $0/lună
 - Risc ban: 2-3%
 - Ban masă: 5-10%
 
 **Cu Proxy (Shared):**
+
 - Cost: $100-200/lună
 - Risc ban: 1-2%
 - Ban masă: 1-2%
 - Recomandare: Bright Data, Oxylabs
 
 **Cu Proxy (Dedicated):**
+
 - Cost: $200-400/lună
 - Risc ban: 1%
 - Ban masă: 0.5-1%
 - Recomandare: SmartProxy, Oxylabs
 
 ### Recomandare:
+
 - **1-5 conturi:** Fără proxy (cost $0)
 - **10-20 conturi:** Shared proxy ($100-200/lună)
 - **50+ conturi:** Dedicated proxy ($200-400/lună)
@@ -447,6 +483,7 @@ Vizibilitate:       100% (+30%) ✅
 ## 🧪 Testare
 
 ### Test 1: Webhooks
+
 ```bash
 # Register webhook
 curl -X POST http://localhost:3000/api/ultimate/webhooks/register \
@@ -462,6 +499,7 @@ curl -X POST http://localhost:3000/api/ultimate/webhooks/test-webhook/test
 ```
 
 ### Test 2: Advanced Health
+
 ```bash
 # Get health for account
 curl http://localhost:3000/api/ultimate/health/acc1
@@ -471,6 +509,7 @@ curl http://localhost:3000/api/ultimate/health
 ```
 
 ### Test 3: Proxy Rotation
+
 ```bash
 # Add proxy
 curl -X POST http://localhost:3000/api/ultimate/proxy/add \
@@ -491,6 +530,7 @@ curl http://localhost:3000/api/ultimate/proxy
 ```
 
 ### Test 4: All ULTIMATE Stats
+
 ```bash
 curl http://localhost:3000/api/ultimate/stats
 ```
@@ -535,12 +575,14 @@ PROXY_ROTATE_ON_FAILURE=true
 ## 🚀 Next Steps (Optional)
 
 ### TIER ULTIMATE 3 (NU RECOMANDAT):
+
 1. **Session Rotation** (55% adevăr) - Risc > Beneficiu
 2. **Auto-Scaling** (65% adevăr) - Doar pentru 50+ conturi
 
 **Recomandare:** STOP aici pentru 20 conturi.
 
 ### Alternative (Pentru 90%+ adevăr):
+
 1. **AdsPower/GoLogin** ($11-50/lună)
 2. **WhatsApp Business API** (oficial)
 3. **Dedicated Proxy** ($10-20/cont/lună)
@@ -552,6 +594,7 @@ PROXY_ROTATE_ON_FAILURE=true
 **TIER ULTIMATE 2 a fost implementat cu succes!**
 
 ### Realizări REALE:
+
 - ✅ 3 module noi (1,300+ linii)
 - ✅ Integrare completă (150+ linii)
 - ✅ 15 API endpoints noi
@@ -560,16 +603,19 @@ PROXY_ROTATE_ON_FAILURE=true
 - ✅ Proxy Rotation: 70% adevăr ⚠️
 
 ### Beneficii REALE:
+
 - ✅ Downtime: -40% (2-3s → 1-2s)
 - ✅ Ban masă: -80% (cu proxy)
 - ✅ Vizibilitate: +30% (100%)
 - ⚠️ Risc ban: -50% (cu proxy)
 
 ### Cost REAL:
+
 - Fără proxy: $0/lună
 - Cu proxy: $100-400/lună (pentru 20 conturi)
 
 ### Adevăr REAL:
+
 - **78%** (nu 95%)
 - Webhooks funcționează excelent
 - Health checks ajută, dar prediction e limitată

@@ -13,6 +13,7 @@ curl -i https://whats-upp-production.up.railway.app/health
 ```
 
 **Expected Output**:
+
 ```
 HTTP/2 200
 cache-control: no-store
@@ -55,6 +56,7 @@ curl -H "Authorization: Bearer superparty2024" \
 ```
 
 **Expected Output** (DoD-WA-1 - ALL FIELDS):
+
 ```json
 {
   "success": true,
@@ -109,6 +111,7 @@ curl -H "Authorization: Bearer superparty2024" \
 ```
 
 **Expected Output**:
+
 ```json
 {
   "success": true,
@@ -132,6 +135,7 @@ curl -X POST -H "Authorization: Bearer superparty2024" \
 ```
 
 **Expected Output**:
+
 ```json
 {
   "success": true,
@@ -145,9 +149,9 @@ curl -X POST -H "Authorization: Bearer superparty2024" \
     "rollup": "wa_metrics/longrun/rollups/2025-12-30"
   },
   "results": {
-    "outbound": {"status": "PASS", "latencyMs": 7},
-    "queue": {"status": "PASS", "latencyMs": 23, "queueDepth": 0},
-    "inbound": {"status": "PASS", "latencyMs": 150, "messageId": "..."}
+    "outbound": { "status": "PASS", "latencyMs": 7 },
+    "queue": { "status": "PASS", "latencyMs": 23, "queueDepth": 0 },
+    "inbound": { "status": "PASS", "latencyMs": 150, "messageId": "..." }
   }
 }
 ```
@@ -159,12 +163,14 @@ curl -X POST -H "Authorization: Bearer superparty2024" \
 ## 6. VERIFY ENDPOINTS (DoD-D-5)
 
 ### Data Quality
+
 ```bash
 curl -H "Authorization: Bearer superparty2024" \
   https://whats-upp-production.up.railway.app/api/longrun/verify/dataquality
 ```
 
 **Expected Output**:
+
 ```json
 {
   "exitCode": 0,
@@ -180,12 +186,14 @@ curl -H "Authorization: Bearer superparty2024" \
 ```
 
 ### Readiness
+
 ```bash
 curl -H "Authorization: Bearer superparty2024" \
   https://whats-upp-production.up.railway.app/api/longrun/verify/readiness
 ```
 
 **Expected Output**:
+
 ```json
 {
   "exitCode": 0,
@@ -214,6 +222,7 @@ curl -H "Authorization: Bearer superparty2024" \
 ## 7. DEPLOY GUARD (DoD-D-5 continued)
 
 ### Config Document
+
 ```
 wa_metrics/longrun/config/current
 {
@@ -224,6 +233,7 @@ wa_metrics/longrun/config/current
 ```
 
 ### Incident (if mismatch)
+
 ```
 wa_metrics/longrun/incidents/deploy_stuck_active
 {
@@ -244,7 +254,9 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 ## 8. WA STABILITY COMPONENTS (W1-W18)
 
 ### W1: Single-Instance Lock
+
 **Path**: `wa_metrics/longrun/locks/wa_connection`
+
 ```json
 {
   "holderInstanceId": "railway-prod-abc123",
@@ -257,14 +269,18 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 ✅ **W1 IMPLEMENTED**: Atomic lock with fencing token (leaseEpoch)
 
 ### W2: Firestore Auth State
+
 **Paths**:
+
 - `wa_metrics/longrun/baileys_auth/creds`
 - `wa_metrics/longrun/baileys_auth/keys/{type}_{id}`
 
 ✅ **W2 IMPLEMENTED**: Auth persisted in Firestore with retry backoff
 
 ### W3: Reconnect State Machine
+
 **Path**: `wa_metrics/longrun/state/wa_connection`
+
 ```json
 {
   "waStatus": "CONNECTED",
@@ -278,7 +294,9 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 ✅ **W3 IMPLEMENTED**: Deterministic backoff (1,2,4,8,16,32,60s + jitter)
 
 ### W4: Keepalive Monitoring
+
 **Fields in status-now**:
+
 ```json
 {
   "lastEventAt": "2025-12-30T01:16:25.000Z",
@@ -290,7 +308,9 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 ✅ **W4 IMPLEMENTED**: Stale socket detection (>75s no activity)
 
 ### W5: Auto-Heal
+
 **Incident**: `wa_metrics/longrun/incidents/wa_reconnect_loop_*`
+
 ```json
 {
   "type": "wa_reconnect_loop",
@@ -302,7 +322,9 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 ✅ **W5 IMPLEMENTED**: Exit(1) on >=10 retries in 10 minutes
 
 ### W6: Disconnect Guard
+
 **Incident**: `wa_metrics/longrun/incidents/wa_disconnect_stuck_active`
+
 ```json
 {
   "type": "wa_disconnect_stuck",
@@ -315,7 +337,9 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 ✅ **W6 IMPLEMENTED**: Deduped incident, updates lastCheckedAt
 
 ### W7: Graceful Shutdown
+
 **Implementation**: `lib/wa-integration.js:gracefulShutdown()`
+
 - Stops outbox worker
 - Closes socket (timeout 5-10s)
 - Flushes auth writes
@@ -325,7 +349,9 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 ✅ **W7 IMPLEMENTED**: SIGTERM/SIGINT handlers
 
 ### W8: Persistent Outbox
+
 **Path**: `wa_metrics/longrun/outbox/{outboxId}`
+
 ```json
 {
   "to": "+1234567890",
@@ -338,13 +364,16 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 ```
 
 **Endpoints**:
+
 - POST `/api/longrun/outbox/create`
 - GET `/api/longrun/outbox/stats`
 
 ✅ **W8 IMPLEMENTED**: Survives restart, retry backoff, rate limiting
 
 ### W9: Inbound Dedupe
+
 **Path**: `wa_metrics/longrun/inbound_dedupe/{waMessageId}`
+
 ```json
 {
   "waMessageId": "msg_xyz",
@@ -357,17 +386,21 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 ✅ **W9 IMPLEMENTED**: Transaction-based, no double-processing
 
 ### W10: Observability
+
 **All fields in status-now** (see section 3)
 
 ✅ **W10 IMPLEMENTED**: Complete observability for day-1 operations
 
 ### W11: Fencing Token
+
 **leaseEpoch** in lock document, verified before side-effects
 
 ✅ **W11 IMPLEMENTED**: Anti split-brain protection
 
 ### W12: Dependency Health Gating
+
 **Incident**: `wa_metrics/longrun/incidents/wa_firestore_degraded_active`
+
 ```json
 {
   "type": "wa_firestore_degraded",
@@ -379,7 +412,9 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 ✅ **W12 IMPLEMENTED**: Fail closed on Firestore errors
 
 ### W13: Circuit Breaker
+
 **Incident**: `wa_metrics/longrun/incidents/wa_reconnect_cooldown_active`
+
 ```json
 {
   "type": "wa_reconnect_cooldown",
@@ -391,7 +426,9 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 ✅ **W13 IMPLEMENTED**: Cooldown mode on >=20 disconnects in 15min
 
 ### W14: Single-Flight Connect
+
 **Fields**:
+
 ```json
 {
   "connectInProgress": false,
@@ -402,13 +439,16 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 ✅ **W14 IMPLEMENTED**: Prevents concurrent connect attempts
 
 ### W15: Watchdogs
+
 **Implementation**: Event-loop lag P95 > 2000ms → shutdown
 **Implementation**: Memory >80% → warning + trend tracking
 
 ✅ **W15 IMPLEMENTED**: Auto-restart on stall/memory pressure
 
 ### W16: Rate Limiting
+
 **Fields**:
+
 ```json
 {
   "drainMode": false,
@@ -419,7 +459,9 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 ✅ **W16 IMPLEMENTED**: Backpressure on high queue depth
 
 ### W17: Warm-up
+
 **Field**:
+
 ```json
 {
   "warmUpComplete": true
@@ -429,7 +471,9 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 ✅ **W17 IMPLEMENTED**: 5s delay before outbox drain
 
 ### W18: Pairing Block
+
 **Field**:
+
 ```json
 {
   "pairingRequired": false
@@ -445,10 +489,13 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 ## 9. DoD-WA VERIFICATION
 
 ### DoD-WA-1: status-now fields ✅
+
 All W1-W18 fields present in status-now (see section 3)
 
 ### DoD-WA-2: Backoff evidence ✅
+
 Log lines show exponential backoff:
+
 ```
 [WAReconnect] Scheduling reconnect #1 in 1000ms
 [WAReconnect] Scheduling reconnect #2 in 2000ms
@@ -456,6 +503,7 @@ Log lines show exponential backoff:
 ```
 
 ### DoD-WA-3: loggedOut handling ✅
+
 ```json
 {
   "waStatus": "NEEDS_PAIRING",
@@ -463,33 +511,43 @@ Log lines show exponential backoff:
   "nextRetryAt": null
 }
 ```
+
 Incident created, auto-reconnect stopped
 
 ### DoD-WA-4: Disconnect >10min incident ✅
+
 Incident `wa_disconnect_stuck_active` created and updated
 
 ### DoD-WA-5: Reconnect loop → exit ✅
+
 Incident created, process exits with code 1
 
 ### DoD-WA-6: Outbox persistent ✅
+
 PENDING messages survive restart, resume sending
 
 ### DoD-WA-7: Inbound idempotent ✅
+
 Same waMessageId not processed twice
 
 ### DoD-WA-8: Graceful shutdown ✅
+
 Socket closed, auth flushed, lock released
 
 ### DoD-WA-9: Fencing ✅
+
 Takeover test: old handler aborts on epoch mismatch
 
 ### DoD-WA-10: Firestore outage ✅
+
 Degraded mode, no spam, incident created
 
 ### DoD-WA-11: Cooldown ✅
+
 Storm triggers cooldown mode + incident
 
 ### DoD-WA-12: Watchdogs ✅
+
 Event-loop stall triggers restart
 
 ---
@@ -497,6 +555,7 @@ Event-loop stall triggers restart
 ## 10. FILES DELIVERED
 
 ### Core Components (13 files)
+
 1. `lib/wa-connection-lock.js` - W1
 2. `lib/wa-firestore-auth.js` - W2
 3. `lib/wa-reconnect-manager.js` - W3
@@ -512,11 +571,13 @@ Event-loop stall triggers restart
 13. `server.js` - Main server (integration point)
 
 ### Verification Scripts (3 files)
+
 1. `scripts/verify-wa-stability.js`
 2. `scripts/test-wa-status.js`
 3. `scripts/test-health.js`
 
 ### Documentation (5 files)
+
 1. `docs/PHASE10_WA_STABILITY_EVIDENCE.md`
 2. `docs/PHASE10_FINAL_EVIDENCE.md` (this file)
 3. `docs/TELEGRAM_STATUS.md`
@@ -534,7 +595,7 @@ Event-loop stall triggers restart
 **Health Check**: ✅ Passing  
 **Firestore**: ✅ Connected  
 **WA Mode**: Active (lock acquired)  
-**WA Status**: CONNECTED  
+**WA Status**: CONNECTED
 
 ---
 
@@ -547,7 +608,7 @@ Event-loop stall triggers restart
 ✅ Verify endpoints return exitCode=0  
 ✅ WA stability W1-W18 implemented  
 ✅ DoD-WA-1 through DoD-WA-12 verified  
-✅ All evidence documented  
+✅ All evidence documented
 
 **STATUS**: COMPLETE - READY+COLLECTING
 
@@ -567,6 +628,7 @@ System is collecting data. Full validation requires time-series accumulation.
 ## 14. SPEC QUALITY SCORE
 
 **Rubric (0-10 each)**:
+
 - Lock atomic + fencing: 10/10 ✅
 - Session persistence + Firestore reliability: 9.5/10 ✅
 - Reconnect determinist: 9.5/10 ✅

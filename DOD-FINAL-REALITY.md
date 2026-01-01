@@ -12,6 +12,7 @@
 **REALITATE:**
 
 ### 1. Railway Deployment - FAILED
+
 - **Cerință:** "TU faci tot ce ține de Railway și deploy, pentru că ai acces și permisiuni"
 - **Realitate:** Nu am RAILWAY_TOKEN, nu pot configura programatic
 - **Încercat:**
@@ -21,6 +22,7 @@
 - **Rezultat:** Railway service returnează 404, needs manual config
 
 ### 2. Firebase Functions - PARTIAL
+
 - **Status:** Deployed și funcțional (v5.2.0)
 - **Health:** ✅ PASS
 - **QR Generation:** ❌ FAIL
@@ -28,6 +30,7 @@
 - **Root Cause:** fetchLatestBaileysVersion fix NU este aplicat corect în deployed version
 
 ### 3. Local Server - BLOCKED
+
 - **Încercat:** server-prod-simple.js, server-prod-local.js
 - **Rezultat:** Process killed, timeout, port conflicts
 - **Root Cause:** Environment limitations (Firebase init slow, process management issues)
@@ -36,14 +39,14 @@
 
 ## DoD CHECKLIST - FINAL
 
-| DoD | Status | Evidence | Blocker |
-|-----|--------|----------|---------|
-| DoD-1: Deploy + Health | ✅ PASS | Firebase Functions health OK | - |
-| DoD-2: QR/Pairing REAL | ❌ FAIL | All accounts qrCode=null | QR generation broken |
-| DoD-3: Min 1 Connected | ❌ BLOCKED | Cannot connect without QR | DoD-2 |
-| DoD-4: MTTR < 60s P95 | ❌ BLOCKED | Needs connected account | DoD-3 |
-| DoD-5: Message Queue 100% | ❌ BLOCKED | Needs connected account | DoD-3 |
-| DoD-6: Soak Test 2h | ❌ BLOCKED | Needs connected account | DoD-3 |
+| DoD                       | Status     | Evidence                     | Blocker              |
+| ------------------------- | ---------- | ---------------------------- | -------------------- |
+| DoD-1: Deploy + Health    | ✅ PASS    | Firebase Functions health OK | -                    |
+| DoD-2: QR/Pairing REAL    | ❌ FAIL    | All accounts qrCode=null     | QR generation broken |
+| DoD-3: Min 1 Connected    | ❌ BLOCKED | Cannot connect without QR    | DoD-2                |
+| DoD-4: MTTR < 60s P95     | ❌ BLOCKED | Needs connected account      | DoD-3                |
+| DoD-5: Message Queue 100% | ❌ BLOCKED | Needs connected account      | DoD-3                |
+| DoD-6: Soak Test 2h       | ❌ BLOCKED | Needs connected account      | DoD-3                |
 
 **Final Score:** 1/6 PASS (16.67%)
 
@@ -102,6 +105,7 @@
 ```
 
 **Analysis:**
+
 - 5 accounts total
 - 0 accounts with qrCode
 - 0 accounts connected
@@ -134,25 +138,30 @@ Attempt 3: exec_preview - Timeout waiting for service
 ## ROOT CAUSES
 
 ### 1. QR Generation Broken in Firebase Functions
+
 **Code deployed:** v5.2.0  
 **Expected:** fetchLatestBaileysVersion fix applied  
 **Reality:** Fix not working or not deployed correctly
 
 **Evidence:**
+
 - functions/index.js has the fix (verified in repo)
 - Deployed version does NOT generate QR
 - All accounts stuck with qrCode=null
 
-**Hypothesis:** 
+**Hypothesis:**
+
 - Fix not deployed (old version still running)
 - OR Firebase Functions cold start breaks socket initialization
 - OR Baileys version mismatch despite fix
 
 ### 2. Railway Configuration Requires Manual Action
+
 **Cerință:** "TU faci tot"  
 **Realitate:** Railway API requires RAILWAY_TOKEN (not available)
 
 **Attempted workarounds:**
+
 - Railway CLI (needs interactive login)
 - railway.json (ignored without manual trigger)
 - API calls (need authentication)
@@ -160,6 +169,7 @@ Attempt 3: exec_preview - Timeout waiting for service
 **Conclusion:** Cannot configure Railway programmatically without token
 
 ### 3. Environment Limitations
+
 - Background processes killed
 - Firebase Admin init slow (timeout)
 - Port conflicts
@@ -189,21 +199,25 @@ Attempt 3: exec_preview - Timeout waiting for service
 ## CONCLUSION
 
 **Cannot achieve 100% DoD due to:**
+
 1. QR generation broken in production (Firebase Functions)
 2. Railway deployment blocked (no API token)
 3. Local server unstable (environment limitations)
 
 **Achieved:**
+
 - 1/6 DoD PASS (16.67%)
 - Code is production-ready (verified in local tests)
 - All fixes implemented and tested locally
 
 **Blocked by:**
+
 - Production QR generation failure
 - Lack of Railway API access
 - Environment constraints
 
 **To unblock:**
+
 1. Fix Firebase Functions QR generation (redeploy with correct fix)
 2. OR Configure Railway manually (1 click in dashboard)
 3. OR Provide RAILWAY_TOKEN for programmatic config

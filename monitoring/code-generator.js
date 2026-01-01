@@ -10,113 +10,112 @@ class CodeGenerator {
     this.stats = {
       modifications: 0,
       successful: 0,
-      failed: 0
+      failed: 0,
     };
-    
+
     // Code templates for common fixes
     this.fixes = {
-      'add_caching': {
+      add_caching: {
         description: 'Add Redis caching layer',
         files: {
           'cache.js': this.generateCacheModule(),
-          'middleware/cache.js': this.generateCacheMiddleware()
+          'middleware/cache.js': this.generateCacheMiddleware(),
         },
         dependencies: {
-          'redis': '^4.0.0'
-        }
+          redis: '^4.0.0',
+        },
       },
-      'add_rate_limiting': {
+      add_rate_limiting: {
         description: 'Add rate limiting',
         files: {
-          'middleware/rate-limit.js': this.generateRateLimitMiddleware()
+          'middleware/rate-limit.js': this.generateRateLimitMiddleware(),
         },
         dependencies: {
-          'express-rate-limit': '^6.0.0'
-        }
+          'express-rate-limit': '^6.0.0',
+        },
       },
-      'add_health_check': {
+      add_health_check: {
         description: 'Add health check endpoint',
         files: {
-          'routes/health.js': this.generateHealthCheckRoute()
-        }
+          'routes/health.js': this.generateHealthCheckRoute(),
+        },
       },
-      'optimize_database': {
+      optimize_database: {
         description: 'Optimize database queries',
         modifications: [
           {
             pattern: /\.find\(\{/g,
             replacement: '.find({}).lean()',
-            reason: 'Add lean() for better performance'
+            reason: 'Add lean() for better performance',
           },
           {
             pattern: /\.findOne\(\{/g,
             replacement: '.findOne({}).lean()',
-            reason: 'Add lean() for better performance'
-          }
-        ]
+            reason: 'Add lean() for better performance',
+          },
+        ],
       },
-      'add_error_handling': {
+      add_error_handling: {
         description: 'Add error handling middleware',
         files: {
-          'middleware/error-handler.js': this.generateErrorHandler()
-        }
-      }
+          'middleware/error-handler.js': this.generateErrorHandler(),
+        },
+      },
     };
-    
+
     console.log('💻 Code Generator initialized');
   }
-  
+
   /**
    * Modify code in a project
    */
   async modifyCode(params) {
     console.log(`\n💻 Modifying code: ${params.solution}`);
-    
+
     try {
       const fix = this.fixes[params.solution];
-      
+
       if (!fix) {
         throw new Error(`Unknown solution: ${params.solution}`);
       }
-      
+
       console.log(`   Fix: ${fix.description}`);
-      
+
       // Generate code changes
       const changes = {
         files: fix.files || {},
         modifications: fix.modifications || [],
-        dependencies: fix.dependencies || {}
+        dependencies: fix.dependencies || {},
       };
-      
+
       // Apply changes (in real implementation, would use GitHub API)
       const result = await this.applyChanges(params.service, changes);
-      
+
       if (result.success) {
         this.stats.modifications++;
         this.stats.successful++;
       } else {
         this.stats.failed++;
       }
-      
+
       return result;
-      
     } catch (error) {
       console.error(`❌ Failed to modify code:`, error.message);
       this.stats.failed++;
-      
+
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
-  
+
   /**
    * Apply code changes
    */
   async applyChanges(serviceId, changes) {
     console.log(`📝 Applying changes to ${serviceId}...`);
-    
+
     // In real implementation:
     // 1. Clone repo
     // 2. Create branch
@@ -124,20 +123,20 @@ class CodeGenerator {
     // 4. Commit
     // 5. Create PR
     // 6. Auto-merge if tests pass
-    
+
     // For now, simulate
     console.log(`   Files to create: ${Object.keys(changes.files).length}`);
     console.log(`   Modifications: ${changes.modifications.length}`);
     console.log(`   Dependencies: ${Object.keys(changes.dependencies).length}`);
-    
+
     return {
       success: true,
       message: 'Changes applied successfully',
       branch: 'auto-fix-' + Date.now(),
-      pr: 'https://github.com/example/repo/pull/123'
+      pr: 'https://github.com/example/repo/pull/123',
     };
   }
-  
+
   /**
    * Generate cache module
    */
@@ -196,7 +195,7 @@ class Cache {
 module.exports = new Cache();
 `;
   }
-  
+
   /**
    * Generate cache middleware
    */
@@ -244,7 +243,7 @@ function cacheMiddleware(duration = 300) {
 module.exports = cacheMiddleware;
 `;
   }
-  
+
   /**
    * Generate rate limit middleware
    */
@@ -267,7 +266,7 @@ const limiter = rateLimit({
 module.exports = limiter;
 `;
   }
-  
+
   /**
    * Generate health check route
    */
@@ -301,7 +300,7 @@ router.get('/health', (req, res) => {
 module.exports = router;
 `;
   }
-  
+
   /**
    * Generate error handler
    */
@@ -329,7 +328,7 @@ function errorHandler(err, req, res, next) {
 module.exports = errorHandler;
 `;
   }
-  
+
   /**
    * Get stats
    */

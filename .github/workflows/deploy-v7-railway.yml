@@ -27,30 +27,30 @@ jobs:
           RAILWAY_PROJECT_ID: 998d4e46-c67c-47e2-9eaa-ae4cc806aab1
         run: |
           cd monitoring
-          
+
           # Check if RAILWAY_TOKEN is set
           if [ -z "$RAILWAY_TOKEN" ]; then
             echo "❌ RAILWAY_TOKEN secret not configured"
             echo "   Configure it in: Settings → Secrets → Actions"
             exit 1
           fi
-          
+
           echo "✅ RAILWAY_TOKEN is set"
-          
+
           # Try to link project
           echo "🔗 Linking to Railway project..."
           railway link || echo "⚠️  Link failed (may already be linked)"
-          
+
           # List available services
           echo "📋 Available services:"
           railway service || echo "⚠️  Could not list services"
-          
+
           # Deploy
           echo "🚀 Deploying to Railway..."
           railway up --service v7-singularity-monitor || railway up || echo "⚠️  Deploy command failed"
-          
+
           echo "✅ Deployment complete!"
-          
+
       - name: Get deployment URL
         run: |
           echo "✅ Deployment complete!"

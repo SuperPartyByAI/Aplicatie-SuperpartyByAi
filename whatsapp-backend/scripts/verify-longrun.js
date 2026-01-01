@@ -68,7 +68,11 @@ if (fs.existsSync(inboundFile)) {
 const queueFile = path.join(artifactsDir, `QUEUE-E2E-${runId}.md`);
 if (fs.existsSync(queueFile)) {
   const content = fs.readFileSync(queueFile, 'utf8');
-  if (content.includes('Message 1') && content.includes('Message 2') && content.includes('Message 3')) {
+  if (
+    content.includes('Message 1') &&
+    content.includes('Message 2') &&
+    content.includes('Message 3')
+  ) {
     console.log('✅ DoD-5: Queue PASS (3 messages)');
     passed++;
   } else {

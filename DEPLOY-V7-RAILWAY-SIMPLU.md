@@ -50,18 +50,21 @@ NODE_ENV = production
 ```
 
 **Cum obții RAILWAY_TOKEN:**
+
 1. Railway Dashboard (sus-dreapta) → **Account Settings**
 2. **Tokens** → **Create New Token**
 3. Copy token
 4. Paste în RAILWAY_TOKEN
 
 **OPȚIONAL - Project IDs (dacă vrei să adaugi proiecte automat):**
+
 ```bash
 SUPERPARTY_PROJECT_ID = <project_id>
 VOICE_PROJECT_ID = <project_id>
 ```
 
 **Cum obții Project ID:**
+
 1. Deschide proiectul în Railway
 2. **Settings** → **General**
 3. Copy **Project ID**
@@ -94,6 +97,7 @@ VOICE_PROJECT_ID = <project_id>
 **Dashboard:** `https://your-service.railway.app`
 
 **Ce vezi:**
+
 - 📊 Overview (projects, uptime, cost)
 - 🎯 Lista cu toate proiectele
 - 📈 Metrics per project
@@ -107,6 +111,7 @@ VOICE_PROJECT_ID = <project_id>
 ### **Metoda 1: Automat (la start)**
 
 Adaugă în Railway Variables:
+
 ```bash
 SUPERPARTY_PROJECT_ID = <id>
 VOICE_PROJECT_ID = <id>
@@ -125,15 +130,18 @@ curl -X POST https://your-service.railway.app/api/projects \
 ### **Metoda 3: Manual (via browser)**
 
 Deschide browser console pe dashboard și rulează:
+
 ```javascript
 fetch('/api/projects', {
   method: 'POST',
-  headers: {'Content-Type': 'application/json'},
+  headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     projectId: 'your-project-id',
-    name: 'SuperParty'
-  })
-}).then(r => r.json()).then(console.log)
+    name: 'SuperParty',
+  }),
+})
+  .then(r => r.json())
+  .then(console.log);
 ```
 
 Refresh page → Proiectul apare
@@ -147,6 +155,7 @@ Refresh page → Proiectul apare
 Railway Dashboard → Service → **Deployments** → Click pe deployment → Vezi logs
 
 Ar trebui să vezi:
+
 ```
 🧠 v7.0 SINGULARITY MONITOR initialized
 ✅ Dashboard running at...
@@ -156,11 +165,13 @@ Ar trebui să vezi:
 ### **2. Verifică Health**
 
 Deschide în browser:
+
 ```
 https://your-service.railway.app/health
 ```
 
 Ar trebui să vezi:
+
 ```json
 {
   "status": "ok",
@@ -183,6 +194,7 @@ Ar trebui să vezi JSON cu overview.
 ### **Service nu pornește**
 
 **Verifică:**
+
 1. Root Directory = `monitoring` ✅
 2. Start Command = `npm start` ✅
 3. RAILWAY_TOKEN e adăugat ✅
@@ -193,17 +205,20 @@ Ar trebui să vezi JSON cu overview.
 ### **Dashboard nu se încarcă**
 
 **Verifică:**
+
 1. Domain e generat? (Settings → Networking)
 2. Service e running? (Dashboard → Status = "Active")
 3. Logs arată erori? (Deployments → Vezi logs)
 
-**Fix:** 
+**Fix:**
+
 - Regenerează domain
 - Restart service
 
 ### **"RAILWAY_TOKEN invalid"**
 
 **Fix:**
+
 1. Regenerează token în Account Settings
 2. Update variabila în Railway
 3. Restart service
@@ -213,11 +228,13 @@ Ar trebui să vezi JSON cu overview.
 ## 💰 COST
 
 **Free Tier:**
+
 - $5 credit/month gratuit
 - Suficient pentru v7.0 monitor
 - **Cost: $0/month** (primele luni)
 
 **Hobby Plan ($5/month):**
+
 - Dacă depășești free tier
 - **Cost: $5-7/month**
 
@@ -228,16 +245,19 @@ Ar trebui să vezi JSON cu overview.
 ### **După deploy:**
 
 **Zi 1:**
+
 - ✅ Verifică că dashboard funcționează
 - ✅ Adaugă proiectele tale
 - ✅ Verifică că metrics apar
 
 **Săptămâna 1:**
+
 - ✅ Monitorizează self-replication
 - ✅ Verifică logs zilnic
 - ✅ Observă pattern-urile
 
 **Luna 1:**
+
 - ✅ Analizează learning insights
 - ✅ Verifică că prevention funcționează
 - ✅ Calculează ROI real
@@ -274,10 +294,12 @@ Ar trebui să vezi JSON cu overview.
 ## 🚀 LINK-URI UTILE
 
 **Railway:**
+
 - Dashboard: [railway.app](https://railway.app)
 - Docs: [docs.railway.app](https://docs.railway.app)
 
 **v7.0 Dashboard:**
+
 - URL: `https://your-service.railway.app`
 - API: `https://your-service.railway.app/api/overview`
 - Health: `https://your-service.railway.app/health`
@@ -289,6 +311,7 @@ Ar trebui să vezi JSON cu overview.
 **v7.0 Singularity e LIVE pe Railway!**
 
 **Features active:**
+
 - 🧬 Self-replication
 - 🌍 Multi-project management
 - 🎓 Advanced learning

@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase';
-import { doc, setDoc, getDoc, serverTimestamp, query, collection, where, getDocs } from 'firebase/firestore';
+import {
+  doc,
+  setDoc,
+  getDoc,
+  serverTimestamp,
+  query,
+  collection,
+  where,
+  getDocs,
+} from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
 function StaffSetupScreen() {
@@ -21,13 +30,13 @@ function StaffSetupScreen() {
         const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
         const userData = userDoc.data();
         const code = userData?.code || '';
-        
+
         const kycDoc = await getDocs(
           query(collection(db, 'kycSubmissions'), where('uid', '==', currentUser.uid))
         );
         const kycData = kycDoc.docs[0]?.data();
         const fullName = kycData?.fullName || userData?.displayName || '';
-        
+
         setUserCode(code);
         setUserName(fullName);
         setCodIdentificare(code);
@@ -44,8 +53,9 @@ function StaffSetupScreen() {
     setBusy(true);
     setError('');
     try {
-      if (!codIdentificare || !ceCodAi || !cineNoteaza) throw new Error('Toate câmpurile sunt obligatorii.');
-      
+      if (!codIdentificare || !ceCodAi || !cineNoteaza)
+        throw new Error('Toate câmpurile sunt obligatorii.');
+
       await setDoc(doc(db, 'staffProfiles', currentUser.uid), {
         uid: currentUser.uid,
         email: currentUser.email,
@@ -58,10 +68,14 @@ function StaffSetupScreen() {
         updatedAt: serverTimestamp(),
       });
 
-      await setDoc(doc(db, 'users', currentUser.uid), {
-        setupDone: true,
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
+      await setDoc(
+        doc(db, 'users', currentUser.uid),
+        {
+          setupDone: true,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
 
       window.location.href = '/';
     } catch (err) {
@@ -82,11 +96,21 @@ function StaffSetupScreen() {
         <h1>Staff Setup</h1>
         <p>Email: {currentUser?.email}</p>
         <p>Cod alocat: {userCode || '(lipsește)'}</p>
-        <input placeholder="Cod identificare" value={codIdentificare} onChange={(e) => setCodIdentificare(e.target.value)} />
-        <input placeholder="Ce cod ai" value={ceCodAi} onChange={(e) => setCeCodAi(e.target.value)} />
-        <input placeholder="Cine notează" value={cineNoteaza} onChange={(e) => setCineNoteaza(e.target.value)} />
+        <input
+          placeholder="Cod identificare"
+          value={codIdentificare}
+          onChange={e => setCodIdentificare(e.target.value)}
+        />
+        <input placeholder="Ce cod ai" value={ceCodAi} onChange={e => setCeCodAi(e.target.value)} />
+        <input
+          placeholder="Cine notează"
+          value={cineNoteaza}
+          onChange={e => setCineNoteaza(e.target.value)}
+        />
         {error && <div className="error">{error}</div>}
-        <button onClick={handleSave} disabled={busy}>{busy ? 'Saving...' : 'Salvează'}</button>
+        <button onClick={handleSave} disabled={busy}>
+          {busy ? 'Saving...' : 'Salvează'}
+        </button>
         <button onClick={handleSignOut}>Sign out</button>
       </div>
     </div>

@@ -8,14 +8,15 @@ const fs = require('fs');
 const path = require('path');
 
 const CREDENTIALS = {
-  OPENAI_API_KEY: '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',
+  OPENAI_API_KEY:
+    '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',
   TWILIO_ACCOUNT_SID: 'AC17c88873d670aab4aa4a50fae230d2df',
   TWILIO_AUTH_TOKEN: '5c6670d39a1dbf46d47ecdaa244b91d9',
   TWILIO_PHONE_NUMBER: '+12182204425',
   BACKEND_URL: 'https://web-production-f0714.up.railway.app',
   COQUI_API_URL: 'https://web-production-00dca9.up.railway.app',
   NODE_ENV: 'production',
-  PORT: '5001'
+  PORT: '5001',
 };
 
 async function deploy() {
@@ -31,7 +32,7 @@ async function deploy() {
     const envContent = Object.entries(CREDENTIALS)
       .map(([key, value]) => `${key}=${value}`)
       .join('\n');
-    
+
     const envPath = path.join(__dirname, '../voice-backend/.env');
     fs.writeFileSync(envPath, envContent);
     console.log('✅ .env creat');
@@ -51,9 +52,11 @@ healthcheckTimeout = 100
 healthcheckInterval = 10
 
 [env]
-${Object.entries(CREDENTIALS).map(([key, value]) => `${key} = "${value}"`).join('\n')}
+${Object.entries(CREDENTIALS)
+  .map(([key, value]) => `${key} = "${value}"`)
+  .join('\n')}
 `;
-    
+
     const tomlPath = path.join(__dirname, '../voice-backend/railway.toml');
     fs.writeFileSync(tomlPath, railwayToml);
     console.log('✅ railway.toml creat');
@@ -61,20 +64,23 @@ ${Object.entries(CREDENTIALS).map(([key, value]) => `${key} = "${value}"`).join(
 
     // 3. Update git (skip .env, doar railway.toml)
     console.log('📦 Commit și push...');
-    execSync('git add -f voice-backend/railway.toml', { 
+    execSync('git add -f voice-backend/railway.toml', {
       cwd: path.join(__dirname, '..'),
-      stdio: 'inherit' 
+      stdio: 'inherit',
     });
-    
+
     try {
-      execSync('git commit -m "Add Voice AI railway config\n\nCo-authored-by: Ona <no-reply@ona.com>"', { 
+      execSync(
+        'git commit -m "Add Voice AI railway config\n\nCo-authored-by: Ona <no-reply@ona.com>"',
+        {
+          cwd: path.join(__dirname, '..'),
+          stdio: 'inherit',
+        }
+      );
+
+      execSync('git push origin main', {
         cwd: path.join(__dirname, '..'),
-        stdio: 'inherit' 
-      });
-      
-      execSync('git push origin main', { 
-        cwd: path.join(__dirname, '..'),
-        stdio: 'inherit' 
+        stdio: 'inherit',
       });
       console.log('✅ Pushed to GitHub');
     } catch (e) {
@@ -107,7 +113,6 @@ ${Object.entries(CREDENTIALS).map(([key, value]) => `${key} = "${value}"`).join(
     console.log('═══════════════════════════════════════════════════════════');
 
     return true;
-
   } catch (error) {
     console.error('❌ Eroare:', error.message);
     return false;

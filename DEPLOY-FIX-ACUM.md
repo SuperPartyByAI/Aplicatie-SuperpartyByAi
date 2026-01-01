@@ -20,6 +20,7 @@ git pull
 ```
 
 **Output așteptat:**
+
 ```
 Updating ...
 Fast-forward
@@ -38,6 +39,7 @@ firebase deploy --only functions
 ```
 
 **Output așteptat:**
+
 ```
 === Deploying to 'superparty-frontend'...
 
@@ -64,8 +66,14 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 ```
 
 **Output așteptat:**
+
 ```json
-{"status":"online","service":"SuperParty WhatsApp on Firebase","version":"5.0.0","accounts":1}
+{
+  "status": "online",
+  "service": "SuperParty WhatsApp on Firebase",
+  "version": "5.0.0",
+  "accounts": 1
+}
 ```
 
 ---
@@ -89,6 +97,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 Caută `"pairingCode":"XXXXXXXX"` în output.
 
 **Pe telefon:**
+
 1. WhatsApp → Settings → Linked Devices
 2. "Link a Device" → "Link with phone number instead"
 3. Introdu codul: **XXXXXXXX**
@@ -105,6 +114,7 @@ După ce WhatsApp se conectează (vezi `"status":"connected"`), verifică Firest
 3. Ar trebui să vezi documentul: **`account_XXXXXXXXXX`**
 
 **Structură așteptată:**
+
 ```
 whatsapp_sessions/
   └── account_1766947637246/
@@ -179,6 +189,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 ```
 
 **Output așteptat:**
+
 ```json
 {
   "success": true,
@@ -205,6 +216,7 @@ curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/wha
 **Eroare:** `Error: HTTP Error: 403, The caller does not have permission`
 
 **Soluție:**
+
 ```cmd
 firebase login --reauth
 firebase deploy --only functions
@@ -215,11 +227,13 @@ firebase deploy --only functions
 ### Problema: Sesiunea nu se salvează în Firestore
 
 **Verifică logs:**
+
 ```cmd
 firebase functions:log --only whatsapp
 ```
 
 Caută:
+
 - `💾 [account_XXX] Saving session to Firestore...`
 - `✅ [account_XXX] Session saved successfully`
 
@@ -232,6 +246,7 @@ Caută:
 Mergi la: [Firebase Console - Firestore Rules](https://console.firebase.google.com/project/superparty-frontend/firestore/rules)
 
 Adaugă:
+
 ```javascript
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -254,7 +269,7 @@ După aplicarea fix-urilor:
 ✅ **Sesiunea se salvează** în Firestore la conectare  
 ✅ **Sesiunea se restaurează** automat la cold start  
 ✅ **WhatsApp rămâne conectat** 24/7 (cu UptimeRobot)  
-✅ **NU mai trebuie QR code** după fiecare restart  
+✅ **NU mai trebuie QR code** după fiecare restart
 
 ---
 
@@ -273,6 +288,7 @@ După aplicarea fix-urilor:
 După ce WhatsApp este conectat și sesiunea salvată:
 
 1. **Test trimitere mesaj:**
+
    ```cmd
    curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/send ^
      -H "Content-Type: application/json" ^

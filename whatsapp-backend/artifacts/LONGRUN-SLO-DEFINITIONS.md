@@ -9,9 +9,11 @@
 ## 1. Uptime SLO
 
 ### Definition
+
 Percentage of expected heartbeats successfully written to Firestore within a time window.
 
 ### Formula
+
 ```
 uptime% = (writtenHb / expectedHb) × 100
 
@@ -22,14 +24,16 @@ where:
 ```
 
 ### Targets
-| Window | Target | Threshold |
-|--------|--------|-----------|
-| 7 days | ≥ 99.0% | PASS if ≥ 99.0% |
-| 30 days | ≥ 99.5% | PASS if ≥ 99.5% |
-| 90 days | ≥ 99.7% | PASS if ≥ 99.7% |
+
+| Window   | Target  | Threshold       |
+| -------- | ------- | --------------- |
+| 7 days   | ≥ 99.0% | PASS if ≥ 99.0% |
+| 30 days  | ≥ 99.5% | PASS if ≥ 99.5% |
+| 90 days  | ≥ 99.7% | PASS if ≥ 99.7% |
 | 180 days | ≥ 99.8% | PASS if ≥ 99.8% |
 
 ### INSUFFICIENT_DATA Rule
+
 ```
 insufficientData = (numericCoverage < insufficientDataThreshold)
 
@@ -39,10 +43,12 @@ where:
 ```
 
 **Interpretation:**
+
 - If `numericCoverage < 0.8`: Report "INSUFFICIENT_DATA" instead of PASS/FAIL
 - Requires at least 80% of expected heartbeats to calculate valid uptime
 
 ### Example Calculation (7-day window)
+
 ```
 windowDurationMin = 7 × 24 × 60 = 10,080 minutes
 expectedHb = 10,080 / 1 = 10,080 heartbeats
@@ -60,9 +66,11 @@ Result: PASS (99.11% ≥ 99.0%)
 ## 2. MTTR (Mean Time To Recovery)
 
 ### Definition
+
 Time elapsed from incident start to resolution, measured in seconds.
 
 ### Formula
+
 ```
 mttrSec = tsEnd - tsStart
 
@@ -73,6 +81,7 @@ where:
 ```
 
 ### Percentiles
+
 ```
 mttrP50 = median of all mttrSec values in window
 mttrP90 = 90th percentile of mttrSec values
@@ -80,13 +89,15 @@ mttrP95 = 95th percentile of mttrSec values
 ```
 
 ### Targets
-| Metric | Target | Threshold |
-|--------|--------|-----------|
+
+| Metric   | Target | Threshold      |
+| -------- | ------ | -------------- |
 | MTTR P50 | ≤ 120s | PASS if ≤ 120s |
 | MTTR P90 | ≤ 300s | PASS if ≤ 300s |
 | MTTR P95 | ≤ 600s | PASS if ≤ 600s |
 
 ### Example Calculation
+
 ```
 Incidents in window:
   - Incident 1: tsStart=1000, tsEnd=1120 → mttrSec=120
@@ -99,7 +110,7 @@ mttrP50 = 120 (median)
 mttrP90 = 400 (90th percentile, index 2)
 mttrP95 = 400 (95th percentile, index 2)
 
-Result: 
+Result:
   - P50: PASS (120 ≤ 120)
   - P90: FAIL (400 > 300)
   - P95: PASS (400 ≤ 600)
@@ -110,9 +121,11 @@ Result:
 ## 3. Probe Success Rate
 
 ### Definition
+
 Percentage of probe executions that returned PASS result.
 
 ### Formula
+
 ```
 probePassRate% = (passCount / totalCount) × 100
 
@@ -122,13 +135,15 @@ where:
 ```
 
 ### Targets (per probe type)
-| Probe Type | Target | Threshold |
-|------------|--------|-----------|
-| Outbound | ≥ 95.0% | PASS if ≥ 95.0% |
-| Inbound | ≥ 95.0% | PASS if ≥ 95.0% |
-| Queue | ≥ 98.0% | PASS if ≥ 98.0% |
+
+| Probe Type | Target  | Threshold       |
+| ---------- | ------- | --------------- |
+| Outbound   | ≥ 95.0% | PASS if ≥ 95.0% |
+| Inbound    | ≥ 95.0% | PASS if ≥ 95.0% |
+| Queue      | ≥ 98.0% | PASS if ≥ 98.0% |
 
 ### Example Calculation
+
 ```
 Outbound probes in 7-day window:
   - PASS: 27
@@ -145,9 +160,11 @@ Result: PASS (96.43% ≥ 95.0%)
 ## 4. Missed Heartbeat Detection
 
 ### Definition
+
 Gap between consecutive heartbeats exceeding threshold.
 
 ### Formula
+
 ```
 gap = (hb[i].ts - hb[i-1].ts) / 1000  // seconds
 
@@ -159,6 +176,7 @@ where:
 ```
 
 ### Alert Threshold
+
 ```
 missedHbPerHour > alertThresholds.missedHbPerHour
 
@@ -169,6 +187,7 @@ where:
 **Action:** Create incident doc when threshold exceeded.
 
 ### Example
+
 ```
 Heartbeats:
   - hb1: ts=1000
@@ -187,14 +206,17 @@ If missedHbCount > 3 in last hour:
 ## 5. Consecutive Probe Failures
 
 ### Definition
+
 Number of consecutive probe executions with FAIL result.
 
 ### Formula
+
 ```
 consecutiveFails = count of consecutive probes with result='FAIL'
 ```
 
 ### Alert Threshold
+
 ```
 consecutiveFails >= alertThresholds.consecutiveProbeFails
 
@@ -205,6 +227,7 @@ where:
 **Action:** Create incident doc when threshold exceeded.
 
 ### Example
+
 ```
 Probes (most recent first):
   - probe1: FAIL
@@ -223,9 +246,11 @@ Result: ALERT (2 >= 2)
 ## 6. Data Quality Coverage
 
 ### Definition
+
 Ratio of actual data points to expected data points in a window.
 
 ### Formula
+
 ```
 numericCoverage = writtenHb / expectedHb
 
@@ -235,12 +260,14 @@ where:
 ```
 
 ### Thresholds
-| Coverage | Status |
-|----------|--------|
-| ≥ 0.8 | SUFFICIENT_DATA |
-| < 0.8 | INSUFFICIENT_DATA |
+
+| Coverage | Status            |
+| -------- | ----------------- |
+| ≥ 0.8    | SUFFICIENT_DATA   |
+| < 0.8    | INSUFFICIENT_DATA |
 
 ### Example
+
 ```
 7-day window:
   expectedHb = 10,080
@@ -257,9 +284,11 @@ Result: INSUFFICIENT_DATA (0.744 < 0.8)
 ## 7. Drift Detection
 
 ### Definition
+
 Deviation of actual heartbeat interval from expected interval.
 
 ### Formula
+
 ```
 driftSec = |actualIntervalSec - expectedIntervalSec|
 
@@ -269,16 +298,19 @@ where:
 ```
 
 ### Acceptable Drift
+
 ```
 acceptableDrift = config.driftSec = 10 seconds
 ```
 
 ### Alert Threshold
+
 ```
 driftSec > acceptableDrift
 ```
 
 ### Example
+
 ```
 Heartbeats:
   - hb1: ts=1000
@@ -296,6 +328,7 @@ Result: DRIFT_EXCEEDED (12 > 10)
 ## 8. Window Calculations
 
 ### 7-Day Window
+
 ```
 windowStart = now - (7 × 24 × 60 × 60 × 1000)
 windowEnd = now
@@ -303,6 +336,7 @@ expectedHb = 7 × 24 × 60 = 10,080
 ```
 
 ### 30-Day Window
+
 ```
 windowStart = now - (30 × 24 × 60 × 60 × 1000)
 windowEnd = now
@@ -310,6 +344,7 @@ expectedHb = 30 × 24 × 60 = 43,200
 ```
 
 ### 90-Day Window
+
 ```
 windowStart = now - (90 × 24 × 60 × 60 × 1000)
 windowEnd = now
@@ -317,6 +352,7 @@ expectedHb = 90 × 24 × 60 = 129,600
 ```
 
 ### 180-Day Window
+
 ```
 windowStart = now - (180 × 24 × 60 × 60 × 1000)
 windowEnd = now
@@ -328,11 +364,13 @@ expectedHb = 180 × 24 × 60 = 259,200
 ## 9. Firestore Query Examples
 
 ### Get heartbeats for 7-day window
+
 ```javascript
 const now = Date.now();
-const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
+const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
 
-const snapshot = await db.collection('wa_metrics')
+const snapshot = await db
+  .collection('wa_metrics')
   .doc('longrun')
   .collection('heartbeats')
   .where('tsIso', '>=', new Date(sevenDaysAgo).toISOString())
@@ -345,9 +383,11 @@ const uptime = (writtenHb / expectedHb) * 100;
 ```
 
 ### Get incidents for MTTR calculation
+
 ```javascript
 const incidents = [];
-const snapshot = await db.collection('wa_metrics')
+const snapshot = await db
+  .collection('wa_metrics')
   .doc('longrun')
   .collection('incidents')
   .where('tsStart', '>=', sevenDaysAgo)
@@ -370,6 +410,7 @@ const mttrP50 = incidents[Math.floor(incidents.length * 0.5)];
 ## 10. Report Format
 
 ### Daily Rollup Document
+
 ```json
 {
   "date": "2025-12-30",
@@ -395,6 +436,7 @@ const mttrP50 = incidents[Math.floor(incidents.length * 0.5)];
 ```
 
 ### Window Report
+
 ```json
 {
   "window": "7d",
@@ -419,7 +461,9 @@ const mttrP50 = incidents[Math.floor(incidents.length * 0.5)];
 ## 11. Acceptance Criteria
 
 ### PASS Conditions
+
 All of the following must be true:
+
 1. `numericCoverage >= 0.8` (sufficient data)
 2. `uptime% >= target` (meets SLO)
 3. `mttrP50 <= 120s` (fast recovery)
@@ -427,12 +471,15 @@ All of the following must be true:
 5. `probePassRate% >= target` (probes healthy)
 
 ### INSUFFICIENT_DATA Conditions
+
 Any of the following:
+
 1. `numericCoverage < 0.8`
 2. `writtenHb < (expectedHb * 0.8)`
 3. Window duration < 24 hours (not enough time)
 
 ### FAIL Conditions
+
 1. `numericCoverage >= 0.8` AND
 2. `uptime% < target` OR `mttrP90 > 300s` OR `probePassRate% < target`
 

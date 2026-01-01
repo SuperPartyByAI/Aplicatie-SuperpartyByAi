@@ -3,10 +3,12 @@
 ## 🎯 CE REZOLVĂ
 
 **Problema:**
+
 - Conturile dispar din listă la restart
 - Trebuie să scanezi QR din nou de fiecare dată
 
 **Soluția:**
+
 - Salvează sessions + metadata în Firestore
 - Conturile rămân în listă PERMANENT
 - Nu mai scanezi QR niciodată (după prima dată)
@@ -42,14 +44,17 @@
 ### Pas 2: Configurare Locală (2 min)
 
 1. **Editează `.env`:**
+
    ```bash
    nano .env
    ```
 
 2. **Adaugă JSON:**
+
    ```
    FIREBASE_SERVICE_ACCOUNT={"type":"service_account","project_id":"superparty-frontend",...}
    ```
+
    (paste întregul JSON pe o singură linie)
 
 3. **Salvează:** Ctrl+X, Y, Enter
@@ -57,16 +62,19 @@
 ### Pas 3: Test (3 min)
 
 1. **Pornește serverul:**
+
    ```bash
    node whatsapp-server.js
    ```
 
 2. **Verifică logs:**
+
    ```
    ✅ Firebase initialized
    ```
 
 3. **Adaugă cont:**
+
    ```bash
    curl -X POST http://localhost:5002/api/whatsapp/add-account \
      -H "Content-Type: application/json" \
@@ -76,6 +84,7 @@
 4. **Scanează QR code** din răspuns
 
 5. **Restart server:**
+
    ```bash
    # Oprește (Ctrl+C)
    # Pornește din nou
@@ -94,6 +103,7 @@
 ## 🎉 REZULTAT
 
 După configurare:
+
 - ✅ Conturile rămân în listă PERMANENT
 - ✅ Sessions persistă după restart
 - ✅ NU mai scanezi QR niciodată (după prima dată)
@@ -104,15 +114,18 @@ După configurare:
 ## ❌ Troubleshooting
 
 **Problema:** "No Firebase credentials"
+
 - Verifică că ai copiat ÎNTREGUL JSON
 - Verifică că nu ai spații extra
 - Verifică că JSON e valid (jsonlint.com)
 
 **Problema:** "Firebase initialization failed"
+
 - Verifică că Service Account are permisiuni
 - Regenerează Service Account key
 
 **Problema:** Contul tot dispare
+
 - Verifică că vezi în logs: "💾 Session saved to Firestore"
 - Verifică în Firebase Console că există colecția `whatsapp_sessions`
 

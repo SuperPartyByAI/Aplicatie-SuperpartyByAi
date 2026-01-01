@@ -5,16 +5,16 @@ const ElevenLabsHandler = require('./elevenlabs-handler');
 class VoiceAIHandler {
   constructor() {
     this.openai = null;
-    
+
     if (process.env.OPENAI_API_KEY) {
       this.openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY
+        apiKey: process.env.OPENAI_API_KEY,
       });
       console.log('[VoiceAI] Initialized with OpenAI');
     } else {
       console.warn('[VoiceAI] OpenAI API key missing - Voice AI disabled');
     }
-    
+
     // Voice providers (priority: ElevenLabs > Coqui)
     this.elevenlabs = new ElevenLabsHandler();
     this.coqui = new CoquiHandler();
@@ -208,21 +208,21 @@ Apoi [DATA: ...] și [COMPLETE] doar după ce ai și contactName.`;
         response: 'Ne pare rău, serviciul Voice AI nu este disponibil momentan.',
         audioUrl: null,
         completed: true,
-        data: null
+        data: null,
       };
     }
-    
+
     try {
       // Get or create conversation
       let conversation = this.conversations.get(callSid);
-      
+
       if (!conversation) {
         conversation = {
           messages: [
             { role: 'system', content: this.getSystemPrompt() },
-            { role: 'assistant', content: 'Bună ziua, SuperParty, cu ce vă ajut?' }
+            { role: 'assistant', content: 'Bună ziua, SuperParty, cu ce vă ajut?' },
           ],
-          data: {}
+          data: {},
         };
         this.conversations.set(callSid, conversation);
       }
@@ -230,7 +230,7 @@ Apoi [DATA: ...] și [COMPLETE] doar după ce ai și contactName.`;
       // Add user message
       conversation.messages.push({
         role: 'user',
-        content: userMessage
+        content: userMessage,
       });
 
       // Call GPT-4o
@@ -238,26 +238,30 @@ Apoi [DATA: ...] și [COMPLETE] doar după ce ai și contactName.`;
         model: 'gpt-4o',
         messages: conversation.messages,
         temperature: 0.7,
-        max_tokens: 150
+        max_tokens: 150,
       });
 
       const assistantMessage = response.choices[0].message.content;
 
       // Validate response (fix "object Promise" issue)
-      if (!assistantMessage || typeof assistantMessage !== 'string' || assistantMessage.includes('object Promise')) {
+      if (
+        !assistantMessage ||
+        typeof assistantMessage !== 'string' ||
+        assistantMessage.includes('object Promise')
+      ) {
         console.error('[VoiceAI] Invalid response from OpenAI:', assistantMessage);
         return {
           response: 'Vă rog să repetați, nu am înțeles bine.',
           audioUrl: null,
           completed: false,
-          data: null
+          data: null,
         };
       }
 
       // Add to history
       conversation.messages.push({
         role: 'assistant',
-        content: assistantMessage
+        content: assistantMessage,
       });
 
       // Extract data
@@ -297,16 +301,15 @@ Apoi [DATA: ...] și [COMPLETE] doar după ce ai și contactName.`;
         response: cleanResponse,
         audioUrl,
         completed,
-        data: reservationData
+        data: reservationData,
       };
-
     } catch (error) {
       console.error('[VoiceAI] Error:', error);
       return {
         response: 'Ne pare rău, am întâmpinat o problemă tehnică. Vă rugăm să sunați din nou.',
         audioUrl: null,
         completed: true,
-        data: null
+        data: null,
       };
     }
   }

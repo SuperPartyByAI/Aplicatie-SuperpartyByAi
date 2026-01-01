@@ -7,9 +7,11 @@ All hard requirements (W1-W6) and DoD requirements (DoD-WA-1 through DoD-WA-5) h
 ## Components Delivered
 
 ### W1: Single-Instance Guarantee ✅
+
 **File**: `lib/wa-connection-lock.js`
 
 **Features**:
+
 - Distributed lock at `wa_metrics/longrun/locks/wa_connection`
 - 90s lease, 30s refresh interval
 - Transaction-based acquire/release
@@ -17,6 +19,7 @@ All hard requirements (W1-W6) and DoD requirements (DoD-WA-1 through DoD-WA-5) h
 - Passive mode if lock not acquired
 
 **Evidence**:
+
 ```javascript
 // Lock document structure
 {
@@ -28,14 +31,17 @@ All hard requirements (W1-W6) and DoD requirements (DoD-WA-1 through DoD-WA-5) h
 ```
 
 **Passive Mode Behavior**:
+
 - No Baileys connection started
 - /health and admin endpoints remain functional
 - status-now reports `waMode="passive_lock_not_acquired"`
 
 ### W2: Firestore Auth State Persistence ✅
+
 **File**: `lib/wa-firestore-auth.js`
 
 **Structure**:
+
 ```
 wa_metrics/longrun/baileys_auth/
   creds -> { creds: {...}, updatedAt: Timestamp }
@@ -44,12 +50,14 @@ wa_metrics/longrun/baileys_auth/
 ```
 
 **Features**:
+
 - Load auth state on boot
 - Save on every creds/keys update
 - Tracks lastAuthWriteAt
 - Compatible with Baileys auth state interface
 
 **Evidence**:
+
 ```bash
 # Firestore paths
 wa_metrics/longrun/baileys_auth/creds
@@ -58,20 +66,24 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
 ```
 
 ### W3: Reconnect State Machine ✅
+
 **File**: `lib/wa-reconnect-manager.js`
 
 **States**:
+
 - `CONNECTED` - Active connection
 - `DISCONNECTED` - Temporary disconnect, auto-reconnect active
 - `NEEDS_PAIRING` - Logged out, requires QR scan
 
 **Backoff Delays**:
+
 ```javascript
-[1000, 2000, 4000, 8000, 16000, 32000, 60000] // ms
+[1000, 2000, 4000, 8000, 16000, 32000, 60000]; // ms
 // With ±20% jitter to prevent thundering herd
 ```
 
 **Disconnect Reasons Mapped**:
+
 - `bad_session`
 - `connection_closed`
 - `connection_lost`
@@ -82,6 +94,7 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
 - `multidevice_mismatch`
 
 **Evidence**:
+
 ```javascript
 // State document at wa_metrics/longrun/state/wa_connection
 {
@@ -97,15 +110,18 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
 ```
 
 ### W4: Keepalive + Stale Socket Detection ✅
+
 **File**: `lib/wa-keepalive-monitor.js`
 
 **Features**:
+
 - Tracks `lastEventAt` and `lastMessageAt`
 - Detects stale sockets (>5 min no activity)
 - Forces reconnect on stale detection
 - Provides Baileys config with keepalive settings
 
 **Baileys Config**:
+
 ```javascript
 {
   keepAliveIntervalMs: 30000,      // 30s keepalive
@@ -117,6 +133,7 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
 ```
 
 **Evidence**:
+
 ```javascript
 // Included in status-now
 {
@@ -128,17 +145,20 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
 ```
 
 ### W5: Auto-Heal ✅
+
 **File**: `lib/wa-auto-heal.js`
 
 **Trigger**: >=10 retries in 10 minutes (and not logged out)
 
 **Actions**:
+
 1. Create incident `wa_reconnect_loop` with evidence
 2. Release distributed lock
 3. Exit process with code 1
 4. Railway restarts automatically
 
 **Evidence**:
+
 ```javascript
 // Incident document
 {
@@ -164,6 +184,7 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
 ```
 
 ### W6: Disconnect Guard ✅
+
 **File**: `lib/wa-disconnect-guard.js`
 
 **Trigger**: Disconnect persists >10 minutes
@@ -171,11 +192,13 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
 **Incident**: `wa_disconnect_stuck_active` (deduped)
 
 **Behavior**:
+
 - Creates incident on first detection
 - Updates `lastCheckedAt` on subsequent checks
 - Auto-resolves when reconnected
 
 **Evidence**:
+
 ```javascript
 // Deduped incident document
 {
@@ -203,6 +226,7 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
 **Endpoint**: `GET /api/longrun/status-now`
 
 **Response Structure**:
+
 ```json
 {
   "success": true,
@@ -230,6 +254,7 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
 ```
 
 **Verification**:
+
 ```bash
 curl -H "X-Admin-Token: $ADMIN_TOKEN" \
   https://your-app.railway.app/api/longrun/status-now | jq '.wa'
@@ -238,6 +263,7 @@ curl -H "X-Admin-Token: $ADMIN_TOKEN" \
 ### DoD-WA-2: Reconnect Backoff Evidence ✅
 
 **Log Evidence**:
+
 ```
 [WAReconnect] ❌ DISCONNECTED - reason: connection_lost
 [WAReconnect] Scheduling reconnect #1 in 1000ms
@@ -250,6 +276,7 @@ curl -H "X-Admin-Token: $ADMIN_TOKEN" \
 ```
 
 **status-now Evidence**:
+
 ```json
 {
   "retryCount": 3,
@@ -258,6 +285,7 @@ curl -H "X-Admin-Token: $ADMIN_TOKEN" \
 ```
 
 **Verification**:
+
 - retryCount increments deterministically
 - nextRetryAt follows exponential backoff pattern
 - Delays: 1s → 2s → 4s → 8s → 16s → 32s → 60s (cap)
@@ -267,11 +295,13 @@ curl -H "X-Admin-Token: $ADMIN_TOKEN" \
 **Trigger**: `DisconnectReason.loggedOut`
 
 **Actions**:
+
 1. Set `waStatus = "NEEDS_PAIRING"`
 2. Stop auto-reconnect (no timer scheduled)
 3. Create incident `wa_logged_out_requires_pairing`
 
 **Incident Evidence**:
+
 ```javascript
 {
   type: "wa_logged_out_requires_pairing",
@@ -291,6 +321,7 @@ curl -H "X-Admin-Token: $ADMIN_TOKEN" \
 ```
 
 **status-now Evidence**:
+
 ```json
 {
   "waStatus": "NEEDS_PAIRING",
@@ -301,6 +332,7 @@ curl -H "X-Admin-Token: $ADMIN_TOKEN" \
 ```
 
 **Verification**:
+
 - Auto-reconnect stopped (nextRetryAt = null)
 - Incident created
 - status-now shows NEEDS_PAIRING
@@ -312,6 +344,7 @@ curl -H "X-Admin-Token: $ADMIN_TOKEN" \
 **Incident**: `wa_disconnect_stuck_active` (deduped)
 
 **Evidence**:
+
 ```javascript
 // First detection
 {
@@ -333,6 +366,7 @@ curl -H "X-Admin-Token: $ADMIN_TOKEN" \
 ```
 
 **Verification**:
+
 ```bash
 # Check incident
 firebase firestore:get wa_metrics/longrun/incidents/wa_disconnect_stuck_active
@@ -346,12 +380,14 @@ firebase firestore:get wa_metrics/longrun/incidents/wa_disconnect_stuck_active
 **Trigger**: retryCount >= 10 in 10 minutes
 
 **Actions**:
+
 1. Create incident `wa_reconnect_loop`
 2. Release lock
 3. Exit process (code 1)
 4. Railway restarts
 
 **Incident Evidence**:
+
 ```javascript
 {
   type: "wa_reconnect_loop",
@@ -367,6 +403,7 @@ firebase firestore:get wa_metrics/longrun/incidents/wa_disconnect_stuck_active
 ```
 
 **Log Evidence**:
+
 ```
 [WAAutoHeal] 🚨 RECONNECT LOOP DETECTED
 [WAAutoHeal] Retry count: 10
@@ -379,6 +416,7 @@ firebase firestore:get wa_metrics/longrun/incidents/wa_disconnect_stuck_active
 ```
 
 **Railway Evidence**:
+
 ```
 # Railway logs show:
 Process exited with code 1
@@ -387,6 +425,7 @@ Process started
 ```
 
 **Verification**:
+
 ```bash
 # Check incident exists
 firebase firestore:get wa_metrics/longrun/incidents/wa_reconnect_loop_*
@@ -401,6 +440,7 @@ railway logs | grep "Restarting process"
 **File**: `lib/wa-stability-manager.js`
 
 Integrates all components:
+
 - WAConnectionLock
 - FirestoreAuthState
 - WAReconnectManager
@@ -409,6 +449,7 @@ Integrates all components:
 - WADisconnectGuard
 
 **Usage**:
+
 ```javascript
 const WAStabilityManager = require('./lib/wa-stability-manager');
 
@@ -420,18 +461,18 @@ const isActive = await stability.tryActivate();
 if (isActive) {
   // Get auth state
   const { state, saveCreds } = await stability.getAuthStateHandler();
-  
+
   // Get Baileys config
   const config = stability.getBaileysConfig();
-  
+
   // Create socket
   const sock = makeWASocket({ auth: state, ...config });
-  
+
   // Start monitoring
   stability.startMonitoring(sock);
-  
+
   // Handle events
-  sock.ev.on('connection.update', async (update) => {
+  sock.ev.on('connection.update', async update => {
     if (update.connection === 'open') {
       await stability.handleConnected();
     } else if (update.connection === 'close') {
@@ -439,16 +480,13 @@ if (isActive) {
         update.lastDisconnect?.error?.output?.statusCode,
         update.lastDisconnect?.error
       );
-      
+
       if (result.shouldReconnect) {
-        stability.reconnectManager.scheduleReconnect(
-          () => connectToWhatsApp(),
-          result.delay
-        );
+        stability.reconnectManager.scheduleReconnect(() => connectToWhatsApp(), result.delay);
       }
     }
   });
-  
+
   sock.ev.on('messages.upsert', () => {
     stability.recordEvent('messages.upsert');
   });
@@ -460,11 +498,13 @@ if (isActive) {
 **File**: `scripts/verify-wa-stability.js`
 
 Verifies all DoD requirements:
+
 ```bash
 node scripts/verify-wa-stability.js
 ```
 
 **Output**:
+
 ```
 ========================================
 WA STABILITY VERIFICATION - DoD-WA
@@ -510,6 +550,7 @@ DoD-WA-5: ✅ PASS
 ## Deployment Status
 
 **Commits**:
+
 ```
 df62f219 - Add WA connection distributed lock (W1)
 d69a78bf - Add Firestore auth state persistence (W2)
@@ -546,6 +587,7 @@ ec71bff8 - Add WA stability manager and update status-now (DoD-WA-1)
 Phase 10 - WA Connection Stability is **COMPLETE** with all hard requirements (W1-W6) and DoD requirements (DoD-WA-1 through DoD-WA-5) implemented and verified.
 
 The system now provides:
+
 - Single-instance guarantee via distributed lock
 - Firestore-based auth persistence
 - Deterministic reconnect with exponential backoff

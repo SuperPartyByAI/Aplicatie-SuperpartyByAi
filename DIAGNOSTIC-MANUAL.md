@@ -3,9 +3,11 @@
 ## ✅ Informații Obținute
 
 ### Firebase CLI Version
+
 ```
 15.1.0
 ```
+
 **Status:** ✅ **BINE** - Versiunea este actualizată (latest: 15.x.x)
 
 ---
@@ -31,6 +33,7 @@ firebase functions:list
 ```
 
 **Ce verificăm:**
+
 - Starea funcției (ACTIVE, DEPLOYING, FAILED)
 - Versiunea deployed
 - Runtime version
@@ -92,8 +95,9 @@ npm list firebase-functions
 Din output-ul tău, văd:
 
 ### ⚠️ Warning Important:
+
 ```
-!  functions: package.json indicates an outdated version of firebase-functions. 
+!  functions: package.json indicates an outdated version of firebase-functions.
    Please upgrade using npm install --save firebase-functions@latest in your functions directory.
 ```
 
@@ -101,6 +105,7 @@ Din output-ul tău, văd:
 **Versiune recomandată:** `>=5.1.0`
 
 ### ❌ Eroare la Deploy:
+
 ```
 !  functions: failed to update function projects/superparty-frontend/locations/us-central1/functions/whatsapp
 Failed to update function projects/superparty-frontend/locations/us-central1/functions/whatsapp
@@ -168,15 +173,18 @@ cd functions && npm list firebase-functions
 ## 📊 Analiză Preliminară
 
 ### ✅ Ce Funcționează:
+
 - Firebase CLI version: 15.1.0 (latest)
 - Git pull: Success
 - Code upload: Success (95.85 KB)
 
 ### ❌ Ce NU Funcționează:
+
 - Function update: Failed
 - firebase-functions SDK: Outdated (4.9.0 vs 5.1.0+)
 
 ### 🎯 Root Cause Probabil:
+
 **Incompatibilitate între firebase-functions SDK 4.9.0 și Firebase Functions runtime Node.js 20**
 
 Firebase Functions Node.js 20 necesită firebase-functions SDK >=5.0.0 pentru suport complet.
@@ -196,11 +204,13 @@ firebase deploy --only functions
 ```
 
 **Avantaje:**
+
 - Rezolvă incompatibilitatea
 - Suport pentru features noi
 - Bugfixes și security patches
 
 **Dezavantaje:**
+
 - Poate necesita modificări minore în cod (breaking changes)
 
 ---
@@ -208,6 +218,7 @@ firebase deploy --only functions
 ### Opțiunea 2: Downgrade Node.js Runtime (NU RECOMANDAT)
 
 Modifică `functions/package.json`:
+
 ```json
 {
   "engines": {
@@ -217,6 +228,7 @@ Modifică `functions/package.json`:
 ```
 
 Modifică `firebase.json`:
+
 ```json
 {
   "functions": {
@@ -226,9 +238,11 @@ Modifică `firebase.json`:
 ```
 
 **Avantaje:**
+
 - Funcționează cu SDK-ul actual
 
 **Dezavantaje:**
+
 - Node.js 18 va fi decommissioned în 2025
 - Nu rezolvă problema long-term
 

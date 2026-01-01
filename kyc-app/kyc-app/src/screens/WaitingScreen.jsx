@@ -8,11 +8,15 @@ function WaitingScreen() {
   const currentUser = auth.currentUser;
 
   const handleApprove = async () => {
-    await setDoc(doc(db, 'users', currentUser.uid), {
-      status: 'approved',
-      code: 'SP001',
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
+    await setDoc(
+      doc(db, 'users', currentUser.uid),
+      {
+        status: 'approved',
+        code: 'SP001',
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
     window.location.href = '/';
   };
 

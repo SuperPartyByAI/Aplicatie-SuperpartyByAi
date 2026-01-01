@@ -15,7 +15,7 @@ class MessageStore {
 
   /**
    * Salvează mesaj în Firestore
-   * @param {string} accountId 
+   * @param {string} accountId
    * @param {object} message - Baileys message object
    */
   async saveMessage(accountId, message) {
@@ -28,16 +28,17 @@ class MessageStore {
         from: message.key.remoteJid,
         fromMe: message.key.fromMe,
         timestamp: message.messageTimestamp || Date.now(),
-        text: message.message?.conversation || 
-              message.message?.extendedTextMessage?.text || 
-              '[Media/Other]',
+        text:
+          message.message?.conversation ||
+          message.message?.extendedTextMessage?.text ||
+          '[Media/Other]',
         type: this.getMessageType(message),
         raw: message, // Save full message for reference
-        savedAt: firestore.admin.firestore.FieldValue.serverTimestamp()
+        savedAt: firestore.admin.firestore.FieldValue.serverTimestamp(),
       };
 
       await this.db.collection('whatsapp_messages').add(messageData);
-      
+
       console.log(`💾 [${accountId}] Message saved: ${messageData.text.substring(0, 50)}`);
       return true;
     } catch (error) {
@@ -48,14 +49,15 @@ class MessageStore {
 
   /**
    * Obține mesaje pentru un account
-   * @param {string} accountId 
-   * @param {number} limit 
+   * @param {string} accountId
+   * @param {number} limit
    */
   async getMessages(accountId, limit = 50) {
     try {
       if (!this.db) await this.initialize();
 
-      const snapshot = await this.db.collection('whatsapp_messages')
+      const snapshot = await this.db
+        .collection('whatsapp_messages')
         .where('accountId', '==', accountId)
         .orderBy('timestamp', 'desc')
         .limit(limit)
@@ -65,7 +67,7 @@ class MessageStore {
       snapshot.forEach(doc => {
         messages.push({
           id: doc.id,
-          ...doc.data()
+          ...doc.data(),
         });
       });
 
@@ -78,34 +80,35 @@ class MessageStore {
 
   /**
    * Obține conversații (grupate pe contact)
-   * @param {string} accountId 
+   * @param {string} accountId
    */
   async getConversations(accountId) {
     try {
       if (!this.db) await this.initialize();
 
-      const snapshot = await this.db.collection('whatsapp_messages')
+      const snapshot = await this.db
+        .collection('whatsapp_messages')
         .where('accountId', '==', accountId)
         .orderBy('timestamp', 'desc')
         .limit(1000)
         .get();
 
       const conversations = new Map();
-      
+
       snapshot.forEach(doc => {
         const msg = doc.data();
         const contact = msg.from;
-        
+
         if (!conversations.has(contact)) {
           conversations.set(contact, {
             contact,
             lastMessage: msg.text,
             lastTimestamp: msg.timestamp,
             unread: !msg.fromMe ? 1 : 0,
-            messages: []
+            messages: [],
           });
         }
-        
+
         conversations.get(contact).messages.push(msg);
       });
 

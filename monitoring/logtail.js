@@ -17,19 +17,19 @@ const logger = pino({
         options: {
           colorize: true,
           translateTime: 'SYS:standard',
-          ignore: 'pid,hostname'
-        }
+          ignore: 'pid,hostname',
+        },
       },
       // Logtail output
       {
         target: '@logtail/pino',
         level: 'info',
         options: {
-          logtail
-        }
-      }
-    ]
-  }
+          logtail,
+        },
+      },
+    ],
+  },
 });
 
 module.exports = { logtail, logger };

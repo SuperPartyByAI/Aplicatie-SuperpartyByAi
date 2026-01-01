@@ -30,13 +30,12 @@
 
 ## INCIDENTS
 
-
 ### Incident 1
+
 - Type: disconnect
 - Started: 2025-12-29T19:55:04.799Z
 - Recovered: 2025-12-29T19:59:50.431Z
 - MTTR: 285.63s
-
 
 ---
 
