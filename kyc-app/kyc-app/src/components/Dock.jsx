@@ -5,11 +5,16 @@ export default function Dock({ onOpenChatAI }) {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Only show Dock on /home
+  if (location.pathname !== '/home') {
+    return null;
+  }
+
   const dockItems = [
-    { id: 'calls', icon: '📞', label: 'Calls', route: '/centrala-telefonica' },
-    { id: 'chat', icon: '💬', label: 'Chat', route: '/chat-clienti' },
-    { id: 'team', icon: '👥', label: 'Echipă', route: '/team' },
-    { id: 'chat-ai', icon: '🤖', label: 'Chat AI', route: '/home', state: { intent: 'openChatAI' } },
+    { id: 'calls', icon: '📞', label: 'Calls', route: '/centrala-telefonica', position: 'left' },
+    { id: 'chat', icon: '💬', label: 'Chat', route: '/chat-clienti', position: 'mid-left' },
+    { id: 'team', icon: '👥', label: 'Echipă', route: '/team', position: 'mid-right' },
+    { id: 'chat-ai', icon: '🤖', label: 'Chat AI', route: '/home', state: { intent: 'openChatAI' }, position: 'right' },
   ];
 
   const handleClick = (item) => {
@@ -23,7 +28,7 @@ export default function Dock({ onOpenChatAI }) {
       {dockItems.map((item) => (
         <button
           key={item.id}
-          className={`dock-button ${location.pathname === item.route ? 'active' : ''}`}
+          className={`dock-button dock-button-${item.position} ${location.pathname === item.route ? 'active' : ''}`}
           onClick={() => handleClick(item)}
           title={item.label}
         >
