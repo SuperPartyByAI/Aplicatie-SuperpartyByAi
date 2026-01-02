@@ -46,14 +46,14 @@ export const getWheelActions = (role, adminMode, gmMode) => {
     },
   ];
 
-  // GM buttons (4)
+  // GM buttons (5)
   const gmButtons = [
     {
       id: 'gm-overview',
       icon: '📊',
       label: 'Metrici',
       type: 'gm',
-      row: 4,
+      row: 3,
       action: 'loadPerformanceMetrics',
       view: 'gm-overview',
       state: { intent: { action: 'loadPerformanceMetrics', view: 'gm-overview' } },
@@ -63,7 +63,7 @@ export const getWheelActions = (role, adminMode, gmMode) => {
       icon: '💬',
       label: 'Conversații',
       type: 'gm',
-      row: 4,
+      row: 3,
       action: 'loadGMUsers',
       view: 'gm-conversations',
       state: { intent: { action: 'loadGMUsers', view: 'gm-conversations' } },
@@ -73,10 +73,18 @@ export const getWheelActions = (role, adminMode, gmMode) => {
       icon: '📈',
       label: 'Analytics',
       type: 'gm',
-      row: 4,
+      row: 3,
       action: 'setView',
       view: 'gm-analytics',
       state: { intent: { action: 'setView', view: 'gm-analytics' } },
+    },
+    {
+      id: 'gm-whatsapp-accounts',
+      icon: '⚙️',
+      label: 'Conturi WA',
+      type: 'gm',
+      row: 3,
+      route: '/accounts-management',
     },
     {
       id: 'exit-gm',
@@ -88,7 +96,7 @@ export const getWheelActions = (role, adminMode, gmMode) => {
     },
   ];
 
-  // Admin + GM Mode: 13 buttons (6 normal + 3 admin + 4 GM)
+  // Admin + GM Mode: 14 buttons (6 normal + 3 admin + 5 GM)
   if (adminMode && gmMode && role === 'admin') {
     return [...normalButtons, ...adminButtons, ...gmButtons];
   }
@@ -98,7 +106,7 @@ export const getWheelActions = (role, adminMode, gmMode) => {
     return [...normalButtons, ...adminButtons];
   }
 
-  // GM Mode: 10 buttons (6 normal + 4 GM)
+  // GM Mode: 11 buttons (6 normal + 5 GM)
   if (gmMode && role === 'admin') {
     return [...normalButtons, ...gmButtons];
   }
