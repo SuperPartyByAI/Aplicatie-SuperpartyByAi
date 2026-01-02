@@ -8,9 +8,9 @@ export default function AIChatModal({ isOpen, onClose }) {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [containerHeight, setContainerHeight] = useState('100vh');
+  const [modalHeight, setModalHeight] = useState('100vh');
   const messagesEndRef = useRef(null);
-  const containerRef = useRef(null);
+  const modalRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -24,18 +24,15 @@ export default function AIChatModal({ isOpen, onClose }) {
   useEffect(() => {
     if (!isOpen) return;
 
-    const DOCK_HEIGHT = 88; // Dock height in pixels
-
     const handleViewportResize = () => {
       if (window.visualViewport) {
         const viewport = window.visualViewport;
-        // When keyboard opens, use viewport height
-        // When keyboard closed, reserve space for Dock
-        const availableHeight = viewport.height;
-        setContainerHeight(`${availableHeight}px`);
+        // Modal height = viewport height (keyboard aware)
+        // This makes the modal bottom align with keyboard top
+        setModalHeight(`${viewport.height}px`);
       } else {
-        // Fallback for browsers without VisualViewport
-        setContainerHeight(`calc(100vh - ${DOCK_HEIGHT}px - env(safe-area-inset-bottom))`);
+        // Fallback: use dvh if available, otherwise vh
+        setModalHeight('100dvh');
       }
     };
 
@@ -52,7 +49,7 @@ export default function AIChatModal({ isOpen, onClose }) {
         window.visualViewport.removeEventListener('resize', handleViewportResize);
         window.visualViewport.removeEventListener('scroll', handleViewportResize);
       }
-      setContainerHeight('100vh');
+      setModalHeight('100vh');
     };
   }, [isOpen]);
 
@@ -83,14 +80,17 @@ export default function AIChatModal({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="new-theme ai-chat-modal" onClick={onClose}>
+    <div 
+      ref={modalRef}
+      className="new-theme ai-chat-modal" 
+      onClick={onClose}
+      style={{
+        height: modalHeight
+      }}
+    >
       <div 
-        ref={containerRef}
         className="ai-chat-container" 
         onClick={(e) => e.stopPropagation()}
-        style={{
-          height: containerHeight
-        }}
       >
         {/* Header */}
         <div className="ai-chat-header">
