@@ -330,6 +330,7 @@ exports.chatWithAI = onCall(
         keySource: keySource,
         keyLength: openaiKey.length,
         keyPrefix: openaiKey.substring(0, 10) + '...',
+        keySuffix: '...' + openaiKey.substring(openaiKey.length - 10),
         timestamp: new Date().toISOString(),
       });
 
