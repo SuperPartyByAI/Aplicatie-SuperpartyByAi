@@ -25,6 +25,24 @@ export default function AIChatModal({ isOpen, onClose }) {
     scrollToBottom();
   }, [messages]);
 
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Prevent body scroll
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.width = '';
+    };
+  }, [isOpen]);
+
   // Auto-focus input when modal opens - iOS/Android compatible
   useEffect(() => {
     if (!isOpen) return;
