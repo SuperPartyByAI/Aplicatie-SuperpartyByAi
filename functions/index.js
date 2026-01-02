@@ -1,6 +1,6 @@
 const { onRequest, onCall } = require('firebase-functions/v2/https');
 const { setGlobalOptions } = require('firebase-functions/v2');
-const { defineString } = require('firebase-functions/params');
+const { defineString, defineSecret } = require('firebase-functions/params');
 const functions = require('firebase-functions'); // Keep v1 for existing functions
 
 // Initialize Sentry
@@ -274,17 +274,15 @@ exports.whatsappV4 = onRequest(
 //   res.json({ success: true, message: 'Test AI function works!' });
 // });
 
-// Define OpenAI API key parameter
-const openaiApiKey = defineString('OPENAI_API_KEY', {
-  description: 'OpenAI API key for chat completions',
-  default: '',
-});
+// Define OpenAI API key as secret
+const openaiApiKey = defineSecret('OPENAI_API_KEY');
 
 // AI Chat Function (v2)
 exports.chatWithAI = onCall(
   {
     timeoutSeconds: 60,
     memory: '256MiB',
+    secrets: [openaiApiKey],
   },
   async request => {
     const data = request.data;
