@@ -11,6 +11,7 @@ export default function AIChatModal({ isOpen, onClose }) {
   const [modalHeight, setModalHeight] = useState('100vh');
   const messagesEndRef = useRef(null);
   const modalRef = useRef(null);
+  const inputRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -119,12 +120,17 @@ export default function AIChatModal({ isOpen, onClose }) {
         {/* Input */}
         <div className="ai-chat-input">
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSend()}
             placeholder="Scrie un mesaj..."
             disabled={loading}
+            inputMode="text"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="sentences"
           />
           <button
             onClick={handleSend}

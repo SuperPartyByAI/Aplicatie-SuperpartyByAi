@@ -146,6 +146,7 @@
   position: relative;
   z-index: 10;
   flex-shrink: 0;
+  pointer-events: auto;
 }
 
 .new-theme .ai-chat-input input {
@@ -162,6 +163,10 @@
   color: white;
   resize: none;
   line-height: 1.4;
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: manipulation;
+  pointer-events: auto;
 }
 
 .new-theme .ai-chat-input input::placeholder {
