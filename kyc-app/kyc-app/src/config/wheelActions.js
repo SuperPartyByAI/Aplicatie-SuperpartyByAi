@@ -1,118 +1,108 @@
 /**
- * Wheel Actions Configuration
+ * Wheel Actions Configuration - GRID LAYOUT (4 columns)
  * Dynamic actions based on user role and mode (admin/gm/user)
  */
 
 export const getWheelActions = (role, adminMode, gmMode) => {
-  const baseActions = {
-    inner: [
-      { id: 'home', icon: '🏠', label: 'Home', route: '/home' },
-      { id: 'evenimente', icon: '📅', label: 'Evenimente', route: '/evenimente' },
-    ],
-    outer: [
-      { id: 'chat', icon: '💬', label: 'Chat', route: '/chat-clienti' },
-      { id: 'whatsapp', icon: '📱', label: 'WhatsApp', route: '/accounts-management' },
-      { id: 'disponibilitate', icon: '📋', label: 'Disponibilitate', route: '/disponibilitate' },
-      { id: 'salarizare', icon: '💰', label: 'Salarii', route: '/salarizare' },
-      { id: 'soferi', icon: '🚗', label: 'Șoferi', route: '/soferi' },
-      { id: 'settings', icon: '⚙️', label: 'Setări', route: '/settings' },
-    ],
-  };
+  // Base 6 normal buttons (always present)
+  const normalButtons = [
+    { id: 'home', icon: '🏠', label: 'Acasă', route: '/home', type: 'normal', row: 1 },
+    { id: 'evenimente', icon: '📅', label: 'Evenimente', route: '/evenimente', type: 'normal', row: 1 },
+    { id: 'disponibilitate', icon: '🗓️', label: 'Disponibilitate', route: '/disponibilitate', type: 'normal', row: 1 },
+    { id: 'salarii', icon: '💰', label: 'Salarii', route: '/salarizare', type: 'normal', row: 1 },
+    { id: 'soferi', icon: '🚗', label: 'Șoferi', route: '/soferi', type: 'normal', row: 2 },
+    { id: 'whatsapp', icon: '📱', label: 'WhatsApp', route: '/accounts-management', type: 'normal', row: 2 },
+  ];
 
-  // Admin Mode: Replace outer ring with admin actions
+  // Admin buttons (3)
+  const adminButtons = [
+    {
+      id: 'kyc-approvals',
+      icon: '✅',
+      label: 'Aprobări KYC',
+      type: 'admin',
+      row: 3,
+      action: 'loadKycSubmissions',
+      view: 'admin-kyc',
+      state: { intent: { action: 'loadKycSubmissions', view: 'admin-kyc' } },
+    },
+    {
+      id: 'ai-conversations',
+      icon: '💬',
+      label: 'Conversații AI',
+      type: 'admin',
+      row: 3,
+      action: 'loadAiConversations',
+      view: 'admin-conversations',
+      state: { intent: { action: 'loadAiConversations', view: 'admin-conversations' } },
+    },
+    {
+      id: 'exit-admin',
+      icon: '🚪',
+      label: 'Ieși Admin',
+      type: 'admin',
+      row: 3,
+      action: 'exitAdminMode',
+    },
+  ];
+
+  // GM buttons (4)
+  const gmButtons = [
+    {
+      id: 'gm-overview',
+      icon: '📊',
+      label: 'Metrici',
+      type: 'gm',
+      row: 4,
+      action: 'loadPerformanceMetrics',
+      view: 'gm-overview',
+      state: { intent: { action: 'loadPerformanceMetrics', view: 'gm-overview' } },
+    },
+    {
+      id: 'gm-conversations',
+      icon: '💬',
+      label: 'Conversații',
+      type: 'gm',
+      row: 4,
+      action: 'loadGMUsers',
+      view: 'gm-conversations',
+      state: { intent: { action: 'loadGMUsers', view: 'gm-conversations' } },
+    },
+    {
+      id: 'gm-analytics',
+      icon: '📈',
+      label: 'Analytics',
+      type: 'gm',
+      row: 4,
+      action: 'setView',
+      view: 'gm-analytics',
+      state: { intent: { action: 'setView', view: 'gm-analytics' } },
+    },
+    {
+      id: 'exit-gm',
+      icon: '🚪',
+      label: 'Ieși GM',
+      type: 'gm',
+      row: 4,
+      action: 'exitGMMode',
+    },
+  ];
+
+  // Admin + GM Mode: 13 buttons (6 normal + 3 admin + 4 GM)
+  if (adminMode && gmMode && role === 'admin') {
+    return [...normalButtons, ...adminButtons, ...gmButtons];
+  }
+
+  // Admin Mode: 9 buttons (6 normal + 3 admin)
   if (adminMode && role === 'admin') {
-    return {
-      ...baseActions,
-      outer: [
-        {
-          id: 'kyc-approvals',
-          icon: '✅',
-          label: 'Aprobări KYC',
-          action: 'loadKycSubmissions',
-          view: 'admin-kyc',
-          state: { intent: { action: 'loadKycSubmissions', view: 'admin-kyc' } },
-        },
-        {
-          id: 'ai-conversations',
-          icon: '💬',
-          label: 'Conversații AI',
-          action: 'loadAiConversations',
-          view: 'admin-conversations',
-          state: { intent: { action: 'loadAiConversations', view: 'admin-conversations' } },
-        },
-        {
-          id: 'admin-dashboard',
-          icon: '📊',
-          label: 'Admin Panel',
-          route: '/admin',
-        },
-        {
-          id: 'evenimente',
-          icon: '📅',
-          label: 'Evenimente',
-          route: '/evenimente',
-        },
-        {
-          id: 'exit-admin',
-          icon: '🚪',
-          label: 'Ieși Admin',
-          action: 'exitAdminMode',
-        },
-      ],
-    };
+    return [...normalButtons, ...adminButtons];
   }
 
-  // GM Mode: Replace outer ring with GM actions
+  // GM Mode: 10 buttons (6 normal + 4 GM)
   if (gmMode && role === 'admin') {
-    return {
-      ...baseActions,
-      outer: [
-        {
-          id: 'gm-overview',
-          icon: '📊',
-          label: 'GM Overview',
-          action: 'loadPerformanceMetrics',
-          view: 'gm-overview',
-          state: { intent: { action: 'loadPerformanceMetrics', view: 'gm-overview' } },
-        },
-        {
-          id: 'gm-conversations',
-          icon: '💬',
-          label: 'GM Conversații',
-          action: 'loadGMUsers',
-          view: 'gm-conversations',
-          state: { intent: { action: 'loadGMUsers', view: 'gm-conversations' } },
-        },
-        {
-          id: 'gm-analytics',
-          icon: '📈',
-          label: 'GM Analytics',
-          action: 'setView',
-          view: 'gm-analytics',
-          state: { intent: { action: 'setView', view: 'gm-analytics' } },
-        },
-        {
-          id: 'evenimente',
-          icon: '📅',
-          label: 'Evenimente',
-          route: '/evenimente',
-        },
-        {
-          id: 'disponibilitate',
-          icon: '📋',
-          label: 'Disponibilitate',
-          route: '/disponibilitate',
-        },
-        {
-          id: 'exit-gm',
-          icon: '🚪',
-          label: 'Ieși GM',
-          action: 'exitGMMode',
-        },
-      ],
-    };
+    return [...normalButtons, ...gmButtons];
   }
 
-  // Default: User actions
-  return baseActions;
+  // Default: Normal mode (6 buttons)
+  return normalButtons;
 };
