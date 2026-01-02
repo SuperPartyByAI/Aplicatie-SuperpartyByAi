@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import {
   collection,
@@ -31,6 +31,48 @@ function ChatClientiRealtime({
   const [sending, setSending] = useState(false);
   const [filter, setFilter] = useState('all'); // 'my', 'team', 'all', 'unassigned'
   const [error, setError] = useState(null);
+  
+  const threadsListRef = useRef(null);
+  const messagesListRef = useRef(null);
+
+  // Prevent scroll propagation for threads and messages lists
+  useEffect(() => {
+    const preventScrollPropagation = (e) => {
+      const target = e.currentTarget;
+      const scrollTop = target.scrollTop;
+      const scrollHeight = target.scrollHeight;
+      const height = target.clientHeight;
+      const delta = e.deltaY;
+
+      const isAtTop = scrollTop === 0;
+      const isAtBottom = scrollTop + height >= scrollHeight;
+
+      if ((isAtTop && delta < 0) || (isAtBottom && delta > 0)) {
+        e.preventDefault();
+      }
+      
+      e.stopPropagation();
+    };
+
+    const threadsList = threadsListRef.current;
+    const messagesList = messagesListRef.current;
+
+    if (threadsList) {
+      threadsList.addEventListener('wheel', preventScrollPropagation, { passive: false });
+    }
+    if (messagesList) {
+      messagesList.addEventListener('wheel', preventScrollPropagation, { passive: false });
+    }
+
+    return () => {
+      if (threadsList) {
+        threadsList.removeEventListener('wheel', preventScrollPropagation);
+      }
+      if (messagesList) {
+        messagesList.removeEventListener('wheel', preventScrollPropagation);
+      }
+    };
+  }, [selectedThread]); // Re-run when selectedThread changes (messages list re-renders)
 
   // Load connected WhatsApp account
   useEffect(() => {
@@ -455,12 +497,15 @@ function ChatClientiRealtime({
             </div>
           )}
         </div>
-        <div style={{ 
-          flex: 1, 
-          overflowY: 'auto',
-          WebkitOverflowScrolling: 'touch',
-          overscrollBehavior: 'contain'
-        }}>
+        <div 
+          ref={threadsListRef}
+          style={{ 
+            flex: 1, 
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain'
+          }}
+        >
           {filteredThreads.map(thread => (
             <div
               key={thread.id}
@@ -534,6 +579,7 @@ function ChatClientiRealtime({
 
             {/* Messages */}
             <div
+              ref={messagesListRef}
               style={{
                 flex: 1,
                 overflowY: 'auto',
