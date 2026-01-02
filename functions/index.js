@@ -1,5 +1,6 @@
 const { onRequest, onCall } = require('firebase-functions/v2/https');
 const { setGlobalOptions } = require('firebase-functions/v2');
+const { defineString } = require('firebase-functions/params');
 const functions = require('firebase-functions'); // Keep v1 for existing functions
 
 // Initialize Sentry
@@ -273,6 +274,12 @@ exports.whatsappV4 = onRequest(
 //   res.json({ success: true, message: 'Test AI function works!' });
 // });
 
+// Define OpenAI API key parameter
+const openaiApiKey = defineString('OPENAI_API_KEY', {
+  description: 'OpenAI API key for chat completions',
+  default: '',
+});
+
 // AI Chat Function (v2)
 exports.chatWithAI = onCall(
   {
@@ -296,8 +303,8 @@ exports.chatWithAI = onCall(
         throw new Error('Messages array is required');
       }
 
-      // Get OpenAI API key from environment
-      const openaiKey = process.env.OPENAI_API_KEY;
+      // Get OpenAI API key from parameter or environment
+      const openaiKey = openaiApiKey.value() || process.env.OPENAI_API_KEY;
 
       if (!openaiKey) {
         console.error(`[${requestId}] OpenAI API key not configured`);
