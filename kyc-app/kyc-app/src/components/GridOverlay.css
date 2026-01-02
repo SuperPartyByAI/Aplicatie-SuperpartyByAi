@@ -1,4 +1,4 @@
-/* Grid Overlay - Modern Mobile-first 4×6 Grid with New Theme */
+/* Grid Overlay - Transparent 4×6 Grid */
 
 .new-theme.grid-overlay {
   position: fixed;
@@ -6,8 +6,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(16px);
+  background: transparent;
   z-index: var(--z-modal-backdrop);
   display: flex;
   align-items: stretch;
@@ -22,7 +21,7 @@
   width: 100%;
   max-width: 100vw;
   height: 100%;
-  background: var(--bg-secondary);
+  background: transparent;
   border-radius: 0;
   display: flex;
   flex-direction: column;
@@ -40,32 +39,32 @@
   .new-theme .grid-container {
     max-width: 430px;
     max-height: 90vh;
-    border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-xl);
   }
 }
 
-/* Header */
+/* Header - Semi-transparent */
 .new-theme .grid-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: var(--space-xl);
   padding-top: calc(var(--space-xl) + env(safe-area-inset-top));
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-primary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
 }
 
 .new-theme .edit-mode-toggle {
   padding: var(--space-sm) var(--space-lg);
-  border: 2px solid var(--accent);
+  border: 2px solid rgba(255, 255, 255, 0.5);
   border-radius: var(--radius-md);
-  background: var(--bg-primary);
-  color: var(--accent);
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
   font-weight: var(--font-weight-semibold);
   font-size: var(--font-size-sm);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
 }
 
 .new-theme .edit-mode-toggle.active {
@@ -77,7 +76,7 @@
 .new-theme .page-indicator {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
+  color: white;
 }
 
 .new-theme .close-button {
@@ -85,37 +84,38 @@
   height: 40px;
   border: none;
   border-radius: var(--radius-full);
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
   font-size: 20px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
 }
 
 .new-theme .close-button:hover {
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.3);
+  color: white;
   box-shadow: var(--shadow-md);
 }
 
-/* Grid Content */
+/* Grid Content - Transparent */
 .new-theme .grid-content {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-xl);
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
-  background: var(--bg-secondary);
+  gap: var(--space-lg);
+  background: transparent;
 }
 
 .new-theme .grid-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-md);
+  gap: var(--space-lg);
 }
 
 .new-theme .grid-slot {
@@ -130,13 +130,13 @@
 }
 
 .new-theme .grid-slot.edit-mode {
-  border: 2px dashed var(--border);
-  background: var(--bg-primary);
+  border: 2px dashed rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .new-theme .grid-slot.edit-mode:hover {
-  border-color: var(--accent);
-  background: var(--bg-tertiary);
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .new-theme .empty-slot-indicator {
@@ -146,7 +146,7 @@
   align-items: center;
   justify-content: center;
   font-size: 32px;
-  color: var(--text-tertiary);
+  color: rgba(255, 255, 255, 0.3);
   pointer-events: none;
 }
 
@@ -202,35 +202,37 @@
   -webkit-box-orient: vertical;
 }
 
-/* Footer - Page Navigation */
+/* Footer - Page Navigation - Semi-transparent */
 .new-theme .grid-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: var(--space-xl);
   padding-bottom: calc(var(--space-xl) + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border);
-  background: var(--bg-primary);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
   gap: var(--space-md);
 }
 
 .new-theme .page-nav-button {
   padding: var(--space-sm) var(--space-lg);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: var(--radius-md);
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
+  backdrop-filter: blur(10px);
 }
 
 .new-theme .page-nav-button:hover:not(:disabled) {
-  background: var(--bg-tertiary);
-  border-color: var(--primary);
-  color: var(--primary);
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: white;
 }
 
 .new-theme .page-nav-button:disabled {
@@ -251,25 +253,26 @@
   height: 8px;
   border-radius: var(--radius-full);
   border: none;
-  background: var(--border);
+  background: rgba(255, 255, 255, 0.3);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 0;
 }
 
 .new-theme .page-dot.active {
-  background: var(--gradient-primary);
+  background: white;
   width: 24px;
   border-radius: var(--radius-sm);
 }
 
-/* Edit Actions */
+/* Edit Actions - Semi-transparent */
 .new-theme .edit-actions {
   display: flex;
   gap: var(--space-sm);
   padding: var(--space-lg) var(--space-xl);
-  background: var(--bg-tertiary);
-  border-top: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .new-theme .action-button {
@@ -277,12 +280,13 @@
   padding: var(--space-md);
   border: none;
   border-radius: var(--radius-md);
-  background: var(--gradient-secondary);
+  background: rgba(236, 72, 153, 0.8);
   color: white;
   font-weight: var(--font-weight-semibold);
   font-size: var(--font-size-sm);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
 }
 
 .new-theme .action-button:hover {
@@ -291,11 +295,11 @@
 }
 
 .new-theme .action-button.danger {
-  background: var(--text-secondary);
+  background: rgba(107, 114, 128, 0.8);
 }
 
 .new-theme .action-button.danger:hover {
-  background: var(--text-primary);
+  background: rgba(75, 85, 99, 0.9);
 }
 
 /* Mobile Optimizations */
