@@ -10,22 +10,37 @@
   backdrop-filter: blur(8px);
   z-index: 9998;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  padding: 16px;
-  padding-bottom: calc(80px + env(safe-area-inset-bottom)); /* Space for dock */
+  padding: 0;
+  padding-bottom: calc(70px + env(safe-area-inset-bottom)); /* Space for dock */
 }
 
 .grid-container {
   width: 100%;
-  max-width: 430px;
-  max-height: 90vh;
+  max-width: 100vw;
+  height: 100%;
   background: rgba(255, 255, 255, 0.95);
-  border-radius: 24px;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: none;
+}
+
+/* Desktop: add padding and max-width */
+@media (min-width: 768px) {
+  .grid-overlay {
+    padding: 16px;
+    align-items: center;
+  }
+  
+  .grid-container {
+    max-width: 430px;
+    max-height: 90vh;
+    border-radius: 24px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  }
 }
 
 /* Header */
