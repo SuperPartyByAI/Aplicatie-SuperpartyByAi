@@ -313,14 +313,6 @@ exports.chatWithAI = onCall(
         if (openaiKey) keySource = 'env';
       }
 
-      console.log(`[${requestId}] chatWithAI called`, {
-        hasAuth: !!context,
-        messageCount: data.messages?.length || 0,
-        keySource: keySource,
-        keyLength: openaiKey ? openaiKey.length : 0,
-        timestamp: new Date().toISOString(),
-      });
-
       if (!openaiKey) {
         console.error(`[${requestId}] OpenAI API key not configured - no secret or env var`);
         throw new functions.https.HttpsError(
@@ -328,6 +320,18 @@ exports.chatWithAI = onCall(
           'AI service not configured. OPENAI_API_KEY secret missing.'
         );
       }
+
+      // Clean the key - remove whitespace, newlines, etc.
+      openaiKey = openaiKey.trim().replace(/[\r\n\t]/g, '');
+
+      console.log(`[${requestId}] chatWithAI called`, {
+        hasAuth: !!context,
+        messageCount: data.messages?.length || 0,
+        keySource: keySource,
+        keyLength: openaiKey.length,
+        keyPrefix: openaiKey.substring(0, 10) + '...',
+        timestamp: new Date().toISOString(),
+      });
 
       // Call OpenAI API
       const https = require('https');
