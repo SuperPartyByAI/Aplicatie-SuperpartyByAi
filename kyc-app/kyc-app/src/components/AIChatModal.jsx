@@ -21,6 +21,22 @@ export default function AIChatModal({ isOpen, onClose }) {
     scrollToBottom();
   }, [messages]);
 
+  // Auto-focus input when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Focus input after a short delay to ensure modal is rendered
+    const focusTimer = setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        // Force keyboard on mobile
+        inputRef.current.click();
+      }
+    }, 300);
+
+    return () => clearTimeout(focusTimer);
+  }, [isOpen]);
+
   // VisualViewport API for keyboard handling
   useEffect(() => {
     if (!isOpen) return;
@@ -75,6 +91,23 @@ export default function AIChatModal({ isOpen, onClose }) {
       }]);
     } finally {
       setLoading(false);
+      // Re-focus input after send
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 100);
+    }
+  };
+
+  const handleInputClick = (e) => {
+    e.stopPropagation();
+    if (inputRef.current && !loading) {
+      inputRef.current.focus();
+      // iOS Safari sometimes needs this
+      if (document.activeElement !== inputRef.current) {
+        inputRef.current.click();
+      }
     }
   };
 
@@ -118,13 +151,22 @@ export default function AIChatModal({ isOpen, onClose }) {
         </div>
 
         {/* Input */}
-        <div className="ai-chat-input">
+        <div 
+          className="ai-chat-input"
+          onClick={handleInputClick}
+        >
           <input
             ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+            onClick={handleInputClick}
+            onTouchStart={handleInputClick}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              handleInputClick(e);
+            }}
             placeholder="Scrie un mesaj..."
             disabled={loading}
             inputMode="text"

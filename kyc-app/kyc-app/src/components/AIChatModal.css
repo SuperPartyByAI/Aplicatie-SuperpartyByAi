@@ -11,7 +11,7 @@
   align-items: stretch;
   justify-content: center;
   padding: 0;
-  touch-action: manipulation;
+  touch-action: none;
   overscroll-behavior: none;
   /* height set dynamically via inline style for keyboard handling */
 }
@@ -165,8 +165,10 @@
   line-height: 1.4;
   -webkit-user-select: text;
   user-select: text;
-  touch-action: manipulation;
+  touch-action: auto;
   pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  cursor: text;
 }
 
 .new-theme .ai-chat-input input::placeholder {
