@@ -29,39 +29,37 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- Service Worker: Force update on new version -->
+    <!-- Service Worker: DISABLED - Force fresh load always -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', async () => {
           try {
-            // Register service worker
-            const registration = await navigator.serviceWorker.register('/sw.js');
-            console.log('SW registered:', registration.scope);
+            // Unregister ALL service workers
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (const registration of registrations) {
+              await registration.unregister();
+              console.log('SW unregistered:', registration.scope);
+            }
             
-            // Force update check
-            registration.update();
+            // Clear ALL caches
+            const cacheNames = await caches.keys();
+            for (const cacheName of cacheNames) {
+              await caches.delete(cacheName);
+              console.log('Cache deleted:', cacheName);
+            }
             
-            // Listen for updates
-            registration.addEventListener('updatefound', () => {
-              const newWorker = registration.installing;
-              console.log('SW update found, installing...');
-              
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  console.log('SW updated! Reloading page...');
-                  // New version available, reload page
-                  window.location.reload();
-                }
-              });
-            });
+            console.log('✅ All caches cleared - fresh load guaranteed');
             
-            // Check for updates every 5 minutes
-            setInterval(() => {
-              registration.update();
-            }, 5 * 60 * 1000);
+            // Force reload if this is first time clearing
+            const wasCleared = sessionStorage.getItem('caches_cleared');
+            if (!wasCleared) {
+              sessionStorage.setItem('caches_cleared', 'true');
+              console.log('🔄 Reloading for fresh version...');
+              window.location.reload(true);
+            }
             
           } catch (err) {
-            console.log('SW registration failed:', err);
+            console.log('Cache cleanup failed:', err);
           }
         });
       }
