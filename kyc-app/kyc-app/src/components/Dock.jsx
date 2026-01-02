@@ -5,7 +5,7 @@ import './Dock.css';
 export default function Dock() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { toggleWheel, toggleAiChat, isAiChatOpen } = useWheel();
+  const { toggleWheel, toggleAiChat, isAiChatOpen, isWheelOpen, closeWheel, closeAiChat } = useWheel();
 
   const dockItems = [
     { id: 'centrala', icon: '📞', label: 'Centrala', route: '/centrala-telefonica' },
@@ -16,12 +16,26 @@ export default function Dock() {
   ];
 
   const handleClick = (item) => {
+    // Close other overlays first (exclusivity)
+    if (!item.isFAB && isWheelOpen) {
+      closeWheel();
+    }
+    if (!item.isAiChat && isAiChatOpen) {
+      closeAiChat();
+    }
+
+    // Handle click based on type
     if (item.isFAB) {
       toggleWheel();
     } else if (item.isAiChat) {
       toggleAiChat();
     } else if (item.route) {
-      navigate(item.route, { state: item.state });
+      // Toggle behavior: if already on route, go back to Home
+      if (location.pathname === item.route) {
+        navigate('/home');
+      } else {
+        navigate(item.route, { state: item.state });
+      }
     }
   };
 

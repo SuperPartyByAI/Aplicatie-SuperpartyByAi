@@ -84,6 +84,22 @@ function HomeScreen() {
         </div>
       </div>
 
+      {/* Build Stamp */}
+      <div style={{
+        position: 'fixed',
+        bottom: 'calc(88px + env(safe-area-inset-bottom) + 8px)',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        fontSize: '10px',
+        color: 'rgba(255, 255, 255, 0.5)',
+        fontFamily: 'monospace',
+        textAlign: 'center',
+        zIndex: 1000,
+        pointerEvents: 'none',
+      }}>
+        UI v2 — {import.meta.env.VITE_COMMIT_SHA || 'dev'} — {(import.meta.env.VITE_BUILD_TIME || new Date().toISOString()).slice(0, 16).replace('T', ' ')}
+      </div>
+
       {/* Animations */}
       <style>{`
         @keyframes pulse {
