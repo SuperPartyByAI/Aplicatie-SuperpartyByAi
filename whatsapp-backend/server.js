@@ -1936,6 +1936,10 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
       });
     }
 
+    // Generate deterministic accountId based on canonicalized phone number
+    const canonicalPhoneNum = canonicalPhone(phone);
+    const accountId = generateAccountId(canonicalPhoneNum);
+
     // Check for duplicate phone number and disconnect old session
     if (phone) {
       const normalizedPhone = phone.replace(/\D/g, ''); // Remove non-digits
@@ -1997,10 +2001,6 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
         }
       }
     }
-
-    // Generate deterministic accountId based on canonicalized phone number
-    const canonicalPhoneNum = canonicalPhone(phone);
-    const accountId = generateAccountId(canonicalPhoneNum);
 
     console.log(`📞 [${accountId}] Canonical phone: ${maskPhone(canonicalPhoneNum)}`);
 
