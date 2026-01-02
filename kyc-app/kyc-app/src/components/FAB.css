@@ -39,12 +39,36 @@
   transform: rotate(45deg);
 }
 
-/* Mobile Responsive */
+/* Mobile Responsive - Touch optimized */
 @media (max-width: 768px) {
+  .fab {
+    width: 60px;
+    height: 60px;
+    bottom: 72px;
+    /* Larger touch target with padding */
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  .fab-icon {
+    font-size: 30px;
+  }
+
+  /* Remove hover effects on mobile (touch devices) */
+  .fab:hover {
+    transform: translateX(-50%);
+  }
+
+  .fab:active {
+    transform: translateX(-50%) scale(0.92);
+  }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
   .fab {
     width: 56px;
     height: 56px;
-    bottom: 70px;
+    bottom: 68px;
   }
 
   .fab-icon {

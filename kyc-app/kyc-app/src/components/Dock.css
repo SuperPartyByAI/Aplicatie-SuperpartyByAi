@@ -79,16 +79,42 @@ body.light-theme .dock-button.active {
   background: rgba(0, 168, 132, 0.1);
 }
 
-/* Mobile Responsive */
+/* Mobile Responsive - Touch optimized */
 @media (max-width: 768px) {
   .dock {
-    height: 65px;
-    padding: 0 10px;
+    height: 68px;
+    padding: 0 8px;
   }
 
   .dock-button {
-    max-width: 70px;
+    max-width: 72px;
+    height: 56px;
+    /* Larger touch target */
+    min-width: 60px;
+    padding: 6px 4px;
+  }
+
+  .dock-icon {
+    font-size: 24px;
+  }
+
+  .dock-label {
+    font-size: 10px;
+    margin-top: 2px;
+  }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+  .dock {
+    height: 64px;
+    padding: 0 6px;
+  }
+
+  .dock-button {
+    max-width: 68px;
     height: 52px;
+    min-width: 56px;
   }
 
   .dock-icon {
@@ -96,7 +122,7 @@ body.light-theme .dock-button.active {
   }
 
   .dock-label {
-    font-size: 10px;
+    font-size: 9px;
   }
 }
 

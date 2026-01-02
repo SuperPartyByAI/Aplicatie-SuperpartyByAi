@@ -135,21 +135,61 @@
   }
 }
 
-/* Mobile Responsive */
+/* Mobile Responsive - Optimized for touch */
 @media (max-width: 768px) {
   .wheel-container {
-    padding: 20px;
-    max-width: 95vw;
+    padding: 16px;
+    max-width: 96vw;
+    max-height: 85vh;
   }
 
   .wheel-grid {
-    gap: 12px;
+    gap: 10px;
     max-width: 100%;
   }
 
   .wheel-button {
-    min-height: 80px;
-    padding: 12px 8px;
+    min-height: 75px;
+    padding: 10px 6px;
+    border-radius: 10px;
+    /* Larger touch target */
+    min-width: 70px;
+  }
+
+  .wheel-icon {
+    font-size: 26px;
+  }
+
+  .wheel-label {
+    font-size: 11px;
+    line-height: 1.1;
+  }
+
+  .wheel-close {
+    width: 40px;
+    height: 40px;
+    top: 8px;
+    right: 8px;
+    font-size: 22px;
+  }
+}
+
+/* Small phones - Extra compact */
+@media (max-width: 480px) {
+  .wheel-container {
+    padding: 12px;
+    max-height: 88vh;
+  }
+
+  .wheel-grid {
+    gap: 8px;
+  }
+
+  .wheel-button {
+    min-height: 68px;
+    padding: 8px 4px;
+    border-radius: 8px;
+    min-width: 65px;
   }
 
   .wheel-icon {
@@ -157,18 +197,31 @@
   }
 
   .wheel-label {
-    font-size: 11px;
+    font-size: 10px;
+    line-height: 1;
+  }
+
+  .wheel-close {
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
   }
 }
 
-@media (max-width: 480px) {
+/* Very small phones (iPhone SE, etc) */
+@media (max-width: 375px) {
+  .wheel-container {
+    padding: 10px;
+  }
+
   .wheel-grid {
-    gap: 10px;
+    gap: 6px;
   }
 
   .wheel-button {
-    min-height: 70px;
-    padding: 10px 6px;
+    min-height: 62px;
+    padding: 6px 3px;
+    min-width: 60px;
   }
 
   .wheel-icon {
@@ -176,6 +229,6 @@
   }
 
   .wheel-label {
-    font-size: 10px;
+    font-size: 9px;
   }
 }
