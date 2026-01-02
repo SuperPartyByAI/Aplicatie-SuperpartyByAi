@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { auth } from '../firebase';
-import { getWheelActions } from '../config/wheelActions';
 
 const WheelContext = createContext();
 
@@ -21,9 +20,6 @@ export const WheelProvider = ({ children }) => {
   // Detect role
   const role = currentUser?.email === 'ursache.andrei1995@gmail.com' ? 'admin' : 'user';
 
-  // Get dynamic wheel actions based on mode
-  const wheelActions = getWheelActions(role, adminMode, gmMode);
-
   const toggleWheel = () => setWheelOpen((prev) => !prev);
   const closeWheel = () => setWheelOpen(false);
 
@@ -32,7 +28,6 @@ export const WheelProvider = ({ children }) => {
       value={{
         wheelOpen,
         isWheelOpen: wheelOpen,
-        wheelActions,
         role,
         adminMode,
         gmMode,
