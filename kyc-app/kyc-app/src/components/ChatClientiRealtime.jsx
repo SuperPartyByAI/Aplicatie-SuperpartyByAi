@@ -455,7 +455,12 @@ function ChatClientiRealtime({
             </div>
           )}
         </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ 
+          flex: 1, 
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain'
+        }}>
           {filteredThreads.map(thread => (
             <div
               key={thread.id}
@@ -532,6 +537,8 @@ function ChatClientiRealtime({
               style={{
                 flex: 1,
                 overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                overscrollBehavior: 'contain',
                 padding: '1rem',
                 display: 'flex',
                 flexDirection: 'column',
