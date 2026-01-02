@@ -32,7 +32,6 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
-      external: ['@twilio/voice-sdk'],
       output: {
         manualChunks: {
           firebase: [
