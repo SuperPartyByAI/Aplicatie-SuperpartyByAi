@@ -313,9 +313,9 @@ exports.chatWithAI = onCall(
       const https = require('https');
       const response = await new Promise((resolve, reject) => {
         const postData = JSON.stringify({
-          model: 'gpt-3.5-turbo',
+          model: 'gpt-4o-mini',
           messages: data.messages,
-          max_tokens: 500,
+          max_tokens: 1000,
           temperature: 0.7,
         });
 
