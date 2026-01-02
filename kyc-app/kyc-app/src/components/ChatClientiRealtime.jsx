@@ -144,6 +144,16 @@ function ChatClientiRealtime({
           id: doc.id,
           ...doc.data(),
         }));
+        
+        // Calculate latency for outbound messages
+        const now = Date.now();
+        messagesList.forEach(msg => {
+          if (msg.direction === 'outbound' && msg._sendTimestamp) {
+            const latency = now - msg._sendTimestamp;
+            console.log(`⏱️ Message delivery latency: ${latency}ms (${(latency/1000).toFixed(1)}s)`);
+          }
+        });
+        
         console.log(`📥 Received ${messagesList.length} messages for thread ${selectedThread.id}`);
         setMessages(messagesList);
       },
@@ -213,20 +223,24 @@ function ChatClientiRealtime({
       };
 
       // Use setDoc with requestId as docId to prevent duplicates
+      const startTime = performance.now();
       await setDoc(doc(db, 'outbox', requestId), outboxData);
+      const writeTime = performance.now() - startTime;
 
-      console.log('✅ Message queued in outbox');
+      console.log(`✅ Message queued in outbox (Firestore write: ${writeTime.toFixed(0)}ms)`);
 
-      // Optimistic UI update
+      // Optimistic UI update with timestamp for latency tracking
+      const sendTimestamp = Date.now();
       const optimisticMessage = {
-        id: `temp_${Date.now()}`,
+        id: `temp_${sendTimestamp}`,
         accountId: connectedAccount.id,
         clientJid: selectedThread.clientJid,
         direction: 'outbound',
         body: newMessage,
         status: 'queued',
         tsClient: new Date().toISOString(),
-        createdAt: { seconds: Date.now() / 1000 },
+        createdAt: { seconds: sendTimestamp / 1000 },
+        _sendTimestamp: sendTimestamp, // Track when user clicked send
       };
 
       setMessages(prev => [...prev, optimisticMessage]);

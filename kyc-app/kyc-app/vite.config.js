@@ -7,6 +7,13 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     allowedHosts: ['.gitpod.dev', '.gitpod.io'],
+    proxy: {
+      '/api/whatsapp': {
+        target: 'https://whats-upp-production.up.railway.app',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   },
   build: {
     chunkSizeWarningLimit: 1000,

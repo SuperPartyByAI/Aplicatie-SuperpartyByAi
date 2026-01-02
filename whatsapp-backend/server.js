@@ -3825,8 +3825,8 @@ app.listen(PORT, '0.0.0.0', async () => {
   // Start lease refresh
   startLeaseRefresh();
 
-  // Start outbox worker (process queued messages every 2 seconds)
-  const OUTBOX_WORKER_INTERVAL = 2000;
+  // Start outbox worker (process queued messages every 500ms for near-instant delivery)
+  const OUTBOX_WORKER_INTERVAL = 500;
   const MAX_RETRY_ATTEMPTS = 5;
   
   setInterval(async () => {
@@ -3844,11 +3844,13 @@ app.listen(PORT, '0.0.0.0', async () => {
 
       if (outboxSnapshot.empty) return;
 
+      const workerStartTime = Date.now();
       console.log(`📤 Outbox worker: processing ${outboxSnapshot.size} queued messages`);
 
       for (const doc of outboxSnapshot.docs) {
         const data = doc.data();
         const requestId = doc.id;
+        const messageStartTime = Date.now();
         const { accountId, toJid, threadId, payload, body, attemptCount = 0, providerMessageId } = data;
 
         // IDEMPOTENCY CHECK: Skip if already sent
@@ -3923,9 +3925,12 @@ app.listen(PORT, '0.0.0.0', async () => {
 
           // Send message via Baileys
           const messagePayload = payload || { text: body };
+          const sendStartTime = Date.now();
           const result = await account.sock.sendMessage(toJid, messagePayload);
+          const sendDuration = Date.now() - sendStartTime;
+          const totalDuration = Date.now() - messageStartTime;
 
-          console.log(`✅ [${accountId}] Sent outbox message ${requestId}, waMessageId: ${result.key.id}`);
+          console.log(`✅ [${accountId}] Sent outbox message ${requestId}, waMessageId: ${result.key.id} (WhatsApp: ${sendDuration}ms, total: ${totalDuration}ms)`);
 
           // Update outbox: status = sent
           await db.collection('outbox').doc(requestId).update({
