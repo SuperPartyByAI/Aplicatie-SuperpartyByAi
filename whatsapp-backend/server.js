@@ -211,12 +211,23 @@ const db = firestoreAvailable ? admin.firestore() : null;
 // CORS configuration
 app.use(
   cors({
-    origin: [
-      'https://superparty-frontend.web.app',
-      'https://superparty-frontend.firebaseapp.com',
-      'http://localhost:5173',
-      'http://localhost:3000'
-    ],
+    origin: (origin, callback) => {
+      const allowedOrigins = [
+        'https://superparty-frontend.web.app',
+        'https://superparty-frontend.firebaseapp.com',
+        'http://localhost:5173',
+        'http://localhost:3000'
+      ];
+      
+      // Allow Gitpod preview URLs (*.gitpod.dev)
+      const isGitpod = origin && origin.includes('.gitpod.dev');
+      
+      if (!origin || allowedOrigins.includes(origin) || isGitpod) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'DELETE', 'PUT', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
