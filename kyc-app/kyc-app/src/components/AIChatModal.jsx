@@ -8,7 +8,7 @@ export default function AIChatModal({ isOpen, onClose }) {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [keyboardOffset, setKeyboardOffset] = useState(0);
+  const [containerHeight, setContainerHeight] = useState('100vh');
   const messagesEndRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -24,17 +24,26 @@ export default function AIChatModal({ isOpen, onClose }) {
   useEffect(() => {
     if (!isOpen) return;
 
+    const DOCK_HEIGHT = 88; // Dock height in pixels
+
     const handleViewportResize = () => {
       if (window.visualViewport) {
         const viewport = window.visualViewport;
-        const offset = window.innerHeight - viewport.height - viewport.offsetTop;
-        setKeyboardOffset(Math.max(0, offset));
+        // When keyboard opens, use viewport height
+        // When keyboard closed, reserve space for Dock
+        const availableHeight = viewport.height;
+        setContainerHeight(`${availableHeight}px`);
+      } else {
+        // Fallback for browsers without VisualViewport
+        setContainerHeight(`calc(100vh - ${DOCK_HEIGHT}px - env(safe-area-inset-bottom))`);
       }
     };
 
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleViewportResize);
       window.visualViewport.addEventListener('scroll', handleViewportResize);
+      handleViewportResize();
+    } else {
       handleViewportResize();
     }
 
@@ -43,7 +52,7 @@ export default function AIChatModal({ isOpen, onClose }) {
         window.visualViewport.removeEventListener('resize', handleViewportResize);
         window.visualViewport.removeEventListener('scroll', handleViewportResize);
       }
-      setKeyboardOffset(0);
+      setContainerHeight('100vh');
     };
   }, [isOpen]);
 
@@ -80,9 +89,7 @@ export default function AIChatModal({ isOpen, onClose }) {
         className="ai-chat-container" 
         onClick={(e) => e.stopPropagation()}
         style={{
-          paddingBottom: keyboardOffset > 0 
-            ? `${keyboardOffset}px` 
-            : 'calc(88px + env(safe-area-inset-bottom))'
+          height: containerHeight
         }}
       >
         {/* Header */}
