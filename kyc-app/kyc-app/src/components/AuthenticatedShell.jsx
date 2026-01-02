@@ -1,7 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import Dock from './Dock';
-import FAB from './FAB';
-import WheelOverlay from './WheelOverlay';
+import GridOverlay from './GridOverlay';
 
 // Routes where UI Shell should NOT be rendered
 const EXCLUDED_ROUTES = [
@@ -23,8 +22,7 @@ export default function AuthenticatedShell() {
   return (
     <>
       <Dock />
-      <FAB />
-      <WheelOverlay />
+      <GridOverlay />
     </>
   );
 }

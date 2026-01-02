@@ -31,6 +31,7 @@ export const WheelProvider = ({ children }) => {
     <WheelContext.Provider
       value={{
         wheelOpen,
+        isWheelOpen: wheelOpen,
         wheelActions,
         role,
         adminMode,
