@@ -14,6 +14,10 @@ export default function AIChatModal({ isOpen, onClose }) {
   const inputRef = useRef(null);
 
   const scrollToBottom = () => {
+    // Don't scroll if input is focused (prevents keyboard jump)
+    if (document.activeElement === inputRef.current) {
+      return;
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
@@ -54,6 +58,8 @@ export default function AIChatModal({ isOpen, onClose }) {
     if (!isOpen) return;
 
     const handleViewportResize = () => {
+      const wasInputFocused = document.activeElement === inputRef.current;
+      
       if (window.visualViewport) {
         const viewport = window.visualViewport;
         const height = viewport.height;
@@ -68,6 +74,7 @@ export default function AIChatModal({ isOpen, onClose }) {
           offsetTop,
           pageTop: viewport.pageTop,
           scale: viewport.scale,
+          inputFocused: wasInputFocused,
           timestamp: new Date().toISOString()
         });
       } else {
@@ -75,6 +82,13 @@ export default function AIChatModal({ isOpen, onClose }) {
         const fallbackHeight = window.innerHeight;
         setModalHeight(`${fallbackHeight}px`);
         console.log('Fallback height:', fallbackHeight);
+      }
+      
+      // Re-focus input if it was focused before resize
+      if (wasInputFocused && inputRef.current) {
+        requestAnimationFrame(() => {
+          inputRef.current?.focus({ preventScroll: true });
+        });
       }
     };
 
