@@ -1,155 +1,142 @@
-/* Bottom Dock Navigation */
+/* Modern Floating Dock - Dribbble Inspired */
+
 .dock {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 70px;
-  background: rgba(28, 39, 51, 0.95);
-  backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  bottom: var(--space-lg);
+  left: var(--space-lg);
+  right: var(--space-lg);
+  height: 72px;
+  background: var(--bg-primary);
+  backdrop-filter: blur(20px);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-xl), 0 0 0 1px var(--border-light);
   display: flex;
-  align-items: center;
   justify-content: space-around;
-  padding: 0 20px;
-  z-index: 9997;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
+  align-items: center;
+  padding: 0 var(--space-sm);
+  z-index: var(--z-fixed);
+  margin-bottom: env(safe-area-inset-bottom);
 }
 
 .dock-button {
   flex: 1;
-  max-width: 80px;
+  max-width: 72px;
   height: 56px;
   border: none;
   background: transparent;
-  color: #8696a0;
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  border-radius: 12px;
-  transition: all 0.2s ease;
-}
-
-/* FAB button in dock (center) */
-.dock-button.fab-button {
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-  color: white;
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
-}
-
-.dock-button.fab-button:hover {
-  background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
-  color: white;
-  transform: scale(1.05);
-}
-
-.dock-button.fab-button .dock-icon {
-  font-size: 28px;
+  gap: var(--space-xs);
+  border-radius: var(--radius-lg);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
 }
 
 .dock-button:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #00a884;
-}
-
-.dock-button.active {
-  color: #00a884;
-  background: rgba(0, 168, 132, 0.1);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .dock-button:active {
   transform: scale(0.95);
 }
 
+.dock-button.active {
+  color: var(--primary);
+}
+
+.dock-button.active::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 3px;
+  background: var(--gradient-primary);
+  border-radius: var(--radius-full);
+}
+
+/* FAB Button (Center) */
+.dock-button.fab-button {
+  background: var(--gradient-primary);
+  color: white;
+  box-shadow: var(--shadow-lg), 0 0 20px rgba(99, 102, 241, 0.3);
+  transform: scale(1.1);
+}
+
+.dock-button.fab-button:hover {
+  transform: scale(1.15);
+  box-shadow: var(--shadow-xl), 0 0 25px rgba(99, 102, 241, 0.4);
+}
+
+.dock-button.fab-button:active {
+  transform: scale(1.05);
+}
+
+.dock-button.fab-button::before {
+  display: none;
+}
+
+/* Icons */
 .dock-icon {
   font-size: 24px;
   line-height: 1;
 }
 
+.dock-button.fab-button .dock-icon {
+  font-size: 28px;
+}
+
+/* Labels */
 .dock-label {
-  font-size: 11px;
-  font-weight: 500;
-  text-align: center;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
   line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
-/* Light Theme */
-body.light-theme .dock {
-  background: rgba(255, 255, 255, 0.95);
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
+.dock-button.fab-button .dock-label {
+  font-size: 0.625rem;
 }
 
-body.light-theme .dock-button {
-  color: #667781;
-}
-
-body.light-theme .dock-button:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: #00a884;
-}
-
-body.light-theme .dock-button.active {
-  color: #00a884;
-  background: rgba(0, 168, 132, 0.1);
-}
-
-/* Mobile Responsive - Touch optimized */
-@media (max-width: 768px) {
+/* Mobile Optimizations */
+@media (max-width: 390px) {
   .dock {
+    bottom: var(--space-md);
+    left: var(--space-md);
+    right: var(--space-md);
     height: 68px;
-    padding: 0 8px;
+    padding: 0 var(--space-xs);
   }
-
+  
   .dock-button {
-    max-width: 72px;
-    height: 56px;
-    /* Larger touch target */
-    min-width: 60px;
-    padding: 6px 4px;
-  }
-
-  .dock-icon {
-    font-size: 24px;
-  }
-
-  .dock-label {
-    font-size: 10px;
-    margin-top: 2px;
-  }
-}
-
-/* Small phones */
-@media (max-width: 480px) {
-  .dock {
-    height: 64px;
-    padding: 0 6px;
-  }
-
-  .dock-button {
-    max-width: 68px;
+    max-width: 64px;
     height: 52px;
-    min-width: 56px;
   }
-
+  
   .dock-icon {
     font-size: 22px;
   }
-
-  .dock-label {
-    font-size: 9px;
+  
+  .dock-button.fab-button .dock-icon {
+    font-size: 26px;
   }
 }
 
-/* Tablet */
-@media (min-width: 769px) and (max-width: 1024px) {
+/* Larger phones */
+@media (min-width: 430px) {
   .dock {
-    padding: 0 40px;
-  }
-
-  .dock-button {
-    max-width: 90px;
+    max-width: 430px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
   }
 }

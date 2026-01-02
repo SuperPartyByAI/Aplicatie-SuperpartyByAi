@@ -40,21 +40,28 @@ function HomeScreen() {
   };
 
   return (
-    <div style={{
+    <div className="new-theme" style={{
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      paddingBottom: 'calc(70px + env(safe-area-inset-bottom))',
+      background: 'var(--bg-secondary)',
+      paddingBottom: 'calc(88px + env(safe-area-inset-bottom))',
     }}>
       {/* Header */}
       <div style={{
-        padding: '1rem',
-        background: 'rgba(255, 255, 255, 0.95)',
-        borderBottom: '1px solid rgba(0,0,0,0.1)',
+        padding: 'var(--space-xl)',
+        background: 'var(--bg-primary)',
+        borderBottom: '1px solid var(--border)',
         textAlign: 'center',
+        paddingTop: 'calc(var(--space-xl) + env(safe-area-inset-top))',
       }}>
-        <h1 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#1f2937', margin: 0 }}>
+        <h1 style={{ 
+          fontSize: 'var(--font-size-xl)', 
+          fontWeight: 'var(--font-weight-bold)', 
+          color: 'var(--text-primary)', 
+          margin: 0,
+          fontFamily: 'var(--font-family)',
+        }}>
           🤖 Chat AI
         </h1>
       </div>
@@ -63,24 +70,28 @@ function HomeScreen() {
       <div style={{
         flex: 1,
         overflowY: 'auto',
-        padding: '1rem',
+        padding: 'var(--space-xl)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '1rem',
+        gap: 'var(--space-md)',
       }}>
         {messages.map((msg, idx) => (
           <div
             key={idx}
             style={{
               alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-              maxWidth: '80%',
-              padding: '0.75rem 1rem',
-              borderRadius: '1rem',
+              maxWidth: '75%',
+              padding: 'var(--space-lg)',
+              borderRadius: 'var(--radius-xl)',
               background: msg.role === 'user' 
-                ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-                : 'rgba(255, 255, 255, 0.95)',
-              color: msg.role === 'user' ? 'white' : '#1f2937',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                ? 'var(--gradient-primary)'
+                : 'var(--bg-primary)',
+              color: msg.role === 'user' ? 'white' : 'var(--text-primary)',
+              boxShadow: 'var(--shadow-md)',
+              fontSize: 'var(--font-size-base)',
+              lineHeight: '1.5',
+              fontFamily: 'var(--font-family)',
+              border: msg.role === 'user' ? 'none' : '1px solid var(--border)',
             }}
           >
             {msg.content}
@@ -89,10 +100,12 @@ function HomeScreen() {
         {loading && (
           <div style={{
             alignSelf: 'flex-start',
-            padding: '0.75rem 1rem',
-            borderRadius: '1rem',
-            background: 'rgba(255, 255, 255, 0.95)',
-            color: '#6b7280',
+            padding: 'var(--space-lg)',
+            borderRadius: 'var(--radius-xl)',
+            background: 'var(--bg-primary)',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border)',
+            fontFamily: 'var(--font-family)',
           }}>
             ⏳ Scriu...
           </div>
@@ -100,13 +113,14 @@ function HomeScreen() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
+      {/* Input - Large input, small send button */}
       <div style={{
-        padding: '1rem',
-        background: 'rgba(255, 255, 255, 0.95)',
-        borderTop: '1px solid rgba(0,0,0,0.1)',
+        padding: 'var(--space-lg)',
+        background: 'var(--bg-primary)',
+        borderTop: '1px solid var(--border)',
         display: 'flex',
-        gap: '0.5rem',
+        gap: 'var(--space-md)',
+        alignItems: 'flex-end',
       }}>
         <input
           type="text"
@@ -117,27 +131,36 @@ function HomeScreen() {
           disabled={loading}
           style={{
             flex: 1,
-            padding: '0.75rem 1rem',
-            border: '1px solid #e5e7eb',
-            borderRadius: '0.5rem',
-            fontSize: '1rem',
+            padding: 'var(--space-lg)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-xl)',
+            fontSize: 'var(--font-size-base)',
             outline: 'none',
+            fontFamily: 'var(--font-family)',
+            minHeight: '52px',
           }}
         />
         <button
           onClick={handleSend}
           disabled={loading || !input.trim()}
           style={{
-            padding: '0.75rem 1.5rem',
+            width: '52px',
+            height: '52px',
+            padding: 0,
             background: loading || !input.trim() 
-              ? '#9ca3af' 
-              : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              ? 'var(--text-tertiary)' 
+              : 'var(--gradient-primary)',
             color: 'white',
             border: 'none',
-            borderRadius: '0.5rem',
-            fontSize: '1rem',
+            borderRadius: 'var(--radius-full)',
+            fontSize: '1.5rem',
             fontWeight: '600',
             cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: 'var(--shadow-md)',
+            flexShrink: 0,
           }}
         >
           {loading ? '⏳' : '📤'}

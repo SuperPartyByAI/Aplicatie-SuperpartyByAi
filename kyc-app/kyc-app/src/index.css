@@ -1,8 +1,4 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+@import './theme.css';
 
 /* Smooth scrolling */
 html {
@@ -10,9 +6,6 @@ html {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-  background: #0f172a;
-  color: #e2e8f0;
   min-height: 100vh;
   overflow-x: hidden;
 }
