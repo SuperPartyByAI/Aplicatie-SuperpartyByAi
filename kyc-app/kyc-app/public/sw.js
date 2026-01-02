@@ -1,5 +1,5 @@
 // Service Worker pentru PWA
-const CACHE_NAME = 'superparty-v1';
+const CACHE_NAME = 'superparty-v2-2026-01-02';
 const urlsToCache = ['/', '/index.html', '/manifest.json'];
 
 // Install
@@ -33,13 +33,14 @@ self.addEventListener('fetch', event => {
   // - POST/PUT/DELETE requests
   // - Socket.io requests
   // - Firebase Functions
-  // - External APIs
+  // - External APIs (Railway, etc.)
   const shouldIntercept =
     request.method === 'GET' &&
     !url.pathname.includes('/socket.io/') &&
     !url.hostname.includes('cloudfunctions.net') &&
     !url.hostname.includes('firebaseio.com') &&
-    !url.hostname.includes('googleapis.com');
+    !url.hostname.includes('googleapis.com') &&
+    !url.hostname.includes('railway.app');
 
   // Don't intercept non-cacheable requests at all
   if (!shouldIntercept) {
