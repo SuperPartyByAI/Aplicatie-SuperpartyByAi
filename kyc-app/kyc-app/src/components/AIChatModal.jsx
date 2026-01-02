@@ -9,21 +9,68 @@ export default function AIChatModal({ isOpen, onClose }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [modalHeight, setModalHeight] = useState('100vh');
+  const [isNearBottom, setIsNearBottom] = useState(true);
   const messagesEndRef = useRef(null);
   const modalRef = useRef(null);
   const inputRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+  const lastViewportHeight = useRef(null);
 
-  const scrollToBottom = () => {
-    // Don't scroll if input is focused (prevents keyboard jump)
-    if (document.activeElement === inputRef.current) {
-      return;
-    }
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Check if user is near bottom
+  const checkNearBottom = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return true;
+    
+    const threshold = 120;
+    const isNear = (container.scrollHeight - container.scrollTop - container.clientHeight) < threshold;
+    setIsNearBottom(isNear);
+    return isNear;
   };
 
+  // Scroll to bottom (no smooth, direct)
+  const scrollToBottom = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    
+    // Only scroll if user was near bottom
+    if (!isNearBottom) {
+      console.log('⏭️ Skip scroll - user not near bottom');
+      return;
+    }
+    
+    // Don't scroll if input is focused (prevents keyboard jump)
+    if (document.activeElement === inputRef.current) {
+      console.log('⏭️ Skip scroll - input focused');
+      return;
+    }
+    
+    // Direct scroll, no smooth (prevents iOS jitter)
+    container.scrollTop = container.scrollHeight;
+    console.log('📜 Scrolled to bottom');
+  };
+
+  // Scroll on messages change
   useEffect(() => {
-    scrollToBottom();
+    if (messages.length > 0) {
+      // Small delay to ensure DOM updated
+      requestAnimationFrame(() => {
+        scrollToBottom();
+      });
+    }
   }, [messages]);
+
+  // Track scroll position
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      checkNearBottom();
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -71,7 +118,7 @@ export default function AIChatModal({ isOpen, onClose }) {
     });
   }, [isOpen]);
 
-  // VisualViewport API for keyboard handling - ZERO gap
+  // VisualViewport API for keyboard handling - with threshold to prevent jitter
   useEffect(() => {
     if (!isOpen) return;
 
@@ -83,15 +130,24 @@ export default function AIChatModal({ isOpen, onClose }) {
         const height = viewport.height;
         const offsetTop = viewport.offsetTop;
         
+        // Threshold: ignore small changes (<60px) to prevent jitter
+        const THRESHOLD = 60;
+        if (lastViewportHeight.current !== null) {
+          const diff = Math.abs(height - lastViewportHeight.current);
+          if (diff < THRESHOLD && !wasInputFocused) {
+            console.log('⏭️ Skip viewport update - jitter <60px');
+            return;
+          }
+        }
+        
+        lastViewportHeight.current = height;
+        
         // Modal height = viewport height (keyboard pushes viewport up)
-        // offsetTop accounts for browser chrome on iOS
         setModalHeight(`${height}px`);
         
-        console.log('Viewport resize:', {
+        console.log('📐 Viewport resize:', {
           height,
           offsetTop,
-          pageTop: viewport.pageTop,
-          scale: viewport.scale,
           inputFocused: wasInputFocused,
           timestamp: new Date().toISOString()
         });
@@ -99,7 +155,7 @@ export default function AIChatModal({ isOpen, onClose }) {
         // Fallback for browsers without VisualViewport
         const fallbackHeight = window.innerHeight;
         setModalHeight(`${fallbackHeight}px`);
-        console.log('Fallback height:', fallbackHeight);
+        console.log('📐 Fallback height:', fallbackHeight);
       }
       
       // Re-focus input if it was focused before resize
@@ -135,6 +191,11 @@ export default function AIChatModal({ isOpen, onClose }) {
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
+    console.log('📤 Send - before:', {
+      inputFocused: document.activeElement === inputRef.current,
+      nearBottom: isNearBottom
+    });
+
     const userMessage = { role: 'user', content: input };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
@@ -154,23 +215,14 @@ export default function AIChatModal({ isOpen, onClose }) {
     } finally {
       setLoading(false);
       
-      // CRITICAL: Keep keyboard open - triple approach
-      // 1. Immediate focus
-      if (inputRef.current) {
-        inputRef.current.focus({ preventScroll: true });
-      }
-      
-      // 2. After microtask
-      Promise.resolve().then(() => {
-        if (inputRef.current) {
-          inputRef.current.focus({ preventScroll: true });
-        }
-      });
-      
-      // 3. After animation frame
+      // Keep focus - single strategy, no triple focus
+      // Use nearBottom + keyboard state for decision
       requestAnimationFrame(() => {
         if (inputRef.current) {
           inputRef.current.focus({ preventScroll: true });
+          console.log('📤 Send - after focus:', {
+            inputFocused: document.activeElement === inputRef.current
+          });
         }
       });
     }
@@ -209,7 +261,7 @@ export default function AIChatModal({ isOpen, onClose }) {
         </div>
 
         {/* Messages */}
-        <div className="ai-chat-messages">
+        <div ref={messagesContainerRef} className="ai-chat-messages">
           {messages.map((msg, idx) => (
             <div
               key={idx}
