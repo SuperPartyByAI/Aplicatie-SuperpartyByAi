@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { auth } from '../firebase';
-import { getWheelActions } from '../config/wheelActions';
 
 const WheelContext = createContext();
 
