@@ -24,7 +24,8 @@ export default function AuthenticatedShell() {
   
   return (
     <>
-      <Dock />
+      {/* Hide Dock when AI Chat is open - AI Chat takes full screen */}
+      {!isAiChatOpen && <Dock />}
       <GridOverlay />
       <AIChatModal isOpen={isAiChatOpen} onClose={closeAiChat} />
     </>

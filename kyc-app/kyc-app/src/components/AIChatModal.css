@@ -87,25 +87,26 @@
   transform: scale(1.05);
 }
 
-/* Messages - WhatsApp style */
+/* Messages - WhatsApp style - Full screen optimized */
 .new-theme .ai-chat-messages {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--space-lg);
+  padding-bottom: var(--space-xl);
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-md);
   background: transparent;
   -webkit-overflow-scrolling: touch;
 }
 
 .new-theme .message {
-  max-width: 80%;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 15px;
-  line-height: 1.4;
+  max-width: 85%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 16px;
+  line-height: 1.5;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   word-wrap: break-word;
   position: relative;
@@ -133,16 +134,17 @@
   font-style: italic;
 }
 
-/* Input - WhatsApp style (keyboard-friendly) */
+/* Input - WhatsApp style (keyboard-friendly) - Full screen optimized */
 .new-theme .ai-chat-input {
-  padding: 8px 12px;
-  background: rgba(15, 20, 45, 0.95);
+  padding: 12px 16px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  background: rgba(15, 20, 45, 0.98);
   backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
-  gap: 8px;
+  gap: 12px;
   align-items: flex-end;
-  min-height: 60px;
+  min-height: 68px;
   position: relative;
   z-index: 10;
   flex-shrink: 0;
@@ -151,18 +153,18 @@
 
 .new-theme .ai-chat-input input {
   flex: 1;
-  padding: 10px 16px;
+  padding: 12px 18px;
   border: none;
   border-radius: 24px;
   font-size: 16px;
   outline: none;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  min-height: 44px;
+  min-height: 48px;
   max-height: 120px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
   color: white;
   resize: none;
-  line-height: 1.4;
+  line-height: 1.5;
   -webkit-user-select: text;
   user-select: text;
   touch-action: auto;
@@ -176,7 +178,8 @@
 }
 
 .new-theme .ai-chat-input input:focus {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3);
 }
 
 .new-theme .ai-chat-input .send-button {
