@@ -408,7 +408,9 @@ function ChatClientiRealtime({
       style={{
         display: 'flex',
         gap: '1rem',
-        height: '600px',
+        height: 'calc(100vh - 180px)',
+        maxHeight: '800px',
+        minHeight: '400px',
         background: '#1f2937',
         borderRadius: '8px',
         overflow: 'hidden',
@@ -503,7 +505,9 @@ function ChatClientiRealtime({
             flex: 1, 
             overflowY: 'auto',
             WebkitOverflowScrolling: 'touch',
-            overscrollBehavior: 'contain'
+            overscrollBehavior: 'contain',
+            touchAction: 'pan-y',
+            minHeight: 0
           }}
         >
           {filteredThreads.map(thread => (
@@ -585,6 +589,8 @@ function ChatClientiRealtime({
                 overflowY: 'auto',
                 WebkitOverflowScrolling: 'touch',
                 overscrollBehavior: 'contain',
+                touchAction: 'pan-y',
+                minHeight: 0,
                 padding: '1rem',
                 display: 'flex',
                 flexDirection: 'column',
