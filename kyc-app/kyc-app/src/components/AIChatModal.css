@@ -1,4 +1,4 @@
-/* AI Chat Modal - Full Screen Overlay */
+/* AI Chat Modal - WhatsApp-like Full Screen */
 
 .new-theme.ai-chat-modal {
   position: fixed;
@@ -6,8 +6,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(16px);
+  background: transparent;
   z-index: var(--z-modal);
   display: flex;
   align-items: stretch;
@@ -22,7 +21,11 @@
   width: 100%;
   max-width: 100vw;
   height: calc(100% - 88px - env(safe-area-inset-bottom));
-  background: var(--bg-secondary);
+  background: #0a0e27;
+  background-image: 
+    radial-gradient(at 40% 20%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+    radial-gradient(at 80% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
+    radial-gradient(at 0% 50%, rgba(99, 102, 241, 0.1) 0px, transparent 50%);
   border-radius: 0;
   display: flex;
   flex-direction: column;
@@ -45,33 +48,34 @@
   }
 }
 
-/* Header */
+/* Header - WhatsApp style */
 .new-theme .ai-chat-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-xl);
-  padding-top: calc(var(--space-xl) + env(safe-area-inset-top));
-  background: var(--bg-primary);
-  border-bottom: 1px solid var(--border);
+  padding: var(--space-md) var(--space-lg);
+  padding-top: calc(var(--space-md) + env(safe-area-inset-top));
+  background: rgba(15, 20, 45, 0.95);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .new-theme .ai-chat-header h1 {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: white;
   margin: 0;
   font-family: var(--font-family);
 }
 
 .new-theme .ai-chat-header .close-button {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border: none;
   border-radius: var(--radius-full);
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  font-size: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 18px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -80,110 +84,120 @@
 }
 
 .new-theme .ai-chat-header .close-button:hover {
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-md);
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
 }
 
-/* Messages */
+/* Messages - WhatsApp style */
 .new-theme .ai-chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-xl);
+  overflow-x: hidden;
+  padding: var(--space-lg);
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
-  background: var(--bg-secondary);
+  gap: var(--space-sm);
+  background: transparent;
+  -webkit-overflow-scrolling: touch;
 }
 
 .new-theme .message {
-  max-width: 75%;
-  padding: var(--space-lg);
-  border-radius: var(--radius-xl);
-  font-size: var(--font-size-base);
-  line-height: 1.5;
-  font-family: var(--font-family);
-  box-shadow: var(--shadow-md);
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 15px;
+  line-height: 1.4;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  word-wrap: break-word;
+  position: relative;
 }
 
 .new-theme .message.user {
   align-self: flex-end;
-  background: var(--gradient-primary);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  border: none;
+  border-radius: 8px 8px 2px 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .new-theme .message.assistant {
   align-self: flex-start;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.95);
+  border-radius: 8px 8px 8px 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .new-theme .message.loading {
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
 }
 
-/* Input */
+/* Input - WhatsApp style (keyboard-friendly) */
 .new-theme .ai-chat-input {
-  padding: var(--space-lg);
-  background: var(--bg-primary);
-  border-top: 1px solid var(--border);
+  padding: 8px 12px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  background: rgba(15, 20, 45, 0.95);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
-  gap: var(--space-md);
+  gap: 8px;
   align-items: flex-end;
+  min-height: 60px;
 }
 
 .new-theme .ai-chat-input input {
   flex: 1;
-  padding: var(--space-lg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  font-size: var(--font-size-base);
+  padding: 10px 16px;
+  border: none;
+  border-radius: 24px;
+  font-size: 16px;
   outline: none;
-  font-family: var(--font-family);
-  min-height: 52px;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-height: 44px;
+  max-height: 120px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  resize: none;
+  line-height: 1.4;
+}
+
+.new-theme .ai-chat-input input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .new-theme .ai-chat-input input:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .new-theme .ai-chat-input .send-button {
-  width: 52px;
-  height: 52px;
+  width: 44px;
+  height: 44px;
   padding: 0;
-  background: var(--gradient-primary);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  border-radius: var(--radius-full);
-  font-size: 1.5rem;
-  font-weight: 600;
+  border-radius: 50%;
+  font-size: 20px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
   flex-shrink: 0;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .new-theme .ai-chat-input .send-button:disabled {
-  background: var(--text-tertiary);
+  background: rgba(255, 255, 255, 0.1);
   cursor: not-allowed;
   opacity: 0.5;
-}
-
-.new-theme .ai-chat-input .send-button:not(:disabled):hover {
-  transform: scale(1.05);
-  box-shadow: var(--shadow-lg);
+  box-shadow: none;
 }
 
 .new-theme .ai-chat-input .send-button:not(:disabled):active {
-  transform: scale(0.95);
+  transform: scale(0.9);
 }
 
 /* Mobile Optimizations */
