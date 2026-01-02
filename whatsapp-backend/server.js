@@ -211,7 +211,12 @@ const db = firestoreAvailable ? admin.firestore() : null;
 // CORS configuration
 app.use(
   cors({
-    origin: '*',
+    origin: [
+      'https://superparty-frontend.web.app',
+      'https://superparty-frontend.firebaseapp.com',
+      'http://localhost:5173',
+      'http://localhost:3000'
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'DELETE', 'PUT', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
