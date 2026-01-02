@@ -140,3 +140,11 @@
     transform: translateX(-50%);
   }
 }
+
+/* Touch target minimum (44x44 for accessibility) */
+@media (hover: none) and (pointer: coarse) {
+  .dock-button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

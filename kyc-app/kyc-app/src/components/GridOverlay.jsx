@@ -198,7 +198,7 @@ export default function GridOverlay() {
   const grid = buildGrid();
 
   return (
-    <div className="grid-overlay" onClick={closeWheel}>
+    <div className="new-theme grid-overlay" onClick={closeWheel}>
       <div className="grid-container" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="grid-header">
