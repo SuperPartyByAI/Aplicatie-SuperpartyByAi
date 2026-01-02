@@ -192,11 +192,7 @@ function FlowGuard() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="screen-container">
-        <div className="card">Loading...</div>
-      </div>
-    );
+    return <LoadingSpinner message="Se încarcă..." />;
   }
 
   if (!user) {

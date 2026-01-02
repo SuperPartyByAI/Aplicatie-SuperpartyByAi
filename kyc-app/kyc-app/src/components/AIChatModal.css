@@ -21,7 +21,7 @@
 .new-theme .ai-chat-container {
   width: 100%;
   max-width: 100vw;
-  height: 100%;
+  height: calc(100% - 88px - env(safe-area-inset-bottom));
   background: var(--bg-secondary);
   border-radius: 0;
   display: flex;
