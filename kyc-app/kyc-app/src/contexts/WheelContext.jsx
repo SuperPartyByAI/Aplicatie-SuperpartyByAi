@@ -5,6 +5,7 @@ const WheelContext = createContext();
 
 export const WheelProvider = ({ children }) => {
   const [wheelOpen, setWheelOpen] = useState(false);
+  const [aiChatOpen, setAiChatOpen] = useState(false);
   const [adminMode, setAdminMode] = useState(false);
   const [gmMode, setGmMode] = useState(false);
   const [currentUser, setCurrentUser] = useState(auth.currentUser);
@@ -22,12 +23,16 @@ export const WheelProvider = ({ children }) => {
 
   const toggleWheel = () => setWheelOpen((prev) => !prev);
   const closeWheel = () => setWheelOpen(false);
+  const toggleAiChat = () => setAiChatOpen((prev) => !prev);
+  const closeAiChat = () => setAiChatOpen(false);
 
   return (
     <WheelContext.Provider
       value={{
         wheelOpen,
         isWheelOpen: wheelOpen,
+        aiChatOpen,
+        isAiChatOpen: aiChatOpen,
         role,
         adminMode,
         gmMode,
@@ -35,6 +40,8 @@ export const WheelProvider = ({ children }) => {
         setGmMode,
         toggleWheel,
         closeWheel,
+        toggleAiChat,
+        closeAiChat,
       }}
     >
       {children}

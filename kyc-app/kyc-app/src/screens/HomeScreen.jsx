@@ -1,173 +1,100 @@
-import { useState, useRef, useEffect } from 'react';
-import { callChatWithAI } from '../firebase';
-
 function HomeScreen() {
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Bună! Sunt asistentul tău AI. Cu ce te pot ajuta?' },
-  ]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const handleSend = async () => {
-    if (!input.trim() || loading) return;
-
-    const userMessage = { role: 'user', content: input };
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setLoading(true);
-
-    try {
-      const response = await callChatWithAI([...messages, userMessage]);
-      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
-    } catch (error) {
-      console.error('AI Error:', error);
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'Scuze, am întâmpinat o eroare. Te rog încearcă din nou.' 
-      }]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="new-theme" style={{
       height: '100dvh',
       minHeight: '-webkit-fill-available',
       display: 'flex',
       flexDirection: 'column',
-      background: 'var(--bg-secondary)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'var(--gradient-primary)',
       paddingBottom: 'calc(88px + env(safe-area-inset-bottom))',
+      paddingTop: 'env(safe-area-inset-top)',
       overflow: 'hidden',
+      position: 'relative',
+      padding: 'var(--space-xl)',
     }}>
-      {/* Header */}
+      {/* Decorative circles */}
       <div style={{
-        padding: 'var(--space-xl)',
-        background: 'var(--bg-primary)',
-        borderBottom: '1px solid var(--border)',
+        position: 'absolute',
+        top: '10%',
+        left: '10%',
+        width: '150px',
+        height: '150px',
+        borderRadius: '50%',
+        background: 'rgba(255, 255, 255, 0.1)',
+        animation: 'float 6s ease-in-out infinite',
+      }} />
+      <div style={{
+        position: 'absolute',
+        bottom: '20%',
+        right: '15%',
+        width: '100px',
+        height: '100px',
+        borderRadius: '50%',
+        background: 'rgba(255, 255, 255, 0.1)',
+        animation: 'float 8s ease-in-out infinite reverse',
+      }} />
+
+      {/* Logo/Brand */}
+      <div style={{
         textAlign: 'center',
-        paddingTop: 'calc(var(--space-xl) + env(safe-area-inset-top))',
+        color: 'white',
+        zIndex: 1,
+        maxWidth: '500px',
       }}>
-        <h1 style={{ 
-          fontSize: 'var(--font-size-xl)', 
-          fontWeight: 'var(--font-weight-bold)', 
-          color: 'var(--text-primary)', 
+        <div style={{
+          fontSize: 'clamp(3rem, 15vw, 5rem)',
+          marginBottom: 'var(--space-xl)',
+          animation: 'pulse 2s ease-in-out infinite',
+        }}>
+          🎉
+        </div>
+        <h1 style={{
+          fontSize: 'clamp(1.5rem, 8vw, 2.5rem)',
+          fontWeight: 'var(--font-weight-bold)',
+          margin: 0,
+          marginBottom: 'var(--space-md)',
+          fontFamily: 'var(--font-family)',
+          textShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
+        }}>
+          SuperParty
+        </h1>
+        <p style={{
+          fontSize: 'clamp(0.875rem, 4vw, 1.125rem)',
+          opacity: 0.95,
           margin: 0,
           fontFamily: 'var(--font-family)',
+          lineHeight: 1.6,
         }}>
-          🤖 Chat AI
-        </h1>
+          Apasă butoanele de jos pentru a începe
+        </p>
+        
+        {/* Quick actions hint */}
+        <div style={{
+          marginTop: 'var(--space-2xl)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-md)',
+          fontSize: 'var(--font-size-sm)',
+          opacity: 0.8,
+        }}>
+          <div>🤖 AI Chat - Asistent inteligent</div>
+          <div>➕ Meniu - Toate funcțiile</div>
+        </div>
       </div>
 
-      {/* Messages */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: 'var(--space-xl)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-md)',
-      }}>
-        {messages.map((msg, idx) => (
-          <div
-            key={idx}
-            style={{
-              alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-              maxWidth: '75%',
-              padding: 'var(--space-lg)',
-              borderRadius: 'var(--radius-xl)',
-              background: msg.role === 'user' 
-                ? 'var(--gradient-primary)'
-                : 'var(--bg-primary)',
-              color: msg.role === 'user' ? 'white' : 'var(--text-primary)',
-              boxShadow: 'var(--shadow-md)',
-              fontSize: 'var(--font-size-base)',
-              lineHeight: '1.5',
-              fontFamily: 'var(--font-family)',
-              border: msg.role === 'user' ? 'none' : '1px solid var(--border)',
-            }}
-          >
-            {msg.content}
-          </div>
-        ))}
-        {loading && (
-          <div style={{
-            alignSelf: 'flex-start',
-            padding: 'var(--space-lg)',
-            borderRadius: 'var(--radius-xl)',
-            background: 'var(--bg-primary)',
-            color: 'var(--text-secondary)',
-            border: '1px solid var(--border)',
-            fontFamily: 'var(--font-family)',
-          }}>
-            ⏳ Scriu...
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input - Large input, small send button */}
-      <div style={{
-        padding: 'var(--space-lg)',
-        background: 'var(--bg-primary)',
-        borderTop: '1px solid var(--border)',
-        display: 'flex',
-        gap: 'var(--space-md)',
-        alignItems: 'flex-end',
-      }}>
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-          placeholder="Scrie un mesaj..."
-          disabled={loading}
-          style={{
-            flex: 1,
-            padding: 'var(--space-lg)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-xl)',
-            fontSize: 'var(--font-size-base)',
-            outline: 'none',
-            fontFamily: 'var(--font-family)',
-            minHeight: '52px',
-          }}
-        />
-        <button
-          onClick={handleSend}
-          disabled={loading || !input.trim()}
-          style={{
-            width: '52px',
-            height: '52px',
-            padding: 0,
-            background: loading || !input.trim() 
-              ? 'var(--text-tertiary)' 
-              : 'var(--gradient-primary)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-full)',
-            fontSize: '1.5rem',
-            fontWeight: '600',
-            cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: 'var(--shadow-md)',
-            flexShrink: 0,
-          }}
-        >
-          {loading ? '⏳' : '📤'}
-        </button>
-      </div>
+      {/* Animations */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
+        }
+      `}</style>
     </div>
   );
 }
