@@ -21,50 +21,80 @@ export default function AIChatModal({ isOpen, onClose }) {
     scrollToBottom();
   }, [messages]);
 
-  // Auto-focus input when modal opens
+  // Auto-focus input when modal opens - iOS/Android compatible
   useEffect(() => {
     if (!isOpen) return;
 
-    // Focus input after a short delay to ensure modal is rendered
-    const focusTimer = setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.focus();
-        // Force keyboard on mobile
-        inputRef.current.click();
-      }
-    }, 300);
-
-    return () => clearTimeout(focusTimer);
+    // Use requestAnimationFrame for better timing
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (inputRef.current) {
+          // iOS requires user interaction, but we can try
+          inputRef.current.focus();
+          
+          // Trigger click for iOS Safari
+          const clickEvent = new MouseEvent('click', {
+            view: window,
+            bubbles: true,
+            cancelable: true
+          });
+          inputRef.current.dispatchEvent(clickEvent);
+          
+          console.log('AI Chat: Input focused', {
+            activeElement: document.activeElement === inputRef.current,
+            timestamp: new Date().toISOString()
+          });
+        }
+      });
+    });
   }, [isOpen]);
 
-  // VisualViewport API for keyboard handling
+  // VisualViewport API for keyboard handling - ZERO gap
   useEffect(() => {
     if (!isOpen) return;
 
     const handleViewportResize = () => {
       if (window.visualViewport) {
         const viewport = window.visualViewport;
-        // Modal height = viewport height (keyboard aware)
-        // This makes the modal bottom align with keyboard top
-        setModalHeight(`${viewport.height}px`);
+        const height = viewport.height;
+        const offsetTop = viewport.offsetTop;
+        
+        // Modal height = viewport height (keyboard pushes viewport up)
+        // offsetTop accounts for browser chrome on iOS
+        setModalHeight(`${height}px`);
+        
+        console.log('Viewport resize:', {
+          height,
+          offsetTop,
+          pageTop: viewport.pageTop,
+          scale: viewport.scale,
+          timestamp: new Date().toISOString()
+        });
       } else {
-        // Fallback: use dvh if available, otherwise vh
-        setModalHeight('100dvh');
+        // Fallback for browsers without VisualViewport
+        const fallbackHeight = window.innerHeight;
+        setModalHeight(`${fallbackHeight}px`);
+        console.log('Fallback height:', fallbackHeight);
       }
     };
 
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleViewportResize);
       window.visualViewport.addEventListener('scroll', handleViewportResize);
+      // Initial call
       handleViewportResize();
     } else {
       handleViewportResize();
+      // Fallback: listen to window resize
+      window.addEventListener('resize', handleViewportResize);
     }
 
     return () => {
       if (window.visualViewport) {
         window.visualViewport.removeEventListener('resize', handleViewportResize);
         window.visualViewport.removeEventListener('scroll', handleViewportResize);
+      } else {
+        window.removeEventListener('resize', handleViewportResize);
       }
       setModalHeight('100vh');
     };

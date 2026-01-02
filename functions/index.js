@@ -290,13 +290,6 @@ exports.chatWithAI = onCall(
     const startTime = Date.now();
     const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    console.log(`[${requestId}] chatWithAI called`, {
-      hasAuth: !!context,
-      messageCount: data.messages?.length || 0,
-      hasSecretValue: !!openaiApiKey.value(),
-      hasEnvValue: !!process.env.OPENAI_API_KEY,
-    });
-
     try {
       // Validate input
       if (!data.messages || !Array.isArray(data.messages)) {
@@ -304,14 +297,35 @@ exports.chatWithAI = onCall(
         throw new functions.https.HttpsError('invalid-argument', 'Messages array is required');
       }
 
-      // Get OpenAI API key from parameter or environment
-      const openaiKey = openaiApiKey.value() || process.env.OPENAI_API_KEY;
+      // Get OpenAI API key with detailed logging
+      let openaiKey = null;
+      let keySource = 'none';
+      
+      try {
+        openaiKey = openaiApiKey.value();
+        if (openaiKey) keySource = 'secret';
+      } catch (secretError) {
+        console.warn(`[${requestId}] Secret access failed:`, secretError.message);
+      }
+      
+      if (!openaiKey) {
+        openaiKey = process.env.OPENAI_API_KEY;
+        if (openaiKey) keySource = 'env';
+      }
+
+      console.log(`[${requestId}] chatWithAI called`, {
+        hasAuth: !!context,
+        messageCount: data.messages?.length || 0,
+        keySource: keySource,
+        keyLength: openaiKey ? openaiKey.length : 0,
+        timestamp: new Date().toISOString(),
+      });
 
       if (!openaiKey) {
-        console.error(`[${requestId}] OpenAI API key not configured - secret missing`);
+        console.error(`[${requestId}] OpenAI API key not configured - no secret or env var`);
         throw new functions.https.HttpsError(
           'failed-precondition',
-          'AI service not configured. Contact administrator.'
+          'AI service not configured. OPENAI_API_KEY secret missing.'
         );
       }
 
@@ -410,6 +424,7 @@ exports.chatWithAI = onCall(
       console.log(`[${requestId}] Success`, {
         duration: `${duration}ms`,
         responseLength: message.length,
+        timestamp: new Date().toISOString(),
       });
 
       return {
@@ -423,15 +438,20 @@ exports.chatWithAI = onCall(
         duration: `${duration}ms`,
         code: error.code,
         message: error.message,
+        stack: error.stack?.split('\n').slice(0, 3).join('\n'),
+        timestamp: new Date().toISOString(),
       });
 
       // Re-throw HttpsError as-is
-      if (error instanceof Error) {
+      if (error.code && error.code.startsWith('functions/')) {
         throw error;
       }
 
-      // Wrap other errors
-      throw new functions.https.HttpsError('internal', 'Internal error processing AI request');
+      // Wrap other errors with more context
+      throw new functions.https.HttpsError(
+        'internal',
+        `AI request failed: ${error.message || 'Unknown error'}`
+      );
     }
   }
 );
