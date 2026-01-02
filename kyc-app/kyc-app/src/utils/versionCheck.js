@@ -5,6 +5,13 @@ const CURRENT_BUILD_TIME = import.meta.env.VITE_BUILD_TIME || 'unknown';
 
 let checkInterval = null;
 
+// Detect if running as PWA
+function isPWA() {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+         window.navigator.standalone === true ||
+         document.referrer.includes('android-app://');
+}
+
 export function startVersionCheck() {
   // Store current version on first load
   const storedVersion = localStorage.getItem('app_build_time');
@@ -17,6 +24,7 @@ export function startVersionCheck() {
   // Check if version changed (new deployment)
   if (storedVersion !== CURRENT_BUILD_TIME) {
     console.log('🔄 New version detected:', CURRENT_BUILD_TIME, '(old:', storedVersion + ')');
+    console.log('📱 Running as PWA:', isPWA());
     promptUserToRefresh();
     return;
   }
@@ -55,6 +63,8 @@ export function stopVersionCheck() {
 }
 
 function promptUserToRefresh() {
+  const runningAsPWA = isPWA();
+  
   // Create a non-intrusive banner
   const banner = document.createElement('div');
   banner.id = 'version-update-banner';
@@ -74,6 +84,7 @@ function promptUserToRefresh() {
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     ">
       <strong>🎉 Versiune nouă disponibilă!</strong>
+      ${runningAsPWA ? '<div style="font-size: 12px; margin-top: 4px;">Aplicație instalată - actualizare automată</div>' : ''}
       <button onclick="window.location.reload(true)" style="
         margin-left: 12px;
         padding: 6px 16px;
@@ -85,16 +96,35 @@ function promptUserToRefresh() {
         cursor: pointer;
         font-size: 13px;
       ">
-        Reîmprospătează
+        Reîmprospătează Acum
       </button>
     </div>
   `;
   
   document.body.appendChild(banner);
   
+  // For PWA, force service worker update
+  if (runningAsPWA && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistration().then(registration => {
+      if (registration) {
+        console.log('🔄 Forcing SW update for PWA...');
+        registration.update();
+      }
+    });
+  }
+  
   // Auto-refresh after 10 seconds if user doesn't click
   setTimeout(() => {
     console.log('🔄 Auto-refreshing to new version...');
-    window.location.reload(true);
+    // For PWA, clear caches before reload
+    if (runningAsPWA && 'caches' in window) {
+      caches.keys().then(names => {
+        names.forEach(name => caches.delete(name));
+      }).finally(() => {
+        window.location.reload(true);
+      });
+    } else {
+      window.location.reload(true);
+    }
   }, 10000);
 }
