@@ -2860,7 +2860,7 @@ async function restoreAccount(accountId, data) {
   const CONNECTING_TIMEOUT = 60000; // 60 seconds - same as createConnection
 
   try {
-    console.log(`BOOT [${accountId}] Starting restore...`);
+    console.log(`BOOT [${accountId}] Starting restore... (status: ${data.status}, USE_FIRESTORE_BACKUP: ${USE_FIRESTORE_BACKUP})`);
 
     const sessionPath = path.join(authDir, accountId);
 
@@ -2875,18 +2875,26 @@ async function restoreAccount(accountId, data) {
         if (sessionData.files) {
           fs.mkdirSync(sessionPath, { recursive: true });
 
+          let restoredCount = 0;
           for (const [filename, content] of Object.entries(sessionData.files)) {
             fs.writeFileSync(path.join(sessionPath, filename), content, 'utf8');
+            restoredCount++;
           }
 
           console.log(
-            `FIRESTORE_SESSION_LOADED [${accountId}] Restored ${Object.keys(sessionData.files).length} files from Firestore`
+            `FIRESTORE_SESSION_LOADED [${accountId}] Restored ${restoredCount} files from Firestore`
           );
+        } else {
+          console.log(`⚠️  [${accountId}] Session doc exists but no files, skipping`);
+          return;
         }
       } else {
         console.log(`⚠️  [${accountId}] No session in Firestore, skipping`);
         return;
       }
+    } else if (!fs.existsSync(sessionPath)) {
+      console.log(`⚠️  [${accountId}] No disk session and Firestore restore not available (USE_FIRESTORE_BACKUP: ${USE_FIRESTORE_BACKUP}, firestoreAvailable: ${firestoreAvailable}), skipping`);
+      return;
     }
 
     // Check disk session exists now
