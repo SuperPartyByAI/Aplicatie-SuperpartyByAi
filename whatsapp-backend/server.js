@@ -3343,6 +3343,23 @@ async function restoreAccountsFromFirestore() {
       .get();
 
     console.log(`📦 Found ${snapshot.size} connected accounts in Firestore`);
+    
+    // Clean up disk sessions that are NOT in Firestore
+    const connectedAccountIds = new Set(snapshot.docs.map(doc => doc.id));
+    const sessionsDir = path.join(__dirname, 'sessions');
+    
+    if (fs.existsSync(sessionsDir)) {
+      const diskSessions = fs.readdirSync(sessionsDir);
+      console.log(`🧹 Checking ${diskSessions.length} disk sessions...`);
+      
+      for (const sessionId of diskSessions) {
+        if (!connectedAccountIds.has(sessionId)) {
+          const sessionPath = path.join(sessionsDir, sessionId);
+          console.log(`🗑️  Deleting orphaned session: ${sessionId}`);
+          fs.rmSync(sessionPath, { recursive: true, force: true });
+        }
+      }
+    }
 
     for (const doc of snapshot.docs) {
       const data = doc.data();
