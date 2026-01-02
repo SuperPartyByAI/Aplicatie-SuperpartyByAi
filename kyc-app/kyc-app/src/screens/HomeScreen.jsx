@@ -41,11 +41,13 @@ function HomeScreen() {
 
   return (
     <div className="new-theme" style={{
-      height: '100vh',
+      height: '100dvh',
+      minHeight: '-webkit-fill-available',
       display: 'flex',
       flexDirection: 'column',
       background: 'var(--bg-secondary)',
       paddingBottom: 'calc(88px + env(safe-area-inset-bottom))',
+      overflow: 'hidden',
     }}>
       {/* Header */}
       <div style={{

@@ -150,3 +150,24 @@
 .new-theme .safe-area-top {
   padding-top: calc(var(--space-xl) + env(safe-area-inset-top));
 }
+
+/* Prevent zoom on input focus (iOS Safari) */
+@supports (-webkit-touch-callout: none) {
+  .new-theme input,
+  .new-theme textarea,
+  .new-theme select {
+    font-size: 16px !important;
+  }
+}
+
+/* Stable viewport height (prevent address bar bounce) */
+.new-theme {
+  height: 100dvh;
+  height: -webkit-fill-available;
+}
+
+/* Prevent overscroll bounce */
+.new-theme {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}

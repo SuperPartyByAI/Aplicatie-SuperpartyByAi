@@ -1,13 +1,31 @@
 @import './theme.css';
 
-/* Smooth scrolling */
+/* Prevent zoom and ensure stable viewport */
 html {
   scroll-behavior: smooth;
+  height: 100%;
+  height: -webkit-fill-available;
+  overflow: hidden;
+  touch-action: manipulation;
 }
 
 body {
   min-height: 100vh;
+  min-height: -webkit-fill-available;
   overflow-x: hidden;
+  position: fixed;
+  width: 100%;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Prevent iOS zoom on input focus */
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
 
 /* Animații globale */
