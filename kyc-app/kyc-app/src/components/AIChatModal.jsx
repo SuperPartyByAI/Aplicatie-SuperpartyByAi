@@ -8,7 +8,9 @@ export default function AIChatModal({ isOpen, onClose }) {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
   const messagesEndRef = useRef(null);
+  const containerRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -17,6 +19,33 @@ export default function AIChatModal({ isOpen, onClose }) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // VisualViewport API for keyboard handling
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleViewportResize = () => {
+      if (window.visualViewport) {
+        const viewport = window.visualViewport;
+        const offset = window.innerHeight - viewport.height - viewport.offsetTop;
+        setKeyboardOffset(Math.max(0, offset));
+      }
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportResize);
+      window.visualViewport.addEventListener('scroll', handleViewportResize);
+      handleViewportResize();
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportResize);
+        window.visualViewport.removeEventListener('scroll', handleViewportResize);
+      }
+      setKeyboardOffset(0);
+    };
+  }, [isOpen]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -27,13 +56,15 @@ export default function AIChatModal({ isOpen, onClose }) {
     setLoading(true);
 
     try {
-      const response = await callChatWithAI([...messages, userMessage]);
-      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+      const result = await callChatWithAI({ messages: [...messages, userMessage] });
+      const aiMessage = result.data?.message || 'No response';
+      setMessages(prev => [...prev, { role: 'assistant', content: aiMessage }]);
     } catch (error) {
       console.error('AI Error:', error);
+      const errorMsg = error.message || error.code || 'Eroare necunoscută';
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: 'Scuze, am întâmpinat o eroare. Te rog încearcă din nou.' 
+        content: `Scuze, am întâmpinat o eroare: ${errorMsg}` 
       }]);
     } finally {
       setLoading(false);
@@ -44,7 +75,16 @@ export default function AIChatModal({ isOpen, onClose }) {
 
   return (
     <div className="new-theme ai-chat-modal" onClick={onClose}>
-      <div className="ai-chat-container" onClick={(e) => e.stopPropagation()}>
+      <div 
+        ref={containerRef}
+        className="ai-chat-container" 
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          paddingBottom: keyboardOffset > 0 
+            ? `${keyboardOffset}px` 
+            : 'calc(88px + env(safe-area-inset-bottom))'
+        }}
+      >
         {/* Header */}
         <div className="ai-chat-header">
           <h1>🤖 Chat AI</h1>

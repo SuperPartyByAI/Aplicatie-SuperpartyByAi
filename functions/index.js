@@ -293,20 +293,26 @@ exports.chatWithAI = onCall(
     console.log(`[${requestId}] chatWithAI called`, {
       hasAuth: !!context,
       messageCount: data.messages?.length || 0,
+      hasSecretValue: !!openaiApiKey.value(),
+      hasEnvValue: !!process.env.OPENAI_API_KEY,
     });
 
     try {
       // Validate input
       if (!data.messages || !Array.isArray(data.messages)) {
-        throw new Error('Messages array is required');
+        console.error(`[${requestId}] Invalid input - messages not array`);
+        throw new functions.https.HttpsError('invalid-argument', 'Messages array is required');
       }
 
       // Get OpenAI API key from parameter or environment
       const openaiKey = openaiApiKey.value() || process.env.OPENAI_API_KEY;
 
       if (!openaiKey) {
-        console.error(`[${requestId}] OpenAI API key not configured`);
-        throw new Error('AI service not configured. Contact administrator.');
+        console.error(`[${requestId}] OpenAI API key not configured - secret missing`);
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'AI service not configured. Contact administrator.'
+        );
       }
 
       // Call OpenAI API

@@ -7,7 +7,7 @@
   right: 0;
   bottom: 0;
   background: transparent;
-  z-index: var(--z-modal);
+  z-index: var(--z-overlay); /* Below Dock (1010 < 1030) */
   display: flex;
   align-items: stretch;
   justify-content: center;
@@ -31,7 +31,7 @@
   flex-direction: column;
   overflow: hidden;
   box-shadow: none;
-  padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  /* paddingBottom set dynamically via inline style for keyboard handling */
 }
 
 /* Desktop: add padding and max-width */
@@ -146,6 +146,8 @@
   gap: 8px;
   align-items: flex-end;
   min-height: 60px;
+  position: relative;
+  z-index: 10;
 }
 
 .new-theme .ai-chat-input input {

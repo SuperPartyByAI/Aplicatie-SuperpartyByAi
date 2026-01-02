@@ -7,7 +7,7 @@
   right: 0;
   bottom: 0;
   background: transparent;
-  z-index: var(--z-modal-backdrop);
+  z-index: var(--z-overlay); /* Below Dock (1010 < 1030) */
   display: flex;
   align-items: stretch;
   justify-content: center;

@@ -28,28 +28,28 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- Service Worker Registration -->
+    <!-- Service Worker: DISABLED - Firebase Hosting headers handle caching -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', async () => {
           try {
-            // Unregister old service workers first
+            // Unregister ALL service workers
             const registrations = await navigator.serviceWorker.getRegistrations();
             for (const registration of registrations) {
               await registration.unregister();
+              console.log('SW unregistered:', registration.scope);
             }
             
-            // Clear ALL old caches (force refresh)
+            // Clear ALL caches
             const cacheNames = await caches.keys();
             for (const cacheName of cacheNames) {
               await caches.delete(cacheName);
+              console.log('Cache deleted:', cacheName);
             }
             
-            // Register new service worker
-            const reg = await navigator.serviceWorker.register('/sw.js');
-            console.log('SW registered:', reg);
+            console.log('SW disabled - using Firebase Hosting cache headers');
           } catch (err) {
-            console.log('SW registration failed:', err);
+            console.log('SW cleanup failed:', err);
           }
         });
       }
