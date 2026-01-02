@@ -3337,15 +3337,18 @@ async function restoreAccountsFromFirestore() {
   try {
     console.log('🔄 Restoring accounts from Firestore...');
 
-    // Get ALL accounts (not just connected ones)
-    const snapshot = await db.collection('accounts').get();
+    // Get ONLY connected accounts (skip dead sessions)
+    const snapshot = await db.collection('accounts')
+      .where('status', '==', 'connected')
+      .get();
 
-    console.log(`📦 Found ${snapshot.size} accounts in Firestore`);
+    console.log(`📦 Found ${snapshot.size} connected accounts in Firestore`);
 
     for (const doc of snapshot.docs) {
       const data = doc.data();
       const accountId = doc.id;
 
+      console.log(`🔄 [${accountId}] Restoring connected account (${data.name || 'N/A'})`);
       await restoreAccount(accountId, data);
     }
 
