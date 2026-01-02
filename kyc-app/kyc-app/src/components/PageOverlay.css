@@ -1,0 +1,35 @@
+/* Page Overlay - Slide in from bottom */
+.page-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #111827;
+  z-index: 9996;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
+.page-overlay-open {
+  transform: translateY(0);
+}
+
+.page-overlay-content {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Light theme */
+body.light-theme .page-overlay {
+  background: #f3f4f6;
+}
+
+/* Ensure overlay is above everything except FAB/Wheel */
+.page-overlay {
+  z-index: 9996;
+}

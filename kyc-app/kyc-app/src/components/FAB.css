@@ -1,7 +1,7 @@
-/* Floating Action Button */
+/* Floating Action Button - Center bottom (above Dock) */
 .fab {
   position: fixed;
-  bottom: 80px;
+  bottom: 12px;
   left: 50%;
   transform: translateX(-50%);
   width: 64px;
@@ -44,7 +44,7 @@
   .fab {
     width: 56px;
     height: 56px;
-    bottom: 70px;
+    bottom: 10px;
   }
 
   .fab-icon {
