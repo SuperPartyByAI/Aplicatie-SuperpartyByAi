@@ -29,33 +29,36 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- Service Worker: DISABLED - Force fresh load always -->
+    <!-- Service Worker: Clear cache only on app reopen -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', async () => {
           try {
-            // Unregister ALL service workers
-            const registrations = await navigator.serviceWorker.getRegistrations();
-            for (const registration of registrations) {
-              await registration.unregister();
-              console.log('SW unregistered:', registration.scope);
-            }
+            // Check if this is a fresh app open (not just page navigation)
+            const lastClearTime = localStorage.getItem('last_cache_clear');
+            const now = Date.now();
+            const CLEAR_INTERVAL = 60 * 1000; // 1 minute
             
-            // Clear ALL caches
-            const cacheNames = await caches.keys();
-            for (const cacheName of cacheNames) {
-              await caches.delete(cacheName);
-              console.log('Cache deleted:', cacheName);
-            }
-            
-            console.log('✅ All caches cleared - fresh load guaranteed');
-            
-            // Force reload if this is first time clearing
-            const wasCleared = sessionStorage.getItem('caches_cleared');
-            if (!wasCleared) {
-              sessionStorage.setItem('caches_cleared', 'true');
-              console.log('🔄 Reloading for fresh version...');
-              window.location.reload(true);
+            // Only clear if more than 1 minute since last clear (app was closed and reopened)
+            if (!lastClearTime || (now - parseInt(lastClearTime)) > CLEAR_INTERVAL) {
+              console.log('🧹 App reopened - clearing caches...');
+              
+              // Unregister ALL service workers
+              const registrations = await navigator.serviceWorker.getRegistrations();
+              for (const registration of registrations) {
+                await registration.unregister();
+              }
+              
+              // Clear ALL caches
+              const cacheNames = await caches.keys();
+              for (const cacheName of cacheNames) {
+                await caches.delete(cacheName);
+              }
+              
+              localStorage.setItem('last_cache_clear', now.toString());
+              console.log('✅ Caches cleared on app reopen');
+            } else {
+              console.log('⏭️ Skip cache clear - app still running');
             }
             
           } catch (err) {

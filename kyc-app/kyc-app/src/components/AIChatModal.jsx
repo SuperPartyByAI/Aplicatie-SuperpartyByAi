@@ -122,15 +122,23 @@ export default function AIChatModal({ isOpen, onClose }) {
     } finally {
       setLoading(false);
       
-      // CRITICAL: Keep keyboard open after send
-      // Use requestAnimationFrame to ensure focus happens after React re-render
+      // CRITICAL: Keep keyboard open - triple approach
+      // 1. Immediate focus
+      if (inputRef.current) {
+        inputRef.current.focus({ preventScroll: true });
+      }
+      
+      // 2. After microtask
+      Promise.resolve().then(() => {
+        if (inputRef.current) {
+          inputRef.current.focus({ preventScroll: true });
+        }
+      });
+      
+      // 3. After animation frame
       requestAnimationFrame(() => {
         if (inputRef.current) {
           inputRef.current.focus({ preventScroll: true });
-          console.log('Input re-focused after send', {
-            activeElement: document.activeElement === inputRef.current,
-            timestamp: new Date().toISOString()
-          });
         }
       });
     }
