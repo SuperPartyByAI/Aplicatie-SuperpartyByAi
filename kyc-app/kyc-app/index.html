@@ -38,12 +38,10 @@
               await registration.unregister();
             }
             
-            // Clear old caches
+            // Clear ALL old caches (force refresh)
             const cacheNames = await caches.keys();
             for (const cacheName of cacheNames) {
-              if (cacheName !== 'superparty-v2-2026-01-02') {
-                await caches.delete(cacheName);
-              }
+              await caches.delete(cacheName);
             }
             
             // Register new service worker

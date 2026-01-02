@@ -1,5 +1,5 @@
 // Service Worker pentru PWA
-const CACHE_NAME = 'superparty-v2-2026-01-02';
+const CACHE_NAME = 'superparty-v3-grid-only-2026-01-02';
 const urlsToCache = ['/', '/index.html', '/manifest.json'];
 
 // Install
