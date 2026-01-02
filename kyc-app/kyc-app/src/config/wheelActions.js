@@ -1,17 +1,24 @@
 /**
  * Wheel Actions Configuration - GRID LAYOUT (4 columns)
  * Dynamic actions based on user role and mode (admin/gm/user)
+ * 
+ * Modes:
+ * - Normal: 6 buttons (user functions)
+ * - Admin: 3 buttons (admin functions only)
+ * - GM: 4 buttons (GM functions only)
+ * - Admin+GM: 7 buttons (3 admin + 4 GM)
+ * - Normal+Admin+GM: 13 buttons (6 normal + 3 admin + 4 GM)
  */
 
 export const getWheelActions = (role, adminMode, gmMode) => {
-  // Base 6 normal buttons (always present)
+  // Base 6 normal buttons (user mode)
   const normalButtons = [
-    { id: 'home', icon: '🏠', label: 'Acasă', route: '/home', type: 'normal', row: 1 },
     { id: 'evenimente', icon: '📅', label: 'Evenimente', route: '/evenimente', type: 'normal', row: 1 },
     { id: 'disponibilitate', icon: '🗓️', label: 'Disponibilitate', route: '/disponibilitate', type: 'normal', row: 1 },
     { id: 'salarii', icon: '💰', label: 'Salarii', route: '/salarizare', type: 'normal', row: 1 },
-    { id: 'soferi', icon: '🚗', label: 'Șoferi', route: '/soferi', type: 'normal', row: 2 },
-    { id: 'whatsapp', icon: '📱', label: 'WhatsApp', route: '/accounts-management', type: 'normal', row: 2 },
+    { id: 'soferi', icon: '🚗', label: 'Șoferi', route: '/soferi', type: 'normal', row: 1 },
+    { id: 'chat-animator', icon: '💬', label: 'Chat Animator', route: '/animator/chat-clienti', type: 'normal', row: 2 },
+    { id: 'clienti-disp', icon: '📱', label: 'Clienți Disp', route: '/whatsapp/available', type: 'normal', row: 2 },
   ];
 
   // Admin buttons (3)
@@ -46,45 +53,35 @@ export const getWheelActions = (role, adminMode, gmMode) => {
     },
   ];
 
-  // GM buttons (5)
+  // GM buttons (4)
   const gmButtons = [
+    {
+      id: 'gm-whatsapp-accounts',
+      icon: '⚙️',
+      label: 'Conturi WA',
+      type: 'gm',
+      row: 4,
+      route: '/accounts-management',
+    },
     {
       id: 'gm-overview',
       icon: '📊',
       label: 'Metrici',
       type: 'gm',
-      row: 3,
+      row: 4,
       action: 'loadPerformanceMetrics',
       view: 'gm-overview',
       state: { intent: { action: 'loadPerformanceMetrics', view: 'gm-overview' } },
-    },
-    {
-      id: 'gm-conversations',
-      icon: '💬',
-      label: 'Conversații',
-      type: 'gm',
-      row: 3,
-      action: 'loadGMUsers',
-      view: 'gm-conversations',
-      state: { intent: { action: 'loadGMUsers', view: 'gm-conversations' } },
     },
     {
       id: 'gm-analytics',
       icon: '📈',
       label: 'Analytics',
       type: 'gm',
-      row: 3,
+      row: 4,
       action: 'setView',
       view: 'gm-analytics',
       state: { intent: { action: 'setView', view: 'gm-analytics' } },
-    },
-    {
-      id: 'gm-whatsapp-accounts',
-      icon: '⚙️',
-      label: 'Conturi WA',
-      type: 'gm',
-      row: 3,
-      route: '/accounts-management',
     },
     {
       id: 'exit-gm',
@@ -96,19 +93,23 @@ export const getWheelActions = (role, adminMode, gmMode) => {
     },
   ];
 
-  // Admin + GM Mode: 14 buttons (6 normal + 3 admin + 5 GM)
-  if (adminMode && gmMode && role === 'admin') {
+  // Determine which buttons to show based on active modes
+  const isAdmin = adminMode && role === 'admin';
+  const isGM = gmMode && role === 'admin';
+
+  // Normal + Admin + GM Mode: 13 buttons (6 normal + 3 admin + 4 GM)
+  if (isAdmin && isGM) {
     return [...normalButtons, ...adminButtons, ...gmButtons];
   }
 
-  // Admin Mode: 9 buttons (6 normal + 3 admin)
-  if (adminMode && role === 'admin') {
-    return [...normalButtons, ...adminButtons];
+  // Admin Mode only: 3 buttons (admin functions only)
+  if (isAdmin && !isGM) {
+    return adminButtons;
   }
 
-  // GM Mode: 11 buttons (6 normal + 5 GM)
-  if (gmMode && role === 'admin') {
-    return [...normalButtons, ...gmButtons];
+  // GM Mode only: 4 buttons (GM functions only)
+  if (isGM && !isAdmin) {
+    return gmButtons;
   }
 
   // Default: Normal mode (6 buttons)
