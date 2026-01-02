@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 // Get commit SHA
 const getCommitSha = () => {
@@ -29,6 +31,18 @@ export default defineConfig({
       name: 'html-transform',
       transformIndexHtml(html) {
         return html.replace(/%VITE_BUILD_TIME%/g, getBuildTime());
+      },
+    },
+    {
+      name: 'generate-version-json',
+      closeBundle() {
+        const versionData = {
+          build: getCommitSha(),
+          ts: new Date().toISOString(),
+        };
+        const outputPath = path.resolve(process.cwd(), 'dist', 'version.json');
+        fs.writeFileSync(outputPath, JSON.stringify(versionData, null, 2));
+        console.log('✅ Generated version.json:', versionData);
       },
     },
   ],
