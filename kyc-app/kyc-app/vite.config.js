@@ -11,11 +11,22 @@ const getCommitSha = () => {
   }
 };
 
+// Get build time in RO format: DD.MM.YYYY HH:mm UTC
+const getBuildTime = () => {
+  const now = new Date();
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const year = now.getUTCFullYear();
+  const hours = String(now.getUTCHours()).padStart(2, '0');
+  const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+  return `${day}.${month}.${year} ${hours}:${minutes} UTC`;
+};
+
 export default defineConfig({
   plugins: [react()],
   define: {
     'import.meta.env.VITE_COMMIT_SHA': JSON.stringify(getCommitSha()),
-    'import.meta.env.VITE_BUILD_TIME': JSON.stringify(new Date().toISOString()),
+    'import.meta.env.VITE_BUILD_TIME': JSON.stringify(getBuildTime()),
   },
   server: {
     host: '0.0.0.0',

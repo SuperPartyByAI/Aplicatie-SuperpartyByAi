@@ -5,37 +5,32 @@ import './Dock.css';
 export default function Dock() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { toggleWheel, toggleAiChat, isAiChatOpen, isWheelOpen, closeWheel, closeAiChat } = useWheel();
+  const { activeView, toggleView, setView } = useWheel();
 
   const dockItems = [
-    { id: 'centrala', icon: '📞', label: 'Centrala', route: '/centrala-telefonica' },
-    { id: 'chat', icon: '💬', label: 'Chat', route: '/chat-clienti' },
-    { id: 'fab', icon: '➕', label: 'Meniu', isFAB: true },
-    { id: 'team', icon: '👥', label: 'Echipă', route: '/team' },
-    { id: 'ai', icon: '🤖', label: 'AI Chat', isAiChat: true },
+    { id: 'centrala', icon: '📞', label: 'Centrala', route: '/centrala-telefonica', view: 'centrala' },
+    { id: 'chat', icon: '💬', label: 'Chat', route: '/chat-clienti', view: 'chat' },
+    { id: 'fab', icon: '➕', label: 'Meniu', view: 'grid' },
+    { id: 'team', icon: '👥', label: 'Echipă', route: '/team', view: 'team' },
+    { id: 'ai', icon: '🤖', label: 'AI Chat', view: 'ai' },
   ];
 
   const handleClick = (item) => {
-    // Close other overlays first (exclusivity)
-    if (!item.isFAB && isWheelOpen) {
-      closeWheel();
-    }
-    if (!item.isAiChat && isAiChatOpen) {
-      closeAiChat();
+    // Toggle behavior: if same view, go to home
+    if (activeView === item.view) {
+      setView('home');
+      if (item.route) {
+        navigate('/home');
+      }
+      return;
     }
 
-    // Handle click based on type
-    if (item.isFAB) {
-      toggleWheel();
-    } else if (item.isAiChat) {
-      toggleAiChat();
-    } else if (item.route) {
-      // Toggle behavior: if already on route, go back to Home
-      if (location.pathname === item.route) {
-        navigate('/home');
-      } else {
-        navigate(item.route, { state: item.state });
-      }
+    // Switch to new view (exclusivity automatic)
+    toggleView(item.view);
+    
+    // Navigate if has route
+    if (item.route) {
+      navigate(item.route, { state: item.state });
     }
   };
 
@@ -44,7 +39,7 @@ export default function Dock() {
       {dockItems.map((item) => (
         <button
           key={item.id}
-          className={`dock-button ${item.isFAB ? 'fab-button' : ''} ${item.isAiChat && isAiChatOpen ? 'active' : ''} ${location.pathname === item.route ? 'active' : ''}`}
+          className={`dock-button ${item.view === 'grid' ? 'fab-button' : ''} ${activeView === item.view ? 'active' : ''}`}
           onClick={() => handleClick(item)}
           title={item.label}
         >

@@ -4,8 +4,8 @@ import { auth } from '../firebase';
 const WheelContext = createContext();
 
 export const WheelProvider = ({ children }) => {
-  const [wheelOpen, setWheelOpen] = useState(false);
-  const [aiChatOpen, setAiChatOpen] = useState(false);
+  // Single active state: 'home' | 'ai' | 'grid' | 'centrala' | 'chat' | 'team'
+  const [activeView, setActiveView] = useState('home');
   const [adminMode, setAdminMode] = useState(false);
   const [gmMode, setGmMode] = useState(false);
   const [currentUser, setCurrentUser] = useState(auth.currentUser);
@@ -21,18 +21,37 @@ export const WheelProvider = ({ children }) => {
   // Detect role
   const role = currentUser?.email === 'ursache.andrei1995@gmail.com' ? 'admin' : 'user';
 
-  const toggleWheel = () => setWheelOpen((prev) => !prev);
-  const closeWheel = () => setWheelOpen(false);
-  const toggleAiChat = () => setAiChatOpen((prev) => !prev);
-  const closeAiChat = () => setAiChatOpen(false);
+  // Single source of truth for active state
+  const setView = (view) => {
+    setActiveView(view);
+  };
+
+  // Toggle: if same view, go to home; otherwise switch
+  const toggleView = (view) => {
+    setActiveView(prev => prev === view ? 'home' : view);
+  };
+
+  // Backward compatibility
+  const wheelOpen = activeView === 'grid';
+  const aiChatOpen = activeView === 'ai';
+  const isWheelOpen = wheelOpen;
+  const isAiChatOpen = aiChatOpen;
+  
+  const toggleWheel = () => toggleView('grid');
+  const closeWheel = () => setView('home');
+  const toggleAiChat = () => toggleView('ai');
+  const closeAiChat = () => setView('home');
 
   return (
     <WheelContext.Provider
       value={{
+        activeView,
+        setView,
+        toggleView,
         wheelOpen,
-        isWheelOpen: wheelOpen,
+        isWheelOpen,
         aiChatOpen,
-        isAiChatOpen: aiChatOpen,
+        isAiChatOpen,
         role,
         adminMode,
         gmMode,

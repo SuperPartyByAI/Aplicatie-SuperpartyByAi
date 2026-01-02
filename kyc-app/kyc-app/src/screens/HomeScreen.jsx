@@ -84,7 +84,7 @@ function HomeScreen() {
         </div>
       </div>
 
-      {/* Build Stamp */}
+      {/* Build Stamp - Format RO */}
       <div style={{
         position: 'fixed',
         bottom: 'calc(88px + env(safe-area-inset-bottom) + 8px)',
@@ -97,7 +97,7 @@ function HomeScreen() {
         zIndex: 1000,
         pointerEvents: 'none',
       }}>
-        UI v2 — {import.meta.env.VITE_COMMIT_SHA || 'dev'} — {(import.meta.env.VITE_BUILD_TIME || new Date().toISOString()).slice(0, 16).replace('T', ' ')}
+        UI v2 — commit {import.meta.env.VITE_COMMIT_SHA || 'dev'} — build {import.meta.env.VITE_BUILD_TIME || 'unknown'}
       </div>
 
       {/* Animations */}
