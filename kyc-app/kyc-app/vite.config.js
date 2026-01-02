@@ -23,7 +23,15 @@ const getBuildTime = () => {
 };
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'html-transform',
+      transformIndexHtml(html) {
+        return html.replace(/%VITE_BUILD_TIME%/g, getBuildTime());
+      },
+    },
+  ],
   define: {
     'import.meta.env.VITE_COMMIT_SHA': JSON.stringify(getCommitSha()),
     'import.meta.env.VITE_BUILD_TIME': JSON.stringify(getBuildTime()),

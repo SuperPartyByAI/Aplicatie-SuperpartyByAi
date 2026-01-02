@@ -6,6 +6,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import Toast from './components/Toast';
 import LoadingSpinner from './components/LoadingSpinner';
 import AuthenticatedShell from './components/AuthenticatedShell';
+import { startVersionCheck, stopVersionCheck } from './utils/versionCheck';
 
 // Eager loading pentru auth flow (critical)
 import AuthScreen from './screens/AuthScreen';
@@ -31,6 +32,12 @@ const AnimatorChatClientiScreen = lazy(() => import('./screens/AnimatorChatClien
 const TeamScreen = lazy(() => import('./screens/TeamScreen'));
 
 function App() {
+  // Version check - prompt user on new deployment
+  useEffect(() => {
+    startVersionCheck();
+    return () => stopVersionCheck();
+  }, []);
+
   // Global sidebar scroll fix
   useEffect(() => {
     const setupSidebarScroll = () => {
