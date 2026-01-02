@@ -121,12 +121,18 @@ export default function AIChatModal({ isOpen, onClose }) {
       }]);
     } finally {
       setLoading(false);
-      // Re-focus input after send
-      setTimeout(() => {
+      
+      // CRITICAL: Keep keyboard open after send
+      // Use requestAnimationFrame to ensure focus happens after React re-render
+      requestAnimationFrame(() => {
         if (inputRef.current) {
-          inputRef.current.focus();
+          inputRef.current.focus({ preventScroll: true });
+          console.log('Input re-focused after send', {
+            activeElement: document.activeElement === inputRef.current,
+            timestamp: new Date().toISOString()
+          });
         }
-      }, 100);
+      });
     }
   };
 
@@ -190,7 +196,12 @@ export default function AIChatModal({ isOpen, onClose }) {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
             onClick={handleInputClick}
             onTouchStart={handleInputClick}
             onTouchEnd={(e) => {
@@ -205,7 +216,19 @@ export default function AIChatModal({ isOpen, onClose }) {
             autoCapitalize="sentences"
           />
           <button
-            onClick={handleSend}
+            onMouseDown={(e) => {
+              // Prevent input blur on button click
+              e.preventDefault();
+            }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleSend();
+            }}
+            onTouchStart={(e) => {
+              // Prevent input blur on touch
+              e.preventDefault();
+            }}
             disabled={loading || !input.trim()}
             className="send-button"
           >
