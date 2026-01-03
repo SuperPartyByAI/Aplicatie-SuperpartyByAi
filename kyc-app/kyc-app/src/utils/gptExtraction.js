@@ -1,7 +1,7 @@
 import { compressImage } from './imageCompression';
 
 /**
- * Extrage date din CI folosind GPT-4 Vision
+ * Extrage date din CI folosind GPT-4o-mini (optimizat cost)
  * @param {string} apiKey - OpenAI API Key
  * @param {File} idFrontFile - Fișier CI față
  * @param {File} idBackFile - Fișier CI verso
@@ -12,9 +12,17 @@ export async function extractIdData(apiKey, idFrontFile, idBackFile) {
     throw new Error('API Key lipsește. Introdu-l în câmpul de sus.');
   }
 
-  // Comprimă imaginile
+  // Comprimă imaginile la 3MP
   const idFrontBase64 = await compressImage(idFrontFile);
   const idBackBase64 = await compressImage(idBackFile);
+
+  return await extractWithOpenAI(apiKey, idFrontBase64, idBackBase64);
+}
+
+/**
+ * Extrage date folosind OpenAI GPT-4o-mini
+ */
+async function extractWithOpenAI(openaiApiKey, idFrontBase64, idBackBase64) {
 
   const prompt = `Analizează aceste imagini ale unui buletin de identitate românesc (CI).
 
@@ -39,7 +47,7 @@ Exemplu format răspuns:
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${openaiApiKey}`,
     },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
@@ -52,14 +60,14 @@ Exemplu format răspuns:
               type: 'image_url',
               image_url: {
                 url: idFrontBase64,
-                detail: 'high',
+                detail: 'low',
               },
             },
             {
               type: 'image_url',
               image_url: {
                 url: idBackBase64,
-                detail: 'high',
+                detail: 'low',
               },
             },
           ],
@@ -69,6 +77,14 @@ Exemplu format răspuns:
       temperature: 0.1,
     }),
   });
+
+  return await parseResponse(response);
+}
+
+/**
+ * Parsează răspunsul de la API (comun pentru Groq și OpenAI)
+ */
+async function parseResponse(response) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
