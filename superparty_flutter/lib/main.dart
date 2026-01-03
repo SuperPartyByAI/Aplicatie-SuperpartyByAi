@@ -16,9 +16,25 @@ import 'screens/ai_chat/ai_chat_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await FirebaseService.initialize();
-  await BackgroundService.initialize();
-  await PushNotificationService.initialize();
+  
+  try {
+    await FirebaseService.initialize();
+  } catch (e) {
+    print('Firebase init error: $e');
+  }
+  
+  try {
+    await BackgroundService.initialize();
+  } catch (e) {
+    print('Background service init error: $e');
+  }
+  
+  try {
+    await PushNotificationService.initialize();
+  } catch (e) {
+    print('Push notification init error: $e');
+  }
+  
   runApp(const SuperPartyApp());
 }
 
@@ -74,7 +90,9 @@ class AuthWrapper extends StatelessWidget {
         }
         
         if (snapshot.hasData) {
-          BackgroundService.startService();
+          BackgroundService.startService().catchError((e) {
+            print('Failed to start background service: $e');
+          });
           return const HomeScreen();
         }
         
