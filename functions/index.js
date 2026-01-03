@@ -272,8 +272,139 @@ exports.whatsappV4 = onRequest(
   app
 );
 
-// REMOVED: 1st Gen test function - cannot upgrade to 2nd Gen
-// exports.testAI = functions.https.onRequest((req, res) => {
-//   res.json({ success: true, message: 'Test AI function works!' });
-// });
+// AI Chat with Groq/Llama + Smart Memory
+const groqApiKey = defineSecret('GROQ_API_KEY');
+
+exports.chatWithAI = onCall(
+  {
+    timeoutSeconds: 60,
+    memory: '256MiB',
+    secrets: [groqApiKey],
+  },
+  async request => {
+    const data = request.data;
+    const context = request.auth;
+    const startTime = Date.now();
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    try {
+      const userId = context?.uid;
+      const userEmail = context?.token?.email;
+      
+      if (!userId) {
+        console.error(`[${requestId}] User not authenticated`);
+        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+      }
+
+      if (!data.messages || !Array.isArray(data.messages)) {
+        console.error(`[${requestId}] Invalid input`);
+        throw new functions.https.HttpsError('invalid-argument', 'Messages array required');
+      }
+
+      let groqKey = null;
+      try {
+        groqKey = groqApiKey.value();
+      } catch (e) {
+        groqKey = process.env.GROQ_API_KEY;
+      }
+
+      if (!groqKey) {
+        throw new functions.https.HttpsError('failed-precondition', 'GROQ_API_KEY not configured');
+      }
+
+      groqKey = groqKey.trim().replace(/[\r\n\t]/g, '');
+
+      console.log(`[${requestId}] chatWithAI called`, {
+        userId,
+        messageCount: data.messages?.length || 0,
+      });
+
+      const messagesRef = admin.firestore()
+        .collection('aiChats')
+        .doc(userId)
+        .collection('messages')
+        .where('important', '==', true)
+        .orderBy('timestamp', 'desc')
+        .limit(10);
+      
+      const snapshot = await messagesRef.get();
+      const contextMessages = [];
+      
+      snapshot.forEach(doc => {
+        const msgData = doc.data();
+        contextMessages.unshift({
+          role: 'user',
+          content: msgData.userMessage
+        });
+        contextMessages.push({
+          role: 'assistant',
+          content: msgData.aiResponse
+        });
+      });
+
+      const allMessages = [...contextMessages, ...data.messages.map(m => ({
+        role: m.role,
+        content: m.content
+      }))];
+
+      const Groq = require('groq-sdk');
+      const groq = new Groq({ apiKey: groqKey });
+
+      const completion = await groq.chat.completions.create({
+        model: 'llama-3.1-70b-versatile',
+        messages: allMessages,
+        max_tokens: 500,
+        temperature: 0.7,
+      });
+
+      const aiResponse = completion.choices[0]?.message?.content || 'No response';
+      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+      const currentSessionId = data.sessionId || `session_${Date.now()}`;
+
+      const userMessage = data.messages[data.messages.length - 1];
+      const isImportant = userMessage.content.length > 20 && 
+                         !['ok', 'da', 'nu', 'haha', 'lol'].includes(userMessage.content.toLowerCase());
+
+      await admin.firestore().collection('aiChats').doc(userId).collection('messages').add({
+        sessionId: currentSessionId,
+        userMessage: userMessage.content,
+        aiResponse: aiResponse,
+        timestamp: timestamp,
+        userEmail: userEmail,
+        important: isImportant,
+      });
+
+      const userStatsRef = admin.firestore().collection('aiChats').doc(userId);
+      const userStats = await userStatsRef.get();
+      
+      if (!userStats.exists) {
+        await userStatsRef.set({
+          userId,
+          email: userEmail,
+          totalMessages: 1,
+          firstUsed: timestamp,
+          lastUsed: timestamp,
+        });
+      } else {
+        await userStatsRef.update({
+          totalMessages: (userStats.data().totalMessages || 0) + 1,
+          lastUsed: timestamp,
+        });
+      }
+
+      const duration = Date.now() - startTime;
+      console.log(`[${requestId}] Success (${duration}ms)`);
+
+      return {
+        success: true,
+        message: aiResponse,
+        sessionId: currentSessionId,
+      };
+    } catch (error) {
+      console.error(`[${requestId}] Error:`, error.message);
+      if (error instanceof functions.https.HttpsError) throw error;
+      throw new functions.https.HttpsError('internal', 'Failed to get AI response');
+    }
+  }
+);
 
