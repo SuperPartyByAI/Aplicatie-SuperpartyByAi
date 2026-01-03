@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
-import '../../widgets/app_drawer.dart';
 import '../../widgets/grid_overlay.dart';
 import '../../providers/app_state_provider.dart';
 
@@ -39,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        automaticallyImplyLeading: false, // Remove hamburger menu icon
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
@@ -47,7 +46,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      drawer: const AppDrawer(),
       body: Stack(
         children: [
           Container(
