@@ -1431,6 +1431,70 @@ const aiLimiter = rateLimit({
   message: { success: false, error: 'Too many AI requests. Try again later.' },
 });
 
+// Helper: Save message to Firestore (permanent storage)
+async function saveMessageToFirestore(phoneNumber, role, content, metadata = {}) {
+  if (!db) {
+    console.warn('Firestore not available, skipping message save');
+    return;
+  }
+
+  try {
+    const isImportant =
+      content.length > 20 &&
+      !['ok', 'da', 'nu', 'bine', 'multumesc', 'haha', 'lol'].includes(content.toLowerCase().trim());
+
+    await db
+      .collection('whatsappChats')
+      .doc(phoneNumber)
+      .collection('messages')
+      .add({
+        role, // 'user' or 'assistant'
+        content,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        important: isImportant,
+        ...metadata, // model, tokensUsed, etc.
+      });
+
+    console.log(`[WhatsApp] Saved ${role} message for ${phoneNumber} (important: ${isImportant})`);
+  } catch (error) {
+    console.error(`[WhatsApp] Failed to save message:`, error.message);
+  }
+}
+
+// Helper: Load conversation history from Firestore
+async function loadConversationHistory(phoneNumber, limit = 10) {
+  if (!db) {
+    console.warn('Firestore not available, returning empty history');
+    return [];
+  }
+
+  try {
+    const snapshot = await db
+      .collection('whatsappChats')
+      .doc(phoneNumber)
+      .collection('messages')
+      .where('important', '==', true)
+      .orderBy('timestamp', 'desc')
+      .limit(limit)
+      .get();
+
+    const messages = [];
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      messages.push({
+        role: data.role,
+        content: data.content,
+      });
+    });
+
+    // Reverse to get chronological order (oldest first)
+    return messages.reverse();
+  } catch (error) {
+    console.error(`[WhatsApp] Failed to load history:`, error.message);
+    return [];
+  }
+}
+
 // Helper function to call Groq API (Llama 3.1 70B - FREE)
 async function callGroqAI(messages, maxTokens = 500) {
   const apiKey = process.env.GROQ_API_KEY;
@@ -1537,7 +1601,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
   });
 
   try {
-    const { messages } = req.body;
+    const { messages, phoneNumber } = req.body;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({
@@ -1546,17 +1610,42 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       });
     }
 
+    // Extract user message (last message)
+    const userMessage = messages[messages.length - 1];
+
+    // Load conversation history from Firestore (10 important messages)
+    let conversationHistory = [];
+    if (phoneNumber) {
+      conversationHistory = await loadConversationHistory(phoneNumber, 10);
+      console.log(`[${requestId}] Loaded ${conversationHistory.length} messages from history`);
+
+      // Save user message to Firestore
+      await saveMessageToFirestore(phoneNumber, 'user', userMessage.content);
+    }
+
+    // Build context: history + current messages
+    const allMessages = [...conversationHistory, ...messages];
+
     // Try Groq first (FREE), fallback to OpenAI if fails
     let response;
     try {
-      response = await callGroqAI(messages, 500);
+      response = await callGroqAI(allMessages, 500);
     } catch (groqError) {
       console.warn(`[${requestId}] Groq failed, falling back to OpenAI:`, groqError.message);
-      response = await callOpenAI(messages, 500);
+      response = await callOpenAI(allMessages, 500);
     }
 
     const duration = Date.now() - startTime;
     const message = response.choices[0]?.message?.content || '';
+    const tokensUsed = response.usage?.total_tokens || 0;
+
+    // Save AI response to Firestore
+    if (phoneNumber) {
+      await saveMessageToFirestore(phoneNumber, 'assistant', message, {
+        model: response.model || 'llama-3.1-70b-versatile',
+        tokensUsed,
+      });
+    }
 
     console.log(`[${requestId}] Success`, {
       duration: `${duration}ms`,
