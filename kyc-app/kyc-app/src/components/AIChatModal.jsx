@@ -13,12 +13,8 @@ export default function AIChatModal({ isOpen, onClose }) {
   const inputRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
+  // Manual scroll control - NO auto-scroll
+  // User can scroll freely, we only scroll when they send a message
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -56,6 +52,13 @@ export default function AIChatModal({ isOpen, onClose }) {
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setLoading(true);
+
+    // Scroll to bottom ONCE when user sends message
+    setTimeout(() => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'instant', block: 'end' });
+      }
+    }, 100);
 
     try {
       const result = await callChatWithAI({ messages: [...messages, userMessage] });
