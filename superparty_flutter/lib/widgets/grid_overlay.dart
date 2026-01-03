@@ -21,12 +21,14 @@ class GridOverlay extends StatelessWidget {
               child: SafeArea(
                 child: Column(
                   children: [
-                    Align(
-                      alignment: Alignment.topRight,
+                    Padding(
                       padding: const EdgeInsets.all(16),
-                      child: IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white, size: 32),
-                        onPressed: () => appState.closeGrid(),
+                      child: Align(
+                        alignment: Alignment.topRight,
+                        child: IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white, size: 32),
+                          onPressed: () => appState.closeGrid(),
+                        ),
                       ),
                     ),
                     Expanded(
