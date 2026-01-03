@@ -7,3 +7,5 @@ coverage
 package-lock.json
 .git
 .baileys_auth
+superparty_flutter/
+monitoring/
