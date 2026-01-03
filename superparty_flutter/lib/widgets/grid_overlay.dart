@@ -82,14 +82,14 @@ class GridOverlay extends StatelessWidget {
 
   List<Widget> _buildGmButtons(BuildContext context, AppStateProvider appState) {
     return [
-      _buildAppIcon(context, appState, 'Conturi WA', Icons.settings, '/gm/accounts', color: const Color(0xFFFBBF24)),
-      _buildAppIcon(context, appState, 'Metrice', Icons.bar_chart, '/gm/metrics', color: const Color(0xFFFBBF24)),
-      _buildAppIcon(context, appState, 'Analiză', Icons.analytics, '/gm/analytics', color: const Color(0xFFFBBF24)),
-      _buildAppIcon(context, appState, 'Setări Staff', Icons.people_outline, '/gm/staff-setup', color: const Color(0xFFFBBF24)),
+      _buildAppIcon(context, appState, 'Conturi WA', Icons.settings, '/gm/accounts', color: const Color(0xFFFBBF24), glowOpacity: 0.12),
+      _buildAppIcon(context, appState, 'Metrice', Icons.bar_chart, '/gm/metrics', color: const Color(0xFFFBBF24), glowOpacity: 0.12),
+      _buildAppIcon(context, appState, 'Analiză', Icons.analytics, '/gm/analytics', color: const Color(0xFFFBBF24), glowOpacity: 0.12),
+      _buildAppIcon(context, appState, 'Setări Staff', Icons.people_outline, '/gm/staff-setup', color: const Color(0xFFFBBF24), glowOpacity: 0.12),
       _buildAppIconAction(context, appState, 'Ieși GM', Icons.exit_to_app, () {
         appState.exitGmMode();
         appState.closeGrid();
-      }, color: const Color(0xFFFBBF24)),
+      }, color: const Color(0xFFFBBF24), glowOpacity: 0.12),
     ];
   }
 
@@ -101,6 +101,7 @@ class GridOverlay extends StatelessWidget {
     IconData icon,
     String route, {
     Color color = const Color(0xFF4ECDC4),
+    double glowOpacity = 0.18, // Default glow
   }) {
     return GestureDetector(
       onTap: () {
@@ -141,7 +142,7 @@ class GridOverlay extends StatelessWidget {
                     offset: const Offset(0, 12),
                   ),
                   BoxShadow(
-                    color: color.withOpacity(0.18), // Glow mai puternic
+                    color: color.withOpacity(glowOpacity), // Glow variabil
                     blurRadius: 0,
                     spreadRadius: 8,
                   ),
@@ -189,6 +190,7 @@ class GridOverlay extends StatelessWidget {
     IconData icon,
     VoidCallback onTap, {
     Color color = const Color(0xFF4ECDC4),
+    double glowOpacity = 0.18, // Default glow
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -226,7 +228,7 @@ class GridOverlay extends StatelessWidget {
                     offset: const Offset(0, 12),
                   ),
                   BoxShadow(
-                    color: color.withOpacity(0.18), // Glow mai puternic
+                    color: color.withOpacity(glowOpacity), // Glow variabil
                     blurRadius: 0,
                     spreadRadius: 8,
                   ),
