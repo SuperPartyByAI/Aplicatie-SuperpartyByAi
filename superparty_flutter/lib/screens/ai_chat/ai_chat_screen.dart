@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:cloud_functions/cloud_functions.dart';
+import '../../services/chat_cache_service.dart';
 
 class AIChatScreen extends StatefulWidget {
   const AIChatScreen({super.key});
@@ -11,11 +11,38 @@ class AIChatScreen extends StatefulWidget {
 }
 
 class _AIChatScreenState extends State<AIChatScreen> {
-  final List<Map<String, String>> _messages = [
-    {'role': 'assistant', 'content': 'Bună! Sunt asistentul tău AI. Cu ce te pot ajuta?'}
-  ];
+  final List<Map<String, String>> _messages = [];
   final _inputController = TextEditingController();
   bool _loading = false;
+  String? _sessionId;
+
+  @override
+  void initState() {
+    super.initState();
+    _sessionId = 'session_${DateTime.now().millisecondsSinceEpoch}';
+    _loadCachedMessages();
+  }
+
+  Future<void> _loadCachedMessages() async {
+    try {
+      final cached = await ChatCacheService.getRecentMessages(limit: 50);
+      setState(() {
+        _messages.clear();
+        for (var msg in cached.reversed) {
+          _messages.add({'role': 'user', 'content': msg['userMessage']});
+          _messages.add({'role': 'assistant', 'content': msg['aiResponse']});
+        }
+        if (_messages.isEmpty) {
+          _messages.add({'role': 'assistant', 'content': 'Bună! Sunt asistentul tău AI. Cu ce te pot ajuta?'});
+        }
+      });
+    } catch (e) {
+      print('Error loading cache: $e');
+      setState(() {
+        _messages.add({'role': 'assistant', 'content': 'Bună! Sunt asistentul tău AI. Cu ce te pot ajuta?'});
+      });
+    }
+  }
 
   Future<void> _sendMessage() async {
     final text = _inputController.text.trim();
@@ -53,19 +80,29 @@ class _AIChatScreenState extends State<AIChatScreen> {
     _inputController.clear();
 
     try {
-      // Call Firebase Function
-      final response = await http.post(
-        Uri.parse('https://us-central1-superparty-frontend.cloudfunctions.net/chatWithAI'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'messages': _messages}),
-      );
+      // Call Firebase Function (Callable)
+      final callable = FirebaseFunctions.instance.httpsCallable('chatWithAI');
+      final result = await callable.call({
+        'messages': _messages,
+        'sessionId': _sessionId,
+      });
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        setState(() {
-          _messages.add({'role': 'assistant', 'content': data['message'] ?? 'No response'});
-        });
-      }
+      final aiResponse = result.data['message'] ?? 'No response';
+      
+      setState(() {
+        _messages.add({'role': 'assistant', 'content': aiResponse});
+      });
+
+      // Save to cache
+      final isImportant = text.length > 20 && 
+                         !['ok', 'da', 'nu', 'haha', 'lol'].contains(text.toLowerCase());
+      
+      await ChatCacheService.saveMessage(
+        sessionId: _sessionId!,
+        userMessage: text,
+        aiResponse: aiResponse,
+        important: isImportant,
+      );
     } catch (e) {
       setState(() {
         _messages.add({'role': 'assistant', 'content': 'Eroare: ${e.toString()}'});
