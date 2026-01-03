@@ -413,3 +413,4 @@ exports.chatWithAI = onCall(
     }
   }
 );
+// Force redeploy - Sat Jan  3 08:39:53 UTC 2026
