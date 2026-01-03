@@ -66,7 +66,16 @@ function attemptReload() {
     return;
   }
   
-  console.log('🔄 Applying update - reloading...');
+  console.log('🔄 Applying update - clearing cache and reloading...');
+  
+  // Clear all caches before reload
+  if ('caches' in window) {
+    caches.keys().then(names => {
+      names.forEach(name => caches.delete(name));
+    });
+  }
+  
+  // Hard reload with cache bypass
   window.location.reload(true);
 }
 
