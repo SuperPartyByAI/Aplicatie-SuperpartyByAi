@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { callChatWithAI } from '../firebase';
+import { callChatWithAI, auth } from '../firebase';
+import { useWheel } from '../contexts/WheelContext';
 import './AIChatModal.css';
 
 export default function AIChatModal({ isOpen, onClose }) {
@@ -10,6 +11,7 @@ export default function AIChatModal({ isOpen, onClose }) {
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const { setAdminMode, setGmMode, toggleView } = useWheel();
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -38,6 +40,58 @@ export default function AIChatModal({ isOpen, onClose }) {
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
+    const userInput = input.trim().toLowerCase();
+    const currentUser = auth.currentUser;
+    const isAuthorized = currentUser?.email === 'ursache.andrei1995@gmail.com';
+
+    // Check for secret commands (only for authorized user)
+    if (isAuthorized) {
+      if (userInput === 'admin') {
+        setInput('');
+        setMessages(prev => [...prev, 
+          { role: 'user', content: input },
+          { role: 'assistant', content: '🔓 Admin mode activat. Deschid meniul admin...' }
+        ]);
+        
+        // Close keyboard
+        if (inputRef.current) {
+          inputRef.current.blur();
+        }
+        
+        // Activate admin mode and open grid
+        setTimeout(() => {
+          setAdminMode(true);
+          setGmMode(false);
+          onClose(); // Close AI Chat
+          toggleView('grid'); // Open grid with admin buttons
+        }, 500);
+        return;
+      }
+
+      if (userInput === 'gm') {
+        setInput('');
+        setMessages(prev => [...prev, 
+          { role: 'user', content: input },
+          { role: 'assistant', content: '🔓 GM mode activat. Deschid meniul GM...' }
+        ]);
+        
+        // Close keyboard
+        if (inputRef.current) {
+          inputRef.current.blur();
+        }
+        
+        // Activate GM mode and open grid
+        setTimeout(() => {
+          setGmMode(true);
+          setAdminMode(false);
+          onClose(); // Close AI Chat
+          toggleView('grid'); // Open grid with GM buttons
+        }, 500);
+        return;
+      }
+    }
+
+    // Normal AI chat flow
     const userMessage = { role: 'user', content: input };
     setMessages(prev => [...prev, userMessage]);
     setInput('');

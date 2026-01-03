@@ -5,34 +5,17 @@ import './Dock.css';
 export default function Dock() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { activeView, toggleView, setView, setAdminMode, setGmMode } = useWheel();
+  const { activeView, toggleView, setView } = useWheel();
 
   const dockItems = [
     { id: 'centrala', icon: '📞', label: 'Centrala', route: '/centrala-telefonica', view: 'centrala' },
     { id: 'chat', icon: '💬', label: 'Chat', route: '/chat-clienti', view: 'chat' },
     { id: 'fab', icon: '➕', label: 'Meniu', view: 'grid' },
-    { id: 'admin', icon: '⚙️', label: 'Admin', view: 'admin' },
-    { id: 'gm', icon: '👔', label: 'GM', view: 'gm' },
     { id: 'team', icon: '👥', label: 'Echipă', route: '/team', view: 'team' },
     { id: 'ai', icon: '🤖', label: 'AI Chat', view: 'ai' },
   ];
 
   const handleClick = (item) => {
-    // Special handling for Admin and GM buttons
-    if (item.id === 'admin') {
-      setAdminMode(true);
-      setGmMode(false);
-      toggleView('grid'); // Open grid with admin buttons
-      return;
-    }
-    
-    if (item.id === 'gm') {
-      setGmMode(true);
-      setAdminMode(false);
-      toggleView('grid'); // Open grid with GM buttons
-      return;
-    }
-
     // Toggle behavior: if same view, go to home
     if (activeView === item.view) {
       setView('home');
