@@ -32,8 +32,16 @@ jobs:
       working-directory: ./superparty_flutter
       run: flutter build apk --release
     
-    - name: Upload APK
+    - name: Upload APK to Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: superparty-app
         path: superparty_flutter/build/app/outputs/flutter-apk/app-release.apk
+    
+    - name: Upload to Firebase App Distribution
+      uses: wzieba/Firebase-Distribution-Github-Action@v1
+      with:
+        appId: ${{ secrets.FIREBASE_APP_ID }}
+        serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        groups: testers
+        file: superparty_flutter/build/app/outputs/flutter-apk/app-release.apk
