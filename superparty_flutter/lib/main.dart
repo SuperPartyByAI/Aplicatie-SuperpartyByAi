@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'services/firebase_service.dart';
 import 'services/background_service.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/home/home_screen.dart';
+import 'screens/evenimente/evenimente_screen.dart';
+import 'screens/disponibilitate/disponibilitate_screen.dart';
+import 'screens/salarizare/salarizare_screen.dart';
+import 'screens/centrala/centrala_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,39 +37,39 @@ class SuperPartyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const SplashScreen(),
+      home: const AuthWrapper(),
+      routes: {
+        '/home': (context) => const HomeScreen(),
+        '/evenimente': (context) => const EvenimenteScreen(),
+        '/disponibilitate': (context) => const DisponibilitateScreen(),
+        '/salarizare': (context) => const SalarizareScreen(),
+        '/centrala': (context) => const CentralaScreen(),
+      },
     );
   }
 }
 
-class SplashScreen extends StatelessWidget {
-  const SplashScreen({super.key});
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.celebration,
-              size: 100,
-              color: Color(0xFFDC2626),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'SuperParty',
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 48),
-            const CircularProgressIndicator(),
-          ],
-        ),
-      ),
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        
+        if (snapshot.hasData) {
+          BackgroundService.startService();
+          return const HomeScreen();
+        }
+        
+        return const LoginScreen();
+      },
     );
   }
 }
