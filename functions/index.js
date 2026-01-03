@@ -12,8 +12,8 @@ const logtail = require('./logtail');
 // Initialize Memory Cache
 const cache = require('./cache');
 
-// OpenAI
-const OpenAI = require('openai');
+// Groq (Llama)
+const Groq = require('groq-sdk');
 
 // Set global options for v2 functions
 setGlobalOptions({
@@ -651,7 +651,7 @@ async function sendKeepAliveToUser(token, mode) {
 
 // AI Chat Function
 exports.chatWithAI = onCall(async (request) => {
-  const openaiKey = defineSecret('OPENAI_API_KEY');
+  const groqKey = defineSecret('GROQ_API_KEY');
   
   try {
     const { messages, sessionId } = request.data;
@@ -666,31 +666,64 @@ exports.chatWithAI = onCall(async (request) => {
       throw new Error('Invalid messages format');
     }
 
-    const openai = new OpenAI({
-      apiKey: openaiKey.value(),
+    // Load last 5 important messages from Firestore for context
+    const messagesRef = admin.firestore()
+      .collection('aiChats')
+      .doc(userId)
+      .collection('messages')
+      .where('important', '==', true)
+      .orderBy('timestamp', 'desc')
+      .limit(5);
+    
+    const snapshot = await messagesRef.get();
+    const contextMessages = [];
+    
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      contextMessages.unshift({
+        role: 'user',
+        content: data.userMessage
+      });
+      contextMessages.push({
+        role: 'assistant',
+        content: data.aiResponse
+      });
     });
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: messages.map(m => ({
-        role: m.role,
-        content: m.content
-      })),
+    // Combine context + new messages
+    const allMessages = [...contextMessages, ...messages.map(m => ({
+      role: m.role,
+      content: m.content
+    }))];
+
+    const groq = new Groq({
+      apiKey: groqKey.value(),
+    });
+
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.1-70b-versatile',
+      messages: allMessages,
       max_tokens: 500,
+      temperature: 0.7,
     });
 
     const aiResponse = completion.choices[0].message.content;
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     const currentSessionId = sessionId || `session_${Date.now()}`;
 
-    // Save conversation to Firestore
+    // Determine if message is important (simple heuristic)
     const userMessage = messages[messages.length - 1];
+    const isImportant = userMessage.content.length > 20 && 
+                       !['ok', 'da', 'nu', 'haha', 'lol'].includes(userMessage.content.toLowerCase());
+
+    // Save conversation to Firestore
     await admin.firestore().collection('aiChats').doc(userId).collection('messages').add({
       sessionId: currentSessionId,
       userMessage: userMessage.content,
       aiResponse: aiResponse,
       timestamp: timestamp,
       userEmail: userEmail,
+      important: isImportant,
     });
 
     // Update user analytics
