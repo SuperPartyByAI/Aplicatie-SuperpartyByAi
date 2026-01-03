@@ -1,2 +1,0 @@
-Placeholder pentru icon-192.png
-În producție, creează icoane reale 192x192px și 512x512px
