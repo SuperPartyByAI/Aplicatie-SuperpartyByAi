@@ -21,6 +21,7 @@ import 'screens/gm/metrics_screen.dart';
 import 'screens/gm/analytics_screen.dart';
 import 'screens/gm/staff_setup_screen.dart';
 import 'screens/ai_chat/ai_chat_screen.dart';
+import 'screens/kyc/kyc_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -72,6 +73,7 @@ class SuperPartyApp extends StatelessWidget {
       home: const AuthWrapper(),
       routes: {
         '/home': (context) => const HomeScreen(),
+        '/kyc': (context) => const KycScreen(),
         '/evenimente': (context) => const EvenimenteScreen(),
         '/disponibilitate': (context) => const DisponibilitateScreen(),
         '/salarizare': (context) => const SalarizareScreen(),
@@ -110,7 +112,32 @@ class AuthWrapper extends StatelessWidget {
           BackgroundService.startService().catchError((e) {
             print('Failed to start background service: $e');
           });
-          return const HomeScreen();
+          
+          // Check user status in Firestore
+          return StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(snapshot.data!.uid)
+                .snapshots(),
+            builder: (context, userSnapshot) {
+              if (userSnapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              
+              if (userSnapshot.hasData && userSnapshot.data!.exists) {
+                final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                final status = userData['status'] ?? '';
+                
+                if (status == 'kyc_required') {
+                  return const KycScreen();
+                }
+              }
+              
+              return const HomeScreen();
+            },
+          );
         }
         
         return const LoginScreen();
