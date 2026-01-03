@@ -654,7 +654,13 @@ exports.chatWithAI = onCall(async (request) => {
   const openaiKey = defineSecret('OPENAI_API_KEY');
   
   try {
-    const { messages } = request.data;
+    const { messages, sessionId } = request.data;
+    const userId = request.auth?.uid;
+    const userEmail = request.auth?.token?.email;
+    
+    if (!userId) {
+      throw new Error('User not authenticated');
+    }
     
     if (!messages || !Array.isArray(messages)) {
       throw new Error('Invalid messages format');
@@ -673,8 +679,44 @@ exports.chatWithAI = onCall(async (request) => {
       max_tokens: 500,
     });
 
+    const aiResponse = completion.choices[0].message.content;
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    const currentSessionId = sessionId || `session_${Date.now()}`;
+
+    // Save conversation to Firestore
+    const userMessage = messages[messages.length - 1];
+    await admin.firestore().collection('aiChats').doc(userId).collection('messages').add({
+      sessionId: currentSessionId,
+      userMessage: userMessage.content,
+      aiResponse: aiResponse,
+      timestamp: timestamp,
+      userEmail: userEmail,
+    });
+
+    // Update user analytics
+    const userStatsRef = admin.firestore().collection('aiChats').doc(userId);
+    const userStats = await userStatsRef.get();
+    
+    if (!userStats.exists) {
+      await userStatsRef.set({
+        userId: userId,
+        email: userEmail,
+        totalMessages: 1,
+        firstUsed: timestamp,
+        lastUsed: timestamp,
+        specialCommands: [],
+      });
+    } else {
+      const data = userStats.data();
+      await userStatsRef.update({
+        totalMessages: (data.totalMessages || 0) + 1,
+        lastUsed: timestamp,
+      });
+    }
+
     return {
-      message: completion.choices[0].message.content
+      message: aiResponse,
+      sessionId: currentSessionId,
     };
   } catch (error) {
     console.error('AI Chat error:', error);
