@@ -1,10 +1,6 @@
 import { useState } from 'react';
 import { auth, db } from '../firebase';
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendEmailVerification,
-} from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 function AuthScreen() {
@@ -16,7 +12,7 @@ function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async e => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setBusy(true);
     setError('');
@@ -55,7 +51,7 @@ function AuthScreen() {
     } catch (err) {
       // Traducere erori Firebase în română
       let errorMessage = err.message;
-
+      
       // Erori de autentificare
       if (err.code === 'auth/invalid-credential') {
         errorMessage = '❌ Email sau parolă greșită. Verifică și încearcă din nou.';
@@ -66,8 +62,7 @@ function AuthScreen() {
       } else if (err.code === 'auth/invalid-email') {
         errorMessage = '❌ Email invalid. Verifică formatul email-ului.';
       } else if (err.code === 'auth/email-already-in-use') {
-        errorMessage =
-          '❌ Email-ul este deja folosit. Încearcă să te loghezi sau folosește alt email.';
+        errorMessage = '❌ Email-ul este deja folosit. Încearcă să te loghezi sau folosește alt email.';
       } else if (err.code === 'auth/weak-password') {
         errorMessage = '❌ Parola este prea slabă. Folosește minim 6 caractere.';
       } else if (err.code === 'auth/too-many-requests') {
@@ -75,7 +70,7 @@ function AuthScreen() {
       } else if (err.code === 'auth/network-request-failed') {
         errorMessage = '❌ Eroare de conexiune. Verifică internetul și încearcă din nou.';
       }
-
+      
       setError(errorMessage);
     } finally {
       setBusy(false);
@@ -87,45 +82,17 @@ function AuthScreen() {
       <div className="card">
         <h1>{isRegister ? 'Create account' : 'Login'}</h1>
         <form onSubmit={handleSubmit}>
-          <input
-            placeholder="Email"
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            required
-          />
-          <input
-            placeholder="Password"
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-          />
+          <input placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           {isRegister && (
             <>
-              <input
-                placeholder="Confirm password"
-                type="password"
-                value={password2}
-                onChange={e => setPassword2(e.target.value)}
-                required
-              />
-              <input
-                placeholder="Phone"
-                type="tel"
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                required
-              />
+              <input placeholder="Confirm password" type="password" value={password2} onChange={(e) => setPassword2(e.target.value)} required />
+              <input placeholder="Phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
             </>
           )}
           {error && <div className="error">{error}</div>}
-          <button type="submit" disabled={busy}>
-            {busy ? 'Wait...' : isRegister ? 'Register' : 'Login'}
-          </button>
-          <button type="button" onClick={() => setIsRegister(!isRegister)}>
-            {isRegister ? 'Login' : 'Register'}
-          </button>
+          <button type="submit" disabled={busy}>{busy ? 'Wait...' : (isRegister ? 'Register' : 'Login')}</button>
+          <button type="button" onClick={() => setIsRegister(!isRegister)}>{isRegister ? 'Login' : 'Register'}</button>
         </form>
       </div>
     </div>
