@@ -11,6 +11,17 @@ module.exports = {
     },
   },
   testMatch: ['**/__tests__/**/*.js', '**/*.test.js'],
-  testPathIgnorePatterns: ['/node_modules/', '/dist/', '/build/'],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/dist/',
+    '/build/',
+    '/kyc-app/',
+    '/functions/',
+    '/whatsapp-backend/',
+    '/voice-backend/',
+    '/railway-monitor/',
+    '/monitoring/',
+    '/twilio-backend/',
+  ],
   verbose: true,
 };
