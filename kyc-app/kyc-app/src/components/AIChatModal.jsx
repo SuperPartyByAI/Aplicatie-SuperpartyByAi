@@ -8,13 +8,7 @@ export default function AIChatModal({ isOpen, onClose }) {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef(null);
-  const modalRef = useRef(null);
   const inputRef = useRef(null);
-  const messagesContainerRef = useRef(null);
-
-  // Manual scroll control - NO auto-scroll
-  // User can scroll freely, we only scroll when they send a message
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -53,13 +47,6 @@ export default function AIChatModal({ isOpen, onClose }) {
     setInput('');
     setLoading(true);
 
-    // Scroll to bottom ONCE when user sends message
-    setTimeout(() => {
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: 'instant', block: 'end' });
-      }
-    }, 100);
-
     try {
       const result = await callChatWithAI({ messages: [...messages, userMessage] });
       const aiMessage = result.data?.message || 'No response';
@@ -94,7 +81,6 @@ export default function AIChatModal({ isOpen, onClose }) {
 
   return (
     <div 
-      ref={modalRef}
       className="new-theme ai-chat-modal" 
       onClick={onClose}
     >
@@ -109,7 +95,7 @@ export default function AIChatModal({ isOpen, onClose }) {
         </div>
 
         {/* Messages */}
-        <div ref={messagesContainerRef} className="ai-chat-messages">
+        <div className="ai-chat-messages">
           {messages.map((msg, idx) => (
             <div
               key={idx}
@@ -123,7 +109,6 @@ export default function AIChatModal({ isOpen, onClose }) {
               ⏳ Scriu...
             </div>
           )}
-          <div ref={messagesEndRef} />
         </div>
 
         {/* Input */}
