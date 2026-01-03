@@ -43,9 +43,9 @@ export default function AIChatModal({ isOpen, onClose }) {
     setInput('');
     setLoading(true);
 
-    // Keep keyboard open immediately
+    // Close keyboard after send
     if (inputRef.current) {
-      inputRef.current.focus();
+      inputRef.current.blur();
     }
 
     try {
