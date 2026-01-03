@@ -35,11 +35,11 @@ class GridOverlay extends StatelessWidget {
                       child: GestureDetector(
                         onTap: () {}, // Prevent closing when tapping on grid
                         child: GridView.count(
-                          crossAxisCount: 2,
-                          padding: const EdgeInsets.all(24),
-                          mainAxisSpacing: 20,
-                          crossAxisSpacing: 20,
-                          childAspectRatio: 1.0,
+                          crossAxisCount: 4, // 4 butoane pe rând
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 0.85, // Puțin mai înalt pentru text
                           children: [
                             ..._buildNormalButtons(context, appState),
                             if (appState.isAdminMode) ..._buildAdminButtons(context, appState),
@@ -60,138 +60,210 @@ class GridOverlay extends StatelessWidget {
 
   List<Widget> _buildNormalButtons(BuildContext context, AppStateProvider appState) {
     return [
-      _buildCard(context, appState, 'Evenimente', Icons.event, '/evenimente', const Color(0xFF4ECDC4)),
-      _buildCard(context, appState, 'Disponibilitate', Icons.calendar_today, '/disponibilitate', const Color(0xFF4ECDC4)),
-      _buildCard(context, appState, 'Salarii', Icons.attach_money, '/salarizare', const Color(0xFF4ECDC4)),
-      _buildCard(context, appState, 'Centrala', Icons.phone, '/centrala', const Color(0xFF4ECDC4)),
-      _buildCard(context, appState, 'WhatsApp', Icons.chat, '/whatsapp', const Color(0xFF4ECDC4)),
-      _buildCard(context, appState, 'Echipă', Icons.people, '/team', const Color(0xFF4ECDC4)),
+      _buildAppIcon(context, appState, 'Evenimente', Icons.event, '/evenimente'),
+      _buildAppIcon(context, appState, 'Disponibilitate', Icons.calendar_today, '/disponibilitate'),
+      _buildAppIcon(context, appState, 'Salarii', Icons.attach_money, '/salarizare'),
+      _buildAppIcon(context, appState, 'Centrala', Icons.phone, '/centrala'),
+      _buildAppIcon(context, appState, 'WhatsApp', Icons.chat, '/whatsapp'),
+      _buildAppIcon(context, appState, 'Echipă', Icons.people, '/team'),
     ];
   }
 
   List<Widget> _buildAdminButtons(BuildContext context, AppStateProvider appState) {
     return [
-      _buildCard(context, appState, 'Aprobări KYC', Icons.check_circle, '/admin/kyc', const Color(0xFFEF4444)),
-      _buildCard(context, appState, 'Conversații AI', Icons.chat_bubble, '/admin/ai-conversations', const Color(0xFFEF4444)),
-      _buildActionCard(context, appState, 'Ieși Admin', Icons.exit_to_app, const Color(0xFFEF4444), () {
+      _buildAppIcon(context, appState, 'Aprobări KYC', Icons.check_circle, '/admin/kyc', color: const Color(0xFFEF4444)),
+      _buildAppIcon(context, appState, 'Conversații AI', Icons.chat_bubble, '/admin/ai-conversations', color: const Color(0xFFEF4444)),
+      _buildAppIconAction(context, appState, 'Ieși Admin', Icons.exit_to_app, () {
         appState.exitAdminMode();
         appState.closeGrid();
-      }),
+      }, color: const Color(0xFFEF4444)),
     ];
   }
 
   List<Widget> _buildGmButtons(BuildContext context, AppStateProvider appState) {
     return [
-      _buildCard(context, appState, 'Conturi WA', Icons.settings, '/gm/accounts', const Color(0xFFFBBF24)),
-      _buildCard(context, appState, 'Metrice', Icons.bar_chart, '/gm/metrics', const Color(0xFFFBBF24)),
-      _buildCard(context, appState, 'Analiză', Icons.analytics, '/gm/analytics', const Color(0xFFFBBF24)),
-      _buildCard(context, appState, 'Setări Staff', Icons.people_outline, '/gm/staff-setup', const Color(0xFFFBBF24)),
-      _buildActionCard(context, appState, 'Ieși GM', Icons.exit_to_app, const Color(0xFFFBBF24), () {
+      _buildAppIcon(context, appState, 'Conturi WA', Icons.settings, '/gm/accounts', color: const Color(0xFFFBBF24)),
+      _buildAppIcon(context, appState, 'Metrice', Icons.bar_chart, '/gm/metrics', color: const Color(0xFFFBBF24)),
+      _buildAppIcon(context, appState, 'Analiză', Icons.analytics, '/gm/analytics', color: const Color(0xFFFBBF24)),
+      _buildAppIcon(context, appState, 'Setări Staff', Icons.people_outline, '/gm/staff-setup', color: const Color(0xFFFBBF24)),
+      _buildAppIconAction(context, appState, 'Ieși GM', Icons.exit_to_app, () {
         appState.exitGmMode();
         appState.closeGrid();
-      }),
+      }, color: const Color(0xFFFBBF24)),
     ];
   }
 
-  Widget _buildCard(BuildContext context, AppStateProvider appState, String title, IconData icon, String route, Color color) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            appState.closeGrid();
-            Navigator.pushNamed(context, route);
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
+  // App Icon Style - fără card, doar icon bubble + text
+  Widget _buildAppIcon(
+    BuildContext context,
+    AppStateProvider appState,
+    String title,
+    IconData icon,
+    String route, {
+    Color color = const Color(0xFF4ECDC4),
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          appState.closeGrid();
+          Navigator.pushNamed(context, route);
+        },
+        borderRadius: BorderRadius.circular(16),
+        splashColor: Colors.white.withOpacity(0.1),
+        highlightColor: Colors.white.withOpacity(0.05),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Icon Bubble cu gradient și glow
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withOpacity(0.18),
+                      Colors.white.withOpacity(0.06),
+                    ],
                   ),
-                  child: Icon(icon, size: 40, color: color),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2D3748),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.14),
+                    width: 1,
                   ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.34),
+                      blurRadius: 22,
+                      offset: const Offset(0, 12),
+                    ),
+                    BoxShadow(
+                      color: color.withOpacity(0.12),
+                      blurRadius: 0,
+                      spreadRadius: 8,
+                    ),
+                  ],
                 ),
-              ],
-            ),
+                child: Icon(
+                  icon,
+                  size: 24,
+                  color: const Color(0xFFEAF1FF),
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withOpacity(0.30),
+                      blurRadius: 14,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Text label (1-2 linii)
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFEAF1FF),
+                  letterSpacing: 0.1,
+                  height: 1.1,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildActionCard(BuildContext context, AppStateProvider appState, String title, IconData icon, Color color, VoidCallback onTap) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
+  // App Icon cu action (fără route)
+  Widget _buildAppIconAction(
+    BuildContext context,
+    AppStateProvider appState,
+    String title,
+    IconData icon,
+    VoidCallback onTap, {
+    Color color = const Color(0xFF4ECDC4),
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        splashColor: Colors.white.withOpacity(0.1),
+        highlightColor: Colors.white.withOpacity(0.05),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Icon Bubble
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withOpacity(0.18),
+                      Colors.white.withOpacity(0.06),
+                    ],
                   ),
-                  child: Icon(icon, size: 40, color: color),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2D3748),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.14),
+                    width: 1,
                   ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.34),
+                      blurRadius: 22,
+                      offset: const Offset(0, 12),
+                    ),
+                    BoxShadow(
+                      color: color.withOpacity(0.12),
+                      blurRadius: 0,
+                      spreadRadius: 8,
+                    ),
+                  ],
                 ),
-              ],
-            ),
+                child: Icon(
+                  icon,
+                  size: 24,
+                  color: const Color(0xFFEAF1FF),
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withOpacity(0.30),
+                      blurRadius: 14,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Text label
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFEAF1FF),
+                  letterSpacing: 0.1,
+                  height: 1.1,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
       ),
