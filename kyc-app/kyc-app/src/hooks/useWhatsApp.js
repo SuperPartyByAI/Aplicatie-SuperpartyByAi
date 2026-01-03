@@ -4,20 +4,16 @@ import { db } from '../firebase';
 
 /**
  * Fetch WhatsApp conversations
- * 
+ *
  * Cached for 30 seconds, auto-refetches every 30 seconds for real-time updates
  */
 export const useConversations = () => {
   return useQuery({
     queryKey: ['whatsapp', 'conversations'],
     queryFn: async () => {
-      const q = query(
-        collection(db, 'conversations'),
-        orderBy('lastMessageAt', 'desc'),
-        limit(50)
-      );
+      const q = query(collection(db, 'conversations'), orderBy('lastMessageAt', 'desc'), limit(50));
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc) => ({
+      return snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
       }));
@@ -29,10 +25,10 @@ export const useConversations = () => {
 
 /**
  * Fetch messages for a specific conversation
- * 
+ *
  * @param {string} conversationId - Conversation ID
  */
-export const useMessages = (conversationId) => {
+export const useMessages = conversationId => {
   return useQuery({
     queryKey: ['whatsapp', 'messages', conversationId],
     queryFn: async () => {
@@ -42,7 +38,7 @@ export const useMessages = (conversationId) => {
         orderBy('timestamp', 'asc')
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc) => ({
+      return snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
       }));
@@ -55,7 +51,7 @@ export const useMessages = (conversationId) => {
 
 /**
  * Fetch WhatsApp accounts
- * 
+ *
  * Cached for 2 minutes
  */
 export const useWhatsAppAccounts = () => {
@@ -75,7 +71,7 @@ export const useWhatsAppAccounts = () => {
 
 /**
  * Send WhatsApp message
- * 
+ *
  * Automatically invalidates messages for the conversation after success
  */
 export const useSendMessage = () => {
@@ -110,10 +106,10 @@ export const useSendMessage = () => {
 
 /**
  * Get QR code for WhatsApp account
- * 
+ *
  * @param {string} accountId - Account ID
  */
-export const useWhatsAppQR = (accountId) => {
+export const useWhatsAppQR = accountId => {
   return useQuery({
     queryKey: ['whatsapp', 'qr', accountId],
     queryFn: async () => {

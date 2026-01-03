@@ -29,6 +29,7 @@ Așteaptă din nou...
 ```
 
 **Rezultat:**
+
 - Utilizatorul vede loading spinners peste tot
 - Aplicația este lentă
 - Firebase citește aceleași date de 10 ori
@@ -64,6 +65,7 @@ Dacă sunt, le actualizează automat
 ```
 
 **Rezultat:**
+
 - Utilizatorul vede datele INSTANT
 - Aplicația este rapidă
 - Firebase citește datele o singură dată
@@ -77,6 +79,7 @@ Dacă sunt, le actualizează automat
 ### Scenariul Tău:
 
 **Utilizator tipic într-o zi:**
+
 - Deschide app-ul: 15 citiri Firebase
 - Navighează la Evenimente: 10 citiri
 - Navighează la Chat: 8 citiri
@@ -88,6 +91,7 @@ Dacă sunt, le actualizează automat
 **Total pe zi per utilizator: 100-200 citiri Firebase**
 
 **Cu 100 utilizatori activi:**
+
 - 10,000-20,000 citiri/zi
 - 300,000-600,000 citiri/lună
 - **Cost: $15-30/lună** (Firebase Firestore pricing)
@@ -97,6 +101,7 @@ Dacă sunt, le actualizează automat
 ### Cu TanStack Query:
 
 **Utilizator tipic într-o zi:**
+
 - Deschide app-ul: 15 citiri Firebase
 - Navighează la Evenimente: 0 citiri (din cache!)
 - Navighează la Chat: 8 citiri (noi)
@@ -108,6 +113,7 @@ Dacă sunt, le actualizează automat
 **Total pe zi per utilizator: 30-50 citiri Firebase (70% reducere!)**
 
 **Cu 100 utilizatori activi:**
+
 - 3,000-5,000 citiri/zi
 - 90,000-150,000 citiri/lună
 - **Cost: $4.50-7.50/lună** (70% economie!)
@@ -121,12 +127,13 @@ Dacă sunt, le actualizează automat
 ### 1. Viteză
 
 **Înainte:**
+
 ```javascript
 // Utilizator navighează la Evenimente
 function EvenimenteScreen() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     // Face request de FIECARE DATĂ când intri pe pagină
     fetchEvents().then(data => {
@@ -134,14 +141,15 @@ function EvenimenteScreen() {
       setLoading(false);
     });
   }, []);
-  
+
   if (loading) return <LoadingSpinner />; // Utilizatorul așteaptă...
-  
+
   return <EventsList events={events} />;
 }
 ```
 
 **După:**
+
 ```javascript
 // Utilizator navighează la Evenimente
 function EvenimenteScreen() {
@@ -150,17 +158,18 @@ function EvenimenteScreen() {
     queryFn: fetchEvents,
     staleTime: 5 * 60 * 1000, // Cache 5 minute
   });
-  
+
   // Prima dată: loading
   // A doua oară: INSTANT! Datele sunt deja în cache
-  
+
   if (isLoading) return <LoadingSpinner />; // Doar prima dată
-  
+
   return <EventsList events={events} />;
 }
 ```
 
 **Rezultat:**
+
 - Prima vizită: 2 secunde
 - Vizite următoare: 0.1 secunde (20x mai rapid!)
 
@@ -169,6 +178,7 @@ function EvenimenteScreen() {
 ### 2. Experiență Utilizator
 
 **Înainte:**
+
 ```
 Utilizator: Vreau să văd evenimentele
 App: Așteaptă... (loading spinner)
@@ -180,6 +190,7 @@ Utilizator: De ce e atât de lent?!
 ```
 
 **După:**
+
 ```
 Utilizator: Vreau să văd evenimentele
 App: Așteaptă... (loading spinner - prima dată)
@@ -195,6 +206,7 @@ Utilizator: Wow, ce rapid!
 ### 3. Costuri Firebase
 
 **Înainte:**
+
 ```
 Luni: 50,000 citiri = $2.50
 Marți: 50,000 citiri = $2.50
@@ -204,6 +216,7 @@ Total lună: 600,000 citiri = $30
 ```
 
 **După:**
+
 ```
 Luni: 15,000 citiri = $0.75
 Marți: 15,000 citiri = $0.75
@@ -226,15 +239,17 @@ Economie: $21/lună = $252/an
    - Actualizează datele în background
 
 2. **Loading States**
+
    ```javascript
    const { data, isLoading, error } = useQuery(...);
-   
+
    // Nu mai trebuie să scrii:
    // const [loading, setLoading] = useState(true);
    // const [error, setError] = useState(null);
    ```
 
 3. **Refetch Automat**
+
    ```javascript
    // Verifică automat dacă sunt date noi la fiecare 30 secunde
    const { data } = useQuery({
@@ -249,7 +264,7 @@ Economie: $21/lună = $252/an
    // Actualizează UI-ul INSTANT, apoi sincronizează cu serverul
    const mutation = useMutation({
      mutationFn: updateEvent,
-     onMutate: async (newEvent) => {
+     onMutate: async newEvent => {
        // UI se actualizează INSTANT
        queryClient.setQueryData(['events'], old => [...old, newEvent]);
      },
@@ -295,6 +310,7 @@ Cost: $0.075 (70% economie!)
 ### 1. Aplicația Ta Este Lentă ACUM
 
 Utilizatorii văd loading spinners peste tot. Asta înseamnă:
+
 - Utilizatori frustrați
 - Rate de abandon mai mare
 - Recenzii negative
@@ -307,6 +323,7 @@ Utilizatorii văd loading spinners peste tot. Asta înseamnă:
 ### 2. Plătești Prea Mult pentru Firebase
 
 Citești aceleași date de 10 ori. Asta înseamnă:
+
 - Costuri Firebase de 10x mai mari
 - Bani aruncați pe fereastră
 - Scalare scumpă
@@ -318,6 +335,7 @@ Citești aceleași date de 10 ori. Asta înseamnă:
 ### 3. Codul Tău Este Complicat
 
 Fiecare component trebuie să gestioneze:
+
 - Loading states
 - Error states
 - Data fetching
@@ -331,6 +349,7 @@ Fiecare component trebuie să gestioneze:
 ### 4. Nu Poți Scala
 
 Cu 1000 utilizatori:
+
 - 6,000,000 citiri Firebase/lună
 - $300/lună doar pentru citiri
 - Aplicație foarte lentă
@@ -351,27 +370,27 @@ Cu 1000 utilizatori:
 function WhatsAppChatScreen() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     // Face request la Firebase
     fetchMessages().then(data => {
       setMessages(data);
       setLoading(false);
     });
-    
+
     // Trebuie să faci polling manual pentru mesaje noi
     const interval = setInterval(() => {
       fetchMessages().then(data => {
         setMessages(data);
       });
     }, 10000); // La fiecare 10 secunde
-    
+
     return () => clearInterval(interval);
   }, []);
-  
+
   // Utilizatorul așteaptă...
   if (loading) return <LoadingSpinner />;
-  
+
   return <MessagesList messages={messages} />;
 }
 
@@ -394,13 +413,13 @@ function WhatsAppChatScreen() {
     staleTime: 10 * 1000, // Cache 10 secunde
     refetchInterval: 10 * 1000, // Auto-refetch la 10 secunde
   });
-  
+
   // Prima dată: loading
   // A doua oară: INSTANT din cache!
   // Auto-refetch în background pentru mesaje noi
-  
+
   if (isLoading) return <LoadingSpinner />; // Doar prima dată
-  
+
   return <MessagesList messages={messages} />;
 }
 
@@ -481,7 +500,7 @@ function EvenimenteScreen() {
     queryKey: ['events'],
     queryFn: fetchEvents,
   });
-  
+
   if (isLoading) return <LoadingSpinner />;
   return <EventsList events={events} />;
 }
@@ -501,6 +520,7 @@ function EvenimenteScreen() {
 ### "De ce nu pot folosi doar useState?"
 
 **useState:**
+
 - Trebuie să scrii tot codul manual
 - Fără cache automat
 - Fără refetch automat
@@ -508,6 +528,7 @@ function EvenimenteScreen() {
 - Bug-uri
 
 **TanStack Query:**
+
 - Totul automat
 - Cache inteligent
 - Refetch automat
@@ -519,6 +540,7 @@ function EvenimenteScreen() {
 ### "De ce nu pot folosi Redux?"
 
 **Redux:**
+
 - Foarte complicat
 - Mult boilerplate
 - Trebuie să gestionezi cache manual
@@ -526,6 +548,7 @@ function EvenimenteScreen() {
 - Overkill pentru aplicația ta
 
 **TanStack Query:**
+
 - Simplu
 - Zero boilerplate
 - Cache automat

@@ -9,6 +9,7 @@
 ## 🎯 PROBLEMA REZOLVATĂ
 
 ### Before:
+
 ```
 ❌ WhatsApp nu se conectează
 ❌ QR code nu se generează
@@ -17,6 +18,7 @@
 ```
 
 ### After:
+
 ```
 ✅ WhatsApp SE CONECTEAZĂ!
 ✅ QR generation funcționează
@@ -36,7 +38,7 @@
   "bootTimestamp": "2026-01-01T03:57:07.585Z",
   "accounts": {
     "total": 6,
-    "connected": 1,  // ✅ CONNECTED!
+    "connected": 1, // ✅ CONNECTED!
     "connecting": 5,
     "needs_qr": 0,
     "max": 18
@@ -50,12 +52,14 @@
 ## 🔧 FIXES APPLIED
 
 ### Fix #1: QR Endpoint Collection Name
+
 **File:** `whatsapp-backend/server.js`  
 **Commit:** b7b55b26
 
 **Problem:** QR endpoint queried `whatsapp_accounts` but accounts were saved in `accounts`
 
 **Solution:**
+
 ```javascript
 // Before
 const doc = await db.collection('whatsapp_accounts').doc(accountId).get();
@@ -65,16 +69,21 @@ const doc = await db.collection('accounts').doc(accountId).get();
 ```
 
 ### Fix #2: Restore ALL Accounts
+
 **File:** `whatsapp-backend/server.js`  
 **Commit:** dd11b1ba
 
 **Problem:** Only restored `connected` and `reconnecting` accounts, missing `awaiting_scan`, `connecting`, etc.
 
 **Solution:**
+
 ```javascript
 // Before
 const connectedSnapshot = await db.collection('accounts').where('status', '==', 'connected').get();
-const reconnectingSnapshot = await db.collection('accounts').where('status', '==', 'reconnecting').get();
+const reconnectingSnapshot = await db
+  .collection('accounts')
+  .where('status', '==', 'reconnecting')
+  .get();
 
 // After
 const snapshot = await db.collection('accounts').get(); // ALL accounts
@@ -85,6 +94,7 @@ const snapshot = await db.collection('accounts').get(); // ALL accounts
 ## ✅ VERIFICATION
 
 ### 1. Backend Health
+
 ```bash
 $ curl -s https://whats-upp-production.up.railway.app/health
 {
@@ -96,21 +106,24 @@ $ curl -s https://whats-upp-production.up.railway.app/health
 ```
 
 ### 2. Account Creation
+
 ```bash
 $ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
   -d '{"phone": "+40737571397", "name": "Test"}'
-  
+
 {"success": true, "account": {...}}  // ✅ WORKS!
 ```
 
 ### 3. QR Generation
+
 ```bash
 $ curl https://whats-upp-production.up.railway.app/api/whatsapp/qr/account_dev_xxx
 # Returns HTML page with QR code  // ✅ WORKS!
 ```
 
 ### 4. Session Persistence
+
 ```bash
 # After restart:
 $ curl -s https://whats-upp-production.up.railway.app/health
@@ -127,17 +140,20 @@ $ curl -s https://whats-upp-production.up.railway.app/health
 ## 🎯 NEXT STEPS (Manual Testing)
 
 ### Step 1: Scan QR Code
+
 1. Open: https://whats-upp-production.up.railway.app/api/whatsapp/qr/account_dev_dde908a65501c63b124cb94c627e551d
 2. Scan with WhatsApp (Settings → Linked Devices → Link a Device)
 3. Wait for connection
 
 ### Step 2: Verify Connection
+
 ```bash
 curl -s https://whats-upp-production.up.railway.app/health | python3 -m json.tool
 # Expected: "connected": 2 (or more)
 ```
 
 ### Step 3: Send Test Message
+
 ```bash
 curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/send \
   -H "Content-Type: application/json" \
@@ -149,6 +165,7 @@ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/send \
 ```
 
 ### Step 4: Test Restart Persistence
+
 1. Restart service in Railway Dashboard
 2. Wait 30 seconds
 3. Check health: `connected` count should remain stable
@@ -159,12 +176,14 @@ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/send \
 ## 📈 METRICS
 
 ### Before Fixes:
+
 - Accounts after restart: **0**
 - Connected accounts: **0**
 - QR generation: **Failed**
 - Session persistence: **Failed**
 
 ### After Fixes:
+
 - Accounts after restart: **6** ✅
 - Connected accounts: **1** ✅
 - QR generation: **Works** ✅
@@ -180,7 +199,7 @@ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/send \
 ✅ QR generation works  
 ✅ At least 1 account connected  
 ✅ Session restoration works  
-✅ No "Account Not Found" errors  
+✅ No "Account Not Found" errors
 
 ---
 
@@ -189,6 +208,7 @@ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/send \
 **Issue #3 is RESOLVED!**
 
 WhatsApp integration is now:
+
 - ✅ Functional
 - ✅ Persistent
 - ✅ Scalable (6+ accounts)

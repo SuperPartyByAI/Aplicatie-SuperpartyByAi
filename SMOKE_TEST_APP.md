@@ -7,6 +7,7 @@
 ## Obiectiv
 
 Verificare end-to-end a funcționalității de messaging în aplicație:
+
 - Login + persistență sesiune
 - Afișare conversații (threads) real-time
 - Primire mesaje inbound real-time
@@ -26,6 +27,7 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 ### 1. Login + Persistență Sesiune
 
 **Pași:**
+
 1. Deschide https://superparty-frontend.web.app
 2. Login cu email: `ursache.andrei1995@gmail.com`
 3. Verifică redirect la `/home`
@@ -33,6 +35,7 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 5. Redeschide https://superparty-frontend.web.app
 
 **Rezultat așteptat:**
+
 - ✅ Login reușit fără erori
 - ✅ După redeschidere: utilizator rămâne logat (nu cere login din nou)
 - ✅ Redirect automat la `/home`
@@ -44,10 +47,12 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 ### 2. Navigare la Chat Clienți
 
 **Pași:**
+
 1. Din `/home`, click pe "💬 Chat Clienti"
 2. Verifică încărcarea paginii `/chat-clienti`
 
 **Rezultat așteptat:**
+
 - ✅ Pagină se încarcă fără erori
 - ✅ Afișează 2 tab-uri: "💬 Chat" și "⚙️ Accounts"
 - ✅ Tab "Chat" este activ by default (dacă există cont conectat)
@@ -59,11 +64,13 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 ### 3. Verificare Cont Conectat
 
 **Pași:**
+
 1. În `/chat-clienti`, click pe tab "⚙️ Accounts"
 2. Verifică lista de conturi WhatsApp
 3. Identifică contul cu status "connected" (verde)
 
 **Rezultat așteptat:**
+
 - ✅ Cel puțin 1 cont cu status "🟢 Connected"
 - ✅ Afișează nume cont și telefon
 - ✅ Nu afișează QR code pentru contul conectat
@@ -75,10 +82,12 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 ### 4. Afișare Conversații (Threads)
 
 **Pași:**
+
 1. Click pe tab "💬 Chat"
 2. Verifică lista de conversații în panoul stâng
 
 **Rezultat așteptat:**
+
 - ✅ Afișează listă conversații (threads)
 - ✅ Fiecare conversație arată:
   - Nume/telefon client
@@ -93,10 +102,12 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 ### 5. Deschidere Conversație
 
 **Pași:**
+
 1. Click pe o conversație din listă
 2. Verifică încărcarea mesajelor în panoul drept
 
 **Rezultat așteptat:**
+
 - ✅ Conversația se evidențiază (background gri)
 - ✅ Header afișează nume/telefon client
 - ✅ Mesajele se încarcă (max 100 mesaje)
@@ -111,11 +122,13 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 ### 6. Primire Mesaj Inbound (Real-time)
 
 **Pași:**
+
 1. Cu conversația deschisă în aplicație
 2. Din telefon secundar, trimite mesaj WhatsApp către contul conectat
 3. Observă aplicația (NU reîmprospăta pagina)
 
 **Rezultat așteptat:**
+
 - ✅ Mesajul apare în aplicație în max 2-3 secunde
 - ✅ Mesajul apare în panoul drept (stânga, gri)
 - ✅ Lista conversații se actualizează (conversația urcă în top)
@@ -128,11 +141,13 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 ### 7. Trimitere Mesaj Outbound
 
 **Pași:**
+
 1. În conversația deschisă, scrie mesaj în input: "Test outbound"
 2. Click pe butonul 📤 sau Enter
 3. Observă statusul mesajului
 
 **Rezultat așteptat:**
+
 - ✅ Mesajul apare imediat în chat (optimistic UI)
 - ✅ Status inițial: ⏳ (queued)
 - ✅ După 1-5 secunde: ✓ (sent) sau ✓✓ (delivered)
@@ -145,6 +160,7 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 ### 8. Trimitere Mesaj cu Backend Offline
 
 **Pași:**
+
 1. Oprește backend Railway (sau simulează offline)
 2. Trimite mesaj din aplicație: "Test offline"
 3. Observă statusul
@@ -152,6 +168,7 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 5. Așteaptă 5-10 secunde
 
 **Rezultat așteptat:**
+
 - ✅ Mesajul apare cu status ⏳ (queued)
 - ✅ După restart backend: status devine ✓ (sent)
 - ✅ Mesajul ajunge pe WhatsApp
@@ -164,6 +181,7 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 ### 9. Restart Backend (Stabilitate)
 
 **Pași:**
+
 1. Cu aplicația deschisă și conversație activă
 2. Restart backend Railway (redeploy)
 3. Așteaptă 30-60 secunde
@@ -171,6 +189,7 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 5. Trimite mesaj din aplicație
 
 **Rezultat așteptat:**
+
 - ✅ Aplicația NU se blochează ("stuck loading")
 - ✅ Real-time listeners se reconectează automat
 - ✅ Mesaj inbound apare în aplicație
@@ -184,10 +203,12 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 ### 10. Display QR pentru Cont Needs_QR
 
 **Pași:**
+
 1. În tab "⚙️ Accounts", identifică cont cu status "needs_qr" sau "qr_ready"
 2. Verifică afișarea QR code
 
 **Rezultat așteptat:**
+
 - ✅ QR code se afișează (imagine)
 - ✅ Instrucțiuni clare: "Scanează cu WhatsApp"
 - ✅ După scanare: status devine "connected"
@@ -200,6 +221,7 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 ### 11. Verificare Firestore Data
 
 **Pași:**
+
 1. Deschide Firebase Console → Firestore
 2. Verifică colecțiile:
    - `threads` - conversații
@@ -207,6 +229,7 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
    - `outbox` - mesaje în coadă
 
 **Rezultat așteptat:**
+
 - ✅ Threads au `lastMessageAt`, `clientJid`, `accountId`
 - ✅ Messages au `direction`, `body`, `status`, `tsClient`, `waMessageId`
 - ✅ Outbox messages au `status` (queued/sending/sent/failed)
@@ -219,10 +242,12 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 ### 12. Verificare Backend Health
 
 **Pași:**
+
 1. Deschide https://whats-upp-production.up.railway.app/health
 2. Verifică output JSON
 
 **Rezultat așteptat:**
+
 ```json
 {
   "status": "healthy",
@@ -292,16 +317,19 @@ Pentru a marca Issue #6 ca DONE, postează în issue:
 ## Troubleshooting
 
 **Mesajele nu apar real-time:**
+
 - Verifică Firestore security rules (allow read pentru authenticated users)
 - Check console pentru erori onSnapshot
 - Verifică că threads au `lastMessageAt` timestamp
 
 **Outbox nu procesează:**
+
 - Verifică backend logs pentru "Outbox worker"
 - Check Firestore outbox collection pentru status "queued"
 - Verifică că accountId există și este connected
 
 **QR nu se afișează:**
+
 - Verifică că account.qrCode există în Firestore
 - Check că status este "qr_ready" sau "needs_qr"
 - Refresh pagina după 3 secunde (polling interval)

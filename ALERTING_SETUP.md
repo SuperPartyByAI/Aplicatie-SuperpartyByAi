@@ -3,6 +3,7 @@
 ## 🎯 Overview
 
 Configure instant notifications for:
+
 - ❌ Errors (Sentry)
 - 📊 Logs (Better Stack)
 - ✅ CI/CD (GitHub Actions)
@@ -95,6 +96,7 @@ Value: https://discord.com/api/webhooks/.../...
 Already configured in `.github/workflows/notify.yml`
 
 Notifications sent for:
+
 - ✅ Successful deployments
 - ❌ Failed deployments
 - ⚠️ CI failures
@@ -104,6 +106,7 @@ Notifications sent for:
 ## 4️⃣ TEST NOTIFICATIONS
 
 ### Test Slack:
+
 ```bash
 curl -X POST YOUR_SLACK_WEBHOOK_URL \
   -H 'Content-Type: application/json' \
@@ -111,6 +114,7 @@ curl -X POST YOUR_SLACK_WEBHOOK_URL \
 ```
 
 ### Test Discord:
+
 ```bash
 curl -X POST YOUR_DISCORD_WEBHOOK_URL \
   -H 'Content-Type: application/json' \
@@ -122,6 +126,7 @@ curl -X POST YOUR_DISCORD_WEBHOOK_URL \
 ## 5️⃣ ALERT EXAMPLES
 
 ### Sentry Alert (Error):
+
 ```
 🚨 New Error in Production
 Project: superparty-frontend
@@ -132,6 +137,7 @@ Link: https://sentry.io/issues/...
 ```
 
 ### Better Stack Alert (Service Down):
+
 ```
 ⚠️ Service Down
 Service: WhatsApp Backend
@@ -141,6 +147,7 @@ Duration: 2 minutes
 ```
 
 ### GitHub Actions Alert (Deploy Failed):
+
 ```
 ❌ Deployment Failed
 Workflow: Deploy Frontend to Firebase
@@ -154,18 +161,19 @@ Link: https://github.com/.../actions/runs/...
 
 ## 6️⃣ ALERT ROUTING
 
-| Alert Type | Severity | Channel | Response Time |
-|------------|----------|---------|---------------|
-| Service Down | 🔴 Critical | #alerts + @oncall | < 5 min |
-| Error Spike | 🟠 High | #alerts | < 15 min |
-| Deploy Failed | 🟡 Medium | #deployments | < 30 min |
-| Performance | 🟢 Low | #monitoring | < 1 hour |
+| Alert Type    | Severity    | Channel           | Response Time |
+| ------------- | ----------- | ----------------- | ------------- |
+| Service Down  | 🔴 Critical | #alerts + @oncall | < 5 min       |
+| Error Spike   | 🟠 High     | #alerts           | < 15 min      |
+| Deploy Failed | 🟡 Medium   | #deployments      | < 30 min      |
+| Performance   | 🟢 Low      | #monitoring       | < 1 hour      |
 
 ---
 
 ## 7️⃣ ONCALL ROTATION (Optional)
 
 Setup PagerDuty or Opsgenie for:
+
 - 24/7 oncall rotation
 - Escalation policies
 - Phone call alerts for critical issues
@@ -188,6 +196,7 @@ Setup PagerDuty or Opsgenie for:
 ## 📞 SUPPORT
 
 If alerts not working:
+
 1. Check webhook URLs are correct
 2. Verify GitHub secrets are set
 3. Test webhooks with curl

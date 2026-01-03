@@ -4,7 +4,7 @@ import { db } from '../firebase';
 
 /**
  * Fetch all events
- * 
+ *
  * Cached for 5 minutes, automatically refetches in background
  */
 export const useEvents = () => {
@@ -12,7 +12,7 @@ export const useEvents = () => {
     queryKey: ['events'],
     queryFn: async () => {
       const snapshot = await getDocs(collection(db, 'events'));
-      return snapshot.docs.map((doc) => ({
+      return snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
       }));
@@ -23,10 +23,10 @@ export const useEvents = () => {
 
 /**
  * Fetch single event by ID
- * 
+ *
  * @param {string} eventId - Event ID
  */
-export const useEvent = (eventId) => {
+export const useEvent = eventId => {
   return useQuery({
     queryKey: ['events', eventId],
     queryFn: async () => {
@@ -41,14 +41,14 @@ export const useEvent = (eventId) => {
 
 /**
  * Create new event
- * 
+ *
  * Automatically invalidates events list after success
  */
 export const useCreateEvent = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (eventData) => {
+    mutationFn: async eventData => {
       const docRef = await addDoc(collection(db, 'events'), {
         ...eventData,
         createdAt: new Date().toISOString(),
@@ -64,7 +64,7 @@ export const useCreateEvent = () => {
 
 /**
  * Update existing event
- * 
+ *
  * Automatically invalidates affected queries after success
  */
 export const useUpdateEvent = () => {
@@ -79,7 +79,7 @@ export const useUpdateEvent = () => {
       });
       return { eventId, data };
     },
-    onSuccess: (result) => {
+    onSuccess: result => {
       // Invalidate specific event and events list
       queryClient.invalidateQueries({ queryKey: ['events', result.eventId] });
       queryClient.invalidateQueries({ queryKey: ['events'] });
@@ -89,19 +89,19 @@ export const useUpdateEvent = () => {
 
 /**
  * Delete event
- * 
+ *
  * Automatically invalidates events list after success
  */
 export const useDeleteEvent = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (eventId) => {
+    mutationFn: async eventId => {
       const docRef = doc(db, 'events', eventId);
       await deleteDoc(docRef);
       return eventId;
     },
-    onSuccess: (eventId) => {
+    onSuccess: eventId => {
       // Remove from cache and invalidate list
       queryClient.removeQueries({ queryKey: ['events', eventId] });
       queryClient.invalidateQueries({ queryKey: ['events'] });

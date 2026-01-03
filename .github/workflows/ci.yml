@@ -31,7 +31,7 @@ jobs:
           else
             echo "No format:check script, skipping"
           fi
-      
+
       - name: Lint (if present)
         run: |
           if npm run | grep -q lint; then

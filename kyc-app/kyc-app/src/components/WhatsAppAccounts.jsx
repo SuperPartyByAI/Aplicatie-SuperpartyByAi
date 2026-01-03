@@ -91,7 +91,7 @@ function WhatsAppAccounts() {
     }
   };
 
-  const updateAccountName = async (accountId) => {
+  const updateAccountName = async accountId => {
     if (!editName.trim()) {
       alert('❌ Numele nu poate fi gol');
       return;
@@ -337,8 +337,8 @@ function WhatsAppAccounts() {
                         <input
                           type="text"
                           value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && updateAccountName(account.id)}
+                          onChange={e => setEditName(e.target.value)}
+                          onKeyPress={e => e.key === 'Enter' && updateAccountName(account.id)}
                           style={{
                             padding: '0.5rem',
                             borderRadius: '6px',

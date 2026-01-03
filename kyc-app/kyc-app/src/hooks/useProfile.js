@@ -4,12 +4,12 @@ import { db } from '../firebase';
 
 /**
  * Fetch user profile
- * 
+ *
  * @param {string} userId - User ID
- * 
+ *
  * Cached for 10 minutes (profile changes less frequently)
  */
-export const useProfile = (userId) => {
+export const useProfile = userId => {
   return useQuery({
     queryKey: ['profile', userId],
     queryFn: async () => {
@@ -24,7 +24,7 @@ export const useProfile = (userId) => {
 
 /**
  * Update user profile
- * 
+ *
  * Automatically invalidates profile cache after success
  */
 export const useUpdateProfile = () => {
@@ -47,7 +47,7 @@ export const useUpdateProfile = () => {
       const previousProfile = queryClient.getQueryData(['profile', userId]);
 
       // Optimistically update
-      queryClient.setQueryData(['profile', userId], (old) => ({
+      queryClient.setQueryData(['profile', userId], old => ({
         ...old,
         ...data,
       }));
@@ -59,7 +59,7 @@ export const useUpdateProfile = () => {
       // Rollback on error
       queryClient.setQueryData(['profile', variables.userId], context.previousProfile);
     },
-    onSettled: (data) => {
+    onSettled: data => {
       // Always refetch after error or success
       queryClient.invalidateQueries({ queryKey: ['profile', data.userId] });
     },
@@ -68,7 +68,7 @@ export const useUpdateProfile = () => {
 
 /**
  * Create user profile
- * 
+ *
  * Automatically invalidates profile cache after success
  */
 export const useCreateProfile = () => {
@@ -83,7 +83,7 @@ export const useCreateProfile = () => {
       });
       return { userId, data };
     },
-    onSuccess: (result) => {
+    onSuccess: result => {
       queryClient.invalidateQueries({ queryKey: ['profile', result.userId] });
     },
   });

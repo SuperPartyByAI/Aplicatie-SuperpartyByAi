@@ -12,7 +12,7 @@ export const WheelProvider = ({ children }) => {
 
   // Listen to auth changes
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
       setCurrentUser(user);
     });
     return () => unsubscribe();
@@ -22,13 +22,13 @@ export const WheelProvider = ({ children }) => {
   const role = currentUser?.email === 'ursache.andrei1995@gmail.com' ? 'admin' : 'user';
 
   // Single source of truth for active state
-  const setView = (view) => {
+  const setView = view => {
     setActiveView(view);
   };
 
   // Toggle: if same view, go to home; otherwise switch
-  const toggleView = (view) => {
-    setActiveView(prev => prev === view ? 'home' : view);
+  const toggleView = view => {
+    setActiveView(prev => (prev === view ? 'home' : view));
   };
 
   // Backward compatibility
@@ -36,7 +36,7 @@ export const WheelProvider = ({ children }) => {
   const aiChatOpen = activeView === 'ai';
   const isWheelOpen = wheelOpen;
   const isAiChatOpen = aiChatOpen;
-  
+
   const toggleWheel = () => toggleView('grid');
   const closeWheel = () => setView('home');
   const toggleAiChat = () => toggleView('ai');

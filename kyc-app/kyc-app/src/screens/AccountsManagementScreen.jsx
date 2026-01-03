@@ -42,9 +42,7 @@ function AccountsManagementScreen() {
         </button>
       </div>
 
-      <h1 style={{ color: 'white', marginBottom: '1rem' }}>
-        ⚙️ Gestionare Conturi WhatsApp
-      </h1>
+      <h1 style={{ color: 'white', marginBottom: '1rem' }}>⚙️ Gestionare Conturi WhatsApp</h1>
 
       <div style={{ background: '#1f2937', borderRadius: '8px', padding: '1rem' }}>
         <WhatsAppAccounts />

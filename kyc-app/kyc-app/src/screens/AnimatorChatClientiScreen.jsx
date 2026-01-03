@@ -23,7 +23,7 @@ function AnimatorChatClientiScreen() {
         if (userDoc.exists()) {
           const code = userDoc.data().code;
           setUserCode(code);
-          
+
           if (!code) {
             alert('⚠️ Nu ai cod alocat. Contactează administratorul.');
             navigate('/home');

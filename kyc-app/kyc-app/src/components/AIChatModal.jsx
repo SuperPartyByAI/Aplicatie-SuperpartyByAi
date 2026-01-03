@@ -48,16 +48,17 @@ export default function AIChatModal({ isOpen, onClose }) {
     if (isAuthorized) {
       if (userInput === 'admin') {
         setInput('');
-        setMessages(prev => [...prev, 
+        setMessages(prev => [
+          ...prev,
           { role: 'user', content: input },
-          { role: 'assistant', content: '🔓 Admin mode activat. Deschid meniul admin...' }
+          { role: 'assistant', content: '🔓 Admin mode activat. Deschid meniul admin...' },
         ]);
-        
+
         // Close keyboard
         if (inputRef.current) {
           inputRef.current.blur();
         }
-        
+
         // Activate admin mode and open grid
         setTimeout(() => {
           setAdminMode(true);
@@ -70,16 +71,17 @@ export default function AIChatModal({ isOpen, onClose }) {
 
       if (userInput === 'gm') {
         setInput('');
-        setMessages(prev => [...prev, 
+        setMessages(prev => [
+          ...prev,
           { role: 'user', content: input },
-          { role: 'assistant', content: '🔓 GM mode activat. Deschid meniul GM...' }
+          { role: 'assistant', content: '🔓 GM mode activat. Deschid meniul GM...' },
         ]);
-        
+
         // Close keyboard
         if (inputRef.current) {
           inputRef.current.blur();
         }
-        
+
         // Activate GM mode and open grid
         setTimeout(() => {
           setGmMode(true);
@@ -109,49 +111,39 @@ export default function AIChatModal({ isOpen, onClose }) {
     } catch (error) {
       console.error('AI Error:', error);
       const errorMsg = error.message || error.code || 'Eroare necunoscută';
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: `Scuze, am întâmpinat o eroare: ${errorMsg}` 
-      }]);
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `Scuze, am întâmpinat o eroare: ${errorMsg}`,
+        },
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
-
-
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="new-theme ai-chat-modal" 
-      onClick={onClose}
-    >
-      <div 
-        className="ai-chat-container" 
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="new-theme ai-chat-modal" onClick={onClose}>
+      <div className="ai-chat-container" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="ai-chat-header">
           <h1>🤖 Chat AI</h1>
-          <button className="close-button" onClick={onClose}>✕</button>
+          <button className="close-button" onClick={onClose}>
+            ✕
+          </button>
         </div>
 
         {/* Messages */}
         <div className="ai-chat-messages">
           {messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`message ${msg.role}`}
-            >
+            <div key={idx} className={`message ${msg.role}`}>
               {msg.content}
             </div>
           ))}
-          {loading && (
-            <div className="message assistant loading">
-              ⏳ Scriu...
-            </div>
-          )}
+          {loading && <div className="message assistant loading">⏳ Scriu...</div>}
           <div ref={messagesEndRef} />
         </div>
 
@@ -161,8 +153,8 @@ export default function AIChatModal({ isOpen, onClose }) {
             ref={inputRef}
             type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleSend();
@@ -175,11 +167,7 @@ export default function AIChatModal({ isOpen, onClose }) {
             autoCorrect="off"
             autoCapitalize="sentences"
           />
-          <button
-            onClick={handleSend}
-            disabled={loading || !input.trim()}
-            className="send-button"
-          >
+          <button onClick={handleSend} disabled={loading || !input.trim()} className="send-button">
             {loading ? '⏳' : '📤'}
           </button>
         </div>

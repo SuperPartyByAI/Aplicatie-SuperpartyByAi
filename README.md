@@ -110,6 +110,7 @@ This shows only the status of workflows for the latest commit on `main` branch.
 ### Quick Setup
 
 **Redis (Backend Caching):**
+
 ```bash
 # Add Redis in Railway Dashboard
 # App will automatically detect and use it
@@ -117,6 +118,7 @@ This shows only the status of workflows for the latest commit on `main` branch.
 ```
 
 **TanStack Query (Frontend Caching):**
+
 ```javascript
 // Already configured! Just use the hooks:
 import { useEvents } from './hooks/useEvents';

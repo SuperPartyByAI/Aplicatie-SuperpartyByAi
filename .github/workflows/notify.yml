@@ -3,10 +3,10 @@ name: Notifications
 on:
   workflow_run:
     workflows:
-      - "CI"
-      - "Deploy Frontend to Firebase"
-      - "Deploy WhatsApp Functions to Firebase"
-      - "Deploy v7.0 to Railway"
+      - 'CI'
+      - 'Deploy Frontend to Firebase'
+      - 'Deploy WhatsApp Functions to Firebase'
+      - 'Deploy v7.0 to Railway'
     types:
       - completed
 

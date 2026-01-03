@@ -3,10 +3,10 @@ const { featureFlags } = require('./feature-flags');
 
 /**
  * Redis Cache Implementation
- * 
+ *
  * Provides distributed caching with automatic fallback to in-memory cache
  * if Redis is not available.
- * 
+ *
  * Features:
  * - Persistent cache across restarts
  * - Shared cache between multiple instances
@@ -37,7 +37,7 @@ class RedisCache {
           this.enabled = true;
         });
 
-        this.client.on('error', (err) => {
+        this.client.on('error', err => {
           console.error('❌ Redis error:', err.message);
           this.enabled = false;
         });

@@ -15,9 +15,7 @@ createRoot(document.getElementById('root')).render(
         <App />
       </WheelProvider>
       {/* DevTools only in development */}
-      {import.meta.env.DEV && (
-        <ReactQueryDevtools initialIsOpen={false} position="bottom" />
-      )}
+      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} position="bottom" />}
     </QueryClientProvider>
   </StrictMode>
 );

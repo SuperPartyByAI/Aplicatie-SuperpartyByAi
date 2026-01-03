@@ -6,7 +6,7 @@ describe('WhatsApp Backend Health', () => {
   test('should have required dependencies', () => {
     const express = require('express');
     const qrcode = require('qrcode');
-    
+
     expect(express).toBeDefined();
     expect(qrcode).toBeDefined();
   });

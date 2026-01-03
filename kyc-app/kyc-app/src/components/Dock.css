@@ -9,7 +9,9 @@
   background: var(--bg-primary);
   backdrop-filter: blur(20px);
   border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-xl), 0 0 0 1px var(--border-light);
+  box-shadow:
+    var(--shadow-xl),
+    0 0 0 1px var(--border-light);
   display: flex;
   justify-content: space-around;
   align-items: center;
@@ -65,13 +67,17 @@
 .dock-button.fab-button {
   background: var(--gradient-primary);
   color: white;
-  box-shadow: var(--shadow-lg), 0 0 20px rgba(99, 102, 241, 0.3);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 20px rgba(99, 102, 241, 0.3);
   transform: scale(1.1);
 }
 
 .dock-button.fab-button:hover {
   transform: scale(1.15);
-  box-shadow: var(--shadow-xl), 0 0 25px rgba(99, 102, 241, 0.4);
+  box-shadow:
+    var(--shadow-xl),
+    0 0 25px rgba(99, 102, 241, 0.4);
 }
 
 .dock-button.fab-button:active {
@@ -116,16 +122,16 @@
     height: 68px;
     padding: 0 var(--space-xs);
   }
-  
+
   .dock-button {
     max-width: 64px;
     height: 52px;
   }
-  
+
   .dock-icon {
     font-size: 22px;
   }
-  
+
   .dock-button.fab-button .dock-icon {
     font-size: 26px;
   }

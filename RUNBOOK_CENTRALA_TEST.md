@@ -7,6 +7,7 @@
 **Locație:** `kyc-app/kyc-app/.env.example`
 
 **Valoare:**
+
 ```bash
 VITE_VOICE_BACKEND_URL=https://web-production-f0714.up.railway.app
 ```
@@ -14,18 +15,21 @@ VITE_VOICE_BACKEND_URL=https://web-production-f0714.up.railway.app
 ### Setare pentru Development
 
 **Creează fișier `.env` în `kyc-app/kyc-app/`:**
+
 ```bash
 cd kyc-app/kyc-app
 cp .env.example .env
 ```
 
 **Editează `.env`:**
+
 ```bash
 # Backend URL for Voice/Centrala
 VITE_VOICE_BACKEND_URL=https://web-production-f0714.up.railway.app
 ```
 
 **Verificare:**
+
 ```bash
 cat kyc-app/kyc-app/.env
 ```
@@ -40,6 +44,7 @@ npm run dev
 ```
 
 **Output așteptat:**
+
 ```
 VITE v7.3.0  ready in 163 ms
 
@@ -71,16 +76,19 @@ VITE v7.3.0  ready in 163 ms
 ### ✅ Test 1: GET /api/voice/token
 
 **Request:**
+
 ```
 GET https://web-production-f0714.up.railway.app/api/voice/token
 ```
 
 **Headers așteptate:**
+
 ```
 Authorization: Bearer [Firebase ID Token]
 ```
 
 **Response așteptat (200 OK):**
+
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -89,6 +97,7 @@ Authorization: Bearer [Firebase ID Token]
 ```
 
 **❌ FAIL dacă:**
+
 - Status: 404 Not Found
 - Response: HTML (nu JSON)
 - Error: "Unexpected token < in JSON"
@@ -98,11 +107,13 @@ Authorization: Bearer [Firebase ID Token]
 ### ✅ Test 2: GET /api/voice/calls/stats
 
 **Request:**
+
 ```
 GET https://web-production-f0714.up.railway.app/api/voice/calls/stats
 ```
 
 **Response așteptat (200 OK):**
+
 ```json
 {
   "totalCalls": 42,
@@ -113,6 +124,7 @@ GET https://web-production-f0714.up.railway.app/api/voice/calls/stats
 ```
 
 **❌ FAIL dacă:**
+
 - Status: 404 Not Found
 - Response: HTML (nu JSON)
 - Error în console: "SyntaxError: Unexpected token < in JSON"
@@ -122,11 +134,13 @@ GET https://web-production-f0714.up.railway.app/api/voice/calls/stats
 ### ✅ Test 3: GET /api/voice/calls/recent?limit=20
 
 **Request:**
+
 ```
 GET https://web-production-f0714.up.railway.app/api/voice/calls/recent?limit=20
 ```
 
 **Response așteptat (200 OK):**
+
 ```json
 [
   {
@@ -142,6 +156,7 @@ GET https://web-production-f0714.up.railway.app/api/voice/calls/recent?limit=20
 ```
 
 **❌ FAIL dacă:**
+
 - Status: 404 Not Found
 - Response: HTML (nu JSON)
 - Array gol: `[]` (OK dacă nu sunt apeluri)
@@ -153,12 +168,14 @@ GET https://web-production-f0714.up.railway.app/api/voice/calls/recent?limit=20
 **Verifică Console (tab "Console" în DevTools):**
 
 **✅ PASS dacă vezi:**
+
 ```
 Twilio Device initialized
 Device ready
 ```
 
 **❌ FAIL dacă vezi:**
+
 ```
 Error initializing Twilio Device: Invalid token
 TwilioError: 31205 - Connection error
@@ -168,9 +185,10 @@ TwilioError: 31205 - Connection error
 
 ## 4️⃣ Troubleshooting
 
-### Eroare: 404 Not Found pe /api/voice/*
+### Eroare: 404 Not Found pe /api/voice/\*
 
 **Cauze posibile:**
+
 1. **Backend URL greșit**
    - Verifică: `echo $VITE_VOICE_BACKEND_URL` sau `.env`
    - Corect: `https://web-production-f0714.up.railway.app`
@@ -186,9 +204,11 @@ TwilioError: 31205 - Connection error
    - Path corect: `/api/voice/token` (nu `/voice/token`)
 
 **Fix:**
+
 ```javascript
 // CentralaTelefonicaScreen.jsx
-const BACKEND_URL = import.meta.env.VITE_VOICE_BACKEND_URL || 'https://web-production-f0714.up.railway.app';
+const BACKEND_URL =
+  import.meta.env.VITE_VOICE_BACKEND_URL || 'https://web-production-f0714.up.railway.app';
 // Verifică că nu are trailing slash
 ```
 
@@ -199,11 +219,13 @@ const BACKEND_URL = import.meta.env.VITE_VOICE_BACKEND_URL || 'https://web-produ
 **Cauză:** Backend răspunde HTML în loc de JSON (probabil 404 page)
 
 **Debug:**
+
 1. **Click pe request în Network tab**
 2. **Tab "Response"** - vezi HTML?
 3. **Verifică URL-ul exact** din request
 
 **Fix:**
+
 - Corectează BASE_URL în `.env`
 - Verifică că backend-ul are endpoint-ul respectiv
 - Verifică proxy/CORS settings
@@ -215,11 +237,13 @@ const BACKEND_URL = import.meta.env.VITE_VOICE_BACKEND_URL || 'https://web-produ
 **Cauză:** Token-ul de la `/api/voice/token` este invalid sau expirat
 
 **Debug:**
+
 1. **Verifică response de la `/api/voice/token`** în Network tab
 2. **Token-ul e valid JWT?** (3 părți separate prin `.`)
 3. **Backend-ul generează token-ul corect?**
 
 **Fix:**
+
 - Verifică Twilio credentials în backend
 - Verifică că token-ul nu e expirat (TTL)
 
@@ -230,16 +254,20 @@ const BACKEND_URL = import.meta.env.VITE_VOICE_BACKEND_URL || 'https://web-produ
 **Cauză:** Backend nu permite requests de la `localhost:5173`
 
 **Verifică în Console:**
+
 ```
 Access to fetch at 'https://...' from origin 'http://localhost:5173' has been blocked by CORS policy
 ```
 
 **Fix:** Backend trebuie să permită CORS pentru development:
+
 ```javascript
 // Backend (Express)
-app.use(cors({
-  origin: ['http://localhost:5173', 'https://your-production-domain.com']
-}));
+app.use(
+  cors({
+    origin: ['http://localhost:5173', 'https://your-production-domain.com'],
+  })
+);
 ```
 
 ---
@@ -249,12 +277,14 @@ app.use(cors({
 ### A) Stats Card
 
 **Verifică în UI:**
+
 - Total Calls: [număr]
 - Answered: [număr]
 - Missed: [număr]
 - Avg Duration: [număr]s
 
 **❌ FAIL dacă:**
+
 - Stats card arată "Loading..." permanent
 - Stats card arată "Error loading stats"
 - Stats sunt toate 0 (OK dacă nu sunt apeluri)
@@ -262,20 +292,24 @@ app.use(cors({
 ### B) Recent Calls List
 
 **Verifică în UI:**
+
 - Listă cu apeluri recente
 - Fiecare apel arată: număr, durată, status, timestamp
 
 **❌ FAIL dacă:**
+
 - Listă goală cu eroare
 - "No recent calls" (OK dacă nu sunt apeluri)
 
 ### C) Twilio Device Status
 
 **Verifică în UI:**
+
 - Status indicator: "Ready" sau "Connected"
 - Buton "Make Call" enabled
 
 **❌ FAIL dacă:**
+
 - Status: "Error" sau "Disconnected"
 - Buton "Make Call" disabled permanent
 
@@ -284,6 +318,7 @@ app.use(cors({
 ## ✅ Criteriu de Success
 
 **Test este PASS dacă:**
+
 1. ✅ `/api/voice/token` → 200 + JSON valid
 2. ✅ `/api/voice/calls/stats` → 200 + JSON valid
 3. ✅ `/api/voice/calls/recent` → 200 + JSON valid (sau array gol)
@@ -299,7 +334,6 @@ app.use(cors({
 - **Config modificat în PR #9:**
   - `VITE_VOICE_BACKEND_URL` în `.env.example`
   - Fallback la hardcoded URL dacă env var nu e setat
-  
 - **Fișier:** `src/screens/CentralaTelefonicaScreen.jsx` (commit `81497da8`)
 
 - **Backend:** Railway service `web-production-f0714`
@@ -309,12 +343,14 @@ app.use(cors({
 ## 🚨 Dacă Toate Testele FAIL
 
 **Posibile cauze:**
+
 1. Backend nu rulează pe Railway
 2. Backend URL greșit în `.env`
 3. Endpoints nu există în backend
 4. CORS blocat
 
 **Next steps:**
+
 1. Verifică Railway dashboard
 2. Verifică logs backend
 3. Contactează backend team

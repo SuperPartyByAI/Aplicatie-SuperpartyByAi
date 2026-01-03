@@ -27,16 +27,16 @@ export const queryClient = new QueryClient({
     queries: {
       // Data is considered fresh for 5 minutes
       staleTime: 5 * 60 * 1000,
-      
+
       // Cache data for 10 minutes
       cacheTime: 10 * 60 * 1000,
-      
+
       // Don't refetch on window focus (can be annoying)
       refetchOnWindowFocus: false,
-      
+
       // Retry failed requests once
       retry: 1,
-      
+
       // Show cached data while fetching new data
       refetchOnMount: 'always',
     },
@@ -72,9 +72,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <QueryClientProvider client={queryClient}>
       <App />
       {/* DevTools only in development */}
-      {import.meta.env.DEV && (
-        <ReactQueryDevtools initialIsOpen={false} position="bottom-right" />
-      )}
+      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} position="bottom-right" />}
     </QueryClientProvider>
   </React.StrictMode>
 );
@@ -109,7 +107,7 @@ export const useEvents = () => {
 };
 
 // Fetch single event
-export const useEvent = (eventId) => {
+export const useEvent = eventId => {
   return useQuery({
     queryKey: ['events', eventId],
     queryFn: async () => {
@@ -125,14 +123,14 @@ export const useEvent = (eventId) => {
 // Update event mutation
 export const useUpdateEvent = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ eventId, data }) => {
       const docRef = doc(db, 'events', eventId);
       await updateDoc(docRef, data);
       return { eventId, data };
     },
-    onSuccess: (data) => {
+    onSuccess: data => {
       // Invalidate and refetch events
       queryClient.invalidateQueries(['events']);
       queryClient.invalidateQueries(['events', data.eventId]);
@@ -143,9 +141,9 @@ export const useUpdateEvent = () => {
 // Create event mutation
 export const useCreateEvent = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async (eventData) => {
+    mutationFn: async eventData => {
       const docRef = await addDoc(collection(db, 'events'), eventData);
       return { id: docRef.id, ...eventData };
     },
@@ -168,7 +166,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
-export const useProfile = (userId) => {
+export const useProfile = userId => {
   return useQuery({
     queryKey: ['profile', userId],
     queryFn: async () => {
@@ -183,14 +181,14 @@ export const useProfile = (userId) => {
 
 export const useUpdateProfile = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ userId, data }) => {
       const docRef = doc(db, 'users', userId);
       await updateDoc(docRef, data);
       return { userId, data };
     },
-    onSuccess: (data) => {
+    onSuccess: data => {
       queryClient.invalidateQueries(['profile', data.userId]);
     },
   });
@@ -213,10 +211,7 @@ export const useConversations = () => {
   return useQuery({
     queryKey: ['whatsapp', 'conversations'],
     queryFn: async () => {
-      const q = query(
-        collection(db, 'conversations'),
-        orderBy('lastMessageAt', 'desc')
-      );
+      const q = query(collection(db, 'conversations'), orderBy('lastMessageAt', 'desc'));
       const snapshot = await getDocs(q);
       return snapshot.docs.map(doc => ({
         id: doc.id,
@@ -229,7 +224,7 @@ export const useConversations = () => {
 };
 
 // Fetch messages for a conversation
-export const useMessages = (conversationId) => {
+export const useMessages = conversationId => {
   return useQuery({
     queryKey: ['whatsapp', 'messages', conversationId],
     queryFn: async () => {
@@ -253,7 +248,7 @@ export const useMessages = (conversationId) => {
 // Send message mutation
 export const useSendMessage = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ conversationId, message }) => {
       // Call your API to send message
@@ -290,7 +285,7 @@ function EvenimenteScreen() {
   const { data: events, isLoading, error, refetch } = useEvents();
   const createEvent = useCreateEvent();
 
-  const handleCreateEvent = async (eventData) => {
+  const handleCreateEvent = async eventData => {
     try {
       await createEvent.mutateAsync(eventData);
       // Success! Events list will auto-update
@@ -304,30 +299,23 @@ function EvenimenteScreen() {
   }
 
   if (error) {
-    return (
-      <ErrorMessage 
-        error={error} 
-        onRetry={refetch}
-      />
-    );
+    return <ErrorMessage error={error} onRetry={refetch} />;
   }
 
   return (
     <div>
       <h1>Evenimente</h1>
-      
+
       {/* Show loading state for mutation */}
       {createEvent.isLoading && <p>Se creează evenimentul...</p>}
-      
+
       {/* Events list */}
       {events?.map(event => (
         <EventCard key={event.id} event={event} />
       ))}
-      
+
       {/* Create button */}
-      <button onClick={() => handleCreateEvent({ title: 'New Event' })}>
-        Creează Eveniment
-      </button>
+      <button onClick={() => handleCreateEvent({ title: 'New Event' })}>Creează Eveniment</button>
     </div>
   );
 }
@@ -350,7 +338,7 @@ function WhatsAppChatScreen({ conversationId }) {
 
   const handleSend = async () => {
     if (!message.trim()) return;
-    
+
     try {
       await sendMessage.mutateAsync({
         conversationId,
@@ -374,19 +362,16 @@ function WhatsAppChatScreen({ conversationId }) {
           <MessageBubble key={msg.id} message={msg} />
         ))}
       </div>
-      
+
       {/* Input */}
       <div className="input">
         <input
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+          onChange={e => setMessage(e.target.value)}
+          onKeyPress={e => e.key === 'Enter' && handleSend()}
           disabled={sendMessage.isLoading}
         />
-        <button 
-          onClick={handleSend}
-          disabled={sendMessage.isLoading}
-        >
+        <button onClick={handleSend} disabled={sendMessage.isLoading}>
           {sendMessage.isLoading ? 'Se trimite...' : 'Trimite'}
         </button>
       </div>
@@ -406,42 +391,39 @@ Update UI immediately, rollback on error:
 ```javascript
 export const useUpdateEvent = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ eventId, data }) => {
       const docRef = doc(db, 'events', eventId);
       await updateDoc(docRef, data);
       return { eventId, data };
     },
-    
+
     // Update UI immediately
     onMutate: async ({ eventId, data }) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries(['events', eventId]);
-      
+
       // Snapshot previous value
       const previousEvent = queryClient.getQueryData(['events', eventId]);
-      
+
       // Optimistically update
       queryClient.setQueryData(['events', eventId], old => ({
         ...old,
         ...data,
       }));
-      
+
       // Return context with previous value
       return { previousEvent };
     },
-    
+
     // Rollback on error
     onError: (err, variables, context) => {
-      queryClient.setQueryData(
-        ['events', variables.eventId],
-        context.previousEvent
-      );
+      queryClient.setQueryData(['events', variables.eventId], context.previousEvent);
     },
-    
+
     // Always refetch after error or success
-    onSettled: (data) => {
+    onSettled: data => {
       queryClient.invalidateQueries(['events', data.eventId]);
     },
   });
@@ -461,7 +443,7 @@ function EventsList() {
   const queryClient = useQueryClient();
   const { data: events } = useEvents();
 
-  const handleMouseEnter = (eventId) => {
+  const handleMouseEnter = eventId => {
     // Prefetch event details on hover
     queryClient.prefetchQuery({
       queryKey: ['events', eventId],
@@ -472,10 +454,7 @@ function EventsList() {
   return (
     <div>
       {events?.map(event => (
-        <div 
-          key={event.id}
-          onMouseEnter={() => handleMouseEnter(event.id)}
-        >
+        <div key={event.id} onMouseEnter={() => handleMouseEnter(event.id)}>
           {event.title}
         </div>
       ))}
@@ -509,18 +488,13 @@ export const useInfiniteEvents = () => {
         nextCursor: snapshot.docs[snapshot.docs.length - 1],
       };
     },
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    getNextPageParam: lastPage => lastPage.nextCursor,
   });
 };
 
 // Usage
 function EventsList() {
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteEvents();
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteEvents();
 
   return (
     <div>
@@ -531,12 +505,9 @@ function EventsList() {
           ))}
         </div>
       ))}
-      
+
       {hasNextPage && (
-        <button 
-          onClick={() => fetchNextPage()}
-          disabled={isFetchingNextPage}
-        >
+        <button onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
           {isFetchingNextPage ? 'Se încarcă...' : 'Încarcă mai multe'}
         </button>
       )}
@@ -586,11 +557,11 @@ const { data } = useQuery({
   retry: (failureCount, error) => {
     // Don't retry on 404
     if (error.status === 404) return false;
-    
+
     // Retry up to 3 times
     return failureCount < 3;
   },
-  retryDelay: (attemptIndex) => {
+  retryDelay: attemptIndex => {
     // Exponential backoff
     return Math.min(1000 * 2 ** attemptIndex, 30000);
   },
@@ -604,6 +575,7 @@ const { data } = useQuery({
 ### React Query DevTools
 
 Already included in setup! Open with:
+
 - Click the React Query icon in bottom-right corner
 - View all queries and their states
 - Manually trigger refetches
@@ -615,10 +587,10 @@ Already included in setup! Open with:
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      onSuccess: (data) => {
+      onSuccess: data => {
         console.log('Query success:', data);
       },
-      onError: (error) => {
+      onError: error => {
         console.error('Query error:', error);
       },
     },
@@ -631,24 +603,28 @@ const queryClient = new QueryClient({
 ## 🎯 Migration Checklist
 
 ### Phase 1: Setup (30 minutes)
+
 - [ ] Install dependencies
 - [ ] Create queryClient.js
 - [ ] Wrap App with QueryClientProvider
 - [ ] Add DevTools
 
 ### Phase 2: Create Hooks (1-2 hours)
+
 - [ ] Create useEvents hook
 - [ ] Create useProfile hook
 - [ ] Create useWhatsApp hooks
 - [ ] Test hooks in isolation
 
 ### Phase 3: Migrate Components (2-3 hours)
+
 - [ ] Migrate EvenimenteScreen
 - [ ] Migrate WhatsAppChatScreen
 - [ ] Migrate AdminScreen
 - [ ] Migrate other screens
 
 ### Phase 4: Test & Optimize (1 hour)
+
 - [ ] Test all features
 - [ ] Check DevTools for cache behavior
 - [ ] Adjust staleTime values
@@ -659,6 +635,7 @@ const queryClient = new QueryClient({
 ## 🚀 Expected Results
 
 ### Before TanStack Query:
+
 ```
 Page Load:
 - 10-20 Firebase reads
@@ -676,6 +653,7 @@ Daily Firebase Reads:
 ```
 
 ### After TanStack Query:
+
 ```
 Page Load:
 - 2-5 Firebase reads (70% reduction)

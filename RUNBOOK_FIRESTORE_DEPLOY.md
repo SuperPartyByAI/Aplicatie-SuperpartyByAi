@@ -3,6 +3,7 @@
 ## 📋 Prerequisite
 
 Trebuie să ai Firebase CLI instalat și autentificat:
+
 ```bash
 firebase login
 ```
@@ -12,11 +13,13 @@ firebase login
 ## 1️⃣ Identifică Proiectul Firebase
 
 ### Listează toate proiectele disponibile:
+
 ```bash
 firebase projects:list
 ```
 
 **Output așteptat:**
+
 ```
 ┌──────────────────────┬────────────────────┬────────────────┬──────────────────────┐
 │ Project Display Name │ Project ID         │ Project Number │ Resource Location ID │
@@ -26,15 +29,19 @@ firebase projects:list
 ```
 
 ### Selectează proiectul corect:
+
 ```bash
 firebase use superparty-xxxxx
 ```
-*(Înlocuiește `superparty-xxxxx` cu Project ID-ul real)*
+
+_(Înlocuiește `superparty-xxxxx` cu Project ID-ul real)_
 
 **Verificare:**
+
 ```bash
 firebase use
 ```
+
 **Output așteptat:** `Active Project: superparty-xxxxx (SuperParty)`
 
 ---
@@ -42,11 +49,13 @@ firebase use
 ## 2️⃣ Deploy Firestore Rules
 
 ### Comandă:
+
 ```bash
 firebase deploy --only firestore:rules
 ```
 
 **Output așteptat (SUCCESS):**
+
 ```
 === Deploying to 'superparty-xxxxx'...
 
@@ -60,11 +69,13 @@ i  firestore: uploading rules firestore.rules...
 ```
 
 **Output așteptat (ERROR - dacă există erori de sintaxă):**
+
 ```
 Error: Compilation error in firestore.rules:
 Line 42: Unexpected token '}'
 ```
-*(Fixează eroarea în `firestore.rules` și re-run)*
+
+_(Fixează eroarea în `firestore.rules` și re-run)_
 
 ---
 
@@ -82,6 +93,7 @@ Line 42: Unexpected token '}'
 ### B) Verificare în Aplicație (CRITICAL)
 
 1. **Pornește aplicația:**
+
    ```bash
    cd kyc-app/kyc-app
    npm run dev
@@ -126,19 +138,23 @@ Line 42: Unexpected token '}'
 ## 4️⃣ Troubleshooting
 
 ### Eroare: "Failed to authenticate"
+
 ```bash
 firebase login --reauth
 ```
 
 ### Eroare: "Permission denied" după deploy
+
 - Verifică că ai selectat proiectul corect: `firebase use`
 - Verifică că ai permisiuni de deploy în Firebase Console (Owner/Editor role)
 
 ### Eroare: "Rules compilation failed"
+
 - Verifică sintaxa în `firestore.rules`
 - Rulează: `firebase firestore:rules:validate`
 
 ### Aplicația încă aruncă "Missing permissions" după deploy
+
 1. **Hard refresh în browser:** Ctrl+Shift+R (sau Cmd+Shift+R pe Mac)
 2. **Clear cache:** Șterge cache-ul browser-ului
 3. **Logout + Login:** Logout din aplicație și login din nou
@@ -149,6 +165,7 @@ firebase login --reauth
 ## ✅ Criteriu de Success
 
 **Deploy este SUCCESS dacă:**
+
 1. ✅ Comanda `firebase deploy --only firestore:rules` returnează "Deploy complete!"
 2. ✅ Firebase Console arată rules-urile noi
 3. ✅ Aplicația funcționează fără erori "Missing or insufficient permissions" în console
@@ -162,7 +179,6 @@ firebase login --reauth
 - **Rules modificate în PR #9:**
   - `staffProfiles`: write pentru owner (nu doar admin)
   - `kycSubmissions`: read/create pentru owner, update/delete pentru admin
-  
 - **Fișier:** `firestore.rules` (commit `441fa082`)
 
 - **Backup:** Rules vechi sunt în Firebase Console → Rules → History

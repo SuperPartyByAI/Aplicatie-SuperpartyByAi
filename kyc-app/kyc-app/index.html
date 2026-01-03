@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <meta name="build-time" content="%VITE_BUILD_TIME%" />
 
     <!-- PWA Meta Tags -->
@@ -35,19 +38,19 @@
         window.addEventListener('load', async () => {
           try {
             console.log('🧹 Clearing all caches on load...');
-            
+
             // Unregister ALL service workers
             const registrations = await navigator.serviceWorker.getRegistrations();
             for (const registration of registrations) {
               await registration.unregister();
             }
-            
+
             // Clear ALL caches
             const cacheNames = await caches.keys();
             for (const cacheName of cacheNames) {
               await caches.delete(cacheName);
             }
-            
+
             console.log('✅ All caches cleared');
           } catch (err) {
             console.log('Cache cleanup failed:', err);

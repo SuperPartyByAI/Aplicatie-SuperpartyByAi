@@ -21,12 +21,15 @@
 ## 🎯 REZUMAT EXECUTIV
 
 ### **Obiectiv:**
+
 Implementare sistem de navigație cu Dock + FAB + Wheel pentru aplicația web, cu suport pentru 5 moduri diferite (Normal, Admin, GM, Admin+GM, Normal+Admin+GM).
 
 ### **Rezultat:**
+
 ✅ **COMPLET** - Toate cele 5 moduri implementate cu grid layout 4 coloane, optimizat pentru mobile.
 
 ### **Statistici:**
+
 - **Fișiere modificate:** 5
 - **Linii de cod:** +489, -249
 - **Moduri implementate:** 5
@@ -80,6 +83,7 @@ Wheel se închide
 ### **1. MOD NORMAL (11 butoane total)**
 
 **Wheel (6 butoane - albastru):**
+
 ```
 ┌─────────────────────────────────────────────┐
 │  📅      🗓️      💰      🚗              │  ← Rând 1
@@ -91,16 +95,17 @@ Wheel se închide
 └─────────────────────────────────────────────┘
 ```
 
-| # | Icon | Label | Rută |
-|---|------|-------|------|
-| 1 | 📅 | Evenimente | `/evenimente` |
-| 2 | 🗓️ | Disponibilitate | `/disponibilitate` |
-| 3 | 💰 | Salarii | `/salarizare` |
-| 4 | 🚗 | Șoferi | `/soferi` |
-| 5 | 💬 | Chat Animator | `/animator/chat-clienti` |
-| 6 | 📱 | Clienți Disp | `/whatsapp/available` |
+| #   | Icon | Label           | Rută                     |
+| --- | ---- | --------------- | ------------------------ |
+| 1   | 📅   | Evenimente      | `/evenimente`            |
+| 2   | 🗓️   | Disponibilitate | `/disponibilitate`       |
+| 3   | 💰   | Salarii         | `/salarizare`            |
+| 4   | 🚗   | Șoferi          | `/soferi`                |
+| 5   | 💬   | Chat Animator   | `/animator/chat-clienti` |
+| 6   | 📱   | Clienți Disp    | `/whatsapp/available`    |
 
 **Dock (5 butoane - mereu vizibile):**
+
 - 📞 Centrala → `/centrala-telefonica`
 - 💬 Chat Clienți → `/chat-clienti`
 - ➕ FAB → Toggle wheel
@@ -112,6 +117,7 @@ Wheel se închide
 ### **2. MOD ADMIN (8 butoane total)**
 
 **Wheel (3 butoane - roșu):**
+
 ```
 ┌─────────────────────────────────────────────┐
 │  ✅      💬      🚪      [ ]              │
@@ -120,11 +126,11 @@ Wheel se închide
 └─────────────────────────────────────────────┘
 ```
 
-| # | Icon | Label | Acțiune |
-|---|------|-------|---------|
-| 1 | ✅ | Aprobări KYC | `loadKycSubmissions` → view `admin-kyc` |
-| 2 | 💬 | Conversații AI | `loadAiConversations` → view `admin-conversations` |
-| 3 | 🚪 | Ieși Admin | `exitAdminMode` |
+| #   | Icon | Label          | Acțiune                                            |
+| --- | ---- | -------------- | -------------------------------------------------- |
+| 1   | ✅   | Aprobări KYC   | `loadKycSubmissions` → view `admin-kyc`            |
+| 2   | 💬   | Conversații AI | `loadAiConversations` → view `admin-conversations` |
+| 3   | 🚪   | Ieși Admin     | `exitAdminMode`                                    |
 
 **Dock (5 butoane):** Identic cu Normal
 
@@ -135,6 +141,7 @@ Wheel se închide
 ### **3. MOD GM (9 butoane total)**
 
 **Wheel (4 butoane - galben):**
+
 ```
 ┌─────────────────────────────────────────────┐
 │  ⚙️      📊      📈      🚪              │
@@ -143,12 +150,12 @@ Wheel se închide
 └─────────────────────────────────────────────┘
 ```
 
-| # | Icon | Label | Rută/Acțiune |
-|---|------|-------|--------------|
-| 1 | ⚙️ | Conturi WA | `/accounts-management` |
-| 2 | 📊 | Metrici | `loadPerformanceMetrics` → view `gm-overview` |
-| 3 | 📈 | Analytics | `setView` → view `gm-analytics` |
-| 4 | 🚪 | Ieși GM | `exitGMMode` |
+| #   | Icon | Label      | Rută/Acțiune                                  |
+| --- | ---- | ---------- | --------------------------------------------- |
+| 1   | ⚙️   | Conturi WA | `/accounts-management`                        |
+| 2   | 📊   | Metrici    | `loadPerformanceMetrics` → view `gm-overview` |
+| 3   | 📈   | Analytics  | `setView` → view `gm-analytics`               |
+| 4   | 🚪   | Ieși GM    | `exitGMMode`                                  |
 
 **Dock (5 butoane):** Identic cu Normal
 
@@ -159,6 +166,7 @@ Wheel se închide
 ### **4. MOD ADMIN+GM (12 butoane total)**
 
 **Wheel (7 butoane = 3 admin + 4 GM):**
+
 ```
 ┌─────────────────────────────────────────────┐
 │  ✅      💬      🚪      [ ]              │  ← Admin (roșu)
@@ -175,6 +183,7 @@ Wheel se închide
 ### **5. MOD NORMAL+ADMIN+GM (18 butoane total)** ⭐
 
 **Wheel (13 butoane = 6 normale + 3 admin + 4 GM):**
+
 ```
 ┌─────────────────────────────────────────────┐
 │  📅      🗓️      💰      🚗              │  ← Normal (albastru)
@@ -192,23 +201,25 @@ Wheel se închide
 
 ## 📊 COMPARAȚIE MODURI
 
-| Modul | Badge | Wheel | Dock | Total | Culori |
-|-------|-------|-------|------|-------|--------|
-| **Normal** | - | 6 | 5 | **11** | 🔵 Albastru |
-| **Admin** | 🔴 ADMIN | 3 | 5 | **8** | 🔴 Roșu |
-| **GM** | 🟡 GM | 4 | 5 | **9** | 🟡 Galben |
-| **Admin+GM** | 🔴🟡 | 7 | 5 | **12** | 🔴 + 🟡 |
-| **Normal+Admin+GM** | 🔴🟡 | 13 | 5 | **18** | 🔵 + 🔴 + 🟡 |
+| Modul               | Badge    | Wheel | Dock | Total  | Culori       |
+| ------------------- | -------- | ----- | ---- | ------ | ------------ |
+| **Normal**          | -        | 6     | 5    | **11** | 🔵 Albastru  |
+| **Admin**           | 🔴 ADMIN | 3     | 5    | **8**  | 🔴 Roșu      |
+| **GM**              | 🟡 GM    | 4     | 5    | **9**  | 🟡 Galben    |
+| **Admin+GM**        | 🔴🟡     | 7     | 5    | **12** | 🔴 + 🟡      |
+| **Normal+Admin+GM** | 🔴🟡     | 13    | 5    | **18** | 🔵 + 🔴 + 🟡 |
 
 ---
 
 ## 🔧 MODIFICĂRI TEHNICE
 
 ### **Commit 1: Grid Layout Implementation**
+
 **Hash:** `0a6edf3f`  
 **Data:** 2 Ian 2026, 14:53
 
 **Schimbări:**
+
 - ❌ Șters: Circular wheel (inner/outer rings)
 - ✅ Adăugat: Grid layout 4 coloane
 - ✅ Modificat: wheelActions.js (structură array)
@@ -217,6 +228,7 @@ Wheel se închide
 - ✅ Adăugat: useSwipeDown.js hook
 
 **Fișiere:**
+
 - `src/config/wheelActions.js` (+335, -249)
 - `src/components/WheelOverlay.jsx` (refactored)
 - `src/components/WheelOverlay.css` (refactored)
@@ -226,33 +238,40 @@ Wheel se închide
 ---
 
 ### **Commit 2: WhatsApp Accounts Button**
+
 **Hash:** `840b95ab`  
 **Data:** 2 Ian 2026, 14:53
 
 **Schimbări:**
+
 - ✅ Adăugat: Buton "Conturi WA" în modul GM
 - ✅ Actualizat: GM buttons 4 → 5
 - ✅ Actualizat: Admin+GM total 13 → 14
 
 **Fișiere:**
+
 - `src/config/wheelActions.js` (+14, -6)
 
 ---
 
 ### **Commit 3: Correct Mode Structure**
+
 **Hash:** `f5068f97`  
 **Data:** 2 Ian 2026, 15:20
 
 **Schimbări:**
+
 - ✅ Corectare: Butoane normale (6 corecte)
 - ✅ Corectare: Admin doar 3 butoane (fără normale)
 - ✅ Corectare: GM doar 4 butoane (fără normale)
 - ✅ Implementare: Toate 5 combinații de moduri
 
 **Fișiere:**
+
 - `src/config/wheelActions.js` (+34, -33)
 
 **Logică:**
+
 ```javascript
 if (adminMode && gmMode) {
   return [...normalButtons, ...adminButtons, ...gmButtons]; // 13
@@ -269,16 +288,19 @@ return normalButtons; // 6
 ---
 
 ### **Commit 4: Mobile Optimization**
+
 **Hash:** `02629e65`  
 **Data:** 2 Ian 2026, 15:22
 
 **Schimbări:**
+
 - ✅ Optimizare: Wheel pentru mobile (3 breakpoints)
 - ✅ Optimizare: Dock pentru mobile (touch targets)
 - ✅ Optimizare: FAB pentru mobile (feedback vizual)
 - ✅ Adăugat: Touch accessibility (56px+ targets)
 
 **Fișiere:**
+
 - `src/components/WheelOverlay.css` (+103, -18)
 - `src/components/Dock.css` (+26, -8)
 - `src/components/FAB.css` (+24, -6)
@@ -289,36 +311,36 @@ return normalButtons; // 6
 
 ### **Breakpoints Implementate:**
 
-| Breakpoint | Dispozitiv | Wheel Button | Dock Height | FAB Size |
-|------------|------------|--------------|-------------|----------|
-| **>768px** | Desktop | 90px | 70px | 64px |
-| **≤768px** | Tablet | 75px | 68px | 60px |
-| **≤480px** | Phone | 68px | 64px | 56px |
-| **≤375px** | Small Phone | 62px | 64px | 56px |
+| Breakpoint | Dispozitiv  | Wheel Button | Dock Height | FAB Size |
+| ---------- | ----------- | ------------ | ----------- | -------- |
+| **>768px** | Desktop     | 90px         | 70px        | 64px     |
+| **≤768px** | Tablet      | 75px         | 68px        | 60px     |
+| **≤480px** | Phone       | 68px         | 64px        | 56px     |
+| **≤375px** | Small Phone | 62px         | 64px        | 56px     |
 
 ### **Touch Targets:**
 
-| Element | Desktop | Mobile | Accessibility |
-|---------|---------|--------|---------------|
-| **Wheel Button** | 90x90px | 62-75px | ✅ >44px |
-| **Dock Button** | 80x60px | 52-56px | ✅ >44px |
-| **FAB** | 64x64px | 56-60px | ✅ >44px |
+| Element          | Desktop | Mobile  | Accessibility |
+| ---------------- | ------- | ------- | ------------- |
+| **Wheel Button** | 90x90px | 62-75px | ✅ >44px      |
+| **Dock Button**  | 80x60px | 52-56px | ✅ >44px      |
+| **FAB**          | 64x64px | 56-60px | ✅ >44px      |
 
 ### **Spacing:**
 
-| Element | Desktop | Tablet | Phone | Small |
-|---------|---------|--------|-------|-------|
-| **Wheel Gap** | 16px | 10px | 8px | 6px |
-| **Dock Padding** | 20px | 8px | 6px | 6px |
+| Element          | Desktop | Tablet | Phone | Small |
+| ---------------- | ------- | ------ | ----- | ----- |
+| **Wheel Gap**    | 16px    | 10px   | 8px   | 6px   |
+| **Dock Padding** | 20px    | 8px    | 6px   | 6px   |
 
 ### **Typography:**
 
-| Element | Desktop | Tablet | Phone | Small |
-|---------|---------|--------|-------|-------|
-| **Wheel Icon** | 28px | 26px | 24px | 22px |
-| **Wheel Label** | 13px | 11px | 10px | 9px |
-| **Dock Icon** | 24px | 24px | 22px | 22px |
-| **Dock Label** | 11px | 10px | 9px | 9px |
+| Element         | Desktop | Tablet | Phone | Small |
+| --------------- | ------- | ------ | ----- | ----- |
+| **Wheel Icon**  | 28px    | 26px   | 24px  | 22px  |
+| **Wheel Label** | 13px    | 11px   | 10px  | 9px   |
+| **Dock Icon**   | 24px    | 24px   | 22px  | 22px  |
+| **Dock Label**  | 11px    | 10px   | 9px   | 9px   |
 
 ---
 
@@ -410,24 +432,28 @@ return normalButtons; // 6
 ## 🚀 DEPLOYMENT NOTES
 
 ### **Environment Variables:**
+
 ```bash
 # Nu sunt necesare variabile noi
 # Toate rutele folosesc configurația existentă
 ```
 
 ### **Build:**
+
 ```bash
 cd kyc-app/kyc-app
 npm run build
 ```
 
 ### **Verificări Pre-Deploy:**
+
 1. ✅ Toate testele din checklist trecute
 2. ✅ Build fără erori
 3. ✅ Lighthouse score >90 (mobile)
 4. ✅ Testat pe dispozitive reale
 
 ### **Rollback Plan:**
+
 ```bash
 # Dacă apar probleme, revert la commit anterior:
 git revert 02629e65  # Mobile optimization
@@ -437,6 +463,7 @@ git revert 0a6edf3f  # Grid layout
 ```
 
 ### **Monitorizare Post-Deploy:**
+
 - [ ] Verifică erori în Sentry
 - [ ] Monitorizează Logtail pentru crash-uri
 - [ ] Verifică analytics pentru drop-off rate
@@ -447,17 +474,20 @@ git revert 0a6edf3f  # Grid layout
 ## 📊 METRICI DE SUCCES
 
 ### **Performance:**
+
 - Bundle size: +15KB (acceptabil)
 - First Contentful Paint: <2s
 - Time to Interactive: <3s
 - Lighthouse Mobile: >90
 
 ### **UX:**
+
 - Touch target compliance: 100%
 - Responsive breakpoints: 3
 - Accessibility score: >90
 
 ### **Code Quality:**
+
 - Componente reutilizabile: 5
 - Linii de cod: +489
 - Test coverage: N/A (manual testing)
@@ -468,31 +498,34 @@ git revert 0a6edf3f  # Grid layout
 
 **Implementare:** Ona (AI Agent)  
 **Review:** SuperPartyByAI  
-**Testing:** TBD  
+**Testing:** TBD
 
 ---
 
 ## 📝 NOTES FINALE
 
 ### **Ce Funcționează Bine:**
+
 ✅ Grid layout flexibil și scalabil  
 ✅ Separare clară între moduri  
 ✅ Optimizare mobilă completă  
 ✅ Touch targets accessibility compliant  
-✅ Culori diferențiate per mod  
+✅ Culori diferențiate per mod
 
 ### **Limitări Cunoscute:**
+
 ⚠️ Nu există animații între moduri  
 ⚠️ Swipe down gesture nu e implementat în screens  
 ⚠️ Nu există persistență state între refresh-uri  
-⚠️ Wheel nu se închide automat după navigare (design choice)  
+⚠️ Wheel nu se închide automat după navigare (design choice)
 
 ### **Îmbunătățiri Viitoare:**
+
 💡 Animații smooth între moduri  
 💡 Persistență state în localStorage  
 💡 Swipe gestures în toate screens  
 💡 Customizare ordine butoane  
-💡 Teme personalizate per utilizator  
+💡 Teme personalizate per utilizator
 
 ---
 
@@ -504,7 +537,7 @@ Toate cele 5 moduri sunt implementate și optimizate pentru mobile. Aplicația e
 
 **Total butoane accesibile:** 18 (maxim în modul Normal+Admin+GM)  
 **Responsive breakpoints:** 3 (768px, 480px, 375px)  
-**Touch accessibility:** 100% compliant  
+**Touch accessibility:** 100% compliant
 
 ---
 

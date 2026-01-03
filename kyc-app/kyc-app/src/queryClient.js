@@ -28,7 +28,7 @@ export const queryClient = new QueryClient({
       retry: 1,
 
       // Retry delay with exponential backoff
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
 
       // Show cached data while fetching new data
       refetchOnMount: true,

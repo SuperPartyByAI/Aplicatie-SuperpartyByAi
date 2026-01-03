@@ -9,11 +9,11 @@ import { useNavigate } from 'react-router-dom';
  * @param {number} options.velocityThreshold - Minimum velocity to trigger (default: 0.5)
  * @param {Function} options.onSwipeDown - Custom callback instead of navigate back
  */
-export const useSwipeDown = ({ 
-  enabled = true, 
-  threshold = 100, 
+export const useSwipeDown = ({
+  enabled = true,
+  threshold = 100,
   velocityThreshold = 0.5,
-  onSwipeDown 
+  onSwipeDown,
 } = {}) => {
   const navigate = useNavigate();
   const touchStartY = useRef(0);
@@ -23,23 +23,23 @@ export const useSwipeDown = ({
   useEffect(() => {
     if (!enabled) return;
 
-    const handleTouchStart = (e) => {
+    const handleTouchStart = e => {
       // Only trigger if scrolled to top
       const element = e.target.closest('[data-swipe-container]') || document.documentElement;
       scrollTop.current = element.scrollTop;
-      
+
       if (scrollTop.current === 0) {
         touchStartY.current = e.touches[0].clientY;
         touchStartTime.current = Date.now();
       }
     };
 
-    const handleTouchMove = (e) => {
+    const handleTouchMove = e => {
       if (touchStartY.current === 0) return;
-      
+
       const touchY = e.touches[0].clientY;
       const deltaY = touchY - touchStartY.current;
-      
+
       // Only allow downward swipe
       if (deltaY > 0 && scrollTop.current === 0) {
         // Optional: Add visual feedback here
@@ -47,7 +47,7 @@ export const useSwipeDown = ({
       }
     };
 
-    const handleTouchEnd = (e) => {
+    const handleTouchEnd = e => {
       if (touchStartY.current === 0) return;
 
       const touchEndY = e.changedTouches[0].clientY;

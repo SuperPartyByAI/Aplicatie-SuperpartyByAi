@@ -9,10 +9,10 @@ function ChatClientiScreen() {
   const currentUser = auth.currentUser;
   const [userCode, setUserCode] = useState(null);
   const [loading, setLoading] = useState(true);
-  
+
   // Allow access for GM and Admin
-  const hasAccess = currentUser?.email === 'ursache.andrei1995@gmail.com' || 
-                    currentUser?.role === 'GM';
+  const hasAccess =
+    currentUser?.email === 'ursache.andrei1995@gmail.com' || currentUser?.role === 'GM';
 
   useEffect(() => {
     if (!hasAccess) {
@@ -55,13 +55,11 @@ function ChatClientiScreen() {
         >
           <div>
             <h1>💬 Chat Clienti - WhatsApp (GM)</h1>
-            <p className="page-subtitle">
-              FULL CONTROL - Toate conversațiile WhatsApp
-            </p>
+            <p className="page-subtitle">FULL CONTROL - Toate conversațiile WhatsApp</p>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button 
-              onClick={() => navigate('/accounts-management')} 
+            <button
+              onClick={() => navigate('/accounts-management')}
               className="btn-secondary"
               style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
             >

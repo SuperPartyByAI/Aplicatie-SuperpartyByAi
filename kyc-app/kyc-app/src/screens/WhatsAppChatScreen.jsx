@@ -42,7 +42,9 @@ function WhatsAppChatScreen() {
         </button>
       </div>
 
-      <h1 style={{ color: 'white', marginBottom: '1rem' }}>💬 Chat WhatsApp - Conversații Clienți</h1>
+      <h1 style={{ color: 'white', marginBottom: '1rem' }}>
+        💬 Chat WhatsApp - Conversații Clienți
+      </h1>
 
       <ChatClientiRealtime isGMMode={true} />
     </div>

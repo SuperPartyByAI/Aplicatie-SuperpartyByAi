@@ -73,21 +73,21 @@ app.get('/api/whatsapp/accounts', (req, res) => {
   // Try cache first (30 seconds TTL)
   const cacheKey = 'whatsapp:accounts';
   const cached = cache.get(cacheKey);
-  
+
   if (cached) {
     return res.json({ success: true, accounts: cached, cached: true });
   }
-  
+
   const accounts = whatsappManager.getAccounts();
   // Remove non-serializable fields (timers)
   const cleanAccounts = accounts.map(acc => {
     const { qrExpiryTimer, ...rest } = acc;
     return rest;
   });
-  
+
   // Cache for 30 seconds
   cache.set(cacheKey, cleanAccounts, 30 * 1000);
-  
+
   res.json({ success: true, accounts: cleanAccounts, cached: false });
 });
 
@@ -290,7 +290,7 @@ exports.chatWithAI = onCall(
     try {
       const userId = context?.uid;
       const userEmail = context?.token?.email;
-      
+
       if (!userId) {
         console.error(`[${requestId}] User not authenticated`);
         throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
@@ -319,33 +319,37 @@ exports.chatWithAI = onCall(
         messageCount: data.messages?.length || 0,
       });
 
-      const messagesRef = admin.firestore()
+      const messagesRef = admin
+        .firestore()
         .collection('aiChats')
         .doc(userId)
         .collection('messages')
         .where('important', '==', true)
         .orderBy('timestamp', 'desc')
         .limit(10);
-      
+
       const snapshot = await messagesRef.get();
       const contextMessages = [];
-      
+
       snapshot.forEach(doc => {
         const msgData = doc.data();
         contextMessages.unshift({
           role: 'user',
-          content: msgData.userMessage
+          content: msgData.userMessage,
         });
         contextMessages.push({
           role: 'assistant',
-          content: msgData.aiResponse
+          content: msgData.aiResponse,
         });
       });
 
-      const allMessages = [...contextMessages, ...data.messages.map(m => ({
-        role: m.role,
-        content: m.content
-      }))];
+      const allMessages = [
+        ...contextMessages,
+        ...data.messages.map(m => ({
+          role: m.role,
+          content: m.content,
+        })),
+      ];
 
       const Groq = require('groq-sdk');
       const groq = new Groq({ apiKey: groqKey });
@@ -362,8 +366,9 @@ exports.chatWithAI = onCall(
       const currentSessionId = data.sessionId || `session_${Date.now()}`;
 
       const userMessage = data.messages[data.messages.length - 1];
-      const isImportant = userMessage.content.length > 20 && 
-                         !['ok', 'da', 'nu', 'haha', 'lol'].includes(userMessage.content.toLowerCase());
+      const isImportant =
+        userMessage.content.length > 20 &&
+        !['ok', 'da', 'nu', 'haha', 'lol'].includes(userMessage.content.toLowerCase());
 
       await admin.firestore().collection('aiChats').doc(userId).collection('messages').add({
         sessionId: currentSessionId,
@@ -376,7 +381,7 @@ exports.chatWithAI = onCall(
 
       const userStatsRef = admin.firestore().collection('aiChats').doc(userId);
       const userStats = await userStatsRef.get();
-      
+
       if (!userStats.exists) {
         await userStatsRef.set({
           userId,
@@ -407,4 +412,3 @@ exports.chatWithAI = onCall(
     }
   }
 );
-

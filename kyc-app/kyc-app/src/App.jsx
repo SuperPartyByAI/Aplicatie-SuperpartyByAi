@@ -41,7 +41,7 @@ function App() {
 
   // Prevent accidental app close - keep in background
   useEffect(() => {
-    const handleBeforeUnload = (e) => {
+    const handleBeforeUnload = e => {
       // Only prevent if user is logged in (has active session)
       if (auth.currentUser) {
         e.preventDefault();
@@ -50,7 +50,7 @@ function App() {
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
-    
+
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
@@ -62,7 +62,7 @@ function App() {
       const sidebarContent = document.querySelector('.sidebar-content');
       if (!sidebarContent) return;
 
-      const preventScrollPropagation = (e) => {
+      const preventScrollPropagation = e => {
         const target = e.currentTarget;
         const scrollTop = target.scrollTop;
         const scrollHeight = target.scrollHeight;
@@ -75,12 +75,12 @@ function App() {
         if ((isAtTop && delta < 0) || (isAtBottom && delta > 0)) {
           e.preventDefault();
         }
-        
+
         e.stopPropagation();
       };
 
       sidebarContent.addEventListener('wheel', preventScrollPropagation, { passive: false });
-      
+
       return () => {
         sidebarContent.removeEventListener('wheel', preventScrollPropagation);
       };

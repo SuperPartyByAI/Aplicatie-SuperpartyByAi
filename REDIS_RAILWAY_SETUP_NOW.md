@@ -17,6 +17,7 @@
 3. **Selectează "Add Redis"**
 
 Railway va crea automat:
+
 - Redis instance
 - Variabila `REDIS_URL`
 - Connection string
@@ -32,6 +33,7 @@ Railway va crea automat:
 Format: `redis://default:password@host:port`
 
 Exemplu:
+
 ```
 REDIS_URL=redis://default:abc123xyz@redis.railway.internal:6379
 ```
@@ -43,11 +45,13 @@ REDIS_URL=redis://default:abc123xyz@redis.railway.internal:6379
 Railway face asta automat! Variabila `REDIS_URL` este disponibilă în toate serviciile din proiect.
 
 **Verifică:**
+
 1. Click pe serviciul tău (whatsapp-backend sau main service)
 2. Mergi la "Variables"
 3. Ar trebui să vezi `REDIS_URL` (shared din Redis service)
 
 Dacă NU vezi `REDIS_URL`:
+
 1. Click "New Variable"
 2. Reference: Selectează Redis service
 3. Variable: `REDIS_URL`
@@ -65,6 +69,7 @@ Railway va redeploy automat când adaugi Redis, dar dacă nu:
 SAU
 
 Push un commit nou:
+
 ```bash
 git commit --allow-empty -m "trigger: redeploy with Redis"
 git push origin main
@@ -110,11 +115,13 @@ curl https://your-app.railway.app/api/cache/stats
 ### Redis nu se conectează
 
 **Verifică:**
+
 1. `REDIS_URL` există în Variables
 2. Format corect: `redis://default:password@host:port`
 3. Redis service este "Active" (nu "Sleeping")
 
 **Soluție:**
+
 - App va folosi automat in-memory cache (fallback)
 - Nu va crăpa aplicația
 - Logs vor arăta: `⚠️ Using in-memory cache`
@@ -124,6 +131,7 @@ curl https://your-app.railway.app/api/cache/stats
 ### REDIS_URL nu apare în serviciul meu
 
 **Soluție:**
+
 1. Click pe serviciul tău
 2. "Variables" tab
 3. "New Variable"
@@ -138,10 +146,12 @@ curl https://your-app.railway.app/api/cache/stats
 ### Redis costă prea mult
 
 **Railway Redis Pricing:**
+
 - **Starter:** $5/month (256MB RAM) ← Recomandat
 - **Pro:** $10/month (512MB RAM)
 
 **Alternativă gratuită:**
+
 - Lasă app-ul să folosească in-memory cache
 - Nu vei avea persistent cache
 - Nu vei avea shared cache între instances
@@ -212,11 +222,13 @@ Cache hit rate: 85%
 ## 💰 Cost Breakdown
 
 ### Înainte (fără Redis):
+
 - Railway: $5-10/month
 - Firebase: $15-30/month
 - **Total: $20-40/month**
 
 ### După (cu Redis):
+
 - Railway: $5-10/month
 - Redis: $5/month
 - Firebase: $4.50-9/month (70% reducere!)

@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWheel } from '../contexts/WheelContext';
-import { getAvailableButtons, getButtonById, GRID_CONFIG, DEFAULT_GRID_LAYOUT } from '../config/gridButtons';
+import {
+  getAvailableButtons,
+  getButtonById,
+  GRID_CONFIG,
+  DEFAULT_GRID_LAYOUT,
+} from '../config/gridButtons';
 import './GridOverlay.css';
 
 const STORAGE_KEY = 'superparty_grid_layout';
@@ -9,7 +14,7 @@ const STORAGE_KEY = 'superparty_grid_layout';
 export default function GridOverlay() {
   const { isWheelOpen, closeWheel, adminMode, gmMode, setAdminMode, setGmMode } = useWheel();
   const navigate = useNavigate();
-  
+
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [gridLayout, setGridLayout] = useState(() => {
@@ -19,7 +24,7 @@ export default function GridOverlay() {
   });
   const [draggedButton, setDraggedButton] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
-  
+
   // Touch swipe state
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
@@ -29,10 +34,7 @@ export default function GridOverlay() {
 
   // Calculate total pages based on button positions
   useEffect(() => {
-    const maxPage = Math.max(
-      1,
-      ...Object.values(gridLayout).map(pos => pos.page)
-    );
+    const maxPage = Math.max(1, ...Object.values(gridLayout).map(pos => pos.page));
     setTotalPages(maxPage);
   }, [gridLayout]);
 
@@ -43,9 +45,9 @@ export default function GridOverlay() {
 
   // Build grid structure for current page
   const buildGrid = () => {
-    const grid = Array(GRID_CONFIG.ROWS).fill(null).map(() => 
-      Array(GRID_CONFIG.COLS).fill(null)
-    );
+    const grid = Array(GRID_CONFIG.ROWS)
+      .fill(null)
+      .map(() => Array(GRID_CONFIG.COLS).fill(null));
 
     // Place buttons in their positions
     Object.entries(gridLayout).forEach(([buttonId, position]) => {
@@ -54,8 +56,12 @@ export default function GridOverlay() {
         if (button && availableButtons.find(b => b.id === buttonId)) {
           const rowIdx = position.row - 1;
           const colIdx = position.col - 1;
-          if (rowIdx >= 0 && rowIdx < GRID_CONFIG.ROWS && 
-              colIdx >= 0 && colIdx < GRID_CONFIG.COLS) {
+          if (
+            rowIdx >= 0 &&
+            rowIdx < GRID_CONFIG.ROWS &&
+            colIdx >= 0 &&
+            colIdx < GRID_CONFIG.COLS
+          ) {
             grid[rowIdx][colIdx] = button;
           }
         }
@@ -65,7 +71,7 @@ export default function GridOverlay() {
     return grid;
   };
 
-  const handleButtonClick = (button) => {
+  const handleButtonClick = button => {
     if (isEditMode) return; // Don't navigate in edit mode
 
     if (button.route) {
@@ -107,7 +113,7 @@ export default function GridOverlay() {
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragOver = (e) => {
+  const handleDragOver = e => {
     if (!isEditMode) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
@@ -124,18 +130,19 @@ export default function GridOverlay() {
     };
 
     // Check if target slot is occupied
-    const occupiedBy = Object.entries(gridLayout).find(([id, pos]) => 
-      pos.page === newPosition.page && 
-      pos.row === newPosition.row && 
-      pos.col === newPosition.col &&
-      id !== draggedButton.id
+    const occupiedBy = Object.entries(gridLayout).find(
+      ([id, pos]) =>
+        pos.page === newPosition.page &&
+        pos.row === newPosition.row &&
+        pos.col === newPosition.col &&
+        id !== draggedButton.id
     );
 
     if (occupiedBy) {
       // Swap positions
       const [occupiedId, occupiedPos] = occupiedBy;
       const draggedPos = gridLayout[draggedButton.id];
-      
+
       setGridLayout(prev => ({
         ...prev,
         [draggedButton.id]: newPosition,
@@ -167,20 +174,20 @@ export default function GridOverlay() {
   // Swipe handlers
   const minSwipeDistance = 50;
 
-  const onTouchStart = (e) => {
+  const onTouchStart = e => {
     if (isEditMode) return;
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
   };
 
-  const onTouchMove = (e) => {
+  const onTouchMove = e => {
     if (isEditMode) return;
     setTouchEnd(e.targetTouches[0].clientX);
   };
 
   const onTouchEnd = () => {
     if (isEditMode || !touchStart || !touchEnd) return;
-    
+
     const distance = touchStart - touchEnd;
     const isLeftSwipe = distance > minSwipeDistance;
     const isRightSwipe = distance < -minSwipeDistance;
@@ -199,16 +206,16 @@ export default function GridOverlay() {
 
   return (
     <div className="new-theme grid-overlay" onClick={closeWheel}>
-      <div className="grid-container" onClick={(e) => e.stopPropagation()}>
+      <div className="grid-container" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="grid-header">
-          <button 
+          <button
             className={`edit-mode-toggle ${isEditMode ? 'active' : ''}`}
             onClick={() => setIsEditMode(!isEditMode)}
           >
             {isEditMode ? '✓ Gata' : '✏️ Editează'}
           </button>
-          
+
           <div className="page-indicator">
             Pagina {currentPage} / {totalPages}
           </div>
@@ -219,7 +226,7 @@ export default function GridOverlay() {
         </div>
 
         {/* Grid */}
-        <div 
+        <div
           className="grid-content"
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
@@ -232,7 +239,7 @@ export default function GridOverlay() {
                   key={`${rowIdx}-${colIdx}`}
                   className={`grid-slot ${button ? 'occupied' : 'empty'} ${isEditMode ? 'edit-mode' : ''}`}
                   onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(rowIdx, colIdx, e)}
+                  onDrop={e => handleDrop(rowIdx, colIdx, e)}
                 >
                   {button ? (
                     <button
@@ -240,7 +247,7 @@ export default function GridOverlay() {
                       style={{ background: button.gradient }}
                       onClick={() => handleButtonClick(button)}
                       draggable={isEditMode}
-                      onDragStart={(e) => handleDragStart(button, e)}
+                      onDragStart={e => handleDragStart(button, e)}
                     >
                       <span className="button-icon">{button.icon}</span>
                       <span className="button-label">{button.label}</span>
@@ -265,13 +272,15 @@ export default function GridOverlay() {
           </button>
 
           <div className="page-dots">
-            {Array(totalPages).fill(null).map((_, idx) => (
-              <button
-                key={idx}
-                className={`page-dot ${currentPage === idx + 1 ? 'active' : ''}`}
-                onClick={() => setCurrentPage(idx + 1)}
-              />
-            ))}
+            {Array(totalPages)
+              .fill(null)
+              .map((_, idx) => (
+                <button
+                  key={idx}
+                  className={`page-dot ${currentPage === idx + 1 ? 'active' : ''}`}
+                  onClick={() => setCurrentPage(idx + 1)}
+                />
+              ))}
           </div>
 
           <button

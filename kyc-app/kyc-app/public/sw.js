@@ -33,7 +33,7 @@ self.addEventListener('push', event => {
 
   try {
     const data = event.data.json();
-    
+
     // Keep-alive notification (silent, no UI)
     if (data.type === 'keep-alive') {
       event.waitUntil(handleKeepAlive(data));
@@ -54,7 +54,7 @@ self.addEventListener('push', event => {
 async function handleKeepAlive(data) {
   // Minimal processing - just keep Service Worker alive
   // No network requests, no heavy computation
-  
+
   // Optional: Update badge
   if (data.badge) {
     self.registration.badge = data.badge;
@@ -77,9 +77,9 @@ async function syncMinimalData() {
     const cache = await caches.open('api-cache');
     const response = await fetch('/api/minimal-sync', {
       method: 'GET',
-      headers: { 'Cache-Control': 'max-age=300' }
+      headers: { 'Cache-Control': 'max-age=300' },
     });
-    
+
     if (response.ok) {
       await cache.put('/api/minimal-sync', response.clone());
     }
@@ -97,7 +97,7 @@ async function showNotification(data) {
     badge: '/icon-192.svg',
     vibrate: [200, 100, 200],
     data: data,
-    actions: data.actions || []
+    actions: data.actions || [],
   };
 
   await self.registration.showNotification(data.title, options);
@@ -107,7 +107,5 @@ async function showNotification(data) {
 self.addEventListener('notificationclick', event => {
   event.notification.close();
 
-  event.waitUntil(
-    clients.openWindow(event.notification.data.url || '/')
-  );
+  event.waitUntil(clients.openWindow(event.notification.data.url || '/'));
 });

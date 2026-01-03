@@ -32,7 +32,7 @@ describe('Memory Cache', () => {
 
   test('should expire after TTL', done => {
     cache.set('test', 'value', 100); // 100ms TTL
-    
+
     setTimeout(() => {
       expect(cache.has('test')).toBe(false);
       done();

@@ -13,7 +13,7 @@ export async function initializePushNotifications() {
   try {
     // Request permission
     const permission = await Notification.requestPermission();
-    
+
     if (permission !== 'granted') {
       console.log('Notification permission denied');
       return null;
@@ -41,7 +41,6 @@ export async function initializePushNotifications() {
 
     console.log('✅ Push notifications initialized');
     return token;
-
   } catch (error) {
     console.error('Push notification init failed:', error);
     return null;
@@ -54,7 +53,7 @@ async function getDeviceToken(registration) {
   // import { getMessaging, getToken } from 'firebase/messaging';
   // const messaging = getMessaging();
   // return await getToken(messaging, { serviceWorkerRegistration: registration });
-  
+
   // For now, generate a unique ID
   return `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
@@ -62,12 +61,16 @@ async function getDeviceToken(registration) {
 // Save token to Firestore
 async function saveTokenToFirestore(userId, token) {
   try {
-    await setDoc(doc(db, 'users', userId), {
-      fcmToken: token,
-      fcmTokenUpdatedAt: serverTimestamp(),
-      platform: getPlatform(),
-      notificationsEnabled: true
-    }, { merge: true });
+    await setDoc(
+      doc(db, 'users', userId),
+      {
+        fcmToken: token,
+        fcmTokenUpdatedAt: serverTimestamp(),
+        platform: getPlatform(),
+        notificationsEnabled: true,
+      },
+      { merge: true }
+    );
 
     console.log('Token saved to Firestore');
   } catch (error) {
@@ -93,10 +96,14 @@ export async function disablePushNotifications() {
 
     const user = auth.currentUser;
     if (user) {
-      await setDoc(doc(db, 'users', user.uid), {
-        fcmToken: null,
-        notificationsEnabled: false
-      }, { merge: true });
+      await setDoc(
+        doc(db, 'users', user.uid),
+        {
+          fcmToken: null,
+          notificationsEnabled: false,
+        },
+        { merge: true }
+      );
     }
 
     console.log('✅ Push notifications disabled');

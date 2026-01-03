@@ -5,23 +5,17 @@ import GridOverlay from './GridOverlay';
 import AIChatModal from './AIChatModal';
 
 // Routes where UI Shell should NOT be rendered
-const EXCLUDED_ROUTES = [
-  '/',
-  '/verify-email',
-  '/kyc',
-  '/waiting',
-  '/staff-setup',
-];
+const EXCLUDED_ROUTES = ['/', '/verify-email', '/kyc', '/waiting', '/staff-setup'];
 
 export default function AuthenticatedShell() {
   const location = useLocation();
   const { isAiChatOpen, closeAiChat } = useWheel();
-  
+
   // Don't render UI Shell on auth/setup routes
   if (EXCLUDED_ROUTES.includes(location.pathname)) {
     return null;
   }
-  
+
   return (
     <>
       {/* Hide Dock when AI Chat is open - AI Chat takes full screen */}

@@ -5,6 +5,7 @@
 In-memory caching implementation to reduce database reads and improve API response times.
 
 **Benefits:**
+
 - ✅ 10-100x faster API responses
 - ✅ Reduced Firebase/Firestore costs
 - ✅ Lower latency for users
@@ -14,12 +15,13 @@ In-memory caching implementation to reduce database reads and improve API respon
 
 ## 📊 Performance Impact
 
-| Endpoint | Without Cache | With Cache | Improvement |
-|----------|---------------|------------|-------------|
-| GET /api/whatsapp/accounts | ~200-500ms | ~5-10ms | **20-50x faster** |
-| Firebase Functions | ~100-300ms | ~5-10ms | **10-30x faster** |
+| Endpoint                   | Without Cache | With Cache | Improvement       |
+| -------------------------- | ------------- | ---------- | ----------------- |
+| GET /api/whatsapp/accounts | ~200-500ms    | ~5-10ms    | **20-50x faster** |
+| Firebase Functions         | ~100-300ms    | ~5-10ms    | **10-30x faster** |
 
 **Cost Savings:**
+
 - Firestore reads: ~90% reduction
 - Firebase Functions invocations: Same (but faster)
 - **Estimated savings: $10-50/month** (depending on traffic)
@@ -66,6 +68,7 @@ const data = await cache.getOrSet('key', async () => {
 ### 1. Firebase Functions (`functions/index.js`)
 
 **Endpoint:** `GET /api/whatsapp/accounts`
+
 - **TTL:** 30 seconds
 - **Cache Key:** `whatsapp:accounts`
 - **Reason:** Account list changes infrequently
@@ -82,6 +85,7 @@ const data = await cache.getOrSet('key', async () => {
 ### 2. WhatsApp Backend (`whatsapp-backend/server.js`)
 
 **Endpoint:** `GET /api/whatsapp/accounts`
+
 - **TTL:** 30 seconds
 - **Cache Key:** `whatsapp:accounts`
 - **Reason:** Account list changes infrequently
@@ -92,20 +96,22 @@ const data = await cache.getOrSet('key', async () => {
 
 ### TTL (Time To Live) Guidelines
 
-| Data Type | Recommended TTL | Reason |
-|-----------|-----------------|--------|
-| **Account List** | 30 seconds | Changes infrequently |
-| **QR Codes** | 10 seconds | Changes frequently |
-| **User Profile** | 5 minutes | Rarely changes |
-| **Static Config** | 1 hour | Almost never changes |
-| **Real-time Data** | 5 seconds | Needs to be fresh |
+| Data Type          | Recommended TTL | Reason               |
+| ------------------ | --------------- | -------------------- |
+| **Account List**   | 30 seconds      | Changes infrequently |
+| **QR Codes**       | 10 seconds      | Changes frequently   |
+| **User Profile**   | 5 minutes       | Rarely changes       |
+| **Static Config**  | 1 hour          | Almost never changes |
+| **Real-time Data** | 5 seconds       | Needs to be fresh    |
 
 ### Cache Invalidation
 
 **Automatic:**
+
 - TTL expires → cache cleared automatically
 
 **Manual:**
+
 ```javascript
 // Invalidate specific key
 cache.delete('whatsapp:accounts');
@@ -115,6 +121,7 @@ cache.clear();
 ```
 
 **On Events:**
+
 - Account created → invalidate `whatsapp:accounts`
 - Account deleted → invalidate `whatsapp:accounts`
 - QR updated → invalidate specific account cache
@@ -124,21 +131,27 @@ cache.clear();
 ## 🚀 Future Enhancements
 
 ### 1. Cache Warming
+
 Pre-populate cache on server start:
+
 ```javascript
 // On server start
 cache.set('whatsapp:accounts', await fetchAccounts(), 5 * 60 * 1000);
 ```
 
 ### 2. Cache Tags
+
 Group related cache keys:
+
 ```javascript
 cache.set('account:123', data, 60000, ['accounts', 'user:123']);
 cache.invalidateTag('accounts'); // Clears all account-related cache
 ```
 
 ### 3. Distributed Cache (Redis)
+
 **When needed:**
+
 - Multiple server instances
 - Traffic > 10,000 requests/day
 - Need persistent cache across restarts
@@ -152,6 +165,7 @@ cache.invalidateTag('accounts'); // Clears all account-related cache
 ### Cache Hit Rate
 
 Track in logs:
+
 ```javascript
 const cacheHits = 0;
 const cacheMisses = 0;
@@ -167,6 +181,7 @@ if (cache.has(key)) {
 ### Cache Size
 
 Monitor memory usage:
+
 ```javascript
 console.log('Cache size:', cache.size());
 console.log('Memory usage:', process.memoryUsage());
@@ -177,15 +192,18 @@ console.log('Memory usage:', process.memoryUsage());
 ## ⚠️ Limitations
 
 ### 1. Single Instance Only
+
 - Cache is per-instance (not shared across servers)
 - If you scale to multiple instances, consider Redis
 
 ### 2. Memory Usage
+
 - Each cached item uses RAM
 - Monitor with `process.memoryUsage()`
 - Clear cache if memory > 80%
 
 ### 3. No Persistence
+
 - Cache cleared on server restart
 - Not suitable for critical data
 
@@ -194,11 +212,13 @@ console.log('Memory usage:', process.memoryUsage());
 ## 🧪 Testing
 
 Run cache tests:
+
 ```bash
 npm test shared/__tests__/cache.test.js
 ```
 
 **Tests cover:**
+
 - ✅ Set/Get operations
 - ✅ TTL expiration
 - ✅ Cache invalidation
@@ -210,6 +230,7 @@ npm test shared/__tests__/cache.test.js
 ## 📚 Best Practices
 
 ### DO:
+
 - ✅ Cache frequently accessed data
 - ✅ Use appropriate TTL for data freshness
 - ✅ Invalidate cache on data changes
@@ -217,6 +238,7 @@ npm test shared/__tests__/cache.test.js
 - ✅ Include `cached: true/false` in API responses
 
 ### DON'T:
+
 - ❌ Cache sensitive data (passwords, tokens)
 - ❌ Cache real-time data (< 5 second freshness)
 - ❌ Cache large objects (> 1MB)
@@ -228,6 +250,7 @@ npm test shared/__tests__/cache.test.js
 ## 🔍 Debugging
 
 ### Check if cache is working:
+
 ```bash
 # First request (cache miss)
 curl http://localhost:3000/api/whatsapp/accounts
@@ -239,6 +262,7 @@ curl http://localhost:3000/api/whatsapp/accounts
 ```
 
 ### Clear cache manually:
+
 ```javascript
 // In Node.js REPL or code
 const cache = require('./cache');
@@ -251,6 +275,7 @@ console.log('Cache cleared, size:', cache.size());
 ## 📞 Support
 
 If caching issues:
+
 1. Check TTL is appropriate
 2. Verify cache key is unique
 3. Monitor memory usage
@@ -262,6 +287,7 @@ If caching issues:
 ## ✅ Summary
 
 **Implemented:**
+
 - ✅ Memory cache utility with TTL
 - ✅ Caching in Firebase Functions
 - ✅ Caching in WhatsApp Backend
@@ -269,6 +295,7 @@ If caching issues:
 - ✅ Documentation
 
 **Impact:**
+
 - 🚀 10-100x faster API responses
 - 💰 $10-50/month cost savings
 - 📉 90% reduction in database reads

@@ -3,20 +3,24 @@
 ## ✅ Already Integrated
 
 ### Project Management
+
 - ❌ **None** - Currently using GitHub Issues/Projects
 
 ### Performance Monitoring
+
 - ✅ **Sentry** - Error tracking with source maps
 - ✅ **Better Stack/Logtail** - Centralized logging
 - ✅ **Lighthouse CI** - Performance audits
 - ⚠️ **Prometheus/Grafana** - Partial (can be added)
 
 ### Collaboration & Communication
+
 - ✅ **Slack** - Deployment notifications (webhook configured)
 - ✅ **Discord** - Deployment notifications (webhook configured)
 - ⚠️ **GitHub** - Code reviews, issues, PRs
 
 ### IDE & Development Tools
+
 - ✅ **Visual Studio Code** - Primary IDE (EditorConfig configured)
 - ✅ **EditorConfig** - Consistent formatting
 - ✅ **ESLint** - Linting
@@ -25,22 +29,27 @@
 - ✅ **SonarLint** - Code quality analysis
 
 ### Version Control
+
 - ✅ **Git** - Version control
 - ✅ **GitHub** - Repository hosting
 - ✅ **GitHub Actions** - CI/CD
 
 ### Time Tracking
+
 - ❌ **None** - Not currently integrated
 
 ### Error Tracking
+
 - ✅ **Sentry** - Primary error tracking
 - ⚠️ **Logtail** - Log-based error detection
 
 ### Uptime Monitoring
+
 - ⚠️ **Custom** - Railway health checks
 - ⚠️ **Firebase** - Built-in monitoring
 
 ### Caching
+
 - ✅ **In-Memory Cache** - Custom implementation with TTL
 - ⚠️ **Redis** - Not yet integrated (recommended)
 
@@ -51,11 +60,13 @@
 ### 1. Redis for Distributed Caching (HIGH PRIORITY)
 
 **Why:**
+
 - Current in-memory cache doesn't persist across restarts
 - Not shared between multiple instances
 - Limited scalability
 
 **Implementation:**
+
 ```bash
 # Install
 npm install redis ioredis
@@ -65,6 +76,7 @@ REDIS_URL=redis://your-redis-instance:6379
 ```
 
 **Benefits:**
+
 - Persistent cache across deployments
 - Shared cache between multiple instances
 - Better performance for high-traffic scenarios
@@ -77,12 +89,14 @@ REDIS_URL=redis://your-redis-instance:6379
 ### 2. Datadog or New Relic (MEDIUM PRIORITY)
 
 **Why:**
+
 - More comprehensive than current monitoring
 - APM (Application Performance Monitoring)
 - Infrastructure monitoring
 - Custom dashboards
 
 **Current Coverage:**
+
 - ✅ Error tracking (Sentry)
 - ✅ Logs (Logtail)
 - ⚠️ Performance metrics (Lighthouse - frontend only)
@@ -93,6 +107,7 @@ REDIS_URL=redis://your-redis-instance:6379
 **Recommendation:** **Datadog** (better Railway integration)
 
 **Implementation:**
+
 ```bash
 # Install
 npm install dd-trace
@@ -104,6 +119,7 @@ DD_ENV=production
 ```
 
 **Benefits:**
+
 - Real-time performance monitoring
 - Database query analysis
 - Custom metrics and dashboards
@@ -121,12 +137,14 @@ DD_ENV=production
 **Recommendation:** **Linear** or **ClickUp**
 
 **Why Linear:**
+
 - Developer-focused
 - Excellent GitHub integration
 - Fast and minimal
 - Free for small teams
 
 **Why ClickUp:**
+
 - More features
 - Better for non-technical stakeholders
 - Time tracking built-in
@@ -139,17 +157,20 @@ DD_ENV=production
 ### 4. Prometheus + Grafana (MEDIUM PRIORITY)
 
 **Why:**
+
 - Open-source (no recurring costs)
 - Excellent for custom metrics
 - Beautiful dashboards
 - Self-hosted option
 
 **Current Coverage:**
+
 - ❌ Custom business metrics (bookings, revenue, etc.)
 - ❌ Real-time dashboards
 - ⚠️ Basic health checks only
 
 **Implementation:**
+
 ```bash
 # Install Prometheus client
 npm install prom-client
@@ -162,6 +183,7 @@ app.get('/metrics', async (req, res) => {
 ```
 
 **Benefits:**
+
 - Track custom business metrics
 - Real-time dashboards
 - Historical data analysis
@@ -176,6 +198,7 @@ app.get('/metrics', async (req, res) => {
 **Recommendation:** **Clockify** (free) or **Toggl** (better UX)
 
 **Why:**
+
 - Understand time spent on features
 - Better project estimates
 - Client billing (if applicable)
@@ -188,37 +211,39 @@ app.get('/metrics', async (req, res) => {
 
 ### Current Monthly Costs
 
-| Service | Cost | Status |
-|---------|------|--------|
-| Sentry | $0 (Developer plan) | ✅ Active |
-| Better Stack | $0 (Free tier) | ✅ Active |
-| GitHub Actions | $0 (Free tier) | ✅ Active |
-| Railway | ~$5-20/month | ✅ Active |
-| Firebase | ~$0-10/month | ✅ Active |
-| **Total** | **~$5-30/month** | |
+| Service        | Cost                | Status    |
+| -------------- | ------------------- | --------- |
+| Sentry         | $0 (Developer plan) | ✅ Active |
+| Better Stack   | $0 (Free tier)      | ✅ Active |
+| GitHub Actions | $0 (Free tier)      | ✅ Active |
+| Railway        | ~$5-20/month        | ✅ Active |
+| Firebase       | ~$0-10/month        | ✅ Active |
+| **Total**      | **~$5-30/month**    |           |
 
 ### Recommended Additions
 
-| Service | Cost | Priority | ROI |
-|---------|------|----------|-----|
-| Redis (Railway) | $5/month | HIGH | High |
-| Datadog | $15-31/month | MEDIUM | High |
-| Linear | $0 (Free tier) | LOW | Medium |
-| Prometheus/Grafana (self-hosted) | $0 | MEDIUM | High |
-| Clockify | $0 (Free tier) | LOW | Low |
-| **Total Additional** | **$20-36/month** | | |
+| Service                          | Cost             | Priority | ROI    |
+| -------------------------------- | ---------------- | -------- | ------ |
+| Redis (Railway)                  | $5/month         | HIGH     | High   |
+| Datadog                          | $15-31/month     | MEDIUM   | High   |
+| Linear                           | $0 (Free tier)   | LOW      | Medium |
+| Prometheus/Grafana (self-hosted) | $0               | MEDIUM   | High   |
+| Clockify                         | $0 (Free tier)   | LOW      | Low    |
+| **Total Additional**             | **$20-36/month** |          |        |
 
 ---
 
 ## 🚀 Implementation Roadmap
 
 ### Phase 1: Critical Performance (Week 1)
+
 1. ✅ **Redis Integration** - Distributed caching
    - Replace in-memory cache
    - Add session persistence
    - Configure Railway Redis addon
 
 ### Phase 2: Enhanced Monitoring (Week 2)
+
 2. ⚠️ **Datadog APM** - Backend performance monitoring
    - Install dd-trace
    - Configure custom metrics
@@ -232,6 +257,7 @@ app.get('/metrics', async (req, res) => {
    - Track business metrics
 
 ### Phase 3: Process Improvements (Week 3)
+
 4. ⚠️ **Linear** - Project management
    - Set up workspace
    - Configure GitHub integration
@@ -250,11 +276,13 @@ app.get('/metrics', async (req, res) => {
 ### 1. Redis Cache (2-4 hours)
 
 **Why Now:**
+
 - Immediate performance improvement
 - Fixes cache loss on restart
 - Enables multi-instance scaling
 
 **Steps:**
+
 ```bash
 # 1. Add Redis to Railway
 railway add redis
@@ -269,11 +297,13 @@ npm install ioredis
 ### 2. Prometheus Metrics (2-3 hours)
 
 **Why Now:**
+
 - Free and open-source
 - Immediate visibility into custom metrics
 - No vendor lock-in
 
 **Steps:**
+
 ```bash
 # 1. Install
 npm install prom-client
@@ -286,11 +316,13 @@ npm install prom-client
 ### 3. Linear Setup (30 minutes)
 
 **Why Now:**
+
 - Free for small teams
 - Better than GitHub Issues
 - Excellent developer experience
 
 **Steps:**
+
 1. Sign up at linear.app
 2. Connect GitHub
 3. Import existing issues
@@ -303,24 +335,29 @@ npm install prom-client
 ### Why NOT These Tools:
 
 **New Relic:**
+
 - More expensive than Datadog
 - Worse Railway integration
 - Overkill for current scale
 
 **Jira:**
+
 - Too heavy for small team
 - Expensive
 - Slow and complex
 
 **Microsoft Teams:**
+
 - Already using Slack/Discord
 - Redundant
 
 **AppDynamics/Dynatrace:**
+
 - Enterprise pricing
 - Overkill for startup
 
 **Memcached:**
+
 - Redis is better (more features)
 - Similar performance
 
@@ -328,13 +365,13 @@ npm install prom-client
 
 ## 📋 Decision Matrix
 
-| Tool | Cost | Effort | Impact | Priority | Recommendation |
-|------|------|--------|--------|----------|----------------|
-| Redis | $5/mo | 2-4h | HIGH | HIGH | ✅ Implement |
-| Datadog | $15-31/mo | 3-5h | HIGH | MEDIUM | ⚠️ Consider |
-| Prometheus/Grafana | $0 | 4-6h | MEDIUM | MEDIUM | ⚠️ Consider |
-| Linear | $0 | 1-2h | LOW | LOW | ⚠️ Optional |
-| Clockify | $0 | 30m | LOW | LOW | ⚠️ Optional |
+| Tool               | Cost      | Effort | Impact | Priority | Recommendation |
+| ------------------ | --------- | ------ | ------ | -------- | -------------- |
+| Redis              | $5/mo     | 2-4h   | HIGH   | HIGH     | ✅ Implement   |
+| Datadog            | $15-31/mo | 3-5h   | HIGH   | MEDIUM   | ⚠️ Consider    |
+| Prometheus/Grafana | $0        | 4-6h   | MEDIUM | MEDIUM   | ⚠️ Consider    |
+| Linear             | $0        | 1-2h   | LOW    | LOW      | ⚠️ Optional    |
+| Clockify           | $0        | 30m    | LOW    | LOW      | ⚠️ Optional    |
 
 ---
 
@@ -367,11 +404,11 @@ const Redis = require('ioredis');
 class RedisCache {
   constructor() {
     this.client = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
-    
-    this.client.on('error', (err) => {
+
+    this.client.on('error', err => {
       console.error('Redis error:', err);
     });
-    
+
     this.client.on('connect', () => {
       console.log('Redis connected');
     });
@@ -403,7 +440,7 @@ class RedisCache {
   async getOrSet(key, fetchFn, ttl = 30000) {
     const cached = await this.get(key);
     if (cached !== null) return cached;
-    
+
     const value = await fetchFn();
     await this.set(key, value, ttl);
     return value;
@@ -429,9 +466,13 @@ const cache = require('./shared/cache');
 const cache = require('./shared/redis-cache');
 
 // Usage remains the same!
-const accounts = await cache.getOrSet('accounts', async () => {
-  return await fetchAccountsFromDB();
-}, 60000);
+const accounts = await cache.getOrSet(
+  'accounts',
+  async () => {
+    return await fetchAccountsFromDB();
+  },
+  60000
+);
 ```
 
 ### Step 5: Add Environment Variable
@@ -451,6 +492,7 @@ git push origin main
 ```
 
 ### Benefits:
+
 - ✅ Cache persists across restarts
 - ✅ Shared between multiple instances
 - ✅ Better performance

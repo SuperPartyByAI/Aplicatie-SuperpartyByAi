@@ -59,8 +59,8 @@ export default defineConfig({
         target: 'https://whats-upp-production.up.railway.app',
         changeOrigin: true,
         secure: false,
-      }
-    }
+      },
+    },
   },
   build: {
     chunkSizeWarningLimit: 1000,

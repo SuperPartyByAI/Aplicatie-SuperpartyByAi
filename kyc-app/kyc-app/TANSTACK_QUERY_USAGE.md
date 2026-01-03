@@ -5,6 +5,7 @@
 TanStack Query (React Query) pentru automatic caching și data synchronization.
 
 **Fișiere create:**
+
 - `src/queryClient.js` - Query client configuration
 - `src/hooks/useEvents.js` - Events hooks
 - `src/hooks/useWhatsApp.js` - WhatsApp hooks
@@ -42,6 +43,7 @@ function EvenimenteScreen() {
 ```
 
 **Beneficii:**
+
 - Prima vizită: loading spinner
 - A doua vizită: INSTANT (din cache!)
 - Auto-refetch în background pentru date fresh
@@ -56,7 +58,7 @@ import { useCreateEvent } from '../hooks/useEvents';
 function CreateEventForm() {
   const createEvent = useCreateEvent();
 
-  const handleSubmit = async (formData) => {
+  const handleSubmit = async formData => {
     try {
       await createEvent.mutateAsync(formData);
       // Success! Events list se actualizează automat
@@ -69,10 +71,7 @@ function CreateEventForm() {
   return (
     <form onSubmit={handleSubmit}>
       {/* form fields */}
-      <button 
-        type="submit" 
-        disabled={createEvent.isPending}
-      >
+      <button type="submit" disabled={createEvent.isPending}>
         {createEvent.isPending ? 'Se creează...' : 'Creează Eveniment'}
       </button>
     </form>
@@ -90,7 +89,7 @@ import { useUpdateProfile } from '../hooks/useProfile';
 function ProfileSettings({ userId }) {
   const updateProfile = useUpdateProfile();
 
-  const handleUpdate = async (newData) => {
+  const handleUpdate = async newData => {
     try {
       await updateProfile.mutateAsync({
         userId,
@@ -106,9 +105,7 @@ function ProfileSettings({ userId }) {
 
   return (
     <div>
-      <button onClick={() => handleUpdate({ theme: 'dark' })}>
-        Schimbă tema
-      </button>
+      <button onClick={() => handleUpdate({ theme: 'dark' })}>Schimbă tema</button>
     </div>
   );
 }
@@ -136,6 +133,7 @@ function WhatsAppConversations() {
 ```
 
 **Beneficii:**
+
 - Datele se actualizează automat la fiecare 30s
 - Fără cod extra pentru polling
 - Cache între refetch-uri
@@ -171,11 +169,11 @@ function EventDetails({ eventId }) {
 
 ```javascript
 import {
-  useEvents,        // Fetch all events
-  useEvent,         // Fetch single event
-  useCreateEvent,   // Create event
-  useUpdateEvent,   // Update event
-  useDeleteEvent,   // Delete event
+  useEvents, // Fetch all events
+  useEvent, // Fetch single event
+  useCreateEvent, // Create event
+  useUpdateEvent, // Update event
+  useDeleteEvent, // Delete event
 } from '../hooks/useEvents';
 ```
 
@@ -183,11 +181,11 @@ import {
 
 ```javascript
 import {
-  useConversations,      // Fetch conversations (auto-refetch 30s)
-  useMessages,           // Fetch messages (auto-refetch 10s)
-  useWhatsAppAccounts,   // Fetch accounts
-  useSendMessage,        // Send message
-  useWhatsAppQR,         // Get QR code (auto-refetch 5s)
+  useConversations, // Fetch conversations (auto-refetch 30s)
+  useMessages, // Fetch messages (auto-refetch 10s)
+  useWhatsAppAccounts, // Fetch accounts
+  useSendMessage, // Send message
+  useWhatsAppQR, // Get QR code (auto-refetch 5s)
 } from '../hooks/useWhatsApp';
 ```
 
@@ -195,9 +193,9 @@ import {
 
 ```javascript
 import {
-  useProfile,        // Fetch user profile
-  useUpdateProfile,  // Update profile (optimistic)
-  useCreateProfile,  // Create profile
+  useProfile, // Fetch user profile
+  useUpdateProfile, // Update profile (optimistic)
+  useCreateProfile, // Create profile
 } from '../hooks/useProfile';
 ```
 
@@ -220,7 +218,9 @@ if (error) return <ErrorMessage error={error} />;
 return (
   <div>
     {isFetching && <RefreshIndicator />}
-    {data?.map(item => <Item key={item.id} item={item} />)}
+    {data?.map(item => (
+      <Item key={item.id} item={item} />
+    ))}
   </div>
 );
 ```
@@ -234,10 +234,10 @@ const { data, refetch } = useEvents();
 
 return (
   <div>
-    <button onClick={() => refetch()}>
-      Reîmprospătează
-    </button>
-    {data?.map(item => <Item key={item.id} item={item} />)}
+    <button onClick={() => refetch()}>Reîmprospătează</button>
+    {data?.map(item => (
+      <Item key={item.id} item={item} />
+    ))}
   </div>
 );
 ```
@@ -273,7 +273,7 @@ function EventsList() {
   const queryClient = useQueryClient();
   const { data: events } = useEvents();
 
-  const handleMouseEnter = (eventId) => {
+  const handleMouseEnter = eventId => {
     // Prefetch event details on hover
     queryClient.prefetchQuery({
       queryKey: ['events', eventId],
@@ -284,10 +284,7 @@ function EventsList() {
   return (
     <div>
       {events?.map(event => (
-        <div 
-          key={event.id}
-          onMouseEnter={() => handleMouseEnter(event.id)}
-        >
+        <div key={event.id} onMouseEnter={() => handleMouseEnter(event.id)}>
           {event.title}
         </div>
       ))}
@@ -315,6 +312,7 @@ staleTime: 5 * 60 * 1000, // 5 minutes default
 ```
 
 **Recomandări:**
+
 - Frequently changing data (messages): 10-30 seconds
 - Moderately changing data (events): 5 minutes
 - Rarely changing data (profile): 10 minutes
@@ -345,11 +343,11 @@ const { data } = useQuery({
   retry: (failureCount, error) => {
     // Don't retry on 404
     if (error.status === 404) return false;
-    
+
     // Retry up to 3 times
     return failureCount < 3;
   },
-  retryDelay: (attemptIndex) => {
+  retryDelay: attemptIndex => {
     // Exponential backoff
     return Math.min(1000 * 2 ** attemptIndex, 30000);
   },
@@ -365,12 +363,14 @@ const { data } = useQuery({
 DevTools sunt deja activate în development mode!
 
 **Cum să folosești:**
+
 1. Deschide aplicația în browser
 2. Caută iconița React Query în colțul din dreapta jos
 3. Click pentru a deschide DevTools
 4. Vezi toate queries și starea lor
 
 **Ce poți face:**
+
 - Vezi toate queries active
 - Vezi cache data
 - Trigger manual refetch
@@ -385,10 +385,10 @@ DevTools sunt deja activate în development mode!
 const { data, isLoading, error } = useQuery({
   queryKey: ['events'],
   queryFn: fetchEvents,
-  onSuccess: (data) => {
+  onSuccess: data => {
     console.log('✅ Events loaded:', data);
   },
-  onError: (error) => {
+  onError: error => {
     console.error('❌ Events error:', error);
   },
 });
@@ -429,11 +429,13 @@ Pagina Evenimente:
 ### Scenario: 100 utilizatori activi
 
 **Before:**
+
 - 100 users × 50 page views/day × 10 Firebase reads/page = 50,000 reads/day
 - 1,500,000 reads/month
 - Cost: ~$7.50/month
 
 **After:**
+
 - 100 users × 50 page views/day × 3 Firebase reads/page = 15,000 reads/day
 - 450,000 reads/month
 - Cost: ~$2.25/month
@@ -451,14 +453,14 @@ Pagina Evenimente:
 function EvenimenteScreen() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     fetchEvents().then(data => {
       setEvents(data);
       setLoading(false);
     });
   }, []);
-  
+
   // ...
 }
 ```
@@ -471,7 +473,7 @@ import { useEvents } from '../hooks/useEvents';
 
 function EvenimenteScreen() {
   const { data: events, isLoading } = useEvents();
-  
+
   // ...
 }
 ```
@@ -488,6 +490,7 @@ function EvenimenteScreen() {
 ## 📞 Support
 
 **Probleme?**
+
 - Check React Query DevTools
 - Check console pentru erori
 - Verifică că hooks sunt importate corect

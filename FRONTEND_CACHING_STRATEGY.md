@@ -5,6 +5,7 @@
 ### What You Have ✅
 
 **Technology Stack:**
+
 - React 19.2.0
 - Vite (build tool)
 - Firebase (auth, firestore, storage, functions)
@@ -13,6 +14,7 @@
 - Socket.io client
 
 **Current Caching:**
+
 - ✅ Service Worker with basic cache-first strategy
 - ✅ Code splitting (lazy loading for non-critical routes)
 - ✅ Manual chunks (firebase, react-vendor)
@@ -31,6 +33,7 @@
 **Impact:** VERY HIGH
 
 **Why:**
+
 - Perfect for your Firebase/API data fetching
 - Automatic caching, refetching, and synchronization
 - Built-in loading/error states
@@ -39,6 +42,7 @@
 - Cache invalidation
 
 **Current Pain Points It Solves:**
+
 - Manual data fetching in every component
 - No automatic cache management
 - Duplicate API calls
@@ -46,6 +50,7 @@
 - Manual loading/error state management
 
 **Use Cases in Your App:**
+
 ```javascript
 // Events data
 const { data: events, isLoading } = useQuery({
@@ -70,6 +75,7 @@ const { data: conversations } = useQuery({
 ```
 
 **Benefits:**
+
 - 50-80% reduction in API calls
 - Instant UI updates (cached data)
 - Automatic background sync
@@ -84,19 +90,21 @@ const { data: conversations } = useQuery({
 **Impact:** HIGH
 
 **Why:**
+
 - Persistent storage (survives page refresh)
 - Large storage capacity (50MB+)
 - Structured data storage
 - Works offline
 
 **Use Cases:**
+
 ```javascript
 // Store user preferences
 await db.preferences.put({
   userId: currentUser.uid,
   theme: 'dark',
   notifications: true,
-  language: 'ro'
+  language: 'ro',
 });
 
 // Cache WhatsApp messages locally
@@ -106,11 +114,12 @@ await db.messages.bulkPut(messages);
 await db.drafts.put({
   formId: 'kyc-form',
   data: formData,
-  timestamp: Date.now()
+  timestamp: Date.now(),
 });
 ```
 
 **Benefits:**
+
 - Offline functionality
 - Faster app startup (cached data)
 - Reduced Firebase reads (cost savings)
@@ -125,12 +134,14 @@ await db.drafts.put({
 **Impact:** MEDIUM-HIGH
 
 **Why:**
+
 - Your current Service Worker is basic
 - Workbox provides advanced caching strategies
 - Better offline support
 - Automatic cache management
 
 **Caching Strategies:**
+
 ```javascript
 // Cache-first for static assets
 registerRoute(
@@ -178,11 +189,13 @@ registerRoute(
 **Impact:** MEDIUM
 
 **Why:**
+
 - Simple key-value storage
 - Good for small data (< 5MB)
 - Synchronous API (easy to use)
 
 **Use Cases:**
+
 ```javascript
 // User preferences
 localStorage.setItem('theme', 'dark');
@@ -197,6 +210,7 @@ localStorage.setItem('lastPage', '/evenimente');
 ```
 
 **Limitations:**
+
 - 5-10MB limit
 - Synchronous (blocks main thread)
 - String-only storage
@@ -207,6 +221,7 @@ localStorage.setItem('lastPage', '/evenimente');
 ### 5. Redux Persist (NOT RECOMMENDED) ❌
 
 **Why NOT:**
+
 - You don't have Redux
 - TanStack Query is better for your use case
 - Adds unnecessary complexity
@@ -219,12 +234,14 @@ localStorage.setItem('lastPage', '/evenimente');
 ### Phase 1: Query Caching (Week 1)
 
 **Install TanStack Query:**
+
 ```bash
 cd kyc-app/kyc-app
 npm install @tanstack/react-query @tanstack/react-query-devtools
 ```
 
 **Setup:**
+
 ```javascript
 // src/main.jsx
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -250,6 +267,7 @@ root.render(
 ```
 
 **Migrate Data Fetching:**
+
 ```javascript
 // Before (manual fetching)
 const [events, setEvents] = useState([]);
@@ -273,6 +291,7 @@ const { data: events, isLoading } = useQuery({
 ```
 
 **Expected Results:**
+
 - 50-80% fewer API calls
 - Instant UI updates for cached data
 - Automatic background sync
@@ -283,11 +302,13 @@ const { data: events, isLoading } = useQuery({
 ### Phase 2: Persistent Storage (Week 2)
 
 **Install Dexie.js:**
+
 ```bash
 npm install dexie
 ```
 
 **Setup Database:**
+
 ```javascript
 // src/db.js
 import Dexie from 'dexie';
@@ -306,11 +327,12 @@ export default db;
 ```
 
 **Usage:**
+
 ```javascript
 // Store user preferences
 import { db } from './db';
 
-const savePreferences = async (prefs) => {
+const savePreferences = async prefs => {
   await db.preferences.put({
     userId: currentUser.uid,
     ...prefs,
@@ -318,7 +340,7 @@ const savePreferences = async (prefs) => {
 };
 
 // Cache events locally
-const cacheEvents = async (events) => {
+const cacheEvents = async events => {
   await db.events.bulkPut(events);
 };
 
@@ -329,6 +351,7 @@ const getCachedEvents = async () => {
 ```
 
 **Expected Results:**
+
 - Offline functionality
 - Faster app startup
 - Reduced Firebase reads
@@ -339,11 +362,13 @@ const getCachedEvents = async () => {
 ### Phase 3: Advanced Service Worker (Week 3)
 
 **Install Workbox:**
+
 ```bash
 npm install workbox-webpack-plugin workbox-window
 ```
 
 **Configure Vite:**
+
 ```javascript
 // vite.config.js
 import { defineConfig } from 'vite';
@@ -388,6 +413,7 @@ export default defineConfig({
 ```
 
 **Expected Results:**
+
 - Better offline support
 - Automatic cache management
 - Faster page loads
@@ -398,6 +424,7 @@ export default defineConfig({
 ## 🎯 Caching Strategy by Data Type
 
 ### User Profile Data
+
 **Strategy:** TanStack Query + IndexedDB
 **Cache Duration:** 10 minutes
 **Reason:** Changes infrequently, critical for app
@@ -411,17 +438,17 @@ const { data: profile } = useQuery({
     if (cached && cached.expiry > Date.now()) {
       return cached.value;
     }
-    
+
     // Fetch from Firebase
     const data = await fetchProfile(userId);
-    
+
     // Cache in IndexedDB
     await db.cache.put({
       key: `profile-${userId}`,
       value: data,
       expiry: Date.now() + 10 * 60 * 1000,
     });
-    
+
     return data;
   },
   staleTime: 10 * 60 * 1000,
@@ -431,6 +458,7 @@ const { data: profile } = useQuery({
 ---
 
 ### Events Data
+
 **Strategy:** TanStack Query + Background Sync
 **Cache Duration:** 5 minutes
 **Reason:** Changes frequently, needs to be fresh
@@ -447,6 +475,7 @@ const { data: events } = useQuery({
 ---
 
 ### WhatsApp Messages
+
 **Strategy:** TanStack Query + IndexedDB + Real-time Sync
 **Cache Duration:** Infinite (with real-time updates)
 **Reason:** Large volume, needs offline support
@@ -456,11 +485,8 @@ const { data: messages } = useQuery({
   queryKey: ['messages', conversationId],
   queryFn: async () => {
     // Load from IndexedDB immediately
-    const cached = await db.messages
-      .where('conversationId')
-      .equals(conversationId)
-      .toArray();
-    
+    const cached = await db.messages.where('conversationId').equals(conversationId).toArray();
+
     // Return cached data immediately
     if (cached.length > 0) {
       // Fetch updates in background
@@ -468,10 +494,10 @@ const { data: messages } = useQuery({
         db.messages.bulkPut(newMessages);
         queryClient.invalidateQueries(['messages', conversationId]);
       });
-      
+
       return cached;
     }
-    
+
     // No cache, fetch from server
     const messages = await fetchMessages(conversationId);
     await db.messages.bulkPut(messages);
@@ -484,6 +510,7 @@ const { data: messages } = useQuery({
 ---
 
 ### Static Assets (Images, CSS, JS)
+
 **Strategy:** Workbox Cache-First
 **Cache Duration:** 30 days
 **Reason:** Immutable, rarely changes
@@ -507,6 +534,7 @@ registerRoute(
 ---
 
 ### API Responses
+
 **Strategy:** Workbox Network-First
 **Cache Duration:** 5 minutes
 **Reason:** Needs fresh data, fallback to cache
@@ -532,8 +560,10 @@ registerRoute(
 ## 💰 Cost-Benefit Analysis
 
 ### TanStack Query
+
 **Cost:** Free + 2-3 hours
 **Benefits:**
+
 - 50-80% fewer API calls
 - $5-20/month savings on Firebase reads
 - Better UX
@@ -544,8 +574,10 @@ registerRoute(
 ---
 
 ### IndexedDB (Dexie.js)
+
 **Cost:** Free + 3-4 hours
 **Benefits:**
+
 - Offline functionality
 - 30-50% fewer Firebase reads
 - $3-10/month savings
@@ -556,8 +588,10 @@ registerRoute(
 ---
 
 ### Workbox
+
 **Cost:** Free + 2-3 hours
 **Benefits:**
+
 - Better offline support
 - Faster page loads
 - Reduced bandwidth
@@ -646,6 +680,7 @@ function EvenimenteScreen() {
 
 **Total Time:** ~30 minutes
 **Immediate Benefits:**
+
 - Automatic caching
 - No duplicate requests
 - Better loading states
@@ -656,6 +691,7 @@ function EvenimenteScreen() {
 ## 📊 Expected Performance Improvements
 
 ### Before Caching:
+
 - API calls per page load: 10-20
 - Page load time: 2-4 seconds
 - Firebase reads/day: 10,000-50,000
@@ -663,6 +699,7 @@ function EvenimenteScreen() {
 - User experience: Loading spinners everywhere
 
 ### After TanStack Query:
+
 - API calls per page load: 2-5 (50-75% reduction)
 - Page load time: 0.5-1 second (cached data)
 - Firebase reads/day: 3,000-15,000 (70% reduction)
@@ -670,6 +707,7 @@ function EvenimenteScreen() {
 - User experience: Instant UI updates
 
 ### After IndexedDB:
+
 - API calls per page load: 1-3 (80-90% reduction)
 - Page load time: 0.2-0.5 seconds
 - Firebase reads/day: 1,000-5,000 (90% reduction)
@@ -677,6 +715,7 @@ function EvenimenteScreen() {
 - User experience: App works offline
 
 ### After Workbox:
+
 - Page load time: 0.1-0.3 seconds (cached assets)
 - Bandwidth usage: 50-80% reduction
 - PWA score: 90-100
@@ -687,6 +726,7 @@ function EvenimenteScreen() {
 ## 🎯 Recommended Path Forward
 
 ### Week 1: TanStack Query (CRITICAL)
+
 1. Install TanStack Query
 2. Setup QueryClient
 3. Migrate 3-5 key data fetching hooks
@@ -694,6 +734,7 @@ function EvenimenteScreen() {
 5. Monitor Firebase read reduction
 
 ### Week 2: IndexedDB (HIGH PRIORITY)
+
 1. Install Dexie.js
 2. Design database schema
 3. Implement caching layer
@@ -701,6 +742,7 @@ function EvenimenteScreen() {
 5. Test offline functionality
 
 ### Week 3: Workbox (MEDIUM PRIORITY)
+
 1. Install vite-plugin-pwa
 2. Configure caching strategies
 3. Test offline behavior
@@ -712,25 +754,32 @@ function EvenimenteScreen() {
 ## ❓ Decision Guide
 
 ### Should I add TanStack Query?
+
 **YES** - Critical for React apps with data fetching
 
 ### Should I add IndexedDB?
+
 **YES IF:**
+
 - Need offline support
 - Have large data volumes
 - Want to reduce Firebase costs
 
 **NO IF:**
+
 - Data is always small
 - Don't need offline support
 
 ### Should I add Workbox?
+
 **YES IF:**
+
 - Want better PWA support
 - Need advanced caching strategies
 - Have time for setup
 
 **NO IF:**
+
 - Basic Service Worker is sufficient
 - Tight timeline
 
@@ -739,6 +788,7 @@ function EvenimenteScreen() {
 ## 📞 Next Steps
 
 Let me know if you want to:
+
 1. **Implement TanStack Query** (recommended first step)
 2. **Add IndexedDB** for offline support
 3. **Upgrade to Workbox** for advanced caching

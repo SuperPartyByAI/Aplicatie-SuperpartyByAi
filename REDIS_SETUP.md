@@ -5,6 +5,7 @@
 Redis caching cu automatic fallback la in-memory cache.
 
 **Fișiere create/modificate:**
+
 - `shared/redis-cache.js` - Redis cache implementation
 - `whatsapp-backend/server.js` - Updated to use Redis
 - `package.json` - Added ioredis dependency
@@ -200,9 +201,13 @@ await cache.set('key', 'value', 30000); // 30s TTL
 const value = await cache.get('key');
 
 // getOrSet pattern
-const data = await cache.getOrSet('users', async () => {
-  return await fetchUsersFromDB();
-}, 60000); // 60s TTL
+const data = await cache.getOrSet(
+  'users',
+  async () => {
+    return await fetchUsersFromDB();
+  },
+  60000
+); // 60s TTL
 ```
 
 ---
@@ -210,11 +215,13 @@ const data = await cache.getOrSet('users', async () => {
 ## 📊 Beneficii
 
 ### Fără Redis (In-Memory):
+
 - Cache se pierde la restart
 - Nu e shared între instances
 - Limitat la RAM-ul unui instance
 
 ### Cu Redis:
+
 - ✅ Cache persistent (supraviețuiește restart-urilor)
 - ✅ Shared între toate instances
 - ✅ Scalabil (multiple instances)
@@ -289,11 +296,13 @@ Redis get: users (MISS)
 ### Redis nu se conectează
 
 **Verifică:**
+
 1. `REDIS_URL` este setat corect
 2. Redis instance este running în Railway
 3. Logs pentru erori de conexiune
 
 **Soluție:**
+
 - App va folosi automat in-memory cache
 - Nu va crăpa aplicația
 
@@ -302,11 +311,13 @@ Redis get: users (MISS)
 ### Cache nu funcționează
 
 **Verifică:**
+
 1. Feature flag `FF_API_CACHING=true`
 2. Cache stats endpoint: `/api/cache/stats`
 3. Logs pentru cache operations
 
 **Debug:**
+
 ```bash
 # Check cache type
 curl https://your-app.railway.app/api/cache/stats
@@ -321,11 +332,13 @@ curl https://your-app.railway.app/api/cache/stats
 ### Performance nu s-a îmbunătățit
 
 **Verifică:**
+
 1. Cache hit rate în logs
 2. TTL settings (poate e prea scurt)
 3. Cache keys (poate nu se folosesc)
 
 **Ajustează TTL:**
+
 ```bash
 # Environment variable
 FF_CACHE_TTL=60  # 60 seconds
@@ -339,6 +352,7 @@ await cache.set('key', value, 60000); // 60s
 ## 📈 Expected Results
 
 ### Before Redis:
+
 ```
 Request 1: 500ms (database query)
 Request 2: 500ms (database query again)
@@ -348,6 +362,7 @@ Database queries: 3
 ```
 
 ### After Redis:
+
 ```
 Request 1: 500ms (database query + cache set)
 Request 2: 50ms (cache hit!)
@@ -371,6 +386,7 @@ Database queries: 1 (67% reduction!)
 ## 📞 Support
 
 **Probleme?**
+
 - Check logs: `railway logs`
 - Check cache stats: `/api/cache/stats`
 - App va funcționa cu in-memory cache dacă Redis nu e disponibil

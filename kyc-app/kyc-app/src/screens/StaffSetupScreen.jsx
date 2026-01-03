@@ -26,7 +26,7 @@ function StaffSetupScreen() {
   const [userName, setUserName] = useState('');
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
       setCurrentUser(user);
       setLoading(false);
     });
@@ -35,7 +35,7 @@ function StaffSetupScreen() {
 
   useEffect(() => {
     if (!currentUser) return;
-    
+
     const loadUserData = async () => {
       try {
         const userDoc = await getDoc(doc(db, 'users', currentUser.uid));

@@ -35,7 +35,7 @@
     padding: var(--space-lg);
     align-items: center;
   }
-  
+
   .new-theme .grid-container {
     max-width: 430px;
     max-height: 90vh;
@@ -344,7 +344,7 @@
     min-height: 44px;
     min-width: 44px;
   }
-  
+
   .new-theme .close-button,
   .new-theme .page-nav-button,
   .new-theme .edit-mode-toggle {

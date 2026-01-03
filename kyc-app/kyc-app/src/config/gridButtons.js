@@ -1,6 +1,6 @@
 /**
  * Grid Button Configuration
- * 
+ *
  * Data model for configurable 4×6 grid with drag & drop
  * Each button has absolute positioning: { page, row, col }
  */
@@ -150,22 +150,22 @@ export const DOCK_BUTTONS = [
 // Format: { buttonId: { page: 1, row: 1, col: 1 } }
 export const DEFAULT_GRID_LAYOUT = {
   // Normal buttons - Page 1
-  'evenimente': { page: 1, row: 1, col: 1 },
-  'disponibilitate': { page: 1, row: 1, col: 2 },
-  'salarii': { page: 1, row: 1, col: 3 },
-  'soferi': { page: 1, row: 1, col: 4 },
+  evenimente: { page: 1, row: 1, col: 1 },
+  disponibilitate: { page: 1, row: 1, col: 2 },
+  salarii: { page: 1, row: 1, col: 3 },
+  soferi: { page: 1, row: 1, col: 4 },
   'animator-chat': { page: 1, row: 2, col: 1 },
   'clienti-disp': { page: 1, row: 2, col: 2 },
-  
+
   // Admin buttons - Page 1, row 3
   'kyc-approvals': { page: 1, row: 3, col: 1 },
   'ai-conversations': { page: 1, row: 3, col: 2 },
   'exit-admin': { page: 1, row: 3, col: 3 },
-  
+
   // GM buttons - Page 1, row 4
   'wa-accounts': { page: 1, row: 4, col: 1 },
-  'metrics': { page: 1, row: 4, col: 2 },
-  'analytics': { page: 1, row: 4, col: 3 },
+  metrics: { page: 1, row: 4, col: 2 },
+  analytics: { page: 1, row: 4, col: 3 },
   'exit-gm': { page: 1, row: 4, col: 4 },
 };
 
@@ -181,15 +181,15 @@ export const GRID_CONFIG = {
  */
 export function getAvailableButtons(adminMode, gmMode) {
   const buttons = [...BUTTON_SETS.normal];
-  
+
   if (adminMode) {
     buttons.push(...BUTTON_SETS.admin);
   }
-  
+
   if (gmMode) {
     buttons.push(...BUTTON_SETS.gm);
   }
-  
+
   return buttons;
 }
 
@@ -197,11 +197,7 @@ export function getAvailableButtons(adminMode, gmMode) {
  * Get button by ID from all sets
  */
 export function getButtonById(buttonId) {
-  const allButtons = [
-    ...BUTTON_SETS.normal,
-    ...BUTTON_SETS.admin,
-    ...BUTTON_SETS.gm,
-  ];
-  
+  const allButtons = [...BUTTON_SETS.normal, ...BUTTON_SETS.admin, ...BUTTON_SETS.gm];
+
   return allButtons.find(btn => btn.id === buttonId);
 }

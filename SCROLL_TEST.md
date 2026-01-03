@@ -12,6 +12,7 @@
 ## 🧪 Test Manual:
 
 ### Desktop (Mouse Wheel):
+
 1. Deschide `/whatsapp` în browser
 2. Pune mouse-ul pe **sidebar conversații** (stânga)
 3. Scroll cu mouse wheel → **sidebar se mișcă, pagina NU**
@@ -19,6 +20,7 @@
 5. Scroll cu mouse wheel → **mesaje se mișcă, pagina NU**
 
 ### Mobile (Touch):
+
 1. Deschide `/whatsapp` pe telefon
 2. Swipe pe **sidebar conversații**
 3. Scroll smooth, fără lag
@@ -26,6 +28,7 @@
 5. Scroll smooth, fără lag
 
 ### Edge Cases:
+
 1. Scroll până la **capăt** (sus/jos)
 2. Continuă scroll → **pagina NU se mișcă**
 3. Scroll în **direcția opusă** → **sidebar/mesaje se mișcă imediat**
