@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'services/firebase_service.dart';
 import 'services/background_service.dart';
+import 'services/push_notification_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/evenimente/evenimente_screen.dart';
@@ -17,6 +18,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await FirebaseService.initialize();
   await BackgroundService.initialize();
+  await PushNotificationService.initialize();
   runApp(const SuperPartyApp());
 }
 
