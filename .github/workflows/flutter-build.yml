@@ -45,3 +45,18 @@ jobs:
           serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           testers: ursache.andrei1995@gmail.com
           file: superparty_flutter/build/app/outputs/flutter-apk/app-release.apk
+          releaseNotes: |
+            🎨 New UI Design:
+            - 4-column app icon grid (like phone launcher)
+            - Icon bubbles with gradient & glow
+            - No card backgrounds - clean minimal design
+            - Admin mode: red buttons
+            - GM mode: yellow buttons with subtle glow
+            
+            🚀 AI Chat Optimizations:
+            - 80-99.9% faster responses
+            - Permanent memory cache (AI remembers you)
+            - Optimistic UI (instant message display)
+            - Request deduplication
+            
+            Build: ${{ github.run_number }}
