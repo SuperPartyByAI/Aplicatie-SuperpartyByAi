@@ -64,7 +64,7 @@ class BackgroundTaskHandler extends TaskHandler {
   }
 
   @override
-  Future<void> onDestroy(DateTime timestamp) async {
+  void onDestroy(DateTime timestamp, SendPort? sendPort) {
     print('Background service stopped');
   }
 }
