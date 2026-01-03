@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'services/firebase_service.dart';
 import 'services/background_service.dart';
 import 'services/push_notification_service.dart';
+import 'providers/app_state_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/evenimente/evenimente_screen.dart';
@@ -12,6 +14,12 @@ import 'screens/centrala/centrala_screen.dart';
 import 'screens/whatsapp/whatsapp_screen.dart';
 import 'screens/team/team_screen.dart';
 import 'screens/admin/admin_screen.dart';
+import 'screens/admin/kyc_approvals_screen.dart';
+import 'screens/admin/ai_conversations_screen.dart';
+import 'screens/gm/accounts_screen.dart';
+import 'screens/gm/metrics_screen.dart';
+import 'screens/gm/analytics_screen.dart';
+import 'screens/gm/staff_setup_screen.dart';
 import 'screens/ai_chat/ai_chat_screen.dart';
 
 void main() async {
@@ -43,7 +51,9 @@ class SuperPartyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return ChangeNotifierProvider(
+      create: (_) => AppStateProvider(),
+      child: MaterialApp(
       title: 'SuperParty',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -69,8 +79,15 @@ class SuperPartyApp extends StatelessWidget {
         '/whatsapp': (context) => const WhatsAppScreen(),
         '/team': (context) => const TeamScreen(),
         '/admin': (context) => const AdminScreen(),
+        '/admin/kyc': (context) => const KycApprovalsScreen(),
+        '/admin/ai-conversations': (context) => const AiConversationsScreen(),
+        '/gm/accounts': (context) => const AccountsScreen(),
+        '/gm/metrics': (context) => const MetricsScreen(),
+        '/gm/analytics': (context) => const AnalyticsScreen(),
+        '/gm/staff-setup': (context) => const StaffSetupScreen(),
         '/ai-chat': (context) => const AIChatScreen(),
       },
+      ),
     );
   }
 }

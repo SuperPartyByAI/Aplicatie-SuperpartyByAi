@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:provider/provider.dart';
 import '../../services/chat_cache_service.dart';
+import '../../providers/app_state_provider.dart';
 
 class AIChatScreen extends StatefulWidget {
   const AIChatScreen({super.key});
@@ -50,25 +52,22 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
     final user = FirebaseAuth.instance.currentUser;
     final isAdmin = user?.email == 'ursache.andrei1995@gmail.com';
+    final appState = Provider.of<AppStateProvider>(context, listen: false);
 
     // Secret commands for admin
     if (isAdmin && text.toLowerCase() == 'admin') {
-      setState(() {
-        _messages.add({'role': 'user', 'content': text});
-        _messages.add({'role': 'assistant', 'content': '🔓 Admin mode activat. Deschid meniul admin...'});
-      });
       _inputController.clear();
-      await Future.delayed(const Duration(milliseconds: 500));
-      Navigator.pushNamed(context, '/admin');
+      appState.setAdminMode(true);
+      Navigator.pop(context); // Close AI Chat
+      appState.openGrid(); // Open Grid with admin buttons
       return;
     }
 
     if (isAdmin && text.toLowerCase() == 'gm') {
-      setState(() {
-        _messages.add({'role': 'user', 'content': text});
-        _messages.add({'role': 'assistant', 'content': '🔓 GM mode activat. Deschid meniul GM...'});
-      });
       _inputController.clear();
+      appState.setGmMode(true);
+      Navigator.pop(context); // Close AI Chat
+      appState.openGrid(); // Open Grid with GM buttons
       return;
     }
 

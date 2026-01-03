@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import '../../widgets/app_drawer.dart';
+import '../../widgets/grid_overlay.dart';
+import '../../providers/app_state_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -12,15 +15,17 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
-  final List<Map<String, dynamic>> _pages = [
-    {'title': 'Home', 'icon': Icons.home},
-    {'title': 'Evenimente', 'icon': Icons.event, 'route': '/evenimente'},
-    {'title': 'Disponibilitate', 'icon': Icons.calendar_today, 'route': '/disponibilitate'},
+  final List<Map<String, dynamic>> _dockItems = [
+    {'title': 'Centrala', 'icon': Icons.phone, 'route': '/centrala'},
+    {'title': 'Chat', 'icon': Icons.chat, 'route': '/whatsapp'},
     {'title': 'Echipă', 'icon': Icons.people, 'route': '/team'},
+    {'title': 'AI Chat', 'icon': Icons.smart_toy, 'route': '/ai-chat'},
   ];
 
   @override
   Widget build(BuildContext context) {
+    final appState = Provider.of<AppStateProvider>(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFF4ECDC4),
       appBar: AppBar(
@@ -43,29 +48,44 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       drawer: const AppDrawer(),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF4ECDC4), Color(0xFF44A08D)],
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF4ECDC4), Color(0xFF44A08D)],
+              ),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.celebration, size: 80, color: Colors.white),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Bine ai venit!',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Apasă ➕ pentru meniu',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-        child: GridView.count(
-          crossAxisCount: 2,
-          padding: const EdgeInsets.all(24),
-          mainAxisSpacing: 20,
-          crossAxisSpacing: 20,
-          childAspectRatio: 1.0,
-          children: [
-            _buildCard(context, 'Evenimente', Icons.event, '/evenimente'),
-            _buildCard(context, 'Disponibilitate', Icons.calendar_today, '/disponibilitate'),
-            _buildCard(context, 'Salarii', Icons.attach_money, '/salarizare'),
-            _buildCard(context, 'Centrala', Icons.phone, '/centrala'),
-            _buildCard(context, 'WhatsApp', Icons.chat, '/whatsapp'),
-            _buildCard(context, 'Echipă', Icons.people, '/team'),
-          ],
-        ),
+          const GridOverlay(),
+        ],
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -82,8 +102,8 @@ class _HomeScreenState extends State<HomeScreen> {
           currentIndex: _selectedIndex,
           onTap: (index) {
             setState(() => _selectedIndex = index);
-            if (index > 0 && _pages[index]['route'] != null) {
-              Navigator.pushNamed(context, _pages[index]['route']);
+            if (_dockItems[index]['route'] != null) {
+              Navigator.pushNamed(context, _dockItems[index]['route']);
             }
           },
           type: BottomNavigationBarType.fixed,
@@ -92,76 +112,23 @@ class _HomeScreenState extends State<HomeScreen> {
           selectedItemColor: const Color(0xFF20C997),
           unselectedItemColor: const Color(0xFF718096),
           selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
-          items: _pages.map((page) {
+          items: _dockItems.map((item) {
             return BottomNavigationBarItem(
-              icon: Icon(page['icon']),
-              label: page['title'],
+              icon: Icon(item['icon']),
+              label: item['title'],
             );
           }).toList(),
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, '/ai-chat'),
+        onPressed: () => appState.toggleGrid(),
         backgroundColor: const Color(0xFF20C997),
         elevation: 8,
-        child: const Icon(Icons.smart_toy, color: Colors.white, size: 28),
+        child: const Icon(Icons.add, color: Colors.white, size: 28),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 
-  Widget _buildCard(BuildContext context, String title, IconData icon, String route) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => Navigator.pushNamed(context, route),
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4ECDC4).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 40,
-                    color: const Color(0xFF20C997),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2D3748),
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+
 }
