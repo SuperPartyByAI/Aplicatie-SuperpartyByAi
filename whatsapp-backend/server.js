@@ -1460,7 +1460,7 @@ async function callGroqAI(messages, maxTokens = 500) {
   return await response.json();
 }
 
-// Legacy OpenAI function (fallback)
+// OpenAI GPT-4o-mini fallback (70% cheaper than GPT-3.5, better quality)
 function callOpenAI(messages, maxTokens = 500) {
   return new Promise((resolve, reject) => {
     const apiKey = process.env.OPENAI_API_KEY;
@@ -1470,7 +1470,7 @@ function callOpenAI(messages, maxTokens = 500) {
     }
 
     const postData = JSON.stringify({
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-4o-mini',
       messages: messages,
       max_tokens: maxTokens,
       temperature: 0.7,
