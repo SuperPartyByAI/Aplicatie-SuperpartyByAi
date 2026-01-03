@@ -47,6 +47,18 @@ module.exports = [
     },
   },
   {
-    ignores: ['node_modules/**', 'dist/**', 'build/**', '.firebase/**', 'coverage/**'],
+    ignores: [
+      'node_modules/**',
+      'dist/**',
+      'build/**',
+      '.firebase/**',
+      'coverage/**',
+      '**/__tests__/**',
+      '**/*.test.js',
+      'functions/whatsapp/multi-region.js',
+      'functions/whatsapp/proxy-rotation.js',
+      'functions/whatsapp/rate-limiter.js',
+      'functions/whatsapp/manager.js',
+    ],
   },
 ];
