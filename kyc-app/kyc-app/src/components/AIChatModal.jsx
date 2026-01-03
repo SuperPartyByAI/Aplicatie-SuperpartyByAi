@@ -8,12 +8,10 @@ export default function AIChatModal({ isOpen, onClose }) {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [modalHeight, setModalHeight] = useState('100vh');
   const messagesEndRef = useRef(null);
   const modalRef = useRef(null);
   const inputRef = useRef(null);
   const messagesContainerRef = useRef(null);
-  const lastViewportHeight = useRef(null);
 
   // NO AUTO-SCROLL - Let user control scroll manually
   // This prevents ALL viewport jumps
@@ -64,71 +62,8 @@ export default function AIChatModal({ isOpen, onClose }) {
     });
   }, [isOpen]);
 
-  // VisualViewport API for keyboard handling - with threshold to prevent jitter
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleViewportResize = () => {
-      const wasInputFocused = document.activeElement === inputRef.current;
-      
-      if (window.visualViewport) {
-        const viewport = window.visualViewport;
-        const height = viewport.height;
-        
-        // CRITICAL: Don't update height when input is focused
-        // This prevents viewport jump during typing
-        if (wasInputFocused) {
-          console.log('⏭️ Skip viewport update - input focused (prevents jump)');
-          return;
-        }
-        
-        // Threshold: ignore small changes (<100px) to prevent jitter
-        const THRESHOLD = 100;
-        if (lastViewportHeight.current !== null) {
-          const diff = Math.abs(height - lastViewportHeight.current);
-          if (diff < THRESHOLD) {
-            console.log('⏭️ Skip viewport update - jitter <100px');
-            return;
-          }
-        }
-        
-        lastViewportHeight.current = height;
-        
-        // Modal height = viewport height (keyboard pushes viewport up)
-        setModalHeight(`${height}px`);
-        
-        console.log('📐 Viewport resize:', {
-          height,
-          timestamp: new Date().toISOString()
-        });
-      } else {
-        // Fallback for browsers without VisualViewport
-        const fallbackHeight = window.innerHeight;
-        setModalHeight(`${fallbackHeight}px`);
-      }
-    };
-
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleViewportResize);
-      window.visualViewport.addEventListener('scroll', handleViewportResize);
-      // Initial call
-      handleViewportResize();
-    } else {
-      handleViewportResize();
-      // Fallback: listen to window resize
-      window.addEventListener('resize', handleViewportResize);
-    }
-
-    return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleViewportResize);
-        window.visualViewport.removeEventListener('scroll', handleViewportResize);
-      } else {
-        window.removeEventListener('resize', handleViewportResize);
-      }
-      setModalHeight('100vh');
-    };
-  }, [isOpen]);
+  // NO VisualViewport handling - CSS handles everything
+  // This prevents ALL JavaScript-triggered layout changes
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -187,9 +122,6 @@ export default function AIChatModal({ isOpen, onClose }) {
       ref={modalRef}
       className="new-theme ai-chat-modal" 
       onClick={onClose}
-      style={{
-        height: modalHeight
-      }}
     >
       <div 
         className="ai-chat-container" 
