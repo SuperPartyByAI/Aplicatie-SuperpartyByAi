@@ -1,10 +1,11 @@
 /**
- * Comprimă imaginea la maxim 3MB
+ * Comprimă imaginea la maxim 3 megapixeli și 3MB
  * @param {File} file - Fișierul imagine
  * @returns {Promise<string>} - Base64 string al imaginii comprimate
  */
 export async function compressImage(file) {
   const MAX_SIZE = 3 * 1024 * 1024; // 3MB în bytes
+  const MAX_MEGAPIXELS = 3 * 1000000; // 3 megapixeli
 
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -17,14 +18,26 @@ export async function compressImage(file) {
         let width = img.width;
         let height = img.height;
 
-        // Calculează dimensiunile noi păstrând aspect ratio
-        const maxDimension = 2048; // dimensiune maximă
-        if (width > height && width > maxDimension) {
-          height = (height * maxDimension) / width;
-          width = maxDimension;
-        } else if (height > maxDimension) {
-          width = (width * maxDimension) / height;
-          height = maxDimension;
+        // Calculează megapixeli actuali
+        const currentMegapixels = width * height;
+
+        // Resize la max 3 megapixeli păstrând aspect ratio
+        if (currentMegapixels > MAX_MEGAPIXELS) {
+          const scale = Math.sqrt(MAX_MEGAPIXELS / currentMegapixels);
+          width = Math.floor(width * scale);
+          height = Math.floor(height * scale);
+        }
+
+        // Limitează și dimensiunea maximă (safety check)
+        const maxDimension = 2048;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.floor((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.floor((width * maxDimension) / height);
+            height = maxDimension;
+          }
         }
 
         canvas.width = width;
