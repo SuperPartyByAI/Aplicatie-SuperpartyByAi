@@ -7,17 +7,7 @@ class FirebaseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   static Future<void> initialize() async {
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: 'AIzaSyDcec3QIIpqrhmGSsvAeH2qEbuDKwZFG3o',
-        authDomain: 'superparty-frontend.firebaseapp.com',
-        projectId: 'superparty-frontend',
-        storageBucket: 'superparty-frontend.firebasestorage.app',
-        messagingSenderId: '168752018174',
-        appId: '1:168752018174:web:819254dcc7d58147d82baf',
-        measurementId: 'G-B2HBZK3FQ7',
-      ),
-    );
+    await Firebase.initializeApp();
   }
 
   static FirebaseAuth get auth => _auth;
