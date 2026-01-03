@@ -28,16 +28,7 @@ export default function AIChatModal({ isOpen, onClose }) {
     };
   }, [isOpen]);
 
-  // Auto-focus input when modal opens
-  useEffect(() => {
-    if (!isOpen) return;
-
-    setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.focus();
-      }
-    }, 100);
-  }, [isOpen]);
+  // NO auto-focus - keyboard opens only when user taps input
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
