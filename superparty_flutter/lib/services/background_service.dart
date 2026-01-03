@@ -1,3 +1,4 @@
+import 'dart:isolate';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 class BackgroundService {
@@ -58,12 +59,12 @@ class BackgroundTaskHandler extends TaskHandler {
   }
 
   @override
-  Future<void> onEvent(DateTime timestamp, SendPort? sendPort) async {
-    // Keep service alive
+  void onRepeatEvent(DateTime timestamp, SendPort? sendPort) {
+    // Keep service alive - called every 5 seconds
   }
 
   @override
-  Future<void> onDestroy(DateTime timestamp, SendPort? sendPort) async {
+  Future<void> onDestroy(DateTime timestamp) async {
     print('Background service stopped');
   }
 }
