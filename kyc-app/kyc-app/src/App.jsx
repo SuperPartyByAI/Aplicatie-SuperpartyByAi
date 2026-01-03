@@ -38,6 +38,23 @@ function App() {
     return () => stopAutoUpdate();
   }, []);
 
+  // Prevent accidental app close - keep in background
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      // Only prevent if user is logged in (has active session)
+      if (auth.currentUser) {
+        e.preventDefault();
+        e.returnValue = ''; // Chrome requires returnValue to be set
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+
   // Global sidebar scroll fix
   useEffect(() => {
     const setupSidebarScroll = () => {
