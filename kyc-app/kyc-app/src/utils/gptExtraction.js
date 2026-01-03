@@ -1,53 +1,22 @@
 import { compressImage } from './imageCompression';
-import {
-  extractTextFromImage,
-  parseIdText,
-  calculateConfidence,
-} from './tesseractExtraction';
 
 /**
- * Extrage date din CI folosind Tesseract (gratis) cu fallback la GPT-4o-mini
- * @param {string} apiKey - OpenAI API Key (doar pentru fallback)
+ * Extrage date din CI folosind GPT-4o-mini (optimizat: 3MP + low detail)
+ * @param {string} apiKey - OpenAI API Key
  * @param {File} idFrontFile - Fișier CI față
  * @param {File} idBackFile - Fișier CI verso
- * @param {boolean} forcePremium - Forțează GPT-4o-mini (skip Tesseract)
  * @returns {Promise<Object>} - Obiect cu datele extrase
  */
-export async function extractIdData(apiKey, idFrontFile, idBackFile, forcePremium = false) {
-  // Încearcă mai întâi cu Tesseract (GRATIS)
-  if (!forcePremium) {
-    try {
-      console.log('🔄 Trying Tesseract OCR (free)...');
-      const frontText = await extractTextFromImage(idFrontFile);
-      const backText = await extractTextFromImage(idBackFile);
-      const data = parseIdText(frontText, backText);
-      const confidence = calculateConfidence(data);
-
-      console.log('✅ Tesseract confidence:', confidence);
-
-      // Dacă confidence > 70%, folosim rezultatul Tesseract
-      if (confidence >= 0.7) {
-        console.log('✅ Using Tesseract result (FREE)');
-        return { ...data, method: 'tesseract', confidence };
-      }
-
-      console.log('⚠️ Low confidence, falling back to GPT-4o-mini...');
-    } catch (error) {
-      console.warn('❌ Tesseract failed:', error.message);
-      console.log('🔄 Falling back to GPT-4o-mini...');
-    }
-  }
-
-  // Fallback la GPT-4o-mini (sau dacă forcePremium = true)
+export async function extractIdData(apiKey, idFrontFile, idBackFile) {
   if (!apiKey) {
-    throw new Error('API Key lipsește pentru fallback GPT-4o-mini.');
+    throw new Error('API Key lipsește. Introdu-l în câmpul de sus.');
   }
 
-  console.log('💰 Using GPT-4o-mini (paid)...');
+  // Comprimă imaginile la 3MP
   const idFrontBase64 = await compressImage(idFrontFile);
   const idBackBase64 = await compressImage(idBackFile);
-  const result = await extractWithOpenAI(apiKey, idFrontBase64, idBackBase64);
-  return { ...result, method: 'gpt-4o-mini', confidence: 1.0 };
+
+  return await extractWithOpenAI(apiKey, idFrontBase64, idBackBase64);
 }
 
 /**
