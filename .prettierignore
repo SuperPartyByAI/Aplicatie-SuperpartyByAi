@@ -9,3 +9,6 @@ package-lock.json
 .baileys_auth
 superparty_flutter/
 monitoring/
+*_ORIGINAL_*.jsx
+AuthScreen_ORIGINAL_26Dec2025.jsx
+KycScreen_ORIGINAL_26Dec2025.jsx
