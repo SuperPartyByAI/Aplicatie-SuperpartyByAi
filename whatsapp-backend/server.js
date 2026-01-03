@@ -1431,7 +1431,36 @@ const aiLimiter = rateLimit({
   message: { success: false, error: 'Too many AI requests. Try again later.' },
 });
 
-// Helper function to call OpenAI API
+// Helper function to call Groq API (Llama 3.1 70B - FREE)
+async function callGroqAI(messages, maxTokens = 500) {
+  const apiKey = process.env.GROQ_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GROQ_API_KEY not configured');
+  }
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.1-70b-versatile',
+      messages: messages,
+      max_tokens: maxTokens,
+      temperature: 0.7,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Groq API error: ${response.status} ${response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+// Legacy OpenAI function (fallback)
 function callOpenAI(messages, maxTokens = 500) {
   return new Promise((resolve, reject) => {
     const apiKey = process.env.OPENAI_API_KEY;
@@ -1517,7 +1546,15 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       });
     }
 
-    const response = await callOpenAI(messages, 500);
+    // Try Groq first (FREE), fallback to OpenAI if fails
+    let response;
+    try {
+      response = await callGroqAI(messages, 500);
+    } catch (groqError) {
+      console.warn(`[${requestId}] Groq failed, falling back to OpenAI:`, groqError.message);
+      response = await callOpenAI(messages, 500);
+    }
+
     const duration = Date.now() - startTime;
     const message = response.choices[0]?.message?.content || '';
 
@@ -1580,7 +1617,15 @@ app.post('/api/ai/validate-image', aiLimiter, async (req, res) => {
       },
     ];
 
-    const response = await callOpenAI(messages, 300);
+    // Try Groq first (FREE), fallback to OpenAI if fails
+    let response;
+    try {
+      response = await callGroqAI(messages, 300);
+    } catch (groqError) {
+      console.warn(`[${requestId}] Groq failed, falling back to OpenAI:`, groqError.message);
+      response = await callOpenAI(messages, 300);
+    }
+
     const duration = Date.now() - startTime;
     const analysis = response.choices[0]?.message?.content || '';
 
@@ -1652,7 +1697,15 @@ app.post('/api/ai/analyze-text', aiLimiter, async (req, res) => {
       },
     ];
 
-    const response = await callOpenAI(messages, 400);
+    // Try Groq first (FREE), fallback to OpenAI if fails
+    let response;
+    try {
+      response = await callGroqAI(messages, 400);
+    } catch (groqError) {
+      console.warn(`[${requestId}] Groq failed, falling back to OpenAI:`, groqError.message);
+      response = await callOpenAI(messages, 400);
+    }
+
     const duration = Date.now() - startTime;
     const analysis = response.choices[0]?.message?.content || '';
 
