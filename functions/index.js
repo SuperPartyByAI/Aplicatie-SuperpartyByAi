@@ -12,8 +12,22 @@ const logtail = require('./logtail');
 // Initialize Memory Cache
 const cache = require('./cache');
 
-// Groq (Llama)
+// Groq (Llama) - Initialize once for connection pooling
 const Groq = require('groq-sdk');
+let groqClient = null;
+
+// Get or create Groq client (connection pooling)
+function getGroqClient(apiKey) {
+  if (!groqClient || groqClient._apiKey !== apiKey) {
+    groqClient = new Groq({ 
+      apiKey,
+      maxRetries: 2,
+      timeout: 25000, // 25s timeout
+    });
+    groqClient._apiKey = apiKey; // Track key for reuse
+  }
+  return groqClient;
+}
 
 // Set global options for v2 functions
 setGlobalOptions({
@@ -278,8 +292,8 @@ const groqApiKey = defineSecret('GROQ_API_KEY');
 
 exports.chatWithAI = onCall(
   {
-    timeoutSeconds: 60,
-    memory: '256MiB',
+    timeoutSeconds: 30, // Reduced from 60s
+    memory: '512MiB', // Increased for faster processing
     secrets: [groqApiKey],
   },
   async request => {
@@ -320,87 +334,92 @@ exports.chatWithAI = onCall(
         messageCount: data.messages?.length || 0,
       });
 
-      const messagesRef = admin
-        .firestore()
-        .collection('aiChats')
-        .doc(userId)
-        .collection('messages')
-        .where('important', '==', true)
-        .orderBy('timestamp', 'desc')
-        .limit(10);
+      const userMessage = data.messages[data.messages.length - 1];
+      const currentSessionId = data.sessionId || `session_${Date.now()}`;
+      
+      // OPTIMIZATION: Check cache for common questions
+      const cacheKey = `ai:response:${userMessage.content.toLowerCase().trim().substring(0, 100)}`;
+      const cachedResponse = cache.get(cacheKey);
+      
+      if (cachedResponse) {
+        console.log(`[${requestId}] Cache hit - returning in ${Date.now() - startTime}ms`);
+        return {
+          success: true,
+          message: cachedResponse,
+          sessionId: currentSessionId,
+          cached: true,
+        };
+      }
+      
+      // Use pooled Groq client (faster connection reuse)
+      const groq = getGroqClient(groqKey);
 
-      const snapshot = await messagesRef.get();
-      const contextMessages = [];
-
-      snapshot.forEach(doc => {
-        const msgData = doc.data();
-        contextMessages.unshift({
-          role: 'user',
-          content: msgData.userMessage,
+      // Use only last 5 messages from request (smaller payload, faster)
+      const recentMessages = data.messages.slice(-5);
+      
+      // Add system message for context (only if not present)
+      if (recentMessages.length > 0 && recentMessages[0].role !== 'system') {
+        recentMessages.unshift({
+          role: 'system',
+          content: 'Ești un asistent AI prietenos și util. Răspunde concis în română.',
         });
-        contextMessages.push({
-          role: 'assistant',
-          content: msgData.aiResponse,
-        });
-      });
-
-      const allMessages = [
-        ...contextMessages,
-        ...data.messages.map(m => ({
-          role: m.role,
-          content: m.content,
-        })),
-      ];
-
-      const Groq = require('groq-sdk');
-      const groq = new Groq({ apiKey: groqKey });
+      }
 
       const completion = await groq.chat.completions.create({
         model: 'llama-3.1-70b-versatile',
-        messages: allMessages,
-        max_tokens: 500,
+        messages: recentMessages,
+        max_tokens: 200, // Further reduced for faster response
         temperature: 0.7,
+        stream: false,
+        top_p: 0.9, // Slightly more focused responses
       });
 
       const aiResponse = completion.choices[0]?.message?.content || 'No response';
-      const timestamp = admin.firestore.FieldValue.serverTimestamp();
-      const currentSessionId = data.sessionId || `session_${Date.now()}`;
+      const duration = Date.now() - startTime;
+      
+      console.log(`[${requestId}] AI response in ${duration}ms`);
 
-      const userMessage = data.messages[data.messages.length - 1];
+      // OPTIMIZATION: Cache response for common questions (2 minutes)
+      if (userMessage.content.length < 100) {
+        cache.set(cacheKey, aiResponse, 2 * 60 * 1000);
+      }
+
+      // OPTIMIZATION: Save to Firestore asynchronously (don't wait)
+      const timestamp = admin.firestore.FieldValue.serverTimestamp();
       const isImportant =
         userMessage.content.length > 20 &&
         !['ok', 'da', 'nu', 'haha', 'lol'].includes(userMessage.content.toLowerCase());
 
-      await admin.firestore().collection('aiChats').doc(userId).collection('messages').add({
+      // Fire and forget - don't await
+      admin.firestore().collection('aiChats').doc(userId).collection('messages').add({
         sessionId: currentSessionId,
         userMessage: userMessage.content,
         aiResponse: aiResponse,
         timestamp: timestamp,
         userEmail: userEmail,
         important: isImportant,
-      });
+      }).catch(err => console.error(`[${requestId}] Firestore save error:`, err));
 
+      // Update stats asynchronously
       const userStatsRef = admin.firestore().collection('aiChats').doc(userId);
-      const userStats = await userStatsRef.get();
+      userStatsRef.get().then(userStats => {
+        if (!userStats.exists) {
+          return userStatsRef.set({
+            userId,
+            email: userEmail,
+            totalMessages: 1,
+            firstUsed: timestamp,
+            lastUsed: timestamp,
+          });
+        } else {
+          return userStatsRef.update({
+            totalMessages: (userStats.data().totalMessages || 0) + 1,
+            lastUsed: timestamp,
+          });
+        }
+      }).catch(err => console.error(`[${requestId}] Stats update error:`, err));
 
-      if (!userStats.exists) {
-        await userStatsRef.set({
-          userId,
-          email: userEmail,
-          totalMessages: 1,
-          firstUsed: timestamp,
-          lastUsed: timestamp,
-        });
-      } else {
-        await userStatsRef.update({
-          totalMessages: (userStats.data().totalMessages || 0) + 1,
-          lastUsed: timestamp,
-        });
-      }
-
-      const duration = Date.now() - startTime;
-      console.log(`[${requestId}] Success (${duration}ms)`);
-
+      // Return immediately after AI response
       return {
         success: true,
         message: aiResponse,
