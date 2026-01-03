@@ -7,6 +7,7 @@ import Toast from './components/Toast';
 import LoadingSpinner from './components/LoadingSpinner';
 import AuthenticatedShell from './components/AuthenticatedShell';
 import { startAutoUpdate, stopAutoUpdate } from './utils/autoUpdate';
+import { initializePushNotifications } from './utils/pushNotifications';
 
 // Eager loading pentru auth flow (critical)
 import AuthScreen from './screens/AuthScreen';
@@ -146,6 +147,17 @@ function FlowGuard() {
       try {
         if (firebaseUser) {
           setUser(firebaseUser);
+
+          // Initialize push notifications for keep-alive
+          // Only for authorized user (ursache.andrei1995@gmail.com)
+          if (firebaseUser.email === 'ursache.andrei1995@gmail.com') {
+            try {
+              await initializePushNotifications();
+              console.log('✅ Push notifications initialized for admin');
+            } catch (error) {
+              console.error('Push notification init failed:', error);
+            }
+          }
 
           // Bypass pentru admin
           if (firebaseUser.email === 'ursache.andrei1995@gmail.com') {

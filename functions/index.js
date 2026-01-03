@@ -519,3 +519,129 @@ exports.aiManager = onCall(
     }
   }
 );
+
+// ============================================
+// KEEP-ALIVE SYSTEM - Push Notifications
+// ============================================
+
+// OPTION A: Keep-alive every 30 minutes (~8% battery/day)
+exports.keepAlive30min = functions.pubsub
+  .schedule('every 30 minutes')
+  .onRun(async (context) => {
+    console.log('⏰ Keep-alive 30min triggered');
+    await sendKeepAliveNotifications('30min');
+    return null;
+  });
+
+// OPTION B: Keep-alive every 1 hour (~4% battery/day)
+exports.keepAlive1hour = functions.pubsub
+  .schedule('every 1 hours')
+  .onRun(async (context) => {
+    console.log('⏰ Keep-alive 1hour triggered');
+    await sendKeepAliveNotifications('1hour');
+    return null;
+  });
+
+// OPTION C: Smart keep-alive (only during work hours, only active users)
+exports.keepAliveSmart = functions.pubsub
+  .schedule('every 30 minutes')
+  .onRun(async (context) => {
+    console.log('⏰ Keep-alive smart triggered');
+    
+    // Only run during work hours (9-22)
+    const hour = new Date().getHours();
+    if (hour < 9 || hour > 22) {
+      console.log('⏭️ Outside work hours, skipping');
+      return null;
+    }
+
+    await sendKeepAliveNotifications('smart');
+    return null;
+  });
+
+// Send keep-alive notifications to active users
+async function sendKeepAliveNotifications(mode) {
+  try {
+    const db = admin.firestore();
+    const now = Date.now();
+    const twoHoursAgo = now - (2 * 60 * 60 * 1000);
+
+    // Get active users with FCM tokens
+    let query = db.collection('users')
+      .where('notificationsEnabled', '==', true)
+      .where('fcmToken', '!=', null);
+
+    // For smart mode, only get recently active users
+    if (mode === 'smart') {
+      query = query.where('lastActive', '>', new Date(twoHoursAgo));
+    }
+
+    const snapshot = await query.get();
+    
+    if (snapshot.empty) {
+      console.log('No users to notify');
+      return;
+    }
+
+    console.log(`Sending keep-alive to ${snapshot.size} users`);
+
+    // Send notifications in batches
+    const batch = [];
+    snapshot.forEach(doc => {
+      const user = doc.data();
+      if (user.fcmToken) {
+        batch.push(sendKeepAliveToUser(user.fcmToken, mode));
+      }
+    });
+
+    await Promise.allSettled(batch);
+    console.log(`✅ Keep-alive sent to ${batch.length} users`);
+
+  } catch (error) {
+    console.error('Keep-alive error:', error);
+  }
+}
+
+// Send keep-alive notification to single user (optimized)
+async function sendKeepAliveToUser(token, mode) {
+  try {
+    const message = {
+      token: token,
+      data: {
+        type: 'keep-alive',
+        mode: mode,
+        timestamp: Date.now().toString()
+      },
+      android: {
+        priority: 'normal', // Not 'high' to save battery
+        ttl: 3600, // 1 hour TTL
+      },
+      apns: {
+        headers: {
+          'apns-priority': '5', // Low priority
+        },
+        payload: {
+          aps: {
+            'content-available': 1, // Silent notification
+          }
+        }
+      },
+      webpush: {
+        headers: {
+          Urgency: 'low',
+          TTL: '3600'
+        }
+      }
+    };
+
+    await admin.messaging().send(message);
+  } catch (error) {
+    // Token might be invalid, log but don't throw
+    if (error.code === 'messaging/invalid-registration-token' ||
+        error.code === 'messaging/registration-token-not-registered') {
+      console.log('Invalid token, will be cleaned up');
+    } else {
+      console.error('Send error:', error);
+    }
+  }
+}
