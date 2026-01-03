@@ -98,6 +98,7 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
     logtail.info('WhatsApp account added', { accountId: account.id, name, phone });
     res.json({ success: true, account });
   } catch (error) {
+    const { name, phone } = req.body || {};
     Sentry.captureException(error, {
       tags: { endpoint: 'add-account', function: 'whatsappV4' },
       extra: { name, phone },
