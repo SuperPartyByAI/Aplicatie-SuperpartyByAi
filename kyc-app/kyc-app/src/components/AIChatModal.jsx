@@ -9,12 +9,19 @@ export default function AIChatModal({ isOpen, onClose }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
+  const messagesEndRef = useRef(null);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+    }
+  }, [messages]);
 
   // Lock body scroll when modal is open
   useEffect(() => {
     if (!isOpen) return;
 
-    // Prevent body scroll
     const originalOverflow = document.body.style.overflow;
     const originalPosition = document.body.style.position;
     document.body.style.overflow = 'hidden';
@@ -28,8 +35,6 @@ export default function AIChatModal({ isOpen, onClose }) {
     };
   }, [isOpen]);
 
-  // NO auto-focus - keyboard opens only when user taps input
-
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
@@ -37,6 +42,11 @@ export default function AIChatModal({ isOpen, onClose }) {
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setLoading(true);
+
+    // Keep keyboard open immediately
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
 
     try {
       const result = await callChatWithAI({ messages: [...messages, userMessage] });
@@ -51,22 +61,10 @@ export default function AIChatModal({ isOpen, onClose }) {
       }]);
     } finally {
       setLoading(false);
-      
-      // Keep keyboard open
-      setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-        }
-      }, 50);
     }
   };
 
-  const handleInputClick = (e) => {
-    e.stopPropagation();
-    if (inputRef.current && !loading) {
-      inputRef.current.focus();
-    }
-  };
+
 
   if (!isOpen) return null;
 
@@ -100,29 +98,21 @@ export default function AIChatModal({ isOpen, onClose }) {
               ⏳ Scriu...
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Input */}
-        <div 
-          className="ai-chat-input"
-          onClick={handleInputClick}
-        >
+        <div className="ai-chat-input">
           <input
             ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleSend();
               }
-            }}
-            onClick={handleInputClick}
-            onTouchStart={handleInputClick}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              handleInputClick(e);
             }}
             placeholder="Scrie un mesaj..."
             disabled={loading}
@@ -132,19 +122,7 @@ export default function AIChatModal({ isOpen, onClose }) {
             autoCapitalize="sentences"
           />
           <button
-            onMouseDown={(e) => {
-              // Prevent input blur on button click
-              e.preventDefault();
-            }}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleSend();
-            }}
-            onTouchStart={(e) => {
-              // Prevent input blur on touch
-              e.preventDefault();
-            }}
+            onClick={handleSend}
             disabled={loading || !input.trim()}
             className="send-button"
           >

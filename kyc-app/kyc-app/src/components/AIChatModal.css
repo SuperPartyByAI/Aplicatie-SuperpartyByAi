@@ -92,20 +92,19 @@
   transform: scale(1.05);
 }
 
-/* Messages - WhatsApp style with natural scroll */
+/* Messages - WhatsApp style */
 .new-theme .ai-chat-messages {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--space-lg);
-  padding-bottom: var(--space-xl);
+  padding-bottom: 80px;
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
   background: transparent;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  min-height: 0;
 }
 
 .new-theme .message {
