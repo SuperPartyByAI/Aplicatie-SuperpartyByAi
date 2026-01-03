@@ -29,7 +29,8 @@ class HomeScreen extends StatelessWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: () => Navigator.pushNamed(context, '/ai-chat'),
+        backgroundColor: const Color(0xFF6366F1),
         child: const Icon(Icons.smart_toy),
       ),
     );

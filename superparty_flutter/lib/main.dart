@@ -8,6 +8,10 @@ import 'screens/evenimente/evenimente_screen.dart';
 import 'screens/disponibilitate/disponibilitate_screen.dart';
 import 'screens/salarizare/salarizare_screen.dart';
 import 'screens/centrala/centrala_screen.dart';
+import 'screens/whatsapp/whatsapp_screen.dart';
+import 'screens/team/team_screen.dart';
+import 'screens/admin/admin_screen.dart';
+import 'screens/ai_chat/ai_chat_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,6 +48,10 @@ class SuperPartyApp extends StatelessWidget {
         '/disponibilitate': (context) => const DisponibilitateScreen(),
         '/salarizare': (context) => const SalarizareScreen(),
         '/centrala': (context) => const CentralaScreen(),
+        '/whatsapp': (context) => const WhatsAppScreen(),
+        '/team': (context) => const TeamScreen(),
+        '/admin': (context) => const AdminScreen(),
+        '/ai-chat': (context) => const AIChatScreen(),
       },
     );
   }
