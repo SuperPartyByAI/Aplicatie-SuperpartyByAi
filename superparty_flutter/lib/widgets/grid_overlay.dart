@@ -102,82 +102,80 @@ class GridOverlay extends StatelessWidget {
     String route, {
     Color color = const Color(0xFF4ECDC4),
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          appState.closeGrid();
-          Navigator.pushNamed(context, route);
-        },
-        borderRadius: BorderRadius.circular(16),
-        splashColor: Colors.white.withOpacity(0.1),
-        highlightColor: Colors.white.withOpacity(0.05),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Icon Bubble cu gradient și glow
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withOpacity(0.18),
-                      Colors.white.withOpacity(0.06),
-                    ],
-                  ),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.14),
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.34),
-                      blurRadius: 22,
-                      offset: const Offset(0, 12),
-                    ),
-                    BoxShadow(
-                      color: color.withOpacity(0.12),
-                      blurRadius: 0,
-                      spreadRadius: 8,
-                    ),
+    return GestureDetector(
+      onTap: () {
+        appState.closeGrid();
+        Navigator.pushNamed(context, route);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: Colors.transparent, // Fără fundal
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Icon Bubble cu gradient și glow
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withOpacity(0.18),
+                    Colors.white.withOpacity(0.06),
                   ],
                 ),
-                child: Icon(
-                  icon,
-                  size: 24,
-                  color: const Color(0xFFEAF1FF),
-                  shadows: [
-                    Shadow(
-                      color: Colors.black.withOpacity(0.30),
-                      blurRadius: 14,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.14),
+                  width: 1,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.34),
+                    blurRadius: 22,
+                    offset: const Offset(0, 12),
+                  ),
+                  BoxShadow(
+                    color: color.withOpacity(0.18), // Glow mai puternic
+                    blurRadius: 0,
+                    spreadRadius: 8,
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              // Text label (1-2 linii)
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFFEAF1FF),
-                  letterSpacing: 0.1,
-                  height: 1.1,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              child: Icon(
+                icon,
+                size: 24,
+                color: const Color(0xFFEAF1FF),
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withOpacity(0.30),
+                    blurRadius: 14,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 8),
+            // Text label (1-2 linii)
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFEAF1FF),
+                letterSpacing: 0.1,
+                height: 1.05,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ),
       ),
     );
@@ -192,79 +190,77 @@ class GridOverlay extends StatelessWidget {
     VoidCallback onTap, {
     Color color = const Color(0xFF4ECDC4),
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        splashColor: Colors.white.withOpacity(0.1),
-        highlightColor: Colors.white.withOpacity(0.05),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Icon Bubble
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withOpacity(0.18),
-                      Colors.white.withOpacity(0.06),
-                    ],
-                  ),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.14),
-                    width: 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.34),
-                      blurRadius: 22,
-                      offset: const Offset(0, 12),
-                    ),
-                    BoxShadow(
-                      color: color.withOpacity(0.12),
-                      blurRadius: 0,
-                      spreadRadius: 8,
-                    ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: Colors.transparent, // Fără fundal
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Icon Bubble
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withOpacity(0.18),
+                    Colors.white.withOpacity(0.06),
                   ],
                 ),
-                child: Icon(
-                  icon,
-                  size: 24,
-                  color: const Color(0xFFEAF1FF),
-                  shadows: [
-                    Shadow(
-                      color: Colors.black.withOpacity(0.30),
-                      blurRadius: 14,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.14),
+                  width: 1,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.34),
+                    blurRadius: 22,
+                    offset: const Offset(0, 12),
+                  ),
+                  BoxShadow(
+                    color: color.withOpacity(0.18), // Glow mai puternic
+                    blurRadius: 0,
+                    spreadRadius: 8,
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              // Text label
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFFEAF1FF),
-                  letterSpacing: 0.1,
-                  height: 1.1,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              child: Icon(
+                icon,
+                size: 24,
+                color: const Color(0xFFEAF1FF),
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withOpacity(0.30),
+                    blurRadius: 14,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 8),
+            // Text label
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFEAF1FF),
+                letterSpacing: 0.1,
+                height: 1.05,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ),
       ),
     );
