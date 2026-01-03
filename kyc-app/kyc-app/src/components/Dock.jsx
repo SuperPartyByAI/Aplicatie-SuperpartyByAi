@@ -11,6 +11,7 @@ export default function Dock() {
     { id: 'centrala', icon: '📞', label: 'Centrala', route: '/centrala-telefonica', view: 'centrala' },
     { id: 'chat', icon: '💬', label: 'Chat', route: '/chat-clienti', view: 'chat' },
     { id: 'fab', icon: '➕', label: 'Meniu', view: 'grid' },
+    { id: 'admin', icon: '⚙️', label: 'Admin', route: '/admin', view: 'admin' },
     { id: 'team', icon: '👥', label: 'Echipă', route: '/team', view: 'team' },
     { id: 'ai', icon: '🤖', label: 'AI Chat', view: 'ai' },
   ];
