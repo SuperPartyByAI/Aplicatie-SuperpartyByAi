@@ -92,7 +92,7 @@
   transform: scale(1.05);
 }
 
-/* Messages - WhatsApp style - FROZEN layout */
+/* Messages - WhatsApp style with natural scroll */
 .new-theme .ai-chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -105,10 +105,7 @@
   background: transparent;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  position: relative;
-  /* CRITICAL: Prevent layout shift */
   min-height: 0;
-  will-change: scroll-position;
 }
 
 .new-theme .message {
@@ -144,12 +141,9 @@
   font-style: italic;
 }
 
-/* Input - FIXED position to prevent jump */
+/* Input - Relative position, natural keyboard behavior */
 .new-theme .ai-chat-input {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  position: relative;
   padding: 12px 16px;
   padding-bottom: calc(12px + env(safe-area-inset-bottom));
   background: rgba(15, 20, 45, 0.98);
@@ -159,11 +153,8 @@
   gap: 12px;
   align-items: flex-end;
   min-height: 68px;
-  z-index: 10;
+  flex-shrink: 0;
   pointer-events: auto;
-  /* CRITICAL: Prevent layout shift */
-  transform: translateZ(0);
-  will-change: transform;
 }
 
 .new-theme .ai-chat-input input {

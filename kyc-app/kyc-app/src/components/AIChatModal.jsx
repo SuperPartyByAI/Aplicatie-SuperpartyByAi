@@ -13,8 +13,12 @@ export default function AIChatModal({ isOpen, onClose }) {
   const inputRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
-  // NO AUTO-SCROLL - Let user control scroll manually
-  // This prevents ALL viewport jumps
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -34,43 +38,19 @@ export default function AIChatModal({ isOpen, onClose }) {
     };
   }, [isOpen]);
 
-  // Auto-focus input when modal opens - iOS/Android compatible
+  // Auto-focus input when modal opens
   useEffect(() => {
     if (!isOpen) return;
 
-    // Use requestAnimationFrame for better timing
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (inputRef.current) {
-          // iOS requires user interaction, but we can try
-          inputRef.current.focus();
-          
-          // Trigger click for iOS Safari
-          const clickEvent = new MouseEvent('click', {
-            view: window,
-            bubbles: true,
-            cancelable: true
-          });
-          inputRef.current.dispatchEvent(clickEvent);
-          
-          console.log('AI Chat: Input focused', {
-            activeElement: document.activeElement === inputRef.current,
-            timestamp: new Date().toISOString()
-          });
-        }
-      });
-    });
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 100);
   }, [isOpen]);
-
-  // NO VisualViewport handling - CSS handles everything
-  // This prevents ALL JavaScript-triggered layout changes
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
-
-    console.log('📤 Send - before:', {
-      inputFocused: document.activeElement === inputRef.current
-    });
 
     const userMessage = { role: 'user', content: input };
     setMessages(prev => [...prev, userMessage]);
@@ -91,16 +71,12 @@ export default function AIChatModal({ isOpen, onClose }) {
     } finally {
       setLoading(false);
       
-      // Keep focus - single strategy, no triple focus
-      // Use nearBottom + keyboard state for decision
-      requestAnimationFrame(() => {
+      // Keep keyboard open
+      setTimeout(() => {
         if (inputRef.current) {
-          inputRef.current.focus({ preventScroll: true });
-          console.log('📤 Send - after focus:', {
-            inputFocused: document.activeElement === inputRef.current
-          });
+          inputRef.current.focus();
         }
-      });
+      }, 50);
     }
   };
 
@@ -108,10 +84,6 @@ export default function AIChatModal({ isOpen, onClose }) {
     e.stopPropagation();
     if (inputRef.current && !loading) {
       inputRef.current.focus();
-      // iOS Safari sometimes needs this
-      if (document.activeElement !== inputRef.current) {
-        inputRef.current.click();
-      }
     }
   };
 
