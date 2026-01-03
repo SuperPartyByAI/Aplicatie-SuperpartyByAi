@@ -84,4 +84,10 @@ WebSocket URLs (update if needed):
 
 ---
 
+## 📦 Latest Build
+
+Check GitHub Actions for the latest APK: [Actions Page](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions/workflows/flutter-build.yml)
+
+---
+
 **Built with ❤️ by Ona**
