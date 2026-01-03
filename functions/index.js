@@ -12,6 +12,9 @@ const logtail = require('./logtail');
 // Initialize Memory Cache
 const cache = require('./cache');
 
+// OpenAI
+const OpenAI = require('openai');
+
 // Set global options for v2 functions
 setGlobalOptions({
   region: 'us-central1',
@@ -645,3 +648,36 @@ async function sendKeepAliveToUser(token, mode) {
     }
   }
 }
+
+// AI Chat Function
+exports.chatWithAI = onCall(async (request) => {
+  const openaiKey = defineSecret('OPENAI_API_KEY');
+  
+  try {
+    const { messages } = request.data;
+    
+    if (!messages || !Array.isArray(messages)) {
+      throw new Error('Invalid messages format');
+    }
+
+    const openai = new OpenAI({
+      apiKey: openaiKey.value(),
+    });
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: messages.map(m => ({
+        role: m.role,
+        content: m.content
+      })),
+      max_tokens: 500,
+    });
+
+    return {
+      message: completion.choices[0].message.content
+    };
+  } catch (error) {
+    console.error('AI Chat error:', error);
+    throw new Error('Failed to get AI response');
+  }
+});
