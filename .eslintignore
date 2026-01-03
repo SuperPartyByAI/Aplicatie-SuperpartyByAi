@@ -11,3 +11,12 @@ kyc-app/kyc-app/src/**
 kyc-app/kyc-app/public/**
 kyc-app/kyc-app/vite.config.js
 kyc-app/kyc-app/dist/
+superparty_flutter/
+monitoring/
+whatsapp-backend/**/*.test.js
+whatsapp-backend/__tests__/**
+test-*.js
+**/scripts/**
+**/*-backup.js
+src/whatsapp/multi-region.js
+src/whatsapp/proxy-rotation.js
