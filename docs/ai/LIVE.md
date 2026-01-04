@@ -407,6 +407,10 @@ Pentru documentație, ia ca „single source of truth” DOCS-INDEX.md.
 Add comprehensive documentation…
 
 Dacă vrei, îți pot transforma lista într-un fișier PERMALINKS.md curat (cu aceeași structură și doar linkuri valide).
+
+## User
+
+deci per total sunt e ok aplicatia sau nu
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
