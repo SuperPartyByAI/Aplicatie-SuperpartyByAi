@@ -7322,63 +7322,7 @@ Pentru șofer (S), vrei aceeași logică (acum am pus-o identic: poate fi și el
 
 ## ONA (Gitpod)
 
-…))
-+
-  );
-+
- 
-+
-  if (!staffSnapshot.empty) {
-+
-    setValidareCeCodAi('✓ Cod acceptat');
-+
-  } else {
-+
-    setValidareCeCodAi('✗ Cod nu există în sistem');
-+
-  }
-+
-};
-+
- 
-+
-// Filtrare
-+
-if (codCeCodAi.trim() && validareCeCodAi === '✓ Cod acceptat') {
-+
-  const staffAlocat = ev.staffAlocat || [];
-+
-  const hasStaffWithCode = staffAlocat.some(uid => {
-+
-    const profile = staffProfiles[uid];
-+
-    return profile && profile.code === codCeCodAi.trim();
-+
-  });
-+
-  if (!hasStaffWithCode) return false;
-+
-}
-+
-```
-+
- 
-+
-#### 6. Cine Notează (Vezi evenimente unde tu notezi)
-+
-```javascript
-+
-const [codCineNoteaza, setCodCineNoteaza] = useState('');
-+
-const [validareCineNoteaza, setValidareCineNoteaza] = useState('');
-+
- 
-+
-// Validare similar cu "Ce cod ai"
-+
- 
-+
-// Filtrare
+…
 +
 if (codCineNoteaza.trim() && validareCineNoteaza === '✓ Cod acceptat') {
 +
@@ -10980,4 +10924,31 @@ Altceva?
 Spune-mi ce vrei! 😊
 
 ce faci gpt
+
+Summary
+
+😄 Bine, hai să clarificăm:
+
+NU sunt GPT! Sunt Ona - agent AI care folosește Claude 4.5 Sonnet (de la Anthropic, nu OpenAI).
+
+Dar înțeleg, mulți spun "GPT" pentru orice AI!
+
+Ce fac acum?
+
+Tocmai am terminat documentația completă pentru rolurile petrecerilor SuperParty:
+
+✅ ROLURI-PETRECERI-DOCUMENTATIE.md (854 linii)
+
+8 roluri definite (animator, personaj, ursitoare, vată, popcorn, gheață carbonică, tort, confetti)
+7 pachete SUPER (490-1290 lei)
+Workflow complet
+Testing + Troubleshooting
+Ce pot face pentru tine acum?
+Testez Voice AI - sun la Kasya și verific cum notează rolurile
+Verific Firebase - văd cum sunt salvate petrecerile
+Creez cod nou - dacă ai nevoie de ceva
+Documentație extra - pentru alte părți ale sistemului
+Altceva - spune-mi!
+
+Ce vrei să fac? 🚀
 <!-- END ONA -->
