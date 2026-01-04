@@ -514,6 +514,30 @@ Dacă îmi spui ce înseamnă pentru tine “OK” (demo pentru investitori, pil
 ## User
 
 productie pt echipa sa o putem folosi live .
+
+## Assistant
+
+Pentru producție internă (echipa să o folosească live): în starea documentată acum, răspunsul corect este “nu încă, dar e aproape”.
+
+Blocajele sunt clare în repo/documentație:
+
+Smoke test end-to-end este încă “pending” și sunt menționate explicit pași rămași de testare manuală + configurare numere reale. 
+
+SESSION_SUMMARY
+
+ 
+
+SESSION_SUMMARY
+
+Există un endpoint/feature marcat ca public “temporary” (ex. cleanup-duplicates), care este un risc direct dacă rămâne expus în producție. 
+
+SESSION_SUMMARY
+
+În documentația Voice AI apar secrete / credențiale / variabile sensibile (OpenAI/Twilio/Railway etc.), plus referințe la fișier de tip service account, ceea ce impune rotație și igienizare înainte de utilizare live. 
+
+VOICE-AI-COMPLETE-DOCUMENTATION
+
+Add complete Voice AI documenta…
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
