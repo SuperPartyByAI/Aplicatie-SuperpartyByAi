@@ -23,10 +23,7 @@ Test autosave smoke.
 
 ## ONA (Gitpod)
 
-… userCode={code} />
-
-3. Filtrare Evenimente
-// În EvenimenteScreen - filtru "Ce cod ai"
+… - filtru "Ce cod ai"
 const hasStaffWithCode = staffAlocat.some(uid => {
   const profile = staffProfiles[uid];
   return profile && profile.code === codCeCodAi.trim();
@@ -2882,7 +2879,6 @@ Ai dreptate! Linkurile pe care ți le-am dat NU funcționează încă pentru fi�
 Hai să-l commit și push:
 
 Se execută comanda: cd /workspaces/Aplicație-SuperpartyByAi && git status | head -20
-Rezumat
 
 Perfect! Am 2 fișiere noi. Vrei să le comite și să push pe GitHub? Atunci linkurile vor funcționa!
 
@@ -2893,4 +2889,6 @@ NU, doar arată-mi linkurile care DEJA există pe GitHub
 Altceva - spune-mi ce vrei
 
 Ce alegi? 🚀
+
+vreau sa stiu doar daca toate sunt linkurile alea sau mai sunt si altele
 <!-- END ONA -->
