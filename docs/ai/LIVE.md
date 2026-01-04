@@ -23,25 +23,7 @@ Test autosave.
 
 ## ONA (Gitpod)
 
-…Docs(collection(db, 'staffProfiles')),
-+
-]);
-+
-```
-+
- 
-+
-#### 2. Pre-build Staff Map (O(1) lookup)
-+
-```javascript
-+
-// ÎNAINTE: N+1 queries (foarte lent)
-+
-for (const ev of evenimente) {
-+
-  for (const uid of ev.staffAlocat) {
-+
-    const staffDoc = await getDoc(doc(db, 'staffProfiles', uid)); // Query per staff!
+…t staffDoc = await getDoc(doc(db, 'staffProfiles', uid)); // Query per staff!
 +
   }
 +
@@ -3607,5 +3589,10 @@ Fișierul nu există local. Hai să-l citesc direct de pe GitHub:
 
 Site web de citire: https://raw.githubusercontent.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/main/docs/ai/LIVE.md
 
-F
+Fișierul nu există pe GitHub. Hai să verifice ce fișiere există în docs/ai/:
+
+Executarea comenzii: find . -path "*/docs/ai/*" -type f 2>/dev/null | head -20
+Executarea comenzii: ls -la docs/ 2>/dev/null || echo "Folder docs/nu există"
+
+Fol
 <!-- END ONA -->
