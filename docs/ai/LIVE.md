@@ -221,7 +221,56 @@ https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2
 v7
 
 Costuri Voice AI (corectat din linkul tău „COSTURI-AI.REALE-dVOICE”):
-https://github.com/Sup
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/COSTURI-REALE-VOICE-AI.md
+ 
+
+Add comprehensive documentation…
+
+Costuri RON simplu (corectat din linkul trunchiat):
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/COSTURI-RON-SIMPLU.md
+ 
+
+Add comprehensive documentation…
+
+Roluri petreceri: în repo nu mi-a ieșit un fișier cu numele exact „ROLURI-PETRECERI-DOCUMENTATIE.md” la căutare (posibil redenumit / integrat în alt doc). Dacă îmi dai numele exact al fișierului (sau îl cauți în repo după „ROLURI”), îl fixez imediat.
+
+Evenimente și personal
+
+Evenimente (menționat în schimbările din commit-ul indicat):
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/EVENIMENTE_DOCUMENTATION.md
+ 
+
+Add comprehensive Voice AI docu…
+
+WhatsApp (recomand să folosești denumirile standard din repo)
+
+În lista ta apar alte nume (ex. WHATSAPP-COMPLETE-ANALYSIS.md, STATUS-FINAL-WHATSAPP.md, WHATSAPP-PRODUCTION-READY.md), dar repo are o suită clară de documente „guide/config/quick reference”. 
+
+Merge remote changes - [Repo na…
+
+Ghid complet:
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/WHATSAPP-COMPLETE-GUIDE.md
+ 
+
+Merge remote changes - [Repo na…
+
+Config:
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/WHATSAPP-CONFIG.md
+ 
+
+Merge remote changes - [Repo na…
+
+QR vs Pairing:
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/WHATSAPP-QR-VS-PAIRING.md
+ 
+
+Merge remote changes - [Repo na…
+
+Quick reference:
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/WHATSAPP-QU
+ 
+
+Merge remote changes - [Repo na…
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
