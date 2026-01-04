@@ -7322,8 +7322,7 @@ Pentru șofer (S), vrei aceeași logică (acum am pus-o identic: poate fi și el
 
 ## ONA (Gitpod)
 
-…
-if (codCineNoteaza.trim() && validareCineNoteaza === '✓ Cod acceptat') {
+…oteaza === '✓ Cod acceptat') {
 +
   if (ev.cineNoteaza !== codCineNoteaza.trim()) {
 +
@@ -10924,8 +10923,6 @@ Spune-mi ce vrei! 😊
 
 ce faci gpt
 
-Rezumat
-
 😄 Bine, hai să clarificăm:
 
 NU sunt GPT! Sunt Ona - agent AI care folosește Claude 4.5 Sonnet (de la Anthropic, nu OpenAI).
@@ -10950,4 +10947,8 @@ Documentație extra - pentru alte părți ale sistemului
 Altceva - spune-mi!
 
 Ce vrei să faci? 🚀
+
+tu vezi ce scrie gpt in live md?
+
+Ah! Întrebi dacă
 <!-- END ONA -->
