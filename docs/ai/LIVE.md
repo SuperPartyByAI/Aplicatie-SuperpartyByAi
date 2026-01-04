@@ -7317,61 +7317,30 @@ Pentru șofer (S), vrei aceeași logică (acum am pus-o identic: poate fi și el
 <!-- BEGIN ONA -->
 ## ONA (curent)
 
-- Title: ROLURI-PETRECERI-DOCUMENTATIE.md - Aplicatie-SuperpartyByAi [Ona] - Visual Studio Code
-- URL: https://vscode.gitpod.io/environment/019b8322-dc07-7bdb-95a7-301cd9aa868f/workspaces/Aplicatie-SuperpartyByAi?endpoint=https%3A%2F%2Fapp.gitpod.io%2Fapi&userId=019b55c2-51bc-7d27-9d49-502de00bd7ff
+- Title: Visual Studio Code
+- URL: https://vscode.gitpod.io/
 
 ## ONA (Gitpod)
 
-1
-2
-EXPLORER
-APLICATIE-SUPERPARTYBYAI [ONA]
-RAILWAY_SERVICES_GUIDE.md
-RAILWAY-AUTOMATION-EXACT.md
-RAILWAY-CONFIG-REQUIRED.md
-RAILWAY-DEPLOY-INSTRUCTIONS.md
-RAILWAY-DEPLOYMENT-STATUS.md
-railway-extreme.json
-RAILWAY-V7-DEPLOY.md
-RAILWAY-VARIABLES-COMPLETE.txt
-RAILWAY-VARIABLES-V7.env
-RAILWAY-VOICE-SETUP.md
-railway.json
-RAPORT_FINAL_WHEEL_IMPLEMENTATION.md
-README-EXTREME-UPTIME.md
-README.md
-RECOMMENDED_TOOLS.md
-REDIS_RAILWAY_SETUP_NOW.md
-REDIS_SETUP.md
-ROBOT-PERFECT.md
-ROLURI-PETRECERI-DOCUMENTATIE.md
-RUNBOOK_CENTRALA_TEST.md
-RUNBOOK_FIRESTORE_DEPLOY.md
-SCROLL_TEST.md
-server.log
-SESSION_SUMMARY.md
-set_openai_key_local.sh
-SETUP-FIREBASE-ACUM.md
-SIMULARE-REALA-500-MINUTE.md
-SMOKE_TEST_APP.md
-SMOKE_TEST.md
-SPEC_POLITICI_PRODUCTIE_v3.2.3.md
-SUMMARY-FOR-USER.md
-SUMMARY.txt
-tar
-test-ai-functions.md
-TEST-REPORT.md
-test-restart-persistence.sh
-test-sample.mp3
-OUTLINE
-TIMELINE
-ROLURI-PETRECERI-DOCUMENTATIE.md
-ROLURI-PETRECERI-DOCUMENTATIE.md
-# 🎭 Documentație Completă - Roluri Petreceri SuperParty
-## 📞 CONTACT & SUPORT
-### Documentație
- Ona
- 0 
- 0
-Layout: US
+Visual Studio Code1Drag a view here to display.Open ChatCtrl+Alt+IShow All CommandsCtrl+Shift+POpen FileCtrl+OOpen FolderCtrl+K Ctrl+OOpen RecentCtrl+R.monaco-breadcrumbs { background-color: var(--vscode-breadcrumb-background)}.monaco-breadcrumbs .monaco-breadcrumb-item { color: var(--vscode-breadcrumb-foreground)}
+.monaco-breadcrumbs .monaco-breadcrumb-item.focused { color: var(--vscode-breadcrumb-focusForeground)}
+.monaco-breadcrumbs .monaco-breadcrumb-item.focused.selected { color: var(--vscode-breadcrumb-activeSelectionForeground)}
+.monaco-breadcrumbs:not(.disabled	) .monaco-breadcrumb-item:hover:not(.focused):not(.selected) { color: var(--vscode-breadcrumb-focusForeground)}
+Drag a view here to display.Drag a view here to display. 0  0Layout: US
+
+				/* Status bar focus outline */
+				.monaco-workbench .part.statusbar:focus {
+					outline-color: #005fb8;
+				}
+
+				/* Status bar item focus outline */
+				.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus-visible {
+					outline: 1px solid #005fb8;
+					outline-offset: -2px;
+				}
+
+				/* Notification Beak */
+				.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak > .status-bar-item-beak-container:before {
+					border-bottom-color: #e5e5e5;
+				}
 <!-- END ONA -->
