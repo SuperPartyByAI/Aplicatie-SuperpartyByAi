@@ -510,6 +510,10 @@ VOICE-AI-COMPLETE-DOCUMENTATION
 Add complete Voice AI documenta…
 
 Dacă îmi spui ce înseamnă pentru tine “OK” (demo pentru investitori, pilot intern, sau producție cu clienți și SLA), îți traduc asta într-un checklist scurt “go/no-go” pe nivelul respectiv.
+
+## User
+
+productie pt echipa sa o putem folosi live .
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
