@@ -1,4 +1,4 @@
-﻿# LIVE (shared state)
+# LIVE (shared state)
 
 <!-- BEGIN CHATGPT -->
 (empty)
