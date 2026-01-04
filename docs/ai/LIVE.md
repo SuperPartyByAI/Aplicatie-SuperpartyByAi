@@ -608,7 +608,34 @@ chore: update OpenAI API key ac…
 
 Din perspectivă “producție pentru echipă (live)”, asta duce la o concluzie practică:
 
-Ce pot recomanda, dacă NU rote
+Ce pot recomanda, dacă NU rotești cheile
+
+Nu pot să-ți spun “e producție OK” dacă păstrezi aceleași chei și ele au apărut în istoric/fișiere. În schimb, pot să-ți dau un plan de containment (adică “merge intern live, dar acceptăm riscul și îl limităm financiar/operational”).
+
+1) Mută cheile din cod/fișiere în secret managers (fără schimbarea valorii)
+
+Proiectul are deja direcția corectă: OpenAI key este tratat ca Secret în Firebase (defineSecret / acces prin Firebase Secrets), cu fallback doar pentru local. 
+
+fix: AI Chat full-screen + Open…
+
+
+Asta nu cere chei noi; cere doar să nu mai existe valori în repo/fișiere și să fie încărcate doar ca secret în runtime.
+
+Minim:
+
+Cheile să existe doar în: Firebase Secrets / GitHub Secrets / Railway Variables (după caz), nu în fișiere versionate.
+
+Verifică și respectă .gitignore / .env.example deja introduse ca mecanism de prevenție. 
+
+Add .env.example and
+
+2) Pune limite financiare și alerte (obligatoriu dacă păstrezi cheile)
+
+Dacă o cheie e folosită abuziv, singura “plasă” fără rotație este să blochezi impactul:
+
+OpenAI: limite de usage/budget + alerte de consum (zilnic/săptămânal).
+
+Twilio: spending limit / alerts + restricții de geo/permisiuni (unde se poate) + monitoriz
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
