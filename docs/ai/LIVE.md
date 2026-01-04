@@ -7322,79 +7322,7 @@ Pentru șofer (S), vrei aceeași logică (acum am pus-o identic: poate fi și el
 
 ## ONA (Gitpod)
 
-…oteaza === '✓ Cod acceptat') {
-+
-  if (ev.cineNoteaza !== codCineNoteaza.trim()) {
-+
-    return false;
-+
-  }
-+
-}
-+
-```
-+
- 
-+
----
-+
- 
-+
-### 📊 Status Evenimente
-+
- 
-+
-```javascript
-+
-const staffAlocat = ev.staffAlocat || [];
-+
-const nrStaffNecesar = ev.nrStaffNecesar || 0;
-+
- 
-+
-// Calcul status
-+
-const esteAlocat = staffAlocat.length > 0;
-+
-const esteComplet = staffAlocat.length >= nrStaffNecesar;
-+
- 
-+
-// Badge-uri
-+
-if (esteComplet) {
-+
-  // ✓ Complet (verde)
-+
-  <span className="badge badge-disponibil">✓ Complet</span>
-+
-} else if (esteAlocat) {
-+
-  // ⚠ Parțial (galben)
-+
-  <span className="badge badge-warning">⚠ Parțial</span>
-+
-} else {
-+
-  // ✗ Nealocat (roșu)
-+
-  <span className="badge badge-indisponibil">✗ Nealocat</span>
-+
-}
-+
-```
-+
- 
-+
----
-+
- 
-+
-### ⚡ Optimizări Performance
-+
- 
-+
-#### 1. Parallel Fetch
+… Parallel Fetch
 +
 ```javascript
 +
@@ -10950,5 +10878,41 @@ Ce vrei să faci? 🚀
 
 tu vezi ce scrie gpt in live md?
 
-Ah! Întrebi dacă
+Rezumat
+
+Ah! Întrebi dacă văd ce scrie GPT (probabil Voice AI - Kasya) în live în vreun fișier .md?
+
+Răspuns: NU, nu vă în timp real ce scrie (Voice AI) când vorbește cu clienții.
+
+De ce?
+
+Kasya (GPT-4o) rulează pe Railway:https://web-production-f0714.up.railway.app
+Conversațiile sunt salvate în memorie temporară (Map în Node.js)
+Când apelul se termină, datele sunt salvate în Firebase (dacă e [COMPLETE])
+
+Cea POT vedea:
+
+Codul Kasya (cum e programată):
+
+cat voice-backend/voice-ai-handler.js
+
+
+Logs Railway (ce se întâmplă live):
+
+# Trebuie acces la Railway dashboard
+
+
+Firebase (petreceri salvate):
+
+// Collection: petreceri
+// După ce apelul s-a terminat
+
+
+Vrei să:
+
+Văd logs-urile Căii Ferate? (trebuie acces)
+Verific Firebase să văd petrecerile salvate?
+Testez Kasya sunând la +1 (218) 220-4425?
+
+Spune-mi ce vrei! 🔍
 <!-- END ONA -->
