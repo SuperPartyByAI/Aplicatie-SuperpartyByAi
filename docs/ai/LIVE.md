@@ -635,7 +635,41 @@ Dacă o cheie e folosită abuziv, singura “plasă” fără rotație este să 
 
 OpenAI: limite de usage/budget + alerte de consum (zilnic/săptămânal).
 
-Twilio: spending limit / alerts + restricții de geo/permisiuni (unde se poate) + monitoriz
+Twilio: spending limit / alerts + restricții de geo/permisiuni (unde se poate) + monitorizare usage.
+
+Fără asta, te expui la costuri necontrolate, chiar dacă e “doar intern”.
+
+3) Închide suprafața de atac în aplicație (fără chei noi)
+
+Endpoint-uri administrative să nu fie publice (autentificare + allowlist, măcar intern/VPN).
+
+Rate limiting pe webhook-uri și pe endpoint-urile care pot declanșa OpenAI/Twilio.
+
+Verificare semnătură pentru webhook-urile Twilio (ca să nu poată oricine să-ți lovească endpoint-ul și să genereze cost).
+
+4) Acceptă explicit limitarea: “internal live” ≠ “production-grade”
+
+Chiar și cu pașii de mai sus, dacă valoarea cheilor a existat vreodată în repo/istoric, tu practic alegi un regim “internal live cu risc asumat”. În repo există chiar o logică de “key update” și “secret needs to be updated in Secret Manager / Railway vars”, ceea ce indică faptul că rotația este parte din operațiunile așteptate. 
+
+chore: update OpenAI API key ac…
+
+Dacă vrei verdict scurt (GO / NO-GO) cu condiția “fără rotație”
+
+NO-GO dacă în branch-ul curent sau în scripts/documentație mai există valori de chei/token în clar (chiar și “doar intern”).
+
+GO limitat (intern live) doar dacă:
+
+cheile sunt doar în secret managers (nu în repo/fișiere), folosind mecanismele deja introduse (Firebase Secret/params, .gitignore) 
+
+fix: AI Chat full-screen + Open…
+
+ 
+
+Add .env.example and
+
+ai bugete/alerte active pe OpenAI + Twilio
+
+ai rate limit + validar
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
