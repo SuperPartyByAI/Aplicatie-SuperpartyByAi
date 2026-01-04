@@ -58,3 +58,9 @@ Status: TODO
 - Am decis: păstrăm logica în repo, nu în chat.
 - Probleme: TODO
 - Next: definim F-001 cap-coadă + ce fișiere atinge.
+
+## AI / Docs
+- State: documente/ai/STATE.md
+- Decisions: documente/ai/DECISIONS.md
+- Handoff: documente/ai/HANDOFF.md
+- Chatlog (logică din discuții): documente/ai/CHATLOG.md
