@@ -669,7 +669,9 @@ Add .env.example and
 
 ai bugete/alerte active pe OpenAI + Twilio
 
-ai rate limit + validar
+ai rate limit + validare webhook + endpoint-uri admin închise.
+
+Dacă îmi spui ce folosiți “live” în prima fază (doar WhatsApp, sau și Voice AI), îți listez exact ce endpoint-uri/servicii sunt “cost-drivers” și ce limitări să pui pe fiecare ca să poți merge intern fără rotație, cu risc minimizat.
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
