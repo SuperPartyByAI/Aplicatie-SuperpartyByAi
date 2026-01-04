@@ -23,7 +23,7 @@ Test autosave smoke.
 
 ## ONA (Gitpod)
 
-…ffAlocat) {
+…fAlocat) {
 +
     const profile = staffProfiles[uid]; // O(1) lookup, no query!
 +
@@ -3567,7 +3567,6 @@ Fișierul nu există pe GitHub. Hai să verifice ce fișiere există în docs/ai
 
 Executarea comenzii: find . -path "*/docs/ai/*" -type f 2>/dev/null | head -20
 Executarea comenzii: ls -la docs/ 2>/dev/null || echo "Folder docs/nu există"
-Rezumat
 
 Folderul docs/ai/nu există! Vrei să:
 
@@ -3582,4 +3581,6 @@ Statusul este live al sistemului?
 Jurnalele sunt reale?
 
 Spune-mi ce ai în minte și creez exact ce vrei! 🚀
+
+ce faci
 <!-- END ONA -->
