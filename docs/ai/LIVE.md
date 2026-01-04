@@ -3,7 +3,7 @@
 <!-- BEGIN CHATGPT -->
 ## CHATGPT (curent)
 
-- Title: ChatGPT
+- Title: Documentație SuperPartyByAI
 - URL: https://chatgpt.com/c/695a6ee3-d940-8329-a11c-40f9411c52a1
 
 ## User
@@ -187,6 +187,10 @@ Pentru accesarea secretelor:
 **Total filee în repository:** 758 (fără secrete)  
 **Valoarea actuală a comitetului:** e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea  
 **Generat:** 3 ianuarie 2026
+
+## Assistant
+
+Am trecut prin lista ta și problema principală nu este commit-ul, ci linkurile: unele au repository-ul scris cu diacritice / spații,
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
