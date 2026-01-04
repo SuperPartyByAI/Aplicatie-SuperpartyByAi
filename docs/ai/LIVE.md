@@ -267,10 +267,64 @@ https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2
 Merge remote changes - [Repo na…
 
 Quick reference:
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/WHATSAPP-QU
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/WHATSAPP-QUICK-REFERENCE.md
  
 
 Merge remote changes - [Repo na…
+
+Deploy next conversation (dacă vrei și doc-ul de deploy WhatsApp):
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/DEPLOY-NEXT-CONVERSATION.md
+ 
+
+Merge remote changes - [Repo na…
+
+Twilio (corectat din linkurile tale „TWILIO-CNUMARm.” / „TWILIO-mNUMAR-NSETOU.”)
+
+Număr românesc:
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/TWILIO-NUMAR-ROMANESC.md
+ 
+
+v7
+
+Setup număr nou:
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/TWILIO-SETUP-NUMAR-NOU.md
+ 
+
+v7
+
+AI și Optimizări
+
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/AI_PERMANENT_MEMORY.md
+ 
+
+feat(ai-chat): Extreme speed op…
+
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/AI_CHAT_EXTREME_OPTIMIZATIONS.md
+ 
+
+feat(ai-chat): Extreme speed op…
+
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/AI_CHAT_OPTIMIZATIONS_SUMMARY.md
+ 
+
+feat(ai-chat): Extreme speed op…
+
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/AI_CHAT_SPEED_OPTIMIZATIONS.md
+ 
+
+feat(ai-chat): Extreme speed op…
+
+Monitorizare și timp de funcționare
+
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/ROBOT-PERFECT.md
+ 
+
+Add comprehensive documentation…
+
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/ROBOT-ULTIMATE.md
+ 
+
+Add comprehensive documentation…
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
