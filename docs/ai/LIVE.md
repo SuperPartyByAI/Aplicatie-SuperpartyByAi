@@ -442,6 +442,48 @@ SESSION_SUMMARY
  
 
 SESSION_SUMMARY
+
+.
+
+Notă de risc: în istoricul de commits este menționat că endpoint-ul cleanup-duplicates a fost făcut public “temporary” 
+
+SESSION_SUMMARY
+
+ (aș trata asta ca hardening necesar înainte de expunere reală).
+
+Verdict WhatsApp: practic “verde”, cu condiția să bifezi smoke test-ul manual și să închizi hardening-ul.
+
+2) Voice AI (Twilio + OpenAI + TTS)
+
+Documentația îl descrie ca implementat și funcțional (apel Twilio → webhook → OpenAI → TTS) 
+
+VOICE-AI-COMPLETE-DOCUMENTATION
+
+.
+
+Problema majoră aici este securitatea: în documentație apar variabile/credite sensibile (Railway/Twilio/OpenAI etc.) 
+
+VOICE-AI-COMPLETE-DOCUMENTATION
+
+ și chiar referințe la fișier de tip service account JSON 
+
+Add complete Voice AI documenta…
+
+. Asta înseamnă rotație de chei + curățare repo înainte de orice producție reală.
+
+Verdict Voice AI: “galben” – tehnic pare ok, dar nu e ok operațional până nu elimini/rotești secretele și faci un test E2E controlat.
+
+3) Evenimente / personal (KYC app)
+
+Documentația spune “status: gata de producție”, dar enumeră explicit lucruri lipsă (ex. UI de creare eveniment, listă evenimente etc.) 
+
+VOICE-AI-COMPLETE-DOCUMENTATION
+
+.
+
+Verdict Evenimente: “galben spre portocaliu” – baza există, dar sunt gap-uri funcționale.
+
+Concluzie “da sau
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
