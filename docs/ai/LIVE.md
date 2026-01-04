@@ -23,19 +23,7 @@ Test autosave.
 
 ## ONA (Gitpod)
 
-…const evenimenteSnap = await getDocs(collection(db, 'evenimente'));
-+
-const staffSnap = await getDocs(collection(db, 'staffProfiles'));
-+
- 
-+
-// DUPĂ: Parallel fetch (2x mai rapid)
-+
-const [evenimenteSnap, staffSnap] = await Promise.all([
-+
-  getDocs(collection(db, 'evenimente')),
-+
-  getDocs(collection(db, 'staffProfiles')),
+…Docs(collection(db, 'staffProfiles')),
 +
 ]);
 +
@@ -3610,4 +3598,14 @@ Testez Kasya sunând la +1 (218) 220-4425?
 Spune-mi ce vrei! 🔍
 
 https://github.com/SuperPartyByAI/Aplicație-SuperpartyByAi/blob/main/docs/ai/LIVE.md
+
+Ah! Vrei să văd fișierul docs/ai/LIVE.mddin repository! Hai să-l citesc:
+
+Citește documentele/ai/LIVE.md
+
+Fișierul nu există local. Hai să-l citesc direct de pe GitHub:
+
+Site web de citire: https://raw.githubusercontent.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/main/docs/ai/LIVE.md
+
+F
 <!-- END ONA -->
