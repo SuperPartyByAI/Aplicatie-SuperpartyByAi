@@ -568,121 +568,75 @@ poti sa vezi daca logica ai e bine structurata?
 ## Assistant
 
 Pe baza codului din commit-ul e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea (3 ianuarie 2026), răspunsul corect este:
-
 Verdict “per total”
-
-Nu este “production-ready” end-to-end, pentru că backend-ul WhatsApp are încă un blocaj critic la restaurarea conexiunilor (conturi rămase “connecting”, fără event handlers, fără recepție mesaje). Asta este documentat explicit ca blocant pentru producție. 
-
-EVIDENCE_PACK_FINAL
-
- 
-
-EVIDENCE_PACK_FINAL
-
+Nu este “production-ready” end-to-end, pentru că backend-ul WhatsApp are încă un blocaj critic la restaurarea conexiunilor (conturi rămase “connecting”, fără event handlers, fără recepție mesaje). Asta este documentat explicit ca blocant pentru producție. EVIDENCE_PACK_FINAL EVIDENCE_PACK_FINAL
 În schimb, partea de KYC app + chat AI (Groq) și voice-backend (OpenAI) sunt structurate rezonabil și pot fi folosite “live” intern, cu câteva guardrails (rate limiting / permisiuni / observabilitate), fără să fie nevoie să schimbi chei.
 
 1) Logica AI în KYC app: e bine structurată?
 Ce e bine
 
-Separare corectă Frontend vs Backend AI: UI cheamă un callable (chatWithAI) și nu ține cheia în client. În functions/index.js cheia e definită ca Secret Manager (defineSecret('GROQ_API_KEY')). 
 
-index
+Separare corectă Frontend vs Backend AI: UI cheamă un callable (chatWithAI) și nu ține cheia în client. În functions/index.js cheia e definită ca Secret Manager (defineSecret('GROQ_API_KEY')). index
 
-Backend-ul limitează contextul: folosește ultimele 5 mesaje pentru context și are un cache scurt (2 minute) pentru mesaje foarte scurte (reduce cost/latency). 
 
-index
+Backend-ul limitează contextul: folosește ultimele 5 mesaje pentru context și are un cache scurt (2 minute) pentru mesaje foarte scurte (reduce cost/latency). index index
 
- 
 
-index
+UI-ul are moduri și comenzi (ex. admin, gm, reset), iar prompturile sunt clar delimitate per mod. AIChatModal AIChatModal
 
-UI-ul are moduri și comenzi (ex. admin, gm, reset), iar prompturile sunt clar delimitate per mod. 
-
-AIChatModal
-
- 
-
-AIChatModal
 
 Ce aș întări înainte de “live” cu echipa
 
-Prompturile “admin/gm” sunt în client (AIChatModal). Asta e ok pentru uz intern, dar pentru “production” real, clientul e neîncredere: recomand mutarea prompturilor și a regulilor de rol în backend (și validare rol din request.auth). În forma actuală, UI face gating pe email, dar tot e logică de control la client. 
 
-AIChatModal
+Prompturile “admin/gm” sunt în client (AIChatModal). Asta e ok pentru uz intern, dar pentru “production” real, clientul e neîncredere: recomand mutarea prompturilor și a regulilor de rol în backend (și validare rol din request.auth). În forma actuală, UI face gating pe email, dar tot e logică de control la client. AIChatModal
+
 
 Rate limiting per user / per device: acum văd maxInstances, dar nu un throttling clar per utilizator. (Nu îți cere chei noi; e doar logică suplimentară.)
 
-Chei: aici nu e nevoie să regenerezi nimic; cheia Groq rămâne aceeași în Secret Manager. 
 
-index
+Chei: aici nu e nevoie să regenerezi nimic; cheia Groq rămâne aceeași în Secret Manager. index
 
 2) Logica AI în voice-backend: e bine structurată?
 Ce e bine
 
-Contract de răspuns strict: sistemul cere JSON cu câmpuri clare și folosește funcții de “curățare” + validare înainte să continue flow-ul. 
 
-voice-ai-handler
+Contract de răspuns strict: sistemul cere JSON cu câmpuri clare și folosește funcții de “curățare” + validare înainte să continue flow-ul. voice-ai-handler voice-ai-handler
 
- 
 
-voice-ai-handler
+State management clar: are structuri dedicate pentru conversations, pendingCalls, conversationState, plus inițializare explicită a clientului OpenAI din env (OPENAI_API_KEY). voice-ai-handler voice-ai-handler
 
-State management clar: are structuri dedicate pentru conversations, pendingCalls, conversationState, plus inițializare explicită a clientului OpenAI din env (OPENAI_API_KEY). 
-
-voice-ai-handler
-
- 
-
-voice-ai-handler
 
 Riscuri de producție (fără legătură cu cheile)
 
-State-ul e în memorie. Dacă rulezi mai multe instanțe sau ai restart, pierzi contextul conversațiilor (normal pentru MVP, dar pentru “production” poate produce comportamente inconsistente). 
 
-voice-ai-handler
+State-ul e în memorie. Dacă rulezi mai multe instanțe sau ai restart, pierzi contextul conversațiilor (normal pentru MVP, dar pentru “production” poate produce comportamente inconsistente). voice-ai-handler
 
-Chei: nu necesită schimbare; doar să existe OPENAI_API_KEY setat în runtime (Railway/Env). 
 
-voice-ai-handler
+Chei: nu necesită schimbare; doar să existe OPENAI_API_KEY setat în runtime (Railway/Env). voice-ai-handler
 
 3) WhatsApp: aici e problema majoră
 De ce NU îl consider production acum
 
-Documentația de “evidence pack” spune clar că restaurarea conturilor din Firestore nu atașează event handlers și nu aplică timeout-ul, astfel conturile rămân “connecting forever” și nu se pot primi mesaje inbound. 
 
-EVIDENCE_PACK_FINAL
+Documentația de “evidence pack” spune clar că restaurarea conturilor din Firestore nu atașează event handlers și nu aplică timeout-ul, astfel conturile rămân “connecting forever” și nu se pot primi mesaje inbound. EVIDENCE_PACK_FINAL EVIDENCE_PACK_FINAL
 
- 
 
-EVIDENCE_PACK_FINAL
+În cod, “AI auto-response” e încă placeholder (trimite un text generic, nu e integrat cu AI real). timer-service
 
-În cod, “AI auto-response” e încă placeholder (trimite un text generic, nu e integrat cu AI real). 
-
-timer-service
 
 Asta nu implică deloc schimbare de chei; e strict bug de inițializare + integrare AI.
 
 Recomandare practică pentru “live cu echipa”, fără schimbare de chei
 
-Dați drumul “live” intern pe: KYC app + AI chat și voice (dacă e nevoie), pentru că fluxurile sunt coerente și cheile sunt deja gestionate server-side / env. 
 
-index
+Dați drumul “live” intern pe: KYC app + AI chat și voice (dacă e nevoie), pentru că fluxurile sunt coerente și cheile sunt deja gestionate server-side / env. index voice-ai-handler
 
- 
 
-voice-ai-handler
+Nu declarați WhatsApp “production” până nu se repară restoreAccountsFromFirestore() (atașare handlers + timeout + QR flow). Este notat ca blocant. EVIDENCE_PACK_FINAL EVIDENCE_PACK_FINAL
 
-Nu declarați WhatsApp “production” până nu se repară restoreAccountsFromFirestore() (atașare handlers + timeout + QR flow). Este notat ca blocant. 
 
-EVIDENCE_PACK_FINAL
+Pentru AI-ul din WhatsApp: înlocuiți placeholder-ul din generateAIResponse() cu integrarea reală (OpenAI/Groq/alt provider), dar fără rotație de chei (doar folosiți aceeași cheie existentă în secrets). timer-service
 
- 
-
-EVIDENCE_PACK_FINAL
-
-Pentru AI-ul din WhatsApp: înlocuiți placeholder-ul din generateAIResponse() cu integrarea reală (OpenAI/Groq/alt provider), dar fără rotație de chei (doar folosiți aceeași cheie existentă în secrets). 
-
-timer-service
 
 Dacă îmi spui exact ce înseamnă pentru tine “productie pt echipa” (doar KYC intern sau și WhatsApp inbound/outbound obligatoriu), îți pot da un checklist scurt de “go/no-go” pe fiecare componentă, strict pe ce aveți nevoie să meargă live.
 <!-- END CHATGPT -->
