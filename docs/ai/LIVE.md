@@ -377,7 +377,36 @@ https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2
 
 Add comprehensive documentation…
 
-(Păstrează și `FIREBASE-VS-
+(Păstrează și FIREBASE-VS-RAILWAY-REAL.md dacă există la commit-ul tău; numele apare frecvent în repo, dar nu l-am folosit ca „sursă” principală aici.)
+
+💻 COD PRINCIPAL (corecții punctuale)
+Firebase Functions (corectare importantă: functions/, nu „funcții/”)
+
+Repo-ul menționează explicit aceste fișiere pentru WhatsApp: functions/index.js și functions/whatsapp/manager.js. 
+
+Merge remote changes - [Repo na…
+
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/functions/index.js
+
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/functions/whatsapp/manager.js
+
+Frontend (KYC) – linkurile tale sunt pe structura corectă kyc-app/kyc-app/...
+
+Confirmarea structurii kyc-app/kyc-app/src/screens/... apare în repo. 
+
+Add complete SuperParty applica…
+
+Păstrează-le așa cum le ai, doar asigură-te că repo/commit sunt consistente (fără spații în URL).
+
+Ce aș mai face ca să nu se mai strice lista
+
+Nu folosi niciodată Aplicație-SuperpartyByAi în URL (diacritice) și evită orice spații accidentale (ex. „Superpa rty”).
+
+Pentru documentație, ia ca „single source of truth” DOCS-INDEX.md. 
+
+Add comprehensive documentation…
+
+Dacă vrei, îți pot transforma lista într-un fișier PERMALINKS.md curat (cu aceeași structură și doar linkuri valide).
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
