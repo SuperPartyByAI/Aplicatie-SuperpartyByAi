@@ -7315,5 +7315,16 @@ Pentru șofer (S), vrei aceeași logică (acum am pus-o identic: poate fi și el
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
-(empty)
+## ONA (curent)
+
+- Title: Ona
+- URL: https://app.gitpod.io/details/019b8322-dc07-7bdb-95a7-301cd9aa868f
+
+## ONA (Gitpod)
+
+Save ONA (Ctrl+Alt+S)
+LIVE Sync (ona)
+ready
+Inject LIVE
+Force Save
 <!-- END ONA -->
