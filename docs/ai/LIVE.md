@@ -47,9 +47,10 @@ P
  0 
  0
 Layout: US
+Info: Connecting to Ona environment (logs)
 Save ONA (Ctrl+Alt+S)
 LIVE Sync (ona)
-server: ok
+ok
 Inject LIVE
 Force Save
 <!-- END ONA -->
