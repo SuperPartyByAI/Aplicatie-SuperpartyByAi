@@ -6,7 +6,36 @@
 - Title: Proiect Evenimente HTML
 - URL: https://chatgpt.com/c/69598f06-3700-832a-aaed-1e5346bd144b
 
-…on" aria-label="Sortare" title="Sortează">
+…   @media (max-width: 520px){
+      .card{ grid-template-columns: auto 1fr; }
+      .right{ grid-column: 1 / -1; align-items: flex-start; text-align: left; }
+      .dt, .subdt{ white-space: normal; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="appbar">
+    <div class="appbar-inner">
+      <h1>Evenimente</h1>
+
+      <div class="filters-block">
+        <div class="filters" aria-label="Filtru data">
+          <div class="filters-left">
+            <select class="date-preset" id="datePreset" aria-label="Filtru inteligent">
+              <option value="all">Toate</option>
+              <option value="today">Azi</option>
+              <option value="yesterday">Ieri</option>
+              <option value="last7">Ultimele 7 zile</option>
+              <option value="next7">Următoarele 7 zile</option>
+              <option value="next30">Următoarele 30 zile</option>
+              <option value="custom">Interval (aleg eu)</option>
+            </select>
+
+            <button class="btn range-btn" id="rangeBtn" type="button" style="display:none;">Alege interval</button>
+          </div>
+          <div class="btnstack">
+            <button class="btn sort-btn" id="toggleSort" type="button" aria-label="Sortare" title="Sortează">
               <span class="arrow up">&uarr;</span><span style="width:8px; display:inline-block;"></span><span class="arrow down">&darr;</span>
             </button>
           </div>
