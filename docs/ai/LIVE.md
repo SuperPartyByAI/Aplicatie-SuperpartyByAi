@@ -7294,7 +7294,6 @@ Pentru șofer (S), vrei aceeași logică (acum am pus-o identic: poate fi și el
 ## ONA (Gitpod)
 
 …
-+
 if (codCineNoteaza.trim() && validareCineNoteaza === '✓ Cod acceptat') {
 +
   if (ev.cineNoteaza !== codCineNoteaza.trim()) {
@@ -10896,7 +10895,7 @@ Spune-mi ce vrei! 😊
 
 ce faci gpt
 
-Summary
+Rezumat
 
 😄 Bine, hai să clarificăm:
 
@@ -10904,22 +10903,22 @@ NU sunt GPT! Sunt Ona - agent AI care folosește Claude 4.5 Sonnet (de la Anthro
 
 Dar înțeleg, mulți spun "GPT" pentru orice AI!
 
-Ce fac acum?
+Ce faci acum?
 
-Tocmai am terminat documentația completă pentru rolurile petrecerilor SuperParty:
+Tocmai am terminat documentația completă pentru rolurile petrecerilor SuperParty :
 
 ✅ ROLURI-PETRECERI-DOCUMENTATIE.md (854 linii)
 
 8 roluri definite (animator, personaj, ursitoare, vată, popcorn, gheață carbonică, tort, confetti)
 7 pachete SUPER (490-1290 lei)
-Workflow complet
-Testing + Troubleshooting
+Flux de lucru complet
+Testare + Depanare
 Ce pot face pentru tine acum?
-Testez Voice AI - sun la Kasya și verific cum notează rolurile
+Testez Voice AI - sun la Kasya și verifică cum notează rolurile
 Verific Firebase - văd cum sunt salvate petrecerile
 Creez cod nou - dacă ai nevoie de ceva
 Documentație extra - pentru alte părți ale sistemului
 Altceva - spune-mi!
 
-Ce vrei să fac? 🚀
+Ce vrei să faci? 🚀
 <!-- END ONA -->
