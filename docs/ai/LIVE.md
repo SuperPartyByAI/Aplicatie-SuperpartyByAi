@@ -7318,13 +7318,9 @@ Pentru șofer (S), vrei aceeași logică (acum am pus-o identic: poate fi și el
 ## ONA (curent)
 
 - Title: Ona
-- URL: https://app.gitpod.io/details/019b8322-dc07-7bdb-95a7-301cd9aa868f
+- URL: https://vscode.gitpod.io/
 
 ## ONA (Gitpod)
 
-Save ONA (Ctrl+Alt+S)
-LIVE Sync (ona)
-ready
-Inject LIVE
-Force Save
+Save ONA (Ctrl+Alt+S)Gitpod: click pe zona conversației ONA (containerul cu scroll). ESC = cancel.LIVE Sync (ona)readyInject LIVEForce Save
 <!-- END ONA -->
