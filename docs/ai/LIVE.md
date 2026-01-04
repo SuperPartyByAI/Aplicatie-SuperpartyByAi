@@ -23,45 +23,7 @@ Test autosave smoke.
 
 ## ONA (Gitpod)
 
-…= ev.bugetStaff ? ev.bugetStaff / staffList.length : 0;
-+
- 
-+
-// Acumulare per staff
-+
-for (const staffId of staffList) {
-+
-  if (!salarizariMap[staffId]) {
-+
-    salarizariMap[staffId] = {
-+
-      staffId,
-+
-      nume: staffData.nume || 'Necunoscut',
-+
-      email: staffData.email || '',
-+
-      evenimente: [],
-+
-      totalOre: 0,
-+
-      totalSuma: 0,
-+
-    };
-+
-  }
-+
- 
-+
-  salarizariMap[staffId].evenimente.push({
-+
-    numeEveniment: ev.nume,
-+
-    data: ev.data,
-+
-    ore: ev.durataOre || 0,
-+
-    suma: tarifPerPersoana,
+…ma: tarifPerPersoana,
 +
   });
 +
@@ -3545,5 +3507,13 @@ Altceva?
 
 Spune-mi și fac exact ce vrei! 🚀
 
-poti sa mi dai linkurile permanente de la toate fisierele din git inafara de cele care au api uri parole ?
+poti sa-mi dai linkurile permanente de la toate fisierele din git inafara de cele care care au api uri parole ?
+
+Desigur! Hai să generez linkurile permanente pentru toate fișierele din repository, EXCLUSIV cele cu chei API, parole și secrete:
+
+Executarea comenzii: git ls-files | grep -v -E "(node_modules|\.git|package-lock\.json|yarn\.lock)" | head -100
+Executarea comenzii: git rev-parse HEAD
+Executarea comenzii: git ls-files | grep -v -E "(node_modules|\.git|package-lock\.json|yarn\.lock|\.env|creds\.json|\.baileys|secrets|token|key|password)" | wc -l
+
+Sunt 758 fișiere (fără secrete). Hai să generez linkurile
 <!-- END ONA -->
