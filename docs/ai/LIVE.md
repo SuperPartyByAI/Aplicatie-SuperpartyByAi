@@ -49,7 +49,7 @@ P
 Layout: US
 Save ONA (Ctrl+Alt+S)
 LIVE Sync (ona)
-ready
+server: ok
 Inject LIVE
 Force Save
 <!-- END ONA -->
