@@ -23,32 +23,7 @@ Test autosave smoke.
 
 ## ONA (Gitpod)
 
-…rue,
-}
-
-🔍 Cum Funcționează Sistemul Actual:
-1. Setup Staff (StaffSetupScreen.jsx)
-// User completează:
-- codIdentificare: "A1"
-- ceCodAi: "A1"  
-- cineNoteaza: "A1"
-
-// Se salvează în:
-- staffProfiles/{uid}
-- users/{uid} (setupDone: true)
-
-2. Animator Chat (AnimatorChatClientiScreen.jsx)
-// Verifică cod staff
-const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-const code = userDoc.data().code;
-
-if (!code) {
-  alert('⚠️ Nu ai cod alocat');
-  navigate('/home');
-}
-
-// Afișează chat cu clienții
-<ChatClientiRealtime userCode={code} />
+… userCode={code} />
 
 3. Filtrare Evenimente
 // În EvenimenteScreen - filtru "Ce cod ai"
@@ -2900,5 +2875,22 @@ Vezi fișierul: LINKURI-PERMANENTE-GIT.md
 
 Vrei să adaug mai multe linkuri sau să modific ceva? 🚀
 
-si toate linkurile pe care mi le ai dat ?
+si toate linkurile pe care mi le-ai dat ?
+
+Ai dreptate! Linkurile pe care ți le-am dat NU funcționează încă pentru fișierele LINKURI-PERMANENTE-GIT.mdnu și încă pe GitHub (e doar local).
+
+Hai să-l commit și push:
+
+Se execută comanda: cd /workspaces/Aplicație-SuperpartyByAi && git status | head -20
+Rezumat
+
+Perfect! Am 2 fișiere noi. Vrei să le comite și să push pe GitHub? Atunci linkurile vor funcționa!
+
+Opțiuni:
+
+DA, commit și push acum - linkurile vor funcționa imediat
+NU, doar arată-mi linkurile care DEJA există pe GitHub
+Altceva - spune-mi ce vrei
+
+Ce alegi? 🚀
 <!-- END ONA -->
