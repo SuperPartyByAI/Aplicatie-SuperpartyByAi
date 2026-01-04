@@ -190,221 +190,173 @@ Pentru accesarea secretelor:
 
 ## Assistant
 
-Am trecut prin lista ta și problema principală nu este commit-ul, ci linkurile: unele au repository-ul scris cu diacritice / spații, iar câteva au nume de fișiere trunchiate sau înlocuite cu „placeholder”-e (ex. ROLURIm-CUPEMENT, COSTURI-AI.REALE-dVOICE, TWILIO-CNUMARm., TWILIO-mNUMAR-NSETOU.). Repo-ul corect folosește forma fără diacritice: SuperPartyByAI/Aplicatie-SuperpartyByAi (aceeași apare și în structura/documentația din repo). 
-
-Add complete Voice AI documenta…
-
+Am trecut prin lista ta și problema principală nu este commit-ul, ci linkurile: unele au repository-ul scris cu diacritice / spații, iar câteva au nume de fișiere trunchiate sau înlocuite cu „placeholder”-e (ex. ROLURIm-CUPEMENT, COSTURI-AI.REALE-dVOICE, TWILIO-CNUMARm., TWILIO-mNUMAR-NSETOU.). Repo-ul corect folosește forma fără diacritice: SuperPartyByAI/Aplicatie-SuperpartyByAi (aceeași apare și în structura/documentația din repo). Add complete Voice AI documenta…
 Mai jos ai o versiune „curată” (aceeași categorie ca la tine), cu aceeași ancoră de commit e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea, dar cu linkuri consistente.
 
 Bază standard (recomandat să o păstrezi peste tot)
 
+
 Repo: https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi
 
+
 Commit: e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea
+
 
 Template permalink:
 https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/<PATH>
 
+
+
 📚 DOCUMENTAȚIE PRINCIPALĂ (linkuri corectate)
 Inteligență artificială vocală și Petreceri
 
-VOICE-AI (complet):
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/VOICE-AI-COMPLETE-DOCUMENTATION.md
- 
 
-Add complete Voice AI documenta…
+VOICE-AI (complet):
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/VOICE-AI-COMPLETE-DOCUMENTATION.md Add complete Voice AI documenta…
+
 
 VOICE-AI status:
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/VOICE-AI-STATUS.md
- 
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/VOICE-AI-STATUS.md v7
 
-v7
 
 Costuri Voice AI (corectat din linkul tău „COSTURI-AI.REALE-dVOICE”):
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/COSTURI-REALE-VOICE-AI.md
- 
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/COSTURI-REALE-VOICE-AI.md Add comprehensive documentation…
 
-Add comprehensive documentation…
 
 Costuri RON simplu (corectat din linkul trunchiat):
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/COSTURI-RON-SIMPLU.md
- 
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/COSTURI-RON-SIMPLU.md Add comprehensive documentation…
 
-Add comprehensive documentation…
 
 Roluri petreceri: în repo nu mi-a ieșit un fișier cu numele exact „ROLURI-PETRECERI-DOCUMENTATIE.md” la căutare (posibil redenumit / integrat în alt doc). Dacă îmi dai numele exact al fișierului (sau îl cauți în repo după „ROLURI”), îl fixez imediat.
 
+
 Evenimente și personal
 
-Evenimente (menționat în schimbările din commit-ul indicat):
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/EVENIMENTE_DOCUMENTATION.md
- 
 
-Add comprehensive Voice AI docu…
+Evenimente (menționat în schimbările din commit-ul indicat):
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/EVENIMENTE_DOCUMENTATION.md Add comprehensive Voice AI docu…
+
 
 WhatsApp (recomand să folosești denumirile standard din repo)
+În lista ta apar alte nume (ex. WHATSAPP-COMPLETE-ANALYSIS.md, STATUS-FINAL-WHATSAPP.md, WHATSAPP-PRODUCTION-READY.md), dar repo are o suită clară de documente „guide/config/quick reference”. Merge remote changes - [Repo na…
 
-În lista ta apar alte nume (ex. WHATSAPP-COMPLETE-ANALYSIS.md, STATUS-FINAL-WHATSAPP.md, WHATSAPP-PRODUCTION-READY.md), dar repo are o suită clară de documente „guide/config/quick reference”. 
-
-Merge remote changes - [Repo na…
 
 Ghid complet:
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/WHATSAPP-COMPLETE-GUIDE.md
- 
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/WHATSAPP-COMPLETE-GUIDE.md Merge remote changes - [Repo na…
 
-Merge remote changes - [Repo na…
 
 Config:
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/WHATSAPP-CONFIG.md
- 
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/WHATSAPP-CONFIG.md Merge remote changes - [Repo na…
 
-Merge remote changes - [Repo na…
 
 QR vs Pairing:
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/WHATSAPP-QR-VS-PAIRING.md
- 
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/WHATSAPP-QR-VS-PAIRING.md Merge remote changes - [Repo na…
 
-Merge remote changes - [Repo na…
 
 Quick reference:
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/WHATSAPP-QUICK-REFERENCE.md
- 
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/WHATSAPP-QUICK-REFERENCE.md Merge remote changes - [Repo na…
 
-Merge remote changes - [Repo na…
 
 Deploy next conversation (dacă vrei și doc-ul de deploy WhatsApp):
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/DEPLOY-NEXT-CONVERSATION.md
- 
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/DEPLOY-NEXT-CONVERSATION.md Merge remote changes - [Repo na…
 
-Merge remote changes - [Repo na…
 
 Twilio (corectat din linkurile tale „TWILIO-CNUMARm.” / „TWILIO-mNUMAR-NSETOU.”)
 
-Număr românesc:
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/TWILIO-NUMAR-ROMANESC.md
- 
 
-v7
+Număr românesc:
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/TWILIO-NUMAR-ROMANESC.md v7
+
 
 Setup număr nou:
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/TWILIO-SETUP-NUMAR-NOU.md
- 
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/TWILIO-SETUP-NUMAR-NOU.md v7
 
-v7
 
 AI și Optimizări
 
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/AI_PERMANENT_MEMORY.md
- 
 
-feat(ai-chat): Extreme speed op…
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/AI_PERMANENT_MEMORY.md feat(ai-chat): Extreme speed op…
 
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/AI_CHAT_EXTREME_OPTIMIZATIONS.md
- 
 
-feat(ai-chat): Extreme speed op…
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/AI_CHAT_EXTREME_OPTIMIZATIONS.md feat(ai-chat): Extreme speed op…
 
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/AI_CHAT_OPTIMIZATIONS_SUMMARY.md
- 
 
-feat(ai-chat): Extreme speed op…
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/AI_CHAT_OPTIMIZATIONS_SUMMARY.md feat(ai-chat): Extreme speed op…
 
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/AI_CHAT_SPEED_OPTIMIZATIONS.md
- 
 
-feat(ai-chat): Extreme speed op…
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/AI_CHAT_SPEED_OPTIMIZATIONS.md feat(ai-chat): Extreme speed op…
+
 
 Monitorizare și timp de funcționare
 
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/ROBOT-PERFECT.md
- 
 
-Add comprehensive documentation…
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/ROBOT-PERFECT.md Add comprehensive documentation…
 
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/ROBOT-ULTIMATE.md
- 
 
-Add comprehensive documentation…
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/ROBOT-ULTIMATE.md Add comprehensive documentation…
 
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/EXTREME-UPTIME-FINAL.md
- 
 
-Add comprehensive documentation…
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/EXTREME-UPTIME-FINAL.md Add comprehensive documentation…
 
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/EXPLICATIE-SIMPLA.md
- 
 
-Add project summary - [Repo nam…
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/EXPLICATIE-SIMPLA.md Add project summary - [Repo nam…
+
 
 Implementare
 
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/CI_CD_SETUP.md
- 
 
-feat(ai-chat): Extreme speed op…
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/CI_CD_SETUP.md feat(ai-chat): Extreme speed op…
 
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/DEPLOY-SIMPLU.md
- 
 
-feat(ai-chat): Extreme speed op…
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/DEPLOY-SIMPLU.md feat(ai-chat): Extreme speed op…
 
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/DEPLOY-FIREBASE-WHATSAPP.md
- 
 
-feat(ai-chat): Extreme speed op…
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/DEPLOY-FIREBASE-WHATSAPP.md feat(ai-chat): Extreme speed op…
+
 
 Analiză & raportare (în repo apar cu denumiri „EN”, nu cu diacritice)
+În loc de COMPARAȚIE-FINALĂ.md / COMPARAȚIE-PERFORMANȚĂ.md din lista ta, repo indică explicit: FINAL-COMPARISON.md și PERFORMANCE-COMPARISON.md. Add comprehensive documentation…
 
-În loc de COMPARAȚIE-FINALĂ.md / COMPARAȚIE-PERFORMANȚĂ.md din lista ta, repo indică explicit: FINAL-COMPARISON.md și PERFORMANCE-COMPARISON.md. 
-
-Add comprehensive documentation…
 
 Index doc-uri:
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/DOCS-INDEX.md
- 
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/DOCS-INDEX.md Add comprehensive documentation…
 
-Add comprehensive documentation…
 
 Final comparison:
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/FINAL-COMPARISON.md
- 
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/FINAL-COMPARISON.md Add comprehensive documentation…
 
-Add comprehensive documentation…
 
 Performance comparison:
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/PERFORMANCE-COMPARISON.md
- 
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/PERFORMANCE-COMPARISON.md Add comprehensive documentation…
 
-Add comprehensive documentation…
 
 (Păstrează și FIREBASE-VS-RAILWAY-REAL.md dacă există la commit-ul tău; numele apare frecvent în repo, dar nu l-am folosit ca „sursă” principală aici.)
 
+
+
 💻 COD PRINCIPAL (corecții punctuale)
 Firebase Functions (corectare importantă: functions/, nu „funcții/”)
+Repo-ul menționează explicit aceste fișiere pentru WhatsApp: functions/index.js și functions/whatsapp/manager.js. Merge remote changes - [Repo na…
 
-Repo-ul menționează explicit aceste fișiere pentru WhatsApp: functions/index.js și functions/whatsapp/manager.js. 
-
-Merge remote changes - [Repo na…
 
 https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/functions/index.js
 
+
 https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/functions/whatsapp/manager.js
 
+
 Frontend (KYC) – linkurile tale sunt pe structura corectă kyc-app/kyc-app/...
-
-Confirmarea structurii kyc-app/kyc-app/src/screens/... apare în repo. 
-
-Add complete SuperParty applica…
-
+Confirmarea structurii kyc-app/kyc-app/src/screens/... apare în repo. Add complete SuperParty applica…
 Păstrează-le așa cum le ai, doar asigură-te că repo/commit sunt consistente (fără spații în URL).
 
 Ce aș mai face ca să nu se mai strice lista
 
+
 Nu folosi niciodată Aplicație-SuperpartyByAi în URL (diacritice) și evită orice spații accidentale (ex. „Superpa rty”).
 
-Pentru documentație, ia ca „single source of truth” DOCS-INDEX.md. 
 
-Add comprehensive documentation…
+Pentru documentație, ia ca „single source of truth” DOCS-INDEX.md. Add comprehensive documentation…
+
 
 Dacă vrei, îți pot transforma lista într-un fișier PERMALINKS.md curat (cu aceeași structură și doar linkuri valide).
 
@@ -415,99 +367,60 @@ deci per total sunt e ok aplicatia sau nu
 ## Assistant
 
 Per total: aplicația este “în mare parte OK” pentru pilot / demo, dar nu aș spune că e 100% “gata de producție” pentru rulaj real fără încă 2–3 pași obligatorii (în special testare manuală end-to-end și igienă de securitate).
-
 Ce arată repo-ul (starea cea mai recentă din documentație)
 1) WhatsApp (backend + frontend)
 
-Implementarea este declarată “COMPLETE – Ready for production use” în sumarul de sesiune din 2026-01-01 
 
-SESSION_SUMMARY
+Implementarea este declarată “COMPLETE – Ready for production use” în sumarul de sesiune din 2026-01-01 SESSION_SUMMARY și include stabilizări (timeout “connecting forever”, lease/lock, health extins, restaurare cu handler-e) SESSION_SUMMARY.
 
- și include stabilizări (timeout “connecting forever”, lease/lock, health extins, restaurare cu handler-e) 
 
-SESSION_SUMMARY
+Există și un document de “Issue #3 RESOLVED – PRODUCTION READY”, cu indicatori de health și cont conectat FINAL_EVIDENCE_ISSUE_3.
 
-.
 
-Există și un document de “Issue #3 RESOLVED – PRODUCTION READY”, cu indicatori de health și cont conectat 
+Dar încă apare explicit că “full smoke test” e pending și urmează manual testing + configurare numere reale SESSION_SUMMARY SESSION_SUMMARY.
 
-FINAL_EVIDENCE_ISSUE_3
 
-.
+Notă de risc: în istoricul de commits este menționat că endpoint-ul cleanup-duplicates a fost făcut public “temporary” SESSION_SUMMARY (aș trata asta ca hardening necesar înainte de expunere reală).
 
-Dar încă apare explicit că “full smoke test” e pending și urmează manual testing + configurare numere reale 
-
-SESSION_SUMMARY
-
- 
-
-SESSION_SUMMARY
-
-.
-
-Notă de risc: în istoricul de commits este menționat că endpoint-ul cleanup-duplicates a fost făcut public “temporary” 
-
-SESSION_SUMMARY
-
- (aș trata asta ca hardening necesar înainte de expunere reală).
 
 Verdict WhatsApp: practic “verde”, cu condiția să bifezi smoke test-ul manual și să închizi hardening-ul.
-
 2) Voice AI (Twilio + OpenAI + TTS)
 
-Documentația îl descrie ca implementat și funcțional (apel Twilio → webhook → OpenAI → TTS) 
 
-VOICE-AI-COMPLETE-DOCUMENTATION
+Documentația îl descrie ca implementat și funcțional (apel Twilio → webhook → OpenAI → TTS) VOICE-AI-COMPLETE-DOCUMENTATION.
 
-.
 
-Problema majoră aici este securitatea: în documentație apar variabile/credite sensibile (Railway/Twilio/OpenAI etc.) 
+Problema majoră aici este securitatea: în documentație apar variabile/credite sensibile (Railway/Twilio/OpenAI etc.) VOICE-AI-COMPLETE-DOCUMENTATION și chiar referințe la fișier de tip service account JSON Add complete Voice AI documenta…. Asta înseamnă rotație de chei + curățare repo înainte de orice producție reală.
 
-VOICE-AI-COMPLETE-DOCUMENTATION
-
- și chiar referințe la fișier de tip service account JSON 
-
-Add complete Voice AI documenta…
-
-. Asta înseamnă rotație de chei + curățare repo înainte de orice producție reală.
 
 Verdict Voice AI: “galben” – tehnic pare ok, dar nu e ok operațional până nu elimini/rotești secretele și faci un test E2E controlat.
-
 3) Evenimente / personal (KYC app)
 
-Documentația spune “status: gata de producție”, dar enumeră explicit lucruri lipsă (ex. UI de creare eveniment, listă evenimente etc.) 
 
-VOICE-AI-COMPLETE-DOCUMENTATION
+Documentația spune “status: gata de producție”, dar enumeră explicit lucruri lipsă (ex. UI de creare eveniment, listă evenimente etc.) VOICE-AI-COMPLETE-DOCUMENTATION.
 
-.
 
 Verdict Evenimente: “galben spre portocaliu” – baza există, dar sunt gap-uri funcționale.
 
 Concluzie “da sau nu?”
 
-Da, e OK ca fundație și pentru un pilot controlat, mai ales pe WhatsApp (unde există status “ready” + verificări) 
 
-SESSION_SUMMARY
+Da, e OK ca fundație și pentru un pilot controlat, mai ales pe WhatsApp (unde există status “ready” + verificări) SESSION_SUMMARY.
 
-.
 
 Nu, nu e încă OK ca producție serioasă “hands-off”, până nu faci minim:
 
-Smoke test manual complet + numere reale (e listat ca next step) 
 
-SESSION_SUMMARY
+Smoke test manual complet + numere reale (e listat ca next step) SESSION_SUMMARY
 
-Hardening endpoint-uri / acces (ex. orice “temporary public”) 
 
-SESSION_SUMMARY
+Hardening endpoint-uri / acces (ex. orice “temporary public”) SESSION_SUMMARY
 
-Rotație + eliminare secrete din repo/documentație 
 
-VOICE-AI-COMPLETE-DOCUMENTATION
+Rotație + eliminare secrete din repo/documentație VOICE-AI-COMPLETE-DOCUMENTATION Add complete Voice AI documenta…
 
- 
 
-Add complete Voice AI documenta…
+
 
 Dacă îmi spui ce înseamnă pentru tine “OK” (demo pentru investitori, pilot intern, sau producție cu clienți și SLA), îți traduc asta într-un checklist scurt “go/no-go” pe nivelul respectiv.
 
@@ -518,81 +431,63 @@ productie pt echipa sa o putem folosi live .
 ## Assistant
 
 Pentru producție internă (echipa să o folosească live): în starea documentată acum, răspunsul corect este “nu încă, dar e aproape”.
-
 Blocajele sunt clare în repo/documentație:
 
-Smoke test end-to-end este încă “pending” și sunt menționate explicit pași rămași de testare manuală + configurare numere reale. 
 
-SESSION_SUMMARY
+Smoke test end-to-end este încă “pending” și sunt menționate explicit pași rămași de testare manuală + configurare numere reale. SESSION_SUMMARY SESSION_SUMMARY
 
- 
 
-SESSION_SUMMARY
+Există un endpoint/feature marcat ca public “temporary” (ex. cleanup-duplicates), care este un risc direct dacă rămâne expus în producție. SESSION_SUMMARY
 
-Există un endpoint/feature marcat ca public “temporary” (ex. cleanup-duplicates), care este un risc direct dacă rămâne expus în producție. 
 
-SESSION_SUMMARY
+În documentația Voice AI apar secrete / credențiale / variabile sensibile (OpenAI/Twilio/Railway etc.), plus referințe la fișier de tip service account, ceea ce impune rotație și igienizare înainte de utilizare live. VOICE-AI-COMPLETE-DOCUMENTATION Add complete Voice AI documenta…
 
-În documentația Voice AI apar secrete / credențiale / variabile sensibile (OpenAI/Twilio/Railway etc.), plus referințe la fișier de tip service account, ceea ce impune rotație și igienizare înainte de utilizare live. 
 
-VOICE-AI-COMPLETE-DOCUMENTATION
-
- 
-
-Add complete Voice AI documenta…
-
-În același timp, WhatsApp pare “verde” ca implementare de bază (există status “ready / resolved”), dar asta nu înlocuiește pașii de hardening și test. 
-
-SESSION_SUMMARY
-
- 
-
-FINAL_EVIDENCE_ISSUE_3
+În același timp, WhatsApp pare “verde” ca implementare de bază (există status “ready / resolved”), dar asta nu înlocuiește pașii de hardening și test. SESSION_SUMMARY FINAL_EVIDENCE_ISSUE_3
 
 Condiții minime de “GO” pentru producție internă
 A. Securitate (obligatoriu)
 
-Rotație completă de chei/secrete (Twilio/Auth Token, OpenAI keys, Railway tokens, Firebase service account etc.) și verificare că nu mai apar în repo sau în documente. 
 
-VOICE-AI-COMPLETE-DOCUMENTATION
+Rotație completă de chei/secrete (Twilio/Auth Token, OpenAI keys, Railway tokens, Firebase service account etc.) și verificare că nu mai apar în repo sau în documente. VOICE-AI-COMPLETE-DOCUMENTATION Add complete Voice AI documenta…
 
- 
 
-Add complete Voice AI documenta…
+Închidere / autentificare strictă pe orice endpoint administrativ sau “temporary public” (inclusiv cleanup-duplicates). SESSION_SUMMARY
 
-Închidere / autentificare strictă pe orice endpoint administrativ sau “temporary public” (inclusiv cleanup-duplicates). 
-
-SESSION_SUMMARY
 
 Validare semnături / origine pentru webhook-uri (ex. Twilio) și protecție anti-abuz (rate limiting + IP allowlist unde e posibil).
 
+
 B. Stabilitate (obligatoriu)
 
-Smoke test end-to-end complet (send/receive, reconnect după restart, duplicate handling, scenarii de eroare) — este menționat ca restant. 
 
-SESSION_SUMMARY
+Smoke test end-to-end complet (send/receive, reconnect după restart, duplicate handling, scenarii de eroare) — este menționat ca restant. SESSION_SUMMARY SESSION_SUMMARY
 
- 
 
-SESSION_SUMMARY
+Observabilitate minimă: health checks + loguri coerente + alertă pe “disconnect / login required / crash loop” (aveți deja direcția de health extins în documentație; trebuie doar standardizat și activat în regim live). SESSION_SUMMARY
 
-Observabilitate minimă: health checks + loguri coerente + alertă pe “disconnect / login required / crash loop” (aveți deja direcția de health extins în documentație; trebuie doar standardizat și activat în regim live). 
-
-SESSION_SUMMARY
 
 C. Operare (recomandat, dar practic necesar)
 
+
 Runbook de operare (cine face pairing, cum se recuperează sesiunea, cum se rulează cleanup, ce se face la incident).
+
 
 Separare environment (staging vs production intern) ca să poți testa fără să blochezi echipa.
 
+
 Permisiuni Firestore / acces validate (minim “least privilege”).
+
+
 
 Decizia de lansare
 
+
 Dacă bifezi punctele A1–A3 + B4–B5, poți da GO pentru utilizare internă live cu risc rezonabil.
 
+
 Dacă nu sunt bifate, în special rotația secretelor și închiderea endpoint-urilor publice temporar, recomandarea mea rămâne NO-GO pentru live, chiar și intern.
+
 
 Dacă îmi spui ce canal vrei “live” prima dată (WhatsApp only vs WhatsApp + Voice AI), îți structurez un checklist “GO/NO-GO” pe exact acel scope și ordinea optimă de implementare.
 
@@ -602,80 +497,194 @@ nu vreau sa se schimbe cheile sa tsua sa generez chei
 
 ## Assistant
 
-Înțeleg. Totuși, dacă nu vrei să schimbi / regenerezi cheile, trebuie să fii conștient că, în starea documentată în repo, riscul nu mai este “teoretic”: există istoric de proiect care tratează cheile ca “material de configurare” și chiar menționează actualizarea cheii OpenAI și necesitatea de a actualiza secretul în Secret Manager / variabile Railway. 
-
-chore: update OpenAI API key ac…
-
+Înțeleg. Totuși, dacă nu vrei să schimbi / regenerezi cheile, trebuie să fii conștient că, în starea documentată în repo, riscul nu mai este “teoretic”: există istoric de proiect care tratează cheile ca “material de configurare” și chiar menționează actualizarea cheii OpenAI și necesitatea de a actualiza secretul în Secret Manager / variabile Railway. chore: update OpenAI API key ac…
 Din perspectivă “producție pentru echipă (live)”, asta duce la o concluzie practică:
-
 Ce pot recomanda, dacă NU rotești cheile
-
 Nu pot să-ți spun “e producție OK” dacă păstrezi aceleași chei și ele au apărut în istoric/fișiere. În schimb, pot să-ți dau un plan de containment (adică “merge intern live, dar acceptăm riscul și îl limităm financiar/operational”).
-
 1) Mută cheile din cod/fișiere în secret managers (fără schimbarea valorii)
-
-Proiectul are deja direcția corectă: OpenAI key este tratat ca Secret în Firebase (defineSecret / acces prin Firebase Secrets), cu fallback doar pentru local. 
-
-fix: AI Chat full-screen + Open…
-
-
+Proiectul are deja direcția corectă: OpenAI key este tratat ca Secret în Firebase (defineSecret / acces prin Firebase Secrets), cu fallback doar pentru local. fix: AI Chat full-screen + Open…
 Asta nu cere chei noi; cere doar să nu mai existe valori în repo/fișiere și să fie încărcate doar ca secret în runtime.
-
 Minim:
+
 
 Cheile să existe doar în: Firebase Secrets / GitHub Secrets / Railway Variables (după caz), nu în fișiere versionate.
 
-Verifică și respectă .gitignore / .env.example deja introduse ca mecanism de prevenție. 
 
-Add .env.example and
+Verifică și respectă .gitignore / .env.example deja introduse ca mecanism de prevenție. Add .env.example and 
+
 
 2) Pune limite financiare și alerte (obligatoriu dacă păstrezi cheile)
-
 Dacă o cheie e folosită abuziv, singura “plasă” fără rotație este să blochezi impactul:
+
 
 OpenAI: limite de usage/budget + alerte de consum (zilnic/săptămânal).
 
+
 Twilio: spending limit / alerts + restricții de geo/permisiuni (unde se poate) + monitorizare usage.
 
-Fără asta, te expui la costuri necontrolate, chiar dacă e “doar intern”.
 
+Fără asta, te expui la costuri necontrolate, chiar dacă e “doar intern”.
 3) Închide suprafața de atac în aplicație (fără chei noi)
+
 
 Endpoint-uri administrative să nu fie publice (autentificare + allowlist, măcar intern/VPN).
 
+
 Rate limiting pe webhook-uri și pe endpoint-urile care pot declanșa OpenAI/Twilio.
+
 
 Verificare semnătură pentru webhook-urile Twilio (ca să nu poată oricine să-ți lovească endpoint-ul și să genereze cost).
 
+
 4) Acceptă explicit limitarea: “internal live” ≠ “production-grade”
-
-Chiar și cu pașii de mai sus, dacă valoarea cheilor a existat vreodată în repo/istoric, tu practic alegi un regim “internal live cu risc asumat”. În repo există chiar o logică de “key update” și “secret needs to be updated in Secret Manager / Railway vars”, ceea ce indică faptul că rotația este parte din operațiunile așteptate. 
-
-chore: update OpenAI API key ac…
+Chiar și cu pașii de mai sus, dacă valoarea cheilor a existat vreodată în repo/istoric, tu practic alegi un regim “internal live cu risc asumat”. În repo există chiar o logică de “key update” și “secret needs to be updated in Secret Manager / Railway vars”, ceea ce indică faptul că rotația este parte din operațiunile așteptate. chore: update OpenAI API key ac…
 
 Dacă vrei verdict scurt (GO / NO-GO) cu condiția “fără rotație”
 
+
 NO-GO dacă în branch-ul curent sau în scripts/documentație mai există valori de chei/token în clar (chiar și “doar intern”).
+
 
 GO limitat (intern live) doar dacă:
 
-cheile sunt doar în secret managers (nu în repo/fișiere), folosind mecanismele deja introduse (Firebase Secret/params, .gitignore) 
 
-fix: AI Chat full-screen + Open…
+cheile sunt doar în secret managers (nu în repo/fișiere), folosind mecanismele deja introduse (Firebase Secret/params, .gitignore) fix: AI Chat full-screen + Open… Add .env.example and 
 
- 
-
-Add .env.example and
 
 ai bugete/alerte active pe OpenAI + Twilio
 
+
 ai rate limit + validare webhook + endpoint-uri admin închise.
+
+
+
 
 Dacă îmi spui ce folosiți “live” în prima fază (doar WhatsApp, sau și Voice AI), îți listez exact ce endpoint-uri/servicii sunt “cost-drivers” și ce limitări să pui pe fiecare ca să poți merge intern fără rotație, cu risc minimizat.
 
 ## User
 
 poti sa vezi daca logica ai e bine structurata?
+
+## Assistant
+
+Pe baza codului din commit-ul e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea (3 ianuarie 2026), răspunsul corect este:
+
+Verdict “per total”
+
+Nu este “production-ready” end-to-end, pentru că backend-ul WhatsApp are încă un blocaj critic la restaurarea conexiunilor (conturi rămase “connecting”, fără event handlers, fără recepție mesaje). Asta este documentat explicit ca blocant pentru producție. 
+
+EVIDENCE_PACK_FINAL
+
+ 
+
+EVIDENCE_PACK_FINAL
+
+În schimb, partea de KYC app + chat AI (Groq) și voice-backend (OpenAI) sunt structurate rezonabil și pot fi folosite “live” intern, cu câteva guardrails (rate limiting / permisiuni / observabilitate), fără să fie nevoie să schimbi chei.
+
+1) Logica AI în KYC app: e bine structurată?
+Ce e bine
+
+Separare corectă Frontend vs Backend AI: UI cheamă un callable (chatWithAI) și nu ține cheia în client. În functions/index.js cheia e definită ca Secret Manager (defineSecret('GROQ_API_KEY')). 
+
+index
+
+Backend-ul limitează contextul: folosește ultimele 5 mesaje pentru context și are un cache scurt (2 minute) pentru mesaje foarte scurte (reduce cost/latency). 
+
+index
+
+ 
+
+index
+
+UI-ul are moduri și comenzi (ex. admin, gm, reset), iar prompturile sunt clar delimitate per mod. 
+
+AIChatModal
+
+ 
+
+AIChatModal
+
+Ce aș întări înainte de “live” cu echipa
+
+Prompturile “admin/gm” sunt în client (AIChatModal). Asta e ok pentru uz intern, dar pentru “production” real, clientul e neîncredere: recomand mutarea prompturilor și a regulilor de rol în backend (și validare rol din request.auth). În forma actuală, UI face gating pe email, dar tot e logică de control la client. 
+
+AIChatModal
+
+Rate limiting per user / per device: acum văd maxInstances, dar nu un throttling clar per utilizator. (Nu îți cere chei noi; e doar logică suplimentară.)
+
+Chei: aici nu e nevoie să regenerezi nimic; cheia Groq rămâne aceeași în Secret Manager. 
+
+index
+
+2) Logica AI în voice-backend: e bine structurată?
+Ce e bine
+
+Contract de răspuns strict: sistemul cere JSON cu câmpuri clare și folosește funcții de “curățare” + validare înainte să continue flow-ul. 
+
+voice-ai-handler
+
+ 
+
+voice-ai-handler
+
+State management clar: are structuri dedicate pentru conversations, pendingCalls, conversationState, plus inițializare explicită a clientului OpenAI din env (OPENAI_API_KEY). 
+
+voice-ai-handler
+
+ 
+
+voice-ai-handler
+
+Riscuri de producție (fără legătură cu cheile)
+
+State-ul e în memorie. Dacă rulezi mai multe instanțe sau ai restart, pierzi contextul conversațiilor (normal pentru MVP, dar pentru “production” poate produce comportamente inconsistente). 
+
+voice-ai-handler
+
+Chei: nu necesită schimbare; doar să existe OPENAI_API_KEY setat în runtime (Railway/Env). 
+
+voice-ai-handler
+
+3) WhatsApp: aici e problema majoră
+De ce NU îl consider production acum
+
+Documentația de “evidence pack” spune clar că restaurarea conturilor din Firestore nu atașează event handlers și nu aplică timeout-ul, astfel conturile rămân “connecting forever” și nu se pot primi mesaje inbound. 
+
+EVIDENCE_PACK_FINAL
+
+ 
+
+EVIDENCE_PACK_FINAL
+
+În cod, “AI auto-response” e încă placeholder (trimite un text generic, nu e integrat cu AI real). 
+
+timer-service
+
+Asta nu implică deloc schimbare de chei; e strict bug de inițializare + integrare AI.
+
+Recomandare practică pentru “live cu echipa”, fără schimbare de chei
+
+Dați drumul “live” intern pe: KYC app + AI chat și voice (dacă e nevoie), pentru că fluxurile sunt coerente și cheile sunt deja gestionate server-side / env. 
+
+index
+
+ 
+
+voice-ai-handler
+
+Nu declarați WhatsApp “production” până nu se repară restoreAccountsFromFirestore() (atașare handlers + timeout + QR flow). Este notat ca blocant. 
+
+EVIDENCE_PACK_FINAL
+
+ 
+
+EVIDENCE_PACK_FINAL
+
+Pentru AI-ul din WhatsApp: înlocuiți placeholder-ul din generateAIResponse() cu integrarea reală (OpenAI/Groq/alt provider), dar fără rotație de chei (doar folosiți aceeași cheie existentă în secrets). 
+
+timer-service
+
+Dacă îmi spui exact ce înseamnă pentru tine “productie pt echipa” (doar KYC intern sau și WhatsApp inbound/outbound obligatoriu), îți pot da un checklist scurt de “go/no-go” pe fiecare componentă, strict pe ce aveți nevoie să meargă live.
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
