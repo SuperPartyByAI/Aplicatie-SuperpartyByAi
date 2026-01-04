@@ -23,7 +23,7 @@ Test autosave smoke.
 
 ## ONA (Gitpod)
 
-…izariMap[staffId].totalOre += ev.durataOre || 0;
+…].totalOre += ev.durataOre || 0;
 +
   salarizariMap[staffId].totalSuma += tarifPerPersoana;
 +
@@ -3509,5 +3509,5 @@ Executarea comenzii: git ls-files | grep -v -E "(node_modules|\.git|package-lock
 Executarea comenzii: git rev-parse HEAD
 Executarea comenzii: git ls-files | grep -v -E "(node_modules|\.git|package-lock\.json|yarn\.lock|\.env|creds\.json|\.baileys|secrets|token|key|password)" | wc -l
 
-Sunt 758 fișiere (fără secrete). Hai să generez linkurile pentru fișierele importante (documentație,
+Sunt 758 fișiere (fără secrete). Hai să generez linkurile pentru fișierele importante (documentație, cod principal):
 <!-- END ONA -->
