@@ -23,58 +23,7 @@ Test autosave smoke.
 
 ## ONA (Gitpod)
 
-… - filtru "Ce cod ai"
-const hasStaffWithCode = staffAlocat.some(uid => {
-  const profile = staffProfiles[uid];
-  return profile && profile.code === codCeCodAi.trim();
-});
-
-❌ Roluri Lipsă (Trebuie Adăugate):
-
-Servicii Entertainment:
-
-animator - Animator copii
-ursitoare - Ursitoare
-mascota - Mascotă
-face-painting - Face painting
-baloane - Baloane
-
-Servicii Food:
-
-vata-zahar - Vată de zahăr
-popcorn - Popcorn
-candy-bar - Candy bar
-
-Servicii Jocuri:
-
-arcade - Arcade/Jocuri
-photo-booth - Photo booth
-dj - DJ
-📊 Unde Trebuie Adăugate Rolurile:
-1. EvenimenteScreen.jsx - Dropdown
-<select value={rol} onChange={e => setRol(e.target.value)}>
-  <option value="">Toate</option>
-  
-  {/* Staff Catering */}
-  <option value="ospatar">Ospătar</option>
-  <option value="barman">Barman</option>
-  <option value="bucatar">Bucătar</option>
-  <option value="manager">Manager</option>
-  
-  {/* Entertainment - ADAUGĂ */}
-  <option value="animator">Animator</option>
-  <option value="ursitoare">Ursitoare</option>
-  <option value="mascota">Mascotă</option>
-  <option value="face-painting">Face Painting</option>
-  <option value="baloane">Baloane</option>
-  
-  {/* Food Services - ADAUGĂ */}
-  <option value="vata-zahar">Vată de Zahăr</option>
-  <option value="popcorn">Popcorn</option>
-  <option value="candy-bar">Candy Bar</option>
-  
-  {/* Games & Tech - ADAUGĂ */}
-  <option value="arcade">Arcade</option>
+…>Arcade</option>
   <option value="photo-booth">Photo Booth</option>
   <option value="dj">DJ</option>
 </select>
@@ -2891,4 +2840,47 @@ Altceva - spune-mi ce vrei
 Ce alegi? 🚀
 
 vreau sa stiu doar daca toate sunt linkurile alea sau mai sunt si altele
+
+Ah! Vrei să știi dacă am inclus TOATE linkurile sau am uitat unele!
+
+Se verifică:
+
+Executarea comenzii: git ls-files | grep -E "\.md$" | grep -v -E "(node_modules|\.git|creds|secret|token|key|password)" | wc -l
+
+Sunt 194 fișiere .md în total! Eu am pus doar ~50 în documentație (cele mai importante).
+
+Hai să văd ce am uitat:
+
+Executarea comenzii: git ls-files | grep -E "\.md$" | grep -v -E "(node_modules|\.git|creds|secret|token|key|password)" | head -100
+Se execută comanda: git ls-files | grep -E "\.md$" | grep -v -E "(node_modules|\.git|creds|secret|token|key|password)" | tail -100
+Rezumat
+
+RĂSPUNS: Am inclus doar ~50 din 194 fișiere .md (cele mai importante)!
+
+📊 CE AM INCLUDE:
+
+✅ Documentație principală (Voice AI, Evenimente, WhatsApp, Twilio)
+✅ Cod principal (backend-uri, monitoare, funcții)
+✅ Frontend (KYC App, Flutter)
+✅ Configurare (DevContainer, Firebase, GitHub Actions)
+✅ Analiză & Rapoarte (Status, Evidence)
+
+❌ CE AM OMIS (144 fișiere):
+
+Multe duplicate/versiuni vechi:
+
+WHATSAPP-*(30+ fișiere similare)
+DEPLOY-*(20+ fișiere similare)
+FINAL-*(15+ fișiere similare)
+ROBOT-*, ULTIMATE-*, EXTREME-*(versiuni multiple)
+artifacts/(raport temporar)
+reports/(rapoarte vechi)
+
+Vrei să:
+
+Adaug TOATE cele 194 de fișiere în documentație? (va fi foarte lung)
+Rămân cu cele importante (~50 fișiere)?
+Adaug doar anumite categorii (spune-mi care)?
+
+Ce preferi? 🚀
 <!-- END ONA -->
