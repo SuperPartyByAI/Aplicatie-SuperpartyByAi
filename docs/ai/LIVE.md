@@ -23,33 +23,7 @@ Test autosave.
 
 ## ONA (Gitpod)
 
-…t staffDoc = await getDoc(doc(db, 'staffProfiles', uid)); // Query per staff!
-+
-  }
-+
-}
-+
- 
-+
-// DUPĂ: Pre-build map, O(1) lookup (100x mai rapid)
-+
-const staffProfiles = {};
-+
-staffSnap.docs.forEach(doc => {
-+
-  const data = doc.data();
-+
-  staffProfiles[data.uid] = data; // Map: uid -> profile
-+
-});
-+
- 
-+
-// Lookup instant
-+
-for (const ev of evenimente) {
-+
-  for (const uid of ev.staffAlocat) {
+…ffAlocat) {
 +
     const profile = staffProfiles[uid]; // O(1) lookup, no query!
 +
@@ -3593,6 +3567,19 @@ Fișierul nu există pe GitHub. Hai să verifice ce fișiere există în docs/ai
 
 Executarea comenzii: find . -path "*/docs/ai/*" -type f 2>/dev/null | head -20
 Executarea comenzii: ls -la docs/ 2>/dev/null || echo "Folder docs/nu există"
+Rezumat
 
-Fol
+Folderul docs/ai/nu există! Vrei să:
+
+Creez folderul și fișierulLIVE.md - pentru tracking live al conversațiilor AI?
+Verific pe GitHub dacă există pe alt branch?
+Creez un sistem de logging live pentru Kasya?
+
+Ce vrei să conțină LIVE.md?
+
+Conversații live cu Kasya (Voice AI)?
+Statusul este live al sistemului?
+Jurnalele sunt reale?
+
+Spune-mi ce ai în minte și creez exact ce vrei! 🚀
 <!-- END ONA -->
