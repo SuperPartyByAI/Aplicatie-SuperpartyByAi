@@ -411,6 +411,37 @@ Dacă vrei, îți pot transforma lista într-un fișier PERMALINKS.md curat (cu 
 ## User
 
 deci per total sunt e ok aplicatia sau nu
+
+## Assistant
+
+Per total: aplicația este “în mare parte OK” pentru pilot / demo, dar nu aș spune că e 100% “gata de producție” pentru rulaj real fără încă 2–3 pași obligatorii (în special testare manuală end-to-end și igienă de securitate).
+
+Ce arată repo-ul (starea cea mai recentă din documentație)
+1) WhatsApp (backend + frontend)
+
+Implementarea este declarată “COMPLETE – Ready for production use” în sumarul de sesiune din 2026-01-01 
+
+SESSION_SUMMARY
+
+ și include stabilizări (timeout “connecting forever”, lease/lock, health extins, restaurare cu handler-e) 
+
+SESSION_SUMMARY
+
+.
+
+Există și un document de “Issue #3 RESOLVED – PRODUCTION READY”, cu indicatori de health și cont conectat 
+
+FINAL_EVIDENCE_ISSUE_3
+
+.
+
+Dar încă apare explicit că “full smoke test” e pending și urmează manual testing + configurare numere reale 
+
+SESSION_SUMMARY
+
+ 
+
+SESSION_SUMMARY
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
