@@ -599,6 +599,16 @@ Dacă îmi spui ce canal vrei “live” prima dată (WhatsApp only vs WhatsApp 
 ## User
 
 nu vreau sa se schimbe cheile sa tsua sa generez chei
+
+## Assistant
+
+Înțeleg. Totuși, dacă nu vrei să schimbi / regenerezi cheile, trebuie să fii conștient că, în starea documentată în repo, riscul nu mai este “teoretic”: există istoric de proiect care tratează cheile ca “material de configurare” și chiar menționează actualizarea cheii OpenAI și necesitatea de a actualiza secretul în Secret Manager / variabile Railway. 
+
+chore: update OpenAI API key ac…
+
+Din perspectivă “producție pentru echipă (live)”, asta duce la o concluzie practică:
+
+Ce pot recomanda, dacă NU rote
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
