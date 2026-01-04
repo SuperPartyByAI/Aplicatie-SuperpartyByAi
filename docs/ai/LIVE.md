@@ -3,16 +3,16 @@
 <!-- BEGIN CHATGPT -->
 ## CHATGPT (curent)
 
-- Title: AUTOSAVE_TEST
-- URL: https://chatgpt.com/c/AUTOSAVE_TEST
+- Title: AUTOSAVE_SMOKE
+- URL: https://chatgpt.com/c/AUTOSAVE_SMOKE
 
 ## User
 
-Salut
+Salut smoke
 
 ## Assistant
 
-Test autosave.
+Test autosave smoke.
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
