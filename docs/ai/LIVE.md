@@ -23,13 +23,7 @@ Test autosave.
 
 ## ONA (Gitpod)
 
-… Parallel Fetch
-+
-```javascript
-+
-// ÎNAINTE: 2 queries secvențiale (lent)
-+
-const evenimenteSnap = await getDocs(collection(db, 'evenimente'));
+…const evenimenteSnap = await getDocs(collection(db, 'evenimente'));
 +
 const staffSnap = await getDocs(collection(db, 'staffProfiles'));
 +
@@ -3579,8 +3573,6 @@ Ce vrei să faci? 🚀
 
 tu vezi ce scrie gpt in live md?
 
-Rezumat
-
 Ah! Întrebi dacă văd ce scrie GPT (probabil Voice AI - Kasya) în live în vreun fișier .md?
 
 Răspuns: NU, nu vă în timp real ce scrie (Voice AI) când vorbește cu clienții.
@@ -3616,4 +3608,6 @@ Verific Firebase să văd petrecerile salvate?
 Testez Kasya sunând la +1 (218) 220-4425?
 
 Spune-mi ce vrei! 🔍
+
+https://github.com/SuperPartyByAI/Aplicație-SuperpartyByAi/blob/main/docs/ai/LIVE.md
 <!-- END ONA -->
