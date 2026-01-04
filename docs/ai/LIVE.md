@@ -595,6 +595,10 @@ Dacă bifezi punctele A1–A3 + B4–B5, poți da GO pentru utilizare internă l
 Dacă nu sunt bifate, în special rotația secretelor și închiderea endpoint-urilor publice temporar, recomandarea mea rămâne NO-GO pentru live, chiar și intern.
 
 Dacă îmi spui ce canal vrei “live” prima dată (WhatsApp only vs WhatsApp + Voice AI), îți structurez un checklist “GO/NO-GO” pe exact acel scope și ordinea optimă de implementare.
+
+## User
+
+nu vreau sa se schimbe cheile sa tsua sa generez chei
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
