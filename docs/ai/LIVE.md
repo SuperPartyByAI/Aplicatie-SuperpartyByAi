@@ -3,7 +3,7 @@
 <!-- BEGIN CHATGPT -->
 ## CHATGPT (curent)
 
-- Title: Documentație SuperPartyByAI
+- Title: Linkuri corectate Git
 - URL: https://chatgpt.com/c/695a6ee3-d940-8329-a11c-40f9411c52a1
 
 ## User
@@ -190,7 +190,38 @@ Pentru accesarea secretelor:
 
 ## Assistant
 
-Am trecut prin lista ta și problema principală nu este commit-ul, ci linkurile: unele au repository-ul scris cu diacritice / spații,
+Am trecut prin lista ta și problema principală nu este commit-ul, ci linkurile: unele au repository-ul scris cu diacritice / spații, iar câteva au nume de fișiere trunchiate sau înlocuite cu „placeholder”-e (ex. ROLURIm-CUPEMENT, COSTURI-AI.REALE-dVOICE, TWILIO-CNUMARm., TWILIO-mNUMAR-NSETOU.). Repo-ul corect folosește forma fără diacritice: SuperPartyByAI/Aplicatie-SuperpartyByAi (aceeași apare și în structura/documentația din repo). 
+
+Add complete Voice AI documenta…
+
+Mai jos ai o versiune „curată” (aceeași categorie ca la tine), cu aceeași ancoră de commit e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea, dar cu linkuri consistente.
+
+Bază standard (recomandat să o păstrezi peste tot)
+
+Repo: https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi
+
+Commit: e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea
+
+Template permalink:
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/<PATH>
+
+📚 DOCUMENTAȚIE PRINCIPALĂ (linkuri corectate)
+Inteligență artificială vocală și Petreceri
+
+VOICE-AI (complet):
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/VOICE-AI-COMPLETE-DOCUMENTATION.md
+ 
+
+Add complete Voice AI documenta…
+
+VOICE-AI status:
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/VOICE-AI-STATUS.md
+ 
+
+v7
+
+Costuri Voice AI (corectat din linkul tău „COSTURI-AI.REALE-dVOICE”):
+https://github.com/Sup
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
