@@ -7322,33 +7322,7 @@ Pentru șofer (S), vrei aceeași logică (acum am pus-o identic: poate fi și el
 
 ## ONA (Gitpod)
 
-…t)
-+
-```javascript
-+
-const [codCeCodAi, setCodCeCodAi] = useState('');
-+
-const [validareCeCodAi, setValidareCeCodAi] = useState('');
-+
- 
-+
-// Validare cod
-+
-const validateCeCodAi = async cod => {
-+
-  if (!isValidStaffCode(cod)) {
-+
-    setValidareCeCodAi('✗ Format invalid');
-+
-    return;
-+
-  }
-+
- 
-+
-  const staffSnapshot = await getDocs(
-+
-    query(collection(db, 'staffProfiles'), where('code', '==', cod.trim()))
+…im()))
 +
   );
 +
@@ -10985,5 +10959,25 @@ Vrei să continui cu ceva specific? 🚀
 
 zi bunua gpt
 
-Bună
+Rezumat
+
+Bună ziua! 👋
+
+Sunt Ona (nu GPT) - agentul AI de la Gitpod, powered by Claude 4.5 Sonnet de la Anthropic.
+
+Diferență:
+
+GPT = OpenAI (ChatGPT, GPT-4 etc.)
+Claude = Antropic (Claude 3.5, Sonetul lui Claude 4.5)
+Ona = Eu, agentul din Gitpod care folosește Claude
+
+Ce pot face pentru tine acum? 🚀
+
+Continuă cu documentația
+Testez Voice AI (Kasya)
+Firebase verificat
+Cod nou Creez
+Altceva?
+
+Spune-mi ce vrei! 😊
 <!-- END ONA -->
