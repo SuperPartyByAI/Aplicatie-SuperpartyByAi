@@ -537,7 +537,46 @@ SESSION_SUMMARY
 
 VOICE-AI-COMPLETE-DOCUMENTATION
 
+ 
+
 Add complete Voice AI documenta…
+
+În același timp, WhatsApp pare “verde” ca implementare de bază (există status “ready / resolved”), dar asta nu înlocuiește pașii de hardening și test. 
+
+SESSION_SUMMARY
+
+ 
+
+FINAL_EVIDENCE_ISSUE_3
+
+Condiții minime de “GO” pentru producție internă
+A. Securitate (obligatoriu)
+
+Rotație completă de chei/secrete (Twilio/Auth Token, OpenAI keys, Railway tokens, Firebase service account etc.) și verificare că nu mai apar în repo sau în documente. 
+
+VOICE-AI-COMPLETE-DOCUMENTATION
+
+ 
+
+Add complete Voice AI documenta…
+
+Închidere / autentificare strictă pe orice endpoint administrativ sau “temporary public” (inclusiv cleanup-duplicates). 
+
+SESSION_SUMMARY
+
+Validare semnături / origine pentru webhook-uri (ex. Twilio) și protecție anti-abuz (rate limiting + IP allowlist unde e posibil).
+
+B. Stabilitate (obligatoriu)
+
+Smoke test end-to-end complet (send/receive, reconnect după restart, duplicate handling, scenarii de eroare) — este menționat ca restant. 
+
+SESSION_SUMMARY
+
+ 
+
+SESSION_SUMMARY
+
+Observabilitate minimă: health checks + loguri coerente + alertă pe “disconnect / login required / crash loop” (aveți deja direcția de health extin
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
