@@ -576,7 +576,25 @@ SESSION_SUMMARY
 
 SESSION_SUMMARY
 
-Observabilitate minimă: health checks + loguri coerente + alertă pe “disconnect / login required / crash loop” (aveți deja direcția de health extin
+Observabilitate minimă: health checks + loguri coerente + alertă pe “disconnect / login required / crash loop” (aveți deja direcția de health extins în documentație; trebuie doar standardizat și activat în regim live). 
+
+SESSION_SUMMARY
+
+C. Operare (recomandat, dar practic necesar)
+
+Runbook de operare (cine face pairing, cum se recuperează sesiunea, cum se rulează cleanup, ce se face la incident).
+
+Separare environment (staging vs production intern) ca să poți testa fără să blochezi echipa.
+
+Permisiuni Firestore / acces validate (minim “least privilege”).
+
+Decizia de lansare
+
+Dacă bifezi punctele A1–A3 + B4–B5, poți da GO pentru utilizare internă live cu risc rezonabil.
+
+Dacă nu sunt bifate, în special rotația secretelor și închiderea endpoint-urilor publice temporar, recomandarea mea rămâne NO-GO pentru live, chiar și intern.
+
+Dacă îmi spui ce canal vrei “live” prima dată (WhatsApp only vs WhatsApp + Voice AI), îți structurez un checklist “GO/NO-GO” pe exact acel scope și ordinea optimă de implementare.
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
