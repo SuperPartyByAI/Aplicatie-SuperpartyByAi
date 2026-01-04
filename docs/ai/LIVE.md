@@ -21,7 +21,7 @@ CMD_SAVE_TEST_28441_31823
 
 Save ONA (Ctrl+Alt+S)
 LIVE Sync (ona)
-ready
+ok
 Inject LIVE
 Force Save
 <!-- END ONA -->
