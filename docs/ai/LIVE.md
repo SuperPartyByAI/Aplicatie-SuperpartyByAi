@@ -6,10 +6,7 @@
 - Title: Proiect Evenimente HTML
 - URL: https://chatgpt.com/c/69598f06-3700-832a-aaed-1e5346bd144b
 
-… text-align: center;
-    }
-
-    @media (max-width: 520px){
+…   @media (max-width: 520px){
       .card{ grid-template-columns: auto 1fr; }
       .right{ grid-column: 1 / -1; align-items: flex-start; text-align: left; }
       .dt, .subdt{ white-space: normal; }
@@ -7199,51 +7196,67 @@ daca un om nu mai poate merge la evenimnt si vrea sa schimbe cu un alt com rolul
 ## Assistant
 
 Da — fix pentru cazul „omul nu mai poate merge și îl schimb cu alt om” avem două situații posibile, iar acum codul din canvas le suportă pe ambele (fără să-ți încarce UI-ul):
-
 1) Înlocuire simplă (cel mai des)
+
 
 Dai click pe litera rolului (A/B/C/… sau S pentru șofer).
 
+
 Scrii codul nou (valid).
+
 
 Rolul se reasignează pe loc (codul vechi dispare de pe acel rol).
 
+
 Asta este „schimbare de om pe rol” în sens clasic.
-
 2) Swap între două roluri din același eveniment (cazul „schimb cu alt om” care era deja pus pe alt rol)
-
 Dacă tu scrii un cod care este deja alocat pe alt rol în același eveniment, atunci se face automat swap:
+
 
 Rolul pe care ești tu acum primește codul nou
 
+
 Iar rolul unde era codul nou primește codul vechi al rolului tău
+
 
 Exemplu:
 
+
 A = A1
+
 
 B = B2
 Dacă pe A scrii B2 ⇒ rezultatul devine:
 
+
 A = B2
+
 
 B = A1
 
+
 Ce am mai pus în cod
+
 
 assignmentLog pe eveniment (intern, fără UI încă): orice assign / reassign / clear se loghează.
 
+
 În modalul de alocare apare un text scurt “Curent: …” ca să fie clar ce înlocuiești.
 
-Întrebarea care contează (ca să o facem “perfect”)
 
+
+Întrebarea care contează (ca să o facem “perfect”)
 Când zici „schimbă cu un alt om rolul”, te referi la:
+
 
 Înlocuire (pun alt cod pe același rol), sau
 
+
 Swap (schimb doi oameni între două roluri), sau
 
+
 Schimbare între evenimente diferite (A1 nu mai merge la ev04 și îl mut pe ev05, etc.)?
+
 
 Acum ai implementate 1) și 2) pentru același eveniment. Dacă vrei 3), trebuie să definim regula: e permis dacă se suprapun orele? dacă noul om e deja pe alt eveniment în aceeași zi? etc.
 
@@ -7255,32 +7268,48 @@ raspunsul este 1 dar verau cumva sa se dea acept si de omul care da evenimentul 
 ## Assistant
 
 Am înțeles ce vrei: rolul să nu fie “confirmat” imediat, ci să existe o cerere (pending) care trebuie acceptată de omul pe care îl aloci. Practic, “acceptul” celui care dă evenimentul este chiar acțiunea de a trimite cererea, iar omul alocat o acceptă / refuză.
-
 Am implementat asta în demo astfel:
+
 
 Când apeși pe slot (A/B/S) și introduci un cod valid → nu se mai setează direct rolul, ci se creează o cerere “În așteptare” (pending).
 
+
 În listă, în loc de ! apare codul într-un badge galben (pending).
+
 
 Dacă apeși pe acel cod (sau îl deschizi din “Ce cod am”), se deschide tabul codului, unde:
 
+
 vezi cererile pending
+
 
 ai butoane Accept / Refuz
 
+
+
+
 După Accept → rolul devine confirmat (assigned), iar pending se șterge.
+
 
 Pending-ul este tratat ca NEREZOLVAT (deci intră la “Nerezolvate”, nu la “Rezolvate”).
 
+
 Filtrul “Ce cod am” include și rolurile pending pentru codul respectiv, ca omul să le poată accepta direct.
+
 
 Întrebare de confirmare (ca să ajustez exact cum vrei, fără să stric UX-ul):
 
+
 Dacă un rol are deja un cod confirmat și trimiți o cerere nouă pentru alt cod, vrei:
+
 
 A) să rămână codul vechi până când cel nou acceptă (acum așa e), sau
 
+
 B) să se “mute” imediat pe pending (adică să dispară vechiul până la accept)?
+
+
+
 
 Pentru șofer (S), vrei aceeași logică (acum am pus-o identic: poate fi și el pending + accept/refuz).
 <!-- END CHATGPT -->
