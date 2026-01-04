@@ -19,7 +19,7 @@ CMD_SAVE_TEST_28441_31823
 
 ## ONA (Gitpod)
 
-…option>
+…>Arcade</option>
   <option value="photo-booth">Photo Booth</option>
   <option value="dj">DJ</option>
 </select>
@@ -2849,6 +2849,7 @@ Hai să văd ce am uitat:
 
 Executarea comenzii: git ls-files | grep -E "\.md$" | grep -v -E "(node_modules|\.git|creds|secret|token|key|password)" | head -100
 Se execută comanda: git ls-files | grep -E "\.md$" | grep -v -E "(node_modules|\.git|creds|secret|token|key|password)" | tail -100
+Summary
 
 RĂSPUNS: Am inclus doar ~50 din 194 fișiere .md (cele mai importante)!
 
@@ -2878,6 +2879,4 @@ Rămân cu cele importante (~50 fișiere)?
 Adaug doar anumite categorii (spune-mi care)?
 
 Ce preferi? 🚀
-
-PROBA_SYNC_1700
 <!-- END ONA -->
