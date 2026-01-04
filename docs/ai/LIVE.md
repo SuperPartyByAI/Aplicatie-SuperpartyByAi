@@ -325,6 +325,59 @@ https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2
  
 
 Add comprehensive documentation…
+
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/EXTREME-UPTIME-FINAL.md
+ 
+
+Add comprehensive documentation…
+
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/EXPLICATIE-SIMPLA.md
+ 
+
+Add project summary - [Repo nam…
+
+Implementare
+
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/CI_CD_SETUP.md
+ 
+
+feat(ai-chat): Extreme speed op…
+
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/DEPLOY-SIMPLU.md
+ 
+
+feat(ai-chat): Extreme speed op…
+
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/DEPLOY-FIREBASE-WHATSAPP.md
+ 
+
+feat(ai-chat): Extreme speed op…
+
+Analiză & raportare (în repo apar cu denumiri „EN”, nu cu diacritice)
+
+În loc de COMPARAȚIE-FINALĂ.md / COMPARAȚIE-PERFORMANȚĂ.md din lista ta, repo indică explicit: FINAL-COMPARISON.md și PERFORMANCE-COMPARISON.md. 
+
+Add comprehensive documentation…
+
+Index doc-uri:
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/DOCS-INDEX.md
+ 
+
+Add comprehensive documentation…
+
+Final comparison:
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/FINAL-COMPARISON.md
+ 
+
+Add comprehensive documentation…
+
+Performance comparison:
+https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/blob/e222fcd286ef40d2b1e5895c21a6a0e10e9be9ea/PERFORMANCE-COMPARISON.md
+ 
+
+Add comprehensive documentation…
+
+(Păstrează și `FIREBASE-VS-
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
