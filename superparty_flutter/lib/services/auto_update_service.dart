@@ -89,14 +89,12 @@ class AutoUpdateService {
     }
   }
   
-  /// Deconectează userul forțat (pentru update)
+  /// DEPRECATED: No longer logs out user for updates
+  /// User stays authenticated through update process
+  @Deprecated('Force Update no longer requires logout')
   static Future<void> forceLogout() async {
-    try {
-      await FirebaseAuth.instance.signOut();
-      print('[AutoUpdate] User logged out for update');
-    } catch (e) {
-      print('[AutoUpdate] Error logging out: $e');
-    }
+    print('[AutoUpdate] forceLogout() called but deprecated - user stays authenticated');
+    // DO NOT sign out - user should remain authenticated through update
   }
   
   /// Obține mesajul de update din Firestore
@@ -149,27 +147,31 @@ class AutoUpdateService {
   }
   
   /// Verifică și aplică update-ul (flow complet)
+  /// DEPRECATED: Use ForceUpdateCheckerService instead
+  /// 
+  /// This old system is kept for backward compatibility but should not be used.
+  /// The new ForceUpdateCheckerService handles updates without logging out users.
   /// 
   /// Returnează:
   /// - null: nu e nevoie de update
-  /// - 'logout': trebuie să deconecteze userul
-  /// - 'download': trebuie să descarce update-ul
+  /// - 'update_available': există update disponibil (fără logout)
+  @Deprecated('Use ForceUpdateCheckerService instead')
   static Future<String?> checkAndApplyUpdate() async {
     try {
       // 1. Verifică dacă există update pending (flag setat anterior)
       final hasPending = await hasPendingUpdate();
       
       if (hasPending) {
-        print('[AutoUpdate] Pending update detected, should download');
-        return 'download';
+        print('[AutoUpdate] Pending update detected');
+        return 'update_available';
       }
       
       // 2. Verifică dacă există versiune nouă în Firestore
       final needsUpdate = await checkForUpdates();
       
       if (needsUpdate) {
-        print('[AutoUpdate] New version available, should logout');
-        return 'logout';
+        print('[AutoUpdate] New version available (no logout required)');
+        return 'update_available';
       }
       
       // 3. Nu e nevoie de update
