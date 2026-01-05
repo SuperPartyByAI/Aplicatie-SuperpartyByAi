@@ -3,8 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' as path;
-import '../models/evidence_model.dart';
-import '../models/evidence_state_model.dart';
+import '../models/evidence_exports.dart';
 
 class EvidenceUploadResult {
   final String docId;
