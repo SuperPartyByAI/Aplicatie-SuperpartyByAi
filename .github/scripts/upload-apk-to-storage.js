@@ -7,7 +7,7 @@ const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  storageBucket: 'superparty-ai.appspot.com'
+  storageBucket: 'superparty-frontend.firebasestorage.app'
 });
 
 const bucket = admin.storage().bucket();
