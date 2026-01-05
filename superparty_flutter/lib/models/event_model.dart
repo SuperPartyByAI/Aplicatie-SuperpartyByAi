@@ -1,15 +1,26 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Model pentru eveniment (schema v2)
 class EventModel {
   final String id;
-  final String nume;
-  final String locatie;
-  final DateTime data;
-  final String tipEveniment;
-  final String tipLocatie;
-  final bool requiresSofer;
-  final Map<String, RoleAssignment> alocari;
-  final DriverAssignment sofer;
+  final String date; // YYYY-MM-DD
+  final String address;
+  final String? cineNoteaza; // cod staff
+  final String? sofer; // cod șofer alocat
+  final String? soferPending; // cod șofer pending
+  final String sarbatoritNume;
+  final int sarbatoritVarsta;
+  final String? sarbatoritDob; // YYYY-MM-DD
+  final IncasareModel incasare;
+  final List<RoleModel> roles; // max 10 sloturi A-J
+  
+  // Arhivare (NEVER DELETE)
+  final bool isArchived;
+  final DateTime? archivedAt;
+  final String? archivedBy;
+  final String? archiveReason;
+  
+  // Audit
   final DateTime createdAt;
   final String createdBy;
   final DateTime updatedAt;
@@ -17,14 +28,20 @@ class EventModel {
 
   EventModel({
     required this.id,
-    required this.nume,
-    required this.locatie,
-    required this.data,
-    required this.tipEveniment,
-    required this.tipLocatie,
-    required this.requiresSofer,
-    required this.alocari,
-    required this.sofer,
+    required this.date,
+    required this.address,
+    this.cineNoteaza,
+    this.sofer,
+    this.soferPending,
+    required this.sarbatoritNume,
+    required this.sarbatoritVarsta,
+    this.sarbatoritDob,
+    required this.incasare,
+    required this.roles,
+    this.isArchived = false,
+    this.archivedAt,
+    this.archivedBy,
+    this.archiveReason,
     required this.createdAt,
     required this.createdBy,
     required this.updatedAt,
@@ -34,16 +51,57 @@ class EventModel {
   factory EventModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     
+    // DUAL-READ: suport v1 + v2
+    // v2: date (string YYYY-MM-DD), address, roles (array)
+    // v1: data (Timestamp), locatie/adresa, alocari (map)
+    
+    final schemaVersion = data['schemaVersion'] as int? ?? 1;
+    
+    // Date field (v2: string, v1: Timestamp)
+    String dateStr;
+    if (data.containsKey('date') && data['date'] is String) {
+      dateStr = data['date'] as String;
+    } else if (data.containsKey('data') && data['data'] is Timestamp) {
+      // v1: convert Timestamp to YYYY-MM-DD
+      final timestamp = (data['data'] as Timestamp).toDate();
+      dateStr = '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}';
+    } else {
+      dateStr = '';
+    }
+    
+    // Address field (v2: address, v1: locatie or adresa)
+    final address = data['address'] as String? ?? 
+                    data['locatie'] as String? ?? 
+                    data['adresa'] as String? ?? '';
+    
+    // Roles (v2: array, v1: alocari map)
+    List<RoleModel> roles;
+    if (data.containsKey('roles') && data['roles'] is List) {
+      roles = _parseRoles(data['roles'] as List<dynamic>?);
+    } else if (data.containsKey('alocari') && data['alocari'] is Map) {
+      // v1: convert alocari map to roles array
+      roles = _parseAlocariV1(data['alocari'] as Map<String, dynamic>?);
+    } else {
+      roles = [];
+    }
+    
     return EventModel(
       id: doc.id,
-      nume: data['nume'] as String? ?? '',
-      locatie: data['locatie'] as String? ?? '',
-      data: (data['data'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      tipEveniment: data['tipEveniment'] as String? ?? '',
-      tipLocatie: data['tipLocatie'] as String? ?? '',
-      requiresSofer: data['requiresSofer'] as bool? ?? false,
-      alocari: _parseAlocari(data['alocari'] as Map<String, dynamic>?),
-      sofer: DriverAssignment.fromMap(data['sofer'] as Map<String, dynamic>?),
+      date: dateStr,
+      address: address,
+      cineNoteaza: data['cineNoteaza'] as String?,
+      sofer: data['sofer'] as String?,
+      soferPending: data['soferPending'] as String?,
+      sarbatoritNume: data['sarbatoritNume'] as String? ?? 
+                      data['nume'] as String? ?? '', // v1 fallback
+      sarbatoritVarsta: data['sarbatoritVarsta'] as int? ?? 0,
+      sarbatoritDob: data['sarbatoritDob'] as String?,
+      incasare: IncasareModel.fromMap(data['incasare'] as Map<String, dynamic>?),
+      roles: roles,
+      isArchived: data['isArchived'] as bool? ?? false,
+      archivedAt: (data['archivedAt'] as Timestamp?)?.toDate(),
+      archivedBy: data['archivedBy'] as String?,
+      archiveReason: data['archiveReason'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       createdBy: data['createdBy'] as String? ?? '',
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -53,14 +111,21 @@ class EventModel {
 
   Map<String, dynamic> toFirestore() {
     return {
-      'nume': nume,
-      'locatie': locatie,
-      'data': Timestamp.fromDate(data),
-      'tipEveniment': tipEveniment,
-      'tipLocatie': tipLocatie,
-      'requiresSofer': requiresSofer,
-      'alocari': _alocariToMap(),
-      'sofer': sofer.toMap(),
+      'schemaVersion': 2, // Mark as v2
+      'date': date,
+      'address': address,
+      if (cineNoteaza != null) 'cineNoteaza': cineNoteaza,
+      if (sofer != null) 'sofer': sofer,
+      if (soferPending != null) 'soferPending': soferPending,
+      'sarbatoritNume': sarbatoritNume,
+      'sarbatoritVarsta': sarbatoritVarsta,
+      if (sarbatoritDob != null) 'sarbatoritDob': sarbatoritDob,
+      'incasare': incasare.toMap(),
+      'roles': roles.map((r) => r.toMap()).toList(),
+      'isArchived': isArchived,
+      if (archivedAt != null) 'archivedAt': Timestamp.fromDate(archivedAt!),
+      if (archivedBy != null) 'archivedBy': archivedBy,
+      if (archiveReason != null) 'archiveReason': archiveReason,
       'createdAt': Timestamp.fromDate(createdAt),
       'createdBy': createdBy,
       'updatedAt': Timestamp.fromDate(updatedAt),
@@ -68,174 +133,174 @@ class EventModel {
     };
   }
 
-  static Map<String, RoleAssignment> _parseAlocari(Map<String, dynamic>? data) {
-    if (data == null) return {};
+  static List<RoleModel> _parseRoles(List<dynamic>? data) {
+    if (data == null) return [];
+    return data
+        .map((item) => RoleModel.fromMap(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Parse alocari v1 (map) to roles v2 (array)
+  /// v1: alocari: {animator: 'A1', fotograf: 'B2', ...}
+  /// v2: roles: [{slot: 'A', label: 'Animator', assignedCode: 'A1'}, ...]
+  static List<RoleModel> _parseAlocariV1(Map<String, dynamic>? alocari) {
+    if (alocari == null) return [];
     
-    return data.map((key, value) {
-      return MapEntry(
-        key,
-        RoleAssignment.fromMap(value as Map<String, dynamic>?),
-      );
+    final roles = <RoleModel>[];
+    final slotMap = {
+      'animator': 'A',
+      'fotograf': 'B',
+      'dj': 'C',
+      'barman': 'D',
+      'ospatar': 'E',
+      'bucatar': 'F',
+    };
+    
+    alocari.forEach((key, value) {
+      final slot = slotMap[key] ?? 'A';
+      final code = value as String?;
+      
+      if (code != null && code.isNotEmpty) {
+        roles.add(RoleModel(
+          slot: slot,
+          label: _capitalize(key),
+          time: '14:00', // default
+          durationMin: 120, // default
+          assignedCode: code,
+        ));
+      }
     });
+    
+    return roles;
   }
 
-  Map<String, dynamic> _alocariToMap() {
-    return alocari.map((key, value) {
-      return MapEntry(key, value.toMap());
-    });
+  static String _capitalize(String s) {
+    if (s.isEmpty) return s;
+    return s[0].toUpperCase() + s.substring(1);
   }
 
-  EventModel copyWith({
-    String? id,
-    String? nume,
-    String? locatie,
-    DateTime? data,
-    String? tipEveniment,
-    String? tipLocatie,
-    bool? requiresSofer,
-    Map<String, RoleAssignment>? alocari,
-    DriverAssignment? sofer,
-    DateTime? createdAt,
-    String? createdBy,
-    DateTime? updatedAt,
-    String? updatedBy,
-  }) {
-    return EventModel(
-      id: id ?? this.id,
-      nume: nume ?? this.nume,
-      locatie: locatie ?? this.locatie,
-      data: data ?? this.data,
-      tipEveniment: tipEveniment ?? this.tipEveniment,
-      tipLocatie: tipLocatie ?? this.tipLocatie,
-      requiresSofer: requiresSofer ?? this.requiresSofer,
-      alocari: alocari ?? this.alocari,
-      sofer: sofer ?? this.sofer,
-      createdAt: createdAt ?? this.createdAt,
-      createdBy: createdBy ?? this.createdBy,
-      updatedAt: updatedAt ?? this.updatedAt,
-      updatedBy: updatedBy ?? this.updatedBy,
-    );
+  /// Verifică dacă evenimentul necesită șofer
+  bool get needsDriver {
+    // Necesită șofer dacă:
+    // 1. Are rol explicit cu label "SOFER"
+    // 2. Are sofer sau soferPending setat
+    // 3. Policy: evenimente cu >50 participanți (placeholder)
+    
+    if (sofer != null && sofer!.isNotEmpty) return true;
+    if (soferPending != null && soferPending!.isNotEmpty) return true;
+    
+    for (var role in roles) {
+      if (role.label.toUpperCase().contains('SOFER')) return true;
+    }
+    
+    return false;
+  }
+
+  /// Verifică dacă șoferul e alocat
+  bool get hasDriverAssigned {
+    return sofer != null && sofer!.isNotEmpty;
+  }
+
+  /// Verifică dacă șoferul e pending
+  bool get hasDriverPending {
+    return soferPending != null && soferPending!.isNotEmpty;
+  }
+
+  /// Text pentru status șofer
+  String get driverStatusText {
+    if (!needsDriver) return 'FARA';
+    if (hasDriverAssigned) return sofer!;
+    if (hasDriverPending) return '...';
+    return '!';
   }
 }
 
-class RoleAssignment {
-  final String? userId;
-  final AssignmentStatus status;
+/// Model pentru rol (slot A-J)
+class RoleModel {
+  final String slot; // A, B, C, ..., J
+  final String label; // ex: "Batman", "Animator"
+  final String time; // HH:mm
+  final int durationMin;
+  final String? assignedCode; // cod staff alocat
+  final String? pendingCode; // cod staff pending
 
-  RoleAssignment({
-    this.userId,
-    required this.status,
+  RoleModel({
+    required this.slot,
+    required this.label,
+    required this.time,
+    required this.durationMin,
+    this.assignedCode,
+    this.pendingCode,
   });
 
-  factory RoleAssignment.fromMap(Map<String, dynamic>? data) {
-    if (data == null) {
-      return RoleAssignment(status: AssignmentStatus.unassigned);
-    }
-    
-    return RoleAssignment(
-      userId: data['userId'] as String?,
-      status: AssignmentStatus.fromString(data['status'] as String?),
+  factory RoleModel.fromMap(Map<String, dynamic> map) {
+    return RoleModel(
+      slot: map['slot'] as String? ?? '',
+      label: map['label'] as String? ?? '',
+      time: map['time'] as String? ?? '',
+      durationMin: map['durationMin'] as int? ?? 0,
+      assignedCode: map['assignedCode'] as String?,
+      pendingCode: map['pendingCode'] as String?,
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'userId': userId,
-      'status': status.value,
+      'slot': slot,
+      'label': label,
+      'time': time,
+      'durationMin': durationMin,
+      if (assignedCode != null) 'assignedCode': assignedCode,
+      if (pendingCode != null) 'pendingCode': pendingCode,
     };
   }
 
-  RoleAssignment copyWith({
-    String? userId,
-    AssignmentStatus? status,
-  }) {
-    return RoleAssignment(
-      userId: userId ?? this.userId,
-      status: status ?? this.status,
-    );
-  }
-}
-
-enum AssignmentStatus {
-  unassigned('unassigned'),
-  assigned('assigned');
-
-  final String value;
-  const AssignmentStatus(this.value);
-
-  static AssignmentStatus fromString(String? value) {
-    switch (value) {
-      case 'assigned':
-        return AssignmentStatus.assigned;
-      default:
-        return AssignmentStatus.unassigned;
+  /// Status vizual pentru UI
+  RoleStatus get status {
+    if (assignedCode != null && assignedCode!.isNotEmpty) {
+      return RoleStatus.assigned;
     }
+    if (pendingCode != null && pendingCode!.isNotEmpty) {
+      return RoleStatus.pending;
+    }
+    return RoleStatus.unassigned;
   }
 }
 
-class DriverAssignment {
-  final bool required;
-  final String? userId;
-  final DriverStatus status;
+enum RoleStatus {
+  assigned,   // verde
+  pending,    // galben
+  unassigned, // gri
+}
 
-  DriverAssignment({
-    required this.required,
-    this.userId,
+/// Model pentru încasare
+class IncasareModel {
+  final String status; // INCASAT / NEINCASAT / ANULAT
+  final String? metoda; // CASH / CARD / TRANSFER
+  final double? suma;
+
+  IncasareModel({
     required this.status,
+    this.metoda,
+    this.suma,
   });
 
-  factory DriverAssignment.fromMap(Map<String, dynamic>? data) {
-    if (data == null) {
-      return DriverAssignment(
-        required: false,
-        status: DriverStatus.notRequired,
-      );
+  factory IncasareModel.fromMap(Map<String, dynamic>? map) {
+    if (map == null) {
+      return IncasareModel(status: 'NEINCASAT');
     }
-    
-    return DriverAssignment(
-      required: data['required'] as bool? ?? false,
-      userId: data['userId'] as String?,
-      status: DriverStatus.fromString(data['status'] as String?),
+    return IncasareModel(
+      status: map['status'] as String? ?? 'NEINCASAT',
+      metoda: map['metoda'] as String?,
+      suma: (map['suma'] as num?)?.toDouble(),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'required': required,
-      'userId': userId,
-      'status': status.value,
+      'status': status,
+      if (metoda != null) 'metoda': metoda,
+      if (suma != null) 'suma': suma,
     };
-  }
-
-  DriverAssignment copyWith({
-    bool? required,
-    String? userId,
-    DriverStatus? status,
-  }) {
-    return DriverAssignment(
-      required: required ?? this.required,
-      userId: userId ?? this.userId,
-      status: status ?? this.status,
-    );
-  }
-}
-
-enum DriverStatus {
-  notRequired('not_required'),
-  unassigned('unassigned'),
-  assigned('assigned');
-
-  final String value;
-  const DriverStatus(this.value);
-
-  static DriverStatus fromString(String? value) {
-    switch (value) {
-      case 'unassigned':
-        return DriverStatus.unassigned;
-      case 'assigned':
-        return DriverStatus.assigned;
-      default:
-        return DriverStatus.notRequired;
-    }
   }
 }

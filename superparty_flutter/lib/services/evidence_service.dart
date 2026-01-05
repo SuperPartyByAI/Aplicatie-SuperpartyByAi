@@ -100,7 +100,7 @@ class EvidenceService {
     }
   }
 
-  /// Fetch dovezi pentru un eveniment (opțional filtrate pe categorie)
+  /// Fetch dovezi active pentru un eveniment (exclude arhivate)
   Stream<List<EvidenceModel>> getEvidenceStream({
     required String eventId,
     EvidenceCategory? categorie,
@@ -109,6 +109,9 @@ class EvidenceService {
         .collection('evenimente')
         .doc(eventId)
         .collection('dovezi');
+
+    // Exclude dovezi arhivate implicit (politica: never delete)
+    query = query.where('isArchived', isEqualTo: false);
 
     if (categorie != null) {
       query = query.where('categorie', isEqualTo: categorie.value);
@@ -123,7 +126,32 @@ class EvidenceService {
     });
   }
 
-  /// Fetch dovezi ca listă (nu stream)
+  /// Fetch dovezi arhivate pentru un eveniment
+  Stream<List<EvidenceModel>> getArchivedEvidenceStream({
+    required String eventId,
+    EvidenceCategory? categorie,
+  }) {
+    Query query = _firestore
+        .collection('evenimente')
+        .doc(eventId)
+        .collection('dovezi');
+
+    query = query.where('isArchived', isEqualTo: true);
+
+    if (categorie != null) {
+      query = query.where('categorie', isEqualTo: categorie.value);
+    }
+
+    query = query.orderBy('archivedAt', descending: true);
+
+    return query.snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => EvidenceModel.fromFirestore(doc, eventId))
+          .toList();
+    });
+  }
+
+  /// Fetch dovezi active ca listă (exclude arhivate)
   Future<List<EvidenceModel>> getEvidenceList({
     required String eventId,
     EvidenceCategory? categorie,
@@ -133,6 +161,9 @@ class EvidenceService {
           .collection('evenimente')
           .doc(eventId)
           .collection('dovezi');
+
+      // Exclude dovezi arhivate implicit
+      query = query.where('isArchived', isEqualTo: false);
 
       if (categorie != null) {
         query = query.where('categorie', isEqualTo: categorie.value);
@@ -149,12 +180,15 @@ class EvidenceService {
     }
   }
 
-  /// Șterge dovadă (Storage + Firestore)
-  Future<void> deleteEvidence({
+  /// Arhivează dovadă (POLITICA: NEVER DELETE)
+  /// 
+  /// Fișierul din Storage rămâne intact.
+  /// Doar metadata din Firestore se marchează ca arhivată.
+  Future<void> archiveEvidence({
     required String eventId,
     required String evidenceId,
-    required String storagePath,
     required EvidenceCategory categorie,
+    String? reason,
   }) async {
     try {
       final currentUser = _auth.currentUser;
@@ -168,29 +202,58 @@ class EvidenceService {
         categorie: categorie,
       );
       if (meta.locked) {
-        throw Exception('Categoria este blocată. Nu se pot șterge poze.');
+        throw Exception('Categoria este blocată. Nu se pot arhiva poze.');
       }
 
-      // Șterge din Storage
-      try {
-        await _storage.ref(storagePath).delete();
-      } catch (e) {
-        // Ignoră eroarea dacă fișierul nu există în Storage
-        print('Warning: Could not delete from Storage: $e');
-      }
-
-      // Șterge din Firestore
+      // NU ștergem din Storage - fișierul rămâne permanent
+      // Doar marcăm metadata ca arhivată în Firestore
       await _firestore
           .collection('evenimente')
           .doc(eventId)
           .collection('dovezi')
           .doc(evidenceId)
-          .delete();
+          .update({
+        'isArchived': true,
+        'archivedAt': FieldValue.serverTimestamp(),
+        'archivedBy': currentUser.uid,
+        if (reason != null) 'archiveReason': reason,
+      });
 
-      // Update category metadata
+      // Update category metadata (decrementează count)
       await _updateCategoryPhotoCount(eventId, categorie, increment: false);
     } catch (e) {
-      throw Exception('Eroare la ștergerea dovezii: $e');
+      throw Exception('Eroare la arhivarea dovezii: $e');
+    }
+  }
+
+  /// Dezarhivează o dovadă
+  Future<void> unarchiveEvidence({
+    required String eventId,
+    required String evidenceId,
+    required EvidenceCategory categorie,
+  }) async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('Utilizator neautentificat');
+      }
+
+      await _firestore
+          .collection('evenimente')
+          .doc(eventId)
+          .collection('dovezi')
+          .doc(evidenceId)
+          .update({
+        'isArchived': false,
+        'archivedAt': FieldValue.delete(),
+        'archivedBy': FieldValue.delete(),
+        'archiveReason': FieldValue.delete(),
+      });
+
+      // Update category metadata (incrementează count)
+      await _updateCategoryPhotoCount(eventId, categorie, increment: true);
+    } catch (e) {
+      throw Exception('Eroare la dezarhivarea dovezii: $e');
     }
   }
 
@@ -363,5 +426,60 @@ class EvidenceService {
       default:
         return 'image/jpeg';
     }
+  }
+
+  /// Upload evidence cu path (pentru ImagePicker)
+  Future<EvidenceUploadResult> uploadEvidence({
+    required String eventId,
+    required EvidenceCategory category,
+    required String filePath,
+  }) async {
+    final file = File(filePath);
+    return uploadEvidenceFile(
+      eventId: eventId,
+      categorie: category,
+      imageFile: file,
+    );
+  }
+
+  /// Stream pentru category states
+  Stream<Map<EvidenceCategory, EvidenceStateModel>> getCategoryStatesStream(String eventId) {
+    return _firestore
+        .collection('evenimente')
+        .doc(eventId)
+        .collection('evidenceState')
+        .snapshots()
+        .map((snapshot) {
+      final map = <EvidenceCategory, EvidenceStateModel>{};
+      for (var doc in snapshot.docs) {
+        final state = EvidenceStateModel.fromFirestore(doc);
+        map[state.category] = state;
+      }
+      return map;
+    });
+  }
+
+  /// Update category status
+  Future<void> updateCategoryStatus({
+    required String eventId,
+    required EvidenceCategory category,
+    required EvidenceStatus status,
+    required bool locked,
+  }) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) throw Exception('Utilizator neautentificat');
+
+    await _firestore
+        .collection('evenimente')
+        .doc(eventId)
+        .collection('evidenceState')
+        .doc(category.value)
+        .set({
+      'category': category.value,
+      'status': status.value,
+      'locked': locked,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': currentUser.uid,
+    }, SetOptions(merge: true));
   }
 }

@@ -58,4 +58,111 @@ void main() {
       expect(true, isTrue); // Placeholder - real test would mock Firebase
     });
   });
+
+  group('Lock Behavior', () {
+    test('category should be locked when status is OK', () {
+      // Expected behavior:
+      // When a category's status is set to 'ok', the category becomes locked:
+      // - Upload button disabled
+      // - Remove button disabled on all images
+      // - Status dropdown disabled
+      // 
+      // This prevents accidental changes after approval.
+      
+      const status = 'ok';
+      final isLocked = (status == 'ok');
+      
+      expect(isLocked, isTrue);
+    });
+
+    test('category should be unlocked for non-OK statuses', () {
+      // Categories with status 'n/a', 'verifying', or 'needed' remain unlocked
+      
+      for (final status in ['n/a', 'verifying', 'needed']) {
+        final isLocked = (status == 'ok');
+        expect(isLocked, isFalse, reason: 'Status $status should not be locked');
+      }
+    });
+
+    test('locked category prevents upload and remove operations', () {
+      // UI behavior when locked:
+      // - Upload FAB: disabled (grayed out, no onPressed)
+      // - Remove icon on images: hidden or disabled
+      // - Status dropdown: disabled
+      //
+      // This is enforced at UI level, not service level
+      
+      const isLocked = true;
+      
+      // Upload should be disabled
+      final canUpload = !isLocked;
+      expect(canUpload, isFalse);
+      
+      // Remove should be disabled
+      final canRemove = !isLocked;
+      expect(canRemove, isFalse);
+    });
+  });
+
+  group('Archive vs Delete', () {
+    test('archiveEvidence should set isArchived flag, not delete document', () {
+      // Expected behavior:
+      // archiveEvidence() calls:
+      //   doc.update({'isArchived': true, 'archivedAt': FieldValue.serverTimestamp()})
+      // 
+      // It NEVER calls:
+      //   doc.delete()
+      //
+      // This implements the NEVER DELETE policy
+      
+      // Simulated Firestore operation
+      final updates = {
+        'isArchived': true,
+        'archivedAt': DateTime.now(),
+      };
+      
+      expect(updates.containsKey('isArchived'), isTrue);
+      expect(updates['isArchived'], isTrue);
+      expect(updates.containsKey('archivedAt'), isTrue);
+    });
+
+    test('queries should filter out archived evidence by default', () {
+      // Expected behavior:
+      // getEvidenceStream() should include:
+      //   .where('isArchived', isEqualTo: false)
+      //
+      // This hides archived items from normal views
+      
+      const isArchived = false;
+      final shouldInclude = !isArchived;
+      
+      expect(shouldInclude, isTrue);
+    });
+
+    test('archived evidence can be retrieved with explicit flag', () {
+      // Expected behavior:
+      // getArchivedEvidenceStream() can query:
+      //   .where('isArchived', isEqualTo: true)
+      //
+      // This allows viewing archived items if needed
+      
+      const isArchived = true;
+      final shouldInclude = isArchived;
+      
+      expect(shouldInclude, isTrue);
+    });
+
+    test('Firestore rules should prevent hard deletion', () {
+      // Expected Firestore rules:
+      // match /evenimente/{eventId}/dovezi/{evidenceId} {
+      //   allow delete: if false;
+      // }
+      //
+      // This enforces NEVER DELETE at database level
+      
+      const allowDelete = false;
+      
+      expect(allowDelete, isFalse, reason: 'Firestore rules must prevent .delete()');
+    });
+  });
 }

@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/event_model.dart';
 import '../models/event_filters.dart';
-import '../utils/event_utils.dart' as utils;
+import '../utils/code_validator.dart';
 
 class EventService {
   final FirebaseFirestore _firestore;
@@ -14,33 +14,33 @@ class EventService {
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
         _auth = auth ?? FirebaseAuth.instance;
 
-  /// Stream de evenimente cu filtre aplicate
+  /// Stream evenimente ACTIVE (isArchived=false implicit)
   Stream<List<EventModel>> getEventsStream(EventFilters filters) {
     Query query = _firestore.collection('evenimente');
 
-    // Aplicăm filtre pe dată (server-side)
-    final (startDate, endDate) = filters.dateRange;
-    if (startDate != null) {
-      query = query.where('data', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
-    }
-    if (endDate != null) {
-      query = query.where('data', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
-    }
+    // Exclude arhivate implicit (NEVER DELETE policy)
+    query = query.where('isArchived', isEqualTo: false);
 
-    // Sortare (server-side)
-    switch (filters.sortBy) {
-      case SortBy.data:
-        query = query.orderBy('data',
-            descending: filters.sortDirection == SortDirection.desc);
-        break;
-      case SortBy.nume:
-        query = query.orderBy('nume',
-            descending: filters.sortDirection == SortDirection.desc);
-        break;
-      case SortBy.locatie:
-        query = query.orderBy('locatie',
-            descending: filters.sortDirection == SortDirection.desc);
-        break;
+    // Date range (server-side)
+    final (startDate, endDate) = filters.dateRange;
+    if (startDate != null || endDate != null) {
+      // Convert DateTime to YYYY-MM-DD string for comparison
+      if (startDate != null) {
+        final startStr = _dateToString(startDate);
+        query = query.where('date', isGreaterThanOrEqualTo: startStr);
+      }
+      if (endDate != null) {
+        final endStr = _dateToString(endDate);
+        query = query.where('date', isLessThanOrEqualTo: endStr);
+      }
+      
+      // Când există range, orderBy('date') e obligatoriu primul
+      query = query.orderBy('date', 
+          descending: filters.sortDirection == SortDirection.desc);
+    } else {
+      // Fără range, sortăm direct
+      query = query.orderBy('date',
+          descending: filters.sortDirection == SortDirection.desc);
     }
 
     return query.snapshots().map((snapshot) {
@@ -48,238 +48,329 @@ class EventService {
           .map((doc) => EventModel.fromFirestore(doc))
           .toList();
 
-      // Aplicăm filtre client-side (pentru cele care nu pot fi făcute server-side)
+      // Filtre client-side (nu pot fi făcute server-side)
       return _applyClientSideFilters(events, filters);
     });
   }
 
-  /// Aplică filtre client-side
+  /// Stream evenimente ARHIVATE
+  Stream<List<EventModel>> getArchivedEventsStream() {
+    return _firestore
+        .collection('evenimente')
+        .where('isArchived', isEqualTo: true)
+        .orderBy('archivedAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => EventModel.fromFirestore(doc))
+            .toList());
+  }
+
+  /// Filtre client-side
   List<EventModel> _applyClientSideFilters(
     List<EventModel> events,
     EventFilters filters,
   ) {
     return events.where((event) {
-      // Search query
-      if (filters.searchQuery != null && filters.searchQuery!.isNotEmpty) {
-        final query = filters.searchQuery!.toLowerCase();
-        if (!event.nume.toLowerCase().contains(query) &&
-            !event.locatie.toLowerCase().contains(query)) {
-          return false;
+      // Driver filter
+      switch (filters.driverFilter) {
+        case DriverFilter.yes:
+          if (!event.needsDriver) return false;
+          break;
+        case DriverFilter.open:
+          if (!event.needsDriver || event.hasDriverAssigned) return false;
+          break;
+        case DriverFilter.no:
+          if (event.needsDriver) return false;
+          break;
+        case DriverFilter.all:
+          break;
+      }
+
+      // Staff code filter ("Ce cod am")
+      if (filters.staffCode != null) {
+        final code = CodeValidator.normalize(filters.staffCode!);
+        if (!CodeValidator.isValidStaffCode(code)) return false;
+        
+        // Verifică dacă codul e alocat sau pending în roles
+        bool found = false;
+        for (var role in event.roles) {
+          if (role.assignedCode == code || role.pendingCode == code) {
+            found = true;
+            break;
+          }
         }
+        if (!found) return false;
       }
 
-      // Tip eveniment
-      if (filters.tipEveniment != null &&
-          event.tipEveniment != filters.tipEveniment) {
-        return false;
-      }
-
-      // Tip locație
-      if (filters.tipLocatie != null && event.tipLocatie != filters.tipLocatie) {
-        return false;
-      }
-
-      // Requires șofer
-      if (filters.requiresSofer != null &&
-          event.requiresSofer != filters.requiresSofer) {
-        return false;
-      }
-
-      // Assigned to me
-      if (filters.assignedToMe != null) {
-        final userId = filters.assignedToMe!;
-        final isAssigned = event.alocari.values.any((role) => role.userId == userId) ||
-            event.sofer.userId == userId;
-        if (!isAssigned) {
-          return false;
-        }
+      // Noted by filter ("Cine notează")
+      if (filters.notedBy != null) {
+        final code = CodeValidator.normalize(filters.notedBy!);
+        if (!CodeValidator.isValidStaffCode(code)) return false;
+        if (event.cineNoteaza != code) return false;
       }
 
       return true;
     }).toList();
   }
 
-  /// Obține un eveniment specific
-  Future<EventModel?> getEvent(String eventId) async {
-    try {
-      final doc = await _firestore.collection('evenimente').doc(eventId).get();
-      if (!doc.exists) return null;
-      return EventModel.fromFirestore(doc);
-    } catch (e) {
-      throw Exception('Eroare la încărcarea evenimentului: $e');
-    }
+  /// Arhivează eveniment (NEVER DELETE)
+  Future<void> archiveEvent(String eventId, {String? reason}) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Utilizator neautentificat');
+
+    await _firestore.collection('evenimente').doc(eventId).update({
+      'isArchived': true,
+      'archivedAt': FieldValue.serverTimestamp(),
+      'archivedBy': user.uid,
+      if (reason != null) 'archiveReason': reason,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': user.uid,
+    });
   }
 
-  /// Actualizează alocarea unui rol
-  Future<void> updateRoleAssignment({
+  /// Dezarhivează eveniment
+  Future<void> unarchiveEvent(String eventId) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Utilizator neautentificat');
+
+    await _firestore.collection('evenimente').doc(eventId).update({
+      'isArchived': false,
+      'archivedAt': FieldValue.delete(),
+      'archivedBy': FieldValue.delete(),
+      'archiveReason': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': user.uid,
+    });
+  }
+
+  /// Alocă rol (atomic update)
+  Future<void> assignRole({
     required String eventId,
-    required String role,
-    String? userId,
+    required String slot,
+    required String staffCode,
   }) async {
-    try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) {
-        throw Exception('Utilizator neautentificat');
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Utilizator neautentificat');
+
+    if (!CodeValidator.isValidStaffCode(staffCode)) {
+      throw Exception('Cod staff invalid: $staffCode');
+    }
+
+    await _firestore.runTransaction((transaction) async {
+      final docRef = _firestore.collection('evenimente').doc(eventId);
+      final snapshot = await transaction.get(docRef);
+      
+      if (!snapshot.exists) {
+        throw Exception('Eveniment nu există');
       }
 
-      final assignment = RoleAssignment(
-        userId: userId,
-        status: userId != null
-            ? AssignmentStatus.assigned
-            : AssignmentStatus.unassigned,
+      final event = EventModel.fromFirestore(snapshot);
+      final roles = List<RoleModel>.from(event.roles);
+      
+      // Găsește slot-ul
+      final index = roles.indexWhere((r) => r.slot == slot);
+      if (index == -1) {
+        throw Exception('Slot $slot nu există');
+      }
+
+      // Update rol
+      roles[index] = RoleModel(
+        slot: roles[index].slot,
+        label: roles[index].label,
+        time: roles[index].time,
+        durationMin: roles[index].durationMin,
+        assignedCode: staffCode,
+        pendingCode: null, // Clear pending
       );
 
-      await _firestore.collection('evenimente').doc(eventId).update({
-        'alocari.$role': assignment.toMap(),
+      transaction.update(docRef, {
+        'roles': roles.map((r) => r.toMap()).toList(),
         'updatedAt': FieldValue.serverTimestamp(),
-        'updatedBy': currentUser.uid,
+        'updatedBy': user.uid,
       });
-    } catch (e) {
-      throw Exception('Eroare la actualizarea alocării: $e');
-    }
+    });
   }
 
-  /// Actualizează alocarea șoferului
-  Future<void> updateDriverAssignment({
+  /// Setează rol ca pending (cerere de alocare)
+  Future<void> requestRole({
     required String eventId,
-    String? userId,
+    required String slot,
+    required String staffCode,
   }) async {
-    try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) {
-        throw Exception('Utilizator neautentificat');
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Utilizator neautentificat');
+
+    if (!CodeValidator.isValidStaffCode(staffCode)) {
+      throw Exception('Cod staff invalid: $staffCode');
+    }
+
+    await _firestore.runTransaction((transaction) async {
+      final docRef = _firestore.collection('evenimente').doc(eventId);
+      final snapshot = await transaction.get(docRef);
+      
+      if (!snapshot.exists) {
+        throw Exception('Eveniment nu există');
       }
 
-      // Obținem evenimentul pentru a verifica dacă necesită șofer
-      final event = await getEvent(eventId);
-      if (event == null) {
-        throw Exception('Eveniment negăsit');
+      final event = EventModel.fromFirestore(snapshot);
+      final roles = List<RoleModel>.from(event.roles);
+      
+      final index = roles.indexWhere((r) => r.slot == slot);
+      if (index == -1) {
+        throw Exception('Slot $slot nu există');
       }
 
-      if (!event.requiresSofer) {
-        throw Exception('Acest eveniment nu necesită șofer');
-      }
-
-      final driverAssignment = DriverAssignment(
-        required: true,
-        userId: userId,
-        status: userId != null
-            ? DriverStatus.assigned
-            : DriverStatus.unassigned,
+      // Update rol cu pending
+      roles[index] = RoleModel(
+        slot: roles[index].slot,
+        label: roles[index].label,
+        time: roles[index].time,
+        durationMin: roles[index].durationMin,
+        assignedCode: roles[index].assignedCode,
+        pendingCode: staffCode,
       );
 
-      await _firestore.collection('evenimente').doc(eventId).update({
-        'sofer': driverAssignment.toMap(),
+      transaction.update(docRef, {
+        'roles': roles.map((r) => r.toMap()).toList(),
         'updatedAt': FieldValue.serverTimestamp(),
-        'updatedBy': currentUser.uid,
+        'updatedBy': user.uid,
       });
-    } catch (e) {
-      throw Exception('Eroare la actualizarea șoferului: $e');
-    }
+    });
   }
 
-  /// Actualizează câmpul requiresSofer bazat pe tipEveniment și tipLocatie
-  Future<void> updateRequiresSofer({
+  /// Acceptă cerere pending (promovează pending → assigned)
+  Future<void> acceptPendingRole({
     required String eventId,
-    required String tipEveniment,
-    required String tipLocatie,
+    required String slot,
   }) async {
-    try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) {
-        throw Exception('Utilizator neautentificat');
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Utilizator neautentificat');
+
+    await _firestore.runTransaction((transaction) async {
+      final docRef = _firestore.collection('evenimente').doc(eventId);
+      final snapshot = await transaction.get(docRef);
+      
+      if (!snapshot.exists) {
+        throw Exception('Eveniment nu există');
       }
 
-      final requiresSofer = utils.requiresSofer(
-        tipEveniment: tipEveniment,
-        tipLocatie: tipLocatie,
+      final event = EventModel.fromFirestore(snapshot);
+      final roles = List<RoleModel>.from(event.roles);
+      
+      final index = roles.indexWhere((r) => r.slot == slot);
+      if (index == -1) {
+        throw Exception('Slot $slot nu există');
+      }
+
+      final pendingCode = roles[index].pendingCode;
+      if (pendingCode == null || pendingCode.isEmpty) {
+        throw Exception('Nu există cerere pending pentru slot $slot');
+      }
+
+      // Promovează pending → assigned
+      roles[index] = RoleModel(
+        slot: roles[index].slot,
+        label: roles[index].label,
+        time: roles[index].time,
+        durationMin: roles[index].durationMin,
+        assignedCode: pendingCode,
+        pendingCode: null,
       );
 
-      final driverAssignment = DriverAssignment(
-        required: requiresSofer,
-        userId: null,
-        status: requiresSofer
-            ? DriverStatus.unassigned
-            : DriverStatus.notRequired,
-      );
-
-      await _firestore.collection('evenimente').doc(eventId).update({
-        'requiresSofer': requiresSofer,
-        'sofer': driverAssignment.toMap(),
+      transaction.update(docRef, {
+        'roles': roles.map((r) => r.toMap()).toList(),
         'updatedAt': FieldValue.serverTimestamp(),
-        'updatedBy': currentUser.uid,
+        'updatedBy': user.uid,
       });
-    } catch (e) {
-      throw Exception('Eroare la actualizarea requiresSofer: $e');
-    }
+    });
   }
 
-  /// Creează un eveniment nou
-  Future<String> createEvent({
-    required String nume,
-    required String locatie,
-    required DateTime data,
-    required String tipEveniment,
-    required String tipLocatie,
-    Map<String, RoleAssignment>? alocari,
+  /// Respinge cerere pending
+  Future<void> rejectPendingRole({
+    required String eventId,
+    required String slot,
   }) async {
-    try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) {
-        throw Exception('Utilizator neautentificat');
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Utilizator neautentificat');
+
+    await _firestore.runTransaction((transaction) async {
+      final docRef = _firestore.collection('evenimente').doc(eventId);
+      final snapshot = await transaction.get(docRef);
+      
+      if (!snapshot.exists) {
+        throw Exception('Eveniment nu există');
       }
 
-      final requiresSofer = utils.requiresSofer(
-        tipEveniment: tipEveniment,
-        tipLocatie: tipLocatie,
+      final event = EventModel.fromFirestore(snapshot);
+      final roles = List<RoleModel>.from(event.roles);
+      
+      final index = roles.indexWhere((r) => r.slot == slot);
+      if (index == -1) {
+        throw Exception('Slot $slot nu există');
+      }
+
+      // Clear pending
+      roles[index] = RoleModel(
+        slot: roles[index].slot,
+        label: roles[index].label,
+        time: roles[index].time,
+        durationMin: roles[index].durationMin,
+        assignedCode: roles[index].assignedCode,
+        pendingCode: null,
       );
 
-      final driverAssignment = DriverAssignment(
-        required: requiresSofer,
-        userId: null,
-        status: requiresSofer
-            ? DriverStatus.unassigned
-            : DriverStatus.notRequired,
-      );
-
-      final event = EventModel(
-        id: '', // Will be set by Firestore
-        nume: nume,
-        locatie: locatie,
-        data: data,
-        tipEveniment: tipEveniment,
-        tipLocatie: tipLocatie,
-        requiresSofer: requiresSofer,
-        alocari: alocari ?? {},
-        sofer: driverAssignment,
-        createdAt: DateTime.now(),
-        createdBy: currentUser.uid,
-        updatedAt: DateTime.now(),
-        updatedBy: currentUser.uid,
-      );
-
-      final docRef = await _firestore
-          .collection('evenimente')
-          .add(event.toFirestore());
-
-      return docRef.id;
-    } catch (e) {
-      throw Exception('Eroare la crearea evenimentului: $e');
-    }
+      transaction.update(docRef, {
+        'roles': roles.map((r) => r.toMap()).toList(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': user.uid,
+      });
+    });
   }
 
-  /// Șterge un eveniment
-  Future<void> deleteEvent(String eventId) async {
-    try {
-      final currentUser = _auth.currentUser;
-      if (currentUser == null) {
-        throw Exception('Utilizator neautentificat');
+  /// Dealocă rol
+  Future<void> unassignRole({
+    required String eventId,
+    required String slot,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Utilizator neautentificat');
+
+    await _firestore.runTransaction((transaction) async {
+      final docRef = _firestore.collection('evenimente').doc(eventId);
+      final snapshot = await transaction.get(docRef);
+      
+      if (!snapshot.exists) {
+        throw Exception('Eveniment nu există');
       }
 
-      // TODO: Șterge și dovezile asociate (Storage + Firestore)
-      await _firestore.collection('evenimente').doc(eventId).delete();
-    } catch (e) {
-      throw Exception('Eroare la ștergerea evenimentului: $e');
-    }
+      final event = EventModel.fromFirestore(snapshot);
+      final roles = List<RoleModel>.from(event.roles);
+      
+      final index = roles.indexWhere((r) => r.slot == slot);
+      if (index == -1) {
+        throw Exception('Slot $slot nu există');
+      }
+
+      // Clear assigned
+      roles[index] = RoleModel(
+        slot: roles[index].slot,
+        label: roles[index].label,
+        time: roles[index].time,
+        durationMin: roles[index].durationMin,
+        assignedCode: null,
+        pendingCode: roles[index].pendingCode,
+      );
+
+      transaction.update(docRef, {
+        'roles': roles.map((r) => r.toMap()).toList(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': user.uid,
+      });
+    });
+  }
+
+  /// Helper: convert DateTime to YYYY-MM-DD string
+  String _dateToString(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 }

@@ -574,12 +574,21 @@ const handleAllocateStaff = async (eventId, selectedStaffIds) => {
 ### Admin Check
 
 ```javascript
-// Frontend
-const isAdmin = currentUser?.email === 'ursache.andrei1995@gmail.com';
+// Frontend - verificare pe rol din Firestore
+const isAdmin = async (userId) => {
+  const userDoc = await firestore.collection('users').doc(userId).get();
+  return userDoc.data()?.role === 'admin';
+};
 
-// Firestore Rules
+// Firestore Rules - verificare pe custom claims
 function isAdmin() {
-  return isAuthenticated() && request.auth.token.email == 'ursache.andrei1995@gmail.com';
+  return isAuthenticated() && request.auth.token.role == 'admin';
+}
+
+// Sau verificare pe document user
+function isAdmin() {
+  return isAuthenticated() &&
+    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
 }
 ```
 

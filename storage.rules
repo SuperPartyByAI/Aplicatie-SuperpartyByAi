@@ -1,6 +1,7 @@
 rules_version = '2';
 
 // Firebase Storage Rules pentru SuperParty
+// POLITICA: NEVER DELETE - fișierele nu se șterg niciodată
 // Permite download public pentru APK-uri, restul necesită autentificare
 
 service firebase.storage {
@@ -9,27 +10,37 @@ service firebase.storage {
     // ===== APK FOLDER - PUBLIC READ =====
     // Permite oricui să descarce APK-urile
     // Doar admin poate upload
+    // NEVER DELETE - păstrăm istoric versiuni
     match /apk/{fileName} {
       allow read: if true;  // Public read pentru download
-      allow write: if request.auth != null && 
-                      request.auth.token.email == 'ursache.andrei1995@gmail.com';
+      allow create, update: if request.auth != null && 
+                               request.auth.token.email == 'ursache.andrei1995@gmail.com';
+      allow delete: if false; // NEVER DELETE
     }
     
     // ===== PROFILE IMAGES - AUTHENTICATED =====
+    // NEVER DELETE - păstrăm istoric imagini profil
     match /profile_images/{userId}/{fileName} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false; // NEVER DELETE
     }
     
     // ===== EVENT IMAGES - AUTHENTICATED =====
-    match /event_images/{eventId}/{fileName} {
+    // Path: event_images/{eventId}/{categorie}/{fileName}
+    // NEVER DELETE - dovezile rămân permanent
+    match /event_images/{eventId}/{categorie}/{fileName} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      // Write doar dacă request.resource != null (create/update, NU delete)
+      allow write: if request.auth != null && request.resource != null;
     }
     
     // ===== DEFAULT - AUTHENTICATED ONLY =====
+    // NEVER DELETE - politică globală
     match /{allPaths=**} {
-      allow read, write: if request.auth != null;
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null;
+      allow delete: if false; // NEVER DELETE
     }
   }
 }

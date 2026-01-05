@@ -1,336 +1,113 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../../models/event_model.dart';
 import '../../models/evidence_model.dart';
-import '../../services/event_service.dart';
+import '../../models/evidence_state_model.dart';
 import '../../services/evidence_service.dart';
-import '../../services/local_evidence_cache_service.dart';
-import '../../services/file_storage_service.dart';
 
 class DoveziScreen extends StatefulWidget {
   final String eventId;
 
-  const DoveziScreen({
-    super.key,
-    required this.eventId,
-  });
+  const DoveziScreen({super.key, required this.eventId});
 
   @override
   State<DoveziScreen> createState() => _DoveziScreenState();
 }
 
 class _DoveziScreenState extends State<DoveziScreen> {
-  final EventService _eventService = EventService();
   final EvidenceService _evidenceService = EvidenceService();
-  final LocalEvidenceCacheService _cacheService = LocalEvidenceCacheService();
-  final FileStorageService _fileService = FileStorageService();
   final ImagePicker _picker = ImagePicker();
-
-  EventModel? _event;
-  bool _isLoading = true;
-  String? _error;
-
-  final Map<EvidenceCategory, bool> _expandedCategories = {
-    EvidenceCategory.mancare: true,
-    EvidenceCategory.bautura: false,
-    EvidenceCategory.scenotehnica: false,
-    EvidenceCategory.altele: false,
-  };
 
   @override
   void initState() {
     super.initState();
-    _loadEvent();
-  }
-
-  Future<void> _loadEvent() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
-
-      final event = await _eventService.getEvent(widget.eventId);
-      
-      setState(() {
-        _event = event;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0B1220),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFFE2E8F0)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Dovezi',
-              style: TextStyle(
-                color: Color(0xFFE2E8F0),
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            if (_event != null)
-              Text(
-                _event!.nume,
-                style: const TextStyle(
-                  color: Color(0xFF94A3B8),
-                  fontSize: 12,
-                ),
-              ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.sync, color: Color(0xFFDC2626)),
-            onPressed: _syncPendingEvidence,
-            tooltip: 'Sincronizează',
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? _buildError()
-              : _buildContent(),
-    );
-  }
-
-  Widget _buildError() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              _error ?? 'Eroare necunoscută',
-              style: const TextStyle(color: Colors.white70),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadEvent,
-              child: const Text('Reîncearcă'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildContent() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        ...EvidenceCategory.values.map((category) => _buildCategoryCard(category)),
-      ],
-    );
-  }
-
-  Widget _buildCategoryCard(EvidenceCategory category) {
-    final isExpanded = _expandedCategories[category] ?? false;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      color: const Color(0xFF1A2332),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color(0xFF2D3748)),
-      ),
-      child: Column(
-        children: [
-          ListTile(
-            leading: Icon(
-              _getCategoryIcon(category),
-              color: const Color(0xFFDC2626),
-            ),
-            title: Text(
-              category.displayName,
-              style: const TextStyle(
-                color: Color(0xFFE2E8F0),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                StreamBuilder<EvidenceCategoryMeta>(
-                  stream: _evidenceService.getCategoryMetaStream(
-                    eventId: widget.eventId,
-                    categorie: category,
-                  ),
-                  builder: (context, snapshot) {
-                    final meta = snapshot.data;
-                    if (meta?.locked == true) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.lock, color: Colors.green, size: 16),
-                            SizedBox(width: 4),
-                            Text(
-                              'OK',
-                              style: TextStyle(color: Colors.green, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    return const SizedBox();
-                  },
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  isExpanded ? Icons.expand_less : Icons.expand_more,
-                  color: const Color(0xFF94A3B8),
-                ),
-              ],
-            ),
-            onTap: () {
-              setState(() {
-                _expandedCategories[category] = !isExpanded;
-              });
-            },
-          ),
-          if (isExpanded) _buildCategoryContent(category),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryContent(EvidenceCategory category) {
-    return StreamBuilder<EvidenceCategoryMeta>(
-      stream: _evidenceService.getCategoryMetaStream(
-        eventId: widget.eventId,
-        categorie: category,
-      ),
-      builder: (context, metaSnapshot) {
-        final meta = metaSnapshot.data;
-        final isLocked = meta?.locked ?? false;
-
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildEvidenceGrid(category, isLocked),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: isLocked ? null : () => _addEvidence(category),
-                      icon: const Icon(Icons.add_photo_alternate),
-                      label: const Text('Adaugă Poză'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFDC2626),
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: const Color(0xFF2D3748),
-                        disabledForegroundColor: const Color(0xFF94A3B8),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    onPressed: isLocked ? null : () => _lockCategory(category),
-                    icon: Icon(isLocked ? Icons.lock : Icons.lock_open),
-                    label: Text(isLocked ? 'Blocat' : 'Marchează OK'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isLocked ? Colors.green : const Color(0xFFF97316),
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.green.withOpacity(0.5),
-                      disabledForegroundColor: Colors.white70,
-                    ),
-                  ),
-                ],
-              ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF111C35),
+              Color(0xFF0B1220),
             ],
           ),
-        );
-      },
+        ),
+        child: Column(
+          children: [
+            _buildAppBar(),
+            Expanded(
+              child: _buildCategoriesList(),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildEvidenceGrid(EvidenceCategory category, bool isLocked) {
-    return StreamBuilder<List<EvidenceModel>>(
-      stream: _evidenceService.getEvidenceStream(
-        eventId: widget.eventId,
-        categorie: category,
+  Widget _buildAppBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B1220).withOpacity(0.72),
+        border: const Border(
+          bottom: BorderSide(color: Color(0x14FFFFFF)),
+        ),
       ),
-      builder: (context, remoteSnapshot) {
-        return FutureBuilder<List<LocalEvidence>>(
-          future: _cacheService.listByEventAndCategory(
-            eventId: widget.eventId,
-            categorie: category,
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: Color(0xFFEAF1FF)),
+            onPressed: () => Navigator.pop(context),
           ),
-          builder: (context, localSnapshot) {
-            final remoteEvidence = remoteSnapshot.data ?? [];
-            final localEvidence = localSnapshot.data ?? [];
+          const SizedBox(width: 8),
+          const Text(
+            'Dovezi',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFFEAF1FF),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-            // Dedupe: exclude local evidence that's already synced and exists in remote
-            final remoteDocIds = remoteEvidence.map((e) => e.id).toSet();
-            final localEvidenceFiltered = localEvidence.where((local) {
-              // Keep only pending/failed, or synced items not yet in remote stream
-              return local.syncStatus != SyncStatus.synced || 
-                     (local.remoteDocId != null && !remoteDocIds.contains(local.remoteDocId));
-            }).toList();
+  Widget _buildCategoriesList() {
+    return StreamBuilder<Map<EvidenceCategory, EvidenceStateModel>>(
+      stream: _evidenceService.getCategoryStatesStream(widget.eventId),
+      builder: (context, statesSnapshot) {
+        if (statesSnapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: Color(0xFF4ECDC4)),
+          );
+        }
 
-            if (remoteEvidence.isEmpty && localEvidenceFiltered.isEmpty) {
-              return Container(
-                padding: const EdgeInsets.all(32),
-                alignment: Alignment.center,
-                child: const Text(
-                  'Nicio poză adăugată',
-                  style: TextStyle(color: Color(0xFF94A3B8)),
-                ),
+        final states = statesSnapshot.data ?? {};
+
+        return StreamBuilder<List<EvidenceModel>>(
+          stream: _evidenceService.getEvidenceStream(eventId: widget.eventId),
+          builder: (context, evidenceSnapshot) {
+            if (evidenceSnapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(color: Color(0xFF4ECDC4)),
               );
             }
 
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-              ),
-              itemCount: remoteEvidence.length + localEvidenceFiltered.length,
-              itemBuilder: (context, index) {
-                if (index < localEvidenceFiltered.length) {
-                  return _buildLocalThumbnail(localEvidenceFiltered[index], isLocked);
-                } else {
-                  return _buildRemoteThumbnail(
-                    remoteEvidence[index - localEvidenceFiltered.length],
-                    isLocked,
-                  );
-                }
-              },
+            final allEvidence = evidenceSnapshot.data ?? [];
+
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: EvidenceCategory.values.map((cat) {
+                final state = states[cat];
+                final categoryEvidence = allEvidence.where((e) => e.category == cat).toList();
+                return _buildCategoryBlock(cat, state, categoryEvidence);
+              }).toList(),
             );
           },
         );
@@ -338,296 +115,268 @@ class _DoveziScreenState extends State<DoveziScreen> {
     );
   }
 
-  Widget _buildLocalThumbnail(LocalEvidence evidence, bool isLocked) {
+  Widget _buildCategoryBlock(
+    EvidenceCategory category,
+    EvidenceStateModel? state,
+    List<EvidenceModel> evidence,
+  ) {
+    final status = state?.status ?? EvidenceStatus.na;
+    final locked = state?.locked ?? false;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0x0FFFFFFF),
+        border: Border.all(color: const Color(0x1FFFFFFF)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  category.label,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFEAF1FF),
+                  ),
+                ),
+              ),
+              _buildStatusPill(status),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              ElevatedButton(
+                onPressed: locked ? null : () => _uploadPhotos(category),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: locked ? const Color(0x08FFFFFF) : const Color(0x14FFFFFF),
+                  foregroundColor: const Color(0xFFEAF1FF),
+                  disabledBackgroundColor: const Color(0x08FFFFFF),
+                  disabledForegroundColor: const Color(0x4DEAF1FF),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                child: const Text('Incarca poze'),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '${evidence.length} salvate',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xB3EAF1FF),
+                ),
+              ),
+            ],
+          ),
+          if (evidence.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: evidence.map((e) => _buildThumb(e, locked)).toList(),
+            ),
+          ],
+          if (!locked && evidence.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () => _reverifyCategory(category, evidence.length),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0x284ECDC4),
+                foregroundColor: const Color(0xFFEAF1FF),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              child: const Text('Reverifica'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusPill(EvidenceStatus status) {
+    Color bgColor;
+    Color borderColor;
+    switch (status) {
+      case EvidenceStatus.ok:
+        bgColor = const Color(0x2810B981);
+        borderColor = const Color(0x5010B981);
+        break;
+      case EvidenceStatus.verifying:
+        bgColor = const Color(0x284ECDC4);
+        borderColor = const Color(0x504ECDC4);
+        break;
+      case EvidenceStatus.needed:
+        bgColor = const Color(0x28FFBE5C);
+        borderColor = const Color(0x50FFBE5C);
+        break;
+      case EvidenceStatus.na:
+        bgColor = const Color(0x14FFFFFF);
+        borderColor = const Color(0x1FFFFFFF);
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        status.label,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+          color: Color(0xFFEAF1FF),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThumb(EvidenceModel evidence, bool locked) {
     return Stack(
-      fit: StackFit.expand,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.file(
-            File(evidence.localPath),
-            fit: BoxFit.cover,
+        Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            color: const Color(0x14FFFFFF),
+            border: Border.all(color: const Color(0x1FFFFFFF)),
+            borderRadius: BorderRadius.circular(8),
+            image: evidence.downloadUrl.isNotEmpty
+                ? DecorationImage(
+                    image: NetworkImage(evidence.downloadUrl),
+                    fit: BoxFit.cover,
+                  )
+                : null,
           ),
+          child: evidence.downloadUrl.isEmpty
+              ? const Center(
+                  child: Icon(Icons.image, color: Color(0x4DEAF1FF), size: 32),
+                )
+              : null,
         ),
-        Positioned(
-          top: 4,
-          right: 4,
-          child: Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: _getSyncStatusColor(evidence.syncStatus),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Icon(
-              _getSyncStatusIcon(evidence.syncStatus),
-              color: Colors.white,
-              size: 16,
-            ),
-          ),
-        ),
-        if (!isLocked)
+        if (!locked)
           Positioned(
-            bottom: 4,
+            top: 4,
             right: 4,
-            child: IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-              onPressed: () => _deleteLocalEvidence(evidence),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+            child: InkWell(
+              onTap: () => _archiveEvidence(evidence),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: Color(0xCCFF7878),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close, color: Colors.white, size: 12),
+              ),
             ),
           ),
       ],
     );
   }
 
-  Widget _buildRemoteThumbnail(EvidenceModel evidence, bool isLocked) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.network(
-            evidence.downloadUrl,
-            fit: BoxFit.cover,
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return const Center(child: CircularProgressIndicator());
-            },
-            errorBuilder: (context, error, stackTrace) {
-              return const Center(
-                child: Icon(Icons.error, color: Colors.red),
-              );
-            },
-          ),
-        ),
-        if (!isLocked)
-          Positioned(
-            bottom: 4,
-            right: 4,
-            child: IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-              onPressed: () => _deleteRemoteEvidence(evidence),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ),
-      ],
-    );
-  }
-
-  IconData _getCategoryIcon(EvidenceCategory category) {
-    switch (category) {
-      case EvidenceCategory.mancare:
-        return Icons.restaurant;
-      case EvidenceCategory.bautura:
-        return Icons.local_bar;
-      case EvidenceCategory.scenotehnica:
-        return Icons.music_note;
-      case EvidenceCategory.altele:
-        return Icons.more_horiz;
-    }
-  }
-
-  Color _getSyncStatusColor(SyncStatus status) {
-    switch (status) {
-      case SyncStatus.pending:
-        return Colors.orange;
-      case SyncStatus.synced:
-        return Colors.green;
-      case SyncStatus.failed:
-        return Colors.red;
-    }
-  }
-
-  IconData _getSyncStatusIcon(SyncStatus status) {
-    switch (status) {
-      case SyncStatus.pending:
-        return Icons.cloud_upload;
-      case SyncStatus.synced:
-        return Icons.cloud_done;
-      case SyncStatus.failed:
-        return Icons.cloud_off;
-    }
-  }
-
-  Future<void> _addEvidence(EvidenceCategory category) async {
+  Future<void> _uploadPhotos(EvidenceCategory category) async {
     try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-      if (image == null) return;
+      final images = await _picker.pickMultiImage();
+      if (images.isEmpty) return;
 
-      final imageFile = File(image.path);
-      
-      // Salvează local
-      final localPath = await _fileService.saveLocalFile(
-        sourceFile: imageFile,
-        eventId: widget.eventId,
-        categorie: category,
-      );
-
-      // Adaugă în cache
-      final localEvidence = LocalEvidence(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        eventId: widget.eventId,
-        categorie: category,
-        localPath: localPath,
-        createdAt: DateTime.now(),
-        syncStatus: SyncStatus.pending,
-      );
-
-      await _cacheService.insertPending(localEvidence);
-
-      // Încearcă upload imediat
-      _uploadEvidence(localEvidence);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Poză adăugată')),
+      for (var image in images) {
+        await _evidenceService.uploadEvidence(
+          eventId: widget.eventId,
+          category: category,
+          filePath: image.path,
         );
       }
 
-      setState(() {}); // Refresh UI
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${images.length} poze încărcate'),
+            backgroundColor: const Color(0xFF10B981),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Eroare: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text('Eroare: $e'),
+            backgroundColor: const Color(0xFFFF7878),
           ),
         );
       }
     }
   }
 
-  Future<void> _uploadEvidence(LocalEvidence localEvidence) async {
+  Future<void> _archiveEvidence(EvidenceModel evidence) async {
     try {
-      final imageFile = File(localEvidence.localPath);
-      
-      final result = await _evidenceService.uploadEvidence(
-        eventId: widget.eventId,
-        categorie: localEvidence.categorie,
-        imageFile: imageFile,
-      );
-
-      // Marchează ca synced folosind rezultatul direct
-      await _cacheService.markSynced(
-        id: localEvidence.id,
-        remoteUrl: result.downloadUrl,
-        remoteDocId: result.docId,
-      );
-
-      if (mounted) {
-        setState(() {}); // Refresh UI
-      }
-    } catch (e) {
-      await _cacheService.markFailed(
-        id: localEvidence.id,
-        errorMessage: e.toString(),
-      );
-    }
-  }
-
-  Future<void> _deleteLocalEvidence(LocalEvidence evidence) async {
-    try {
-      await _fileService.deleteLocalFile(evidence.localPath);
-      await _cacheService.deleteById(evidence.id);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Poză ștearsă')),
-        );
-      }
-
-      setState(() {}); // Refresh UI
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Eroare: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _deleteRemoteEvidence(EvidenceModel evidence) async {
-    try {
-      await _evidenceService.deleteEvidence(
+      await _evidenceService.archiveEvidence(
         eventId: widget.eventId,
         evidenceId: evidence.id,
-        storagePath: evidence.storagePath,
-        categorie: evidence.categorie,
+        category: evidence.category,
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Poză ștearsă')),
+          const SnackBar(
+            content: Text('Dovadă arhivată'),
+            backgroundColor: Color(0xFF4ECDC4),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Eroare: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text('Eroare: $e'),
+            backgroundColor: const Color(0xFFFF7878),
           ),
         );
       }
     }
   }
 
-  Future<void> _lockCategory(EvidenceCategory category) async {
+  Future<void> _reverifyCategory(EvidenceCategory category, int evidenceCount) async {
     try {
-      await _evidenceService.lockCategory(
+      EvidenceStatus newStatus;
+      bool shouldLock = false;
+
+      if (evidenceCount == 0) {
+        newStatus = EvidenceStatus.na;
+      } else if (evidenceCount >= 1) {
+        newStatus = EvidenceStatus.ok;
+        shouldLock = true;
+      } else {
+        newStatus = EvidenceStatus.needed;
+      }
+
+      await _evidenceService.updateCategoryStatus(
         eventId: widget.eventId,
-        categorie: category,
+        category: category,
+        status: newStatus,
+        locked: shouldLock,
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${category.displayName} blocat')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Eroare: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text('Categorie ${category.label}: ${newStatus.label}'),
+            backgroundColor: const Color(0xFF4ECDC4),
           ),
         );
       }
-    }
-  }
-
-  Future<void> _syncPendingEvidence() async {
-    try {
-      final pending = await _cacheService.listPending();
-      
-      if (pending.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Nicio dovadă de sincronizat')),
-          );
-        }
-        return;
-      }
-
-      for (final evidence in pending) {
-        await _uploadEvidence(evidence);
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${pending.length} dovezi sincronizate')),
-        );
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Eroare sincronizare: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text('Eroare: $e'),
+            backgroundColor: const Color(0xFFFF7878),
           ),
         );
       }
