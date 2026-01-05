@@ -11,6 +11,7 @@ Verificare că toate query-urile funcționează cu indexurile definite în `fire
 ### 1. Evenimente Active (fără dateRange)
 
 **Cod:**
+
 ```dart
 Query query = _firestore.collection('evenimente');
 query = query.where('isArchived', isEqualTo: false);
@@ -18,11 +19,12 @@ query = query.orderBy('nume', descending: false);
 ```
 
 **Index necesar:**
+
 ```json
 {
   "fields": [
-    {"fieldPath": "isArchived", "order": "ASCENDING"},
-    {"fieldPath": "nume", "order": "ASCENDING"}
+    { "fieldPath": "isArchived", "order": "ASCENDING" },
+    { "fieldPath": "nume", "order": "ASCENDING" }
   ]
 }
 ```
@@ -34,6 +36,7 @@ query = query.orderBy('nume', descending: false);
 ### 2. Evenimente Active cu dateRange
 
 **Cod:**
+
 ```dart
 Query query = _firestore.collection('evenimente');
 query = query.where('isArchived', isEqualTo: false);
@@ -43,11 +46,12 @@ query = query.orderBy('data', descending: false);
 ```
 
 **Index necesar:**
+
 ```json
 {
   "fields": [
-    {"fieldPath": "isArchived", "order": "ASCENDING"},
-    {"fieldPath": "data", "order": "ASCENDING"}
+    { "fieldPath": "isArchived", "order": "ASCENDING" },
+    { "fieldPath": "data", "order": "ASCENDING" }
   ]
 }
 ```
@@ -59,6 +63,7 @@ query = query.orderBy('data', descending: false);
 ### 3. Evenimente Active cu dateRange + sortare client-side
 
 **Cod:**
+
 ```dart
 // Server-side
 Query query = _firestore.collection('evenimente');
@@ -72,11 +77,12 @@ events.sort((a, b) => a.nume.compareTo(b.nume));
 ```
 
 **Index necesar:**
+
 ```json
 {
   "fields": [
-    {"fieldPath": "isArchived", "order": "ASCENDING"},
-    {"fieldPath": "data", "order": "ASCENDING"}
+    { "fieldPath": "isArchived", "order": "ASCENDING" },
+    { "fieldPath": "data", "order": "ASCENDING" }
   ]
 }
 ```
@@ -88,6 +94,7 @@ events.sort((a, b) => a.nume.compareTo(b.nume));
 ### 4. Evenimente Arhivate
 
 **Cod:**
+
 ```dart
 Query query = _firestore.collection('evenimente');
 query = query.where('isArchived', isEqualTo: true);
@@ -95,11 +102,12 @@ query = query.orderBy('archivedAt', descending: true);
 ```
 
 **Index necesar:**
+
 ```json
 {
   "fields": [
-    {"fieldPath": "isArchived", "order": "ASCENDING"},
-    {"fieldPath": "archivedAt", "order": "DESCENDING"}
+    { "fieldPath": "isArchived", "order": "ASCENDING" },
+    { "fieldPath": "archivedAt", "order": "DESCENDING" }
   ]
 }
 ```
@@ -111,6 +119,7 @@ query = query.orderBy('archivedAt', descending: true);
 ### 5. Dovezi Active (subcollection)
 
 **Cod:**
+
 ```dart
 Query query = _firestore
     .collection('evenimente')
@@ -121,12 +130,13 @@ query = query.orderBy('uploadedAt', descending: true);
 ```
 
 **Index necesar:**
+
 ```json
 {
   "collectionGroup": "dovezi",
   "fields": [
-    {"fieldPath": "isArchived", "order": "ASCENDING"},
-    {"fieldPath": "uploadedAt", "order": "DESCENDING"}
+    { "fieldPath": "isArchived", "order": "ASCENDING" },
+    { "fieldPath": "uploadedAt", "order": "DESCENDING" }
   ]
 }
 ```
@@ -138,6 +148,7 @@ query = query.orderBy('uploadedAt', descending: true);
 ### 6. Dovezi Active cu Categorie
 
 **Cod:**
+
 ```dart
 Query query = _firestore
     .collection('evenimente')
@@ -149,13 +160,14 @@ query = query.orderBy('uploadedAt', descending: true);
 ```
 
 **Index necesar:**
+
 ```json
 {
   "collectionGroup": "dovezi",
   "fields": [
-    {"fieldPath": "isArchived", "order": "ASCENDING"},
-    {"fieldPath": "categorie", "order": "ASCENDING"},
-    {"fieldPath": "uploadedAt", "order": "DESCENDING"}
+    { "fieldPath": "isArchived", "order": "ASCENDING" },
+    { "fieldPath": "categorie", "order": "ASCENDING" },
+    { "fieldPath": "uploadedAt", "order": "DESCENDING" }
   ]
 }
 ```
@@ -167,6 +179,7 @@ query = query.orderBy('uploadedAt', descending: true);
 ### 7. Dovezi Arhivate
 
 **Cod:**
+
 ```dart
 Query query = _firestore
     .collection('evenimente')
@@ -177,12 +190,13 @@ query = query.orderBy('archivedAt', descending: true);
 ```
 
 **Index necesar:**
+
 ```json
 {
   "collectionGroup": "dovezi",
   "fields": [
-    {"fieldPath": "isArchived", "order": "ASCENDING"},
-    {"fieldPath": "archivedAt", "order": "DESCENDING"}
+    { "fieldPath": "isArchived", "order": "ASCENDING" },
+    { "fieldPath": "archivedAt", "order": "DESCENDING" }
   ]
 }
 ```
@@ -194,6 +208,7 @@ query = query.orderBy('archivedAt', descending: true);
 ### 8. Dovezi Arhivate cu Categorie
 
 **Cod:**
+
 ```dart
 Query query = _firestore
     .collection('evenimente')
@@ -205,13 +220,14 @@ query = query.orderBy('archivedAt', descending: true);
 ```
 
 **Index necesar:**
+
 ```json
 {
   "collectionGroup": "dovezi",
   "fields": [
-    {"fieldPath": "isArchived", "order": "ASCENDING"},
-    {"fieldPath": "categorie", "order": "ASCENDING"},
-    {"fieldPath": "archivedAt", "order": "DESCENDING"}
+    { "fieldPath": "isArchived", "order": "ASCENDING" },
+    { "fieldPath": "categorie", "order": "ASCENDING" },
+    { "fieldPath": "archivedAt", "order": "DESCENDING" }
   ]
 }
 ```
@@ -222,10 +238,10 @@ query = query.orderBy('archivedAt', descending: true);
 
 ## 📊 Rezumat Indexuri
 
-| Colecție | Indexuri Definite | Status |
-|----------|-------------------|--------|
-| `evenimente` | 7 | ✅ Complete |
-| `dovezi` (collection group) | 4 | ✅ Complete |
+| Colecție                    | Indexuri Definite | Status      |
+| --------------------------- | ----------------- | ----------- |
+| `evenimente`                | 7                 | ✅ Complete |
+| `dovezi` (collection group) | 4                 | ✅ Complete |
 
 ### Evenimente (7 indexuri)
 
@@ -347,10 +363,12 @@ Puteți să le păstrați pentru viitor sau să le ștergeți pentru a reduce nu
 ### Performanță Client-Side Sorting
 
 Sortarea client-side pe nume/locatie este acceptabilă pentru:
+
 - Liste mici-medii (< 1000 evenimente)
 - Filtre cu dateRange (reduc numărul de documente)
 
 Pentru liste foarte mari, considerați:
+
 - Paginare server-side
 - Limitare rezultate (`.limit(100)`)
 

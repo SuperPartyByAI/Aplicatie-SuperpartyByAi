@@ -17,6 +17,7 @@ Feature Branch → PR Review → Merge to Main → Auto Build → Firebase App D
 ## 1. Development Phase
 
 ### Create Feature Branch
+
 ```bash
 git checkout main
 git pull origin main
@@ -24,6 +25,7 @@ git checkout -b feature/your-feature-name
 ```
 
 ### Develop & Test Locally
+
 ```bash
 cd superparty_flutter
 flutter pub get
@@ -33,6 +35,7 @@ flutter analyze  # Check for issues
 ```
 
 ### Commit Changes
+
 ```bash
 git add .
 git commit -m "feat: your feature description
@@ -49,6 +52,7 @@ git push origin feature/your-feature-name
 ## 2. Pull Request Phase
 
 ### Create PR
+
 1. Go to GitHub repository
 2. Click "New Pull Request"
 3. Select: `base: main` ← `compare: feature/your-feature-name`
@@ -59,6 +63,7 @@ git push origin feature/your-feature-name
    - Screenshots: If UI changes
 
 ### PR Review Checklist
+
 - [ ] Code compiles without errors
 - [ ] Unit tests pass
 - [ ] No regression in existing features
@@ -67,6 +72,7 @@ git push origin feature/your-feature-name
 - [ ] Release notes prepared
 
 ### Merge PR
+
 - **Squash and merge** (recommended) - Clean commit history
 - **Merge commit** - Preserve all commits
 - **Rebase and merge** - Linear history
@@ -76,7 +82,9 @@ git push origin feature/your-feature-name
 ## 3. Automatic Build Phase
 
 ### Trigger
+
 When PR is merged to `main`, GitHub Actions automatically:
+
 1. Checks out code
 2. Sets up Flutter environment
 3. Runs `flutter build apk --release`
@@ -84,11 +92,13 @@ When PR is merged to `main`, GitHub Actions automatically:
 5. Uploads APK to Firebase App Distribution
 
 ### Monitor Build
+
 1. Go to [GitHub Actions](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions)
 2. Find "Build Flutter APK" workflow
 3. Check all steps are green ✅
 
 ### Build Artifacts
+
 - **GitHub Artifacts**: Download APK from workflow run
 - **Firebase App Distribution**: Testers receive email notification
 
@@ -101,6 +111,7 @@ When PR is merged to `main`, GitHub Actions automatically:
 **Testers:** ursache.andrei1995@gmail.com (add more in workflow file)
 
 **How to test:**
+
 1. Receive email from Firebase App Distribution
 2. Click "Download" link
 3. Install APK on Android device
@@ -108,6 +119,7 @@ When PR is merged to `main`, GitHub Actions automatically:
 5. Report bugs in GitHub Issues
 
 **Test Checklist:**
+
 - [ ] App launches without crashes
 - [ ] New features work as expected
 - [ ] No regression in existing features
@@ -117,6 +129,7 @@ When PR is merged to `main`, GitHub Actions automatically:
 ### Beta Testing (Optional)
 
 **Expand testers:**
+
 1. Edit `.github/workflows/flutter-build.yml`
 2. Add more emails to `testers:` field
 3. Commit and push to main
@@ -135,11 +148,13 @@ testers: |
 ### Google Play Store (Android)
 
 #### Prerequisites
+
 1. Google Play Developer account ($25 one-time fee)
 2. App signing key (keystore)
 3. App bundle (AAB) instead of APK
 
 #### Build App Bundle
+
 ```bash
 cd superparty_flutter
 flutter build appbundle --release
@@ -148,6 +163,7 @@ flutter build appbundle --release
 **Output:** `build/app/outputs/bundle/release/app-release.aab`
 
 #### Upload to Play Store
+
 1. Go to [Google Play Console](https://play.google.com/console)
 2. Select app (or create new app)
 3. Navigate to "Production" → "Create new release"
@@ -160,17 +176,20 @@ flutter build appbundle --release
 ### Apple App Store (iOS)
 
 #### Prerequisites
+
 1. Apple Developer account ($99/year)
 2. macOS with Xcode
 3. iOS signing certificates
 
 #### Build IPA
+
 ```bash
 cd superparty_flutter
 flutter build ios --release
 ```
 
 #### Upload to App Store
+
 1. Open Xcode
 2. Archive app
 3. Upload to App Store Connect
@@ -196,12 +215,14 @@ version: 1.2.3+4
 ```
 
 **Semantic Versioning:**
+
 - **Major (1.x.x):** Breaking changes, incompatible API changes
 - **Minor (x.2.x):** New features, backward compatible
 - **Patch (x.x.3):** Bug fixes, backward compatible
 - **Build (+4):** Build number, auto-increment for each release
 
 **Example:**
+
 ```yaml
 # Before
 version: 1.0.0+1
@@ -213,12 +234,14 @@ version: 1.1.0+2
 ### Git Tags
 
 **Create release tag:**
+
 ```bash
 git tag -a v1.1.0 -m "Release v1.1.0: Evenimente + Dovezi module"
 git push origin v1.1.0
 ```
 
 **List tags:**
+
 ```bash
 git tag -l
 ```
@@ -233,22 +256,27 @@ git tag -l
 ## Version 1.1.0 (Build 2)
 
 ### 🎉 New Features
+
 - Evenimente module: Full Flutter native implementation
 - Dovezi module: Image upload with category organization
 - Firebase real-time sync (Firestore + Storage)
 
 ### 🐛 Bug Fixes
+
 - Fixed crash on startup
 - Fixed image upload timeout
 
 ### 🔧 Improvements
+
 - Improved performance (80-99.9% faster AI responses)
 - Better error handling
 
 ### ⚠️ Breaking Changes
+
 - None
 
 ### 📝 Notes
+
 - NEVER DELETE policy enforced
 - Dual-read v1/v2 schema (backward compatible)
 ```
@@ -279,12 +307,14 @@ git tag -l
 ## 8. Rollback Procedure
 
 ### If Build Fails
+
 1. Check GitHub Actions logs for errors
 2. Fix issues in new PR
 3. Merge fix to main
 4. New build will trigger automatically
 
 ### If App Crashes in Production
+
 1. **Immediate:** Disable feature flag (if using feature flags)
 2. **Short-term:** Revert PR that caused issue
    ```bash
@@ -294,6 +324,7 @@ git tag -l
 3. **Long-term:** Fix issue in new PR
 
 ### If Need to Rollback Release
+
 1. **Firebase App Distribution:** Upload previous APK manually
 2. **Google Play Store:** Promote previous version to production
 3. **Apple App Store:** Submit previous version for review
@@ -303,14 +334,17 @@ git tag -l
 ## 9. Monitoring & Analytics
 
 ### Crash Reporting
+
 - **Firebase Crashlytics:** Monitor crashes in real-time
 - **Sentry:** Alternative crash reporting (if configured)
 
 ### Analytics
+
 - **Firebase Analytics:** Track user behavior
 - **Google Analytics:** Web analytics (if using web version)
 
 ### Performance Monitoring
+
 - **Firebase Performance:** Monitor app performance
 - **Custom metrics:** Track specific operations (e.g., image upload time)
 
@@ -319,6 +353,7 @@ git tag -l
 ## 10. Checklist for Each Release
 
 ### Pre-Release
+
 - [ ] All tests pass locally
 - [ ] No console errors or warnings
 - [ ] Version number updated in `pubspec.yaml`
@@ -327,6 +362,7 @@ git tag -l
 - [ ] PR reviewed and approved
 
 ### Release
+
 - [ ] PR merged to main
 - [ ] GitHub Actions build successful
 - [ ] APK uploaded to Firebase App Distribution
@@ -334,6 +370,7 @@ git tag -l
 - [ ] Internal testing completed
 
 ### Post-Release
+
 - [ ] Git tag created
 - [ ] GitHub Release published
 - [ ] Release notes added to all platforms
@@ -347,6 +384,7 @@ git tag -l
 ### For Critical Bugs in Production
 
 1. **Create hotfix branch from main:**
+
    ```bash
    git checkout main
    git pull origin main
@@ -354,6 +392,7 @@ git tag -l
    ```
 
 2. **Fix bug and test:**
+
    ```bash
    # Make minimal changes to fix bug
    flutter test
@@ -381,6 +420,7 @@ git tag -l
 ## Support
 
 For questions or issues with the release process:
+
 1. Check this documentation
 2. Review GitHub Actions logs
 3. Check Firebase Console

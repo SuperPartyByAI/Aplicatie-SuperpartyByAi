@@ -15,6 +15,7 @@ firebase deploy --only firestore:rules
 ```
 
 **What this does:**
+
 - Deploys updated Firestore security rules
 - Adds explicit rules for `evenimente/{eventId}/dovezi` subcollection
 - Adds explicit rules for `evenimente/{eventId}/dovezi_meta` subcollection
@@ -22,6 +23,7 @@ firebase deploy --only firestore:rules
 - Enforces lock behavior (no create/update when category is locked)
 
 **Verification:**
+
 ```bash
 # Check rules in Firebase Console
 # Navigate to: Firestore Database > Rules
@@ -35,12 +37,14 @@ firebase deploy --only storage:rules
 ```
 
 **What this does:**
+
 - Deploys updated Storage security rules
 - Fixes path matching for `event_images/{eventId}/{categorie}/{fileName}`
 - Blocks delete operations using `request.resource != null` check
 - Enforces NEVER DELETE policy
 
 **Verification:**
+
 ```bash
 # Check rules in Firebase Console
 # Navigate to: Storage > Rules
@@ -54,6 +58,7 @@ firebase deploy --only firestore:indexes
 ```
 
 **What this does:**
+
 - Deploys composite indexes for efficient queries
 - Indexes for `evenimente` collection:
   - `isArchived` + `date` (ASC/DESC)
@@ -65,6 +70,7 @@ firebase deploy --only firestore:indexes
   - `isArchived` + `categorie` + `archivedAt` (DESC)
 
 **Verification:**
+
 ```bash
 # Check indexes in Firebase Console
 # Navigate to: Firestore Database > Indexes
@@ -78,6 +84,7 @@ firebase deploy --only firestore:rules,firestore:indexes,storage:rules
 ```
 
 **Use this if:**
+
 - You want to deploy all Firebase infrastructure at once
 - You're confident all changes are correct
 - You want to minimize deployment time
@@ -149,6 +156,7 @@ firebase deploy --only firestore:indexes
 **Cause:** Rules not deployed or incorrect rules syntax
 
 **Fix:**
+
 ```bash
 # Validate rules locally
 firebase firestore:rules:validate
@@ -162,6 +170,7 @@ firebase deploy --only firestore:rules
 **Cause:** Composite index not created or still building
 
 **Fix:**
+
 ```bash
 # Check index status in Firebase Console
 # Wait for indexes to finish building
@@ -173,6 +182,7 @@ firebase deploy --only firestore:rules
 **Cause:** User not authenticated or doesn't have required role
 
 **Fix:**
+
 ```bash
 # Check authentication in app
 # Verify user has staffProfile document
@@ -203,6 +213,7 @@ firebase deploy --only firestore:rules
 ## Support
 
 If you encounter issues:
+
 1. Check Firebase Console for error messages
 2. Verify rules syntax: `firebase firestore:rules:validate`
 3. Check index status: Firebase Console > Firestore > Indexes

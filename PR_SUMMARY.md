@@ -21,6 +21,7 @@ https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/compare/main...featur
 ```
 
 **Fișiere Create:**
+
 - `DEPLOY_EVENIMENTE.md`
 - `SETUP_EVENIMENTE.md`
 - `TEST_EVENIMENTE_E2E.md`
@@ -30,6 +31,7 @@ https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/compare/main...featur
 - `superparty_flutter/lib/widgets/user_selector_dialog.dart`
 
 **Fișiere Modificate:**
+
 - `firestore.indexes.json` (indexuri compuse)
 - `EVENIMENTE_DOCUMENTATION.md` (scos admin-check hardcodat)
 - `superparty_flutter/lib/screens/evenimente/evenimente_screen.dart`
@@ -39,29 +41,35 @@ https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/compare/main...featur
 ## ✅ Cerințe Îndeplinite
 
 ### 1. Indexuri Firestore Compuse ✅
+
 **Problema:** EventService face range pe `data` + sortare după `nume`/`locatie` → "query requires an index"
 
 **Soluție:**
+
 - Adăugate 6 indexuri compuse în `firestore.indexes.json`
 - Suport pentru toate combinațiile: data ASC/DESC + nume/locatie ASC/DESC
 
 **Verificare:**
+
 ```bash
 firebase deploy --only firestore:indexes
 firebase firestore:indexes
 ```
 
 ### 2. Admin-Check Hardcodat Scos ✅
+
 **Problema:** `EVENIMENTE_DOCUMENTATION.md` avea admin-check pe email hardcodat
 
 **Înainte:**
+
 ```javascript
 const isAdmin = currentUser?.email === 'ursache.andrei1995@gmail.com';
 ```
 
 **După:**
+
 ```javascript
-const isAdmin = async (userId) => {
+const isAdmin = async userId => {
   const userDoc = await firestore.collection('users').doc(userId).get();
   return userDoc.data()?.role === 'admin';
 };
@@ -70,15 +78,18 @@ const isAdmin = async (userId) => {
 **Locație:** `EVENIMENTE_DOCUMENTATION.md` linia 578
 
 ### 3. Seed Script Reproductibil ✅
+
 **Locație:** `scripts/seed_evenimente.js`
 
 **Comenzi:**
+
 ```bash
 npm install firebase-admin
 node scripts/seed_evenimente.js
 ```
 
 **Output:**
+
 ```
 🌱 Începem seed-ul pentru evenimente...
 ✅ Pregătit eveniment: Petrecere Maria - 5 ani
@@ -95,14 +106,17 @@ node scripts/seed_evenimente.js
 **Documentație:** `SETUP_EVENIMENTE.md`
 
 ### 4. DraggableScrollableSheet Fix ✅
+
 **Problema:** EventDetailsSheet nu primea scrollController → probleme de scroll/drag
 
 **Înainte:**
+
 ```dart
 builder: (context, scrollController) => EventDetailsSheet(eventId: eventId),
 ```
 
 **După:**
+
 ```dart
 builder: (context, scrollController) => EventDetailsSheet(
   eventId: eventId,
@@ -111,22 +125,26 @@ builder: (context, scrollController) => EventDetailsSheet(
 ```
 
 **Fișiere modificate:**
+
 - `evenimente_screen.dart` linia 373
 - `event_details_sheet.dart` (adăugat parametru + folosit în SingleChildScrollView)
 
 ## 🎯 Funcționalități Implementate
 
 ### 1. Stream Firestore Real (Nu Mock)
+
 - ✅ `EventService.getEventsStream()` folosește Firestore
 - ✅ Real-time updates automate
 - ✅ Filtre server-side + client-side
 
 ### 2. Filtru "Evenimentele Mele" Reparat
+
 - ✅ Disabled când user nelogat
 - ✅ Mesaj "Trebuie să fii autentificat"
 - ✅ Nu mai setează `uid = ''`
 
 ### 3. Selector Useri pentru Alocări
+
 - ✅ Dialog cu listă useri din Firestore
 - ✅ Search după nume/cod
 - ✅ Afișează nume + staffCode (NU UID)
@@ -134,11 +152,13 @@ builder: (context, scrollController) => EventDetailsSheet(
 - ✅ Opțiune "Nealocat"
 
 ### 4. Afișare Nume în Loc de UID
+
 - ✅ Widget `UserDisplayName` (stream Firestore)
 - ✅ Widget `UserBadge` (avatar cu inițială)
 - ✅ Integrare în `event_details_sheet.dart`
 
 ### 5. Ștergere Completă Evenimente
+
 - ✅ Șterge dovezi din Storage
 - ✅ Șterge subcolecții (dovezi, comentarii, istoric)
 - ✅ Șterge documentul principal
@@ -147,14 +167,18 @@ builder: (context, scrollController) => EventDetailsSheet(
 ## 📚 Documentație
 
 ### Setup
+
 `SETUP_EVENIMENTE.md` - Pași reproductibili pentru:
+
 - Instalare dependențe
 - Deploy indexuri
 - Seed date
 - Verificare Firebase Console
 
 ### Testare
+
 `TEST_EVENIMENTE_E2E.md` - 12 test cases:
+
 1. Încărcare listă evenimente
 2. Filtrare după dată
 3. Filtru "Evenimentele mele" (neautentificat)
@@ -169,14 +193,18 @@ builder: (context, scrollController) => EventDetailsSheet(
 12. Real-time updates
 
 ### Deploy
+
 `DEPLOY_EVENIMENTE.md` - Instrucțiuni deploy:
+
 - Indexuri Firestore
 - Seed script
 - Verificare
 - Troubleshooting
 
 ### Verificare
+
 `VERIFICATION_CHECKLIST.md` - Checklist complet:
+
 - Sintaxă Dart
 - Indexuri Firestore
 - Admin check
@@ -187,16 +215,19 @@ builder: (context, scrollController) => EventDetailsSheet(
 ## 🚀 Pași Următori
 
 ### 1. Deploy Indexuri
+
 ```bash
 firebase deploy --only firestore:indexes
 ```
 
 ### 2. Seed Date
+
 ```bash
 node scripts/seed_evenimente.js
 ```
 
 ### 3. Test Local (necesită Flutter)
+
 ```bash
 cd superparty_flutter
 flutter analyze
@@ -204,6 +235,7 @@ flutter test
 ```
 
 ### 4. Test E2E
+
 Urmează `TEST_EVENIMENTE_E2E.md` (12 test cases)
 
 ## ⚠️ Note Importante
@@ -216,6 +248,7 @@ Urmează `TEST_EVENIMENTE_E2E.md` (12 test cases)
 ## ✅ Ready for Review
 
 Toate cerințele sunt îndeplinite:
+
 - [x] PR/commit link + hash
 - [x] Indexuri Firestore compuse adăugate
 - [x] Admin-check hardcodat scos (trecut pe roluri)

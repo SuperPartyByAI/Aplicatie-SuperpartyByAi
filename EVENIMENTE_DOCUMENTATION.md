@@ -587,7 +587,7 @@ function isAdmin() {
 
 // Sau verificare pe document user
 function isAdmin() {
-  return isAuthenticated() && 
+  return isAuthenticated() &&
     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
 }
 ```
