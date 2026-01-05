@@ -11,17 +11,17 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
-      
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -29,11 +29,11 @@ jobs:
           channel: 'stable'
           cache: true
           cache-key: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
-      
+
       - name: Decode keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > /tmp/superparty-release-key.jks
-      
+
       - name: Create key.properties
         working-directory: superparty_flutter/android
         run: |
@@ -43,30 +43,30 @@ jobs:
           keyAlias=superparty-key
           storeFile=/tmp/superparty-release-key.jks
           EOF
-      
+
       - name: Get dependencies
         working-directory: superparty_flutter
         run: flutter pub get
-      
+
       - name: Build signed APK
         working-directory: superparty_flutter
         run: |
           flutter build apk --release --verbose
         timeout-minutes: 20
-      
+
       - name: Setup Node.js for upload script
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
+
       - name: Install firebase-admin
         run: npm install firebase-admin
-      
+
       - name: Upload APK to Firebase Storage
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node .github/scripts/upload-apk-to-storage.js
-      
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:

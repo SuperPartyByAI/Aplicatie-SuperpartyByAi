@@ -111,12 +111,14 @@ UpdateGate (root level)
 **Location**: Wraps MaterialApp in main.dart
 
 **Responsibilities**:
+
 - Check for force update at app startup
 - Show ForceUpdateScreen if needed
 - Run AppStateMigrationService if version changed
 - Pass through to normal app if no update
 
 **Code**:
+
 ```dart
 UpdateGate(
   child: MaterialApp(
@@ -128,6 +130,7 @@ UpdateGate(
 ### 2. ForceUpdateScreen (Full-Screen)
 
 **Features**:
+
 - Non-dismissible (back button disabled)
 - Full-screen UI (not a dialog)
 - Download progress 0-100%
@@ -136,6 +139,7 @@ UpdateGate(
 - **NO signOut() call**
 
 **States**:
+
 - idle: Ready to download
 - downloading: Progress bar active
 - installing: Opening installer
@@ -147,17 +151,20 @@ UpdateGate(
 **Purpose**: Clean up incompatible data between versions WITHOUT logging out
 
 **What it does**:
+
 - Checks if build number changed
 - Clears old cache flags
 - Resets incompatible SharedPreferences
 - Preserves FirebaseAuth session
 
 **What it DOESN'T do**:
+
 - Call FirebaseAuth.instance.signOut()
 - Clear auth tokens
 - Delete user data
 
 **Usage**:
+
 ```dart
 // Automatically called by UpdateGate
 await AppStateMigrationService.checkAndMigrate();
@@ -185,7 +192,7 @@ await AppStateMigrationService.checkAndMigrate();
 ### pubspec.yaml
 
 ```yaml
-version: 1.0.2+3  # Increment build number for each release
+version: 1.0.2+3 # Increment build number for each release
 ```
 
 ---
@@ -195,11 +202,13 @@ version: 1.0.2+3  # Increment build number for each release
 ### Test 1: Force Update (User Stays Authenticated)
 
 **Setup**:
+
 1. Login to app with build 2
 2. Set Firestore: `min_build_number: 3, force_update: true`
 3. Close and reopen app
 
 **Expected**:
+
 1. ✅ UpdateGate shows "Verificare actualizări..."
 2. ✅ ForceUpdateScreen appears (full-screen, non-dismissible)
 3. ✅ Back button does nothing
@@ -213,11 +222,13 @@ version: 1.0.2+3  # Increment build number for each release
 ### Test 2: Data Migration (Version Change)
 
 **Setup**:
+
 1. Install app with build 2
 2. Use app (creates cache/preferences)
 3. Install app with build 3 (no force update, just version change)
 
 **Expected**:
+
 1. ✅ UpdateGate checks → no force update
 2. ✅ AppStateMigrationService runs
 3. ✅ Old cache flags cleared
@@ -227,10 +238,12 @@ version: 1.0.2+3  # Increment build number for each release
 ### Test 3: No Update Needed
 
 **Setup**:
+
 1. Install app with build 3
 2. Set Firestore: `min_build_number: 3`
 
 **Expected**:
+
 1. ✅ UpdateGate checks → no update needed
 2. ✅ AppStateMigrationService checks → no migration needed
 3. ✅ App goes directly to AuthWrapper
@@ -243,6 +256,7 @@ version: 1.0.2+3  # Increment build number for each release
 ### ❌ DON'T Call signOut() in Update Flow
 
 **Wrong**:
+
 ```dart
 if (needsUpdate) {
   await FirebaseAuth.instance.signOut(); // ❌ NO!
@@ -251,6 +265,7 @@ if (needsUpdate) {
 ```
 
 **Correct**:
+
 ```dart
 if (needsUpdate) {
   // Just show update screen, user stays authenticated
@@ -261,6 +276,7 @@ if (needsUpdate) {
 ### ❌ DON'T Use Old AutoUpdateService
 
 **Wrong**:
+
 ```dart
 final action = await AutoUpdateService.checkAndApplyUpdate();
 if (action == 'logout') {
@@ -269,6 +285,7 @@ if (action == 'logout') {
 ```
 
 **Correct**:
+
 ```dart
 // UpdateGate handles everything automatically
 // No need to call AutoUpdateService
@@ -277,6 +294,7 @@ if (action == 'logout') {
 ### ❌ DON'T Clear Auth Data in Migration
 
 **Wrong**:
+
 ```dart
 Future<void> migrate() async {
   final prefs = await SharedPreferences.getInstance();
@@ -285,6 +303,7 @@ Future<void> migrate() async {
 ```
 
 **Correct**:
+
 ```dart
 Future<void> migrate() async {
   final prefs = await SharedPreferences.getInstance();

@@ -3,6 +3,7 @@
 ## ✅ Verificări Tehnice (DoD)
 
 ### 1. Flutter Analyze
+
 ```bash
 cd superparty_flutter
 flutter analyze
@@ -15,12 +16,14 @@ flutter analyze
 ---
 
 ### 2. Flutter Test
+
 ```bash
 cd superparty_flutter
 flutter test
 ```
 
 **Expected:** All tests pass
+
 - `test/utils/event_utils_test.dart` - 5 test cases ✅
 - `test/models/event_filters_test.dart` - 10 test cases ✅
 - `test/services/evidence_service_test.dart` - 3 test cases ✅
@@ -32,6 +35,7 @@ flutter test
 ### 3. Manual Testing - Upload Dovezi (Online)
 
 **Scenariul:**
+
 1. Deschide DoveziScreen pentru un eveniment
 2. Expand categoria "Mâncare"
 3. Apasă "Adaugă Poză" → selectează imagine
@@ -50,6 +54,7 @@ flutter test
 ### 4. Manual Testing - Offline Mode
 
 **Scenariul:**
+
 1. Dezactivează WiFi + mobile data
 2. Adaugă 2 poze în categoria "Băutură"
 3. Verifică:
@@ -69,6 +74,7 @@ flutter test
 ### 5. Manual Testing - Lock Categorie
 
 **Scenariul:**
+
 1. Adaugă 2-3 poze în categoria "Scenotehnică"
 2. Apasă "Marchează OK"
 3. Verifică:
@@ -85,6 +91,7 @@ flutter test
 ### 6. Manual Testing - Dedupe Funcțional
 
 **Scenariul:**
+
 1. Adaugă o poză în categoria "Altele"
 2. Observă:
    - Thumbnail local apare cu 🟠
@@ -104,6 +111,7 @@ flutter test
 ### 7. Code Review - Zero URL-uri Hardcodate
 
 **Verificare:**
+
 ```bash
 cd superparty_flutter
 grep -r "firebasestorage.googleapis.com\|storage.googleapis.com" lib/screens/dovezi/ lib/services/evidence_service.dart
@@ -118,6 +126,7 @@ grep -r "firebasestorage.googleapis.com\|storage.googleapis.com" lib/screens/dov
 ### 8. Code Review - EvidenceUploadResult Usage
 
 **Verificare:**
+
 ```bash
 cd superparty_flutter
 grep -A 5 "uploadEvidence" lib/screens/dovezi/dovezi_screen.dart
@@ -131,36 +140,36 @@ grep -A 5 "uploadEvidence" lib/screens/dovezi/dovezi_screen.dart
 
 ## 📋 Checklist Final
 
-| Verificare | Status | Notes |
-|------------|--------|-------|
-| flutter analyze | ⬜ | Rulează local |
-| flutter test | ⬜ | Rulează local |
-| Upload online | ⬜ | Manual testing |
-| Offline mode | ⬜ | Manual testing |
-| Lock categorie | ⬜ | Manual testing |
-| Dedupe funcțional | ⬜ | Manual testing |
-| Zero URL hardcodate | ✅ | Code review done |
-| EvidenceUploadResult usage | ✅ | Code review done |
+| Verificare                 | Status | Notes            |
+| -------------------------- | ------ | ---------------- |
+| flutter analyze            | ⬜     | Rulează local    |
+| flutter test               | ⬜     | Rulează local    |
+| Upload online              | ⬜     | Manual testing   |
+| Offline mode               | ⬜     | Manual testing   |
+| Lock categorie             | ⬜     | Manual testing   |
+| Dedupe funcțional          | ⬜     | Manual testing   |
+| Zero URL hardcodate        | ✅     | Code review done |
+| EvidenceUploadResult usage | ✅     | Code review done |
 
 ---
 
 ## ✅ Acceptance Criteria (Final)
 
-| Criteriu | Status | Commit |
-|----------|--------|--------|
-| EvenimenteScreen folosește EventService + EventFilters | ✅ | 55d8c804 |
-| Preset-uri dată + custom range | ✅ | 55d8c804 |
-| Filtre avansate | ✅ | 55d8c804 |
-| Badge filtre active + Reset | ✅ | 55d8c804 |
-| Tap eveniment → EventDetailsSheet | ✅ | 55d8c804 |
-| Asignări roluri funcționale | ✅ | 6b1dbb88 |
-| Logică șofer condițional | ✅ | 6b1dbb88 |
-| Vezi Dovezi → DoveziScreen | ✅ | 6b1dbb88 |
-| Offline-first dovezi | ✅ | 6b1dbb88 |
-| Lock categorie funcțional | ✅ | 6b1dbb88 |
-| **Upload fără query după** | ✅ | 2ba0f7d4 |
-| **Zero duplicate thumbnails** | ✅ | d2868595 |
-| Cod curat, fără mock | ✅ | 55d8c804 |
+| Criteriu                                               | Status | Commit   |
+| ------------------------------------------------------ | ------ | -------- |
+| EvenimenteScreen folosește EventService + EventFilters | ✅     | 55d8c804 |
+| Preset-uri dată + custom range                         | ✅     | 55d8c804 |
+| Filtre avansate                                        | ✅     | 55d8c804 |
+| Badge filtre active + Reset                            | ✅     | 55d8c804 |
+| Tap eveniment → EventDetailsSheet                      | ✅     | 55d8c804 |
+| Asignări roluri funcționale                            | ✅     | 6b1dbb88 |
+| Logică șofer condițional                               | ✅     | 6b1dbb88 |
+| Vezi Dovezi → DoveziScreen                             | ✅     | 6b1dbb88 |
+| Offline-first dovezi                                   | ✅     | 6b1dbb88 |
+| Lock categorie funcțional                              | ✅     | 6b1dbb88 |
+| **Upload fără query după**                             | ✅     | 2ba0f7d4 |
+| **Zero duplicate thumbnails**                          | ✅     | d2868595 |
+| Cod curat, fără mock                                   | ✅     | 55d8c804 |
 
 **TOTAL: 13/13 ✅**
 

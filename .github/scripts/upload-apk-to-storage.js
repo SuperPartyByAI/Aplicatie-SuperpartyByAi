@@ -7,7 +7,7 @@ const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  storageBucket: 'superparty-frontend.firebasestorage.app'
+  storageBucket: 'superparty-frontend.firebasestorage.app',
 });
 
 const bucket = admin.storage().bucket();
@@ -59,14 +59,17 @@ async function uploadAPK() {
     });
 
     console.log('✅ APK uploaded successfully!');
-    
+
     // Get public URL
     const file = bucket.file(destination);
     const [metadata] = await file.getMetadata();
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${destination}`;
-    
+
     console.log('📍 Public URL:', publicUrl);
-    console.log('📍 Firebase URL:', `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(destination)}?alt=media`);
+    console.log(
+      '📍 Firebase URL:',
+      `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(destination)}?alt=media`
+    );
 
     process.exit(0);
   } catch (error) {

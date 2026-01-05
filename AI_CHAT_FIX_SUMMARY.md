@@ -3,21 +3,25 @@
 ## 🎯 Root Causes Identified
 
 ### 1. **No Auth Check Before Callable**
+
 - **Problem**: AIChatScreen called `chatWithAI` Firebase Function without checking if user was logged in
 - **Impact**: Backend threw `unauthenticated` error, but Flutter showed generic "Conexiune eșuată"
 - **Evidence**: No `if (user == null)` check before `callable.call()`
 
 ### 2. **Poor Error Mapping**
+
 - **Problem**: All `FirebaseFunctionsException` errors showed generic "Conexiune eșuată"
 - **Impact**: Users couldn't understand what went wrong (auth? config? network?)
 - **Evidence**: Single catch block with `e.toString().contains('timeout')` check only
 
 ### 3. **No Diagnostic Logging**
+
 - **Problem**: No logging of user auth state, exception codes, or function call details
 - **Impact**: Impossible to debug issues without seeing actual error codes
 - **Evidence**: Only `print('Error loading cache: $e')` in unrelated code
 
 ### 4. **Documentation Mismatch**
+
 - **Problem**: Docs mentioned `OPENAI_API_KEY` but code uses `GROQ_API_KEY`
 - **Impact**: Admins set wrong secret, causing `failed-precondition` errors
 - **Evidence**: `test-ai-functions.md` had OpenAI instructions
@@ -29,6 +33,7 @@
 ### Flutter Side (`ai_chat_screen.dart`)
 
 #### 1. Auth Check Before Callable
+
 ```dart
 final user = FirebaseAuth.instance.currentUser;
 
@@ -47,6 +52,7 @@ if (user == null) {
 **Result**: No function call if user is null → no `unauthenticated` errors
 
 #### 2. Proper Error Mapping
+
 ```dart
 String _mapFirebaseError(FirebaseFunctionsException e) {
   switch (e.code) {
@@ -68,6 +74,7 @@ String _mapFirebaseError(FirebaseFunctionsException e) {
 **Result**: Users see specific, actionable error messages
 
 #### 3. Diagnostic Logging
+
 ```dart
 print('[AIChatScreen] User auth state: uid=${user?.uid}, email=${user?.email}');
 print('[AIChatScreen] Calling chatWithAI function in region: us-central1');
@@ -80,6 +87,7 @@ print('[AIChatScreen] FirebaseFunctionsException message: ${e.message}');
 ### Backend Side (`functions/index.js`)
 
 #### Enhanced GROQ_API_KEY Logging
+
 ```javascript
 let groqKey = null;
 try {
@@ -93,7 +101,7 @@ try {
 if (!groqKey) {
   console.error(`[${requestId}] GROQ_API_KEY not configured - neither in secrets nor env`);
   throw new functions.https.HttpsError(
-    'failed-precondition', 
+    'failed-precondition',
     'GROQ_API_KEY not configured. Please set the secret: firebase functions:secrets:set GROQ_API_KEY'
   );
 }
@@ -104,11 +112,13 @@ if (!groqKey) {
 ### Documentation
 
 #### Updated `test-ai-functions.md`
+
 - Changed all `OPENAI_API_KEY` references to `GROQ_API_KEY`
 - Added instructions for getting Groq API key
 - Added Firebase Secrets setup commands
 
 #### Created `AI_CHAT_TROUBLESHOOTING.md`
+
 - Quick diagnosis (2 minutes)
 - Known failure modes with fixes
 - Error code reference table
@@ -118,6 +128,7 @@ if (!groqKey) {
 ### Tests
 
 #### Created `ai_chat_error_mapping_test.dart`
+
 - 9 test cases covering all error codes
 - Tests edge cases (null message, unknown code)
 - Pure function tests (no widget dependencies)
@@ -127,6 +138,7 @@ if (!groqKey) {
 ## 📊 Impact
 
 ### Before Fix
+
 - ❌ User not logged in → generic "Conexiune eșuată"
 - ❌ GROQ_API_KEY missing → generic "Conexiune eșuată"
 - ❌ Network timeout → generic "Conexiune eșuată"
@@ -134,6 +146,7 @@ if (!groqKey) {
 - ❌ Documentation mentioned wrong API key
 
 ### After Fix
+
 - ✅ User not logged in → "Trebuie să fii logat..." (no function call)
 - ✅ GROQ_API_KEY missing → "AI nu este configurat (cheie lipsă)..."
 - ✅ Network timeout → "Timeout - încearcă din nou"
@@ -145,36 +158,45 @@ if (!groqKey) {
 ## 🧪 How to Reproduce & Verify
 
 ### Test 1: User Not Logged In
+
 **Steps**:
+
 1. Logout from app
 2. Open AI Chat
 3. Type message and send
 
 **Expected**:
+
 - ✅ Message appears: "⚠️ Trebuie să fii logat..."
 - ✅ No function call made (check logs)
 - ✅ Log shows: `[AIChatScreen] User not authenticated - blocking AI call`
 
 ### Test 2: GROQ_API_KEY Missing
+
 **Steps**:
+
 1. Login to app
 2. Remove GROQ_API_KEY secret: `firebase functions:secrets:delete GROQ_API_KEY`
 3. Redeploy: `firebase deploy --only functions:chatWithAI`
 4. Send message in AI Chat
 
 **Expected**:
+
 - ✅ Error message: "AI nu este configurat pe server (cheie API lipsă)..."
 - ✅ Function logs show: `[req_xxx] GROQ_API_KEY not configured`
 - ✅ Flutter logs show: `FirebaseFunctionsException code: failed-precondition`
 
 ### Test 3: Success Case
+
 **Steps**:
+
 1. Login to app
 2. Set GROQ_API_KEY: `firebase functions:secrets:set GROQ_API_KEY`
 3. Redeploy: `firebase deploy --only functions:chatWithAI`
 4. Send message in AI Chat
 
 **Expected**:
+
 - ✅ AI responds with message
 - ✅ Function logs show: `[req_xxx] GROQ_API_KEY loaded from secrets`
 - ✅ Function logs show: `[req_xxx] AI response in XXXms`
@@ -198,24 +220,28 @@ if (!groqKey) {
 ## 🚀 Deployment Steps
 
 ### 1. Deploy Backend Changes
+
 ```bash
 cd functions
 firebase deploy --only functions:chatWithAI
 ```
 
 ### 2. Verify GROQ_API_KEY Secret
+
 ```bash
 firebase functions:secrets:access GROQ_API_KEY
 # Should show your Groq API key (starts with gsk_)
 ```
 
 ### 3. Check Function Logs
+
 ```bash
 firebase functions:log --only chatWithAI --limit 5
 # Should see: "[req_xxx] GROQ_API_KEY loaded from secrets"
 ```
 
 ### 4. Build & Deploy Flutter App
+
 ```bash
 cd superparty_flutter
 flutter build apk --release
@@ -223,6 +249,7 @@ flutter build apk --release
 ```
 
 ### 5. Test End-to-End
+
 1. Login to app
 2. Open AI Chat
 3. Send message: "Hello"
@@ -233,11 +260,13 @@ flutter build apk --release
 ## 📚 Related Files
 
 ### Modified
+
 - `superparty_flutter/lib/screens/ai_chat/ai_chat_screen.dart` - Auth check + error mapping + logging
 - `functions/index.js` - Enhanced GROQ_API_KEY logging
 - `test-ai-functions.md` - Updated to use GROQ_API_KEY
 
 ### Created
+
 - `AI_CHAT_TROUBLESHOOTING.md` - Complete troubleshooting guide
 - `superparty_flutter/test/screens/ai_chat_error_mapping_test.dart` - Unit tests
 

@@ -30,6 +30,7 @@ class EvidenceUploadResult {
 **Signature:** `Future<EvidenceUploadResult> uploadEvidence(...)`
 
 **Flow:**
+
 1. Check if category is locked
 2. Upload file to Firebase Storage
 3. Get `downloadUrl` from `snapshot.ref.getDownloadURL()` ← **Real URL, not constructed**
@@ -37,6 +38,7 @@ class EvidenceUploadResult {
 5. Return `EvidenceUploadResult` with all fields
 
 **Before:**
+
 ```dart
 Future<String> uploadEvidence(...) async {
   // ... upload logic ...
@@ -45,6 +47,7 @@ Future<String> uploadEvidence(...) async {
 ```
 
 **After:**
+
 ```dart
 Future<EvidenceUploadResult> uploadEvidence(...) async {
   // ... upload logic ...
@@ -59,9 +62,10 @@ Future<EvidenceUploadResult> uploadEvidence(...) async {
 
 ---
 
-### 3. DoveziScreen._uploadEvidence() Fixed
+### 3. DoveziScreen.\_uploadEvidence() Fixed
 
 **Before (fragile):**
+
 ```dart
 final remoteDocId = await _evidenceService.uploadEvidence(...);
 
@@ -76,6 +80,7 @@ await _cacheService.markSynced(
 ```
 
 **After (robust):**
+
 ```dart
 final result = await _evidenceService.uploadEvidence(...);
 
@@ -88,6 +93,7 @@ await _cacheService.markSynced(
 ```
 
 **Benefits:**
+
 - No hardcoded bucket names
 - No manual path construction
 - No race conditions
@@ -98,12 +104,14 @@ await _cacheService.markSynced(
 ### 4. Dedupe Logic to Prevent Duplicate Thumbnails
 
 **Problem:** After sync, evidence appears twice:
+
 - Once as local thumbnail (synced status)
 - Once as remote thumbnail (from Firestore stream)
 
 **Solution:** Filter local evidence in UI to exclude synced items that already exist in remote stream.
 
 **Implementation:**
+
 ```dart
 // Get remote doc IDs
 final remoteDocIds = remoteEvidence.map((e) => e.id).toSet();
@@ -111,12 +119,13 @@ final remoteDocIds = remoteEvidence.map((e) => e.id).toSet();
 // Filter local evidence
 final localEvidenceFiltered = localEvidence.where((local) {
   // Keep only pending/failed, or synced items not yet in remote stream
-  return local.syncStatus != SyncStatus.synced || 
+  return local.syncStatus != SyncStatus.synced ||
          (local.remoteDocId != null && !remoteDocIds.contains(local.remoteDocId));
 }).toList();
 ```
 
 **Result:**
+
 - Pending/failed evidence: visible with status indicators (🟠/🔴)
 - Synced evidence: hidden if already in remote stream
 - Remote evidence: always visible
@@ -129,11 +138,13 @@ final localEvidenceFiltered = localEvidence.where((local) {
 **Location:** `test/services/evidence_service_test.dart`
 
 **Tests:**
+
 1. `EvidenceUploadResult` contains all required fields
 2. `downloadUrl` is not hardcoded or constructed from docId
 3. Documentation test for expected `uploadEvidence()` behavior
 
 **Run tests:**
+
 ```bash
 cd superparty_flutter
 flutter test test/services/evidence_service_test.dart
@@ -143,14 +154,14 @@ flutter test test/services/evidence_service_test.dart
 
 ## ✅ Acceptance Criteria - Verified
 
-| Criterion | Status | Details |
-|-----------|--------|---------|
-| No query after upload to get URL | ✅ | URL returned directly in `EvidenceUploadResult` |
-| No hardcoded URLs | ✅ | All URLs from Storage API |
-| No manual URL construction | ✅ | No bucket/path concatenation |
-| No duplicate thumbnails | ✅ | Dedupe logic filters synced local items |
-| Build compiles | ✅ | All usages of `uploadEvidence()` updated |
-| Tests added | ✅ | `evidence_service_test.dart` created |
+| Criterion                        | Status | Details                                         |
+| -------------------------------- | ------ | ----------------------------------------------- |
+| No query after upload to get URL | ✅     | URL returned directly in `EvidenceUploadResult` |
+| No hardcoded URLs                | ✅     | All URLs from Storage API                       |
+| No manual URL construction       | ✅     | No bucket/path concatenation                    |
+| No duplicate thumbnails          | ✅     | Dedupe logic filters synced local items         |
+| Build compiles                   | ✅     | All usages of `uploadEvidence()` updated        |
+| Tests added                      | ✅     | `evidence_service_test.dart` created            |
 
 **TOTAL: 6/6 ✅**
 
@@ -200,19 +211,20 @@ flutter test test/services/evidence_service_test.dart
 
 ## 🔍 Code Locations
 
-| Component | File | Lines |
-|-----------|------|-------|
-| EvidenceUploadResult | `lib/services/evidence_service.dart` | 8-18 |
-| uploadEvidence() | `lib/services/evidence_service.dart` | 20-80 |
-| _uploadEvidence() | `lib/screens/dovezi/dovezi_screen.dart` | 493-520 |
-| Dedupe logic | `lib/screens/dovezi/dovezi_screen.dart` | 290-310 |
-| Tests | `test/services/evidence_service_test.dart` | 1-60 |
+| Component            | File                                       | Lines   |
+| -------------------- | ------------------------------------------ | ------- |
+| EvidenceUploadResult | `lib/services/evidence_service.dart`       | 8-18    |
+| uploadEvidence()     | `lib/services/evidence_service.dart`       | 20-80   |
+| \_uploadEvidence()   | `lib/screens/dovezi/dovezi_screen.dart`    | 493-520 |
+| Dedupe logic         | `lib/screens/dovezi/dovezi_screen.dart`    | 290-310 |
+| Tests                | `test/services/evidence_service_test.dart` | 1-60    |
 
 ---
 
 ## 🚀 Benefits
 
 ### Before Refactor
+
 - ❌ Manual URL construction (fragile)
 - ❌ Hardcoded bucket names
 - ❌ Race conditions with `firstWhere()`
@@ -220,6 +232,7 @@ flutter test test/services/evidence_service_test.dart
 - ❌ Query after upload to get URL
 
 ### After Refactor
+
 - ✅ Real URLs from Storage API
 - ✅ No hardcoded values
 - ✅ No race conditions

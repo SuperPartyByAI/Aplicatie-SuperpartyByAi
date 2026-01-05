@@ -3,6 +3,7 @@
 ## 🚀 Ce Face CI/CD-ul
 
 La fiecare push pe `main` care modifică `superparty_flutter/**`:
+
 1. ✅ Build-ează APK automat (GitHub Actions)
 2. ✅ Upload-ează pe Firebase App Distribution
 3. ✅ Îți trimite notificare pe telefon
@@ -15,12 +16,14 @@ La fiecare push pe `main` care modifică `superparty_flutter/**`:
 ### 1. Firebase App ID
 
 **Găsește App ID:**
+
 1. Mergi la: https://console.firebase.google.com/project/superparty-frontend/settings/general
 2. Scroll la "Your apps"
 3. Click pe Android app
 4. Copiază **App ID** (format: `1:xxxxx:android:xxxxx`)
 
 **Adaugă în GitHub Secrets:**
+
 1. Mergi la: https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/settings/secrets/actions
 2. Click "New repository secret"
 3. Name: `FIREBASE_APP_ID`
@@ -32,12 +35,14 @@ La fiecare push pe `main` care modifică `superparty_flutter/**`:
 ### 2. Firebase Service Account
 
 **Generează Service Account:**
+
 1. Mergi la: https://console.firebase.google.com/project/superparty-frontend/settings/serviceaccounts/adminsdk
 2. Click "Generate new private key"
 3. Click "Generate key"
 4. Se descarcă un fișier JSON (ex: `superparty-frontend-xxxxx.json`)
 
 **Adaugă în GitHub Secrets:**
+
 1. Deschide fișierul JSON în Notepad
 2. Copiază ÎNTREG conținutul (tot JSON-ul)
 3. Mergi la: https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/settings/secrets/actions
@@ -51,6 +56,7 @@ La fiecare push pe `main` care modifică `superparty_flutter/**`:
 ### 3. Activează Firebase App Distribution
 
 **În Firebase Console:**
+
 1. Mergi la: https://console.firebase.google.com/project/superparty-frontend/appdistribution
 2. Click "Get started"
 3. Selectează Android app
@@ -90,12 +96,14 @@ git push origin main
 ### Pas 1: Instalează Firebase App Distribution
 
 **Pe telefon:**
+
 1. Deschide: https://appdistribution.firebase.dev/i/xxxxx (link din email)
 2. SAU descarcă app: https://play.google.com/store/apps/details?id=com.google.firebase.appdistribution
 
 ### Pas 2: Primești Notificare
 
 După ~5-10 minute de la push:
+
 1. ✅ Primești email: "New build available"
 2. ✅ Primești notificare pe telefon (dacă ai app-ul)
 3. ✅ Click pe notificare
@@ -112,6 +120,7 @@ După ~5-10 minute de la push:
 https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions
 
 **Statusuri:**
+
 - 🟡 **In progress** - Se build-ează
 - ✅ **Success** - APK gata, trimis pe telefon
 - ❌ **Failed** - Eroare (vezi logs)
@@ -151,6 +160,7 @@ https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions
 ### Build Failed: "FIREBASE_APP_ID not found"
 
 **Soluție:**
+
 - Verifică că ai adăugat secret în GitHub
 - Name exact: `FIREBASE_APP_ID`
 - Fără spații sau caractere extra
@@ -158,6 +168,7 @@ https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions
 ### Build Failed: "Service account invalid"
 
 **Soluție:**
+
 - Regenerează service account key
 - Copiază ÎNTREG JSON-ul (inclusiv `{` și `}`)
 - Verifică că nu ai adăugat spații sau newlines extra
@@ -165,6 +176,7 @@ https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions
 ### Nu Primesc Notificare
 
 **Soluție:**
+
 1. Verifică email-ul (spam folder)
 2. Instalează Firebase App Distribution app
 3. Login cu același email
@@ -173,6 +185,7 @@ https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions
 ### APK nu se Instalează
 
 **Soluție:**
+
 1. Activează "Install from unknown sources"
 2. Settings → Security → Unknown sources → ON
 3. Sau Settings → Apps → Special access → Install unknown apps → Firebase App Distribution → Allow
@@ -182,6 +195,7 @@ https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions
 ## 🎯 Avantaje CI/CD
 
 ### Înainte (Manual):
+
 ```
 1. Instalează Flutter pe Windows (30 min)
 2. flutter pub get (2 min)
@@ -192,6 +206,7 @@ Total: ~40 min + cablu USB
 ```
 
 ### Acum (CI/CD):
+
 ```
 1. Push pe GitHub (10 sec)
 2. Așteaptă notificare (5-10 min)
@@ -235,12 +250,14 @@ gh run download --name superparty-app
 ## 🔐 Security
 
 **Secrets sunt sigure:**
+
 - ✅ Encrypted în GitHub
 - ✅ Nu apar în logs
 - ✅ Doar workflow-urile le pot accesa
 - ✅ Nu sunt în cod
 
 **Service Account:**
+
 - ✅ Acces doar la Firebase App Distribution
 - ✅ Nu poate șterge/modifica alte resurse
 - ✅ Poate fi revocat oricând

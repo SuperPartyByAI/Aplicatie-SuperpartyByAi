@@ -3,6 +3,7 @@
 ## ✅ Completat
 
 ### 1. Schema de Date
+
 - ✅ Documentație completă în `EVENIMENTE_DOVEZI_SCHEMA.md`
 - ✅ Structură Firestore definită
 - ✅ Structură Storage definită
@@ -10,6 +11,7 @@
 - ✅ Reguli de securitate documentate
 
 ### 2. Modele (100% Complete)
+
 - ✅ `lib/models/event_model.dart`
   - EventModel cu toate câmpurile
   - RoleAssignment + AssignmentStatus enum
@@ -32,16 +34,19 @@
   - hasActiveFilters + activeFilterCount
 
 ### 3. Utils
+
 - ✅ `lib/utils/event_utils.dart`
   - Funcție pură `requiresSofer()`
   - Logică bazată pe tipEveniment + tipLocatie
 
 ### 4. Teste
+
 - ✅ `test/utils/event_utils_test.dart`
   - 5 test suites pentru requiresSofer
   - Coverage: exterior locations, interior locations, online events, edge cases, comprehensive
 
 ### 5. Servicii (100% Complete)
+
 - ✅ `lib/services/event_service.dart`
   - getEventsStream() cu filtre server-side + client-side
   - getEvent() pentru un eveniment specific
@@ -58,7 +63,7 @@
   - deleteEvidence() cu verificare lock
   - lockCategory() + unlockCategory()
   - getCategoryMeta() + getCategoryMetaStream()
-  - _updateCategoryPhotoCount() helper
+  - \_updateCategoryPhotoCount() helper
   - **Detalii complete:** vezi `EVIDENCE_UPLOAD_REFACTOR.md`
 
 - ✅ `lib/services/local_evidence_cache_service.dart`
@@ -109,10 +114,8 @@
 
 - ✅ `test/utils/event_utils_test.dart`
   - 5 test suites pentru requiresSofer()
-  
 - ✅ `test/models/event_filters_test.dart`
   - 10 test cases pentru EventFilters
-  
 - ✅ `test/services/evidence_service_test.dart`
   - Verifică EvidenceUploadResult conține toate câmpurile
   - Verifică că downloadUrl nu e hardcodat sau construit din docId
@@ -132,6 +135,7 @@
 ### Evidence Upload Refactor (Commits: 2ba0f7d4, d2868595)
 
 **Problema inițială:**
+
 - URL-uri hardcodate construite manual
 - Query după upload pentru a obține downloadUrl
 - Race conditions cu firstWhere()
@@ -140,6 +144,7 @@
 **Soluția implementată:**
 
 1. **EvidenceUploadResult Model**
+
 ```dart
 class EvidenceUploadResult {
   final String docId;           // Firestore doc ID
@@ -150,14 +155,15 @@ class EvidenceUploadResult {
 ```
 
 2. **EvidenceService.uploadEvidence() Refactored**
+
 ```dart
 Future<EvidenceUploadResult> uploadEvidence(...) async {
   // Upload to Storage
   final downloadUrl = await snapshot.ref.getDownloadURL(); // ✅ Real URL
-  
+
   // Create Firestore doc
   final docRef = await _firestore.collection(...).add(...);
-  
+
   // Return complete result
   return EvidenceUploadResult(
     docId: docRef.id,
@@ -168,7 +174,8 @@ Future<EvidenceUploadResult> uploadEvidence(...) async {
 }
 ```
 
-3. **DoveziScreen._uploadEvidence() Fixed**
+3. **DoveziScreen.\_uploadEvidence() Fixed**
+
 ```dart
 final result = await _evidenceService.uploadEvidence(...);
 
@@ -180,16 +187,18 @@ await _cacheService.markSynced(
 ```
 
 4. **Dedupe Logic (Opțiunea B)**
+
 ```dart
 // Filter local evidence to exclude synced items already in remote
 final remoteDocIds = remoteEvidence.map((e) => e.id).toSet();
 final localFiltered = localEvidence.where((local) {
-  return local.syncStatus != SyncStatus.synced || 
+  return local.syncStatus != SyncStatus.synced ||
          !remoteDocIds.contains(local.remoteDocId);
 }).toList();
 ```
 
 **Rezultat:**
+
 - ✅ Zero URL-uri hardcodate
 - ✅ Zero query-uri după upload
 - ✅ Zero race conditions
@@ -208,6 +217,7 @@ final localFiltered = localEvidence.where((local) {
 ### 6. Servicii Rămase (COMPLETAT - vezi secțiunea de mai sus)
 
 #### `lib/services/evidence_service.dart` (COMPLETAT)
+
 ```dart
 class EvidenceService {
   // Upload imagine în Storage + Firestore
@@ -216,24 +226,24 @@ class EvidenceService {
     required String evidenceId,
     required String storagePath,
   });
-  
+
   // Lock/unlock categorie
   Future<void> lockCategory({
     required String eventId,
     required EvidenceCategory categorie,
   });
-  
+
   Future<void> unlockCategory({
     required String eventId,
     required EvidenceCategory categorie,
   });
-  
+
   // Obține metadata categorie
   Future<EvidenceCategoryMeta> getCategoryMeta({
     required String eventId,
     required EvidenceCategory categorie,
   });
-  
+
   Stream<EvidenceCategoryMeta> getCategoryMetaStream({
     required String eventId,
     required EvidenceCategory categorie,
@@ -242,14 +252,15 @@ class EvidenceService {
 ```
 
 #### `lib/services/local_evidence_cache_service.dart`
+
 ```dart
 class LocalEvidenceCacheService {
   static Database? _database;
-  
+
   // Init DB
   static Future<Database> get database;
   static Future<Database> _initDatabase();
-  
+
   // CRUD operations
   Future<void> insertPending(LocalEvidence evidence);
   Future<List<LocalEvidence>> listByEventAndCategory({
@@ -272,6 +283,7 @@ class LocalEvidenceCacheService {
 ```
 
 #### `lib/services/file_storage_service.dart`
+
 ```dart
 class FileStorageService {
   // Obține path local pentru event/categorie
@@ -279,17 +291,17 @@ class FileStorageService {
     required String eventId,
     required EvidenceCategory categorie,
   });
-  
+
   // Salvează fișier local
   Future<String> saveLocalFile({
     required File sourceFile,
     required String eventId,
     required EvidenceCategory categorie,
   });
-  
+
   // Șterge fișier local
   Future<void> deleteLocalFile(String path);
-  
+
   // Verifică dacă fișierul există
   Future<bool> fileExists(String path);
 }
@@ -298,6 +310,7 @@ class FileStorageService {
 ### 7. UI - Evenimente
 
 #### Extindere `lib/screens/evenimente/evenimente_screen.dart`
+
 - Adaugă bottom sheet pentru filtre avansate
 - Implementează DateRangePicker pentru custom range
 - Afișează chip-uri pentru filtre active
@@ -305,10 +318,11 @@ class FileStorageService {
 - Navigare către EventDetailsSheet
 
 #### Nou: `lib/screens/evenimente/event_details_sheet.dart`
+
 ```dart
 class EventDetailsSheet extends StatefulWidget {
   final String eventId;
-  
+
   // UI:
   // - Header cu nume eveniment + dată
   // - Secțiune "Alocări" cu listă roluri
@@ -321,10 +335,11 @@ class EventDetailsSheet extends StatefulWidget {
 ### 8. UI - Dovezi
 
 #### Nou: `lib/screens/dovezi/dovezi_screen.dart`
+
 ```dart
 class DoveziScreen extends StatefulWidget {
   final String eventId;
-  
+
   // UI:
   // - Header cu nume eveniment
   // - 4 categorii (Mâncare, Băutură, Scenotehnică, Altele)
@@ -340,6 +355,7 @@ class DoveziScreen extends StatefulWidget {
 ```
 
 #### Componente helper:
+
 - `lib/widgets/evidence_category_card.dart`
 - `lib/widgets/evidence_thumbnail.dart`
 - `lib/widgets/evidence_upload_progress.dart`
@@ -347,18 +363,21 @@ class DoveziScreen extends StatefulWidget {
 ### 9. Teste
 
 #### `test/models/event_filters_test.dart`
+
 - Test dateRange pentru toate preset-urile
 - Test hasActiveFilters
 - Test activeFilterCount
 - Test copyWith + reset
 
 #### `test/services/event_service_test.dart`
+
 - Mock Firestore + Auth
 - Test getEventsStream cu filtre
 - Test updateRoleAssignment
 - Test updateDriverAssignment
 
 #### Widget tests:
+
 - `test/widgets/event_details_sheet_test.dart`
 - `test/widgets/dovezi_screen_test.dart`
 
@@ -434,6 +453,7 @@ flutter test --coverage
 ## 📚 Documentație Cross-Reference
 
 Pentru detalii complete despre implementarea robustă a upload-ului de dovezi:
+
 - **`EVIDENCE_UPLOAD_REFACTOR.md`** - Documentație completă refactorizare upload
   - EvidenceUploadResult model
   - Flow offline-first fără race conditions
@@ -448,6 +468,7 @@ Pentru detalii complete despre implementarea robustă a upload-ului de dovezi:
 **Feature-ul Evenimente + Dovezi este 100% complet și production-ready.**
 
 **Commits principale:**
+
 - `50bc302f` - feat(evenimente): Add models, services, and tests
 - `2029043e` - feat(dovezi): Add Evidence, LocalCache, and FileStorage services
 - `6b1dbb88` - feat(ui): Add EventDetailsSheet and DoveziScreen

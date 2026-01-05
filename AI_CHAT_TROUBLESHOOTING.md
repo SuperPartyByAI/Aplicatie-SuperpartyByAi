@@ -38,6 +38,7 @@ firebase functions:log --only chatWithAI --limit 10
 ```
 
 **Look for**:
+
 - `[req_xxx] chatWithAI called` - function is being invoked
 - `[req_xxx] GROQ_API_KEY loaded from secrets` - key is accessible
 - `[req_xxx] AI response in XXXms` - successful response
@@ -52,11 +53,13 @@ firebase functions:log --only chatWithAI --limit 10
 **Cause**: User is not authenticated (FirebaseAuth.currentUser == null)
 
 **Fix**:
+
 - User needs to login first
 - AI Chat now blocks unauthenticated calls automatically
 - No function call is made if user is null
 
 **Verification**:
+
 ```dart
 print('User: ${FirebaseAuth.instance.currentUser?.uid}');
 // Should print a uid, not null
@@ -69,6 +72,7 @@ print('User: ${FirebaseAuth.instance.currentUser?.uid}');
 **Cause**: GROQ_API_KEY secret is not set in Firebase
 
 **Fix**:
+
 ```bash
 # Set the secret
 firebase functions:secrets:set GROQ_API_KEY
@@ -79,6 +83,7 @@ firebase deploy --only functions:chatWithAI
 ```
 
 **Verification**:
+
 ```bash
 # Check if secret exists
 firebase functions:secrets:access GROQ_API_KEY
@@ -95,16 +100,19 @@ firebase functions:log --only chatWithAI --limit 5
 **Cause**: Function took longer than 30 seconds to respond
 
 **Possible reasons**:
+
 - Groq API is slow
 - Network issues
 - Cold start (first invocation after idle)
 
 **Fix**:
+
 - Retry the request (usually works on second try)
 - Check Groq API status: https://status.groq.com
 - Check function logs for actual error
 
 **Verification**:
+
 ```bash
 firebase functions:log --only chatWithAI --limit 5
 # Look for timeout errors or slow response times
@@ -117,15 +125,19 @@ firebase functions:log --only chatWithAI --limit 5
 **Cause**: Generic network or unknown error
 
 **Debug steps**:
+
 1. Check Flutter logs:
+
    ```
    flutter logs | grep AIChatScreen
    ```
+
    Look for:
    - `[AIChatScreen] User auth state: uid=xxx`
    - `[AIChatScreen] FirebaseFunctionsException code: xxx`
 
 2. Check function logs:
+
    ```bash
    firebase functions:log --only chatWithAI --limit 10
    ```
@@ -142,11 +154,13 @@ firebase functions:log --only chatWithAI --limit 5
 **Cause**: Rate limit exceeded (too many requests in short time)
 
 **Fix**:
+
 - Wait 30-60 seconds
 - Retry request
 - Check if there's a loop making repeated calls
 
 **Verification**:
+
 ```bash
 firebase functions:log --only chatWithAI --limit 20
 # Look for many rapid requests from same user
@@ -156,15 +170,15 @@ firebase functions:log --only chatWithAI --limit 20
 
 ## Error Code Reference
 
-| Error Code | User Message | Cause | Fix |
-|------------|--------------|-------|-----|
-| `unauthenticated` | "Trebuie să fii logat..." | User not logged in | Login first |
-| `failed-precondition` | "AI nu este configurat..." | GROQ_API_KEY missing | Set secret |
-| `invalid-argument` | "Cerere invalidă..." | Bad request data | Check message format |
-| `deadline-exceeded` | "Timeout..." | Function timeout | Retry |
-| `resource-exhausted` | "Prea multe cereri..." | Rate limit | Wait and retry |
-| `internal` | "Eroare internă..." | Server error | Check logs |
-| `unavailable` | "Serviciul AI..." | Service down | Retry later |
+| Error Code            | User Message               | Cause                | Fix                  |
+| --------------------- | -------------------------- | -------------------- | -------------------- |
+| `unauthenticated`     | "Trebuie să fii logat..."  | User not logged in   | Login first          |
+| `failed-precondition` | "AI nu este configurat..." | GROQ_API_KEY missing | Set secret           |
+| `invalid-argument`    | "Cerere invalidă..."       | Bad request data     | Check message format |
+| `deadline-exceeded`   | "Timeout..."               | Function timeout     | Retry                |
+| `resource-exhausted`  | "Prea multe cereri..."     | Rate limit           | Wait and retry       |
+| `internal`            | "Eroare internă..."        | Server error         | Check logs           |
+| `unavailable`         | "Serviciul AI..."          | Service down         | Retry later          |
 
 ---
 
@@ -234,11 +248,13 @@ Before using AI Chat, verify:
 ### ❌ Using OPENAI_API_KEY instead of GROQ_API_KEY
 
 **Wrong**:
+
 ```bash
 firebase functions:secrets:set OPENAI_API_KEY
 ```
 
 **Correct**:
+
 ```bash
 firebase functions:secrets:set GROQ_API_KEY
 ```
@@ -246,12 +262,14 @@ firebase functions:secrets:set GROQ_API_KEY
 ### ❌ Calling function before user login
 
 **Wrong**:
+
 ```dart
 // No auth check
 final result = await callable.call({...});
 ```
 
 **Correct**:
+
 ```dart
 final user = FirebaseAuth.instance.currentUser;
 if (user == null) {
@@ -264,6 +282,7 @@ final result = await callable.call({...});
 ### ❌ Not handling specific error codes
 
 **Wrong**:
+
 ```dart
 catch (e) {
   print('Error: $e'); // Generic error
@@ -271,6 +290,7 @@ catch (e) {
 ```
 
 **Correct**:
+
 ```dart
 catch (e) {
   if (e is FirebaseFunctionsException) {
@@ -292,13 +312,14 @@ catch (e) {
 If AI Chat still doesn't work after following this guide:
 
 1. **Collect diagnostic info**:
+
    ```bash
    # Flutter logs
    flutter logs | grep AIChatScreen > flutter_logs.txt
-   
+
    # Function logs
    firebase functions:log --only chatWithAI --limit 50 > function_logs.txt
-   
+
    # Deployment status
    firebase functions:list > functions_list.txt
    ```

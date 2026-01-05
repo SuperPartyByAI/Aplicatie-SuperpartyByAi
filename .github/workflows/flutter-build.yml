@@ -52,11 +52,11 @@ jobs:
             - No card backgrounds - clean minimal design
             - Admin mode: red buttons
             - GM mode: yellow buttons with subtle glow
-            
+
             🚀 AI Chat Optimizations:
             - 80-99.9% faster responses
             - Permanent memory cache (AI remembers you)
             - Optimistic UI (instant message display)
             - Request deduplication
-            
+
             Build: ${{ github.run_number }}

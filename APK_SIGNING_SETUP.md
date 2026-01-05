@@ -21,6 +21,7 @@ keytool -genkey -v -keystore superparty-release-key.jks \
 ```
 
 **Detalii:**
+
 - **Fișier:** `superparty-release-key.jks` (NU e în Git pentru securitate)
 - **Alias:** `superparty-key`
 - **Password:** `SuperParty2024!`
@@ -29,10 +30,12 @@ keytool -genkey -v -keystore superparty-release-key.jks \
 ### 2. Configurat Flutter
 
 **Modificat:** `superparty_flutter/android/app/build.gradle`
+
 - Adăugat `signingConfigs.release`
 - Configurat `buildTypes.release` să folosească semnarea
 
 **Creat:** `superparty_flutter/android/key.properties` (în .gitignore)
+
 - Conține path-ul la keystore și passwords
 
 ### 3. GitHub Action pentru Build Automat
@@ -40,6 +43,7 @@ keytool -genkey -v -keystore superparty-release-key.jks \
 **Creat:** `.github/workflows/build-signed-apk.yml`
 
 **Ce face:**
+
 1. Build APK semnat automat la fiecare push pe `main`
 2. Upload APK în Firebase Storage
 3. Face APK-ul public
@@ -126,18 +130,21 @@ După ce APK-ul semnat este în Firebase Storage:
 ## 🔒 Securitate
 
 **IMPORTANT:**
+
 - ❌ **NU** commita `superparty-release-key.jks` în Git
 - ❌ **NU** commita `key.properties` în Git
 - ✅ Păstrează keystore-ul într-un loc sigur (backup)
 - ✅ Păstrează password-ul într-un password manager
 
 **Backup keystore:**
+
 ```bash
 # Copiază keystore-ul într-un loc sigur
 cp superparty-release-key.jks /path/to/secure/backup/
 ```
 
 **Dacă pierzi keystore-ul:**
+
 - ⚠️ Nu vei mai putea semna APK-uri cu același certificat
 - ⚠️ Va trebui să generezi unul nou
 - ⚠️ Utilizatorii vor trebui să dezinstaleze și reinstaleze aplicația
@@ -164,11 +171,13 @@ După ce APK-ul semnat este live, angajații pot descărca fără probleme:
 ### APK-ul tot are warning "virus"
 
 **Cauze posibile:**
+
 1. APK-ul vechi (nesemnat) e încă în cache
 2. GitHub Action nu s-a rulat încă
 3. Secretele nu sunt configurate corect
 
 **Soluție:**
+
 1. Verifică că GitHub Action s-a rulat cu succes
 2. Verifică că APK-ul din Firebase Storage e cel nou (check timestamp)
 3. Șterge cache browser și reîncearcă descărcarea

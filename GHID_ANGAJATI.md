@@ -7,6 +7,7 @@ https://firebasestorage.googleapis.com/v0/b/superparty-frontend.firebasestorage.
 ```
 
 **SAU link scurt (dacă vrei să creezi):**
+
 - bit.ly/superparty-app
 - tinyurl.com/superparty
 
@@ -17,6 +18,7 @@ https://firebasestorage.googleapis.com/v0/b/superparty-frontend.firebasestorage.
 ### Pasul 1: Descarcă APK-ul (1 min)
 
 **Pe telefon:**
+
 1. Deschide link-ul de mai sus în browser (Chrome/Firefox)
 2. Click "Download" sau "Descarcă"
 3. Așteaptă download-ul (48 MB)
@@ -28,17 +30,20 @@ https://firebasestorage.googleapis.com/v0/b/superparty-frontend.firebasestorage.
 ### Pasul 2: Permite instalare din surse necunoscute (1 min)
 
 **Android va afișa:**
+
 ```
-"Pentru securitatea ta, telefonul nu permite instalarea 
+"Pentru securitatea ta, telefonul nu permite instalarea
 de aplicații din surse necunoscute"
 ```
 
 **Soluție:**
+
 1. Click "Setări"
 2. Activează "Permite din această sursă"
 3. Revino la instalare
 
 **SAU manual:**
+
 ```
 Setări → Securitate → Surse necunoscute → Activează
 ```
@@ -57,6 +62,7 @@ Setări → Securitate → Surse necunoscute → Activează
 ### Pasul 4: Înregistrare / Login (2 min)
 
 **Prima dată (Înregistrare):**
+
 ```
 1. Deschide app-ul
 2. Click "Înregistrare"
@@ -69,6 +75,7 @@ Setări → Securitate → Surse necunoscute → Activează
 ```
 
 **Dacă ai deja cont (Login):**
+
 ```
 1. Deschide app-ul
 2. Completează:
@@ -136,6 +143,7 @@ Setări → Securitate → Surse necunoscute → Activează
 ### "Nu pot descărca fișierul"
 
 **Soluție:**
+
 - Verifică conexiunea la internet
 - Încearcă alt browser (Chrome, Firefox)
 - Șterge cache browser
@@ -143,12 +151,14 @@ Setări → Securitate → Surse necunoscute → Activează
 ### "Instalarea e blocată"
 
 **Soluție:**
+
 - Setări → Securitate → Permite surse necunoscute
 - SAU: Setări → Aplicații → Chrome → Permite instalare
 
 ### "App-ul se închide"
 
 **Soluție:**
+
 - Reinstalează app-ul
 - Șterge cache: Setări → Aplicații → SuperParty → Șterge cache
 - Contactează admin
@@ -156,6 +166,7 @@ Setări → Securitate → Surse necunoscute → Activează
 ### "KYC respins"
 
 **Soluție:**
+
 - Verifică că pozele sunt clare
 - Verifică că datele sunt corecte
 - Contactează admin pentru detalii
@@ -165,6 +176,7 @@ Setări → Securitate → Surse necunoscute → Activează
 ## 📞 SUPORT:
 
 **Dacă ai probleme:**
+
 - Contactează admin
 - Email: [email-admin]
 - Telefon: [telefon-admin]
@@ -174,11 +186,13 @@ Setări → Securitate → Surse necunoscute → Activează
 ## 🎯 LINK-URI UTILE:
 
 **Download APK:**
+
 ```
 https://firebasestorage.googleapis.com/v0/b/superparty-frontend.firebasestorage.app/o/apk%2Fapp-release.apk?alt=media
 ```
 
 **Verifică versiune:**
+
 - Setări app → Despre → Versiune: 1.0.0 (1)
 
 ---

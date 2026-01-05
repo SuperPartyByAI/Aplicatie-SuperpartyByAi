@@ -3,6 +3,7 @@
 ## ✅ Verificare Completă
 
 ### 1. EvenimenteScreen folosește EventService + EventFilters
+
 - ✅ Import `EventService` și `EventFilters`
 - ✅ State: `EventFilters _filters = EventFilters()`
 - ✅ Stream: `_eventService.getEventsStream(_filters)`
@@ -14,12 +15,14 @@
 - ✅ Reset filtre: `_filters.reset()`
 
 ### 2. Tap pe eveniment → EventDetailsSheet (modal bottom sheet)
+
 - ✅ `InkWell(onTap: () => _openEventDetails(event.id))`
 - ✅ `showModalBottomSheet()` cu `DraggableScrollableSheet`
 - ✅ `EventDetailsSheet(eventId: eventId)`
 - ✅ NU folosește `AlertDialog` (corect: modal bottom sheet)
 
 ### 3. Asignările pe roluri + șofer funcționează end-to-end
+
 - ✅ EventDetailsSheet afișează 6 roluri: barman, ospătar, DJ, fotograf, animator, bucătar
 - ✅ Buton assign/unassign per rol
 - ✅ `EventService.updateRoleAssignment(eventId, role, userId)`
@@ -28,6 +31,7 @@
 - ✅ Write în Firestore: `alocari.{role}` și `sofer`
 
 ### 4. Vezi Dovezi → DoveziScreen funcțional
+
 - ✅ Buton "Vezi Dovezi" în EventDetailsSheet
 - ✅ Navigare: `Navigator.push(context, MaterialPageRoute(builder: (context) => DoveziScreen(eventId: eventId)))`
 - ✅ 4 categorii: Mâncare, Băutură, Scenotehnică, Altele
@@ -39,6 +43,7 @@
 - ✅ Add disabled când locked
 
 ### 5. Cod fără backup inutil, fără dialoguri mock
+
 - ✅ Șters `evenimente_screen.dart.backup`
 - ✅ Șters toate fișiere `.backup`, `~`, `.bak`
 - ✅ Flow principal folosește `showModalBottomSheet` (nu AlertDialog mock)
@@ -46,27 +51,28 @@
 
 ## 📋 Checklist Final
 
-| Criteriu | Status | Detalii |
-|----------|--------|---------|
-| EvenimenteScreen folosește EventService + EventFilters | ✅ | Stream cu filtre server-side + client-side |
-| Preset-uri dată + custom range | ✅ | all, today, thisWeek, thisMonth + DateRangePicker |
-| Filtre avansate (sortBy, requiresSofer, assignedToMe) | ✅ | Bottom sheet cu toate opțiunile |
-| Badge filtre active + Reset | ✅ | `activeFilterCount` + buton Reset |
-| Tap eveniment → EventDetailsSheet | ✅ | showModalBottomSheet cu DraggableScrollableSheet |
-| Asignări roluri funcționale | ✅ | 6 roluri + assign/unassign + write Firestore |
-| Logică șofer condițional | ✅ | Apare doar dacă `requiresSofer = true` |
-| Vezi Dovezi → DoveziScreen | ✅ | Navigare corectă + flow complet |
-| Offline-first dovezi | ✅ | SQLite cache + sync automat + manual retry |
-| Lock categorie funcțional | ✅ | Disable add/delete după "Marchează OK" |
-| Edge case fix: firstWhere | ✅ | Construim URL direct, evităm race condition |
-| Cleanup backup-uri | ✅ | Toate fișierele .backup șterse |
-| Cod curat, fără mock | ✅ | Flow real end-to-end |
+| Criteriu                                               | Status | Detalii                                           |
+| ------------------------------------------------------ | ------ | ------------------------------------------------- |
+| EvenimenteScreen folosește EventService + EventFilters | ✅     | Stream cu filtre server-side + client-side        |
+| Preset-uri dată + custom range                         | ✅     | all, today, thisWeek, thisMonth + DateRangePicker |
+| Filtre avansate (sortBy, requiresSofer, assignedToMe)  | ✅     | Bottom sheet cu toate opțiunile                   |
+| Badge filtre active + Reset                            | ✅     | `activeFilterCount` + buton Reset                 |
+| Tap eveniment → EventDetailsSheet                      | ✅     | showModalBottomSheet cu DraggableScrollableSheet  |
+| Asignări roluri funcționale                            | ✅     | 6 roluri + assign/unassign + write Firestore      |
+| Logică șofer condițional                               | ✅     | Apare doar dacă `requiresSofer = true`            |
+| Vezi Dovezi → DoveziScreen                             | ✅     | Navigare corectă + flow complet                   |
+| Offline-first dovezi                                   | ✅     | SQLite cache + sync automat + manual retry        |
+| Lock categorie funcțional                              | ✅     | Disable add/delete după "Marchează OK"            |
+| Edge case fix: firstWhere                              | ✅     | Construim URL direct, evităm race condition       |
+| Cleanup backup-uri                                     | ✅     | Toate fișierele .backup șterse                    |
+| Cod curat, fără mock                                   | ✅     | Flow real end-to-end                              |
 
 **TOTAL: 13/13 ✅**
 
 ## 🎯 Flow End-to-End Verificat
 
 ### Scenariul 1: Listare + Filtrare
+
 1. User deschide EvenimenteScreen
 2. Vede listă evenimente din Firestore (stream)
 3. Apasă chip "Astăzi" → filtrare pe data curentă
@@ -78,6 +84,7 @@
 9. Apasă "Reset" → toate filtrele se resetează
 
 ### Scenariul 2: Detalii + Alocări
+
 1. User tap pe un eveniment din listă
 2. Se deschide EventDetailsSheet (modal bottom sheet)
 3. Vede info eveniment (locație, tip, dată)
@@ -90,6 +97,7 @@
 10. Write în Firestore: `sofer.userId = currentUser.uid`
 
 ### Scenariul 3: Dovezi Offline-First
+
 1. User apasă "Vezi Dovezi" din EventDetailsSheet
 2. Se deschide DoveziScreen
 3. Expand categoria "Mâncare"
@@ -103,6 +111,7 @@
 11. X-urile de delete devin disabled
 
 ### Scenariul 4: Offline Mode
+
 1. User dezactivează WiFi + mobile data
 2. Adaugă 2 poze în categoria "Băutură"
 3. Pozele apar cu status 🟠 (pending)
@@ -115,6 +124,7 @@
 **Toate acceptance criteria sunt îndeplinite.**
 
 Flow-ul end-to-end funcționează corect:
+
 - Listare cu filtre avansate
 - Detalii cu alocări funcționale
 - Dovezi offline-first cu lock

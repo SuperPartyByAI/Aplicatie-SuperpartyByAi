@@ -7,17 +7,21 @@ AI-ul își amintește **PERMANENT** toate conversațiile cu utilizatorul prin c
 ## 📊 Două Tipuri de Memorie
 
 ### 1. ChatCacheService (SQLite) - Istoric Complet
+
 **Capacitate**: 100,000 mesaje
 **Durată**: Permanent (până la 100K, apoi șterge cele mai vechi)
-**Folosit pentru**: 
+**Folosit pentru**:
+
 - Istoric conversații complet
 - Reîncărcare la restart
 - Search în istoric
 
 ### 2. AICacheService (SharedPreferences) - Memorie Rapidă
+
 **Capacitate**: 1,000 întrebări unice
 **Durată**: **PERMANENT** (nu expiră niciodată!)
 **Folosit pentru**:
+
 - Răspunsuri instant pentru întrebări repetate
 - AI își amintește ce a răspuns înainte
 - Personalizare conversație
@@ -84,11 +88,12 @@ După cleanup (800 entries):
 ### lastAccessed Timestamp
 
 Fiecare cache entry are:
+
 ```json
 {
   "response": "Te cheamă Ion",
-  "timestamp": "2026-01-03T10:00:00Z",  // Când a fost cached
-  "lastAccessed": "2026-01-03T10:30:00Z"  // Ultima folosire
+  "timestamp": "2026-01-03T10:00:00Z", // Când a fost cached
+  "lastAccessed": "2026-01-03T10:30:00Z" // Ultima folosire
 }
 ```
 
@@ -106,6 +111,7 @@ getCachedResponse("cum ma cheama")
 ## 🎨 Beneficii
 
 ### 1. Personalizare Permanentă
+
 ```
 User: "Îmi place pizza"
 AI: "Notez că îți place pizza!"
@@ -117,6 +123,7 @@ AI: "Îți place pizza!" (din cache)
 ```
 
 ### 2. Conversații Naturale
+
 ```
 User: "Cum mă cheamă?"
 AI: "Te cheamă Ion"
@@ -129,6 +136,7 @@ AI: "Locuiești în București" (din cache)
 ```
 
 ### 3. Învățare Continuă
+
 ```
 Săptămâna 1: 50 întrebări cached
 Săptămâna 2: 150 întrebări cached
@@ -184,6 +192,7 @@ Comparație:
 ## 🚀 Performance Impact
 
 ### Fără Cache Permanent:
+
 ```
 User: "Cum mă cheamă?" (întreabă a 10-a oară)
 → API call la Groq
@@ -192,6 +201,7 @@ User: "Cum mă cheamă?" (întreabă a 10-a oară)
 ```
 
 ### Cu Cache Permanent:
+
 ```
 User: "Cum mă cheamă?" (întreabă a 10-a oară)
 → Check cache (5ms)
@@ -219,6 +229,7 @@ Cu cache permanent:
 ## 🎯 Best Practices
 
 ### 1. Întrebări Importante
+
 ```dart
 // Salvează informații personale
 User: "Mă cheamă Ion, am 25 ani, locuiesc în București"
@@ -227,6 +238,7 @@ AI: "Notez: Ion, 25 ani, București"
 ```
 
 ### 2. Conversații Frecvente
+
 ```dart
 // Întrebări zilnice
 "ce faci?" → cached după prima dată
@@ -236,6 +248,7 @@ AI: "Notez: Ion, 25 ani, București"
 ```
 
 ### 3. Context Persistent
+
 ```dart
 // AI își amintește contextul
 User: "Am un proiect important"
@@ -273,15 +286,15 @@ AI: "Te referi la site-ul web?" (din cache)
 
 ## 📝 Summary
 
-| Feature | Value |
-|---------|-------|
-| **Cache Duration** | PERMANENT (nu expiră) |
-| **Max Entries** | 1,000 întrebări unice |
-| **Cleanup Strategy** | LRU (șterge cele mai vechi 20%) |
-| **Memory Usage** | ~300KB (max) |
-| **Performance** | 99.9% mai rapid pentru cache hits |
-| **Cost Savings** | 50% reducere API calls |
-| **Privacy** | User poate șterge oricând |
+| Feature              | Value                             |
+| -------------------- | --------------------------------- |
+| **Cache Duration**   | PERMANENT (nu expiră)             |
+| **Max Entries**      | 1,000 întrebări unice             |
+| **Cleanup Strategy** | LRU (șterge cele mai vechi 20%)   |
+| **Memory Usage**     | ~300KB (max)                      |
+| **Performance**      | 99.9% mai rapid pentru cache hits |
+| **Cost Savings**     | 50% reducere API calls            |
+| **Privacy**          | User poate șterge oricând         |
 
 ---
 

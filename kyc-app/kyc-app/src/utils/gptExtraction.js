@@ -23,7 +23,6 @@ export async function extractIdData(apiKey, idFrontFile, idBackFile) {
  * Extrage date folosind OpenAI GPT-4o-mini
  */
 async function extractWithOpenAI(openaiApiKey, idFrontBase64, idBackBase64) {
-
   const prompt = `Analizează aceste imagini ale unui buletin de identitate românesc (CI).
 
 IMPORTANT: Răspunde DOAR cu un obiect JSON valid, fără text suplimentar, fără markdown, fără \`\`\`json.
@@ -85,7 +84,6 @@ Exemplu format răspuns:
  * Parsează răspunsul de la API (comun pentru Groq și OpenAI)
  */
 async function parseResponse(response) {
-
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(

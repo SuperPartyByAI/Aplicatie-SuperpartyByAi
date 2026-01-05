@@ -31,12 +31,14 @@ Sistemul de **Force Update** este complet implementat și testat. User-ul NU poa
 ### B) Flutter: Servicii + Modele ✅
 
 #### 1. `lib/models/app_version_config.dart`
+
 - Model cu parsing strict și null-safe
 - Validare câmpuri obligatorii (`min_version`, `min_build_number`)
 - Throws `FormatException` dacă datele sunt invalide
 - Metode: `fromFirestore()`, `toFirestore()`
 
 #### 2. `lib/services/force_update_checker_service.dart`
+
 - Citește config din Firestore `app_config/version`
 - Compară build local cu `min_build_number`
 - Metode:
@@ -47,12 +49,14 @@ Sistemul de **Force Update** este complet implementat și testat. User-ul NU poa
   - `getReleaseNotes()`: String - ce e nou
 
 #### 3. `lib/services/apk_downloader_service.dart` (REFACTORED)
+
 - **Stream-to-file**: scrie direct în fișier, NU încarcă în RAM
 - Previne OOM pe APK-uri mari (>50MB)
 - Progress callback: `onProgress(double progress)`
 - Salvează în `getExternalStorageDirectory()` (app-specific, fără storage permission)
 
 #### 4. `lib/services/apk_installer_bridge.dart` (NOU)
+
 - Bridge Flutter <-> Android native code
 - MethodChannel: `com.superpartybyai.superparty_app/apk_installer`
 - Metode:
@@ -65,6 +69,7 @@ Sistemul de **Force Update** este complet implementat și testat. User-ul NU poa
 **File**: `lib/widgets/force_update_dialog.dart`
 
 **Features**:
+
 - ✅ **Non-dismissible**: `WillPopScope(onWillPop: false)` + `barrierDismissible: false`
 - ✅ **Progress bar**: 0-100% în timpul download-ului
 - ✅ **State management**: idle → downloading → installing → error → permissionRequired
@@ -72,6 +77,7 @@ Sistemul de **Force Update** este complet implementat și testat. User-ul NU poa
 - ✅ **Retry logic**: buton "Încearcă Din Nou" la eroare
 
 **States**:
+
 1. **idle**: buton "Actualizează Acum"
 2. **downloading**: progress bar + "Descărcare: X%"
 3. **installing**: spinner + "Deschidere installer..."
@@ -81,6 +87,7 @@ Sistemul de **Force Update** este complet implementat și testat. User-ul NU poa
 ### D) ApkDownloaderService Refactor ✅
 
 **Înainte** (OOM risk):
+
 ```dart
 final bytes = <int>[];
 await for (final chunk in request.stream) {
@@ -90,6 +97,7 @@ await file.writeAsBytes(bytes);
 ```
 
 **După** (stream-to-file):
+
 ```dart
 final sink = file.openWrite();
 await for (final chunk in request.stream) {
@@ -147,6 +155,7 @@ fun openUnknownSourcesSettings() {
 #### 2. `AndroidManifest.xml`
 
 **Permissions** (deja existente):
+
 ```xml
 <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
@@ -154,6 +163,7 @@ fun openUnknownSourcesSettings() {
 ```
 
 **FileProvider** (deja configurat):
+
 ```xml
 <provider
     android:name="androidx.core.content.FileProvider"
@@ -210,21 +220,22 @@ class ApkInstallerBridge {
 
 ### G) Acceptance Criteria ✅
 
-| # | Criteriu | Status |
-|---|----------|--------|
-| 1 | Cu `min_build_number` > build local, app afișează ForceUpdateDialog înainte de login | ✅ |
-| 2 | Dialog-ul este non-dismissible (back button + tap outside disabled) | ✅ |
-| 3 | Download APK pornește și afișează progress 0-100% | ✅ |
-| 4 | După download, installerul Android pornește din aplicație | ✅ |
-| 5 | Dacă "install unknown apps" e off, dialogul ghidează către Settings | ✅ |
-| 6 | Nu există URL-uri hardcodate; totul vine din Firestore | ✅ |
-| 7 | Download nu ține APK-ul în RAM (stream-to-file) | ✅ |
+| #   | Criteriu                                                                             | Status |
+| --- | ------------------------------------------------------------------------------------ | ------ |
+| 1   | Cu `min_build_number` > build local, app afișează ForceUpdateDialog înainte de login | ✅     |
+| 2   | Dialog-ul este non-dismissible (back button + tap outside disabled)                  | ✅     |
+| 3   | Download APK pornește și afișează progress 0-100%                                    | ✅     |
+| 4   | După download, installerul Android pornește din aplicație                            | ✅     |
+| 5   | Dacă "install unknown apps" e off, dialogul ghidează către Settings                  | ✅     |
+| 6   | Nu există URL-uri hardcodate; totul vine din Firestore                               | ✅     |
+| 7   | Download nu ține APK-ul în RAM (stream-to-file)                                      | ✅     |
 
 ### H) Teste + Docs ✅
 
 #### Unit Tests
 
 **1. `test/models/app_version_config_test.dart`**
+
 - ✅ Parsing valid data
 - ✅ Default values pentru câmpuri opționale
 - ✅ FormatException când lipsesc câmpuri obligatorii
@@ -232,6 +243,7 @@ class ApkInstallerBridge {
 - ✅ toFirestore() conversion
 
 **2. `test/services/force_update_checker_service_test.dart`**
+
 - ✅ getVersionConfig() când documentul nu există
 - ✅ getVersionConfig() când documentul există
 - ✅ needsForceUpdate() când force_update e disabled
@@ -243,6 +255,7 @@ class ApkInstallerBridge {
 #### Documentation
 
 **1. `superparty_flutter/FORCE_UPDATE_SETUP.md`** (450+ lines)
+
 - Overview și features
 - Flow complet
 - Firestore schema
@@ -255,6 +268,7 @@ class ApkInstallerBridge {
 - Production workflow
 
 **2. `superparty_flutter/APP_VERSION_SCHEMA.md`** (300+ lines)
+
 - Schema completă cu tipuri de date
 - Validare și exemple
 - Logica de comparare (BUILD_NUMBER)
@@ -276,12 +290,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
     // 1. PRIORITATE: Force update (obligatoriu, blochează app-ul)
     final forceUpdateChecker = ForceUpdateCheckerService();
     final needsForceUpdate = await forceUpdateChecker.needsForceUpdate();
-    
+
     if (needsForceUpdate) {
       await ForceUpdateDialog.show(context);
       return; // Blochează aici până la update
     }
-    
+
     // 2. Update-uri opționale (sistemul vechi AutoUpdateService)
     final updateAction = await AutoUpdateService.checkAndApplyUpdate();
     // ...
@@ -290,6 +304,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 ```
 
 **Ordinea verificărilor**:
+
 1. **Force Update** (nou) - blochează app-ul complet
 2. **Auto Update** (existent) - logout + download optional
 
@@ -345,10 +360,12 @@ flutter build apk --release
 ### Test 1: Force Update (build vechi)
 
 **Setup:**
+
 1. Instalează APK cu build 1
 2. Setează în Firestore: `min_build_number: 2, force_update: true`
 
 **Expected:**
+
 1. ✅ App afișează "Verificare actualizări..."
 2. ✅ Apare dialog "Actualizare Obligatorie" (non-dismissible)
 3. ✅ Back button NU închide dialog-ul
@@ -360,10 +377,12 @@ flutter build apk --release
 ### Test 2: No Update (build curent)
 
 **Setup:**
+
 1. Instalează APK cu build 2
 2. Setează în Firestore: `min_build_number: 2`
 
 **Expected:**
+
 1. ✅ App afișează "Verificare actualizări..."
 2. ✅ NU apare dialog de update
 3. ✅ Merge direct la login/home
@@ -371,12 +390,14 @@ flutter build apk --release
 ### Test 3: Permission Required
 
 **Setup:**
+
 1. Instalează APK cu build 1
 2. Setează în Firestore: `min_build_number: 2, force_update: true`
 3. Dezactivează "Install unknown apps":
    - Settings → Apps → SuperParty → Advanced → Install unknown apps → OFF
 
 **Expected:**
+
 1. ✅ Dialog apare și download pornește
 2. ✅ După download → mesaj "Permisiune necesară"
 3. ✅ Butonul se schimbă în "Deschide Setări"
@@ -387,9 +408,11 @@ flutter build apk --release
 ### Test 4: Download Error
 
 **Setup:**
+
 1. Setează în Firestore un URL invalid: `android_download_url: "https://invalid.url"`
 
 **Expected:**
+
 1. ✅ Dialog apare
 2. ✅ Apasă "Actualizează Acum" → progress bar pornește
 3. ✅ După câteva secunde → mesaj de eroare roșu
@@ -401,6 +424,7 @@ flutter build apk --release
 ## 📊 Files Modified/Created
 
 ### Created (9 files):
+
 - `lib/models/app_version_config.dart`
 - `lib/services/force_update_checker_service.dart`
 - `lib/services/apk_installer_bridge.dart`
@@ -410,6 +434,7 @@ flutter build apk --release
 - `superparty_flutter/APP_VERSION_SCHEMA.md`
 
 ### Modified (5 files):
+
 - `lib/main.dart` (AuthWrapper integration)
 - `lib/services/apk_downloader_service.dart` (stream-to-file refactor)
 - `lib/widgets/force_update_dialog.dart` (complete rewrite)
@@ -417,6 +442,7 @@ flutter build apk --release
 - `pubspec.yaml` (added fake_cloud_firestore)
 
 ### Deleted (1 file):
+
 - `lib/services/update_checker_service.dart` (replaced by force_update_checker_service.dart)
 
 **Total**: +1669 lines, -439 lines
@@ -449,6 +475,7 @@ flutter build apk --release
 Sistemul este **complet funcțional** și **production-ready**. Toate acceptance criteria sunt îndeplinite, testele trec, și documentația este completă.
 
 **Next Steps**:
+
 1. Configurează Firestore `app_config/version`
 2. Upload APK în Firebase Storage
 3. Testează manual pe un device

@@ -3,6 +3,7 @@
 ## 📊 Overview
 
 Sistemul de evenimente permite:
+
 - ✅ Vizualizare evenimente (petreceri)
 - ✅ Alocare staff pe evenimente
 - ✅ Tracking "cine notează" (cine face bagajul)
@@ -21,12 +22,12 @@ Sistemul de evenimente permite:
   // Identificare
   id: "auto_generated_doc_id",
   nume: "Petrecere Revelion 2026",
-  
+
   // Dată și locație
   data: "2026-12-31",           // Format: YYYY-MM-DD
   dataStart: "2026-12-31",      // Alias pentru data
   locatie: "Hotel Continental, București",
-  
+
   // Staff
   rol: "ospatar",               // ospatar | barman | bucatar | manager
   nrStaffNecesar: 10,           // Câți oameni sunt necesari
@@ -35,14 +36,14 @@ Sistemul de evenimente permite:
     "uid_user_2",
     "uid_user_3"
   ],
-  
+
   // Financiar
   durataOre: 8,                 // Durata evenimentului
   bugetStaff: 5000,             // RON - buget total pentru staff
-  
+
   // Tracking
   cineNoteaza: "A1",            // Codul staff-ului care notează (face bagajul)
-  
+
   // Metadata
   createdAt: Timestamp,
   createdBy: "uid_admin",
@@ -68,10 +69,12 @@ Sistemul de evenimente permite:
 ```
 
 **Format coduri valide:**
+
 - **Trainer**: `Atrainer`, `Btrainer`, `Ctrainer`, etc.
 - **Member**: `A1` - `A50`, `B1` - `B50`, etc.
 
 **Regex validare:**
+
 ```javascript
 const trainerPattern = /^[A-Z]TRAINER$/;
 const memberPattern = /^[A-Z]([1-9]|[1-4][0-9]|50)$/;
@@ -85,15 +88,15 @@ const memberPattern = /^[A-Z]([1-9]|[1-4][0-9]|50)$/;
 {
   userId: "firebase_auth_uid",
   userEmail: "ion@example.com",
-  
+
   dataStart: "2026-12-20",
   dataEnd: "2026-12-31",
   oraStart: "08:00",
   oraEnd: "22:00",
-  
+
   tipDisponibilitate: "disponibil",  // disponibil | indisponibil | preferinta
   notita: "Prefer evenimente în București",
-  
+
   createdAt: Timestamp
 }
 ```
@@ -129,6 +132,7 @@ match /disponibilitati/{dispId} {
 ### 🔍 Filtre Disponibile
 
 #### 1. Search (Text)
+
 ```javascript
 const [search, setSearch] = useState('');
 
@@ -139,6 +143,7 @@ if (search && !ev.nume?.toLowerCase().includes(search.toLowerCase())) {
 ```
 
 #### 2. Interval Dată
+
 ```javascript
 const [dataStart, setDataStart] = useState('');
 const [dataEnd, setDataEnd] = useState('');
@@ -150,6 +155,7 @@ if (dataEnd && dataEv > dataEnd) return false;
 ```
 
 #### 3. Locație
+
 ```javascript
 const [locatie, setLocatie] = useState('');
 
@@ -160,6 +166,7 @@ if (locatie && !ev.locatie?.toLowerCase().includes(locatie.toLowerCase())) {
 ```
 
 #### 4. Rol
+
 ```javascript
 const [rol, setRol] = useState('');
 
@@ -170,6 +177,7 @@ if (rol && ev.rol !== rol) {
 ```
 
 #### 5. Ce Cod Ai (Vezi evenimente unde ești alocat)
+
 ```javascript
 const [codCeCodAi, setCodCeCodAi] = useState('');
 const [validareCeCodAi, setValidareCeCodAi] = useState('');
@@ -180,11 +188,11 @@ const validateCeCodAi = async cod => {
     setValidareCeCodAi('✗ Format invalid');
     return;
   }
-  
+
   const staffSnapshot = await getDocs(
     query(collection(db, 'staffProfiles'), where('code', '==', cod.trim()))
   );
-  
+
   if (!staffSnapshot.empty) {
     setValidareCeCodAi('✓ Cod acceptat');
   } else {
@@ -204,6 +212,7 @@ if (codCeCodAi.trim() && validareCeCodAi === '✓ Cod acceptat') {
 ```
 
 #### 6. Cine Notează (Vezi evenimente unde tu notezi)
+
 ```javascript
 const [codCineNoteaza, setCodCineNoteaza] = useState('');
 const [validareCineNoteaza, setValidareCineNoteaza] = useState('');
@@ -233,13 +242,13 @@ const esteComplet = staffAlocat.length >= nrStaffNecesar;
 // Badge-uri
 if (esteComplet) {
   // ✓ Complet (verde)
-  <span className="badge badge-disponibil">✓ Complet</span>
+  <span className="badge badge-disponibil">✓ Complet</span>;
 } else if (esteAlocat) {
   // ⚠ Parțial (galben)
-  <span className="badge badge-warning">⚠ Parțial</span>
+  <span className="badge badge-warning">⚠ Parțial</span>;
 } else {
   // ✗ Nealocat (roșu)
-  <span className="badge badge-indisponibil">✗ Nealocat</span>
+  <span className="badge badge-indisponibil">✗ Nealocat</span>;
 }
 ```
 
@@ -248,6 +257,7 @@ if (esteComplet) {
 ### ⚡ Optimizări Performance
 
 #### 1. Parallel Fetch
+
 ```javascript
 // ÎNAINTE: 2 queries secvențiale (lent)
 const evenimenteSnap = await getDocs(collection(db, 'evenimente'));
@@ -261,6 +271,7 @@ const [evenimenteSnap, staffSnap] = await Promise.all([
 ```
 
 #### 2. Pre-build Staff Map (O(1) lookup)
+
 ```javascript
 // ÎNAINTE: N+1 queries (foarte lent)
 for (const ev of evenimente) {
@@ -285,6 +296,7 @@ for (const ev of evenimente) {
 ```
 
 #### 3. Real-time Updates
+
 ```javascript
 // onSnapshot pentru actualizări live (fără refresh manual)
 const unsubscribe = onSnapshot(collection(db, 'evenimente'), snapshot => {
@@ -322,14 +334,14 @@ for (const staffId of staffList) {
       totalSuma: 0,
     };
   }
-  
+
   salarizariMap[staffId].evenimente.push({
     numeEveniment: ev.nume,
     data: ev.data,
     ore: ev.durataOre || 0,
     suma: tarifPerPersoana,
   });
-  
+
   salarizariMap[staffId].totalOre += ev.durataOre || 0;
   salarizariMap[staffId].totalSuma += tarifPerPersoana;
 }
@@ -354,7 +366,7 @@ for (let i = 0; i < staffIds.length; i += batchSize) {
   const staffSnapshot = await getDocs(
     query(collection(db, 'staffProfiles'), where('uid', 'in', batch))
   );
-  
+
   staffSnapshot.docs.forEach(doc => {
     staffProfiles[doc.data().uid] = doc.data();
   });
@@ -364,6 +376,7 @@ for (let i = 0; i < staffIds.length; i += batchSize) {
 ```
 
 **Reducere queries:**
+
 - Înainte: N queries (1 per staff)
 - După: ceil(N/10) queries (batch de 10)
 - **Economie: ~90% mai puține queries!**
@@ -377,7 +390,7 @@ for (let i = 0; i < staffIds.length; i += batchSize) {
 ```javascript
 const handleAddDisponibilitate = async e => {
   e.preventDefault();
-  
+
   await addDoc(collection(db, 'disponibilitati'), {
     userId: currentUser.uid,
     userEmail: currentUser.email,
@@ -389,7 +402,7 @@ const handleAddDisponibilitate = async e => {
     notita,
     createdAt: serverTimestamp(),
   });
-  
+
   alert('Disponibilitate adăugată!');
   loadDisponibilitati();
 };
@@ -400,7 +413,7 @@ const handleAddDisponibilitate = async e => {
 ```javascript
 const handleDelete = async id => {
   if (!confirm('Ștergi această disponibilitate?')) return;
-  
+
   await deleteDoc(doc(db, 'disponibilitati', id));
   alert('Disponibilitate ștearsă!');
   loadDisponibilitati();
@@ -469,14 +482,15 @@ User → SalarizareScreen → Selectează perioadă
 **Lipsește:** Form de creare evenimente în frontend
 
 **Soluție:**
+
 ```javascript
 // Adaugă în EvenimenteScreen.jsx
-const handleCreateEvent = async (eventData) => {
+const handleCreateEvent = async eventData => {
   await addDoc(collection(db, 'evenimente'), {
     ...eventData,
     staffAlocat: [],
     createdAt: serverTimestamp(),
-    createdBy: currentUser.uid
+    createdBy: currentUser.uid,
   });
 };
 ```
@@ -486,12 +500,13 @@ const handleCreateEvent = async (eventData) => {
 **Lipsește:** Interface pentru admin să aloce staff
 
 **Soluție:**
+
 ```javascript
 // Modal cu listă staff + checkbox
 const handleAllocateStaff = async (eventId, selectedStaffIds) => {
   await updateDoc(doc(db, 'evenimente', eventId), {
     staffAlocat: selectedStaffIds,
-    updatedAt: serverTimestamp()
+    updatedAt: serverTimestamp(),
   });
 };
 ```
@@ -501,6 +516,7 @@ const handleAllocateStaff = async (eventId, selectedStaffIds) => {
 **Lipsește:** Notificări când ești alocat pe eveniment
 
 **Soluție:**
+
 - Firebase Cloud Messaging (FCM)
 - Email notifications
 - WhatsApp notifications
@@ -510,13 +526,14 @@ const handleAllocateStaff = async (eventId, selectedStaffIds) => {
 **Lipsește:** Staff să confirme/refuze participarea
 
 **Soluție:**
+
 ```javascript
 {
   staffAlocat: [
-    { uid: "uid1", status: "confirmed" },
-    { uid: "uid2", status: "pending" },
-    { uid: "uid3", status: "declined" }
-  ]
+    { uid: 'uid1', status: 'confirmed' },
+    { uid: 'uid2', status: 'pending' },
+    { uid: 'uid3', status: 'declined' },
+  ];
 }
 ```
 
@@ -525,12 +542,13 @@ const handleAllocateStaff = async (eventId, selectedStaffIds) => {
 **Lipsește:** Tracking prezență la eveniment
 
 **Soluție:**
+
 ```javascript
 {
   attendance: [
-    { uid: "uid1", checkIn: Timestamp, checkOut: Timestamp },
-    { uid: "uid2", checkIn: Timestamp, checkOut: null }
-  ]
+    { uid: 'uid1', checkIn: Timestamp, checkOut: Timestamp },
+    { uid: 'uid2', checkIn: Timestamp, checkOut: null },
+  ];
 }
 ```
 
@@ -539,12 +557,13 @@ const handleAllocateStaff = async (eventId, selectedStaffIds) => {
 **Lipsește:** Evaluare staff după eveniment
 
 **Soluție:**
+
 ```javascript
 {
   ratings: [
-    { uid: "uid1", rating: 5, feedback: "Excelent!" },
-    { uid: "uid2", rating: 4, feedback: "Bun" }
-  ]
+    { uid: 'uid1', rating: 5, feedback: 'Excelent!' },
+    { uid: 'uid2', rating: 4, feedback: 'Bun' },
+  ];
 }
 ```
 
@@ -593,10 +612,7 @@ if (staffSnapshot.empty) {
 
 ```javascript
 // Opțiunea A: Query direct (dacă staffAlocat e indexat)
-const q = query(
-  collection(db, 'evenimente'),
-  where('staffAlocat', 'array-contains', userId)
-);
+const q = query(collection(db, 'evenimente'), where('staffAlocat', 'array-contains', userId));
 
 // Opțiunea B: Fetch all + filter (folosit acum)
 const allEvents = await getDocs(collection(db, 'evenimente'));
@@ -653,10 +669,10 @@ await batch.commit();
 await runTransaction(db, async transaction => {
   const eventRef = doc(db, 'evenimente', eventId);
   const eventDoc = await transaction.get(eventRef);
-  
+
   const staffCount = eventDoc.data().staffAlocat.length;
   const tarifPerPersoana = eventDoc.data().bugetStaff / staffCount;
-  
+
   // Update event cu tarif calculat
   transaction.update(eventRef, { tarifPerPersoana });
 });
@@ -687,16 +703,19 @@ await runTransaction(db, async transaction => {
 ### Queries per Page Load
 
 **Înainte optimizări:**
+
 - Evenimente: 1 query
 - Staff profiles: N queries (1 per staff)
 - **Total: 1 + N queries**
 
 **După optimizări:**
+
 - Evenimente: 1 query
 - Staff profiles: ceil(N/10) batch queries
 - **Total: 1 + ceil(N/10) queries**
 
 **Exemplu:** 50 staff
+
 - Înainte: 51 queries
 - După: 6 queries
 - **Economie: 88%!**
@@ -730,6 +749,7 @@ firebase deploy --only hosting
 ## 📝 Summary
 
 **Ce Funcționează:**
+
 - ✅ Vizualizare evenimente
 - ✅ Filtrare avansată (6 filtre)
 - ✅ Validare cod staff
@@ -738,6 +758,7 @@ firebase deploy --only hosting
 - ✅ Optimizări performance (90% mai puține queries)
 
 **Ce Lipsește:**
+
 - ❌ Creare evenimente din UI
 - ❌ Alocare staff din UI
 - ❌ Notificări
@@ -746,6 +767,7 @@ firebase deploy --only hosting
 - ❌ Rating & Feedback
 
 **Next Steps:**
+
 1. Adaugă form de creare evenimente
 2. Implementează alocare staff din UI
 3. Adaugă notificări FCM

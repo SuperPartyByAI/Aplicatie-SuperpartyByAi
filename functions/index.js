@@ -19,7 +19,7 @@ let groqClient = null;
 // Get or create Groq client (connection pooling)
 function getGroqClient(apiKey) {
   if (!groqClient || groqClient._apiKey !== apiKey) {
-    groqClient = new Groq({ 
+    groqClient = new Groq({
       apiKey,
       maxRetries: 2,
       timeout: 25000, // 25s timeout
@@ -321,14 +321,17 @@ exports.chatWithAI = onCall(
         groqKey = groqApiKey.value();
         console.log(`[${requestId}] GROQ_API_KEY loaded from secrets`);
       } catch (e) {
-        console.warn(`[${requestId}] Failed to load GROQ_API_KEY from secrets, trying env:`, e.message);
+        console.warn(
+          `[${requestId}] Failed to load GROQ_API_KEY from secrets, trying env:`,
+          e.message
+        );
         groqKey = process.env.GROQ_API_KEY;
       }
 
       if (!groqKey) {
         console.error(`[${requestId}] GROQ_API_KEY not configured - neither in secrets nor env`);
         throw new functions.https.HttpsError(
-          'failed-precondition', 
+          'failed-precondition',
           'GROQ_API_KEY not configured. Please set the secret: firebase functions:secrets:set GROQ_API_KEY'
         );
       }
@@ -342,11 +345,11 @@ exports.chatWithAI = onCall(
 
       const userMessage = data.messages[data.messages.length - 1];
       const currentSessionId = data.sessionId || `session_${Date.now()}`;
-      
+
       // OPTIMIZATION: Check cache for common questions
       const cacheKey = `ai:response:${userMessage.content.toLowerCase().trim().substring(0, 100)}`;
       const cachedResponse = cache.get(cacheKey);
-      
+
       if (cachedResponse) {
         console.log(`[${requestId}] Cache hit - returning in ${Date.now() - startTime}ms`);
         return {
@@ -356,13 +359,13 @@ exports.chatWithAI = onCall(
           cached: true,
         };
       }
-      
+
       // Use pooled Groq client (faster connection reuse)
       const groq = getGroqClient(groqKey);
 
       // Use only last 5 messages from request (smaller payload, faster)
       const recentMessages = data.messages.slice(-5);
-      
+
       // Add system message for context (only if not present)
       if (recentMessages.length > 0 && recentMessages[0].role !== 'system') {
         recentMessages.unshift({
@@ -465,7 +468,7 @@ Hai să facem fiecare conversație o mini-petrecere! 🎉🎊🥳✨💫🌟`,
 
       const aiResponse = completion.choices[0]?.message?.content || 'No response';
       const duration = Date.now() - startTime;
-      
+
       console.log(`[${requestId}] AI response in ${duration}ms`);
 
       // OPTIMIZATION: Cache response for common questions (2 minutes)
@@ -480,33 +483,42 @@ Hai să facem fiecare conversație o mini-petrecere! 🎉🎊🥳✨💫🌟`,
         !['ok', 'da', 'nu', 'haha', 'lol'].includes(userMessage.content.toLowerCase());
 
       // Fire and forget - don't await
-      admin.firestore().collection('aiChats').doc(userId).collection('messages').add({
-        sessionId: currentSessionId,
-        userMessage: userMessage.content,
-        aiResponse: aiResponse,
-        timestamp: timestamp,
-        userEmail: userEmail,
-        important: isImportant,
-      }).catch(err => console.error(`[${requestId}] Firestore save error:`, err));
+      admin
+        .firestore()
+        .collection('aiChats')
+        .doc(userId)
+        .collection('messages')
+        .add({
+          sessionId: currentSessionId,
+          userMessage: userMessage.content,
+          aiResponse: aiResponse,
+          timestamp: timestamp,
+          userEmail: userEmail,
+          important: isImportant,
+        })
+        .catch(err => console.error(`[${requestId}] Firestore save error:`, err));
 
       // Update stats asynchronously
       const userStatsRef = admin.firestore().collection('aiChats').doc(userId);
-      userStatsRef.get().then(userStats => {
-        if (!userStats.exists) {
-          return userStatsRef.set({
-            userId,
-            email: userEmail,
-            totalMessages: 1,
-            firstUsed: timestamp,
-            lastUsed: timestamp,
-          });
-        } else {
-          return userStatsRef.update({
-            totalMessages: (userStats.data().totalMessages || 0) + 1,
-            lastUsed: timestamp,
-          });
-        }
-      }).catch(err => console.error(`[${requestId}] Stats update error:`, err));
+      userStatsRef
+        .get()
+        .then(userStats => {
+          if (!userStats.exists) {
+            return userStatsRef.set({
+              userId,
+              email: userEmail,
+              totalMessages: 1,
+              firstUsed: timestamp,
+              lastUsed: timestamp,
+            });
+          } else {
+            return userStatsRef.update({
+              totalMessages: (userStats.data().totalMessages || 0) + 1,
+              lastUsed: timestamp,
+            });
+          }
+        })
+        .catch(err => console.error(`[${requestId}] Stats update error:`, err));
 
       // Return immediately after AI response
       return {

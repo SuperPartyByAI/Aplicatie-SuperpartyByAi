@@ -1441,7 +1441,9 @@ async function saveMessageToFirestore(phoneNumber, role, content, metadata = {})
   try {
     const isImportant =
       content.length > 20 &&
-      !['ok', 'da', 'nu', 'bine', 'multumesc', 'haha', 'lol'].includes(content.toLowerCase().trim());
+      !['ok', 'da', 'nu', 'bine', 'multumesc', 'haha', 'lol'].includes(
+        content.toLowerCase().trim()
+      );
 
     await db
       .collection('whatsappChats')

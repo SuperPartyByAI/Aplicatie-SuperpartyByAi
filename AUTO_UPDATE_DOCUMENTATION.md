@@ -3,6 +3,7 @@
 ## 📋 Overview
 
 Sistem de auto-update pentru Flutter app care:
+
 - ✅ Verifică actualizări **fără să ceară login**
 - ✅ Dacă sunt actualizări → **deconectează userul automat**
 - ✅ La următoarea deschidere → **afișează dialog de download**
@@ -118,7 +119,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   Future<void> _checkForUpdates() async {
     final updateAction = await AutoUpdateService.checkAndApplyUpdate();
-    
+
     if (updateAction == 'logout') {
       // Versiune nouă → deconectează
       await UpdateDialog.show(context, forceUpdate: true);
@@ -137,6 +138,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 ## 🗄️ STRUCTURA FIRESTORE
 
 ### Collection: `app_config`
+
 ### Document: `version`
 
 ```javascript
@@ -144,17 +146,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
   // Versiune minimă acceptată
   "min_version": "1.0.1",           // String: "major.minor.patch"
   "min_build_number": 2,            // Int: build number minim
-  
+
   // Forțează update-ul
   "force_update": true,             // Bool: dacă e obligatoriu
-  
+
   // Mesaj personalizat
   "update_message": "Versiune nouă cu bug fixes și îmbunătățiri!",
-  
+
   // URL-uri de download
   "android_download_url": "https://play.google.com/store/apps/details?id=com.superparty.app",
   "ios_download_url": "https://apps.apple.com/app/superparty/id123456789",
-  
+
   // Metadata
   "updated_at": Timestamp
 }
@@ -169,8 +171,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
 ```yaml
 # pubspec.yaml
 dependencies:
-  package_info_plus: ^5.0.1  # Pentru versiune app
-  url_launcher: ^6.2.4       # Pentru deschidere URL download
+  package_info_plus: ^5.0.1 # Pentru versiune app
+  url_launcher: ^6.2.4 # Pentru deschidere URL download
   shared_preferences: ^2.2.2 # Pentru flag pending_update
 ```
 
@@ -220,6 +222,7 @@ flutter build ios --build-number=2 --build-name=1.0.1
 ### Pas 4: Upload pe Store / Server
 
 **Android (Play Store):**
+
 ```
 1. Upload APK/AAB pe Play Console
 2. Publish versiunea nouă
@@ -227,12 +230,14 @@ flutter build ios --build-number=2 --build-name=1.0.1
 ```
 
 **Android (Direct APK):**
+
 ```
 1. Upload APK pe server (ex: Firebase Storage, AWS S3)
 2. URL: https://example.com/superparty-v1.0.1.apk
 ```
 
 **iOS (App Store):**
+
 ```
 1. Upload pe App Store Connect
 2. Submit for review
@@ -246,6 +251,7 @@ flutter build ios --build-number=2 --build-name=1.0.1
 ### Test 1: Versiune Veche (Forțează Update)
 
 **Setup:**
+
 ```dart
 // Firestore: app_config/version
 {
@@ -255,6 +261,7 @@ flutter build ios --build-number=2 --build-name=1.0.1
 ```
 
 **Pași:**
+
 ```
 1. Deschide app (cu build number < 999)
 2. Verifică: Apare dialog "Actualizare disponibilă"
@@ -264,6 +271,7 @@ flutter build ios --build-number=2 --build-name=1.0.1
 ```
 
 **Rezultat așteptat:**
+
 - ✅ Dialog apare automat
 - ✅ User e deconectat
 - ✅ Flag `pending_update = true` salvat
@@ -271,12 +279,14 @@ flutter build ios --build-number=2 --build-name=1.0.1
 ### Test 2: Update Pending (La Următoarea Deschidere)
 
 **Setup:**
+
 ```dart
 // SharedPreferences
 pending_update = true
 ```
 
 **Pași:**
+
 ```
 1. Închide app
 2. Deschide app din nou
@@ -286,6 +296,7 @@ pending_update = true
 ```
 
 **Rezultat așteptat:**
+
 - ✅ Dialog apare automat
 - ✅ URL de download se deschide (Play Store / Browser)
 - ✅ Flag `pending_update` e șters
@@ -293,6 +304,7 @@ pending_update = true
 ### Test 3: Versiune Actualizată (Nu Forțează Update)
 
 **Setup:**
+
 ```dart
 // Firestore: app_config/version
 {
@@ -302,6 +314,7 @@ pending_update = true
 ```
 
 **Pași:**
+
 ```
 1. Deschide app (cu build number >= 1)
 2. Verifică: NU apare dialog
@@ -309,6 +322,7 @@ pending_update = true
 ```
 
 **Rezultat așteptat:**
+
 - ✅ NU apare dialog
 - ✅ User rămâne logat
 - ✅ App funcționează normal
@@ -372,6 +386,7 @@ print('Version config: ${doc.data()}');
 ```
 
 **Comportament:**
+
 - Dialog are buton "Mai Târziu"
 - User poate continua cu versiunea veche
 - NU deconectează userul
@@ -387,6 +402,7 @@ print('Version config: ${doc.data()}');
 ```
 
 **Logica:**
+
 ```dart
 if (Platform.isAndroid) {
   url = data['android_download_url'];
@@ -404,6 +420,7 @@ if (Platform.isAndroid) {
 **Cauză:** Configurația lipsește din Firestore
 
 **Soluție:**
+
 ```dart
 // Verifică în Firebase Console
 Firestore → app_config → version → Există?
@@ -421,6 +438,7 @@ await AutoUpdateService.initializeVersionConfig(
 **Cauză:** `forceLogout()` nu e apelat
 
 **Soluție:**
+
 ```dart
 // Verifică în main.dart
 if (updateAction == 'logout') {
@@ -433,6 +451,7 @@ if (updateAction == 'logout') {
 **Cauză:** `clearPendingUpdate()` nu e apelat
 
 **Soluție:**
+
 ```dart
 // După ce userul vede dialog-ul
 await AutoUpdateService.clearPendingUpdate();
@@ -447,6 +466,7 @@ await prefs.remove('pending_update');
 **Cauză:** `url_launcher` nu e configurat corect
 
 **Soluție Android:**
+
 ```xml
 <!-- android/app/src/main/AndroidManifest.xml -->
 <queries>
@@ -458,6 +478,7 @@ await prefs.remove('pending_update');
 ```
 
 **Soluție iOS:**
+
 ```xml
 <!-- ios/Runner/Info.plist -->
 <key>LSApplicationQueriesSchemes</key>
@@ -650,7 +671,7 @@ await FirebaseAnalytics.instance.logEvent(
 ✅ **Configurare flexibilă** (forțat / opțional)  
 ✅ **Mesaje personalizate** per release  
 ✅ **URL-uri diferite** per platformă  
-✅ **Logs complete** pentru debugging  
+✅ **Logs complete** pentru debugging
 
 **Status:** ✅ Sistem funcțional, testat, gata de producție
 

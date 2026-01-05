@@ -1,6 +1,7 @@
 # LIVE (shared state)
 
 <!-- BEGIN CHATGPT -->
+
 ## CHATGPT (curent)
 
 - Title: CMD_TEST
@@ -9,9 +10,11 @@
 ## CMD TEST
 
 CMD_SAVE_TEST_28441_31823
+
 <!-- END CHATGPT -->
 
 <!-- BEGIN ONA -->
+
 ## ONA (curent)
 
 - Title: Ona
@@ -24,4 +27,5 @@ LIVE Sync (ona)
 ok
 Inject LIVE
 Force Save
+
 <!-- END ONA -->
