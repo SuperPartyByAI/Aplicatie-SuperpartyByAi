@@ -432,7 +432,7 @@ class EvidenceService {
   }
 
   /// Upload evidence cu path (pentru ImagePicker)
-  Future<EvidenceUploadResult> uploadEvidence({
+  Future<EvidenceUploadResult> uploadEvidenceFromPath({
     required String eventId,
     required EvidenceCategory category,
     required String filePath,
