@@ -9,22 +9,31 @@
    firebase deploy --only functions:chatWithAI,functions:aiManager
    ```
 
-2. **Configure OpenAI API key:**
+2. **Configure GROQ API key:**
 
-   **Option A: Via .env file (recommended):**
+   **IMPORTANT**: This project uses **GROQ (Llama)**, not OpenAI.
+
+   **Option A: Via Firebase Secrets (recommended for production):**
 
    ```bash
    cd functions
-   echo "OPENAI_API_KEY=sk-your-key-here" > .env
+   firebase functions:secrets:set GROQ_API_KEY
+   # Paste your Groq API key when prompted
+   firebase deploy --only functions:chatWithAI
+   ```
+
+   **Option B: Via .env file (local development only):**
+
+   ```bash
+   cd functions
+   echo "GROQ_API_KEY=gsk_your-key-here" > .env
    firebase deploy --only functions
    ```
 
-   **Option B: Via Firebase Console:**
-   - Deploy functions first: `firebase deploy --only functions`
-   - Go to Firebase Console → Functions → chatWithAI
-   - Click "Edit" → "Runtime, build, connections and security settings"
-   - Add environment variable: `OPENAI_API_KEY=sk-your-key-here`
-   - Save and redeploy
+   **Get Groq API Key:**
+   - Go to https://console.groq.com/keys
+   - Create new API key
+   - Copy the key (starts with `gsk_`)
 
 ## Test 1: Request AI Success
 

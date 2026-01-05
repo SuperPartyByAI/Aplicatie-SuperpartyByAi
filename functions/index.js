@@ -319,12 +319,18 @@ exports.chatWithAI = onCall(
       let groqKey = null;
       try {
         groqKey = groqApiKey.value();
+        console.log(`[${requestId}] GROQ_API_KEY loaded from secrets`);
       } catch (e) {
+        console.warn(`[${requestId}] Failed to load GROQ_API_KEY from secrets, trying env:`, e.message);
         groqKey = process.env.GROQ_API_KEY;
       }
 
       if (!groqKey) {
-        throw new functions.https.HttpsError('failed-precondition', 'GROQ_API_KEY not configured');
+        console.error(`[${requestId}] GROQ_API_KEY not configured - neither in secrets nor env`);
+        throw new functions.https.HttpsError(
+          'failed-precondition', 
+          'GROQ_API_KEY not configured. Please set the secret: firebase functions:secrets:set GROQ_API_KEY'
+        );
       }
 
       groqKey = groqKey.trim().replace(/[\r\n\t]/g, '');

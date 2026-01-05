@@ -68,7 +68,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
     if (_lastSentMessage == text && _lastSentTime != null) {
       final timeSinceLastSent = DateTime.now().difference(_lastSentTime!);
       if (timeSinceLastSent.inSeconds < 2) {
-        print('Duplicate message blocked');
+        print('[AIChatScreen] Duplicate message blocked');
         return;
       }
     }
@@ -77,7 +77,23 @@ class _AIChatScreenState extends State<AIChatScreen> {
     _lastSentTime = DateTime.now();
 
     final user = FirebaseAuth.instance.currentUser;
-    final isAdmin = user?.email == 'ursache.andrei1995@gmail.com';
+    
+    // DIAGNOSTIC: Log user auth state
+    print('[AIChatScreen] User auth state: uid=${user?.uid}, email=${user?.email}');
+    
+    // AUTH CHECK: Block if user is not authenticated
+    if (user == null) {
+      print('[AIChatScreen] User not authenticated - blocking AI call');
+      setState(() {
+        _messages.add({
+          'role': 'assistant',
+          'content': '⚠️ Trebuie să fii logat pentru a folosi AI Chat.\n\nTe rog loghează-te mai întâi și apoi revino aici. 🔐'
+        });
+      });
+      return;
+    }
+    
+    final isAdmin = user.email == 'ursache.andrei1995@gmail.com';
     final appState = Provider.of<AppStateProvider>(context, listen: false);
 
     // Secret commands for admin
@@ -135,6 +151,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
     });
 
     try {
+      // DIAGNOSTIC: Log function call details
+      print('[AIChatScreen] Calling chatWithAI function in region: us-central1');
+      
       // Call Firebase Function with timeout
       final callable = FirebaseFunctions.instance.httpsCallable(
         'chatWithAI',
@@ -151,10 +170,14 @@ class _AIChatScreenState extends State<AIChatScreen> {
           .reversed
           .toList();
       
+      print('[AIChatScreen] Sending ${messagesToSend.length} messages to function');
+      
       final result = await callable.call({
         'messages': messagesToSend,
         'sessionId': _sessionId,
       });
+      
+      print('[AIChatScreen] Function call successful');
 
       final aiResponse = result.data['message'] ?? 'No response';
       
@@ -189,15 +212,56 @@ class _AIChatScreenState extends State<AIChatScreen> {
       ).catchError((e) => print('Cache save error: $e'));
       
     } catch (e) {
+      // DIAGNOSTIC: Log full error details
+      print('[AIChatScreen] Error caught: ${e.runtimeType}');
+      print('[AIChatScreen] Error details: $e');
+      
+      String errorMessage = 'Eroare necunoscută';
+      
+      // Proper error mapping for FirebaseFunctionsException
+      if (e is FirebaseFunctionsException) {
+        print('[AIChatScreen] FirebaseFunctionsException code: ${e.code}');
+        print('[AIChatScreen] FirebaseFunctionsException message: ${e.message}');
+        print('[AIChatScreen] FirebaseFunctionsException details: ${e.details}');
+        
+        errorMessage = _mapFirebaseError(e);
+      } else if (e.toString().contains('timeout')) {
+        errorMessage = 'Timeout - încearcă din nou';
+      } else {
+        errorMessage = 'Conexiune eșuată: ${e.toString()}';
+      }
+      
       // Replace placeholder with error
       setState(() {
         _messages[placeholderIndex] = {
           'role': 'assistant', 
-          'content': 'Eroare: ${e.toString().contains('timeout') ? 'Timeout - încearcă din nou' : 'Conexiune eșuată'}'
+          'content': 'Eroare: $errorMessage'
         };
       });
     } finally {
       setState(() => _loading = false);
+    }
+  }
+  
+  /// Map Firebase Functions errors to user-friendly messages
+  String _mapFirebaseError(FirebaseFunctionsException e) {
+    switch (e.code) {
+      case 'unauthenticated':
+        return 'Trebuie să fii logat ca să folosești AI. Te rog loghează-te mai întâi.';
+      case 'failed-precondition':
+        return 'AI nu este configurat pe server (cheie API lipsă). Contactează administratorul.';
+      case 'invalid-argument':
+        return 'Cerere invalidă. Încearcă din nou sau contactează suportul.';
+      case 'deadline-exceeded':
+        return 'Timeout. Serverul nu a răspuns la timp. Încearcă din nou.';
+      case 'resource-exhausted':
+        return 'Prea multe cereri. Te rog așteaptă câteva secunde și încearcă din nou.';
+      case 'internal':
+        return 'Eroare internă pe server. Încearcă din nou mai târziu.';
+      case 'unavailable':
+        return 'Serviciul AI este temporar indisponibil. Încearcă din nou.';
+      default:
+        return 'Eroare: ${e.message ?? e.code}';
     }
   }
 
