@@ -29,6 +29,47 @@ function getGroqClient(apiKey) {
   return groqClient;
 }
 
+let __groqModelCache = { model: null, ts: 0 };
+
+// Alege automat un model valid din Groq /models.
+// Override opțional: setează env var GROQ_MODEL în funcție.
+async function resolveGroqModel(groqKey, requestId, opts = {}) {
+  const forced = (process.env.GROQ_MODEL || '').trim();
+  if (forced) return forced;
+
+  const now = Date.now();
+  const ttlMs = 10 * 60 * 1000;
+  if (!opts.forceRefresh && __groqModelCache.model && now - __groqModelCache.ts < ttlMs) {
+    return __groqModelCache.model;
+  }
+
+  const res = await globalThis.fetch('https://api.groq.com/openai/v1/models', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${groqKey}` },
+  });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(`[${requestId}] Groq /models failed ${res.status}: ${JSON.stringify(json)}`);
+  }
+
+  const ids = (json.data || []).map(m => m && m.id).filter(Boolean);
+  const exclude = new Set(opts.exclude || []);
+  const pickFirst = pred => ids.find(id => !exclude.has(id) && pred(id));
+
+  const preferred =
+    pickFirst(id => /llama/i.test(id) && /70b/i.test(id)) ||
+    pickFirst(id => /llama/i.test(id)) ||
+    pickFirst(id => /mixtral/i.test(id)) ||
+    ids.find(id => !exclude.has(id));
+
+  if (!preferred) throw new Error(`[${requestId}] No Groq models available.`);
+
+  __groqModelCache = { model: preferred, ts: now };
+  console.log(`[${requestId}] Groq model resolved`, { model: preferred });
+  return preferred;
+}
+
 // Set global options for v2 functions
 setGlobalOptions({
   region: 'us-central1',
@@ -457,8 +498,10 @@ Hai să facem fiecare conversație o mini-petrecere! 🎉🎊🥳✨💫🌟`,
         });
       }
 
+      const model = await resolveGroqModel(groqKey, requestId);
+
       const completion = await groq.chat.completions.create({
-        model: 'llama-3.1-70b-versatile',
+        model,
         messages: recentMessages,
         max_tokens: 200, // Further reduced for faster response
         temperature: 0.7,
