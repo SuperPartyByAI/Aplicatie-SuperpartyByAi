@@ -1,0 +1,42 @@
+name: Flutter Analyze
+
+on:
+  pull_request:
+    paths:
+      - 'superparty_flutter/**'
+  push:
+    branches: [main, 'feature/**']
+    paths:
+      - 'superparty_flutter/**'
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        working-directory: ./superparty_flutter
+        run: flutter pub get
+
+      - name: Run Flutter Analyze
+        working-directory: ./superparty_flutter
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Check for errors
+        working-directory: ./superparty_flutter
+        run: |
+          if flutter analyze 2>&1 | grep -q "error •"; then
+            echo "❌ Flutter analyze found errors"
+            exit 1
+          else
+            echo "✅ Flutter analyze passed (0 errors)"
+          fi
