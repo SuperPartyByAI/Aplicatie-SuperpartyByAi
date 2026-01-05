@@ -28,9 +28,13 @@ jobs:
         working-directory: ./superparty_flutter
         run: flutter pub get
 
+      - name: Clean build
+        working-directory: ./superparty_flutter
+        run: flutter clean
+
       - name: Build APK
         working-directory: ./superparty_flutter
-        run: flutter build apk --release
+        run: flutter build apk --release --verbose
 
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
