@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/update_checker_service.dart';
+import '../../widgets/force_update_dialog.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,6 +19,39 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isRegister = false;
   bool _loading = false;
   String _error = '';
+  bool _checkingUpdate = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkForUpdates();
+  }
+
+  Future<void> _checkForUpdates() async {
+    try {
+      final updateChecker = UpdateCheckerService();
+      final isRequired = await updateChecker.isUpdateRequired();
+      
+      if (isRequired) {
+        final versionInfo = await updateChecker.checkForUpdate();
+        if (versionInfo != null && mounted) {
+          // Show non-dismissible update dialog
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => ForceUpdateDialog(versionInfo: versionInfo),
+          );
+          return; // Don't allow login
+        }
+      }
+    } catch (e) {
+      // Fail silently - don't block login if update check fails
+    } finally {
+      if (mounted) {
+        setState(() => _checkingUpdate = false);
+      }
+    }
+  }
 
   Future<void> _handleSubmit() async {
     setState(() {
@@ -101,6 +136,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Show loading while checking for updates
+    if (_checkingUpdate) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Color(0xFF20C997)),
+              SizedBox(height: 16),
+              Text('Verificare actualizări...'),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: SafeArea(
         child: Center(
