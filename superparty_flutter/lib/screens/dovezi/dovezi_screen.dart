@@ -20,34 +20,6 @@ class _DoveziScreenState extends State<DoveziScreen> {
   @override
   void initState() {
     super.initState();
-    _loadMockData();
-  }
-
-  void _loadMockData() {
-    final states = MockEvenimente.evidenceStates[widget.eventId];
-    if (states != null) {
-      for (var cat in EvidenceCategory.values) {
-        final state = states[cat];
-        if (state != null) {
-          _categoryStatus[cat] = state.status;
-          _categoryLocked[cat] = state.locked;
-        } else {
-          _categoryStatus[cat] = EvidenceStatus.na;
-          _categoryLocked[cat] = false;
-        }
-      }
-    } else {
-      for (var cat in EvidenceCategory.values) {
-        _categoryStatus[cat] = EvidenceStatus.na;
-        _categoryLocked[cat] = false;
-      }
-    }
-
-    final mockEvidence = MockEvenimente.dovezi[widget.eventId] ?? [];
-    for (var evidence in mockEvidence) {
-      _mockThumbs.putIfAbsent(evidence.category, () => []);
-      _mockThumbs[evidence.category]!.add(evidence.fileName);
-    }
   }
 
   @override
@@ -107,16 +79,49 @@ class _DoveziScreenState extends State<DoveziScreen> {
   }
 
   Widget _buildCategoriesList() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: EvidenceCategory.values.map((cat) => _buildCategoryBlock(cat)).toList(),
+    return StreamBuilder<Map<EvidenceCategory, EvidenceStateModel>>(
+      stream: _evidenceService.getCategoryStatesStream(widget.eventId),
+      builder: (context, statesSnapshot) {
+        if (statesSnapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: Color(0xFF4ECDC4)),
+          );
+        }
+
+        final states = statesSnapshot.data ?? {};
+
+        return StreamBuilder<List<EvidenceModel>>(
+          stream: _evidenceService.getEvidenceStream(eventId: widget.eventId),
+          builder: (context, evidenceSnapshot) {
+            if (evidenceSnapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(color: Color(0xFF4ECDC4)),
+              );
+            }
+
+            final allEvidence = evidenceSnapshot.data ?? [];
+
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: EvidenceCategory.values.map((cat) {
+                final state = states[cat];
+                final categoryEvidence = allEvidence.where((e) => e.category == cat).toList();
+                return _buildCategoryBlock(cat, state, categoryEvidence);
+              }).toList(),
+            );
+          },
+        );
+      },
     );
   }
 
-  Widget _buildCategoryBlock(EvidenceCategory category) {
-    final status = _categoryStatus[category] ?? EvidenceStatus.na;
-    final locked = _categoryLocked[category] ?? false;
-    final thumbs = _mockThumbs[category] ?? [];
+  Widget _buildCategoryBlock(
+    EvidenceCategory category,
+    EvidenceStateModel? state,
+    List<EvidenceModel> evidence,
+  ) {
+    final status = state?.status ?? EvidenceStatus.na;
+    final locked = state?.locked ?? false;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -148,7 +153,7 @@ class _DoveziScreenState extends State<DoveziScreen> {
           Row(
             children: [
               ElevatedButton(
-                onPressed: locked ? null : () => _addMockPhoto(category),
+                onPressed: locked ? null : () => _uploadPhotos(category),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: locked ? const Color(0x08FFFFFF) : const Color(0x14FFFFFF),
                   foregroundColor: const Color(0xFFEAF1FF),
@@ -160,7 +165,7 @@ class _DoveziScreenState extends State<DoveziScreen> {
               ),
               const SizedBox(width: 12),
               Text(
-                '${thumbs.length} salvate',
+                '${evidence.length} salvate',
                 style: const TextStyle(
                   fontSize: 14,
                   color: Color(0xB3EAF1FF),
@@ -168,18 +173,18 @@ class _DoveziScreenState extends State<DoveziScreen> {
               ),
             ],
           ),
-          if (thumbs.isNotEmpty) ...[
+          if (evidence.isNotEmpty) ...[
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: thumbs.map((thumb) => _buildThumb(category, thumb, locked)).toList(),
+              children: evidence.map((e) => _buildThumb(e, locked)).toList(),
             ),
           ],
-          if (!locked && thumbs.isNotEmpty) ...[
+          if (!locked && evidence.isNotEmpty) ...[
             const SizedBox(height: 12),
             ElevatedButton(
-              onPressed: () => _reverifyCategory(category),
+              onPressed: () => _reverifyCategory(category, evidence.length),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0x284ECDC4),
                 foregroundColor: const Color(0xFFEAF1FF),
@@ -233,7 +238,7 @@ class _DoveziScreenState extends State<DoveziScreen> {
     );
   }
 
-  Widget _buildThumb(EvidenceCategory category, String fileName, bool locked) {
+  Widget _buildThumb(EvidenceModel evidence, bool locked) {
     return Stack(
       children: [
         Container(
@@ -243,30 +248,25 @@ class _DoveziScreenState extends State<DoveziScreen> {
             color: const Color(0x14FFFFFF),
             border: Border.all(color: const Color(0x1FFFFFFF)),
             borderRadius: BorderRadius.circular(8),
+            image: evidence.downloadUrl.isNotEmpty
+                ? DecorationImage(
+                    image: NetworkImage(evidence.downloadUrl),
+                    fit: BoxFit.cover,
+                  )
+                : null,
           ),
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.image, color: Color(0x4DEAF1FF), size: 32),
-                const SizedBox(height: 4),
-                Text(
-                  fileName.split('_').first,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: Color(0x8CEAF1FF),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          child: evidence.downloadUrl.isEmpty
+              ? const Center(
+                  child: Icon(Icons.image, color: Color(0x4DEAF1FF), size: 32),
+                )
+              : null,
         ),
         if (!locked)
           Positioned(
             top: 4,
             right: 4,
             child: InkWell(
-              onTap: () => _removeMockPhoto(category, fileName),
+              onTap: () => _archiveEvidence(evidence),
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: const BoxDecoration(
@@ -281,46 +281,105 @@ class _DoveziScreenState extends State<DoveziScreen> {
     );
   }
 
-  void _addMockPhoto(EvidenceCategory category) {
-    setState(() {
-      _mockThumbs.putIfAbsent(category, () => []);
-      final count = _mockThumbs[category]!.length + 1;
-      _mockThumbs[category]!.add('${category.value}_$count.jpg');
-      
-      if (_categoryStatus[category] == EvidenceStatus.na) {
-        _categoryStatus[category] = EvidenceStatus.verifying;
+  Future<void> _uploadPhotos(EvidenceCategory category) async {
+    try {
+      final images = await _picker.pickMultiImage();
+      if (images.isEmpty) return;
+
+      for (var image in images) {
+        await _evidenceService.uploadEvidence(
+          eventId: widget.eventId,
+          category: category,
+          filePath: image.path,
+        );
       }
-    });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${images.length} poze încărcate'),
+            backgroundColor: const Color(0xFF10B981),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Eroare: $e'),
+            backgroundColor: const Color(0xFFFF7878),
+          ),
+        );
+      }
+    }
   }
 
-  void _removeMockPhoto(EvidenceCategory category, String fileName) {
-    setState(() {
-      _mockThumbs[category]?.remove(fileName);
-      
-      if (_mockThumbs[category]?.isEmpty ?? true) {
-        _categoryStatus[category] = EvidenceStatus.na;
+  Future<void> _archiveEvidence(EvidenceModel evidence) async {
+    try {
+      await _evidenceService.archiveEvidence(
+        eventId: widget.eventId,
+        evidenceId: evidence.id,
+        category: evidence.category,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Dovadă arhivată'),
+            backgroundColor: Color(0xFF4ECDC4),
+          ),
+        );
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Eroare: $e'),
+            backgroundColor: const Color(0xFFFF7878),
+          ),
+        );
+      }
+    }
   }
 
-  void _reverifyCategory(EvidenceCategory category) {
-    setState(() {
-      final thumbs = _mockThumbs[category] ?? [];
-      if (thumbs.isEmpty) {
-        _categoryStatus[category] = EvidenceStatus.na;
-      } else if (thumbs.length >= 1) {
-        _categoryStatus[category] = EvidenceStatus.ok;
-        _categoryLocked[category] = true;
+  Future<void> _reverifyCategory(EvidenceCategory category, int evidenceCount) async {
+    try {
+      EvidenceStatus newStatus;
+      bool shouldLock = false;
+
+      if (evidenceCount == 0) {
+        newStatus = EvidenceStatus.na;
+      } else if (evidenceCount >= 1) {
+        newStatus = EvidenceStatus.ok;
+        shouldLock = true;
       } else {
-        _categoryStatus[category] = EvidenceStatus.needed;
+        newStatus = EvidenceStatus.needed;
       }
-    });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Categorie ${category.label}: ${_categoryStatus[category]?.label}'),
-        backgroundColor: const Color(0xFF4ECDC4),
-      ),
-    );
+      await _evidenceService.updateCategoryStatus(
+        eventId: widget.eventId,
+        category: category,
+        status: newStatus,
+        locked: shouldLock,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Categorie ${category.label}: ${newStatus.label}'),
+            backgroundColor: const Color(0xFF4ECDC4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Eroare: $e'),
+            backgroundColor: const Color(0xFFFF7878),
+          ),
+        );
+      }
+    }
   }
 }

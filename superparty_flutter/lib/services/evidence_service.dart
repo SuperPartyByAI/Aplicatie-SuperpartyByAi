@@ -427,4 +427,59 @@ class EvidenceService {
         return 'image/jpeg';
     }
   }
+
+  /// Upload evidence cu path (pentru ImagePicker)
+  Future<EvidenceUploadResult> uploadEvidence({
+    required String eventId,
+    required EvidenceCategory category,
+    required String filePath,
+  }) async {
+    final file = File(filePath);
+    return uploadEvidenceFile(
+      eventId: eventId,
+      categorie: category,
+      imageFile: file,
+    );
+  }
+
+  /// Stream pentru category states
+  Stream<Map<EvidenceCategory, EvidenceStateModel>> getCategoryStatesStream(String eventId) {
+    return _firestore
+        .collection('evenimente')
+        .doc(eventId)
+        .collection('evidenceState')
+        .snapshots()
+        .map((snapshot) {
+      final map = <EvidenceCategory, EvidenceStateModel>{};
+      for (var doc in snapshot.docs) {
+        final state = EvidenceStateModel.fromFirestore(doc);
+        map[state.category] = state;
+      }
+      return map;
+    });
+  }
+
+  /// Update category status
+  Future<void> updateCategoryStatus({
+    required String eventId,
+    required EvidenceCategory category,
+    required EvidenceStatus status,
+    required bool locked,
+  }) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) throw Exception('Utilizator neautentificat');
+
+    await _firestore
+        .collection('evenimente')
+        .doc(eventId)
+        .collection('evidenceState')
+        .doc(category.value)
+        .set({
+      'category': category.value,
+      'status': status.value,
+      'locked': locked,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': currentUser.uid,
+    }, SetOptions(merge: true));
+  }
 }
