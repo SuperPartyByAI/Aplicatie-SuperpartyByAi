@@ -23,6 +23,8 @@ class EventService {
 
     // Aplicăm filtre pe dată (server-side)
     final (startDate, endDate) = filters.dateRange;
+    final hasDateRange = startDate != null || endDate != null;
+    
     if (startDate != null) {
       query = query.where('data', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
     }
@@ -30,20 +32,27 @@ class EventService {
       query = query.where('data', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
     }
 
-    // Sortare (server-side)
-    switch (filters.sortBy) {
-      case SortBy.data:
-        query = query.orderBy('data',
-            descending: filters.sortDirection == SortDirection.desc);
-        break;
-      case SortBy.nume:
-        query = query.orderBy('nume',
-            descending: filters.sortDirection == SortDirection.desc);
-        break;
-      case SortBy.locatie:
-        query = query.orderBy('locatie',
-            descending: filters.sortDirection == SortDirection.desc);
-        break;
+    // Sortare: când există range pe data, Firestore cere orderBy('data') primul
+    // Sortarea pe nume/locatie se face client-side
+    if (hasDateRange || filters.sortBy == SortBy.data) {
+      // Când avem range sau sortare pe data, folosim orderBy('data')
+      query = query.orderBy('data',
+          descending: filters.sortDirection == SortDirection.desc);
+    } else {
+      // Fără range, putem sorta direct pe nume/locatie
+      switch (filters.sortBy) {
+        case SortBy.nume:
+          query = query.orderBy('nume',
+              descending: filters.sortDirection == SortDirection.desc);
+          break;
+        case SortBy.locatie:
+          query = query.orderBy('locatie',
+              descending: filters.sortDirection == SortDirection.desc);
+          break;
+        case SortBy.data:
+          // Already handled above
+          break;
+      }
     }
 
     return query.snapshots().map((snapshot) {
@@ -52,8 +61,40 @@ class EventService {
           .toList();
 
       // Aplicăm filtre client-side (pentru cele care nu pot fi făcute server-side)
-      return _applyClientSideFilters(events, filters);
+      events = _applyClientSideFilters(events, filters);
+      
+      // Sortare client-side pentru nume/locatie când avem dateRange
+      if (hasDateRange && filters.sortBy != SortBy.data) {
+        events = _sortClientSide(events, filters);
+      }
+      
+      return events;
     });
+  }
+
+  /// Sortare client-side (când nu poate fi făcută server-side)
+  List<EventModel> _sortClientSide(List<EventModel> events, EventFilters filters) {
+    final descending = filters.sortDirection == SortDirection.desc;
+    
+    switch (filters.sortBy) {
+      case SortBy.nume:
+        events.sort((a, b) {
+          final comparison = a.nume.compareTo(b.nume);
+          return descending ? -comparison : comparison;
+        });
+        break;
+      case SortBy.locatie:
+        events.sort((a, b) {
+          final comparison = a.locatie.compareTo(b.locatie);
+          return descending ? -comparison : comparison;
+        });
+        break;
+      case SortBy.data:
+        // Already sorted server-side
+        break;
+    }
+    
+    return events;
   }
 
   /// Aplică filtre client-side

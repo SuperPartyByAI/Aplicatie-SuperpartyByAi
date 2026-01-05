@@ -51,6 +51,10 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "isArchived",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "data",
           "order": "ASCENDING"
         }
@@ -61,6 +65,10 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "isArchived",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "data",
           "order": "DESCENDING"
         }
@@ -70,6 +78,10 @@
       "collectionGroup": "evenimente",
       "queryScope": "COLLECTION",
       "fields": [
+        {
+          "fieldPath": "isArchived",
+          "order": "ASCENDING"
+        },
         {
           "fieldPath": "data",
           "order": "ASCENDING"
@@ -85,6 +97,10 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "isArchived",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "data",
           "order": "ASCENDING"
         },
@@ -98,6 +114,10 @@
       "collectionGroup": "evenimente",
       "queryScope": "COLLECTION",
       "fields": [
+        {
+          "fieldPath": "isArchived",
+          "order": "ASCENDING"
+        },
         {
           "fieldPath": "data",
           "order": "DESCENDING"
@@ -113,11 +133,93 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "isArchived",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "data",
           "order": "DESCENDING"
         },
         {
           "fieldPath": "locatie",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "evenimente",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isArchived",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "archivedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "dovezi",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "isArchived",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "uploadedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "dovezi",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "isArchived",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "categorie",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "uploadedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "dovezi",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "isArchived",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "archivedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "dovezi",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "isArchived",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "categorie",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "archivedAt",
           "order": "DESCENDING"
         }
       ]

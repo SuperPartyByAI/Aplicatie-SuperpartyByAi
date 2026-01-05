@@ -100,7 +100,7 @@ class EvidenceService {
     }
   }
 
-  /// Fetch dovezi pentru un eveniment (opțional filtrate pe categorie)
+  /// Fetch dovezi active pentru un eveniment (exclude arhivate)
   Stream<List<EvidenceModel>> getEvidenceStream({
     required String eventId,
     EvidenceCategory? categorie,
@@ -109,6 +109,9 @@ class EvidenceService {
         .collection('evenimente')
         .doc(eventId)
         .collection('dovezi');
+
+    // Exclude dovezi arhivate implicit (politica: never delete)
+    query = query.where('isArchived', isEqualTo: false);
 
     if (categorie != null) {
       query = query.where('categorie', isEqualTo: categorie.value);
@@ -123,7 +126,32 @@ class EvidenceService {
     });
   }
 
-  /// Fetch dovezi ca listă (nu stream)
+  /// Fetch dovezi arhivate pentru un eveniment
+  Stream<List<EvidenceModel>> getArchivedEvidenceStream({
+    required String eventId,
+    EvidenceCategory? categorie,
+  }) {
+    Query query = _firestore
+        .collection('evenimente')
+        .doc(eventId)
+        .collection('dovezi');
+
+    query = query.where('isArchived', isEqualTo: true);
+
+    if (categorie != null) {
+      query = query.where('categorie', isEqualTo: categorie.value);
+    }
+
+    query = query.orderBy('archivedAt', descending: true);
+
+    return query.snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => EvidenceModel.fromFirestore(doc, eventId))
+          .toList();
+    });
+  }
+
+  /// Fetch dovezi active ca listă (exclude arhivate)
   Future<List<EvidenceModel>> getEvidenceList({
     required String eventId,
     EvidenceCategory? categorie,
@@ -133,6 +161,9 @@ class EvidenceService {
           .collection('evenimente')
           .doc(eventId)
           .collection('dovezi');
+
+      // Exclude dovezi arhivate implicit
+      query = query.where('isArchived', isEqualTo: false);
 
       if (categorie != null) {
         query = query.where('categorie', isEqualTo: categorie.value);
