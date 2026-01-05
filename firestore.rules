@@ -48,7 +48,25 @@ service cloud.firestore {
       allow create, update: if isAdmin();
       allow delete: if false; // Nimeni nu poate șterge evenimente
       
-      // Subcolecții: dovezi, comentarii, istoric
+      // Dovezi subcollection
+      match /dovezi/{evidenceId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && hasStaffProfile();
+        // Update doar dacă categoria nu e locked
+        allow update: if isAuthenticated() && hasStaffProfile() && 
+                       (!exists(/databases/$(database)/documents/evenimente/$(eventId)/dovezi_meta/$(resource.data.categorie)) ||
+                        !get(/databases/$(database)/documents/evenimente/$(eventId)/dovezi_meta/$(resource.data.categorie)).data.locked);
+        allow delete: if false; // NEVER DELETE - use isArchived instead
+      }
+      
+      // Dovezi metadata (status + locked per categorie)
+      match /dovezi_meta/{categorie} {
+        allow read: if isAuthenticated();
+        allow create, update: if isAdmin();
+        allow delete: if false; // NEVER DELETE
+      }
+      
+      // Alte subcolecții: comentarii, istoric
       match /{subcollection}/{docId} {
         allow read: if isAuthenticated();
         allow create, update: if isAdmin();
