@@ -46,17 +46,23 @@ jobs:
           testers: ursache.andrei1995@gmail.com
           file: superparty_flutter/build/app/outputs/flutter-apk/app-release.apk
           releaseNotes: |
-            🎨 New UI Design:
-            - 4-column app icon grid (like phone launcher)
+            🎉 Evenimente + Dovezi Module (NEW):
+            - Full Flutter native implementation
+            - Firebase real-time sync (Firestore + Storage)
+            - Dual-read v1/v2 schema (backward compatible)
+            - NEVER DELETE policy (soft archive)
+            - Lock behavior (OK status → upload/remove disabled)
+            - Filters: date range, driver, staff code
+            - Image upload with category organization
+
+            🎨 Previous UI Design:
+            - 4-column app icon grid
             - Icon bubbles with gradient & glow
-            - No card backgrounds - clean minimal design
-            - Admin mode: red buttons
-            - GM mode: yellow buttons with subtle glow
+            - Admin/GM mode visual indicators
 
             🚀 AI Chat Optimizations:
             - 80-99.9% faster responses
-            - Permanent memory cache (AI remembers you)
-            - Optimistic UI (instant message display)
-            - Request deduplication
+            - Permanent memory cache
+            - Optimistic UI
 
             Build: ${{ github.run_number }}
