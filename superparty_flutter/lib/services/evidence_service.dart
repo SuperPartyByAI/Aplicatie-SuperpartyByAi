@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' as path;
 import '../models/evidence_model.dart';
+import '../models/evidence_state_model.dart';
 
 class EvidenceUploadResult {
   final String docId;
@@ -279,13 +280,13 @@ class EvidenceService {
       }
 
       // Lock categoria
-      final meta = EvidenceCategoryMeta(
-        categorie: categorie,
+      final meta = EvidenceStateModel(
+        id: categorie.value,
+        category: categorie,
+        status: EvidenceStatus.ok,
         locked: true,
-        lockedBy: currentUser.uid,
-        lockedAt: DateTime.now(),
-        photoCount: evidenceList.length,
-        lastUpdated: DateTime.now(),
+        updatedAt: DateTime.now(),
+        updatedBy: currentUser.uid,
       );
 
       await _firestore
@@ -336,7 +337,7 @@ class EvidenceService {
   }
 
   /// Obține metadata categorie
-  Future<EvidenceCategoryMeta> getCategoryMeta({
+  Future<EvidenceStateModel> getCategoryMeta({
     required String eventId,
     required EvidenceCategory categorie,
   }) async {
@@ -348,20 +349,22 @@ class EvidenceService {
           .doc(categorie.value)
           .get();
 
-      return EvidenceCategoryMeta.fromFirestore(doc);
+      return EvidenceStateModel.fromFirestore(doc);
     } catch (e) {
       // Returnează metadata default dacă nu există
-      return EvidenceCategoryMeta(
-        categorie: categorie,
+      return EvidenceStateModel(
+        id: categorie.value,
+        category: categorie,
+        status: EvidenceStatus.na,
         locked: false,
-        photoCount: 0,
-        lastUpdated: DateTime.now(),
+        updatedAt: DateTime.now(),
+        updatedBy: '',
       );
     }
   }
 
   /// Stream pentru metadata categorie
-  Stream<EvidenceCategoryMeta> getCategoryMetaStream({
+  Stream<EvidenceStateModel> getCategoryMetaStream({
     required String eventId,
     required EvidenceCategory categorie,
   }) {
@@ -371,7 +374,7 @@ class EvidenceService {
         .collection('dovezi_meta')
         .doc(categorie.value)
         .snapshots()
-        .map((doc) => EvidenceCategoryMeta.fromFirestore(doc));
+        .map((doc) => EvidenceStateModel.fromFirestore(doc));
   }
 
   /// Update photo count pentru o categorie
@@ -435,7 +438,7 @@ class EvidenceService {
     required String filePath,
   }) async {
     final file = File(filePath);
-    return uploadEvidenceFile(
+    return uploadEvidence(
       eventId: eventId,
       categorie: category,
       imageFile: file,
