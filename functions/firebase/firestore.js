@@ -286,7 +286,7 @@ class FirestoreService {
         ...event,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-    } catch (_error) {
+    } catch {
       // Silent fail - don't crash on logging errors
     }
   }
