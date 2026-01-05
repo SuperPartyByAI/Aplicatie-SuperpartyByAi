@@ -27,6 +27,8 @@ jobs:
         with:
           flutter-version: '3.24.5'
           channel: 'stable'
+          cache: true
+          cache-key: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
       
       - name: Decode keystore
         run: |
@@ -48,7 +50,9 @@ jobs:
       
       - name: Build signed APK
         working-directory: superparty_flutter
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release --verbose
+        timeout-minutes: 20
       
       - name: Setup Node.js for upload script
         uses: actions/setup-node@v4
