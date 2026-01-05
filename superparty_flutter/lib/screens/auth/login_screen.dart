@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../services/update_checker_service.dart';
+import '../../services/force_update_checker_service.dart';
 import '../../widgets/force_update_dialog.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -29,23 +29,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _checkForUpdates() async {
     try {
-      final updateChecker = UpdateCheckerService();
-      final isRequired = await updateChecker.isUpdateRequired();
+      final updateChecker = ForceUpdateCheckerService();
+      final isRequired = await updateChecker.needsForceUpdate();
       
-      if (isRequired) {
-        final versionInfo = await updateChecker.checkForUpdate();
-        if (versionInfo != null && mounted) {
-          // Show non-dismissible update dialog
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => ForceUpdateDialog(versionInfo: versionInfo),
-          );
-          return; // Don't allow login
-        }
+      if (isRequired && mounted) {
+        // Show non-dismissible update dialog
+        await ForceUpdateDialog.show(context);
+        return; // Don't allow login
       }
     } catch (e) {
       // Fail silently - don't block login if update check fails
+      print('[LoginScreen] Update check error: $e');
     } finally {
       if (mounted) {
         setState(() => _checkingUpdate = false);
