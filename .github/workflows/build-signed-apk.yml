@@ -66,10 +66,10 @@ jobs:
           
           # Upload APK
           gsutil cp superparty_flutter/build/app/outputs/flutter-apk/app-release.apk \
-            gs://superparty-ai.appspot.com/apk/superparty-signed.apk
+            gs://superparty-frontend.appspot.com/apk/superparty-signed.apk
           
           # Make public
-          gsutil acl ch -u AllUsers:R gs://superparty-ai.appspot.com/apk/superparty-signed.apk
+          gsutil acl ch -u AllUsers:R gs://superparty-frontend.appspot.com/apk/superparty-signed.apk
       
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
