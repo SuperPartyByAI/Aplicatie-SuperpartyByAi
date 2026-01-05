@@ -7,7 +7,7 @@ const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  storageBucket: 'superparty-frontend.appspot.com'
+  storageBucket: 'superparty-ai.appspot.com'
 });
 
 const bucket = admin.storage().bucket();
@@ -15,29 +15,45 @@ const bucket = admin.storage().bucket();
 async function uploadAPK() {
   try {
     const apkPath = 'superparty_flutter/build/app/outputs/flutter-apk/app-release.apk';
-    const destination = 'apk/superparty-signed.apk';
+    const destination = 'apk/app-release.apk'; // Changed to match documentation
 
     console.log('📦 Uploading APK to Firebase Storage...');
     console.log('Source:', apkPath);
     console.log('Destination:', destination);
+    console.log('Bucket:', bucket.name);
 
-    // Check if bucket exists, if not create it
-    const [exists] = await bucket.exists();
-    if (!exists) {
-      console.log('⚠️  Bucket does not exist, creating...');
-      await bucket.create({
-        location: 'EUROPE-WEST1',
-        storageClass: 'STANDARD',
-      });
-      console.log('✅ Bucket created');
+    // Check if APK file exists
+    if (!fs.existsSync(apkPath)) {
+      throw new Error(`APK file not found at: ${apkPath}`);
+    }
+
+    const stats = fs.statSync(apkPath);
+    console.log(`📊 APK size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+
+    // Check if bucket exists
+    try {
+      const [exists] = await bucket.exists();
+      if (!exists) {
+        console.log('⚠️  Bucket does not exist');
+        throw new Error('Storage bucket does not exist. Please create it in Firebase Console.');
+      }
+      console.log('✅ Bucket exists');
+    } catch (bucketError) {
+      console.error('❌ Error checking bucket:', bucketError.message);
+      throw bucketError;
     }
 
     // Upload file
+    console.log('⬆️  Starting upload...');
     await bucket.upload(apkPath, {
       destination: destination,
       metadata: {
         contentType: 'application/vnd.android.package-archive',
         cacheControl: 'public, max-age=0',
+        metadata: {
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: 'GitHub Actions',
+        },
       },
       public: true,
     });
