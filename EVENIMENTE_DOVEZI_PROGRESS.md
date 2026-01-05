@@ -9,7 +9,7 @@
 - ✅ Schema SQLite pentru cache local
 - ✅ Reguli de securitate documentate
 
-### 2. Modele
+### 2. Modele (100% Complete)
 - ✅ `lib/models/event_model.dart`
   - EventModel cu toate câmpurile
   - RoleAssignment + AssignmentStatus enum
@@ -41,7 +41,7 @@
   - 5 test suites pentru requiresSofer
   - Coverage: exterior locations, interior locations, online events, edge cases, comprehensive
 
-### 5. Servicii
+### 5. Servicii (100% Complete)
 - ✅ `lib/services/event_service.dart`
   - getEventsStream() cu filtre server-side + client-side
   - getEvent() pentru un eveniment specific
@@ -49,6 +49,29 @@
   - updateDriverAssignment() pentru șofer
   - updateRequiresSofer() pentru recalculare
   - createEvent() + deleteEvent()
+
+- ✅ `lib/services/evidence_service.dart`
+  - uploadEvidence() cu verificare lock
+  - getEvidenceStream() + getEvidenceList()
+  - deleteEvidence() cu verificare lock
+  - lockCategory() + unlockCategory()
+  - getCategoryMeta() + getCategoryMetaStream()
+  - _updateCategoryPhotoCount() helper
+
+- ✅ `lib/services/local_evidence_cache_service.dart`
+  - SQLite database init
+  - insertPending() pentru cache local
+  - listByEventAndCategory() + listPending() + listFailed()
+  - markSynced() + markFailed()
+  - deleteById() + cleanup methods
+  - getCountByStatus() pentru statistici
+
+- ✅ `lib/services/file_storage_service.dart`
+  - getEventCategoryPath() pentru organizare fișiere
+  - saveLocalFile() + deleteLocalFile()
+  - fileExists() + getFileSize()
+  - deleteEventFiles() + cleanupOldFiles()
+  - getTotalCacheSize() pentru monitoring
 
 ---
 
