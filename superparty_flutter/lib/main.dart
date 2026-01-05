@@ -9,7 +9,6 @@ import 'providers/app_state_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/evenimente/evenimente_screen.dart';
-import 'screens/preview/evenimente_preview_screen.dart';
 import 'screens/disponibilitate/disponibilitate_screen.dart';
 import 'screens/salarizare/salarizare_screen.dart';
 import 'screens/centrala/centrala_screen.dart';
@@ -79,7 +78,6 @@ class SuperPartyApp extends StatelessWidget {
         '/home': (context) => const HomeScreen(),
         '/kyc': (context) => const KycScreen(),
         '/evenimente': (context) => const EvenimenteScreen(),
-        '/preview/evenimente': (context) => const EvenimentePreviewScreen(),
         '/disponibilitate': (context) => const DisponibilitateScreen(),
         '/salarizare': (context) => const SalarizareScreen(),
         '/centrala': (context) => const CentralaScreen(),
