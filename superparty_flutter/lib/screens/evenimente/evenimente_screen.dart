@@ -45,6 +45,11 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.archive, color: Color(0xFF94A3B8)),
+            tooltip: 'Vezi arhivate',
+            onPressed: _showArchivedEvents,
+          ),
+          IconButton(
             icon: const Icon(Icons.filter_list, color: Color(0xFFDC2626)),
             onPressed: _showFiltersSheet,
           ),
@@ -642,6 +647,166 @@ class _FiltersSheetState extends State<_FiltersSheet> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  /// Afișează ecran cu evenimente arhivate
+  void _showArchivedEvents() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ArchivedEventsScreen(),
+      ),
+    );
+  }
+}
+
+/// Ecran pentru evenimente arhivate
+class ArchivedEventsScreen extends StatelessWidget {
+  const ArchivedEventsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final eventService = EventService();
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF0B1220),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0B1220),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFFE2E8F0)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Evenimente Arhivate',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFFE2E8F0),
+          ),
+        ),
+      ),
+      body: StreamBuilder<List<EventModel>>(
+        stream: eventService.getArchivedEventsStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFFDC2626),
+              ),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Eroare: ${snapshot.error}',
+                style: const TextStyle(color: Color(0xFFE2E8F0)),
+              ),
+            );
+          }
+
+          final events = snapshot.data ?? [];
+
+          if (events.isEmpty) {
+            return const Center(
+              child: Text(
+                'Nu există evenimente arhivate',
+                style: TextStyle(
+                  color: Color(0xFF94A3B8),
+                  fontSize: 16,
+                ),
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: events.length,
+            itemBuilder: (context, index) {
+              final event = events[index];
+              return _buildArchivedEventCard(context, event, eventService);
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildArchivedEventCard(
+    BuildContext context,
+    EventModel event,
+    EventService eventService,
+  ) {
+    return Card(
+      color: const Color(0xFF1A2332),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        leading: const Icon(
+          Icons.archive,
+          color: Color(0xFF94A3B8),
+        ),
+        title: Text(
+          event.nume,
+          style: const TextStyle(
+            color: Color(0xFFE2E8F0),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              event.locatie,
+              style: const TextStyle(color: Color(0xFF94A3B8)),
+            ),
+            if (event.archivedAt != null)
+              Text(
+                'Arhivat: ${DateFormat('dd MMM yyyy, HH:mm').format(event.archivedAt!)}',
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 12,
+                ),
+              ),
+            if (event.archiveReason != null)
+              Text(
+                'Motiv: ${event.archiveReason}',
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+          ],
+        ),
+        trailing: IconButton(
+          icon: const Icon(Icons.unarchive, color: Color(0xFFDC2626)),
+          tooltip: 'Dezarhivează',
+          onPressed: () async {
+            try {
+              await eventService.unarchiveEvent(event.id);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Eveniment dezarhivat cu succes'),
+                    backgroundColor: Color(0xFF10B981),
+                  ),
+                );
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Eroare: $e'),
+                    backgroundColor: Color(0xFFDC2626),
+                  ),
+                );
+              }
+            }
+          },
+        ),
       ),
     );
   }

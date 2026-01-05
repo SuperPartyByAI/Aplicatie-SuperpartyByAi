@@ -14,6 +14,12 @@ class EventModel {
   final String createdBy;
   final DateTime updatedAt;
   final String updatedBy;
+  
+  // Câmpuri pentru arhivare (politica: never delete)
+  final bool isArchived;
+  final DateTime? archivedAt;
+  final String? archivedBy;
+  final String? archiveReason;
 
   EventModel({
     required this.id,
@@ -29,6 +35,10 @@ class EventModel {
     required this.createdBy,
     required this.updatedAt,
     required this.updatedBy,
+    this.isArchived = false,
+    this.archivedAt,
+    this.archivedBy,
+    this.archiveReason,
   });
 
   factory EventModel.fromFirestore(DocumentSnapshot doc) {
@@ -48,6 +58,10 @@ class EventModel {
       createdBy: data['createdBy'] as String? ?? '',
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedBy: data['updatedBy'] as String? ?? '',
+      isArchived: data['isArchived'] as bool? ?? false,
+      archivedAt: (data['archivedAt'] as Timestamp?)?.toDate(),
+      archivedBy: data['archivedBy'] as String?,
+      archiveReason: data['archiveReason'] as String?,
     );
   }
 
@@ -65,6 +79,10 @@ class EventModel {
       'createdBy': createdBy,
       'updatedAt': Timestamp.fromDate(updatedAt),
       'updatedBy': updatedBy,
+      'isArchived': isArchived,
+      if (archivedAt != null) 'archivedAt': Timestamp.fromDate(archivedAt!),
+      if (archivedBy != null) 'archivedBy': archivedBy,
+      if (archiveReason != null) 'archiveReason': archiveReason,
     };
   }
 

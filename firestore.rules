@@ -42,10 +42,18 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
     
-    // Evenimente
+    // Evenimente - POLITICA: NEVER DELETE
     match /evenimente/{eventId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if false; // Nimeni nu poate șterge evenimente
+      
+      // Subcolecții: dovezi, comentarii, istoric
+      match /{subcollection}/{docId} {
+        allow read: if isAuthenticated();
+        allow create, update: if isAdmin();
+        allow delete: if false; // Nimeni nu poate șterge din subcolecții
+      }
     }
     
     // AI Conversations
@@ -60,7 +68,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
-    // Outbox - WhatsApp message queue
+    // Outbox - WhatsApp message queue - POLITICA: NEVER DELETE
     match /outbox/{messageId} {
       // Users can read their own outbox messages
       allow read: if isAuthenticated() && (isAdmin() || resource.data.accountId in getUserAllowedAccounts());
@@ -71,8 +79,8 @@ service cloud.firestore {
       // Backend can update status (authenticated service account or admin)
       allow update: if isAuthenticated();
       
-      // Only admin can delete
-      allow delete: if isAdmin();
+      // NEVER DELETE - use status field instead
+      allow delete: if false;
     }
     
     // Helper function: get user's allowed account IDs
@@ -82,7 +90,7 @@ service cloud.firestore {
       return isAdmin() ? ['*'] : [];
     }
     
-    // Threads (WhatsApp Conversations) - USED BY BACKEND
+    // Threads (WhatsApp Conversations) - USED BY BACKEND - POLITICA: NEVER DELETE
     match /threads/{threadId} {
       // Users can read threads for allowed accounts only
       allow read: if isAuthenticated() && (isAdmin() || resource.data.accountId in getUserAllowedAccounts());
@@ -90,8 +98,8 @@ service cloud.firestore {
       // Backend can create and update threads
       allow create, update: if isAuthenticated();
       
-      // Only admin can delete
-      allow delete: if isAdmin();
+      // NEVER DELETE - use isArchived instead
+      allow delete: if false;
       
       // Messages subcollection
       match /messages/{messageId} {
@@ -104,58 +112,58 @@ service cloud.firestore {
         // Messages cannot be updated (immutable)
         allow update: if false;
         
-        // Only admin can delete
-        allow delete: if isAdmin();
+        // NEVER DELETE - messages are immutable
+        allow delete: if false;
       }
     }
     
-    // WhatsApp Conversations - NEW (not used yet)
+    // WhatsApp Conversations - NEW (not used yet) - POLITICA: NEVER DELETE
     match /whatsappConversations/{conversationId} {
       allow read: if isAuthenticated() && hasStaffProfile();
       allow create: if isAuthenticated() && hasStaffProfile();
       allow update: if isAuthenticated() && hasStaffProfile();
-      allow delete: if isAdmin();
+      allow delete: if false; // Use isArchived instead
     }
     
-    // WhatsApp Messages - NEW (not used yet)
+    // WhatsApp Messages - NEW (not used yet) - POLITICA: NEVER DELETE
     match /whatsappMessages/{messageId} {
       allow read: if isAuthenticated() && hasStaffProfile();
       allow create: if isAuthenticated() && hasStaffProfile();
-      allow update: if false;
-      allow delete: if isAdmin();
+      allow update: if false; // Messages are immutable
+      allow delete: if false; // Never delete messages
     }
     
-    // WhatsApp Messages (flat collection) - ACTIVE
+    // WhatsApp Messages (flat collection) - ACTIVE - POLITICA: NEVER DELETE
     match /whatsapp_messages/{messageId} {
       allow read: if isAuthenticated();
       allow create, update: if true; // Backend needs to write
-      allow delete: if isAdmin();
+      allow delete: if false; // Never delete messages
     }
     
-    // WhatsApp Threads (flat collection) - ACTIVE
+    // WhatsApp Threads (flat collection) - ACTIVE - POLITICA: NEVER DELETE
     match /whatsapp_threads/{threadId} {
       allow read: if isAuthenticated();
       allow create, update: if true; // Backend needs to write
-      allow delete: if isAdmin();
+      allow delete: if false; // Use isArchived instead
     }
     
-    // WhatsApp Accounts
+    // WhatsApp Accounts - POLITICA: NEVER DELETE
     match /accounts/{accountId} {
       allow read: if isAuthenticated();
       allow create, update: if true; // Backend needs to write
-      allow delete: if isAdmin();
+      allow delete: if false; // Use isArchived instead
       
       // Chats subcollection
       match /chats/{chatId} {
         allow read: if isAuthenticated();
         allow create, update: if true;
-        allow delete: if isAdmin();
+        allow delete: if false; // Use isArchived instead
         
         // Messages subcollection
         match /messages/{messageId} {
           allow read: if isAuthenticated();
           allow create, update: if true;
-          allow delete: if isAdmin();
+          allow delete: if false; // Never delete messages
         }
       }
     }

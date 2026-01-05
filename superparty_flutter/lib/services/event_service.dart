@@ -18,6 +18,9 @@ class EventService {
   Stream<List<EventModel>> getEventsStream(EventFilters filters) {
     Query query = _firestore.collection('evenimente');
 
+    // Exclude evenimente arhivate implicit (politica: never delete)
+    query = query.where('isArchived', isEqualTo: false);
+
     // Aplicăm filtre pe dată (server-side)
     final (startDate, endDate) = filters.dateRange;
     if (startDate != null) {
@@ -268,71 +271,65 @@ class EventService {
     }
   }
 
-  /// Șterge un eveniment
-  Future<void> deleteEvent(String eventId) async {
+  /// Arhivează un eveniment (politica: never delete)
+  /// 
+  /// În loc să ștergem evenimente, le marcăm ca arhivate.
+  /// Fișierele din Storage și subcolecțiile rămân intacte.
+  Future<void> archiveEvent(String eventId, {String? reason}) async {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
         throw Exception('Utilizator neautentificat');
       }
 
-      // 1. Șterge dovezile din Storage
-      await _deleteEventProofs(eventId);
+      // Actualizăm documentul cu câmpuri de arhivare
+      await _firestore.collection('evenimente').doc(eventId).update({
+        'isArchived': true,
+        'archivedAt': FieldValue.serverTimestamp(),
+        'archivedBy': currentUser.uid,
+        if (reason != null) 'archiveReason': reason,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': currentUser.uid,
+      });
 
-      // 2. Șterge subcolecțiile (dovezi metadata, comentarii, etc.)
-      await _deleteSubcollections(eventId);
-
-      // 3. Șterge documentul principal
-      await _firestore.collection('evenimente').doc(eventId).delete();
+      // Opțional: arhivează și dovezile (metadata, nu fișierele)
+      await _archiveSubcollections(eventId);
     } catch (e) {
-      throw Exception('Eroare la ștergerea evenimentului: $e');
+      throw Exception('Eroare la arhivarea evenimentului: $e');
     }
   }
 
-  /// Șterge toate dovezile din Storage pentru un eveniment
-  Future<void> _deleteEventProofs(String eventId) async {
+  /// Dezarhivează un eveniment
+  Future<void> unarchiveEvent(String eventId) async {
     try {
-      // Verificăm dacă există dovezi în Firestore
-      final proofsSnapshot = await _firestore
-          .collection('evenimente')
-          .doc(eventId)
-          .collection('dovezi')
-          .get();
-
-      if (proofsSnapshot.docs.isEmpty) return;
-
-      // Șterge fiecare dovadă din Storage
-      for (final doc in proofsSnapshot.docs) {
-        final data = doc.data();
-        final storagePath = data['storagePath'] as String?;
-        
-        if (storagePath != null && storagePath.isNotEmpty) {
-          try {
-            // Folosim Firebase Storage pentru ștergere
-            // Note: Trebuie importat firebase_storage
-            // await FirebaseStorage.instance.ref(storagePath).delete();
-            
-            // Pentru moment, doar logăm (implementare completă necesită firebase_storage package)
-            print('Would delete storage file: $storagePath');
-          } catch (storageError) {
-            // Continuăm chiar dacă ștergerea din Storage eșuează
-            print('Eroare la ștergerea fișierului $storagePath: $storageError');
-          }
-        }
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('Utilizator neautentificat');
       }
+
+      await _firestore.collection('evenimente').doc(eventId).update({
+        'isArchived': false,
+        'archivedAt': FieldValue.delete(),
+        'archivedBy': FieldValue.delete(),
+        'archiveReason': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': currentUser.uid,
+      });
     } catch (e) {
-      print('Eroare la ștergerea dovezilor: $e');
-      // Nu aruncăm eroare - continuăm cu ștergerea evenimentului
+      throw Exception('Eroare la dezarhivarea evenimentului: $e');
     }
   }
 
-  /// Șterge toate subcolecțiile unui eveniment
-  Future<void> _deleteSubcollections(String eventId) async {
+  /// Arhivează subcolecțiile unui eveniment (dovezi, comentarii)
+  /// Nota: Nu ștergem nimic, doar marcăm ca arhivat
+  Future<void> _archiveSubcollections(String eventId) async {
     try {
       final batch = _firestore.batch();
+      final timestamp = FieldValue.serverTimestamp();
+      final currentUser = _auth.currentUser;
       
-      // Lista de subcolecții de șters
-      final subcollections = ['dovezi', 'comentarii', 'istoric'];
+      // Lista de subcolecții de arhivat
+      final subcollections = ['dovezi', 'comentarii'];
       
       for (final subcollection in subcollections) {
         final snapshot = await _firestore
@@ -342,14 +339,30 @@ class EventService {
             .get();
 
         for (final doc in snapshot.docs) {
-          batch.delete(doc.reference);
+          batch.update(doc.reference, {
+            'isArchived': true,
+            'archivedAt': timestamp,
+            'archivedBy': currentUser?.uid ?? 'system',
+          });
         }
       }
 
       await batch.commit();
     } catch (e) {
-      print('Eroare la ștergerea subcolecțiilor: $e');
-      // Nu aruncăm eroare - continuăm cu ștergerea evenimentului
+      print('Eroare la arhivarea subcolecțiilor: $e');
+      // Nu aruncăm eroare - evenimentul principal e deja arhivat
     }
+  }
+
+  /// Stream pentru evenimente arhivate
+  Stream<List<EventModel>> getArchivedEventsStream() {
+    return _firestore
+        .collection('evenimente')
+        .where('isArchived', isEqualTo: true)
+        .orderBy('archivedAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => EventModel.fromFirestore(doc))
+            .toList());
   }
 }

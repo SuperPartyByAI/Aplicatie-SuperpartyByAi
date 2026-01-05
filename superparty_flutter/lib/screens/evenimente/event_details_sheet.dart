@@ -179,6 +179,8 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
           const SizedBox(height: 24),
           _buildDoveziButton(),
           const SizedBox(height: 16),
+          _buildArchiveButton(),
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -618,5 +620,114 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
         );
       }
     }
+  }
+
+  /// Buton pentru arhivare eveniment
+  Widget _buildArchiveButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => _showArchiveDialog(),
+        icon: const Icon(Icons.archive),
+        label: const Text('Arhivează Eveniment'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFFF97316),
+          side: const BorderSide(color: Color(0xFFF97316)),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+      ),
+    );
+  }
+
+  /// Dialog pentru confirmare arhivare
+  Future<void> _showArchiveDialog() async {
+    final reasonController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A2332),
+        title: const Text(
+          'Arhivează Eveniment',
+          style: TextStyle(color: Color(0xFFE2E8F0)),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Evenimentul va fi arhivat și nu va mai apărea în lista principală.',
+              style: TextStyle(color: Color(0xFF94A3B8)),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              style: const TextStyle(color: Color(0xFFE2E8F0)),
+              decoration: InputDecoration(
+                labelText: 'Motiv (opțional)',
+                labelStyle: const TextStyle(color: Color(0xFF94A3B8)),
+                hintText: 'Ex: Eveniment anulat, Eveniment finalizat',
+                hintStyle: const TextStyle(color: Color(0xFF64748B)),
+                filled: true,
+                fillColor: const Color(0xFF0B1220),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF2D3748)),
+                ),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Anulează',
+              style: TextStyle(color: Color(0xFF94A3B8)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF97316),
+            ),
+            child: const Text('Arhivează'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await _eventService.archiveEvent(
+          widget.eventId,
+          reason: reasonController.text.trim().isEmpty
+              ? null
+              : reasonController.text.trim(),
+        );
+
+        if (mounted) {
+          Navigator.pop(context); // Închide sheet-ul
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Eveniment arhivat cu succes'),
+              backgroundColor: Color(0xFF10B981),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Eroare: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+
+    reasonController.dispose();
   }
 }
