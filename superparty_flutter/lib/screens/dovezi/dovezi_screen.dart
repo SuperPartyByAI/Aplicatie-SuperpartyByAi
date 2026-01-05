@@ -293,7 +293,15 @@ class _DoveziScreenState extends State<DoveziScreen> {
             final remoteEvidence = remoteSnapshot.data ?? [];
             final localEvidence = localSnapshot.data ?? [];
 
-            if (remoteEvidence.isEmpty && localEvidence.isEmpty) {
+            // Dedupe: exclude local evidence that's already synced and exists in remote
+            final remoteDocIds = remoteEvidence.map((e) => e.id).toSet();
+            final localEvidenceFiltered = localEvidence.where((local) {
+              // Keep only pending/failed, or synced items not yet in remote stream
+              return local.syncStatus != SyncStatus.synced || 
+                     (local.remoteDocId != null && !remoteDocIds.contains(local.remoteDocId));
+            }).toList();
+
+            if (remoteEvidence.isEmpty && localEvidenceFiltered.isEmpty) {
               return Container(
                 padding: const EdgeInsets.all(32),
                 alignment: Alignment.center,
@@ -312,13 +320,13 @@ class _DoveziScreenState extends State<DoveziScreen> {
                 crossAxisSpacing: 8,
                 mainAxisSpacing: 8,
               ),
-              itemCount: remoteEvidence.length + localEvidence.length,
+              itemCount: remoteEvidence.length + localEvidenceFiltered.length,
               itemBuilder: (context, index) {
-                if (index < localEvidence.length) {
-                  return _buildLocalThumbnail(localEvidence[index], isLocked);
+                if (index < localEvidenceFiltered.length) {
+                  return _buildLocalThumbnail(localEvidenceFiltered[index], isLocked);
                 } else {
                   return _buildRemoteThumbnail(
-                    remoteEvidence[index - localEvidence.length],
+                    remoteEvidence[index - localEvidenceFiltered.length],
                     isLocked,
                   );
                 }
