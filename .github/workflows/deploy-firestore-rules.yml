@@ -11,7 +11,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -31,10 +31,10 @@ jobs:
             echo "❌ firestore.rules not found!"
             exit 1
           fi
-          
+
           echo "✅ Rules file exists"
           echo "📏 Size: $(wc -c < firestore.rules) bytes"
-          
+
           # Check for app_config rule
           if grep -q "match /app_config/{document}" firestore.rules; then
             echo "✅ app_config rule found"

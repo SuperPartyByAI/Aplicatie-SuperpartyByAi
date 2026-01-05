@@ -22,11 +22,13 @@ firebase deploy --only firestore:indexes
 ```
 
 **Output așteptat:**
+
 ```
 ✔  Deploy complete!
 ```
 
 **Verificare:**
+
 - Deschide [Firebase Console](https://console.firebase.google.com)
 - Firestore Database → Indexes
 - Verifică că există indexuri pentru `evenimente` collection
@@ -38,6 +40,7 @@ node scripts/seed_evenimente.js
 ```
 
 **Output așteptat:**
+
 ```
 🌱 Începem seed-ul pentru evenimente...
 
@@ -58,6 +61,7 @@ node scripts/seed_evenimente.js
 ```
 
 **Verificare:**
+
 - Firebase Console → Firestore Database → `evenimente` collection
 - Ar trebui să vezi 7 documente
 
@@ -71,6 +75,7 @@ node scripts/seed_users.js
 ```
 
 Sau manual în Firebase Console:
+
 - Firestore → `users` collection → Add document
 - Câmpuri necesare:
   - `displayName`: "Andrei Ursache"
@@ -191,6 +196,7 @@ Sau click pe link-ul din eroare pentru a crea indexul automat.
 ## Next Steps
 
 După setup, testează aplicația:
+
 1. Deschide Flutter app
 2. Navighează la "Evenimente"
 3. Verifică că se încarcă cele 7 evenimente

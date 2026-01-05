@@ -1,6 +1,7 @@
 # ONA Deployment Checklist - AI Chat + Force Update
 
 ## Package Info
+
 - **Package Name**: `com.superpartybyai.superparty_app`
 - **FileProvider Authority**: `com.superpartybyai.superparty_app.fileprovider`
 
@@ -9,6 +10,7 @@
 ## ✅ Status Verificare
 
 ### Force Update Components
+
 - ✅ `UpdateGate` - wraps MaterialApp in main.dart
 - ✅ `ForceUpdateScreen` - full-screen blocking UI
 - ✅ `ForceUpdateCheckerService` - checks Firestore config
@@ -17,12 +19,14 @@
 - ✅ `ApkInstallerBridge` - MethodChannel to native
 
 ### Android Installation Setup
+
 - ✅ `MainActivity.kt` - MethodChannel implementation
 - ✅ `AndroidManifest.xml` - FileProvider configured
 - ✅ `file_paths.xml` - external-path for APK storage
 - ✅ Permissions: `REQUEST_INSTALL_PACKAGES`
 
 ### AI Chat Components
+
 - ✅ Auth guard in `ai_chat_screen.dart`
 - ✅ Error mapping for Firebase Functions exceptions
 - ✅ Backend: `functions/index.js` with GROQ_API_KEY check
@@ -61,6 +65,7 @@ firebase deploy --only functions
 ```
 
 **Verificare:**
+
 ```bash
 # Check logs
 firebase functions:log --only chatWithAI
@@ -90,12 +95,14 @@ flutter build apk --release
 ### 4. Upload APK to Firebase Storage
 
 **Manual (Firebase Console):**
+
 1. Go to Firebase Console → Storage
 2. Create folder: `apk/`
 3. Upload: `app-release.apk`
 4. Get download URL (click file → copy URL)
 
 **OR Automated (if script works):**
+
 ```bash
 node .github/scripts/upload-apk-to-storage.js
 ```
@@ -121,6 +128,7 @@ node .github/scripts/upload-apk-to-storage.js
 ```
 
 **Firebase Console:**
+
 1. Firestore Database → `app_config` collection
 2. Create/Edit document `version`
 3. Add fields above
@@ -130,16 +138,19 @@ node .github/scripts/upload-apk-to-storage.js
 ### 6. Test - AI Chat
 
 **Prerequisites:**
+
 - User logged in
 - GROQ_API_KEY deployed
 
 **Steps:**
+
 1. Open app → Navigate to AI Chat
 2. Send message: "Salut"
 3. **Expected:** Response from GROQ (not error)
 4. **Check logs:** No "unauthenticated" or "failed-precondition" errors
 
 **Error Messages (if any):**
+
 - ❌ "Trebuie să fii logat" → User not authenticated
 - ❌ "AI nu este configurat" → GROQ_API_KEY missing
 - ✅ Actual response → SUCCESS
@@ -149,11 +160,13 @@ node .github/scripts/upload-apk-to-storage.js
 ### 7. Test - Force Update
 
 **Prerequisites:**
+
 - APK uploaded to Storage
 - Firestore `app_config/version` configured
 - `min_build_number` > current build
 
 **Steps:**
+
 1. Open app
 2. **Expected:** ForceUpdateScreen appears (blocking)
 3. Tap "Descarcă Actualizare"
@@ -165,6 +178,7 @@ node .github/scripts/upload-apk-to-storage.js
 9. **Expected:** User still logged in (NO re-login)
 
 **Verification:**
+
 - ✅ User stays authenticated
 - ✅ No signOut() called
 - ✅ Cache cleared (SharedPreferences)
@@ -177,14 +191,17 @@ node .github/scripts/upload-apk-to-storage.js
 ### AI Chat Issues
 
 **Error: "Trebuie să fii logat"**
+
 - Check: `FirebaseAuth.instance.currentUser != null`
 - Fix: Ensure user is logged in before calling AI
 
 **Error: "AI nu este configurat"**
+
 - Check: `firebase functions:secrets:access GROQ_API_KEY`
 - Fix: Set secret: `firebase functions:secrets:set GROQ_API_KEY`
 
 **Error: "Conexiune eșuată"**
+
 - Check: Firebase Functions logs
 - Fix: Verify GROQ API key is valid
 
@@ -193,19 +210,23 @@ node .github/scripts/upload-apk-to-storage.js
 ### Force Update Issues
 
 **UpdateGate not triggering:**
+
 - Check: `UpdateGate` wraps `MaterialApp` in `main.dart`
 - Check: `min_build_number` > current build number
 
 **Download fails:**
+
 - Check: `android_download_url` is accessible (open in browser)
 - Check: Firebase Storage rules allow read
 
 **Install fails:**
+
 - Check: `REQUEST_INSTALL_PACKAGES` permission in manifest
 - Check: FileProvider authority matches package name
 - Check: User granted "Install unknown apps" permission
 
 **User logged out after update:**
+
 - ❌ WRONG: This should NOT happen
 - Check: `AppStateMigrationService` is called (not `signOut()`)
 - Check: No `FirebaseAuth.instance.signOut()` in update flow
@@ -215,13 +236,16 @@ node .github/scripts/upload-apk-to-storage.js
 ## 📊 Current Build Info
 
 **From `pubspec.yaml`:**
+
 ```yaml
 version: 1.0.2+3
 ```
+
 - Version: `1.0.2`
 - Build number: `3`
 
 **For testing Force Update:**
+
 - Set `min_build_number: 4` in Firestore
 - App will trigger update on next launch
 
@@ -230,12 +254,14 @@ version: 1.0.2+3
 ## 🎯 Success Criteria
 
 ### AI Chat
+
 - ✅ User can send messages
 - ✅ Receives responses from GROQ
 - ✅ No generic error messages
 - ✅ Specific errors for auth/config issues
 
 ### Force Update
+
 - ✅ Blocking screen appears when update required
 - ✅ Download completes successfully
 - ✅ Install prompt appears

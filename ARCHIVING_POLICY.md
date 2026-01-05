@@ -23,6 +23,7 @@ Pentru **orice colecție** (evenimente, dovezi, conversații, mesaje, comentarii
 ### ❌ Câmpuri Interzise
 
 **NU introduceți:**
+
 - `deleteAt`
 - `expiresAt`
 - `ttl` (time-to-live)
@@ -36,6 +37,7 @@ Pentru **orice colecție** (evenimente, dovezi, conversații, mesaje, comentarii
 ### 1. Înlocuiește `.delete()` cu `.update()`
 
 #### ❌ ÎNAINTE (GREȘIT):
+
 ```dart
 Future<void> deleteEvent(String eventId) async {
   await _firestore.collection('evenimente').doc(eventId).delete();
@@ -43,6 +45,7 @@ Future<void> deleteEvent(String eventId) async {
 ```
 
 #### ✅ ACUM (CORECT):
+
 ```dart
 Future<void> archiveEvent(String eventId, {String? reason}) async {
   final user = FirebaseAuth.instance.currentUser;
@@ -116,13 +119,13 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // Evenimente - POLITICA: NEVER DELETE
     match /evenimente/{eventId} {
       allow read: if isAuthenticated();
       allow create, update: if isAdmin();
       allow delete: if false; // ← NIMENI nu șterge
-      
+
       // Subcolecții: dovezi, comentarii, istoric
       match /{subcollection}/{docId} {
         allow read: if isAuthenticated();
@@ -130,19 +133,19 @@ service cloud.firestore {
         allow delete: if false; // ← NIMENI nu șterge
       }
     }
-    
+
     // Threads (WhatsApp) - POLITICA: NEVER DELETE
     match /threads/{threadId} {
       allow read, create, update: if isAuthenticated();
       allow delete: if false; // ← Use isArchived
-      
+
       match /messages/{messageId} {
         allow read, create: if isAuthenticated();
         allow update: if false; // Messages immutable
         allow delete: if false; // ← NEVER DELETE
       }
     }
-    
+
     // Aplicați același pattern pentru toate colecțiile
   }
 }
@@ -159,21 +162,21 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    
+
     // Evenimente dovezi - NEVER DELETE
     match /evenimente/{eventId}/dovezi/{fileName} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null;
       allow delete: if false; // ← NEVER DELETE
     }
-    
+
     // Event images - NEVER DELETE
     match /event_images/{eventId}/{fileName} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null;
       allow delete: if false; // ← NEVER DELETE
     }
-    
+
     // Default - NEVER DELETE
     match /{allPaths=**} {
       allow read, create, update: if request.auth != null;
@@ -190,6 +193,7 @@ service firebase.storage {
 ### 1. Nu Definiți Câmpuri TTL
 
 ❌ **NU faceți:**
+
 ```dart
 {
   "expireAt": Timestamp.fromDate(DateTime.now().add(Duration(days: 30))),
@@ -280,10 +284,11 @@ await _firestore.collection('threads').doc(threadId).update({
 ## 🎓 Mesaj pentru Dezvoltatori
 
 > **Politica proiectului: NEVER DELETE.**
-> 
+>
 > Orice eveniment/dovadă/conversație se gestionează doar prin `isArchived=true`.
-> 
+>
 > **Acțiuni obligatorii:**
+>
 > 1. Elimină orice `.delete()` din cod
 > 2. Oprește orice ștergere în Firestore/Storage Rules (`allow delete: if false`)
 > 3. Asigură că listele exclud arhivate implicit
@@ -305,7 +310,7 @@ const db = admin.firestore();
 async function migrateCollection(collectionName) {
   const snapshot = await db.collection(collectionName).get();
   const batch = db.batch();
-  
+
   snapshot.docs.forEach(doc => {
     if (!doc.data().hasOwnProperty('isArchived')) {
       batch.update(doc.ref, {
@@ -316,7 +321,7 @@ async function migrateCollection(collectionName) {
       });
     }
   });
-  
+
   await batch.commit();
   console.log(`✅ Migrated ${snapshot.size} documents in ${collectionName}`);
 }
@@ -332,6 +337,7 @@ migrateCollection('whatsapp_messages');
 ## 📞 Suport
 
 Pentru întrebări despre politica de arhivare:
+
 - **Documentație:** `ARCHIVING_POLICY.md`
 - **Implementare:** `lib/services/event_service.dart` (exemplu)
 - **Rules:** `firestore.rules`, `storage.rules`

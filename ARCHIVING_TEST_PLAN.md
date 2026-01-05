@@ -25,6 +25,7 @@ Verificare implementare politică **NEVER DELETE** în SuperParty.
 ### TC1: Arhivare Eveniment
 
 **Pași:**
+
 1. Login ca admin
 2. Deschide listă evenimente
 3. Selectează un eveniment
@@ -33,6 +34,7 @@ Verificare implementare politică **NEVER DELETE** în SuperParty.
 6. Confirmă
 
 **Rezultat așteptat:**
+
 - ✅ Eveniment dispare din listă principală
 - ✅ Document în Firestore are `isArchived=true`
 - ✅ Câmpuri `archivedAt`, `archivedBy`, `archiveReason` populate
@@ -40,6 +42,7 @@ Verificare implementare politică **NEVER DELETE** în SuperParty.
 - ✅ Subcolecții (dovezi, comentarii) rămân intacte
 
 **Verificare Firebase Console:**
+
 ```javascript
 // Firestore
 evenimente/{eventId}
@@ -57,11 +60,13 @@ evenimente/{eventId}
 ### TC2: Vizualizare Evenimente Arhivate
 
 **Pași:**
+
 1. Login ca admin
 2. Deschide listă evenimente
 3. Tap pe icon "Arhivate" (în AppBar)
 
 **Rezultat așteptat:**
+
 - ✅ Se deschide ecran "Evenimente Arhivate"
 - ✅ Lista conține evenimentul arhivat din TC1
 - ✅ Afișează data arhivării și motiv
@@ -72,11 +77,13 @@ evenimente/{eventId}
 ### TC3: Dezarhivare Eveniment
 
 **Pași:**
+
 1. În ecranul "Evenimente Arhivate"
 2. Tap pe icon "Dezarhivează" pentru eveniment
 3. Confirmă
 
 **Rezultat așteptat:**
+
 - ✅ Eveniment dispare din lista arhivate
 - ✅ Eveniment reapare în lista principală
 - ✅ Document în Firestore are `isArchived=false`
@@ -87,16 +94,19 @@ evenimente/{eventId}
 ### TC4: Tentativă Ștergere prin Firestore Rules
 
 **Pași:**
+
 1. Deschide Firebase Console
 2. Navighează la Firestore → `evenimente/{eventId}`
 3. Încearcă să ștergi documentul manual
 
 **Rezultat așteptat:**
+
 - ❌ Eroare: "Missing or insufficient permissions"
 - ✅ Documentul rămâne intact
 - ✅ Rules blochează ștergerea
 
 **Verificare Rules:**
+
 ```javascript
 match /evenimente/{eventId} {
   allow delete: if false; // ← Verifică că e false
@@ -108,16 +118,19 @@ match /evenimente/{eventId} {
 ### TC5: Tentativă Ștergere prin Storage Rules
 
 **Pași:**
+
 1. Deschide Firebase Console
 2. Navighează la Storage → `evenimente/{eventId}/dovezi/{file}`
 3. Încearcă să ștergi fișierul manual
 
 **Rezultat așteptat:**
+
 - ❌ Eroare: "Missing or insufficient permissions"
 - ✅ Fișierul rămâne intact
 - ✅ Rules blochează ștergerea
 
 **Verificare Rules:**
+
 ```javascript
 match /evenimente/{eventId}/dovezi/{fileName} {
   allow delete: if false; // ← Verifică că e false
@@ -129,6 +142,7 @@ match /evenimente/{eventId}/dovezi/{fileName} {
 ### TC6: Arhivare Dovadă
 
 **Pași:**
+
 1. Login ca admin
 2. Deschide un eveniment
 3. Navighează la "Dovezi"
@@ -136,12 +150,14 @@ match /evenimente/{eventId}/dovezi/{fileName} {
 5. Tap pe "Arhivează" (dacă există UI)
 
 **Rezultat așteptat:**
+
 - ✅ Dovada dispare din listă (dacă filtru `isArchived=false`)
 - ✅ Document în Firestore are `isArchived=true`
 - ✅ Fișierul din Storage rămâne intact (verifică `storagePath`)
 - ✅ `downloadUrl` funcționează în continuare
 
 **Verificare Firebase Console:**
+
 ```javascript
 // Firestore
 evenimente/{eventId}/dovezi/{proofId}
@@ -162,24 +178,27 @@ evenimente/{eventId}/dovezi/{file}.jpg // ← Fișier există
 ### TC7: Query Active Exclude Arhivate
 
 **Pași:**
+
 1. Arhivează 2 evenimente
 2. Lasă 3 evenimente active
 3. Deschide listă evenimente (fără filtru "Arhivate")
 
 **Rezultat așteptat:**
+
 - ✅ Lista afișează doar 3 evenimente active
 - ✅ Cele 2 arhivate NU apar
 - ✅ Query Firestore conține `where('isArchived', isEqualTo: false)`
 
 **Verificare Cod:**
+
 ```dart
 // lib/services/event_service.dart
 Stream<List<EventModel>> getEventsStream(EventFilters filters) {
   Query query = _firestore.collection('evenimente');
-  
+
   // ← Verifică că există această linie
   query = query.where('isArchived', isEqualTo: false);
-  
+
   // ... rest of query
 }
 ```
@@ -189,11 +208,13 @@ Stream<List<EventModel>> getEventsStream(EventFilters filters) {
 ### TC8: Verificare Nu Există TTL
 
 **Pași:**
+
 1. Deschide Firebase Console
 2. Navighează la Firestore → Settings
 3. Verifică "TTL Policies"
 
 **Rezultat așteptat:**
+
 - ✅ Nu există TTL policies configurate
 - ✅ Nu există câmpuri `deleteAt`/`expiresAt` în documente (excepție: KYC `expiresAt` pentru CI)
 
@@ -202,7 +223,9 @@ Stream<List<EventModel>> getEventsStream(EventFilters filters) {
 ### TC9: Verificare Cod - Nu Există .delete()
 
 **Pași:**
+
 1. Rulează grep în cod:
+
 ```bash
 grep -rn "\.delete()" superparty_flutter/lib --include="*.dart" | \
   grep -v "FieldValue.delete()" | \
@@ -212,6 +235,7 @@ grep -rn "\.delete()" superparty_flutter/lib --include="*.dart" | \
 ```
 
 **Rezultat așteptat:**
+
 - ✅ Nu există apeluri `.delete()` pe Firestore collections
 - ✅ Nu există apeluri `.delete()` pe Storage refs
 - ✅ Doar `FieldValue.delete()` (pentru ștergere câmpuri) și `file.delete()` (fișiere locale)
@@ -221,11 +245,13 @@ grep -rn "\.delete()" superparty_flutter/lib --include="*.dart" | \
 ### TC10: Migrare Date Existente
 
 **Pași:**
+
 1. Verifică evenimente existente în Firestore
 2. Rulează script migrare (dacă există evenimente fără `isArchived`)
 3. Verifică că toate documentele au câmpul `isArchived`
 
 **Script Migrare:**
+
 ```javascript
 // scripts/migrate_archiving_fields.js
 const admin = require('firebase-admin');
@@ -236,7 +262,7 @@ async function migrateCollection(collectionName) {
   const snapshot = await db.collection(collectionName).get();
   const batch = db.batch();
   let count = 0;
-  
+
   snapshot.docs.forEach(doc => {
     if (!doc.data().hasOwnProperty('isArchived')) {
       batch.update(doc.ref, {
@@ -248,7 +274,7 @@ async function migrateCollection(collectionName) {
       count++;
     }
   });
-  
+
   if (count > 0) {
     await batch.commit();
     console.log(`✅ Migrated ${count} documents in ${collectionName}`);
@@ -261,6 +287,7 @@ migrateCollection('evenimente');
 ```
 
 **Rezultat așteptat:**
+
 - ✅ Toate documentele au `isArchived: false` (default)
 - ✅ Nu există erori în query-uri
 
@@ -268,18 +295,18 @@ migrateCollection('evenimente');
 
 ## 📊 Rezultate Test
 
-| Test Case | Status | Note |
-|-----------|--------|------|
-| TC1: Arhivare eveniment | ⏳ Pending | - |
-| TC2: Vizualizare arhivate | ⏳ Pending | - |
-| TC3: Dezarhivare eveniment | ⏳ Pending | - |
-| TC4: Firestore Rules block delete | ⏳ Pending | - |
-| TC5: Storage Rules block delete | ⏳ Pending | - |
-| TC6: Arhivare dovadă | ⏳ Pending | - |
-| TC7: Query exclude arhivate | ⏳ Pending | - |
-| TC8: Nu există TTL | ⏳ Pending | - |
-| TC9: Nu există .delete() în cod | ⏳ Pending | - |
-| TC10: Migrare date | ⏳ Pending | - |
+| Test Case                         | Status     | Note |
+| --------------------------------- | ---------- | ---- |
+| TC1: Arhivare eveniment           | ⏳ Pending | -    |
+| TC2: Vizualizare arhivate         | ⏳ Pending | -    |
+| TC3: Dezarhivare eveniment        | ⏳ Pending | -    |
+| TC4: Firestore Rules block delete | ⏳ Pending | -    |
+| TC5: Storage Rules block delete   | ⏳ Pending | -    |
+| TC6: Arhivare dovadă              | ⏳ Pending | -    |
+| TC7: Query exclude arhivate       | ⏳ Pending | -    |
+| TC8: Nu există TTL                | ⏳ Pending | -    |
+| TC9: Nu există .delete() în cod   | ⏳ Pending | -    |
+| TC10: Migrare date                | ⏳ Pending | -    |
 
 ---
 

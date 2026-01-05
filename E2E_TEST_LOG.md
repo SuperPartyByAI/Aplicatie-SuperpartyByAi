@@ -9,6 +9,7 @@
 ## Prerequisites ✅
 
 ### Firebase Setup
+
 ```bash
 $ firebase deploy --only firestore:indexes
 ✔  Deploy complete!
@@ -23,6 +24,7 @@ Indexes deployed:
 ```
 
 ### Seed Data
+
 ```bash
 $ node scripts/seed_evenimente.js
 🌱 Începem seed-ul pentru evenimente...
@@ -48,11 +50,13 @@ $ node scripts/seed_evenimente.js
 ## TC1: Încărcare Listă Evenimente ✅
 
 **Pași:**
+
 1. Deschis aplicația Flutter
 2. Navigat la "Evenimente"
 3. Verificat încărcare din Firestore
 
 **Rezultat:**
+
 ```
 [13:16:25] StreamBuilder<List<EventModel>> initialized
 [13:16:25] Firestore query: collection('evenimente').orderBy('data', desc)
@@ -76,12 +80,14 @@ $ node scripts/seed_evenimente.js
 ## TC3: Filtru "Evenimentele Mele" (Neautentificat) ✅
 
 **Pași:**
+
 1. Logout din aplicație
 2. Navigat la Evenimente
 3. Deschis filtre
 4. Verificat switch "Doar evenimentele mele"
 
 **Rezultat:**
+
 ```
 [13:16:30] FirebaseAuth.instance.currentUser: null
 [13:16:30] SwitchListTile.onChanged: null (disabled)
@@ -100,6 +106,7 @@ $ node scripts/seed_evenimente.js
 ## TC6: Alocare Rol cu Selector Useri ✅
 
 **Pași:**
+
 1. Autentificat ca admin
 2. Deschis eveniment ID: 02
 3. Tap pe "+" lângă rol "Animator Principal"
@@ -108,6 +115,7 @@ $ node scripts/seed_evenimente.js
 6. Selectat user "Andrei Ursache (A1)"
 
 **Rezultat:**
+
 ```
 [13:16:35] Opened EventDetailsSheet for event: 02
 [13:16:36] Tap on role assignment button (animator_principal)
@@ -141,12 +149,14 @@ $ node scripts/seed_evenimente.js
 ## TC7: Dealocare Rol ✅
 
 **Pași:**
+
 1. Deschis eveniment ID: 02 (cu rol alocat)
 2. Tap pe "-" lângă "Animator Principal"
 3. Selectat "Nealocat" din dialog
 4. Verificat dealocare
 
 **Rezultat:**
+
 ```
 [13:16:45] Opened EventDetailsSheet for event: 02
 [13:16:46] Current assignment: Andrei Ursache (A1)
@@ -169,12 +179,14 @@ $ node scripts/seed_evenimente.js
 ## TC9: Ștergere Eveniment (Fără Dovezi) ✅
 
 **Pași:**
+
 1. Deschis eveniment ID: 07
 2. Tap pe buton ștergere
 3. Confirmat ștergere
 4. Verificat în Firestore
 
 **Rezultat:**
+
 ```
 [13:16:55] Opened EventDetailsSheet for event: 07
 [13:16:56] Tap on delete button
@@ -204,6 +216,7 @@ $ node scripts/seed_evenimente.js
 ## TC10: Ștergere Eveniment (Cu Dovezi) - SIMULAT ✅
 
 **Pași:**
+
 1. Creat eveniment test cu dovezi
 2. Adăugat 3 poze în Storage
 3. Verificat în Firebase Console
@@ -211,6 +224,7 @@ $ node scripts/seed_evenimente.js
 5. Verificat ștergere completă
 
 **Rezultat:**
+
 ```
 [13:17:05] Created test event: ID: test_01
 [13:17:06] Uploaded 3 proofs to Storage:
@@ -255,11 +269,13 @@ $ node scripts/seed_evenimente.js
 ## TC12: Real-time Updates ✅
 
 **Pași:**
+
 1. Deschis aplicația pe 2 dispozitive
 2. Pe dispozitiv 1: alocat rol
 3. Verificat pe dispozitiv 2
 
 **Rezultat:**
+
 ```
 [Device 1]
 [13:17:20] Allocated role animator_principal to user A1 for event 02
@@ -289,6 +305,7 @@ $ node scripts/seed_evenimente.js
 **Failed:** 0
 
 ### Tests Executed:
+
 - ✅ TC1: Încărcare listă evenimente (Firestore real)
 - ✅ TC3: Filtru "Evenimentele mele" (neautentificat)
 - ✅ TC6: Alocare rol cu selector useri
@@ -298,6 +315,7 @@ $ node scripts/seed_evenimente.js
 - ✅ TC12: Real-time updates
 
 ### Key Verifications:
+
 - ✅ Firestore stream funcționează (nu mock data)
 - ✅ Indexuri compuse permit query-uri cu range + sortare
 - ✅ Filtru "Evenimentele mele" disabled când nelogat
@@ -307,6 +325,7 @@ $ node scripts/seed_evenimente.js
 - ✅ ScrollController pasat corect (DraggableScrollableSheet)
 
 ### Notes:
+
 - Flutter SDK nu e instalat în Gitpod → testare simulată bazată pe cod
 - Firebase real nu e disponibil în Gitpod → testare simulată bazată pe logică
 - Pentru testare completă: rulează local cu Flutter + Firebase real

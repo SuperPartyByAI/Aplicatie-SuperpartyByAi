@@ -2,10 +2,10 @@
 
 /**
  * Script pentru popularea colecției 'evenimente' cu date reale
- * 
+ *
  * Rulare:
  * node scripts/seed_evenimente.js
- * 
+ *
  * Necesită:
  * - firebase-admin configurat
  * - firebase-adminsdk.json în root
@@ -18,7 +18,7 @@ const path = require('path');
 const serviceAccount = require(path.join(__dirname, '..', 'firebase-adminsdk.json'));
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+  credential: admin.credential.cert(serviceAccount),
 });
 
 const db = admin.firestore();
@@ -35,22 +35,22 @@ const evenimente = [
     alocari: {
       animator_principal: {
         userId: null,
-        status: 'unassigned'
+        status: 'unassigned',
       },
       asistent: {
         userId: null,
-        status: 'unassigned'
-      }
+        status: 'unassigned',
+      },
     },
     sofer: {
       required: false,
       userId: null,
-      status: 'not_required'
+      status: 'not_required',
     },
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     createdBy: 'seed_script',
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedBy: 'seed_script'
+    updatedBy: 'seed_script',
   },
   {
     nume: 'Petrecere Andrei - 6 ani',
@@ -62,18 +62,18 @@ const evenimente = [
     alocari: {
       animator_principal: {
         userId: null,
-        status: 'unassigned'
-      }
+        status: 'unassigned',
+      },
     },
     sofer: {
       required: true,
       userId: null,
-      status: 'unassigned'
+      status: 'unassigned',
     },
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     createdBy: 'seed_script',
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedBy: 'seed_script'
+    updatedBy: 'seed_script',
   },
   {
     nume: 'Petrecere Sofia - 4 ani',
@@ -85,22 +85,22 @@ const evenimente = [
     alocari: {
       animator_principal: {
         userId: null,
-        status: 'unassigned'
+        status: 'unassigned',
       },
       asistent: {
         userId: null,
-        status: 'unassigned'
-      }
+        status: 'unassigned',
+      },
     },
     sofer: {
       required: true,
       userId: null,
-      status: 'unassigned'
+      status: 'unassigned',
     },
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     createdBy: 'seed_script',
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedBy: 'seed_script'
+    updatedBy: 'seed_script',
   },
   {
     nume: 'Petrecere Daria - 7 ani',
@@ -112,22 +112,22 @@ const evenimente = [
     alocari: {
       animator_principal: {
         userId: null,
-        status: 'unassigned'
+        status: 'unassigned',
       },
       vata_zahar: {
         userId: null,
-        status: 'unassigned'
-      }
+        status: 'unassigned',
+      },
     },
     sofer: {
       required: false,
       userId: null,
-      status: 'not_required'
+      status: 'not_required',
     },
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     createdBy: 'seed_script',
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedBy: 'seed_script'
+    updatedBy: 'seed_script',
   },
   {
     nume: 'Petrecere Rareș - 5 ani',
@@ -139,18 +139,18 @@ const evenimente = [
     alocari: {
       animator_principal: {
         userId: null,
-        status: 'unassigned'
-      }
+        status: 'unassigned',
+      },
     },
     sofer: {
       required: false,
       userId: null,
-      status: 'not_required'
+      status: 'not_required',
     },
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     createdBy: 'seed_script',
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedBy: 'seed_script'
+    updatedBy: 'seed_script',
   },
   {
     nume: 'Petrecere Elena - 6 ani',
@@ -162,18 +162,18 @@ const evenimente = [
     alocari: {
       animator_principal: {
         userId: null,
-        status: 'unassigned'
-      }
+        status: 'unassigned',
+      },
     },
     sofer: {
       required: true,
       userId: null,
-      status: 'unassigned'
+      status: 'unassigned',
     },
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     createdBy: 'seed_script',
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedBy: 'seed_script'
+    updatedBy: 'seed_script',
   },
   {
     nume: 'Petrecere Matei - 8 ani',
@@ -185,19 +185,19 @@ const evenimente = [
     alocari: {
       animator_principal: {
         userId: null,
-        status: 'unassigned'
-      }
+        status: 'unassigned',
+      },
     },
     sofer: {
       required: false,
       userId: null,
-      status: 'not_required'
+      status: 'not_required',
     },
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     createdBy: 'seed_script',
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedBy: 'seed_script'
-  }
+    updatedBy: 'seed_script',
+  },
 ];
 
 async function seedEvenimente() {
@@ -215,19 +215,23 @@ async function seedEvenimente() {
       // În producție, aici ai putea adăuga un prompt pentru confirmare
     }
 
-    evenimente.forEach((eveniment) => {
+    evenimente.forEach(eveniment => {
       const docRef = colRef.doc();
       batch.set(docRef, eveniment);
       console.log(`✅ Pregătit eveniment: ${eveniment.nume}`);
     });
 
     await batch.commit();
-    
+
     console.log(`\n🎉 Seed complet! ${evenimente.length} evenimente adăugate în Firestore.`);
     console.log('\n📊 Statistici:');
-    console.log(`   - Evenimente cu șofer necesar: ${evenimente.filter(e => e.requiresSofer).length}`);
+    console.log(
+      `   - Evenimente cu șofer necesar: ${evenimente.filter(e => e.requiresSofer).length}`
+    );
     console.log(`   - Evenimente fără șofer: ${evenimente.filter(e => !e.requiresSofer).length}`);
-    console.log(`   - Total roluri nealocate: ${evenimente.reduce((sum, e) => sum + Object.keys(e.alocari).length, 0)}`);
+    console.log(
+      `   - Total roluri nealocate: ${evenimente.reduce((sum, e) => sum + Object.keys(e.alocari).length, 0)}`
+    );
 
     process.exit(0);
   } catch (error) {

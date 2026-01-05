@@ -9,6 +9,7 @@ Toate componentele sunt deployed și funcționale.
 ## 🎯 Ce e gata:
 
 ### 1. ✅ Firestore Configuration
+
 ```javascript
 // app_config/version
 {
@@ -20,18 +21,23 @@ Toate componentele sunt deployed și funcționale.
 ```
 
 ### 2. ✅ Firestore Rules
+
 - `app_config` collection: **readable by all** (deployed)
 - Permite Force Update checks fără autentificare
 
 ### 3. ✅ APK Build 3 (pentru instalare inițială)
+
 **Link:** https://storage.googleapis.com/superparty-frontend.firebasestorage.app/apk/app-release.apk
+
 - Version: 1.0.2
 - Build: 3
 - Signed with: superparty-release-key.jks
 - Size: ~56 MB
 
 ### 4. ✅ APK Build 4 (target pentru update)
+
 **Link:** https://storage.googleapis.com/superparty-frontend.firebasestorage.app/apk/app-release.apk
+
 - Version: 1.0.3
 - Build: 4
 - Signed with: superparty-release-key.jks
@@ -39,6 +45,7 @@ Toate componentele sunt deployed și funcționale.
 - **UPLOADED:** 2026-01-05 10:57 UTC
 
 ### 5. ✅ Code Features
+
 - UpdateGate: Verifică la fiecare pornire
 - ForceUpdateScreen: UI blocat pentru update
 - ApkDownloaderService: Stream-to-file download
@@ -51,6 +58,7 @@ Toate componentele sunt deployed și funcționale.
 ## 🧪 Testing Flow - COMPLETE
 
 ### Step 1: Dezinstalează app-ul vechi (DOAR ODATĂ)
+
 ```bash
 adb uninstall com.superpartybyai.superparty_app
 ```
@@ -60,9 +68,11 @@ adb uninstall com.superpartybyai.superparty_app
 ---
 
 ### Step 2: Instalează APK Build 3
+
 **Download:** https://storage.googleapis.com/superparty-frontend.firebasestorage.app/apk/app-release.apk
 
 **SAU prin ADB:**
+
 ```bash
 # Download APK
 curl -o app-release.apk "https://storage.googleapis.com/superparty-frontend.firebasestorage.app/apk/app-release.apk"
@@ -74,7 +84,9 @@ adb install app-release.apk
 ---
 
 ### Step 3: Deschide app-ul
+
 **Expected behavior:**
+
 1. "Verificare actualizări..." (2-3 secunde)
 2. **ForceUpdateScreen** (blocat, nu poți folosi app-ul)
 3. Mesaj: "🎉 Versiune nouă disponibilă!"
@@ -85,6 +97,7 @@ adb install app-release.apk
 ---
 
 ### Step 4: Testează download
+
 1. **Apasă "Descarcă Actualizare"**
    - Progress bar 0-100%
    - ~10-20 secunde (56 MB)
@@ -97,6 +110,7 @@ adb install app-release.apk
 ---
 
 ### Step 5: Testează instalare
+
 1. **Apasă "Instalează"**
    - Android install prompt
    - Confirmă instalare
@@ -114,12 +128,15 @@ adb install app-release.apk
 ### Dacă NU vezi ForceUpdateScreen:
 
 **Check 1: Build number instalat**
+
 ```bash
 adb shell dumpsys package com.superpartybyai.superparty_app | grep versionCode
 ```
+
 Expected: `versionCode=3`
 
 **Check 2: Logs**
+
 ```bash
 adb logcat -c  # Clear
 # Open app
@@ -127,6 +144,7 @@ adb logcat | grep -E "\[UpdateGate\]|\[ForceUpdateChecker\]"
 ```
 
 Expected logs:
+
 ```
 [UpdateGate] Current build number: 3
 [ForceUpdateChecker] Document exists: true
@@ -135,6 +153,7 @@ Expected logs:
 ```
 
 **Check 3: Internet**
+
 - Verifică că telefonul are internet
 - Verifică că Firestore e accesibil
 
@@ -143,12 +162,15 @@ Expected logs:
 ### Dacă download eșuează:
 
 **Check URL:**
+
 ```bash
 curl -I "https://storage.googleapis.com/superparty-frontend.firebasestorage.app/apk/app-release.apk"
 ```
+
 Expected: `HTTP/2 200`
 
 **Check logs:**
+
 ```bash
 adb logcat | grep -E "\[ApkDownloader\]|\[ForceUpdateScreen\]"
 ```
@@ -158,11 +180,13 @@ adb logcat | grep -E "\[ApkDownloader\]|\[ForceUpdateScreen\]"
 ### Dacă instalare eșuează:
 
 **Check permissions:**
+
 ```bash
 adb shell dumpsys package com.superpartybyai.superparty_app | grep "REQUEST_INSTALL_PACKAGES"
 ```
 
 **Check FileProvider:**
+
 - AndroidManifest.xml: FileProvider configured
 - file_paths.xml: external-path configured
 
