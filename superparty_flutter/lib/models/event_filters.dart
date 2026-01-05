@@ -80,6 +80,9 @@ class EventFilters {
         final endOfNextMonth = DateTime(now.year, now.month + 2, 0, 23, 59, 59);
         return (startOfNextMonth, endOfNextMonth);
       
+      case DatePreset.custom:
+        return (customStartDate, customEndDate);
+      
       case DatePreset.all:
         return (null, null);
     }
