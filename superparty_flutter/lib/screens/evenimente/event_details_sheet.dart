@@ -5,13 +5,17 @@ import 'package:intl/intl.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
 import '../dovezi/dovezi_screen.dart';
+import '../../widgets/user_selector_dialog.dart';
+import '../../widgets/user_display_name.dart';
 
 class EventDetailsSheet extends StatefulWidget {
   final String eventId;
+  final ScrollController? scrollController;
 
   const EventDetailsSheet({
     super.key,
     required this.eventId,
+    this.scrollController,
   });
 
   @override
@@ -160,6 +164,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
     if (_event == null) return const SizedBox();
 
     return SingleChildScrollView(
+      controller: widget.scrollController,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,13 +298,36 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                Text(
-                  isAssigned ? 'Alocat: ${userId ?? "Unknown"}' : 'Nealocat',
-                  style: TextStyle(
-                    color: isAssigned ? const Color(0xFFDC2626) : const Color(0xFF94A3B8),
-                    fontSize: 12,
-                  ),
-                ),
+                isAssigned
+                    ? Row(
+                        children: [
+                          const Text(
+                            'Alocat: ',
+                            style: TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 12,
+                            ),
+                          ),
+                          Expanded(
+                            child: UserDisplayName(
+                              userId: userId,
+                              style: const TextStyle(
+                                color: Color(0xFFDC2626),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              showStaffCode: true,
+                            ),
+                          ),
+                        ],
+                      )
+                    : const Text(
+                        'Nealocat',
+                        style: TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontSize: 12,
+                        ),
+                      ),
               ],
             ),
           ),
@@ -369,13 +397,36 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    Text(
-                      isAssigned ? 'Alocat: ${userId ?? "Unknown"}' : 'Nealocat',
-                      style: TextStyle(
-                        color: isAssigned ? const Color(0xFFDC2626) : const Color(0xFF94A3B8),
-                        fontSize: 12,
-                      ),
-                    ),
+                    isAssigned
+                        ? Row(
+                            children: [
+                              const Text(
+                                'Alocat: ',
+                                style: TextStyle(
+                                  color: Color(0xFF94A3B8),
+                                  fontSize: 12,
+                                ),
+                              ),
+                              Expanded(
+                                child: UserDisplayName(
+                                  userId: userId,
+                                  style: const TextStyle(
+                                    color: Color(0xFFDC2626),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  showStaffCode: true,
+                                ),
+                              ),
+                            ],
+                          )
+                        : const Text(
+                            'Nealocat',
+                            style: TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 12,
+                            ),
+                          ),
                   ],
                 ),
               ),
@@ -474,21 +525,30 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
           );
         }
       } else {
-        // Assign current user (simplified - în producție ar trebui un selector de useri)
-        final currentUser = FirebaseAuth.instance.currentUser;
-        if (currentUser == null) {
-          throw Exception('Utilizator neautentificat');
+        // Selector de useri
+        final selectedUserId = await showUserSelectorDialog(
+          context: context,
+          currentUserId: assignment.userId,
+          title: 'Alocă ${_getRoleLabel(role)}',
+        );
+
+        if (selectedUserId == null && assignment.userId == null) {
+          // User a anulat sau a selectat "Nealocat" când era deja nealocat
+          return;
         }
 
         await _eventService.updateRoleAssignment(
           eventId: widget.eventId,
           role: role,
-          userId: currentUser.uid,
+          userId: selectedUserId, // null = unassign
         );
         
         if (mounted) {
+          final message = selectedUserId == null
+              ? '${_getRoleLabel(role)} dealocat'
+              : '${_getRoleLabel(role)} alocat';
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${_getRoleLabel(role)} alocat')),
+            SnackBar(content: Text(message)),
           );
         }
       }
@@ -522,15 +582,21 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
           );
         }
       } else {
-        // Assign current user
-        final currentUser = FirebaseAuth.instance.currentUser;
-        if (currentUser == null) {
-          throw Exception('Utilizator neautentificat');
+        // Selector de useri pentru șofer
+        final selectedUserId = await showUserSelectorDialog(
+          context: context,
+          currentUserId: currentUserId,
+          title: 'Alocă Șofer',
+        );
+
+        if (selectedUserId == null && currentUserId == null) {
+          // User a anulat sau a selectat "Nealocat" când era deja nealocat
+          return;
         }
 
         await _eventService.updateDriverAssignment(
           eventId: widget.eventId,
-          userId: currentUser.uid,
+          userId: selectedUserId, // null = unassign
         );
         
         if (mounted) {

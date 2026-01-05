@@ -374,10 +374,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         initialChildSize: 0.9,
         minChildSize: 0.5,
         maxChildSize: 0.95,
-        builder: (context, scrollController) => EventDetailsSheet(
-          eventId: eventId,
-          scrollController: scrollController,
-        ),
+        builder: (context, scrollController) => EventDetailsSheet(eventId: eventId),
       ),
     );
   }
@@ -578,29 +575,19 @@ class _FiltersSheetState extends State<_FiltersSheet> {
               'Doar evenimentele mele',
               style: TextStyle(color: Color(0xFFE2E8F0)),
             ),
-            subtitle: FirebaseAuth.instance.currentUser == null
-                ? const Text(
-                    'Trebuie să fii autentificat',
-                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
-                  )
-                : null,
             value: _filters.assignedToMe != null,
-            onChanged: FirebaseAuth.instance.currentUser == null
-                ? null // Disabled dacă nu e logat
-                : (value) {
-                    setState(() {
-                      if (value) {
-                        final currentUser = FirebaseAuth.instance.currentUser;
-                        if (currentUser != null) {
-                          _filters = _filters.copyWith(
-                            assignedToMe: currentUser.uid,
-                          );
-                        }
-                      } else {
-                        _filters = _filters.copyWith(clearAssignedToMe: true);
-                      }
-                    });
-                  },
+            onChanged: (value) {
+              setState(() {
+                if (value) {
+                  final currentUser = FirebaseAuth.instance.currentUser;
+                  _filters = _filters.copyWith(
+                    assignedToMe: currentUser?.uid ?? '',
+                  );
+                } else {
+                  _filters = _filters.copyWith(clearAssignedToMe: true);
+                }
+              });
+            },
             activeColor: const Color(0xFFDC2626),
             tileColor: const Color(0xFF1A2332),
             shape: RoundedRectangleBorder(
