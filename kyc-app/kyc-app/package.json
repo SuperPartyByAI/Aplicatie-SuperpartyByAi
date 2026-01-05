@@ -13,7 +13,7 @@
     "test:coverage": "vitest --coverage",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lighthouse": "lhci autorun"
+    "lighthouse": "lhci autorun --config=./lighthouserc.cjs"
   },
   "dependencies": {
     "@capacitor-community/keep-awake": "^8.0.0",
