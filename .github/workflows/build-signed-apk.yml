@@ -1,0 +1,78 @@
+name: Build Signed APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'superparty_flutter/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+      
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > /tmp/superparty-release-key.jks
+      
+      - name: Create key.properties
+        working-directory: superparty_flutter/android
+        run: |
+          cat > key.properties << EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=superparty-key
+          storeFile=/tmp/superparty-release-key.jks
+          EOF
+      
+      - name: Get dependencies
+        working-directory: superparty_flutter
+        run: flutter pub get
+      
+      - name: Build signed APK
+        working-directory: superparty_flutter
+        run: flutter build apk --release
+      
+      - name: Upload APK to Firebase Storage
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$GOOGLE_APPLICATION_CREDENTIALS_JSON" > /tmp/firebase-key.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/firebase-key.json
+          
+          # Install gsutil
+          curl https://sdk.cloud.google.com | bash
+          export PATH=$PATH:/home/runner/google-cloud-sdk/bin
+          
+          # Activate service account
+          gcloud auth activate-service-account --key-file=/tmp/firebase-key.json
+          
+          # Upload APK
+          gsutil cp superparty_flutter/build/app/outputs/flutter-apk/app-release.apk \
+            gs://superparty-frontend.appspot.com/apk/app-release.apk
+          
+          # Make public
+          gsutil acl ch -u AllUsers:R gs://superparty-frontend.appspot.com/apk/app-release.apk
+      
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-signed
+          path: superparty_flutter/build/app/outputs/flutter-apk/app-release.apk
