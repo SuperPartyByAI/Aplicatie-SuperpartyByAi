@@ -55,7 +55,7 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "data",
+          "fieldPath": "date",
           "order": "ASCENDING"
         }
       ]
@@ -69,7 +69,7 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "data",
+          "fieldPath": "date",
           "order": "DESCENDING"
         }
       ]
