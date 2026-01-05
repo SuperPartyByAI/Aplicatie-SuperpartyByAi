@@ -20,25 +20,38 @@ class ForceUpdateCheckerService {
   /// Returns null dacă documentul nu există sau parsing eșuează
   Future<AppVersionConfig?> getVersionConfig() async {
     try {
+      print('[ForceUpdateChecker] Reading from Firestore: app_config/version');
+      
       final doc = await _firestore
           .collection('app_config')
           .doc('version')
           .get();
 
+      print('[ForceUpdateChecker] Document exists: ${doc.exists}');
+
       if (!doc.exists) {
-        print('[ForceUpdateChecker] No version config in Firestore');
+        print('[ForceUpdateChecker] ❌ No version config in Firestore');
         return null;
       }
 
       final data = doc.data();
       if (data == null) {
-        print('[ForceUpdateChecker] Version config data is null');
+        print('[ForceUpdateChecker] ❌ Version config data is null');
         return null;
       }
 
-      return AppVersionConfig.fromFirestore(data);
-    } catch (e) {
-      print('[ForceUpdateChecker] Error reading version config: $e');
+      print('[ForceUpdateChecker] ✅ Config data: $data');
+      
+      final config = AppVersionConfig.fromFirestore(data);
+      print('[ForceUpdateChecker] Parsed config:');
+      print('[ForceUpdateChecker]   - min_build_number: ${config.minBuildNumber}');
+      print('[ForceUpdateChecker]   - force_update: ${config.forceUpdate}');
+      print('[ForceUpdateChecker]   - android_download_url: ${config.androidDownloadUrl}');
+      
+      return config;
+    } catch (e, stackTrace) {
+      print('[ForceUpdateChecker] ❌ Error reading version config: $e');
+      print('[ForceUpdateChecker] Stack trace: $stackTrace');
       return null;
     }
   }

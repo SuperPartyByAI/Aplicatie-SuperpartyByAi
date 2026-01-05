@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../services/force_update_checker_service.dart';
 import '../services/app_state_migration_service.dart';
 import '../screens/update/force_update_screen.dart';
@@ -35,12 +36,20 @@ class _UpdateGateState extends State<UpdateGate> {
 
   Future<void> _checkForUpdate() async {
     try {
-      print('[UpdateGate] Checking for force update...');
+      print('[UpdateGate] ========================================');
+      print('[UpdateGate] Starting force update check...');
       
       final checker = ForceUpdateCheckerService();
+      
+      // Get current build info
+      final packageInfo = await PackageInfo.fromPlatform();
+      print('[UpdateGate] Current app version: ${packageInfo.version}');
+      print('[UpdateGate] Current build number: ${packageInfo.buildNumber}');
+      
       final needsUpdate = await checker.needsForceUpdate();
       
       print('[UpdateGate] Force update required: $needsUpdate');
+      print('[UpdateGate] ========================================');
       
       // If no update needed, check for data migration
       if (!needsUpdate) {
