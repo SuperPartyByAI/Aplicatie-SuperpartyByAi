@@ -5,6 +5,20 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path/path.dart' as path;
 import '../models/evidence_model.dart';
 
+class EvidenceUploadResult {
+  final String docId;
+  final String downloadUrl;
+  final String storagePath;
+  final DateTime uploadedAt;
+
+  EvidenceUploadResult({
+    required this.docId,
+    required this.downloadUrl,
+    required this.storagePath,
+    required this.uploadedAt,
+  });
+}
+
 class EvidenceService {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
@@ -19,7 +33,7 @@ class EvidenceService {
         _storage = storage ?? FirebaseStorage.instance;
 
   /// Upload imagine în Storage + creează doc în Firestore
-  Future<String> uploadEvidence({
+  Future<EvidenceUploadResult> uploadEvidence({
     required String eventId,
     required EvidenceCategory categorie,
     required File imageFile,
@@ -75,7 +89,12 @@ class EvidenceService {
       // Update category metadata
       await _updateCategoryPhotoCount(eventId, categorie, increment: true);
 
-      return docRef.id;
+      return EvidenceUploadResult(
+        docId: docRef.id,
+        downloadUrl: downloadUrl,
+        storagePath: storagePath,
+        uploadedAt: DateTime.now(),
+      );
     } catch (e) {
       throw Exception('Eroare la upload dovadă: $e');
     }

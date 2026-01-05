@@ -494,20 +494,17 @@ class _DoveziScreenState extends State<DoveziScreen> {
     try {
       final imageFile = File(localEvidence.localPath);
       
-      final remoteDocId = await _evidenceService.uploadEvidence(
+      final result = await _evidenceService.uploadEvidence(
         eventId: widget.eventId,
         categorie: localEvidence.categorie,
         imageFile: imageFile,
       );
 
-      // Marchează ca synced
-      // Construim URL-ul direct în loc să facem query (evităm race condition)
-      final remoteUrl = 'https://firebasestorage.googleapis.com/v0/b/superparty-frontend.appspot.com/o/event_images%2F${widget.eventId}%2F${localEvidence.categorie.value}%2F${remoteDocId}?alt=media';
-      
+      // Marchează ca synced folosind rezultatul direct
       await _cacheService.markSynced(
         id: localEvidence.id,
-        remoteUrl: remoteUrl,
-        remoteDocId: remoteDocId,
+        remoteUrl: result.downloadUrl,
+        remoteDocId: result.docId,
       );
 
       if (mounted) {
