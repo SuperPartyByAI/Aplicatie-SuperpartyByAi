@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import '../../models/event_model.dart';
+import '../../models/event_filters.dart';
+import '../../services/event_service.dart';
+import 'event_details_sheet.dart';
 
 class EvenimenteScreen extends StatefulWidget {
   const EvenimenteScreen({super.key});
@@ -10,9 +14,8 @@ class EvenimenteScreen extends StatefulWidget {
 }
 
 class _EvenimenteScreenState extends State<EvenimenteScreen> {
-  String _searchQuery = '';
-  String _statusFilter = 'toate';
-  String _sortBy = 'data-desc';
+  final EventService _eventService = EventService();
+  EventFilters _filters = EventFilters();
 
   @override
   Widget build(BuildContext context) {
@@ -40,10 +43,18 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             ),
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list, color: Color(0xFFDC2626)),
+            onPressed: _showFiltersSheet,
+          ),
+        ],
       ),
       body: Column(
         children: [
-          _buildFilters(),
+          _buildSearchBar(),
+          _buildDatePresets(),
+          if (_filters.hasActiveFilters) _buildActiveFiltersChips(),
           Expanded(
             child: _buildEventsList(),
           ),
@@ -52,153 +63,206 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
     );
   }
 
-  Widget _buildFilters() {
-    return Container(
+  Widget _buildSearchBar() {
+    return Padding(
       padding: const EdgeInsets.all(16),
-      child: Column(
+      child: TextField(
+        onChanged: (value) {
+          setState(() {
+            _filters = _filters.copyWith(searchQuery: value);
+          });
+        },
+        style: const TextStyle(color: Color(0xFFE2E8F0)),
+        decoration: InputDecoration(
+          hintText: 'Caută evenimente...',
+          hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+          filled: true,
+          fillColor: const Color(0xFF1A2332),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFF2D3748)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFF2D3748)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFFDC2626)),
+          ),
+          prefixIcon: const Icon(Icons.search, color: Color(0xFF94A3B8)),
+          suffixIcon: _filters.searchQuery != null && _filters.searchQuery!.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear, color: Color(0xFF94A3B8)),
+                  onPressed: () {
+                    setState(() {
+                      _filters = _filters.copyWith(clearSearch: true);
+                    });
+                  },
+                )
+              : null,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDatePresets() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
         children: [
-          TextField(
-            onChanged: (value) => setState(() => _searchQuery = value),
-            style: const TextStyle(color: Color(0xFFE2E8F0)),
-            decoration: InputDecoration(
-              hintText: 'Caută evenimente...',
-              hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
-              filled: true,
-              fillColor: const Color(0xFF1A2332),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF2D3748)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF2D3748)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFFDC2626)),
-              ),
-              prefixIcon: const Icon(Icons.search, color: Color(0xFF94A3B8)),
+          _buildPresetChip(DatePreset.all, 'Toate'),
+          _buildPresetChip(DatePreset.today, 'Astăzi'),
+          _buildPresetChip(DatePreset.thisWeek, 'Săptămâna'),
+          _buildPresetChip(DatePreset.thisMonth, 'Luna'),
+          _buildCustomRangeButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPresetChip(DatePreset preset, String label) {
+    final isSelected = _filters.preset == preset && 
+                       _filters.customStartDate == null && 
+                       _filters.customEndDate == null;
+    
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (selected) {
+          setState(() {
+            _filters = _filters.copyWith(
+              preset: preset,
+              clearCustomDates: true,
+            );
+          });
+        },
+        backgroundColor: const Color(0xFF1A2332),
+        selectedColor: const Color(0xFFDC2626),
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+        ),
+        side: BorderSide(
+          color: isSelected ? const Color(0xFFDC2626) : const Color(0xFF2D3748),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomRangeButton() {
+    final hasCustomRange = _filters.customStartDate != null || _filters.customEndDate != null;
+    
+    return FilterChip(
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.date_range, size: 16, color: Colors.white),
+          const SizedBox(width: 4),
+          Text(hasCustomRange ? 'Custom' : 'Alege interval'),
+        ],
+      ),
+      selected: hasCustomRange,
+      onSelected: (selected) => _showDateRangePicker(),
+      backgroundColor: const Color(0xFF1A2332),
+      selectedColor: const Color(0xFFDC2626),
+      labelStyle: TextStyle(
+        color: hasCustomRange ? Colors.white : const Color(0xFF94A3B8),
+      ),
+      side: BorderSide(
+        color: hasCustomRange ? const Color(0xFFDC2626) : const Color(0xFF2D3748),
+      ),
+    );
+  }
+
+  Widget _buildActiveFiltersChips() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Text(
+            '${_filters.activeFilterCount} filtre active',
+            style: const TextStyle(
+              color: Color(0xFF94A3B8),
+              fontSize: 12,
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildDropdown(
-                  value: _statusFilter,
-                  items: const [
-                    {'value': 'toate', 'label': 'Toate statusurile'},
-                    {'value': 'activ', 'label': 'Active'},
-                    {'value': 'viitor', 'label': 'Viitoare'},
-                    {'value': 'trecut', 'label': 'Trecute'},
-                  ],
-                  onChanged: (value) => setState(() => _statusFilter = value!),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildDropdown(
-                  value: _sortBy,
-                  items: const [
-                    {'value': 'data-desc', 'label': 'Data (Desc)'},
-                    {'value': 'data-asc', 'label': 'Data (Asc)'},
-                    {'value': 'nume', 'label': 'Nume'},
-                  ],
-                  onChanged: (value) => setState(() => _sortBy = value!),
-                ),
-              ),
-            ],
+          const SizedBox(width: 8),
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _filters = _filters.reset();
+              });
+            },
+            icon: const Icon(Icons.clear, size: 16, color: Color(0xFFDC2626)),
+            label: const Text(
+              'Reset',
+              style: TextStyle(color: Color(0xFFDC2626)),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDropdown({
-    required String value,
-    required List<Map<String, String>> items,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A2332),
-        border: Border.all(color: const Color(0xFF2D3748)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          dropdownColor: const Color(0xFF1A2332),
-          style: const TextStyle(color: Color(0xFFE2E8F0), fontSize: 14),
-          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF94A3B8)),
-          items: items.map((item) {
-            return DropdownMenuItem<String>(
-              value: item['value'],
-              child: Text(item['label']!),
-            );
-          }).toList(),
-          onChanged: onChanged,
-        ),
-      ),
-    );
-  }
-
   Widget _buildEventsList() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('evenimente')
-          .snapshots(),
+    return StreamBuilder<List<EventModel>>(
+      stream: _eventService.getEventsStream(_filters),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(
-            child: Text(
-              'Eroare: ${snapshot.error}',
-              style: const TextStyle(color: Color(0xFF94A3B8)),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  'Eroare: ${snapshot.error}',
+                  style: const TextStyle(color: Colors.white70),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           );
         }
 
         if (!snapshot.hasData) {
-          return const Center(
-            child: CircularProgressIndicator(
-              color: Color(0xFFDC2626),
-            ),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
 
-        List<Map<String, dynamic>> events = snapshot.data!.docs.map((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          return {
-            'id': doc.id,
-            ...data,
-          };
-        }).toList();
-
-        // Apply filters
-        events = _filterEvents(events);
-
-        // Apply sorting
-        events = _sortEvents(events);
+        final events = snapshot.data!;
 
         if (events.isEmpty) {
-          return const Center(
-            child: Text(
-              'Nu s-au găsit evenimente',
-              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 16),
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.event_busy, color: Color(0xFF94A3B8), size: 64),
+                const SizedBox(height: 16),
+                const Text(
+                  'Niciun eveniment găsit',
+                  style: TextStyle(
+                    color: Color(0xFFE2E8F0),
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _filters.hasActiveFilters
+                      ? 'Încearcă să modifici filtrele'
+                      : 'Nu există evenimente în sistem',
+                  style: const TextStyle(color: Color(0xFF94A3B8)),
+                ),
+              ],
             ),
           );
         }
 
-        return GridView.builder(
+        return ListView.builder(
           padding: const EdgeInsets.all(16),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: MediaQuery.of(context).size.width > 768 ? 2 : 1,
-            childAspectRatio: MediaQuery.of(context).size.width > 768 ? 1.5 : 1.2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-          ),
           itemCount: events.length,
           itemBuilder: (context, index) => _buildEventCard(events[index]),
         );
@@ -206,300 +270,363 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
     );
   }
 
-  List<Map<String, dynamic>> _filterEvents(List<Map<String, dynamic>> events) {
-    return events.where((event) {
-      final matchesSearch = _searchQuery.isEmpty ||
-          (event['nume']?.toString().toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
-          (event['locatie']?.toString().toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
-
-      final matchesStatus = _statusFilter == 'toate' ||
-          (event['status']?.toString() == _statusFilter);
-
-      return matchesSearch && matchesStatus;
-    }).toList();
-  }
-
-  List<Map<String, dynamic>> _sortEvents(List<Map<String, dynamic>> events) {
-    events.sort((a, b) {
-      if (_sortBy == 'data-desc') {
-        final dateA = _parseDate(a['data']);
-        final dateB = _parseDate(b['data']);
-        return dateB.compareTo(dateA);
-      } else if (_sortBy == 'data-asc') {
-        final dateA = _parseDate(a['data']);
-        final dateB = _parseDate(b['data']);
-        return dateA.compareTo(dateB);
-      } else if (_sortBy == 'nume') {
-        return (a['nume']?.toString() ?? '').compareTo(b['nume']?.toString() ?? '');
-      }
-      return 0;
-    });
-    return events;
-  }
-
-  DateTime _parseDate(dynamic date) {
-    if (date == null) return DateTime.now();
-    if (date is Timestamp) return date.toDate();
-    if (date is String) return DateTime.tryParse(date) ?? DateTime.now();
-    return DateTime.now();
-  }
-
-  Widget _buildEventCard(Map<String, dynamic> event) {
-    final status = event['status']?.toString() ?? 'viitor';
-    final date = _parseDate(event['data']);
-    
-    // Format date without locale to avoid initialization issues
-    String formattedDate;
-    try {
-      formattedDate = DateFormat('dd MMMM yyyy, HH:mm').format(date);
-    } catch (e) {
-      // Fallback to simple format if DateFormat fails
-      formattedDate = '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-    }
-
-    return GestureDetector(
-      onTap: () => _viewEvent(event),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A2332),
-          border: Border.all(color: const Color(0xFF2D3748)),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () => _viewEvent(event),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildEventCard(EventModel event) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      color: const Color(0xFF1A2332),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFF2D3748)),
+      ),
+      child: InkWell(
+        onTap: () => _openEventDetails(event.id),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          event['nume']?.toString() ?? 'Eveniment',
-                          style: const TextStyle(
-                            color: Color(0xFFE2E8F0),
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                  Expanded(
+                    child: Text(
+                      event.nume,
+                      style: const TextStyle(
+                        color: Color(0xFFE2E8F0),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
-                      const SizedBox(width: 8),
-                      _buildStatusBadge(status),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  _buildInfoRow(Icons.calendar_today, formattedDate),
-                  const SizedBox(height: 8),
-                  _buildInfoRow(Icons.location_on, event['locatie']?.toString() ?? 'Locație necunoscută'),
-                  const SizedBox(height: 8),
-                  _buildInfoRow(Icons.people, '${event['participanti'] ?? 0} participanți'),
-                  const Spacer(),
-                  const Divider(color: Color(0xFF2D3748), height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => _editEvent(event),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFDC2626),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                  if (event.requiresSofer)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.local_shipping, size: 14, color: Color(0xFFDC2626)),
+                          SizedBox(width: 4),
+                          Text(
+                            'Șofer',
+                            style: TextStyle(
+                              color: Color(0xFFDC2626),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          child: const Text(
-                            'Editează',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => _viewDetails(event),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFFE2E8F0),
-                            side: const BorderSide(color: Color(0xFF2D3748)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: const Text(
-                            'Detalii',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.location_on, size: 16, color: Color(0xFF94A3B8)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      event.locatie,
+                      style: const TextStyle(color: Color(0xFF94A3B8)),
+                    ),
                   ),
                 ],
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusBadge(String status) {
-    Color color;
-    String label;
-
-    switch (status) {
-      case 'activ':
-        color = const Color(0xFF10B981);
-        label = 'ACTIV';
-        break;
-      case 'viitor':
-        color = const Color(0xFF3B82F6);
-        label = 'VIITOR';
-        break;
-      case 'trecut':
-        color = const Color(0xFF6B7280);
-        label = 'TRECUT';
-        break;
-      default:
-        color = const Color(0xFF6B7280);
-        label = 'NECUNOSCUT';
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(9999),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: const Color(0xFF94A3B8)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              color: Color(0xFF94A3B8),
-              fontSize: 14,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _viewEvent(Map<String, dynamic> event) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A2332),
-        title: Text(
-          event['nume']?.toString() ?? 'Eveniment',
-          style: const TextStyle(color: Color(0xFFE2E8F0)),
-        ),
-        content: Text(
-          'Vizualizare eveniment #${event['id']}',
-          style: const TextStyle(color: Color(0xFF94A3B8)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Închide', style: TextStyle(color: Color(0xFFDC2626))),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _editEvent(Map<String, dynamic> event) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A2332),
-        title: const Text(
-          'Editare eveniment',
-          style: TextStyle(color: Color(0xFFE2E8F0)),
-        ),
-        content: Text(
-          'Editare eveniment #${event['id']}',
-          style: const TextStyle(color: Color(0xFF94A3B8)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Închide', style: TextStyle(color: Color(0xFFDC2626))),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _viewDetails(Map<String, dynamic> event) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A2332),
-        title: const Text(
-          'Detalii eveniment',
-          style: TextStyle(color: Color(0xFFE2E8F0)),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Nume: ${event['nume']}',
-              style: const TextStyle(color: Color(0xFF94A3B8)),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Locație: ${event['locatie']}',
-              style: const TextStyle(color: Color(0xFF94A3B8)),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Participanți: ${event['participanti']}',
-              style: const TextStyle(color: Color(0xFF94A3B8)),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Status: ${event['status']}',
-              style: const TextStyle(color: Color(0xFF94A3B8)),
-            ),
-            if (event['descriere'] != null) ...[
               const SizedBox(height: 8),
-              Text(
-                'Descriere: ${event['descriere']}',
-                style: const TextStyle(color: Color(0xFF94A3B8)),
+              Row(
+                children: [
+                  const Icon(Icons.calendar_today, size: 16, color: Color(0xFF94A3B8)),
+                  const SizedBox(width: 8),
+                  Text(
+                    DateFormat('dd MMM yyyy, HH:mm').format(event.data),
+                    style: const TextStyle(color: Color(0xFF94A3B8)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.event, size: 16, color: Color(0xFF94A3B8)),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${event.tipEveniment} • ${event.tipLocatie}',
+                    style: const TextStyle(color: Color(0xFF94A3B8)),
+                  ),
+                ],
               ),
             ],
-          ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Închide', style: TextStyle(color: Color(0xFFDC2626))),
+      ),
+    );
+  }
+
+  void _openEventDetails(String eventId) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) => EventDetailsSheet(eventId: eventId),
+      ),
+    );
+  }
+
+  Future<void> _showDateRangePicker() async {
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      initialDateRange: _filters.customStartDate != null && _filters.customEndDate != null
+          ? DateTimeRange(
+              start: _filters.customStartDate!,
+              end: _filters.customEndDate!,
+            )
+          : null,
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFFDC2626),
+              onPrimary: Colors.white,
+              surface: Color(0xFF1A2332),
+              onSurface: Color(0xFFE2E8F0),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _filters = _filters.copyWith(
+          preset: DatePreset.custom,
+          customStartDate: picked.start,
+          customEndDate: picked.end,
+        );
+      });
+    }
+  }
+
+  void _showFiltersSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0B1220),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => _FiltersSheet(
+        filters: _filters,
+        onApply: (newFilters) {
+          setState(() {
+            _filters = newFilters;
+          });
+          Navigator.pop(context);
+        },
+      ),
+    );
+  }
+}
+
+class _FiltersSheet extends StatefulWidget {
+  final EventFilters filters;
+  final Function(EventFilters) onApply;
+
+  const _FiltersSheet({
+    required this.filters,
+    required this.onApply,
+  });
+
+  @override
+  State<_FiltersSheet> createState() => _FiltersSheetState();
+}
+
+class _FiltersSheetState extends State<_FiltersSheet> {
+  late EventFilters _filters;
+
+  @override
+  void initState() {
+    super.initState();
+    _filters = widget.filters;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'Filtre Avansate',
+                style: TextStyle(
+                  color: Color(0xFFE2E8F0),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close, color: Color(0xFF94A3B8)),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          
+          const Text(
+            'Sortare',
+            style: TextStyle(
+              color: Color(0xFFE2E8F0),
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<SortBy>(
+                  value: _filters.sortBy,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: const Color(0xFF1A2332),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Color(0xFF2D3748)),
+                    ),
+                  ),
+                  dropdownColor: const Color(0xFF1A2332),
+                  style: const TextStyle(color: Color(0xFFE2E8F0)),
+                  items: SortBy.values.map((sortBy) {
+                    return DropdownMenuItem(
+                      value: sortBy,
+                      child: Text(sortBy.label),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        _filters = _filters.copyWith(sortBy: value);
+                      });
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              IconButton(
+                icon: Icon(
+                  _filters.sortDirection == SortDirection.asc
+                      ? Icons.arrow_upward
+                      : Icons.arrow_downward,
+                  color: const Color(0xFFDC2626),
+                ),
+                onPressed: () {
+                  setState(() {
+                    _filters = _filters.copyWith(
+                      sortDirection: _filters.sortDirection == SortDirection.asc
+                          ? SortDirection.desc
+                          : SortDirection.asc,
+                    );
+                  });
+                },
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 24),
+          
+          SwitchListTile(
+            title: const Text(
+              'Doar evenimente cu șofer',
+              style: TextStyle(color: Color(0xFFE2E8F0)),
+            ),
+            value: _filters.requiresSofer ?? false,
+            onChanged: (value) {
+              setState(() {
+                _filters = _filters.copyWith(
+                  requiresSofer: value,
+                  clearRequiresSofer: !value,
+                );
+              });
+            },
+            activeColor: const Color(0xFFDC2626),
+            tileColor: const Color(0xFF1A2332),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          
+          const SizedBox(height: 12),
+          
+          SwitchListTile(
+            title: const Text(
+              'Doar evenimentele mele',
+              style: TextStyle(color: Color(0xFFE2E8F0)),
+            ),
+            value: _filters.assignedToMe != null,
+            onChanged: (value) {
+              setState(() {
+                if (value) {
+                  final currentUser = FirebaseAuth.instance.currentUser;
+                  _filters = _filters.copyWith(
+                    assignedToMe: currentUser?.uid ?? '',
+                  );
+                } else {
+                  _filters = _filters.copyWith(clearAssignedToMe: true);
+                }
+              });
+            },
+            activeColor: const Color(0xFFDC2626),
+            tileColor: const Color(0xFF1A2332),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      _filters = _filters.reset();
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF94A3B8),
+                    side: const BorderSide(color: Color(0xFF2D3748)),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text('Reset'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => widget.onApply(_filters),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFDC2626),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text('Aplică'),
+                ),
+              ),
+            ],
           ),
         ],
       ),

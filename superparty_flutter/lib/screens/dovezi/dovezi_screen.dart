@@ -501,16 +501,12 @@ class _DoveziScreenState extends State<DoveziScreen> {
       );
 
       // Marchează ca synced
-      final remoteEvidence = await _evidenceService.getEvidenceList(
-        eventId: widget.eventId,
-        categorie: localEvidence.categorie,
-      );
-      
-      final uploaded = remoteEvidence.firstWhere((e) => e.id == remoteDocId);
+      // Construim URL-ul direct în loc să facem query (evităm race condition)
+      final remoteUrl = 'https://firebasestorage.googleapis.com/v0/b/superparty-frontend.appspot.com/o/event_images%2F${widget.eventId}%2F${localEvidence.categorie.value}%2F${remoteDocId}?alt=media';
       
       await _cacheService.markSynced(
         id: localEvidence.id,
-        remoteUrl: uploaded.downloadUrl,
+        remoteUrl: remoteUrl,
         remoteDocId: remoteDocId,
       );
 
