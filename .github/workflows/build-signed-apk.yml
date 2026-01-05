@@ -53,7 +53,7 @@ jobs:
       - name: Setup Node.js for upload script
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
       
       - name: Install firebase-admin
         run: npm install firebase-admin
