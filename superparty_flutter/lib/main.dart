@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'services/firebase_service.dart';
 import 'services/background_service.dart';
 import 'services/push_notification_service.dart';
+import 'services/auto_update_service.dart';
 import 'providers/app_state_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
@@ -23,6 +24,7 @@ import 'screens/gm/analytics_screen.dart';
 import 'screens/gm/staff_setup_screen.dart';
 import 'screens/ai_chat/ai_chat_screen.dart';
 import 'screens/kyc/kyc_screen.dart';
+import 'widgets/update_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -95,11 +97,85 @@ class SuperPartyApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
   @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _updateChecked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkForUpdates();
+  }
+
+  Future<void> _checkForUpdates() async {
+    try {
+      // Verifică dacă există actualizări
+      final updateAction = await AutoUpdateService.checkAndApplyUpdate();
+      
+      if (!mounted) return;
+      
+      if (updateAction == 'logout') {
+        // Versiune nouă disponibilă → deconectează userul
+        print('[AutoUpdate] New version detected, logging out user');
+        
+        // Afișează dialog
+        await UpdateDialog.show(
+          context,
+          forceUpdate: true,
+        );
+        
+        // Deconectează
+        await AutoUpdateService.forceLogout();
+        
+      } else if (updateAction == 'download') {
+        // Update pending → afișează dialog de download
+        print('[AutoUpdate] Pending update detected, showing download dialog');
+        
+        await UpdateDialog.show(
+          context,
+          forceUpdate: true,
+        );
+        
+        // Șterge flag-ul după ce userul a văzut dialog-ul
+        await AutoUpdateService.clearPendingUpdate();
+      }
+      
+      setState(() {
+        _updateChecked = true;
+      });
+      
+    } catch (e) {
+      print('[AutoUpdate] Error checking for updates: $e');
+      setState(() {
+        _updateChecked = true;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Așteaptă verificarea update-urilor
+    if (!_updateChecked) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Verificare actualizări...'),
+            ],
+          ),
+        ),
+      );
+    }
+    
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {

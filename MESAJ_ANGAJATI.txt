@@ -1,0 +1,31 @@
+📱 APLICAȚIA SUPERPARTY - INSTALARE
+
+Bună echipa! 👋
+
+Aplicația SuperParty e gata! Descarcă și instalează:
+
+🔗 LINK DOWNLOAD:
+https://firebasestorage.googleapis.com/v0/b/superparty-frontend.firebasestorage.app/o/apk%2Fapp-release.apk?alt=media
+
+📥 PAȘI RAPIZI:
+1. Click pe link → Descarcă APK (48 MB)
+2. Permite instalare din surse necunoscute
+3. Instalează app-ul
+4. Înregistrare / Login
+5. Completează KYC (poze CI + selfie + date)
+6. Așteaptă aprobare
+
+✅ DUPĂ APROBARE:
+- Vezi evenimente (petreceri)
+- Vezi salarizare
+- Setează disponibilitate
+- Chat cu AI
+- Vezi echipa
+
+🔄 UPDATE-URI:
+App-ul se actualizează automat când apare versiune nouă!
+
+📞 PROBLEME?
+Contactează-mă!
+
+Bun venit în echipă! 🎉
