@@ -6,6 +6,7 @@ import 'services/firebase_service.dart';
 import 'services/background_service.dart';
 import 'services/push_notification_service.dart';
 import 'services/auto_update_service.dart';
+import 'services/force_update_checker_service.dart';
 import 'providers/app_state_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
@@ -25,6 +26,7 @@ import 'screens/gm/staff_setup_screen.dart';
 import 'screens/ai_chat/ai_chat_screen.dart';
 import 'screens/kyc/kyc_screen.dart';
 import 'widgets/update_dialog.dart';
+import 'widgets/force_update_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -106,6 +108,7 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _updateChecked = false;
+  bool _showingForceUpdate = false;
 
   @override
   void initState() {
@@ -115,7 +118,28 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   Future<void> _checkForUpdates() async {
     try {
-      // Verifică dacă există actualizări
+      // 1. PRIORITATE: Verifică force update (obligatoriu, blochează app-ul)
+      final forceUpdateChecker = ForceUpdateCheckerService();
+      final needsForceUpdate = await forceUpdateChecker.needsForceUpdate();
+      
+      if (!mounted) return;
+      
+      if (needsForceUpdate) {
+        print('[AuthWrapper] ⚠️ Force update required - showing dialog');
+        setState(() {
+          _showingForceUpdate = true;
+        });
+        
+        // Afișează dialog NON-DISMISSIBLE
+        // User-ul NU poate trece mai departe până nu actualizează
+        await ForceUpdateDialog.show(context);
+        
+        // Dialog-ul rămâne deschis până când user-ul instalează update-ul
+        // După instalare, app-ul se va reporni cu versiunea nouă
+        return;
+      }
+      
+      // 2. Verifică update-uri opționale (sistemul vechi)
       final updateAction = await AutoUpdateService.checkAndApplyUpdate();
       
       if (!mounted) return;
@@ -151,7 +175,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       });
       
     } catch (e) {
-      print('[AutoUpdate] Error checking for updates: $e');
+      print('[AuthWrapper] Error checking for updates: $e');
       setState(() {
         _updateChecked = true;
       });
@@ -160,6 +184,22 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   @override
   Widget build(BuildContext context) {
+    // Dacă se afișează force update dialog, arată loading
+    if (_showingForceUpdate) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Verificare actualizări...'),
+            ],
+          ),
+        ),
+      );
+    }
+    
     // Așteaptă verificarea update-urilor
     if (!_updateChecked) {
       return const Scaffold(

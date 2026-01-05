@@ -1,12 +1,14 @@
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter/foundation.dart';
 
 /// Service pentru download APK direct din Firebase Storage
+/// 
+/// Folosește stream-to-file pentru a evita OOM pe APK-uri mari
 class ApkDownloaderService {
   /// Descarcă APK-ul din Firebase Storage
   /// 
+  /// Stream-to-file: nu încarcă tot APK-ul în RAM
   /// Returnează path-ul local al fișierului descărcat
   static Future<String?> downloadApk(
     String downloadUrl, {
@@ -15,7 +17,7 @@ class ApkDownloaderService {
     try {
       print('[ApkDownloader] Starting download from: $downloadUrl');
       
-      // 1. Obține directorul de download
+      // 1. Obține directorul app-specific (nu cere storage permission)
       final directory = await getExternalStorageDirectory();
       if (directory == null) {
         print('[ApkDownloader] External storage not available');
@@ -32,64 +34,51 @@ class ApkDownloaderService {
         print('[ApkDownloader] Deleted old APK');
       }
       
-      // 4. Download cu progress
-      final request = await http.Client().send(http.Request('GET', Uri.parse(downloadUrl)));
-      final contentLength = request.contentLength ?? 0;
+      // 4. Inițiază request HTTP
+      final request = await http.Client().send(
+        http.Request('GET', Uri.parse(downloadUrl))
+      );
       
-      print('[ApkDownloader] Content length: ${contentLength / 1024 / 1024} MB');
-      
-      final bytes = <int>[];
-      var downloadedBytes = 0;
-      
-      await for (final chunk in request.stream) {
-        bytes.addAll(chunk);
-        downloadedBytes += chunk.length;
-        
-        if (contentLength > 0) {
-          final progress = downloadedBytes / contentLength;
-          onProgress?.call(progress);
-          
-          if (downloadedBytes % (1024 * 1024) == 0) {
-            print('[ApkDownloader] Downloaded: ${downloadedBytes / 1024 / 1024} MB');
-          }
-        }
+      if (request.statusCode != 200) {
+        print('[ApkDownloader] HTTP error: ${request.statusCode}');
+        return null;
       }
       
-      // 5. Salvează fișierul
-      await file.writeAsBytes(bytes);
+      final contentLength = request.contentLength ?? 0;
+      print('[ApkDownloader] Content length: ${contentLength / 1024 / 1024} MB');
+      
+      // 5. Stream direct la fișier (fără a încărca în RAM)
+      final sink = file.openWrite();
+      var downloadedBytes = 0;
+      
+      try {
+        await for (final chunk in request.stream) {
+          sink.add(chunk);
+          downloadedBytes += chunk.length;
+          
+          if (contentLength > 0) {
+            final progress = downloadedBytes / contentLength;
+            onProgress?.call(progress);
+            
+            // Log la fiecare MB
+            if (downloadedBytes % (1024 * 1024) == 0) {
+              print('[ApkDownloader] Downloaded: ${downloadedBytes / 1024 / 1024} MB');
+            }
+          }
+        }
+      } finally {
+        await sink.flush();
+        await sink.close();
+      }
+      
       print('[ApkDownloader] APK saved to: $filePath');
+      print('[ApkDownloader] Final size: ${downloadedBytes / 1024 / 1024} MB');
       
       return filePath;
       
     } catch (e) {
       print('[ApkDownloader] Error: $e');
       return null;
-    }
-  }
-  
-  /// Instalează APK-ul descărcat (Android only)
-  /// 
-  /// Necesită permisiune REQUEST_INSTALL_PACKAGES
-  static Future<bool> installApk(String filePath) async {
-    try {
-      if (!Platform.isAndroid) {
-        print('[ApkDownloader] Install only available on Android');
-        return false;
-      }
-      
-      print('[ApkDownloader] Installing APK from: $filePath');
-      
-      // Folosește package: open_file pentru a deschide APK-ul
-      // User va vedea prompt-ul de instalare Android
-      
-      // TODO: Implementează cu open_file package
-      // await OpenFile.open(filePath);
-      
-      return true;
-      
-    } catch (e) {
-      print('[ApkDownloader] Install error: $e');
-      return false;
     }
   }
 }
