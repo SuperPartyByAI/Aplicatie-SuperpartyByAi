@@ -1,10 +1,10 @@
 const { onRequest, onCall } = require('firebase-functions/v2/https');
 const { setGlobalOptions } = require('firebase-functions/v2');
-const { defineString, defineSecret } = require('firebase-functions/params');
+const { defineSecret } = require('firebase-functions/params');
 const functions = require('firebase-functions'); // Keep v1 for existing functions
 
 // Initialize Sentry
-const { Sentry, logger } = require('./sentry');
+const { Sentry } = require('./sentry');
 
 // Initialize Better Stack (Logtail)
 const logtail = require('./logtail');
@@ -95,7 +95,7 @@ app.get('/api/whatsapp/accounts', (req, res) => {
   const accounts = whatsappManager.getAccounts();
   // Remove non-serializable fields (timers)
   const cleanAccounts = accounts.map(acc => {
-    const { qrExpiryTimer, ...rest } = acc;
+    const { qrExpiryTimer: _qrExpiryTimer, ...rest } = acc;
     return rest;
   });
 
@@ -180,9 +180,9 @@ app.post('/api/whatsapp/send-message', async (req, res) => {
 });
 
 // Get messages for a client
-app.get('/api/whatsapp/messages', async (req, res) => {
+app.get('/api/whatsapp/messages', (req, res) => {
   try {
-    const { limit = 50 } = req.query;
+    const { limit: _limit = 50 } = req.query;
     // TODO: Implement message storage/retrieval
     res.json({ success: true, messages: [] });
   } catch (error) {
@@ -191,7 +191,7 @@ app.get('/api/whatsapp/messages', async (req, res) => {
 });
 
 // Get clients list
-app.get('/api/clients', async (req, res) => {
+app.get('/api/clients', (req, res) => {
   try {
     // TODO: Implement clients list from WhatsApp chats
     res.json({ success: true, clients: [] });
