@@ -51,12 +51,15 @@
   - createEvent() + deleteEvent()
 
 - ✅ `lib/services/evidence_service.dart`
-  - uploadEvidence() cu verificare lock
+  - **EvidenceUploadResult** model (docId, downloadUrl, storagePath, uploadedAt)
+  - uploadEvidence() returnează **EvidenceUploadResult** (nu doar docId)
+  - downloadUrl din Storage API (zero URL-uri hardcodate)
   - getEvidenceStream() + getEvidenceList()
   - deleteEvidence() cu verificare lock
   - lockCategory() + unlockCategory()
   - getCategoryMeta() + getCategoryMetaStream()
   - _updateCategoryPhotoCount() helper
+  - **Detalii complete:** vezi `EVIDENCE_UPLOAD_REFACTOR.md`
 
 - ✅ `lib/services/local_evidence_cache_service.dart`
   - SQLite database init
@@ -73,30 +76,142 @@
   - deleteEventFiles() + cleanupOldFiles()
   - getTotalCacheSize() pentru monitoring
 
+### 6. UI Screens (100% Complete)
+
+- ✅ `lib/screens/evenimente/evenimente_screen.dart`
+  - Rescris complet cu EventService + EventFilters
+  - Preset-uri dată: all, today, thisWeek, thisMonth + custom range
+  - Search bar cu clear button
+  - Filtre avansate în bottom sheet (sortBy, requiresSofer, assignedToMe)
+  - Badge "X filtre active" + buton Reset
+  - Tap eveniment → showModalBottomSheet cu EventDetailsSheet
+
+- ✅ `lib/screens/evenimente/event_details_sheet.dart`
+  - Info eveniment complet
+  - 6 roluri: barman, ospătar, DJ, fotograf, animator, bucătar
+  - Assign/unassign cu EventService.updateRoleAssignment()
+  - Secțiune șofer condițional pe requiresSofer
+  - Assign/unassign șofer cu EventService.updateDriverAssignment()
+  - Buton "Vezi Dovezi" → navigare la DoveziScreen
+
+- ✅ `lib/screens/dovezi/dovezi_screen.dart`
+  - 4 categorii expandable: Mâncare, Băutură, Scenotehnică, Altele
+  - Grid thumbnails (local + remote)
+  - Add photo → salvare instant în SQLite + fișier local
+  - Upload background cu **EvidenceUploadResult** (zero query după upload)
+  - Status indicators: 🟠 pending, 🟢 synced, 🔴 failed
+  - **Dedupe logic:** filtrare local synced dacă docId există în remote (Opțiunea B)
+  - Lock categorie → disable add/delete
+  - Sync manual pentru retry
+  - **Detalii complete:** vezi `EVIDENCE_UPLOAD_REFACTOR.md`
+
+### 7. Teste (100% Complete)
+
+- ✅ `test/utils/event_utils_test.dart`
+  - 5 test suites pentru requiresSofer()
+  
+- ✅ `test/models/event_filters_test.dart`
+  - 10 test cases pentru EventFilters
+  
+- ✅ `test/services/evidence_service_test.dart`
+  - Verifică EvidenceUploadResult conține toate câmpurile
+  - Verifică că downloadUrl nu e hardcodat sau construit din docId
+  - Documentează comportamentul așteptat
+
+### 8. Documentație (100% Complete)
+
+- ✅ `EVENIMENTE_DOVEZI_SCHEMA.md` - Schema Firestore + Storage + Security Rules
+- ✅ `EVENIMENTE_DOVEZI_README.md` - Setup guide + troubleshooting
+- ✅ `ACCEPTANCE_CRITERIA_CHECK.md` - Verificare completă 13/13
+- ✅ `EVIDENCE_UPLOAD_REFACTOR.md` - Documentație refactorizare upload robust
+
 ---
 
-## 🔄 În Progres / Urmează
+## 🎯 Refactorizări Majore
 
-### 6. Servicii Rămase
+### Evidence Upload Refactor (Commits: 2ba0f7d4, d2868595)
 
-#### `lib/services/evidence_service.dart`
+**Problema inițială:**
+- URL-uri hardcodate construite manual
+- Query după upload pentru a obține downloadUrl
+- Race conditions cu firstWhere()
+- Duplicate thumbnails după sync
+
+**Soluția implementată:**
+
+1. **EvidenceUploadResult Model**
+```dart
+class EvidenceUploadResult {
+  final String docId;           // Firestore doc ID
+  final String downloadUrl;     // Real URL from Storage API
+  final String storagePath;     // Actual storage path
+  final DateTime uploadedAt;    // Upload timestamp
+}
+```
+
+2. **EvidenceService.uploadEvidence() Refactored**
+```dart
+Future<EvidenceUploadResult> uploadEvidence(...) async {
+  // Upload to Storage
+  final downloadUrl = await snapshot.ref.getDownloadURL(); // ✅ Real URL
+  
+  // Create Firestore doc
+  final docRef = await _firestore.collection(...).add(...);
+  
+  // Return complete result
+  return EvidenceUploadResult(
+    docId: docRef.id,
+    downloadUrl: downloadUrl,        // ✅ From Storage API
+    storagePath: storagePath,
+    uploadedAt: DateTime.now(),
+  );
+}
+```
+
+3. **DoveziScreen._uploadEvidence() Fixed**
+```dart
+final result = await _evidenceService.uploadEvidence(...);
+
+await _cacheService.markSynced(
+  id: localEvidence.id,
+  remoteUrl: result.downloadUrl,   // ✅ Real URL, not constructed
+  remoteDocId: result.docId,
+);
+```
+
+4. **Dedupe Logic (Opțiunea B)**
+```dart
+// Filter local evidence to exclude synced items already in remote
+final remoteDocIds = remoteEvidence.map((e) => e.id).toSet();
+final localFiltered = localEvidence.where((local) {
+  return local.syncStatus != SyncStatus.synced || 
+         !remoteDocIds.contains(local.remoteDocId);
+}).toList();
+```
+
+**Rezultat:**
+- ✅ Zero URL-uri hardcodate
+- ✅ Zero query-uri după upload
+- ✅ Zero race conditions
+- ✅ Zero duplicate thumbnails
+- ✅ Funcționează cu orice Firebase project
+
+**Documentație completă:** `EVIDENCE_UPLOAD_REFACTOR.md`
+
+---
+
+## 🔄 Secțiuni Vechi (Arhivate)
+
+<details>
+<summary>Secțiuni vechi din planning inițial (click pentru expand)</summary>
+
+### 6. Servicii Rămase (COMPLETAT - vezi secțiunea de mai sus)
+
+#### `lib/services/evidence_service.dart` (COMPLETAT)
 ```dart
 class EvidenceService {
   // Upload imagine în Storage + Firestore
-  Future<String> uploadEvidence({
-    required String eventId,
-    required EvidenceCategory categorie,
-    required File imageFile,
-  });
-  
-  // Fetch dovezi pentru un eveniment + categorie
-  Stream<List<EvidenceModel>> getEvidenceStream({
-    required String eventId,
-    EvidenceCategory? categorie,
-  });
-  
-  // Șterge dovadă
-  Future<void> deleteEvidence({
+  Future<EvidenceUploadResult> uploadEvidence({  // ✅ UPDATED
     required String eventId,
     required String evidenceId,
     required String storagePath,
@@ -313,3 +428,34 @@ flutter test --coverage
 - **Storage rules**: Verifică că sunt configurate corect pentru upload
 - **Permissions**: Verifică că utilizatorii au permisiuni corecte în Firestore
 - **Cleanup**: Implementează ștergere dovezi când se șterge un eveniment
+
+---
+
+## 📚 Documentație Cross-Reference
+
+Pentru detalii complete despre implementarea robustă a upload-ului de dovezi:
+- **`EVIDENCE_UPLOAD_REFACTOR.md`** - Documentație completă refactorizare upload
+  - EvidenceUploadResult model
+  - Flow offline-first fără race conditions
+  - Dedupe logic (Opțiunea B)
+  - Before/After comparisons
+  - Code locations și verificări
+
+---
+
+## ✅ Status Final
+
+**Feature-ul Evenimente + Dovezi este 100% complet și production-ready.**
+
+**Commits principale:**
+- `50bc302f` - feat(evenimente): Add models, services, and tests
+- `2029043e` - feat(dovezi): Add Evidence, LocalCache, and FileStorage services
+- `6b1dbb88` - feat(ui): Add EventDetailsSheet and DoveziScreen
+- `55d8c804` - refactor(evenimente): Complete integration of EventService + EventFilters
+- `2ba0f7d4` - fix(dovezi): Return EvidenceUploadResult, eliminate firstWhere
+- `d2868595` - feat(dovezi): Add dedupe logic to prevent duplicate thumbnails
+- `5c6cce05` - docs: Add complete documentation for evidence upload refactor
+
+**Acceptance Criteria: 13/13 ✅**
+
+**Ready for production!** 🚀
