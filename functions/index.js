@@ -347,9 +347,16 @@ exports.chatWithAI = onCall(
       const userId = context?.uid;
       const userEmail = context?.token?.email;
 
+      console.log(`[${requestId}] Auth context:`, {
+        hasContext: !!context,
+        hasUid: !!userId,
+        hasEmail: !!userEmail,
+        uid: userId,
+      });
+
       if (!userId) {
-        console.error(`[${requestId}] User not authenticated`);
-        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+        console.error(`[${requestId}] User not authenticated - context:`, context);
+        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated. Please log in to the app.');
       }
 
       if (!data.messages || !Array.isArray(data.messages)) {
