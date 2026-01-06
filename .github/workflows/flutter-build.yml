@@ -36,16 +36,13 @@ jobs:
         working-directory: ./superparty_flutter
         run: |
           echo "Running static analysis (non-blocking for warnings)..."
-          set +e
-          OUTPUT=$(flutter analyze 2>&1)
-          STATUS=$?
-          echo "$OUTPUT"
-          if echo "$OUTPUT" | grep -q "error •"; then
+          flutter analyze 2>&1 | tee analyze.log || true
+          if grep -q "error •" analyze.log; then
             echo "❌ Flutter analyze found errors - build aborted"
+            cat analyze.log | grep "error •"
             exit 1
           fi
-          echo "✅ No analyzer errors. (flutter analyze exit code was $STATUS; warnings/lints won't block build)"
-          exit 0
+          echo "✅ No analyzer errors found. Warnings/lints won't block build."
 
       - name: Clean build
         working-directory: ./superparty_flutter
