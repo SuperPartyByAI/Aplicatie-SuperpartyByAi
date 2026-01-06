@@ -2,6 +2,11 @@ name: Build Flutter APK
 
 on:
   workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "superparty_flutter/**"
+      - ".github/workflows/flutter-build.yml"
 
 jobs:
   build:
