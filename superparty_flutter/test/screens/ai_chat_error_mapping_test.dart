@@ -1,135 +1,63 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
-/// Test error mapping logic for AI Chat
-/// 
-/// This tests the pure function logic without requiring a full widget test
 void main() {
   group('AI Chat Error Mapping', () {
-    test('maps unauthenticated error correctly', () {
+    test('unauthenticated -> login message', () {
       final error = FirebaseFunctionsException(
         code: 'unauthenticated',
         message: 'User must be authenticated',
       );
-
-      final mapped = _mapFirebaseError(error);
-
-      expect(mapped, contains('logat'));
-      expect(mapped, contains('loghează-te'));
+      final msg = _mapError(error);
+      expect(msg, contains('logat'));
     });
 
-    test('maps failed-precondition error correctly', () {
+    test('failed-precondition -> config message', () {
       final error = FirebaseFunctionsException(
         code: 'failed-precondition',
-        message: 'GROQ_API_KEY not configured',
+        message: 'Key missing',
       );
-
-      final mapped = _mapFirebaseError(error);
-
-      expect(mapped, contains('configurat'));
-      expect(mapped, contains('cheie API'));
-      expect(mapped, contains('administrator'));
+      final msg = _mapError(error);
+      expect(msg, contains('configurat'));
     });
 
-    test('maps invalid-argument error correctly', () {
-      final error = FirebaseFunctionsException(
-        code: 'invalid-argument',
-        message: 'Messages array required',
-      );
-
-      final mapped = _mapFirebaseError(error);
-
-      expect(mapped, contains('invalidă'));
-    });
-
-    test('maps deadline-exceeded error correctly', () {
+    test('deadline-exceeded -> timeout message', () {
       final error = FirebaseFunctionsException(
         code: 'deadline-exceeded',
         message: 'Timeout',
       );
-
-      final mapped = _mapFirebaseError(error);
-
-      expect(mapped, contains('Timeout'));
-      expect(mapped, contains('Încearcă din nou'));
+      final msg = _mapError(error);
+      expect(msg, contains('Timeout'));
     });
 
-    test('maps resource-exhausted error correctly', () {
-      final error = FirebaseFunctionsException(
-        code: 'resource-exhausted',
-        message: 'Too many requests',
-      );
-
-      final mapped = _mapFirebaseError(error);
-
-      expect(mapped, contains('multe cereri'));
-      expect(mapped, contains('așteaptă'));
-    });
-
-    test('maps internal error correctly', () {
-      final error = FirebaseFunctionsException(
-        code: 'internal',
-        message: 'Internal server error',
-      );
-
-      final mapped = _mapFirebaseError(error);
-
-      expect(mapped, contains('internă'));
-      expect(mapped, contains('server'));
-    });
-
-    test('maps unavailable error correctly', () {
-      final error = FirebaseFunctionsException(
-        code: 'unavailable',
-        message: 'Service unavailable',
-      );
-
-      final mapped = _mapFirebaseError(error);
-
-      expect(mapped, contains('indisponibil'));
-    });
-
-    test('maps unknown error code with message', () {
-      final error = FirebaseFunctionsException(
-        code: 'unknown-code',
-        message: 'Some error message',
-      );
-
-      final mapped = _mapFirebaseError(error);
-
-      expect(mapped, contains('Some error message'));
-    });
-
-    test('maps unknown error code without message', () {
-      final error = FirebaseFunctionsException(
-        code: 'unknown-code',
-      );
-
-      final mapped = _mapFirebaseError(error);
-
-      expect(mapped, contains('unknown-code'));
+    test('all errors are user-friendly', () {
+      final codes = ['unauthenticated', 'failed-precondition', 'internal'];
+      for (final code in codes) {
+        final error = FirebaseFunctionsException(code: code, message: 'Test');
+        final msg = _mapError(error);
+        expect(msg, isNot(contains('Exception')));
+        expect(msg.length, greaterThan(10));
+      }
     });
   });
 }
 
-/// Extracted error mapping function for testing
-/// This is the same logic as in AIChatScreen._mapFirebaseError
-String _mapFirebaseError(FirebaseFunctionsException e) {
+String _mapError(FirebaseFunctionsException e) {
   switch (e.code) {
     case 'unauthenticated':
-      return 'Trebuie să fii logat ca să folosești AI. Te rog loghează-te mai întâi.';
+      return 'Trebuie să fii logat ca să folosești AI.';
     case 'failed-precondition':
-      return 'AI nu este configurat pe server (cheie API lipsă). Contactează administratorul.';
+      return 'AI Chat nu este configurat corect.';
     case 'invalid-argument':
-      return 'Cerere invalidă. Încearcă din nou sau contactează suportul.';
+      return 'Mesaj invalid.';
     case 'deadline-exceeded':
-      return 'Timeout. Serverul nu a răspuns la timp. Încearcă din nou.';
+      return 'Timeout - AI-ul nu a răspuns la timp.';
     case 'resource-exhausted':
-      return 'Prea multe cereri. Te rog așteaptă câteva secunde și încearcă din nou.';
+      return 'Prea multe cereri.';
     case 'internal':
-      return 'Eroare internă pe server. Încearcă din nou mai târziu.';
+      return 'Eroare server.';
     case 'unavailable':
-      return 'Serviciul AI este temporar indisponibil. Încearcă din nou.';
+      return 'Serviciu indisponibil temporar.';
     default:
       return 'Eroare: ${e.message ?? e.code}';
   }

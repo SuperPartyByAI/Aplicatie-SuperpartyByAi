@@ -39,10 +39,13 @@ class EvidenceModel {
   factory EvidenceModel.fromFirestore(DocumentSnapshot doc, String eventId) {
     final data = doc.data() as Map<String, dynamic>;
     
+    // Backward compatibility: read from 'category' or fallback to 'categorie'
+    final categoryValue = (data['category'] as String?) ?? (data['categorie'] as String?) ?? 'onTime';
+    
     return EvidenceModel(
       id: doc.id,
       eventId: eventId,
-      category: EvidenceCategory.fromString(data['category'] as String? ?? 'onTime'),
+      category: EvidenceCategory.fromString(categoryValue),
       downloadUrl: data['downloadUrl'] as String? ?? '',
       storagePath: data['storagePath'] as String? ?? '',
       fileName: data['fileName'] as String? ?? '',
@@ -59,6 +62,7 @@ class EvidenceModel {
   Map<String, dynamic> toFirestore() {
     return {
       'category': category.value,
+      'categorie': category.value, // Backward compatibility during migration
       'downloadUrl': downloadUrl,
       'storagePath': storagePath,
       'fileName': fileName,

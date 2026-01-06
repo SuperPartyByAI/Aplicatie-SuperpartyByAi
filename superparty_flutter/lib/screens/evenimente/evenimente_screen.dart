@@ -345,28 +345,6 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             ),
           ),
         ),
-            style: const TextStyle(color: Color(0xFFEAF1FF)),
-            decoration: InputDecoration(
-              hintText: 'Ce cod am',
-              hintStyle: const TextStyle(color: Color(0x8CEAF1FF)),
-              filled: true,
-              fillColor: (_notedBy == null || _notedBy!.isEmpty) ? const Color(0x14FFFFFF) : const Color(0x08FFFFFF),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
-              ),
-              disabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0x0AFFFFFF)),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            ),
-          ),
-        ),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 8),
           child: Text('–', style: TextStyle(color: Color(0x8CEAF1FF), fontWeight: FontWeight.w900)),

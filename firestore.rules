@@ -52,14 +52,23 @@ service cloud.firestore {
       match /dovezi/{evidenceId} {
         allow read: if isAuthenticated();
         allow create: if isAuthenticated() && hasStaffProfile();
-        // Update doar dacă categoria nu e locked
+        // Update doar dacă categoria nu e locked (check both new and old schema)
         allow update: if isAuthenticated() && hasStaffProfile() && 
+                       (!exists(/databases/$(database)/documents/evenimente/$(eventId)/evidenceState/$(resource.data.category)) ||
+                        !get(/databases/$(database)/documents/evenimente/$(eventId)/evidenceState/$(resource.data.category)).data.locked) &&
                        (!exists(/databases/$(database)/documents/evenimente/$(eventId)/dovezi_meta/$(resource.data.categorie)) ||
                         !get(/databases/$(database)/documents/evenimente/$(eventId)/dovezi_meta/$(resource.data.categorie)).data.locked);
         allow delete: if false; // NEVER DELETE - use isArchived instead
       }
       
-      // Dovezi metadata (status + locked per categorie)
+      // Evidence state (new schema)
+      match /evidenceState/{categoryId} {
+        allow read: if isAuthenticated();
+        allow create, update: if isAdmin();
+        allow delete: if false; // NEVER DELETE
+      }
+      
+      // Dovezi metadata (old schema - backward compatibility)
       match /dovezi_meta/{categorie} {
         allow read: if isAuthenticated();
         allow create, update: if isAdmin();

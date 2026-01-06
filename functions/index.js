@@ -335,6 +335,12 @@ exports.chatWithAI = onCall(
         groqKey = process.env.GROQ_API_KEY;
       }
 
+      // Clean key: trim whitespace and newlines
+      if (groqKey) {
+        groqKey = groqKey.trim().replace(/[\r\n\t]/g, '');
+        console.log(`[${requestId}] GROQ_API_KEY cleaned (length: ${groqKey.length})`);
+      }
+
       if (!groqKey) {
         console.error(`[${requestId}] GROQ_API_KEY not configured - neither in secrets nor env`);
         throw new functions.https.HttpsError(
@@ -342,8 +348,6 @@ exports.chatWithAI = onCall(
           'GROQ_API_KEY not configured. Please set the secret: firebase functions:secrets:set GROQ_API_KEY'
         );
       }
-
-      groqKey = groqKey.trim().replace(/[\r\n\t]/g, '');
 
       console.log(`[${requestId}] chatWithAI called`, {
         userId,
