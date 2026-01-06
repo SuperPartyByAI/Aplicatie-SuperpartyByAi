@@ -16,7 +16,7 @@ class EventService {
 
   /// Stream evenimente ACTIVE (isArchived=false implicit)
   Stream<List<EventModel>> getEventsStream(EventFilters filters) {
-    Query query = _firestore.collection('eveniment');
+    Query query = _firestore.collection('evenimente');
 
     // Exclude arhivate implicit (NEVER DELETE policy)
     query = query.where('isArchived', isEqualTo: false);
@@ -56,7 +56,7 @@ class EventService {
   /// Stream evenimente ARHIVATE
   Stream<List<EventModel>> getArchivedEventsStream() {
     return _firestore
-        .collection('eveniment')
+        .collection('evenimente')
         .where('isArchived', isEqualTo: true)
         .orderBy('archivedAt', descending: true)
         .snapshots()
@@ -118,7 +118,7 @@ class EventService {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Utilizator neautentificat');
 
-    await _firestore.collection('eveniment').doc(eventId).update({
+    await _firestore.collection('evenimente').doc(eventId).update({
       'isArchived': true,
       'archivedAt': FieldValue.serverTimestamp(),
       'archivedBy': user.uid,
@@ -133,7 +133,7 @@ class EventService {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Utilizator neautentificat');
 
-    await _firestore.collection('eveniment').doc(eventId).update({
+    await _firestore.collection('evenimente').doc(eventId).update({
       'isArchived': false,
       'archivedAt': FieldValue.delete(),
       'archivedBy': FieldValue.delete(),
@@ -157,7 +157,7 @@ class EventService {
     }
 
     await _firestore.runTransaction((transaction) async {
-      final docRef = _firestore.collection('eveniment').doc(eventId);
+      final docRef = _firestore.collection('evenimente').doc(eventId);
       final snapshot = await transaction.get(docRef);
       
       if (!snapshot.exists) {
@@ -205,7 +205,7 @@ class EventService {
     }
 
     await _firestore.runTransaction((transaction) async {
-      final docRef = _firestore.collection('eveniment').doc(eventId);
+      final docRef = _firestore.collection('evenimente').doc(eventId);
       final snapshot = await transaction.get(docRef);
       
       if (!snapshot.exists) {
@@ -247,7 +247,7 @@ class EventService {
     if (user == null) throw Exception('Utilizator neautentificat');
 
     await _firestore.runTransaction((transaction) async {
-      final docRef = _firestore.collection('eveniment').doc(eventId);
+      final docRef = _firestore.collection('evenimente').doc(eventId);
       final snapshot = await transaction.get(docRef);
       
       if (!snapshot.exists) {
@@ -294,7 +294,7 @@ class EventService {
     if (user == null) throw Exception('Utilizator neautentificat');
 
     await _firestore.runTransaction((transaction) async {
-      final docRef = _firestore.collection('eveniment').doc(eventId);
+      final docRef = _firestore.collection('evenimente').doc(eventId);
       final snapshot = await transaction.get(docRef);
       
       if (!snapshot.exists) {
@@ -336,7 +336,7 @@ class EventService {
     if (user == null) throw Exception('Utilizator neautentificat');
 
     await _firestore.runTransaction((transaction) async {
-      final docRef = _firestore.collection('eveniment').doc(eventId);
+      final docRef = _firestore.collection('evenimente').doc(eventId);
       final snapshot = await transaction.get(docRef);
       
       if (!snapshot.exists) {
