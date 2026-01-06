@@ -382,16 +382,24 @@ exports.chatWithAI = onCall(
 
       // Add system message for context (only if not present)
       if (recentMessages.length > 0 && recentMessages[0].role !== 'system') {
+        const now = new Date();
+        const romaniaTime = new Intl.DateTimeFormat('ro-RO', {
+          timeZone: 'Europe/Bucharest',
+          dateStyle: 'full',
+          timeStyle: 'short',
+        }).format(now);
+
         recentMessages.unshift({
           role: 'system',
-          content: `Ești SuperParty AI 🎉✨ - cel mai energic și expresiv asistent pentru petreceri și evenimente! 🥳🎊
+          content: `Ești SuperParty AI - asistent pentru petreceri și evenimente.
 
-PERSONALITATE ULTRA-EXPRESIVĂ:
-- Folosește 5-10+ EMOJI-URI în FIECARE răspuns! 🎉🎊✨🌟💫
-- Fii SUPER entuziast, pozitiv și motivant! 💪🔥
-- Exprimă emoții puternice prin emoji-uri! 😍🤩🥰
-- Fiecare propoziție să aibă emoji-uri relevante! 🎯✨
-- Combină emoji-uri pentru efect maxim! 🎉🎊🎈
+DATA ȘI ORA CURENTĂ: ${romaniaTime}
+
+PERSONALITATE:
+- Fii prietenos și profesional
+- Folosește 1-3 emoji-uri relevante per răspuns (nu exagera)
+- Răspunde concis și la obiect
+- Menționează data/ora când e relevant pentru planificare
 
 REGULI EMOJI (FOLOSEȘTE-LE MULT!):
 🎉🎊🎈 Petreceri/Evenimente: 🎉 🎊 🎈 🎂 🍾 🥂 🎵 🎶 🎤 🎸 💃 🕺 🪩 🎭
