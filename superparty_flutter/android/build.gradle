@@ -1,11 +1,8 @@
 buildscript {
     repositories {
         google()
+        mavenCentral()
         gradlePluginPortal()
-        maven { 
-            url 'https://maven.aliyun.com/repository/public'
-            allowInsecureProtocol = false
-        }
         maven { url 'https://jitpack.io' }
     }
     dependencies {
@@ -16,11 +13,8 @@ buildscript {
 allprojects {
     repositories {
         google()
+        mavenCentral()
         gradlePluginPortal()
-        maven { 
-            url 'https://maven.aliyun.com/repository/public'
-            allowInsecureProtocol = false
-        }
         maven { url 'https://jitpack.io' }
     }
 }
