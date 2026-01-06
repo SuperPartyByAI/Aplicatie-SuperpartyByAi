@@ -287,7 +287,7 @@ class _DoveziScreenState extends State<DoveziScreen> {
       if (images.isEmpty) return;
 
       for (var image in images) {
-        await _evidenceService.uploadEvidence(
+        await _evidenceService.uploadEvidenceFromPath(
           eventId: widget.eventId,
           category: category,
           filePath: image.path,
