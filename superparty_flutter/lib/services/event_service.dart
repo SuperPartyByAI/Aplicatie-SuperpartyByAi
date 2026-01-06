@@ -16,32 +16,9 @@ class EventService {
 
   /// Stream evenimente ACTIVE (isArchived=false implicit)
   Stream<List<EventModel>> getEventsStream(EventFilters filters) {
-    Query query = _firestore.collection('evenimente');
-
-    // Exclude arhivate implicit (NEVER DELETE policy)
-    query = query.where('isArchived', isEqualTo: false);
-
-    // Date range (server-side)
-    final (startDate, endDate) = filters.dateRange;
-    if (startDate != null || endDate != null) {
-      // Convert DateTime to YYYY-MM-DD string for comparison
-      if (startDate != null) {
-        final startStr = _dateToString(startDate);
-        query = query.where('date', isGreaterThanOrEqualTo: startStr);
-      }
-      if (endDate != null) {
-        final endStr = _dateToString(endDate);
-        query = query.where('date', isLessThanOrEqualTo: endStr);
-      }
-      
-      // Când există range, orderBy('date') e obligatoriu primul
-      query = query.orderBy('date', 
-          descending: filters.sortDirection == SortDirection.desc);
-    } else {
-      // Fără range, sortăm direct
-      query = query.orderBy('date',
-          descending: filters.sortDirection == SortDirection.desc);
-    }
+    // Fetch ALL non-archived events, sort client-side to avoid index requirement
+    Query query = _firestore.collection('evenimente')
+        .where('isArchived', isEqualTo: false);
 
     return query.snapshots().map((snapshot) {
       var events = snapshot.docs
