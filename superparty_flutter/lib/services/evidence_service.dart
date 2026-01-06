@@ -442,7 +442,7 @@ class EvidenceService {
     final file = File(filePath);
     return uploadEvidence(
       eventId: eventId,
-      categorie: category,
+      category: category,
       imageFile: file,
     );
   }
