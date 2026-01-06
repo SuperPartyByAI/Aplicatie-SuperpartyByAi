@@ -337,7 +337,7 @@ exports.chatWithAI = onCall(
 
       // Clean key: trim whitespace and newlines
       if (groqKey) {
-        groqKey = groqKey.trim().replace(/[\r\n]/g, '');
+        groqKey = groqKey.trim().replace(/[\r\n\t]/g, '');
         console.log(`[${requestId}] GROQ_API_KEY cleaned (length: ${groqKey.length})`);
       }
 
@@ -348,8 +348,6 @@ exports.chatWithAI = onCall(
           'GROQ_API_KEY not configured. Please set the secret: firebase functions:secrets:set GROQ_API_KEY'
         );
       }
-
-      groqKey = groqKey.trim().replace(/[\r\n\t]/g, '');
 
       console.log(`[${requestId}] chatWithAI called`, {
         userId,
