@@ -7,14 +7,14 @@ class FileStorageService {
   /// Obține path-ul directorului pentru un eveniment și categorie
   Future<String> getEventCategoryPath({
     required String eventId,
-    required EvidenceCategory categorie,
+    required EvidenceCategory category,
   }) async {
     final appDir = await getApplicationDocumentsDirectory();
     final eventDir = path.join(
       appDir.path,
       'evidence',
       eventId,
-      categorie.value,
+      category.value,
     );
     
     // Creează directorul dacă nu există
@@ -30,12 +30,12 @@ class FileStorageService {
   Future<String> saveLocalFile({
     required File sourceFile,
     required String eventId,
-    required EvidenceCategory categorie,
+    required EvidenceCategory category,
   }) async {
     try {
       final dirPath = await getEventCategoryPath(
         eventId: eventId,
-        categorie: categorie,
+        category: category,
       );
       
       // Generează nume unic pentru fișier
