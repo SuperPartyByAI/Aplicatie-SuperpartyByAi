@@ -1,5 +1,5 @@
-// Force Gradle to use only specified repositories
-// Prevents fallback to Maven Central which returns 403 in GitHub Actions
+// Replace Maven Central with working mirrors
+// Maven Central blocks GitHub Actions IPs with 403
 
 allprojects {
     buildscript {
@@ -8,11 +8,17 @@ allprojects {
                 if (repo instanceof MavenArtifactRepository) {
                     def url = repo.url.toString()
                     if (url.contains('repo.maven.apache.org') || url.contains('repo1.maven.org')) {
-                        // Block Maven Central
+                        // Replace with Sonatype mirror
                         remove repo
+                        maven {
+                            url 'https://oss.sonatype.org/content/repositories/releases/'
+                            allowInsecureProtocol = false
+                        }
                     }
                 }
             }
+            // Add Maven Central mirror as fallback
+            maven { url 'https://repo1.maven.org/maven2/' }
         }
     }
     repositories {
@@ -20,10 +26,16 @@ allprojects {
             if (repo instanceof MavenArtifactRepository) {
                 def url = repo.url.toString()
                 if (url.contains('repo.maven.apache.org') || url.contains('repo1.maven.org')) {
-                    // Block Maven Central
+                    // Replace with Sonatype mirror
                     remove repo
+                    maven {
+                        url 'https://oss.sonatype.org/content/repositories/releases/'
+                        allowInsecureProtocol = false
+                    }
                 }
             }
         }
+        // Add Maven Central mirror as fallback
+        maven { url 'https://repo1.maven.org/maven2/' }
     }
 }
