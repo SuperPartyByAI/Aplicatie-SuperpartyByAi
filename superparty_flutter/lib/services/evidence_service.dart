@@ -36,7 +36,7 @@ class EvidenceService {
   /// Upload imagine în Storage + creează doc în Firestore
   Future<EvidenceUploadResult> uploadEvidence({
     required String eventId,
-    required EvidenceCategory categorie,
+    required EvidenceCategory category,
     required File imageFile,
   }) async {
     try {
@@ -48,7 +48,7 @@ class EvidenceService {
       // Verifică dacă categoria e locked
       final meta = await getCategoryMeta(
         eventId: eventId,
-        categorie: categorie,
+        category: category,
       );
       if (meta.locked) {
         throw Exception('Categoria este blocată. Nu se pot adăuga poze.');
@@ -56,7 +56,7 @@ class EvidenceService {
 
       // Generează UUID pentru fișier
       final fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(imageFile.path)}';
-      final storagePath = 'event_images/$eventId/${categorie.value}/$fileName';
+      final storagePath = 'event_images/$eventId/${category.value}/$fileName';
 
       // Upload în Storage
       final uploadTask = _storage.ref(storagePath).putFile(imageFile);
@@ -71,7 +71,7 @@ class EvidenceService {
       final evidence = EvidenceModel(
         id: '', // Will be set by Firestore
         eventId: eventId,
-        categorie: categorie,
+        category: category,
         downloadUrl: downloadUrl,
         storagePath: storagePath,
         uploadedBy: currentUser.uid,
@@ -88,7 +88,7 @@ class EvidenceService {
           .add(evidence.toFirestore());
 
       // Update category metadata
-      await _updateCategoryPhotoCount(eventId, categorie, increment: true);
+      await _updateCategoryPhotoCount(eventId, category, increment: true);
 
       return EvidenceUploadResult(
         docId: docRef.id,
@@ -104,7 +104,7 @@ class EvidenceService {
   /// Fetch dovezi active pentru un eveniment (exclude arhivate)
   Stream<List<EvidenceModel>> getEvidenceStream({
     required String eventId,
-    EvidenceCategory? categorie,
+    EvidenceCategory? category,
   }) {
     Query query = _firestore
         .collection('evenimente')
@@ -114,8 +114,8 @@ class EvidenceService {
     // Exclude dovezi arhivate implicit (politica: never delete)
     query = query.where('isArchived', isEqualTo: false);
 
-    if (categorie != null) {
-      query = query.where('categorie', isEqualTo: categorie.value);
+    if (category != null) {
+      query = query.where('category', isEqualTo: category.value);
     }
 
     query = query.orderBy('uploadedAt', descending: true);
@@ -130,7 +130,7 @@ class EvidenceService {
   /// Fetch dovezi arhivate pentru un eveniment
   Stream<List<EvidenceModel>> getArchivedEvidenceStream({
     required String eventId,
-    EvidenceCategory? categorie,
+    EvidenceCategory? category,
   }) {
     Query query = _firestore
         .collection('evenimente')
@@ -139,8 +139,8 @@ class EvidenceService {
 
     query = query.where('isArchived', isEqualTo: true);
 
-    if (categorie != null) {
-      query = query.where('categorie', isEqualTo: categorie.value);
+    if (category != null) {
+      query = query.where('category', isEqualTo: category.value);
     }
 
     query = query.orderBy('archivedAt', descending: true);
@@ -155,7 +155,7 @@ class EvidenceService {
   /// Fetch dovezi active ca listă (exclude arhivate)
   Future<List<EvidenceModel>> getEvidenceList({
     required String eventId,
-    EvidenceCategory? categorie,
+    EvidenceCategory? category,
   }) async {
     try {
       Query query = _firestore
@@ -166,8 +166,8 @@ class EvidenceService {
       // Exclude dovezi arhivate implicit
       query = query.where('isArchived', isEqualTo: false);
 
-      if (categorie != null) {
-        query = query.where('categorie', isEqualTo: categorie.value);
+      if (category != null) {
+        query = query.where('category', isEqualTo: category.value);
       }
 
       query = query.orderBy('uploadedAt', descending: true);
@@ -188,7 +188,7 @@ class EvidenceService {
   Future<void> archiveEvidence({
     required String eventId,
     required String evidenceId,
-    required EvidenceCategory categorie,
+    required EvidenceCategory category,
     String? reason,
   }) async {
     try {
@@ -200,7 +200,7 @@ class EvidenceService {
       // Verifică dacă categoria e locked
       final meta = await getCategoryMeta(
         eventId: eventId,
-        categorie: categorie,
+        category: category,
       );
       if (meta.locked) {
         throw Exception('Categoria este blocată. Nu se pot arhiva poze.');
@@ -221,7 +221,7 @@ class EvidenceService {
       });
 
       // Update category metadata (decrementează count)
-      await _updateCategoryPhotoCount(eventId, categorie, increment: false);
+      await _updateCategoryPhotoCount(eventId, category, increment: false);
     } catch (e) {
       throw Exception('Eroare la arhivarea dovezii: $e');
     }
@@ -231,7 +231,7 @@ class EvidenceService {
   Future<void> unarchiveEvidence({
     required String eventId,
     required String evidenceId,
-    required EvidenceCategory categorie,
+    required EvidenceCategory category,
   }) async {
     try {
       final currentUser = _auth.currentUser;
@@ -252,7 +252,7 @@ class EvidenceService {
       });
 
       // Update category metadata (incrementează count)
-      await _updateCategoryPhotoCount(eventId, categorie, increment: true);
+      await _updateCategoryPhotoCount(eventId, category, increment: true);
     } catch (e) {
       throw Exception('Eroare la dezarhivarea dovezii: $e');
     }
@@ -261,7 +261,7 @@ class EvidenceService {
   /// Lock categorie (marchează OK)
   Future<void> lockCategory({
     required String eventId,
-    required EvidenceCategory categorie,
+    required EvidenceCategory category,
   }) async {
     try {
       final currentUser = _auth.currentUser;
@@ -272,7 +272,7 @@ class EvidenceService {
       // Verifică dacă există cel puțin o poză în categorie
       final evidenceList = await getEvidenceList(
         eventId: eventId,
-        categorie: categorie,
+        category: category,
       );
 
       if (evidenceList.isEmpty) {
@@ -281,8 +281,8 @@ class EvidenceService {
 
       // Lock categoria
       final meta = EvidenceStateModel(
-        id: categorie.value,
-        category: categorie,
+        id: category.value,
+        category: category,
         status: EvidenceStatus.ok,
         locked: true,
         updatedAt: DateTime.now(),
@@ -293,7 +293,7 @@ class EvidenceService {
           .collection('evenimente')
           .doc(eventId)
           .collection('dovezi_meta')
-          .doc(categorie.value)
+          .doc(category.value)
           .set(meta.toFirestore());
     } catch (e) {
       throw Exception('Eroare la blocarea categoriei: $e');
@@ -303,7 +303,7 @@ class EvidenceService {
   /// Unlock categorie
   Future<void> unlockCategory({
     required String eventId,
-    required EvidenceCategory categorie,
+    required EvidenceCategory category,
   }) async {
     try {
       final currentUser = _auth.currentUser;
@@ -314,22 +314,24 @@ class EvidenceService {
       // Obține metadata curentă
       final currentMeta = await getCategoryMeta(
         eventId: eventId,
-        categorie: categorie,
+        category: category,
       );
 
-      // Update doar locked status
-      final meta = currentMeta.copyWith(
+      // Update doar locked status - recreate model since no copyWith
+      final meta = EvidenceStateModel(
+        id: category.value,
+        category: category,
+        status: currentMeta.status,
         locked: false,
-        lockedBy: null,
-        lockedAt: null,
-        lastUpdated: DateTime.now(),
+        updatedAt: DateTime.now(),
+        updatedBy: currentUser.uid,
       );
 
       await _firestore
           .collection('evenimente')
           .doc(eventId)
           .collection('dovezi_meta')
-          .doc(categorie.value)
+          .doc(category.value)
           .set(meta.toFirestore());
     } catch (e) {
       throw Exception('Eroare la deblocarea categoriei: $e');
@@ -339,22 +341,22 @@ class EvidenceService {
   /// Obține metadata categorie
   Future<EvidenceStateModel> getCategoryMeta({
     required String eventId,
-    required EvidenceCategory categorie,
+    required EvidenceCategory category,
   }) async {
     try {
       final doc = await _firestore
           .collection('evenimente')
           .doc(eventId)
           .collection('dovezi_meta')
-          .doc(categorie.value)
+          .doc(category.value)
           .get();
 
       return EvidenceStateModel.fromFirestore(doc);
     } catch (e) {
       // Returnează metadata default dacă nu există
       return EvidenceStateModel(
-        id: categorie.value,
-        category: categorie,
+        id: category.value,
+        category: category,
         status: EvidenceStatus.na,
         locked: false,
         updatedAt: DateTime.now(),
@@ -366,13 +368,13 @@ class EvidenceService {
   /// Stream pentru metadata categorie
   Stream<EvidenceStateModel> getCategoryMetaStream({
     required String eventId,
-    required EvidenceCategory categorie,
+    required EvidenceCategory category,
   }) {
     return _firestore
         .collection('evenimente')
         .doc(eventId)
         .collection('dovezi_meta')
-        .doc(categorie.value)
+        .doc(category.value)
         .snapshots()
         .map((doc) => EvidenceStateModel.fromFirestore(doc));
   }
@@ -380,7 +382,7 @@ class EvidenceService {
   /// Update photo count pentru o categorie
   Future<void> _updateCategoryPhotoCount(
     String eventId,
-    EvidenceCategory categorie, {
+    EvidenceCategory category, {
     required bool increment,
   }) async {
     try {
@@ -388,7 +390,7 @@ class EvidenceService {
           .collection('evenimente')
           .doc(eventId)
           .collection('dovezi_meta')
-          .doc(categorie.value);
+          .doc(category.value);
 
       final doc = await docRef.get();
       
