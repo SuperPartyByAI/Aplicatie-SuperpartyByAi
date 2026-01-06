@@ -16,9 +16,6 @@ const cache = require('./cache');
 const Groq = require('groq-sdk');
 let groqClient = null;
 
-// Fallback API key
-const GROQ_FALLBACK = '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';
-
 // Get or create Groq client (connection pooling)
 function getGroqClient(apiKey) {
   if (!groqClient || groqClient._apiKey !== apiKey) {
@@ -338,7 +335,7 @@ exports.chatWithAI = onCall(
           `[${requestId}] Failed to load GROQ_API_KEY from secrets, trying env:`,
           e.message
         );
-        groqKey = process.env.GROQ_API_KEY || GROQ_FALLBACK;
+        groqKey = process.env.GROQ_API_KEY;
       }
 
       // Clean key: trim whitespace and newlines
