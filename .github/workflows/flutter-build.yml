@@ -11,6 +11,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
     steps:
       - uses: actions/checkout@v4
@@ -67,12 +70,12 @@ jobs:
           if-no-files-found: error
 
       - name: Upload to Firebase App Distribution
-        if: ${{ secrets.FIREBASE_APP_ID != '' && secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+        if: ${{ env.FIREBASE_APP_ID != '' && env.FIREBASE_SERVICE_ACCOUNT != '' }}
         continue-on-error: true
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
-          appId: ${{ secrets.FIREBASE_APP_ID }}
-          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          appId: ${{ env.FIREBASE_APP_ID }}
+          serviceCredentialsFileContent: ${{ env.FIREBASE_SERVICE_ACCOUNT }}
           testers: ursache.andrei1995@gmail.com
           file: superparty_flutter/build/app/outputs/flutter-apk/app-release.apk
           releaseNotes: |

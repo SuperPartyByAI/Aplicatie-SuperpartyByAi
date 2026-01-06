@@ -11,6 +11,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
     steps:
       - name: Checkout code
@@ -67,20 +69,18 @@ jobs:
           test -f superparty_flutter/build/app/outputs/flutter-apk/app-release.apk
 
       - name: Setup Node.js for upload script
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+        if: ${{ env.FIREBASE_SERVICE_ACCOUNT != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Install firebase-admin
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+        if: ${{ env.FIREBASE_SERVICE_ACCOUNT != '' }}
         run: npm install firebase-admin
 
       - name: Upload APK to Firebase Storage
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+        if: ${{ env.FIREBASE_SERVICE_ACCOUNT != '' }}
         continue-on-error: true
-        env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node .github/scripts/upload-apk-to-storage.js
 
       - name: Upload APK artifact
