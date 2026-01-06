@@ -50,7 +50,7 @@ jobs:
 
       - name: Build APK
         working-directory: ./superparty_flutter
-        run: flutter build apk --release --verbose
+        run: flutter build apk --release --verbose -- --init-script=android/init.gradle
 
       - name: Verify APK exists
         if: always()

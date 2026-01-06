@@ -1,0 +1,29 @@
+// Force Gradle to use only specified repositories
+// Prevents fallback to Maven Central which returns 403 in GitHub Actions
+
+allprojects {
+    buildscript {
+        repositories {
+            all { ArtifactRepository repo ->
+                if (repo instanceof MavenArtifactRepository) {
+                    def url = repo.url.toString()
+                    if (url.contains('repo.maven.apache.org') || url.contains('repo1.maven.org')) {
+                        // Block Maven Central
+                        remove repo
+                    }
+                }
+            }
+        }
+    }
+    repositories {
+        all { ArtifactRepository repo ->
+            if (repo instanceof MavenArtifactRepository) {
+                def url = repo.url.toString()
+                if (url.contains('repo.maven.apache.org') || url.contains('repo1.maven.org')) {
+                    // Block Maven Central
+                    remove repo
+                }
+            }
+        }
+    }
+}
