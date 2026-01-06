@@ -292,7 +292,7 @@ class EvidenceService {
       await _firestore
           .collection('evenimente')
           .doc(eventId)
-          .collection('dovezi_meta')
+          .collection('evidenceState')
           .doc(category.value)
           .set(meta.toFirestore());
     } catch (e) {
@@ -330,7 +330,7 @@ class EvidenceService {
       await _firestore
           .collection('evenimente')
           .doc(eventId)
-          .collection('dovezi_meta')
+          .collection('evidenceState')
           .doc(category.value)
           .set(meta.toFirestore());
     } catch (e) {
@@ -347,7 +347,7 @@ class EvidenceService {
       final doc = await _firestore
           .collection('evenimente')
           .doc(eventId)
-          .collection('dovezi_meta')
+          .collection('evidenceState')
           .doc(category.value)
           .get();
 
@@ -373,7 +373,7 @@ class EvidenceService {
     return _firestore
         .collection('evenimente')
         .doc(eventId)
-        .collection('dovezi_meta')
+        .collection('evidenceState')
         .doc(category.value)
         .snapshots()
         .map((doc) => EvidenceStateModel.fromFirestore(doc));
@@ -389,7 +389,7 @@ class EvidenceService {
       final docRef = _firestore
           .collection('evenimente')
           .doc(eventId)
-          .collection('dovezi_meta')
+          .collection('evidenceState')
           .doc(category.value);
 
       final doc = await docRef.get();
