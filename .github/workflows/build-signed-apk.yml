@@ -54,6 +54,12 @@ jobs:
           flutter build apk --release --verbose
         timeout-minutes: 20
 
+      - name: Build signed AAB
+        working-directory: superparty_flutter
+        run: |
+          flutter build appbundle --release --verbose
+        timeout-minutes: 20
+
       - name: Setup Node.js for upload script
         uses: actions/setup-node@v4
         with:
@@ -72,3 +78,10 @@ jobs:
         with:
           name: app-release-signed
           path: superparty_flutter/build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-bundle
+          path: superparty_flutter/build/app/outputs/bundle/release/app-release.aab
+          retention-days: 30

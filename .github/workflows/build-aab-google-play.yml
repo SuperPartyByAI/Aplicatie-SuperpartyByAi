@@ -51,8 +51,16 @@ jobs:
       - name: Build signed AAB
         working-directory: superparty_flutter
         run: |
-          flutter build appbundle --release --verbose
+          echo "Starting AAB build..."
+          flutter build appbundle --release --verbose 2>&1 | tee build.log || (cat build.log && exit 1)
         timeout-minutes: 20
+        
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: superparty_flutter/build.log
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
