@@ -52,12 +52,19 @@ jobs:
         working-directory: ./superparty_flutter
         run: flutter build apk --release --verbose
 
+      - name: Verify APK exists
+        if: always()
+        run: |
+          ls -la superparty_flutter/build/app/outputs/flutter-apk || true
+          test -f superparty_flutter/build/app/outputs/flutter-apk/app-release.apk
+
       - name: Upload APK to Artifacts
-        if: success() || failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: superparty-app
           path: superparty_flutter/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
 
       - name: Upload to Firebase App Distribution
         if: ${{ secrets.FIREBASE_APP_ID != '' && secrets.FIREBASE_SERVICE_ACCOUNT != '' }}

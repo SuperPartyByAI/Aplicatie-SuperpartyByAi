@@ -61,15 +61,24 @@ jobs:
           flutter build apk --release --verbose
         timeout-minutes: 20
 
+      - name: Verify APK exists
+        run: |
+          ls -la superparty_flutter/build/app/outputs/flutter-apk || true
+          test -f superparty_flutter/build/app/outputs/flutter-apk/app-release.apk
+
       - name: Setup Node.js for upload script
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Install firebase-admin
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
         run: npm install firebase-admin
 
       - name: Upload APK to Firebase Storage
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+        continue-on-error: true
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node .github/scripts/upload-apk-to-storage.js
@@ -79,10 +88,4 @@ jobs:
         with:
           name: app-release-signed
           path: superparty_flutter/build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Upload AAB artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-bundle
-          path: superparty_flutter/build/app/outputs/bundle/release/app-release.aab
-          retention-days: 30
+          if-no-files-found: error
