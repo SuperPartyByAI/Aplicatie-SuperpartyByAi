@@ -13,6 +13,7 @@ analyzer:
   exclude:
     - lib/services/event_service_v1_backup.dart
     - lib/services/local_evidence_cache_service.dart
+    - lib/screens/**/*_old_v1.dart
     - test/**
 
 linter:
