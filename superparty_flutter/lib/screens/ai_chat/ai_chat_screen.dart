@@ -154,8 +154,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
       // DIAGNOSTIC: Log function call details
       print('[AIChatScreen] Calling chatWithAI function in region: us-central1');
       
-      // Call Firebase Function with timeout
-      final callable = FirebaseFunctions.instance.httpsCallable(
+      // Call Firebase Function with timeout (explicitly specify region)
+      final callable = FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
         'chatWithAI',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
       );
