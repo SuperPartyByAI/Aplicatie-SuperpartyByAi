@@ -48,9 +48,14 @@ jobs:
         working-directory: ./superparty_flutter
         run: flutter clean
 
+      - name: Setup Gradle init script
+        run: |
+          mkdir -p $HOME/.gradle/init.d
+          cp superparty_flutter/android/init.gradle $HOME/.gradle/init.d/
+
       - name: Build APK
         working-directory: ./superparty_flutter
-        run: flutter build apk --release --verbose -- --init-script=android/init.gradle
+        run: flutter build apk --release --verbose
 
       - name: Verify APK exists
         if: always()
