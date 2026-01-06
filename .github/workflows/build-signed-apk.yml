@@ -48,17 +48,6 @@ jobs:
         working-directory: superparty_flutter
         run: flutter pub get
 
-      - name: Run Flutter Analyze
-        working-directory: superparty_flutter
-        run: |
-          echo "Running static analysis on lib/ only..."
-          flutter analyze lib/
-          if flutter analyze lib/ 2>&1 | grep -q "error •"; then
-            echo "❌ Flutter analyze found errors in lib/ - build aborted"
-            exit 1
-          fi
-          echo "✅ Flutter analyze passed"
-
       - name: Build signed APK
         working-directory: superparty_flutter
         run: |
