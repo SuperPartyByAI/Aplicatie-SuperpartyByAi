@@ -26,17 +26,20 @@ flutter build apk --release -v
 ## Expected Results
 
 ### flutter analyze
+
 ```
 Analyzing superparty_flutter...
 No issues found!
 ```
 
 ### flutter test
+
 ```
 All tests passed!
 ```
 
 ### flutter build apk --release
+
 ```
 ✓ Built build/app/outputs/flutter-apk/app-release.apk (XX.XMB)
 ```
@@ -44,6 +47,7 @@ All tests passed!
 ## Notes
 
 Flutter SDK not available in current Gitpod environment. These commands should be run:
+
 1. In GitHub Actions CI
 2. Locally by developer with Flutter SDK installed
 3. In a Flutter-enabled dev container

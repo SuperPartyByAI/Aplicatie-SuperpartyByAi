@@ -9,6 +9,7 @@ Toate erorile pe care le-ai menționat sunt deja reparate în branch-ul `fix/ai-
 ## 🔍 DIAGNOSTIC
 
 ### Erorile tale (versiune locală):
+
 1. ❌ `evenimente_screen.dart(327,17)`: Can't find ']' to match '['
 2. ❌ `evenimente_screen.dart(348,13)`: The getter 'style' isn't defined
 3. ❌ `dovezi_screen.dart(292,11)` și `(322,9)`: No named parameter 'category'
@@ -16,6 +17,7 @@ Toate erorile pe care le-ai menționat sunt deja reparate în branch-ul `fix/ai-
 5. ❌ `evidence_service.dart(321,32)`: The method 'copyWith' isn't defined
 
 ### Cauza:
+
 Versiunea ta locală (`C:\Users\ursac\Aplicatie-SuperpartyByAi_clean`) NU conține fix-urile din PR #20.
 
 ---
@@ -43,6 +45,7 @@ flutter analyze
 ```
 
 **Rezultat așteptat:**
+
 ```
 Analyzing superparty_flutter...
 No issues found!
@@ -62,19 +65,19 @@ flutter run -d windows
 
 ### Commit-uri aplicate (11 total):
 
-| Commit | Descriere | Fișiere |
-|--------|-----------|---------|
-| **76241a22** | Fix orphan style block | `evenimente_screen.dart` |
-| **63b3a4ee** | Standardize to `category` | `evidence_service.dart` |
-| **3770defe** | Standardize to `evidenceState` | `evidence_service.dart` |
-| **5e4a3fa5** | Fix method call | `dovezi_screen.dart` |
-| **b3898fd5** | Standardize parameters | `file_storage_service.dart` |
-| **4a7bd4cd** | Backward compat migration | `evidence_model.dart`, `firestore.rules`, `firestore.indexes.json` |
-| **db2bf19a** | Add flutter analyze to CI | `.github/workflows/*` |
-| **cf0e4d21** | AI Chat region + key | `ai_chat_screen.dart`, `functions/index.js` |
-| **50106aee** | Remove duplicate trim | `functions/index.js` |
-| **1976e4ed** | Add test docs | `PR20_AI_CHAT_TEST_EVIDENCE.md` |
-| **d6b4b97b** | Add release audit | `PR20_RELEASE_AUDIT.md` |
+| Commit       | Descriere                      | Fișiere                                                            |
+| ------------ | ------------------------------ | ------------------------------------------------------------------ |
+| **76241a22** | Fix orphan style block         | `evenimente_screen.dart`                                           |
+| **63b3a4ee** | Standardize to `category`      | `evidence_service.dart`                                            |
+| **3770defe** | Standardize to `evidenceState` | `evidence_service.dart`                                            |
+| **5e4a3fa5** | Fix method call                | `dovezi_screen.dart`                                               |
+| **b3898fd5** | Standardize parameters         | `file_storage_service.dart`                                        |
+| **4a7bd4cd** | Backward compat migration      | `evidence_model.dart`, `firestore.rules`, `firestore.indexes.json` |
+| **db2bf19a** | Add flutter analyze to CI      | `.github/workflows/*`                                              |
+| **cf0e4d21** | AI Chat region + key           | `ai_chat_screen.dart`, `functions/index.js`                        |
+| **50106aee** | Remove duplicate trim          | `functions/index.js`                                               |
+| **1976e4ed** | Add test docs                  | `PR20_AI_CHAT_TEST_EVIDENCE.md`                                    |
+| **d6b4b97b** | Add release audit              | `PR20_RELEASE_AUDIT.md`                                            |
 
 ### Fișiere modificate (relevante pentru Windows build):
 
@@ -104,24 +107,30 @@ flutter run -d windows
 ## 📦 FIȘIERE DISPONIBILE PENTRU TINE
 
 ### 1. `WINDOWS_BUILD_FIX.md`
+
 Ghid detaliat cu toate fix-urile manuale (dacă nu poți face pull).
 
 ### 2. `apply-windows-fixes.ps1`
+
 Script PowerShell care:
+
 - Face backup la fișierele tale
 - Pull branch-ul cu fix-uri
 - Rulează flutter clean/pub get/analyze
 
 **Utilizare:**
+
 ```powershell
 cd C:\Users\ursac\Aplicatie-SuperpartyByAi_clean
 .\apply-windows-fixes.ps1
 ```
 
 ### 3. `windows-build-fixes.patch`
+
 Patch file (373 linii) cu toate schimbările.
 
 **Aplicare manuală:**
+
 ```powershell
 cd C:\Users\ursac\Aplicatie-SuperpartyByAi_clean
 git apply windows-build-fixes.patch
@@ -215,12 +224,14 @@ flutter clean && flutter pub get && flutter run -d windows
 Dacă întâmpini probleme:
 
 1. **Verifică că ești pe branch-ul corect:**
+
    ```powershell
    git branch
    # Trebuie să vezi: * fix/ai-chat-region-and-key-handling
    ```
 
 2. **Verifică că ai ultimele schimbări:**
+
    ```powershell
    git log --oneline -5
    # Trebuie să vezi: d6b4b97b docs: add comprehensive release engineering audit

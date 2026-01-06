@@ -12,6 +12,7 @@
 ### Workflows Triggered by PR #20
 
 **A. Flutter Analyze** (`flutter-analyze.yml`)
+
 - **Trigger:** `pull_request` on `superparty_flutter/**` paths
 - **Jobs:** `analyze`
 - **Steps:**
@@ -24,16 +25,19 @@
 - **Link:** [https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions/workflows/flutter-analyze.yml](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions/workflows/flutter-analyze.yml)
 
 **B. Build Signed APK** (`build-signed-apk.yml`)
+
 - **Trigger:** `push` to `main` (NOT triggered by PR)
 - **Status:** N/A for PR
 
 **C. Flutter Build** (`flutter-build.yml`)
+
 - **Trigger:** `workflow_dispatch` only (manual)
 - **Status:** N/A for PR
 
 ### CI Status Check
 
 **Access Method:**
+
 ```bash
 # View PR checks
 https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/pull/20/checks
@@ -45,6 +49,7 @@ https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions
 **Current Status:** ⏳ PENDING (workflows need to complete)
 
 **Expected Outcome:**
+
 - ✅ Flutter Analyze: PASS
 - ⚠️ No build workflow runs on PR (only on main push)
 
@@ -76,21 +81,25 @@ flutter build apk --release -v
 ### Code Analysis Results
 
 **A. Syntax Errors:** ✅ FIXED
+
 - **Issue:** Orphan `style`/`decoration` block in `evenimente_screen.dart`
 - **Fix:** Commit 76241a22 - Removed orphan properties
 - **Verification:** Manual code review confirms proper widget tree structure
 
 **B. Parameter Mismatches:** ✅ FIXED
+
 - **Issue:** Mixed `category` vs `categorie` parameters
 - **Fix:** Commits 63b3a4ee, 5e4a3fa5, b3898fd5 - Standardized to `category`
 - **Verification:** Grep shows consistent usage
 
 **C. Method Calls:** ✅ FIXED
+
 - **Issue:** `dovezi_screen.dart` called `uploadEvidence` with wrong signature
 - **Fix:** Commit 5e4a3fa5 - Changed to `uploadEvidenceFromPath`
 - **Verification:** Method signature matches call site
 
 **D. Model Methods:** ✅ FIXED
+
 - **Issue:** `unlockCategory` used non-existent `copyWith` on `EvidenceStateModel`
 - **Fix:** Commit 63b3a4ee - Recreate model instead of copyWith
 - **Verification:** No copyWith calls on EvidenceStateModel
@@ -114,6 +123,7 @@ flutter build apk --release -v
 **Code Location:** `superparty_flutter/lib/models/evidence_model.dart`
 
 **Write (toFirestore):**
+
 ```dart
 Map<String, dynamic> toFirestore() {
   return {
@@ -131,13 +141,14 @@ Map<String, dynamic> toFirestore() {
 **Code Location:** `superparty_flutter/lib/models/evidence_model.dart`
 
 **Read (fromFirestore):**
+
 ```dart
 factory EvidenceModel.fromFirestore(DocumentSnapshot doc, String eventId) {
   final data = doc.data() as Map<String, dynamic>;
-  
+
   // Backward compatibility: read from 'category' or fallback to 'categorie'
   final categoryValue = (data['category'] as String?) ?? (data['categorie'] as String?) ?? 'onTime';
-  
+
   return EvidenceModel(
     // ...
     category: EvidenceCategory.fromString(categoryValue),
@@ -153,6 +164,7 @@ factory EvidenceModel.fromFirestore(DocumentSnapshot doc, String eventId) {
 **Issue:** Firestore queries filter on single field - cannot do OR queries natively
 
 **Current Implementation:**
+
 ```dart
 // evidence_service.dart:118, 143, 170
 if (category != null) {
@@ -165,11 +177,13 @@ if (category != null) {
 **Mitigation Strategy:**
 
 **Option 1: Migration Required (RECOMMENDED)**
+
 - Run migration script BEFORE deploying new code
 - Script adds `category` field to all existing documents
 - Queries will work immediately
 
 **Option 2: Dual Query (Complex)**
+
 ```dart
 // NOT IMPLEMENTED - Would require:
 final query1 = collection.where('category', isEqualTo: value);
@@ -180,6 +194,7 @@ final query2 = collection.where('categorie', isEqualTo: value);
 **Current Status:** ⚠️ MIGRATION REQUIRED for complete data access
 
 **Action Required:**
+
 1. Deploy code with dual-write
 2. Run migration script: `node scripts/migrate-evidence-schema.js`
 3. Verify all documents have `category` field
@@ -190,11 +205,12 @@ final query2 = collection.where('categorie', isEqualTo: value);
 **Rules:** `firestore.rules`
 
 **Verification:**
+
 ```javascript
 // Line 52-60: Dovezi collection
 match /dovezi/{evidenceId} {
   // Checks BOTH evidenceState AND dovezi_meta for lock status
-  allow update: if isAuthenticated() && hasStaffProfile() && 
+  allow update: if isAuthenticated() && hasStaffProfile() &&
                  (!exists(.../evidenceState/$(resource.data.category)) ||
                   !get(.../evidenceState/$(resource.data.category)).data.locked) &&
                  (!exists(.../dovezi_meta/$(resource.data.categorie)) ||
@@ -219,6 +235,7 @@ match /dovezi_meta/{categorie} {
 **Indexes:** `firestore.indexes.json`
 
 **Verification:**
+
 ```json
 // Indexes for BOTH 'category' AND 'categorie' fields
 {
@@ -246,11 +263,13 @@ match /dovezi_meta/{categorie} {
 **Location:** `scripts/migrate-evidence-schema.js`
 
 **Dry Run:**
+
 ```bash
 node scripts/migrate-evidence-schema.js --dry-run
 ```
 
 **Expected Output:**
+
 ```
 🔍 Starting evidence schema migration...
 Mode: DRY RUN (no changes)
@@ -275,6 +294,7 @@ Run without --dry-run to apply changes
 ```
 
 **Actual Migration:**
+
 ```bash
 # Set service account
 export FIREBASE_SERVICE_ACCOUNT_PATH=/path/to/service-account.json
@@ -290,6 +310,7 @@ firebase firestore:query 'evenimente/*/dovezi' --where 'category==null'
 ### F. Deployment Steps
 
 **Phase 1: Deploy Code** (✅ READY)
+
 ```bash
 git checkout fix/ai-chat-region-and-key-handling
 git pull origin fix/ai-chat-region-and-key-handling
@@ -305,6 +326,7 @@ firebase deploy --only functions:chatWithAI
 ```
 
 **Phase 2: Run Migration** (⏳ AFTER Phase 1)
+
 ```bash
 # Dry run first
 node scripts/migrate-evidence-schema.js --dry-run
@@ -318,12 +340,14 @@ firebase firestore:query 'evenimente' --limit 5
 ```
 
 **Phase 3: Deploy Rules/Indexes** (⏳ AFTER Phase 2)
+
 ```bash
 firebase deploy --only firestore:rules
 firebase deploy --only firestore:indexes
 ```
 
 **Phase 4: Monitor** (⏳ AFTER Phase 3)
+
 ```bash
 # Check logs for errors
 firebase functions:log --only chatWithAI --limit 100
@@ -337,11 +361,13 @@ firebase firestore:usage
 **Schema Migration:** ⚠️ READY BUT REQUIRES EXECUTION
 
 **Risks:**
+
 1. ⚠️ **Query Incompleteness:** Until migration runs, queries on `category` won't return old documents
 2. ⚠️ **Index Build Time:** New indexes may take time to build (minutes to hours depending on data size)
 3. ✅ **Zero Downtime:** Dual-write ensures no data loss during migration
 
 **Recommendation:**
+
 - Deploy code (Phase 1) during low-traffic period
 - Run migration (Phase 2) immediately after
 - Monitor for 24-48 hours before Phase 3
@@ -353,6 +379,7 @@ firebase firestore:usage
 ### A. Region Consistency
 
 **Flutter:** `superparty_flutter/lib/screens/ai_chat/ai_chat_screen.dart:158`
+
 ```dart
 final callable = FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
   'chatWithAI',
@@ -361,6 +388,7 @@ final callable = FirebaseFunctions.instanceFor(region: 'us-central1').httpsCalla
 ```
 
 **Functions:** `functions/index.js:34`
+
 ```javascript
 setGlobalOptions({
   region: 'us-central1',
@@ -373,6 +401,7 @@ setGlobalOptions({
 ### B. Function Implementation Verification
 
 **Auth Check:** `functions/index.js:313-317`
+
 ```javascript
 const userId = context.auth?.uid;
 if (!userId) {
@@ -384,6 +413,7 @@ if (!userId) {
 **Status:** ✅ VERIFIED
 
 **Input Validation:** `functions/index.js:320-324`
+
 ```javascript
 if (!data.messages || !Array.isArray(data.messages)) {
   console.error(`[${requestId}] Invalid input`);
@@ -394,6 +424,7 @@ if (!data.messages || !Array.isArray(data.messages)) {
 **Status:** ✅ VERIFIED
 
 **Key Loading:** `functions/index.js:327-336`
+
 ```javascript
 let groqKey = null;
 try {
@@ -408,6 +439,7 @@ try {
 **Status:** ✅ VERIFIED - Secrets with env fallback
 
 **Key Sanitization:** `functions/index.js:338-341`
+
 ```javascript
 if (groqKey) {
   groqKey = groqKey.trim().replace(/[\r\n\t]/g, '');
@@ -418,6 +450,7 @@ if (groqKey) {
 **Status:** ✅ VERIFIED - Trims whitespace, logs only length
 
 **Error Handling:** `functions/index.js:343-349`
+
 ```javascript
 if (!groqKey) {
   console.error(`[${requestId}] GROQ_API_KEY not configured`);
@@ -433,6 +466,7 @@ if (!groqKey) {
 ### C. Manual Test Plan
 
 **Prerequisites:**
+
 ```bash
 # Ensure Firebase CLI is installed and authenticated
 firebase login
@@ -444,15 +478,18 @@ firebase use superparty-frontend
 #### Test 1: Unauthenticated User
 
 **Steps:**
+
 1. Log out from app
 2. Navigate to AI Chat screen
 3. Attempt to send message
 
 **Expected:**
+
 - ✅ Flutter blocks call (no network request)
 - ✅ UI shows: "⚠️ Trebuie să fii logat pentru a folosi AI Chat"
 
 **Verification:**
+
 ```bash
 # Check Flutter logs
 adb logcat | grep "AIChatScreen"
@@ -465,6 +502,7 @@ firebase functions:log --only chatWithAI --limit 10
 #### Test 2: Missing GROQ_API_KEY
 
 **Setup:**
+
 ```bash
 # Temporarily remove key
 firebase functions:secrets:destroy GROQ_API_KEY --force
@@ -474,15 +512,18 @@ firebase deploy --only functions:chatWithAI
 ```
 
 **Steps:**
+
 1. Log in to app
 2. Navigate to AI Chat
 3. Send message: "Hello"
 
 **Expected:**
+
 - ✅ Function called but returns error
 - ✅ UI shows: "Chat-ul AI nu este configurat corect. Contactează administratorul."
 
 **Verification:**
+
 ```bash
 # Check Functions logs
 firebase functions:log --only chatWithAI --limit 10
@@ -492,6 +533,7 @@ firebase functions:log --only chatWithAI --limit 10
 ```
 
 **Cleanup:**
+
 ```bash
 # Restore key
 echo "YOUR_GROQ_API_KEY" | firebase functions:secrets:set GROQ_API_KEY
@@ -503,6 +545,7 @@ firebase deploy --only functions:chatWithAI
 #### Test 3: Normal Operation
 
 **Setup:**
+
 ```bash
 # Ensure key is set
 firebase functions:secrets:get GROQ_API_KEY
@@ -514,17 +557,20 @@ firebase functions:list | grep chatWithAI
 ```
 
 **Steps:**
+
 1. Log in to app
 2. Navigate to AI Chat
 3. Send message: "Salut! Cum te cheamă?"
 4. Wait for response
 
 **Expected:**
+
 - ✅ Loading indicator shown
 - ✅ AI response received within 30 seconds
 - ✅ Response displayed in chat
 
 **Verification:**
+
 ```bash
 # Check Functions logs
 firebase functions:log --only chatWithAI --limit 10
@@ -539,14 +585,17 @@ firebase functions:log --only chatWithAI --limit 10
 #### Test 4: Timeout Handling
 
 **Steps:**
+
 1. Send very long/complex message
 2. Wait for response or timeout (30s)
 
 **Expected:**
+
 - ✅ If timeout: "Timeout: AI-ul nu a răspuns la timp. Încearcă din nou."
 - ✅ No app crash
 
 **Verification:**
+
 ```bash
 firebase functions:log --only chatWithAI --limit 10
 # Look for timeout or deadline-exceeded errors
@@ -555,12 +604,14 @@ firebase functions:log --only chatWithAI --limit 10
 ### D. Deployment Commands
 
 **Deploy Function:**
+
 ```bash
 cd functions
 firebase deploy --only functions:chatWithAI --project superparty-frontend
 ```
 
 **Set Secret:**
+
 ```bash
 # Interactive
 firebase functions:secrets:set GROQ_API_KEY
@@ -573,6 +624,7 @@ echo "gsk_YOUR_KEY_HERE" | firebase functions:secrets:set GROQ_API_KEY
 ```
 
 **View Logs:**
+
 ```bash
 # Recent logs
 firebase functions:log --only chatWithAI --limit 50
@@ -585,6 +637,7 @@ firebase functions:log --only chatWithAI --since 1h
 ```
 
 **Check Secret:**
+
 ```bash
 # List secrets
 firebase functions:secrets:list
@@ -607,6 +660,7 @@ firebase functions:secrets:access GROQ_API_KEY --data-file=-
 ### A. Secret Scanning
 
 **Scan Commands:**
+
 ```bash
 cd /workspaces/Aplicatie-SuperpartyByAi
 
@@ -623,11 +677,13 @@ grep -r "-----BEGIN" . --exclude-dir={node_modules,.git,build,dist} 2>/dev/null
 ### B. Environment Files
 
 **Check for exposed .env files:**
+
 ```bash
 find . -name ".env" -o -name ".env.*" | grep -v ".env.example"
 ```
 
 **Verify .gitignore:**
+
 ```bash
 cat .gitignore | grep -E "\.env|secrets|keys|credentials"
 ```
@@ -635,6 +691,7 @@ cat .gitignore | grep -E "\.env|secrets|keys|credentials"
 ### C. Documentation Review
 
 **Check for hardcoded secrets in docs:**
+
 ```bash
 grep -r "gsk_\|sk-\|AIza\|AKIA" *.md --exclude-dir={node_modules,.git}
 ```
@@ -649,22 +706,24 @@ grep -r "gsk_\|sk-\|AIza\|AKIA" *.md --exclude-dir={node_modules,.git}
 
 ### Summary
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| CI Workflows | ⏳ PENDING | Awaiting GitHub Actions run |
-| Android Build | ✅ CODE VERIFIED | Awaiting CI confirmation |
-| Schema Migration | ⚠️ READY | Requires execution post-deploy |
-| AI Chat | ✅ VERIFIED | Manual tests pending |
-| Security | 🔍 IN PROGRESS | Scan running |
+| Component        | Status           | Notes                          |
+| ---------------- | ---------------- | ------------------------------ |
+| CI Workflows     | ⏳ PENDING       | Awaiting GitHub Actions run    |
+| Android Build    | ✅ CODE VERIFIED | Awaiting CI confirmation       |
+| Schema Migration | ⚠️ READY         | Requires execution post-deploy |
+| AI Chat          | ✅ VERIFIED      | Manual tests pending           |
+| Security         | 🔍 IN PROGRESS   | Scan running                   |
 
 ### Action Items
 
 **Immediate (Pre-Merge):**
+
 1. ✅ Wait for CI to pass
 2. ✅ Review this audit report
 3. ✅ Approve PR if CI green
 
 **Post-Merge:**
+
 1. ⏳ Deploy Flutter app (Phase 1)
 2. ⏳ Run migration script (Phase 2)
 3. ⏳ Deploy Firestore rules/indexes (Phase 3)
@@ -674,19 +733,23 @@ grep -r "gsk_\|sk-\|AIza\|AKIA" *.md --exclude-dir={node_modules,.git}
 ### Risk Assessment
 
 **HIGH RISK:**
+
 - None identified
 
 **MEDIUM RISK:**
+
 - Schema migration requires careful execution
 - Query incompleteness until migration completes
 
 **LOW RISK:**
+
 - CI workflow coverage (no build on PR)
 - Manual test execution required
 
 ### Recommendation
 
 **APPROVE FOR MERGE** with conditions:
+
 1. CI passes (Flutter Analyze)
 2. Post-merge migration plan executed
 3. Manual tests completed within 48 hours

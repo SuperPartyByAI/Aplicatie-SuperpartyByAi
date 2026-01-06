@@ -2,12 +2,12 @@
 
 /**
  * Migration script: Add 'category' field to existing evidence documents
- * 
+ *
  * This script:
  * 1. Finds all documents in evenimente/{eventId}/dovezi that have 'categorie' but not 'category'
  * 2. Copies the value from 'categorie' to 'category'
  * 3. Keeps both fields for backward compatibility
- * 
+ *
  * Usage:
  *   node scripts/migrate-evidence-schema.js [--dry-run] [--project PROJECT_ID]
  */
@@ -25,18 +25,21 @@ const projectId = projectIndex >= 0 ? args[projectIndex + 1] : null;
 // Initialize Firebase Admin
 let serviceAccount;
 try {
-  const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || 
-                             path.join(__dirname, '../firebase-service-account.json');
+  const serviceAccountPath =
+    process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
+    path.join(__dirname, '../firebase-service-account.json');
   serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
 } catch (error) {
   console.error('❌ Error loading service account:', error.message);
-  console.error('Set FIREBASE_SERVICE_ACCOUNT_PATH environment variable or place firebase-service-account.json in project root');
+  console.error(
+    'Set FIREBASE_SERVICE_ACCOUNT_PATH environment variable or place firebase-service-account.json in project root'
+  );
   process.exit(1);
 }
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  projectId: projectId || serviceAccount.project_id
+  projectId: projectId || serviceAccount.project_id,
 });
 
 const db = admin.firestore();
@@ -82,12 +85,14 @@ async function migrateEvidenceDocuments() {
 
         if (hasCategorie && !hasCategory) {
           // Needs migration
-          console.log(`  ✏️  Migrating ${doveziDoc.id}: categorie="${data.categorie}" -> category="${data.categorie}"`);
-          
+          console.log(
+            `  ✏️  Migrating ${doveziDoc.id}: categorie="${data.categorie}" -> category="${data.categorie}"`
+          );
+
           if (!dryRun) {
             try {
               await doveziDoc.ref.update({
-                category: data.categorie
+                category: data.categorie,
               });
               migratedDocs++;
             } catch (error) {
@@ -102,7 +107,9 @@ async function migrateEvidenceDocuments() {
           skippedDocs++;
         } else {
           // Missing both fields (shouldn't happen)
-          console.warn(`  ⚠️  Document ${doveziDoc.id} missing both 'categorie' and 'category' fields`);
+          console.warn(
+            `  ⚠️  Document ${doveziDoc.id} missing both 'categorie' and 'category' fields`
+          );
           errorDocs++;
         }
       }
@@ -127,7 +134,6 @@ async function migrateEvidenceDocuments() {
     } else {
       console.log('✅ MIGRATION COMPLETE');
     }
-
   } catch (error) {
     console.error('❌ Migration failed:', error);
     process.exit(1);

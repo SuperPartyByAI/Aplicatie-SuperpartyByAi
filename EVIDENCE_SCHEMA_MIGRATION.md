@@ -7,10 +7,12 @@ PR #20 standardizes the evidence schema from Romanian (`categorie`, `dovezi_meta
 ## Changes
 
 ### Field Names
+
 - **Old:** `categorie` (Romanian)
 - **New:** `category` (English)
 
 ### Collection Names
+
 - **Old:** `dovezi_meta`
 - **New:** `evidenceState`
 
@@ -19,12 +21,14 @@ PR #20 standardizes the evidence schema from Romanian (`categorie`, `dovezi_meta
 ### Phase 1: Deploy Code with Dual Support (CURRENT)
 
 **Code Changes:**
+
 1. ✅ `EvidenceModel.fromFirestore()` reads from `category` OR `categorie` (fallback)
 2. ✅ `EvidenceModel.toFirestore()` writes BOTH `category` AND `categorie`
 3. ✅ All service methods use `category` parameter
 4. ✅ All Firestore queries use `.where('category')`
 
 **Infrastructure Changes:**
+
 1. ✅ Firestore rules support BOTH `evidenceState` AND `dovezi_meta` collections
 2. ✅ Firestore indexes created for BOTH `category` AND `categorie` fields
 
@@ -43,6 +47,7 @@ node scripts/migrate-evidence-schema.js
 ```
 
 **What it does:**
+
 - Finds all documents with `categorie` but no `category`
 - Copies value from `categorie` to `category`
 - Keeps both fields for compatibility
@@ -66,6 +71,7 @@ firebase deploy --only firestore:indexes
 ### Phase 4: Verify and Monitor
 
 Monitor for 1-2 weeks:
+
 - Check logs for any `categorie` field access
 - Verify all queries use `category` field
 - Confirm no errors in production
@@ -75,6 +81,7 @@ Monitor for 1-2 weeks:
 ### Phase 5: Cleanup (Optional - Future)
 
 After verification period, optionally remove backward compatibility:
+
 1. Remove `categorie` write from `toFirestore()`
 2. Remove `categorie` fallback from `fromFirestore()`
 3. Remove `dovezi_meta` rules
@@ -104,15 +111,18 @@ Before deploying to production:
 ## Files Modified
 
 ### Code
+
 - `superparty_flutter/lib/models/evidence_model.dart` - Dual read/write
 - `superparty_flutter/lib/services/evidence_service.dart` - Standardized parameters
 
 ### Infrastructure
+
 - `firestore.rules` - Support both collections
 - `firestore.indexes.json` - Indexes for both fields
 - `scripts/migrate-evidence-schema.js` - Migration script (NEW)
 
 ### CI/CD
+
 - `.github/workflows/build-signed-apk.yml` - Added flutter analyze
 - `.github/workflows/flutter-build.yml` - Added flutter analyze
 
@@ -127,6 +137,7 @@ Before deploying to production:
 ## Support
 
 For issues or questions:
+
 1. Check logs for specific error messages
 2. Verify Firestore rules are deployed
 3. Confirm indexes are built (can take time)

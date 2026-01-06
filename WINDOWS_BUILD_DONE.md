@@ -10,13 +10,13 @@ Am finalizat complet repararea build-ului Flutter pentru Windows.
 
 ### 1. Documentație (5 fișiere)
 
-| Fișier | Descriere | Locație |
-|--------|-----------|---------|
-| **START_HERE_WINDOWS.txt** | Instrucțiuni rapide | Root repository |
-| **WINDOWS_FIX_SUMMARY.md** | Rezumat tehnic complet | Root repository |
-| **WINDOWS_BUILD_FIX.md** | Ghid detaliat manual | Root repository |
-| **windows-build-fixes.patch** | Patch Git (373 linii) | Root repository |
-| **apply-windows-fixes.ps1** | Script PowerShell | Root repository |
+| Fișier                        | Descriere              | Locație         |
+| ----------------------------- | ---------------------- | --------------- |
+| **START_HERE_WINDOWS.txt**    | Instrucțiuni rapide    | Root repository |
+| **WINDOWS_FIX_SUMMARY.md**    | Rezumat tehnic complet | Root repository |
+| **WINDOWS_BUILD_FIX.md**      | Ghid detaliat manual   | Root repository |
+| **windows-build-fixes.patch** | Patch Git (373 linii)  | Root repository |
+| **apply-windows-fixes.ps1**   | Script PowerShell      | Root repository |
 
 ### 2. Commit & Push
 
@@ -34,6 +34,7 @@ Am finalizat complet repararea build-ului Flutter pentru Windows.
 ### Pentru utilizatorii Windows:
 
 **Soluția simplă (2 minute):**
+
 ```powershell
 cd C:\Users\ursac\Aplicatie-SuperpartyByAi_clean
 git fetch origin

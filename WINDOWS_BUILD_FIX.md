@@ -3,6 +3,7 @@
 ## PROBLEMA
 
 Build-ul Flutter pe Windows eșuează cu erori Dart în:
+
 - `evenimente_screen.dart` - sintaxă invalidă (paranteze/liste neînchise)
 - `dovezi_screen.dart` - parametru `category` inexistent
 - `evidence_service.dart` - parametru `categorie` inexistent + `copyWith` lipsă
@@ -23,6 +24,7 @@ git pull origin fix/ai-chat-region-and-key-handling
 ```
 
 Apoi:
+
 ```powershell
 cd superparty_flutter
 flutter clean
@@ -44,6 +46,7 @@ Dacă nu poți face pull, aplică următoarele fix-uri:
 **Problema:** Există un bloc de proprietăți `style:` și `decoration:` care nu aparține niciunui widget (liniile ~348-365 în versiunea ta).
 
 **Fix:** Șterge liniile care conțin:
+
 ```dart
         ),
             style: const TextStyle(color: Color(0xFFEAF1FF)),
@@ -73,6 +76,7 @@ Dacă nu poți face pull, aplică următoarele fix-uri:
 Aceste linii apar DUPĂ primul `Expanded` se închide și ÎNAINTE de `Padding`. Ele trebuie eliminate complet.
 
 **Verificare:**
+
 ```powershell
 flutter format lib/screens/evenimente/evenimente_screen.dart
 flutter analyze
@@ -89,6 +93,7 @@ flutter analyze
 **Schimbări necesare:**
 
 1. **Linia ~39** - Schimbă parametrul de la `categorie` la `category`:
+
 ```dart
 // ÎNAINTE:
 Future<EvidenceUploadResult> uploadEvidence({
@@ -124,6 +129,7 @@ Future<EvidenceUploadResult> uploadEvidence({
    - `_updateCategoryPhotoCount` (linia ~384)
 
 **Căutare și înlocuire globală:**
+
 ```
 Caută: required EvidenceCategory categorie
 Înlocuiește cu: required EvidenceCategory category
@@ -140,6 +146,7 @@ Caută: EvidenceCategory? categorie
 **Fișier:** `lib/screens/dovezi/dovezi_screen.dart`
 
 **Linia ~290** - Apelul `uploadEvidence`:
+
 ```dart
 // ÎNAINTE:
 await _evidenceService.uploadEvidence(
@@ -157,6 +164,7 @@ await _evidenceService.uploadEvidenceFromPath(
 ```
 
 **Linia ~320** - Apelul `archiveEvidence`:
+
 ```dart
 // ÎNAINTE:
 await _evidenceService.archiveEvidence(
@@ -227,6 +235,7 @@ class EvidenceStateModel {
 **SAU** - Dacă `unlockCategory` folosește `copyWith` cu parametri care nu există (ex: `lockedBy`, `lockedAt`), modifică apelul:
 
 **În `evidence_service.dart`, funcția `unlockCategory`:**
+
 ```dart
 // ÎNAINTE (dacă ai așa ceva):
 final meta = currentMeta.copyWith(
@@ -258,12 +267,12 @@ Asigură-te că modelul suportă atât `category` cât și `categorie` (backward
 ```dart
 factory EvidenceModel.fromFirestore(DocumentSnapshot doc, String eventId) {
   final data = doc.data() as Map<String, dynamic>;
-  
+
   // Backward compatibility: read from 'category' or fallback to 'categorie'
-  final categoryValue = (data['category'] as String?) ?? 
-                        (data['categorie'] as String?) ?? 
+  final categoryValue = (data['category'] as String?) ??
+                        (data['categorie'] as String?) ??
                         'onTime';
-  
+
   return EvidenceModel(
     id: doc.id,
     eventId: eventId,
@@ -304,6 +313,7 @@ flutter run -d windows
 ```
 
 **Rezultat așteptat:**
+
 - `flutter analyze` → 0 erori
 - `flutter run -d windows` → Aplicația pornește
 
