@@ -11,9 +11,9 @@ pluginManagement {
 
     repositories {
         google()
-        mavenCentral()
         gradlePluginPortal()
         maven { url "https://jitpack.io" }
+        // mavenCentral() - blocked by 403 in GitHub Actions
     }
 }
 

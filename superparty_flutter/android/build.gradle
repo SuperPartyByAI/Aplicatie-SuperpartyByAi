@@ -1,9 +1,9 @@
 buildscript {
     repositories {
         google()
-        mavenCentral()
         gradlePluginPortal()
         maven { url 'https://jitpack.io' }
+        // mavenCentral() - blocked by 403 in GitHub Actions
     }
     dependencies {
         classpath 'com.google.gms:google-services:4.4.0'
@@ -13,9 +13,9 @@ buildscript {
 allprojects {
     repositories {
         google()
-        mavenCentral()
         gradlePluginPortal()
         maven { url 'https://jitpack.io' }
+        // mavenCentral() - blocked by 403 in GitHub Actions
     }
 }
 
