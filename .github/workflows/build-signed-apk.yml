@@ -48,16 +48,17 @@ jobs:
         working-directory: superparty_flutter
         run: flutter pub get
 
+      - name: Clean build cache
+        working-directory: superparty_flutter
+        run: |
+          flutter clean
+          flutter pub get
+          
       - name: Build signed APK
         working-directory: superparty_flutter
         run: |
+          echo "Starting APK build..."
           flutter build apk --release --verbose
-        timeout-minutes: 20
-
-      - name: Build signed AAB
-        working-directory: superparty_flutter
-        run: |
-          flutter build appbundle --release --verbose
         timeout-minutes: 20
 
       - name: Setup Node.js for upload script
