@@ -356,7 +356,10 @@ exports.chatWithAI = onCall(
 
       if (!userId) {
         console.error(`[${requestId}] User not authenticated - context:`, context);
-        throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated. Please log in to the app.');
+        throw new functions.https.HttpsError(
+          'unauthenticated',
+          'User must be authenticated. Please log in to the app.'
+        );
       }
 
       if (!data.messages || !Array.isArray(data.messages)) {
