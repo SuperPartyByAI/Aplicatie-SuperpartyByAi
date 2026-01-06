@@ -82,7 +82,7 @@ class EvidenceService {
       );
 
       final docRef = await _firestore
-          .collection('evenimente')
+          .collection('eveniment')
           .doc(eventId)
           .collection('dovezi')
           .add(evidence.toFirestore());
@@ -107,7 +107,7 @@ class EvidenceService {
     EvidenceCategory? category,
   }) {
     Query query = _firestore
-        .collection('evenimente')
+        .collection('eveniment')
         .doc(eventId)
         .collection('dovezi');
 
@@ -133,7 +133,7 @@ class EvidenceService {
     EvidenceCategory? category,
   }) {
     Query query = _firestore
-        .collection('evenimente')
+        .collection('eveniment')
         .doc(eventId)
         .collection('dovezi');
 
@@ -159,7 +159,7 @@ class EvidenceService {
   }) async {
     try {
       Query query = _firestore
-          .collection('evenimente')
+          .collection('eveniment')
           .doc(eventId)
           .collection('dovezi');
 
@@ -209,7 +209,7 @@ class EvidenceService {
       // NU ștergem din Storage - fișierul rămâne permanent
       // Doar marcăm metadata ca arhivată în Firestore
       await _firestore
-          .collection('evenimente')
+          .collection('eveniment')
           .doc(eventId)
           .collection('dovezi')
           .doc(evidenceId)
@@ -240,7 +240,7 @@ class EvidenceService {
       }
 
       await _firestore
-          .collection('evenimente')
+          .collection('eveniment')
           .doc(eventId)
           .collection('dovezi')
           .doc(evidenceId)
@@ -290,7 +290,7 @@ class EvidenceService {
       );
 
       await _firestore
-          .collection('evenimente')
+          .collection('eveniment')
           .doc(eventId)
           .collection('evidenceState')
           .doc(category.value)
@@ -328,7 +328,7 @@ class EvidenceService {
       );
 
       await _firestore
-          .collection('evenimente')
+          .collection('eveniment')
           .doc(eventId)
           .collection('evidenceState')
           .doc(category.value)
@@ -345,7 +345,7 @@ class EvidenceService {
   }) async {
     try {
       final doc = await _firestore
-          .collection('evenimente')
+          .collection('eveniment')
           .doc(eventId)
           .collection('evidenceState')
           .doc(category.value)
@@ -371,7 +371,7 @@ class EvidenceService {
     required EvidenceCategory category,
   }) {
     return _firestore
-        .collection('evenimente')
+        .collection('eveniment')
         .doc(eventId)
         .collection('evidenceState')
         .doc(category.value)
@@ -387,7 +387,7 @@ class EvidenceService {
   }) async {
     try {
       final docRef = _firestore
-          .collection('evenimente')
+          .collection('eveniment')
           .doc(eventId)
           .collection('evidenceState')
           .doc(category.value);
@@ -450,7 +450,7 @@ class EvidenceService {
   /// Stream pentru category states
   Stream<Map<EvidenceCategory, EvidenceStateModel>> getCategoryStatesStream(String eventId) {
     return _firestore
-        .collection('evenimente')
+        .collection('eveniment')
         .doc(eventId)
         .collection('evidenceState')
         .snapshots()
@@ -475,7 +475,7 @@ class EvidenceService {
     if (currentUser == null) throw Exception('Utilizator neautentificat');
 
     await _firestore
-        .collection('evenimente')
+        .collection('eveniment')
         .doc(eventId)
         .collection('evidenceState')
         .doc(category.value)
