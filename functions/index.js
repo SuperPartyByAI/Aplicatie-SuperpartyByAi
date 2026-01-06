@@ -326,8 +326,17 @@ exports.chatWithAI = onCall(
         throw new functions.https.HttpsError('invalid-argument', 'Messages array required');
       }
 
-      let groqKey = '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';
-      console.log(`[${requestId}] Using hardcoded GROQ_API_KEY`);
+      let groqKey = null;
+      try {
+        groqKey = groqApiKey.value();
+        console.log(`[${requestId}] GROQ_API_KEY loaded from secrets`);
+      } catch (e) {
+        console.warn(
+          `[${requestId}] Failed to load GROQ_API_KEY from secrets, trying env:`,
+          e.message
+        );
+        groqKey = process.env.GROQ_API_KEY;
+      }
 
       // Clean key: trim whitespace and newlines
       if (groqKey) {
