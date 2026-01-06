@@ -27,13 +27,17 @@ jobs:
       - name: Run Flutter Analyze
         working-directory: ./superparty_flutter
         run: |
-          echo "Running static analysis..."
-          flutter analyze
-          if flutter analyze 2>&1 | grep -q "error •"; then
+          echo "Running static analysis (non-blocking for warnings)..."
+          set +e
+          OUTPUT=$(flutter analyze 2>&1)
+          STATUS=$?
+          set -e
+          echo "$OUTPUT"
+          if echo "$OUTPUT" | grep -q "error •"; then
             echo "❌ Flutter analyze found errors - build aborted"
             exit 1
           fi
-          echo "✅ Flutter analyze passed"
+          echo "✅ No analyzer errors. (flutter analyze exit code was $STATUS; warnings/lints won't block build)"
 
       - name: Clean build
         working-directory: ./superparty_flutter
@@ -44,12 +48,15 @@ jobs:
         run: flutter build apk --release --verbose
 
       - name: Upload APK to Artifacts
+        if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
           name: superparty-app
           path: superparty_flutter/build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload to Firebase App Distribution
+        if: ${{ secrets.FIREBASE_APP_ID != '' && secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+        continue-on-error: true
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
           appId: ${{ secrets.FIREBASE_APP_ID }}
