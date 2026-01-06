@@ -2,8 +2,11 @@ buildscript {
     repositories {
         google()
         gradlePluginPortal()
+        maven { 
+            url 'https://oss.sonatype.org/content/repositories/releases/'
+            allowInsecureProtocol = false
+        }
         maven { url 'https://jitpack.io' }
-        // mavenCentral() - blocked by 403 in GitHub Actions
     }
     dependencies {
         classpath 'com.google.gms:google-services:4.4.0'
@@ -14,8 +17,11 @@ allprojects {
     repositories {
         google()
         gradlePluginPortal()
+        maven { 
+            url 'https://oss.sonatype.org/content/repositories/releases/'
+            allowInsecureProtocol = false
+        }
         maven { url 'https://jitpack.io' }
-        // mavenCentral() - blocked by 403 in GitHub Actions
     }
 }
 

@@ -55,7 +55,16 @@ jobs:
 
       - name: Build APK
         working-directory: ./superparty_flutter
-        run: flutter build apk --release --verbose
+        run: |
+          flutter build apk --release --verbose 2>&1 | tee build.log
+          exit ${PIPESTATUS[0]}
+      
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: superparty_flutter/build.log
 
       - name: Verify APK exists
         if: always()
