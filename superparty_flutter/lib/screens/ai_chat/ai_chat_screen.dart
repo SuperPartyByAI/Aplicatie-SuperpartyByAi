@@ -1,7 +1,14 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/chat_cache_service.dart';
 import '../../services/ai_cache_service.dart';
 import '../../providers/app_state_provider.dart';
@@ -14,35 +21,94 @@ class AIChatScreen extends StatefulWidget {
 }
 
 class _AIChatScreenState extends State<AIChatScreen> {
+  // Theme colors (mobile-first dark theme)
+  static const _bg = Color(0xFF0B1220);
+  static const _bg2 = Color(0xFF111C35);
+  static const _text = Color(0xFFEAF1FF);
+  static const _muted = Color(0xB3EAF1FF);
+  static const _border = Color(0x1FFFFFFF);
+  static const _card = Color(0x14FFFFFF);
+  static const _primary = Color(0xFF6366F1);
+  static const _accent = Color(0xFF4ECDC4);
+  static const _danger = Color(0xFFFF7878);
+
+  // Storage keys
+  static const _userNameKey = 'ai_user_name_v1';
+  static const _galleryKey = 'ai_gallery_v1';
+  static const _chatArchivesKey = 'ai_chat_archives_v1';
+
   final List<Map<String, String>> _messages = [];
   final _inputController = TextEditingController();
   final _scrollController = ScrollController();
+  final _focusNode = FocusNode();
+  
   bool _loading = false;
   String? _sessionId;
   String? _lastSentMessage;
   DateTime? _lastSentTime;
+  String? _userName;
+  bool _awaitingName = false;
+
+  XFile? _pickedImage;
+  Uint8List? _pickedBytes;
+
+  final List<_GalleryItem> _gallery = [];
+  _GalleryFilter _galleryFilter = _GalleryFilter.active;
+
+  SharedPreferences? _prefs;
 
   @override
   void initState() {
     super.initState();
     _sessionId = 'session_${DateTime.now().millisecondsSinceEpoch}';
-    _loadCachedMessages();
-    _prefetchCommonResponses();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    _prefs = await SharedPreferences.getInstance();
+    _userName = _sanitizeName(_prefs?.getString(_userNameKey));
+    _awaitingName = _userName == null;
+
+    _loadGallery();
+    await _loadCachedMessages();
+    await _prefetchCommonResponses();
+
+    if (_messages.isEmpty) {
+      setState(() {
+        _messages.add({'role': 'assistant', 'content': _welcomeText()});
+      });
+    }
+
+    _scrollToBottomSoon();
+  }
+
+  String _sanitizeName(String? name) {
+    final n = (name ?? '').trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (n.isEmpty) return '';
+    return n.length > 32 ? n.substring(0, 32) : n;
+  }
+
+  String _welcomeText() =>
+      _userName != null ? 'Salut, $_userName! Cu ce te pot ajuta?' : 'Salut! Cum te cheamă?';
+
+  Future<void> _scrollToBottomSoon() async {
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    if (!mounted) return;
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
   }
   
   /// Prefetch common responses in background
   Future<void> _prefetchCommonResponses() async {
-    // Warm up cache with common questions
     await AICacheService.prefetchCommonResponses();
   }
 
   Future<void> _loadCachedMessages() async {
-    // OPTIMIZATION: Show welcome message immediately
-    setState(() {
-      _messages.add({'role': 'assistant', 'content': 'Bună! Sunt asistentul tău AI. Cu ce te pot ajuta?'});
-    });
-    
-    // Load cached messages in background (non-blocking)
+    // Load from existing ChatCacheService
     ChatCacheService.getRecentMessages(limit: 20).then((cached) {
       if (cached.isNotEmpty && mounted) {
         setState(() {
@@ -51,8 +117,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
             _messages.add({'role': 'user', 'content': msg['userMessage']});
             _messages.add({'role': 'assistant', 'content': msg['aiResponse']});
           }
-          // Add welcome message at the end
-          _messages.add({'role': 'assistant', 'content': 'Bună! Sunt asistentul tău AI. Cu ce te pot ajuta?'});
+          if (_userName == null) {
+            _awaitingName = true;
+            _messages.add({'role': 'assistant', 'content': 'Înainte să continuăm, cum te cheamă?'});
+          }
         });
       }
     }).catchError((e) {
@@ -60,12 +128,88 @@ class _AIChatScreenState extends State<AIChatScreen> {
     });
   }
 
+  void _loadGallery() {
+    try {
+      final raw = _prefs?.getString(_galleryKey);
+      if (raw == null || raw.isEmpty) return;
+      final list = jsonDecode(raw);
+      if (list is! List) return;
+
+      _gallery.clear();
+      for (final item in list) {
+        if (item is Map<String, dynamic>) {
+          _gallery.add(_GalleryItem.fromJson(item));
+        } else if (item is Map) {
+          _gallery.add(_GalleryItem.fromJson(item.map((k, v) => MapEntry(k.toString(), v))));
+        }
+      }
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  void _saveGallery() {
+    try {
+      final capped = _gallery.length > 80 ? _gallery.sublist(_gallery.length - 80) : _gallery;
+      _prefs?.setString(_galleryKey, jsonEncode(capped.map((e) => e.toJson()).toList()));
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  void _appendChatArchive(String kind, Map<String, dynamic> payload) {
+    try {
+      final raw = _prefs?.getString(_chatArchivesKey);
+      final arr = raw != null && raw.isNotEmpty ? jsonDecode(raw) : [];
+      final list = (arr is List) ? arr : <dynamic>[];
+      list.add({
+        'ts': DateTime.now().millisecondsSinceEpoch,
+        'kind': kind,
+        'payload': payload,
+      });
+      final capped = list.length > 200 ? list.sublist(list.length - 200) : list;
+      _prefs?.setString(_chatArchivesKey, jsonEncode(capped));
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final picker = ImagePicker();
+      final x = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 82,
+      );
+      if (x == null) return;
+      final bytes = await x.readAsBytes();
+      setState(() {
+        _pickedImage = x;
+        _pickedBytes = bytes;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack('Nu pot procesa imaginea: $e');
+    }
+  }
+
+  String _describeUserMessage(String text, bool hasImage, String? imageName) {
+    final t = text.trim();
+    if (t.isNotEmpty && hasImage) return '$t\n[Imagine atașată: ${imageName ?? "poză"}]';
+    if (hasImage) return '[Imagine atașată: ${imageName ?? "poză"}]';
+    return t;
+  }
+
   Future<void> _sendMessage() async {
     final text = _inputController.text.trim();
-    if (text.isEmpty || _loading) return;
+    final hasImage = _pickedImage != null && _pickedBytes != null;
+
+    if ((text.isEmpty && !hasImage) || _loading) return;
 
     // DEDUPLICATION: Prevent sending same message twice in 2 seconds
-    if (_lastSentMessage == text && _lastSentTime != null) {
+    if (_lastSentMessage == text && _lastSentTime != null && !hasImage) {
       final timeSinceLastSent = DateTime.now().difference(_lastSentTime!);
       if (timeSinceLastSent.inSeconds < 2) {
         print('[AIChatScreen] Duplicate message blocked');
@@ -76,10 +220,55 @@ class _AIChatScreenState extends State<AIChatScreen> {
     _lastSentMessage = text;
     _lastSentTime = DateTime.now();
 
+    final imageName = _pickedImage?.name;
+
+    // UI: add user message
+    setState(() {
+      _messages.add({'role': 'user', 'content': _describeUserMessage(text, hasImage, imageName)});
+    });
+
+    // Save image to gallery at send time
+    if (hasImage) {
+      _gallery.add(_GalleryItem(
+        id: _makeImageId(),
+        ts: DateTime.now().millisecondsSinceEpoch,
+        name: imageName ?? 'imagine.jpg',
+        mime: 'image/jpeg',
+        base64: base64Encode(_pickedBytes!),
+        status: _GalleryStatus.active,
+      ));
+      _saveGallery();
+    }
+
+    _inputController.clear();
+    _focusNode.unfocus();
+    setState(() {
+      _pickedImage = null;
+      _pickedBytes = null;
+    });
+    _scrollToBottomSoon();
+
+    // Capture name
+    if (_awaitingName) {
+      final name = _sanitizeName(text);
+      if (name.isNotEmpty) {
+        _userName = name;
+        _prefs?.setString(_userNameKey, name);
+        _awaitingName = false;
+        setState(() {
+          _messages.add({'role': 'assistant', 'content': 'Încântat, $_userName! Cu ce te pot ajuta?'});
+        });
+      } else {
+        _awaitingName = true;
+        setState(() {
+          _messages.add({'role': 'assistant', 'content': 'Nu am prins numele. Îmi spui cum te cheamă?'});
+        });
+      }
+      _scrollToBottomSoon();
+      return;
+    }
+
     final user = FirebaseAuth.instance.currentUser;
-    
-    // DIAGNOSTIC: Log user auth state
-    print('[AIChatScreen] User auth state: uid=${user?.uid}, email=${user?.email}');
     
     // AUTH CHECK: Block if user is not authenticated
     if (user == null) {
@@ -90,6 +279,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
           'content': '⚠️ Trebuie să fii logat pentru a folosi AI Chat.\n\nTe rog loghează-te mai întâi și apoi revino aici. 🔐'
         });
       });
+      _scrollToBottomSoon();
       return;
     }
     
@@ -98,109 +288,82 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
     // Secret commands for admin
     if (isAdmin && text.toLowerCase() == 'admin') {
-      _inputController.clear();
       appState.setAdminMode(true);
-      Navigator.pop(context); // Close AI Chat
-      appState.openGrid(); // Open Grid with admin buttons
+      Navigator.pop(context);
+      appState.openGrid();
       return;
     }
 
     if (isAdmin && text.toLowerCase() == 'gm') {
-      _inputController.clear();
       appState.setGmMode(true);
-      Navigator.pop(context); // Close AI Chat
-      appState.openGrid(); // Open Grid with GM buttons
+      Navigator.pop(context);
+      appState.openGrid();
       return;
     }
 
-    // OPTIMISTIC UI: Add user message immediately
-    setState(() {
-      _messages.add({'role': 'user', 'content': text});
-      _loading = true;
-    });
-    _inputController.clear();
-
-    // EXTREME OPTIMIZATION: Check aggressive cache first
-    final cachedResponse = await AICacheService.getCachedResponse(text);
+    // Check cache first (only for text without image)
+    final cachedResponse = (!hasImage) ? await AICacheService.getCachedResponse(text) : null;
     
     if (cachedResponse != null) {
-      // Instant response from cache!
       setState(() {
         _messages.add({'role': 'assistant', 'content': cachedResponse});
-        _loading = false;
       });
+      _scrollToBottomSoon();
       
-      // Auto-scroll
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
-      });
+      ChatCacheService.saveMessage(
+        sessionId: _sessionId!,
+        userMessage: text,
+        aiResponse: cachedResponse,
+        important: false,
+      ).catchError((e) => print('Cache save error: $e'));
       
       return;
     }
     
-    // OPTIMISTIC UI: Add placeholder for AI response
+    // Add placeholder
     final placeholderIndex = _messages.length;
     setState(() {
       _messages.add({'role': 'assistant', 'content': '...'});
+      _loading = true;
     });
+    _scrollToBottomSoon();
 
     try {
-      // DIAGNOSTIC: Log function call details
-      print('[AIChatScreen] Calling chatWithAI function in region: us-central1');
-      
-      // Call Firebase Function with timeout (explicitly specify region)
       final callable = FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
         'chatWithAI',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
       );
       
-      // OPTIMIZATION: Send only last 5 messages to reduce payload
       final messagesToSend = _messages
           .where((m) => m['content'] != '...')
           .toList()
           .reversed
-          .take(5)
+          .take(10)
           .toList()
           .reversed
           .toList();
       
-      print('[AIChatScreen] Sending ${messagesToSend.length} messages to function');
+      if (_userName != null && _userName!.isNotEmpty) {
+        messagesToSend.insert(0, {'role': 'system', 'content': 'Numele utilizatorului este: $_userName'});
+      }
       
       final result = await callable.call({
         'messages': messagesToSend,
         'sessionId': _sessionId,
       });
-      
-      print('[AIChatScreen] Function call successful');
 
       final aiResponse = result.data['message'] ?? 'No response';
       
-      // Cache the response for future use
-      AICacheService.cacheResponse(text, aiResponse).catchError((e) => print('Cache error: $e'));
+      if (!hasImage) {
+        AICacheService.cacheResponse(text, aiResponse).catchError((e) => print('Cache error: $e'));
+      }
       
-      // Update placeholder with actual response
       setState(() {
         _messages[placeholderIndex] = {'role': 'assistant', 'content': aiResponse};
       });
 
-      // Auto-scroll to bottom
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
-      });
+      _scrollToBottomSoon();
 
-      // Save to cache asynchronously (don't wait)
       final isImportant = text.length > 20 && 
                          !['ok', 'da', 'nu', 'haha', 'lol'].contains(text.toLowerCase());
       
@@ -212,18 +375,11 @@ class _AIChatScreenState extends State<AIChatScreen> {
       ).catchError((e) => print('Cache save error: $e'));
       
     } catch (e) {
-      // DIAGNOSTIC: Log full error details
-      print('[AIChatScreen] Error caught: ${e.runtimeType}');
-      print('[AIChatScreen] Error details: $e');
+      print('[AIChatScreen] Error: $e');
       
       String errorMessage = 'Eroare necunoscută';
       
-      // Proper error mapping for FirebaseFunctionsException
       if (e is FirebaseFunctionsException) {
-        print('[AIChatScreen] FirebaseFunctionsException code: ${e.code}');
-        print('[AIChatScreen] FirebaseFunctionsException message: ${e.message}');
-        print('[AIChatScreen] FirebaseFunctionsException details: ${e.details}');
-        
         errorMessage = _mapFirebaseError(e);
       } else if (e.toString().contains('timeout')) {
         errorMessage = 'Timeout - încearcă din nou';
@@ -231,7 +387,6 @@ class _AIChatScreenState extends State<AIChatScreen> {
         errorMessage = 'Conexiune eșuată: ${e.toString()}';
       }
       
-      // Replace placeholder with error
       setState(() {
         _messages[placeholderIndex] = {
           'role': 'assistant', 
@@ -239,11 +394,12 @@ class _AIChatScreenState extends State<AIChatScreen> {
         };
       });
     } finally {
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
   
-  /// Map Firebase Functions errors to user-friendly messages
   String _mapFirebaseError(FirebaseFunctionsException e) {
     switch (e.code) {
       case 'unauthenticated':
@@ -269,96 +425,564 @@ class _AIChatScreenState extends State<AIChatScreen> {
   void dispose() {
     _scrollController.dispose();
     _inputController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+}
+
+// Models
+enum _GalleryStatus { active, archived, deleted }
+enum _GalleryFilter { active, archived, deleted, all }
+
+class _GalleryItem {
+  const _GalleryItem({
+    required this.id,
+    required this.ts,
+    required this.name,
+    required this.mime,
+    required this.base64,
+    required this.status,
+  });
+
+  final String id;
+  final int ts;
+  final String name;
+  final String mime;
+  final String base64;
+  final _GalleryStatus status;
+
+  _GalleryItem copyWith({_GalleryStatus? status}) => _GalleryItem(
+        id: id,
+        ts: ts,
+        name: name,
+        mime: mime,
+        base64: base64,
+        status: status ?? this.status,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'ts': ts,
+        'name': name,
+        'mime': mime,
+        'base64': base64,
+        'status': status.name,
+      };
+
+  static _GalleryItem fromJson(Map<String, dynamic> j) {
+    final st = (j['status'] ?? 'active').toString();
+    final status = _GalleryStatus.values.firstWhere(
+      (e) => e.name == st,
+      orElse: () => _GalleryStatus.active,
+    );
+
+    return _GalleryItem(
+      id: (j['id'] ?? '').toString(),
+      ts: (j['ts'] is num) ? (j['ts'] as num).toInt() : int.tryParse('${j['ts']}') ?? 0,
+      name: (j['name'] ?? 'imagine.jpg').toString(),
+      mime: (j['mime'] ?? 'image/jpeg').toString(),
+      base64: (j['base64'] ?? '').toString(),
+      status: status,
+    );
+  }
+}
+
+class _TypingIndicator extends StatefulWidget {
+  const _TypingIndicator();
+
+  @override
+  State<_TypingIndicator> createState() => _TypingIndicatorState();
+}
+
+class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('🤖 Chat AI'),
-        backgroundColor: const Color(0xFF6366F1),
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        final t = _c.value;
+        double y(int i) {
+          final phase = (t + i * 0.15) % 1.0;
+          final v = sin(phase * 2 * pi);
+          return -3 * max(0, v);
+        }
+
+        Widget dot(int i) => Transform.translate(
+              offset: Offset(0, y(i)),
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(color: const Color(0x8CEAF1FF), borderRadius: BorderRadius.circular(99)),
+              ),
+            );
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            dot(0),
+            const SizedBox(width: 6),
+            dot(1),
+            const SizedBox(width: 6),
+            dot(2),
+            const SizedBox(width: 10),
+            const Text('Scriu...', style: TextStyle(color: Color(0xB3EAF1FF), fontStyle: FontStyle.italic, fontWeight: FontWeight.w700)),
+          ],
+        );
+      },
+    );
+  }
+}
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: _bg,
+        colorScheme: const ColorScheme.dark().copyWith(
+          primary: _primary,
+          secondary: _accent,
+          error: _danger,
+        ),
       ),
-      body: Column(
+      child: Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [_bg2, _bg],
+            ),
+          ),
+          child: SafeArea(
+            bottom: true,
+            child: Column(
+              children: [
+                _buildAppBar(context),
+                Expanded(child: _buildChatShell(context)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppBar(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: _bg.withOpacity(0.72),
+        border: const Border(bottom: BorderSide(color: Color(0x14FFFFFF))),
+      ),
+      child: Row(
         children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: _text),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          const Expanded(
+            child: Text(
+              'Chat AI',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: _text),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Wrap(
+            spacing: 10,
+            children: [
+              _pillButton('Galerie', onTap: _openGallerySheet),
+              _pillButton('Arhivează', onTap: _confirmArchiveConversation),
+              _pillButton('Șterge', onTap: _confirmDeleteConversation),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pillButton(String label, {required VoidCallback onTap}) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        height: 30,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.08),
+          border: Border.all(color: Colors.white.withOpacity(0.14)),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _text),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChatShell(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 40, offset: Offset(0, 18))],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Expanded(child: _buildMessages()),
+          if (_loading) const LinearProgressIndicator(minHeight: 3),
+          _buildComposer(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessages() {
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      itemCount: _messages.length,
+      cacheExtent: 1000,
+      itemBuilder: (context, index) {
+        final msg = _messages[index];
+        final isUser = msg['role'] == 'user';
+        final isAssistant = msg['role'] == 'assistant';
+
+        final bg = isUser
+            ? _primary.withOpacity(0.22)
+            : (isAssistant ? Colors.white.withOpacity(0.07) : _accent.withOpacity(0.12));
+        final border = isUser
+            ? _primary.withOpacity(0.32)
+            : (isAssistant ? Colors.white.withOpacity(0.12) : _accent.withOpacity(0.22));
+
+        final align = isUser ? Alignment.centerRight : Alignment.centerLeft;
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Align(
+            alignment: align,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 560),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: bg,
+                border: Border.all(color: border),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: (msg['content'] == '...')
+                  ? const _TypingIndicator()
+                  : Text(
+                      msg['content'] ?? '',
+                      style: const TextStyle(fontSize: 14, height: 1.35, color: _text),
+                    ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildComposer() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+      decoration: BoxDecoration(
+        color: _bg.withOpacity(0.55),
+        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.10))),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          IconButton(
+            tooltip: 'Încarcă poză',
+            onPressed: _pickImage,
+            icon: const Text('📷', style: TextStyle(fontSize: 18)),
+          ),
+          const SizedBox(width: 6),
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
-              // Performance optimization
-              cacheExtent: 1000,
-              itemBuilder: (context, index) {
-                final msg = _messages[index];
-                final isUser = msg['role'] == 'user';
-                final isTyping = msg['content'] == '...';
-                
-                return Align(
-                  alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(12),
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.75,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isUser ? const Color(0xFF6366F1) : Colors.grey[300],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: isTyping
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: 12,
-                                height: 12,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.grey[600]!,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Scriu...',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ],
-                          )
-                        : Text(
-                            msg['content'] ?? '',
-                            style: TextStyle(
-                              color: isUser ? Colors.white : Colors.black,
-                            ),
-                          ),
-                  ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.22),
+                border: Border.all(color: Colors.white.withOpacity(0.14)),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              child: TextField(
+                controller: _inputController,
+                focusNode: _focusNode,
+                minLines: 1,
+                maxLines: 4,
+                style: const TextStyle(color: _text, fontSize: 14, height: 1.3),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  hintText: 'Scrie un mesaj...',
+                  hintStyle: TextStyle(color: Color(0x8CEAF1FF)),
+                ),
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _sendMessage(),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          ElevatedButton(
+            onPressed: _loading ? null : _sendMessage,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primary.withOpacity(0.20),
+              foregroundColor: _text,
+              side: BorderSide(color: _primary.withOpacity(0.35)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              textStyle: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+            child: const Text('Trimite'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Gallery Sheet
+  void _openGallerySheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.black.withOpacity(0.55),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: min(720, MediaQuery.of(ctx).size.height - 24),
+            ),
+            decoration: BoxDecoration(
+              color: _bg.withOpacity(0.92),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withOpacity(0.12)),
+              boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 50, offset: Offset(0, 24))],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                _buildGalleryHeader(ctx),
+                Expanded(child: _buildGalleryBody()),
+                _buildGalleryFooter(),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGalleryHeader(BuildContext ctx) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.10))),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Galerie imagini', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: _text)),
+                SizedBox(height: 2),
+                Text(
+                  '„Șterge" și „Arhivează" sunt doar vizuale. În producție: soft-delete/soft-archive în Firebase.',
+                  style: TextStyle(fontSize: 11, color: _muted),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            icon: const Text('✕', style: TextStyle(fontWeight: FontWeight.w900)),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGalleryBody() {
+    final filtered = _gallery.where((x) {
+      if (_galleryFilter == _GalleryFilter.all) return true;
+      if (_galleryFilter == _GalleryFilter.active) return x.status == _GalleryStatus.active;
+      if (_galleryFilter == _GalleryFilter.archived) return x.status == _GalleryStatus.archived;
+      return x.status == _GalleryStatus.deleted;
+    }).toList()
+      ..sort((a, b) => (b.ts).compareTo(a.ts));
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Text('Afișează  ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _muted)),
+              DropdownButton<_GalleryFilter>(
+                value: _galleryFilter,
+                dropdownColor: _bg,
+                items: const [
+                  DropdownMenuItem(value: _GalleryFilter.active, child: Text('Active')),
+                  DropdownMenuItem(value: _GalleryFilter.archived, child: Text('Arhivate')),
+                  DropdownMenuItem(value: _GalleryFilter.deleted, child: Text('Șterse')),
+                  DropdownMenuItem(value: _GalleryFilter.all, child: Text('Toate')),
+                ],
+                onChanged: (v) => setState(() => _galleryFilter = v ?? _GalleryFilter.active),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (filtered.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _card,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _border),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Nicio poză', style: TextStyle(fontWeight: FontWeight.w900)),
+                  SizedBox(height: 4),
+                  Text('Încarcă o imagine și apasă „Trimite".', style: TextStyle(color: _muted)),
+                ],
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final w = constraints.maxWidth;
+                final cols = w < 420 ? 1 : 2; // max 2 columns for phone
+                final spacing = 10.0;
+                final itemW = (w - (cols - 1) * spacing) / cols;
+
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children: [
+                    for (final it in filtered)
+                      SizedBox(
+                        width: itemW,
+                        child: _buildGalleryCard(it),
+                      ),
+                  ],
                 );
               },
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGalleryCard(_GalleryItem it) {
+    final bytes = it.base64.isNotEmpty ? base64Decode(it.base64) : Uint8List(0);
+    final tag = switch (it.status) {
+      _GalleryStatus.active => 'Activ',
+      _GalleryStatus.archived => 'Arhivat',
+      _GalleryStatus.deleted => 'Șters',
+    };
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: bytes.isEmpty
+                ? Container(color: Colors.black.withOpacity(0.18))
+                : Image.memory(bytes, fit: BoxFit.cover),
           ),
-          if (_loading) const LinearProgressIndicator(),
           Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _inputController,
-                    decoration: const InputDecoration(
-                      hintText: 'Scrie un mesaj...',
-                      border: OutlineInputBorder(),
+                Text(it.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900), maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: it.status == _GalleryStatus.archived
+                          ? _accent.withOpacity(0.30)
+                          : (it.status == _GalleryStatus.deleted ? _danger.withOpacity(0.30) : _border),
                     ),
-                    onSubmitted: (_) => _sendMessage(),
+                    color: it.status == _GalleryStatus.archived
+                        ? _accent.withOpacity(0.12)
+                        : (it.status == _GalleryStatus.deleted ? _danger.withOpacity(0.10) : Colors.white.withOpacity(0.06)),
                   ),
+                  child: Text(tag, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.send, color: Color(0xFF6366F1)),
-                  onPressed: _sendMessage,
+                const SizedBox(height: 6),
+                Text(_formatTs(it.ts), style: const TextStyle(color: _muted, fontSize: 12)),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          _setGalleryStatus(it.id, _GalleryStatus.archived);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.white.withOpacity(0.14)),
+                          foregroundColor: _text,
+                          backgroundColor: Colors.white.withOpacity(0.06),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Arhivează', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          final ok = await _confirm(
+                            'Ștergi poza din vizual? (în producție rămâne în Firebase)',
+                          );
+                          if (!ok) return;
+                          _setGalleryStatus(it.id, _GalleryStatus.deleted);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.white.withOpacity(0.14)),
+                          foregroundColor: _text,
+                          backgroundColor: Colors.white.withOpacity(0.06),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Șterge', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -366,5 +990,113 @@ class _AIChatScreenState extends State<AIChatScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildGalleryFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.10))),
+      ),
+      child: Row(
+        children: [
+          ElevatedButton(
+            onPressed: () => setState(() {}),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primary.withOpacity(0.20),
+              foregroundColor: _text,
+              side: BorderSide(color: _primary.withOpacity(0.35)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              textStyle: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+            child: const Text('Refresh'),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Recomandare: salvați poza în Storage și păstrați în Firestore doar URL + metadata.',
+              style: TextStyle(color: _muted, fontSize: 11),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _setGalleryStatus(String id, _GalleryStatus status) {
+    final idx = _gallery.indexWhere((x) => x.id == id);
+    if (idx < 0) return;
+    setState(() {
+      _gallery[idx] = _gallery[idx].copyWith(status: status);
+    });
+    _saveGallery();
+  }
+
+  String _formatTs(int ts) {
+    final d = DateTime.fromMillisecondsSinceEpoch(ts);
+    String pad(int n) => n.toString().padLeft(2, '0');
+    return '${pad(d.day)}.${pad(d.month)}.${d.year} ${pad(d.hour)}:${pad(d.minute)}';
+  }
+
+  // Archive/Delete conversation
+  Future<void> _confirmArchiveConversation() async {
+    final ok = await _confirm('Arhivezi conversația? (în producție: soft-archive în Firestore)');
+    if (!ok) return;
+
+    _appendChatArchive('archived', {'sessionId': _sessionId});
+
+    setState(() {
+      _messages.clear();
+      _messages.add({
+        'role': 'assistant',
+        'content': 'Conversația a fost arhivată (demo local). În producție: setare flag în Firestore, fără ștergere fizică.',
+      });
+    });
+    _scrollToBottomSoon();
+  }
+
+  Future<void> _confirmDeleteConversation() async {
+    final ok = await _confirm('Ștergi conversația din vizual? (în producție: soft-delete în Firestore)');
+    if (!ok) return;
+
+    _appendChatArchive('deleted', {'sessionId': _sessionId});
+
+    setState(() {
+      _messages.clear();
+      _messages.add({
+        'role': 'assistant',
+        'content': 'Conversația a fost ștearsă vizual (demo local). În producție: soft-delete în Firestore, fără ștergere fizică.',
+      });
+    });
+    _scrollToBottomSoon();
+  }
+
+  Future<bool> _confirm(String text) async {
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _bg,
+        title: const Text('Confirmare', style: TextStyle(color: _text, fontWeight: FontWeight.w900)),
+        content: Text(text, style: const TextStyle(color: _muted)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Anulează')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
+        ],
+      ),
+    );
+    return res ?? false;
+  }
+
+  void _showSnack(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text)),
+    );
+  }
+
+  String _makeImageId() {
+    final r = Random().nextInt(1 << 32).toRadixString(16);
+    return 'img_${DateTime.now().millisecondsSinceEpoch}_$r';
   }
 }
