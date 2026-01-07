@@ -3,15 +3,16 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../services/chat_cache_service.dart';
-import '../../services/ai_cache_service.dart';
+
 import '../../providers/app_state_provider.dart';
+import '../../services/ai_cache_service.dart';
+import '../../services/chat_cache_service.dart';
 
 class AIChatScreen extends StatefulWidget {
   const AIChatScreen({super.key});
@@ -41,7 +42,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
   final _inputController = TextEditingController();
   final _scrollController = ScrollController();
   final _focusNode = FocusNode();
-  
+
   bool _loading = false;
   String? _sessionId;
   String? _lastSentMessage;
@@ -101,19 +102,18 @@ class _AIChatScreenState extends State<AIChatScreen> {
       curve: Curves.easeOut,
     );
   }
-  
+
   /// Prefetch common responses in background
   Future<void> _prefetchCommonResponses() async {
     await AICacheService.prefetchCommonResponses();
   }
 
   Future<void> _loadCachedMessages() async {
-    // Load from existing ChatCacheService
     ChatCacheService.getRecentMessages(limit: 20).then((cached) {
       if (cached.isNotEmpty && mounted) {
         setState(() {
           _messages.clear();
-          for (var msg in cached.reversed) {
+          for (final msg in cached.reversed) {
             _messages.add({'role': 'user', 'content': msg['userMessage']});
             _messages.add({'role': 'assistant', 'content': msg['aiResponse']});
           }
@@ -124,7 +124,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
         });
       }
     }).catchError((e) {
-      print('Error loading cache: $e');
+      // ignore
+      // print('Error loading cache: $e');
     });
   }
 
@@ -211,12 +212,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
     // DEDUPLICATION: Prevent sending same message twice in 2 seconds
     if (_lastSentMessage == text && _lastSentTime != null && !hasImage) {
       final timeSinceLastSent = DateTime.now().difference(_lastSentTime!);
-      if (timeSinceLastSent.inSeconds < 2) {
-        print('[AIChatScreen] Duplicate message blocked');
-        return;
-      }
+      if (timeSinceLastSent.inSeconds < 2) return;
     }
-    
+
     _lastSentMessage = text;
     _lastSentTime = DateTime.now();
 
@@ -269,20 +267,20 @@ class _AIChatScreenState extends State<AIChatScreen> {
     }
 
     final user = FirebaseAuth.instance.currentUser;
-    
-    // AUTH CHECK: Block if user is not authenticated
+
+    // AUTH CHECK
     if (user == null) {
-      print('[AIChatScreen] User not authenticated - blocking AI call');
       setState(() {
         _messages.add({
           'role': 'assistant',
-          'content': '⚠️ Trebuie să fii logat pentru a folosi AI Chat.\n\nTe rog loghează-te mai întâi și apoi revino aici. 🔐'
+          'content':
+              '⚠️ Trebuie să fii logat pentru a folosi AI Chat.\n\nTe rog loghează-te mai întâi și apoi revino aici. 🔐'
         });
       });
       _scrollToBottomSoon();
       return;
     }
-    
+
     final isAdmin = user.email == 'ursache.andrei1995@gmail.com';
     final appState = Provider.of<AppStateProvider>(context, listen: false);
 
@@ -293,7 +291,6 @@ class _AIChatScreenState extends State<AIChatScreen> {
       appState.openGrid();
       return;
     }
-
     if (isAdmin && text.toLowerCase() == 'gm') {
       appState.setGmMode(true);
       Navigator.pop(context);
@@ -303,24 +300,22 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
     // Check cache first (only for text without image)
     final cachedResponse = (!hasImage) ? await AICacheService.getCachedResponse(text) : null;
-    
     if (cachedResponse != null) {
       setState(() {
         _messages.add({'role': 'assistant', 'content': cachedResponse});
       });
       _scrollToBottomSoon();
-      
+
       ChatCacheService.saveMessage(
         sessionId: _sessionId!,
         userMessage: text,
         aiResponse: cachedResponse,
         important: false,
-      ).catchError((e) => print('Cache save error: $e'));
-      
+      ).catchError((_) {});
       return;
     }
-    
-    // Add placeholder
+
+    // Placeholder
     final placeholderIndex = _messages.length;
     setState(() {
       _messages.add({'role': 'assistant', 'content': '...'});
@@ -333,7 +328,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
         'chatWithAI',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
       );
-      
+
       final messagesToSend = _messages
           .where((m) => m['content'] != '...')
           .toList()
@@ -342,43 +337,40 @@ class _AIChatScreenState extends State<AIChatScreen> {
           .toList()
           .reversed
           .toList();
-      
+
       if (_userName != null && _userName!.isNotEmpty) {
         messagesToSend.insert(0, {'role': 'system', 'content': 'Numele utilizatorului este: $_userName'});
       }
-      
+
       final result = await callable.call({
         'messages': messagesToSend,
         'sessionId': _sessionId,
       });
 
       final aiResponse = result.data['message'] ?? 'No response';
-      
+
       if (!hasImage) {
-        AICacheService.cacheResponse(text, aiResponse).catchError((e) => print('Cache error: $e'));
+        AICacheService.cacheResponse(text, aiResponse).catchError((_) {});
       }
-      
+
       setState(() {
         _messages[placeholderIndex] = {'role': 'assistant', 'content': aiResponse};
       });
 
       _scrollToBottomSoon();
 
-      final isImportant = text.length > 20 && 
-                         !['ok', 'da', 'nu', 'haha', 'lol'].contains(text.toLowerCase());
-      
+      final isImportant =
+          text.length > 20 && !['ok', 'da', 'nu', 'haha', 'lol'].contains(text.toLowerCase());
+
       ChatCacheService.saveMessage(
         sessionId: _sessionId!,
         userMessage: text,
         aiResponse: aiResponse,
         important: isImportant,
-      ).catchError((e) => print('Cache save error: $e'));
-      
+      ).catchError((_) {});
     } catch (e) {
-      print('[AIChatScreen] Error: $e');
-      
       String errorMessage = 'Eroare necunoscută';
-      
+
       if (e is FirebaseFunctionsException) {
         errorMessage = _mapFirebaseError(e);
       } else if (e.toString().contains('timeout')) {
@@ -386,20 +378,15 @@ class _AIChatScreenState extends State<AIChatScreen> {
       } else {
         errorMessage = 'Conexiune eșuată: ${e.toString()}';
       }
-      
+
       setState(() {
-        _messages[placeholderIndex] = {
-          'role': 'assistant', 
-          'content': 'Eroare: $errorMessage'
-        };
+        _messages[placeholderIndex] = {'role': 'assistant', 'content': 'Eroare: $errorMessage'};
       });
     } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      if (mounted) setState(() => _loading = false);
     }
   }
-  
+
   String _mapFirebaseError(FirebaseFunctionsException e) {
     switch (e.code) {
       case 'unauthenticated':
@@ -421,131 +408,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    _inputController.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-}
-
-// Models
-enum _GalleryStatus { active, archived, deleted }
-enum _GalleryFilter { active, archived, deleted, all }
-
-class _GalleryItem {
-  const _GalleryItem({
-    required this.id,
-    required this.ts,
-    required this.name,
-    required this.mime,
-    required this.base64,
-    required this.status,
-  });
-
-  final String id;
-  final int ts;
-  final String name;
-  final String mime;
-  final String base64;
-  final _GalleryStatus status;
-
-  _GalleryItem copyWith({_GalleryStatus? status}) => _GalleryItem(
-        id: id,
-        ts: ts,
-        name: name,
-        mime: mime,
-        base64: base64,
-        status: status ?? this.status,
-      );
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'ts': ts,
-        'name': name,
-        'mime': mime,
-        'base64': base64,
-        'status': status.name,
-      };
-
-  static _GalleryItem fromJson(Map<String, dynamic> j) {
-    final st = (j['status'] ?? 'active').toString();
-    final status = _GalleryStatus.values.firstWhere(
-      (e) => e.name == st,
-      orElse: () => _GalleryStatus.active,
-    );
-
-    return _GalleryItem(
-      id: (j['id'] ?? '').toString(),
-      ts: (j['ts'] is num) ? (j['ts'] as num).toInt() : int.tryParse('${j['ts']}') ?? 0,
-      name: (j['name'] ?? 'imagine.jpg').toString(),
-      mime: (j['mime'] ?? 'image/jpeg').toString(),
-      base64: (j['base64'] ?? '').toString(),
-      status: status,
-    );
-  }
-}
-
-class _TypingIndicator extends StatefulWidget {
-  const _TypingIndicator();
-
-  @override
-  State<_TypingIndicator> createState() => _TypingIndicatorState();
-}
-
-class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-
-  @override
-  void initState() {
-    super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (context, _) {
-        final t = _c.value;
-        double y(int i) {
-          final phase = (t + i * 0.15) % 1.0;
-          final v = sin(phase * 2 * pi);
-          return -3 * max(0, v);
-        }
-
-        Widget dot(int i) => Transform.translate(
-              offset: Offset(0, y(i)),
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(color: const Color(0x8CEAF1FF), borderRadius: BorderRadius.circular(99)),
-              ),
-            );
-
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            dot(0),
-            const SizedBox(width: 6),
-            dot(1),
-            const SizedBox(width: 6),
-            dot(2),
-            const SizedBox(width: 10),
-            const Text('Scriu...', style: TextStyle(color: Color(0xB3EAF1FF), fontStyle: FontStyle.italic, fontWeight: FontWeight.w700)),
-          ],
-        );
-      },
-    );
-  }
-}
+  // ===================== UI =====================
 
   @override
   Widget build(BuildContext context) {
@@ -759,7 +622,8 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
     );
   }
 
-  // Gallery Sheet
+  // ===================== Gallery Sheet =====================
+
   void _openGallerySheet() {
     showModalBottomSheet<void>(
       context: context,
@@ -876,7 +740,7 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
             LayoutBuilder(
               builder: (context, constraints) {
                 final w = constraints.maxWidth;
-                final cols = w < 420 ? 1 : 2; // max 2 columns for phone
+                final cols = w < 420 ? 1 : 2;
                 final spacing = 10.0;
                 final itemW = (w - (cols - 1) * spacing) / cols;
 
@@ -918,16 +782,17 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
         children: [
           AspectRatio(
             aspectRatio: 1,
-            child: bytes.isEmpty
-                ? Container(color: Colors.black.withOpacity(0.18))
-                : Image.memory(bytes, fit: BoxFit.cover),
+            child: bytes.isEmpty ? Container(color: Colors.black.withOpacity(0.18)) : Image.memory(bytes, fit: BoxFit.cover),
           ),
           Padding(
             padding: const EdgeInsets.all(10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(it.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(it.name,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -951,9 +816,7 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: () {
-                          _setGalleryStatus(it.id, _GalleryStatus.archived);
-                        },
+                        onPressed: () => _setGalleryStatus(it.id, _GalleryStatus.archived),
                         style: OutlinedButton.styleFrom(
                           side: BorderSide(color: Colors.white.withOpacity(0.14)),
                           foregroundColor: _text,
@@ -967,9 +830,7 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () async {
-                          final ok = await _confirm(
-                            'Ștergi poza din vizual? (în producție rămâne în Firebase)',
-                          );
+                          final ok = await _confirm('Ștergi poza din vizual? (în producție rămâne în Firebase)');
                           if (!ok) return;
                           _setGalleryStatus(it.id, _GalleryStatus.deleted);
                         },
@@ -1040,7 +901,8 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
     return '${pad(d.day)}.${pad(d.month)}.${d.year} ${pad(d.hour)}:${pad(d.minute)}';
   }
 
-  // Archive/Delete conversation
+  // ===================== Archive/Delete conversation =====================
+
   Future<void> _confirmArchiveConversation() async {
     final ok = await _confirm('Arhivezi conversația? (în producție: soft-archive în Firestore)');
     if (!ok) return;
@@ -1051,7 +913,8 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
       _messages.clear();
       _messages.add({
         'role': 'assistant',
-        'content': 'Conversația a fost arhivată (demo local). În producție: setare flag în Firestore, fără ștergere fizică.',
+        'content':
+            'Conversația a fost arhivată (demo local). În producție: setare flag în Firestore, fără ștergere fizică.',
       });
     });
     _scrollToBottomSoon();
@@ -1067,7 +930,8 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
       _messages.clear();
       _messages.add({
         'role': 'assistant',
-        'content': 'Conversația a fost ștearsă vizual (demo local). În producție: soft-delete în Firestore, fără ștergere fizică.',
+        'content':
+            'Conversația a fost ștearsă vizual (demo local). În producție: soft-delete în Firestore, fără ștergere fizică.',
       });
     });
     _scrollToBottomSoon();
@@ -1078,8 +942,8 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: _bg,
-        title: const Text('Confirmare', style: TextStyle(color: Color(0xFFEAF1FF), fontWeight: FontWeight.w900)),
-        content: Text(text, style: const TextStyle(color: Color(0xB3EAF1FF))),
+        title: const Text('Confirmare', style: TextStyle(color: _text, fontWeight: FontWeight.w900)),
+        content: Text(text, style: const TextStyle(color: _muted)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Anulează')),
           TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
@@ -1099,5 +963,133 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
   String _makeImageId() {
     final r = Random().nextInt(1 << 32).toRadixString(16);
     return 'img_${DateTime.now().millisecondsSinceEpoch}_$r';
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _inputController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+}
+
+// ===================== Models =====================
+
+enum _GalleryStatus { active, archived, deleted }
+enum _GalleryFilter { active, archived, deleted, all }
+
+class _GalleryItem {
+  const _GalleryItem({
+    required this.id,
+    required this.ts,
+    required this.name,
+    required this.mime,
+    required this.base64,
+    required this.status,
+  });
+
+  final String id;
+  final int ts;
+  final String name;
+  final String mime;
+  final String base64;
+  final _GalleryStatus status;
+
+  _GalleryItem copyWith({_GalleryStatus? status}) => _GalleryItem(
+        id: id,
+        ts: ts,
+        name: name,
+        mime: mime,
+        base64: base64,
+        status: status ?? this.status,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'ts': ts,
+        'name': name,
+        'mime': mime,
+        'base64': base64,
+        'status': status.name,
+      };
+
+  static _GalleryItem fromJson(Map<String, dynamic> j) {
+    final st = (j['status'] ?? 'active').toString();
+    final status = _GalleryStatus.values.firstWhere(
+      (e) => e.name == st,
+      orElse: () => _GalleryStatus.active,
+    );
+
+    return _GalleryItem(
+      id: (j['id'] ?? '').toString(),
+      ts: (j['ts'] is num) ? (j['ts'] as num).toInt() : int.tryParse('${j['ts']}') ?? 0,
+      name: (j['name'] ?? 'imagine.jpg').toString(),
+      mime: (j['mime'] ?? 'image/jpeg').toString(),
+      base64: (j['base64'] ?? '').toString(),
+      status: status,
+    );
+  }
+}
+
+// ===================== Typing Indicator =====================
+
+class _TypingIndicator extends StatefulWidget {
+  const _TypingIndicator();
+
+  @override
+  State<_TypingIndicator> createState() => _TypingIndicatorState();
+}
+
+class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        final t = _c.value;
+        double y(int i) {
+          final phase = (t + i * 0.15) % 1.0;
+          final v = sin(phase * 2 * pi);
+          return -3 * max(0, v);
+        }
+
+        Widget dot(int i) => Transform.translate(
+              offset: Offset(0, y(i)),
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(color: const Color(0x8CEAF1FF), borderRadius: BorderRadius.circular(99)),
+              ),
+            );
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            dot(0),
+            const SizedBox(width: 6),
+            dot(1),
+            const SizedBox(width: 6),
+            dot(2),
+            const SizedBox(width: 10),
+            const Text('Scriu...', style: TextStyle(color: Color(0xB3EAF1FF), fontStyle: FontStyle.italic, fontWeight: FontWeight.w700)),
+          ],
+        );
+      },
+    );
   }
 }
