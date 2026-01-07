@@ -1078,8 +1078,8 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: _bg,
-        title: const Text('Confirmare', style: TextStyle(color: _text, fontWeight: FontWeight.w900)),
-        content: Text(text, style: const TextStyle(color: _muted)),
+        title: const Text('Confirmare', style: TextStyle(color: Color(0xFFEAF1FF), fontWeight: FontWeight.w900)),
+        content: Text(text, style: const TextStyle(color: Color(0xB3EAF1FF))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Anulează')),
           TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
@@ -1090,6 +1090,7 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
   }
 
   void _showSnack(String text) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(text)),
     );
