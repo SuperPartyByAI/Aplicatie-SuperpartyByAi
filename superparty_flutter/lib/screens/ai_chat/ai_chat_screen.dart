@@ -89,8 +89,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
     return n.length > 32 ? n.substring(0, 32) : n;
   }
 
-  String _welcomeText() =>
-      _userName != null ? 'Salut, $_userName! Cu ce te pot ajuta?' : 'Salut! Cum te cheamă?';
+  String _welcomeText() => _userName != null
+      ? 'Salut, $_userName! Cu ce te pot ajuta?'
+      : 'Salut! Cum te cheamă?';
 
   Future<void> _scrollToBottomSoon() async {
     await Future<void>.delayed(const Duration(milliseconds: 30));
@@ -119,7 +120,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
           }
           if (_userName == null) {
             _awaitingName = true;
-            _messages.add({'role': 'assistant', 'content': 'Înainte să continuăm, cum te cheamă?'});
+            _messages.add({
+              'role': 'assistant',
+              'content': 'Înainte să continuăm, cum te cheamă?'
+            });
           }
         });
       }
@@ -141,7 +145,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
         if (item is Map<String, dynamic>) {
           _gallery.add(_GalleryItem.fromJson(item));
         } else if (item is Map) {
-          _gallery.add(_GalleryItem.fromJson(item.map((k, v) => MapEntry(k.toString(), v))));
+          _gallery.add(_GalleryItem.fromJson(
+              item.map((k, v) => MapEntry(k.toString(), v))));
         }
       }
     } catch (_) {
@@ -151,8 +156,11 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
   void _saveGallery() {
     try {
-      final capped = _gallery.length > 80 ? _gallery.sublist(_gallery.length - 80) : _gallery;
-      _prefs?.setString(_galleryKey, jsonEncode(capped.map((e) => e.toJson()).toList()));
+      final capped = _gallery.length > 80
+          ? _gallery.sublist(_gallery.length - 80)
+          : _gallery;
+      _prefs?.setString(
+          _galleryKey, jsonEncode(capped.map((e) => e.toJson()).toList()));
     } catch (_) {
       // ignore
     }
@@ -198,7 +206,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
   String _describeUserMessage(String text, bool hasImage, String? imageName) {
     final t = text.trim();
-    if (t.isNotEmpty && hasImage) return '$t\n[Imagine atașată: ${imageName ?? "poză"}]';
+    if (t.isNotEmpty && hasImage)
+      return '$t\n[Imagine atașată: ${imageName ?? "poză"}]';
     if (hasImage) return '[Imagine atașată: ${imageName ?? "poză"}]';
     return t;
   }
@@ -222,7 +231,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
     // UI: add user message
     setState(() {
-      _messages.add({'role': 'user', 'content': _describeUserMessage(text, hasImage, imageName)});
+      _messages.add({
+        'role': 'user',
+        'content': _describeUserMessage(text, hasImage, imageName)
+      });
     });
 
     // Save image to gallery at send time
@@ -254,12 +266,18 @@ class _AIChatScreenState extends State<AIChatScreen> {
         _prefs?.setString(_userNameKey, name);
         _awaitingName = false;
         setState(() {
-          _messages.add({'role': 'assistant', 'content': 'Încântat, $_userName! Cu ce te pot ajuta?'});
+          _messages.add({
+            'role': 'assistant',
+            'content': 'Încântat, $_userName! Cu ce te pot ajuta?'
+          });
         });
       } else {
         _awaitingName = true;
         setState(() {
-          _messages.add({'role': 'assistant', 'content': 'Nu am prins numele. Îmi spui cum te cheamă?'});
+          _messages.add({
+            'role': 'assistant',
+            'content': 'Nu am prins numele. Îmi spui cum te cheamă?'
+          });
         });
       }
       _scrollToBottomSoon();
@@ -299,7 +317,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
     }
 
     // Check cache first (only for text without image)
-    final cachedResponse = (!hasImage) ? await AICacheService.getCachedResponse(text) : null;
+    final cachedResponse =
+        (!hasImage) ? await AICacheService.getCachedResponse(text) : null;
     if (cachedResponse != null) {
       setState(() {
         _messages.add({'role': 'assistant', 'content': cachedResponse});
@@ -324,7 +343,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
     _scrollToBottomSoon();
 
     try {
-      final callable = FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
+      final callable =
+          FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
         'chatWithAI',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
       );
@@ -339,7 +359,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
           .toList();
 
       if (_userName != null && _userName!.isNotEmpty) {
-        messagesToSend.insert(0, {'role': 'system', 'content': 'Numele utilizatorului este: $_userName'});
+        messagesToSend.insert(0, {
+          'role': 'system',
+          'content': 'Numele utilizatorului este: $_userName'
+        });
       }
 
       final result = await callable.call({
@@ -354,13 +377,16 @@ class _AIChatScreenState extends State<AIChatScreen> {
       }
 
       setState(() {
-        _messages[placeholderIndex] = {'role': 'assistant', 'content': aiResponse};
+        _messages[placeholderIndex] = {
+          'role': 'assistant',
+          'content': aiResponse
+        };
       });
 
       _scrollToBottomSoon();
 
-      final isImportant =
-          text.length > 20 && !['ok', 'da', 'nu', 'haha', 'lol'].contains(text.toLowerCase());
+      final isImportant = text.length > 20 &&
+          !['ok', 'da', 'nu', 'haha', 'lol'].contains(text.toLowerCase());
 
       ChatCacheService.saveMessage(
         sessionId: _sessionId!,
@@ -380,7 +406,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
       }
 
       setState(() {
-        _messages[placeholderIndex] = {'role': 'assistant', 'content': 'Eroare: $errorMessage'};
+        _messages[placeholderIndex] = {
+          'role': 'assistant',
+          'content': 'Eroare: $errorMessage'
+        };
       });
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -461,7 +490,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
           const Expanded(
             child: Text(
               'Chat AI',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: _text),
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w900, color: _text),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -493,7 +523,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
         ),
         child: Text(
           label,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _text),
+          style: const TextStyle(
+              fontSize: 12, fontWeight: FontWeight.w900, color: _text),
         ),
       ),
     );
@@ -506,7 +537,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
         color: Colors.white.withOpacity(0.04),
         border: Border.all(color: Colors.white.withOpacity(0.10)),
         borderRadius: BorderRadius.circular(18),
-        boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 40, offset: Offset(0, 18))],
+        boxShadow: const [
+          BoxShadow(
+              color: Colors.black54, blurRadius: 40, offset: Offset(0, 18))
+        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -532,10 +566,14 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
         final bg = isUser
             ? _primary.withOpacity(0.22)
-            : (isAssistant ? Colors.white.withOpacity(0.07) : _accent.withOpacity(0.12));
+            : (isAssistant
+                ? Colors.white.withOpacity(0.07)
+                : _accent.withOpacity(0.12));
         final border = isUser
             ? _primary.withOpacity(0.32)
-            : (isAssistant ? Colors.white.withOpacity(0.12) : _accent.withOpacity(0.22));
+            : (isAssistant
+                ? Colors.white.withOpacity(0.12)
+                : _accent.withOpacity(0.22));
 
         final align = isUser ? Alignment.centerRight : Alignment.centerLeft;
 
@@ -555,7 +593,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
                   ? const _TypingIndicator()
                   : Text(
                       msg['content'] ?? '',
-                      style: const TextStyle(fontSize: 14, height: 1.35, color: _text),
+                      style: const TextStyle(
+                          fontSize: 14, height: 1.35, color: _text),
                     ),
             ),
           ),
@@ -611,7 +650,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
               backgroundColor: _primary.withOpacity(0.20),
               foregroundColor: _text,
               side: BorderSide(color: _primary.withOpacity(0.35)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               textStyle: const TextStyle(fontWeight: FontWeight.w900),
             ),
@@ -640,7 +680,12 @@ class _AIChatScreenState extends State<AIChatScreen> {
               color: _bg.withOpacity(0.92),
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: Colors.white.withOpacity(0.12)),
-              boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 50, offset: Offset(0, 24))],
+              boxShadow: const [
+                BoxShadow(
+                    color: Colors.black54,
+                    blurRadius: 50,
+                    offset: Offset(0, 24))
+              ],
             ),
             clipBehavior: Clip.antiAlias,
             child: Column(
@@ -661,7 +706,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.04),
-        border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.10))),
+        border:
+            Border(bottom: BorderSide(color: Colors.white.withOpacity(0.10))),
       ),
       child: Row(
         children: [
@@ -669,7 +715,11 @@ class _AIChatScreenState extends State<AIChatScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Galerie imagini', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: _text)),
+                Text('Galerie imagini',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: _text)),
                 SizedBox(height: 2),
                 Text(
                   '„Șterge" și „Arhivează" sunt doar vizuale. În producție: soft-delete/soft-archive în Firebase.',
@@ -681,7 +731,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
           ),
           IconButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            icon: const Text('✕', style: TextStyle(fontWeight: FontWeight.w900)),
+            icon:
+                const Text('✕', style: TextStyle(fontWeight: FontWeight.w900)),
           )
         ],
       ),
@@ -691,8 +742,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
   Widget _buildGalleryBody() {
     final filtered = _gallery.where((x) {
       if (_galleryFilter == _GalleryFilter.all) return true;
-      if (_galleryFilter == _GalleryFilter.active) return x.status == _GalleryStatus.active;
-      if (_galleryFilter == _GalleryFilter.archived) return x.status == _GalleryStatus.archived;
+      if (_galleryFilter == _GalleryFilter.active)
+        return x.status == _GalleryStatus.active;
+      if (_galleryFilter == _GalleryFilter.archived)
+        return x.status == _GalleryStatus.archived;
       return x.status == _GalleryStatus.deleted;
     }).toList()
       ..sort((a, b) => (b.ts).compareTo(a.ts));
@@ -703,17 +756,26 @@ class _AIChatScreenState extends State<AIChatScreen> {
         children: [
           Row(
             children: [
-              const Text('Afișează  ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _muted)),
+              const Text('Afișează  ',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: _muted)),
               DropdownButton<_GalleryFilter>(
                 value: _galleryFilter,
                 dropdownColor: _bg,
                 items: const [
-                  DropdownMenuItem(value: _GalleryFilter.active, child: Text('Active')),
-                  DropdownMenuItem(value: _GalleryFilter.archived, child: Text('Arhivate')),
-                  DropdownMenuItem(value: _GalleryFilter.deleted, child: Text('Șterse')),
-                  DropdownMenuItem(value: _GalleryFilter.all, child: Text('Toate')),
+                  DropdownMenuItem(
+                      value: _GalleryFilter.active, child: Text('Active')),
+                  DropdownMenuItem(
+                      value: _GalleryFilter.archived, child: Text('Arhivate')),
+                  DropdownMenuItem(
+                      value: _GalleryFilter.deleted, child: Text('Șterse')),
+                  DropdownMenuItem(
+                      value: _GalleryFilter.all, child: Text('Toate')),
                 ],
-                onChanged: (v) => setState(() => _galleryFilter = v ?? _GalleryFilter.active),
+                onChanged: (v) =>
+                    setState(() => _galleryFilter = v ?? _GalleryFilter.active),
               ),
             ],
           ),
@@ -730,9 +792,11 @@ class _AIChatScreenState extends State<AIChatScreen> {
               child: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Nicio poză', style: TextStyle(fontWeight: FontWeight.w900)),
+                  Text('Nicio poză',
+                      style: TextStyle(fontWeight: FontWeight.w900)),
                   SizedBox(height: 4),
-                  Text('Încarcă o imagine și apasă „Trimite".', style: TextStyle(color: _muted)),
+                  Text('Încarcă o imagine și apasă „Trimite".',
+                      style: TextStyle(color: _muted)),
                 ],
               ),
             )
@@ -782,7 +846,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
         children: [
           AspectRatio(
             aspectRatio: 1,
-            child: bytes.isEmpty ? Container(color: Colors.black.withOpacity(0.18)) : Image.memory(bytes, fit: BoxFit.cover),
+            child: bytes.isEmpty
+                ? Container(color: Colors.black.withOpacity(0.18))
+                : Image.memory(bytes, fit: BoxFit.cover),
           ),
           Padding(
             padding: const EdgeInsets.all(10),
@@ -790,57 +856,76 @@ class _AIChatScreenState extends State<AIChatScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(it.name,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w900),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
                       color: it.status == _GalleryStatus.archived
                           ? _accent.withOpacity(0.30)
-                          : (it.status == _GalleryStatus.deleted ? _danger.withOpacity(0.30) : _border),
+                          : (it.status == _GalleryStatus.deleted
+                              ? _danger.withOpacity(0.30)
+                              : _border),
                     ),
                     color: it.status == _GalleryStatus.archived
                         ? _accent.withOpacity(0.12)
-                        : (it.status == _GalleryStatus.deleted ? _danger.withOpacity(0.10) : Colors.white.withOpacity(0.06)),
+                        : (it.status == _GalleryStatus.deleted
+                            ? _danger.withOpacity(0.10)
+                            : Colors.white.withOpacity(0.06)),
                   ),
-                  child: Text(tag, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+                  child: Text(tag,
+                      style: const TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w900)),
                 ),
                 const SizedBox(height: 6),
-                Text(_formatTs(it.ts), style: const TextStyle(color: _muted, fontSize: 12)),
+                Text(_formatTs(it.ts),
+                    style: const TextStyle(color: _muted, fontSize: 12)),
                 const SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: () => _setGalleryStatus(it.id, _GalleryStatus.archived),
+                        onPressed: () =>
+                            _setGalleryStatus(it.id, _GalleryStatus.archived),
                         style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.white.withOpacity(0.14)),
+                          side:
+                              BorderSide(color: Colors.white.withOpacity(0.14)),
                           foregroundColor: _text,
                           backgroundColor: Colors.white.withOpacity(0.06),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text('Arhivează', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+                        child: const Text('Arhivează',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w900, fontSize: 12)),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () async {
-                          final ok = await _confirm('Ștergi poza din vizual? (în producție rămâne în Firebase)');
+                          final ok = await _confirm(
+                              'Ștergi poza din vizual? (în producție rămâne în Firebase)');
                           if (!ok) return;
                           _setGalleryStatus(it.id, _GalleryStatus.deleted);
                         },
                         style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.white.withOpacity(0.14)),
+                          side:
+                              BorderSide(color: Colors.white.withOpacity(0.14)),
                           foregroundColor: _text,
                           backgroundColor: Colors.white.withOpacity(0.06),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text('Șterge', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+                        child: const Text('Șterge',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w900, fontSize: 12)),
                       ),
                     ),
                   ],
@@ -868,7 +953,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
               backgroundColor: _primary.withOpacity(0.20),
               foregroundColor: _text,
               side: BorderSide(color: _primary.withOpacity(0.35)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
               textStyle: const TextStyle(fontWeight: FontWeight.w900),
             ),
             child: const Text('Refresh'),
@@ -904,7 +990,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
   // ===================== Archive/Delete conversation =====================
 
   Future<void> _confirmArchiveConversation() async {
-    final ok = await _confirm('Arhivezi conversația? (în producție: soft-archive în Firestore)');
+    final ok = await _confirm(
+        'Arhivezi conversația? (în producție: soft-archive în Firestore)');
     if (!ok) return;
 
     _appendChatArchive('archived', {'sessionId': _sessionId});
@@ -921,7 +1008,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
   }
 
   Future<void> _confirmDeleteConversation() async {
-    final ok = await _confirm('Ștergi conversația din vizual? (în producție: soft-delete în Firestore)');
+    final ok = await _confirm(
+        'Ștergi conversația din vizual? (în producție: soft-delete în Firestore)');
     if (!ok) return;
 
     _appendChatArchive('deleted', {'sessionId': _sessionId});
@@ -942,11 +1030,16 @@ class _AIChatScreenState extends State<AIChatScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: _bg,
-        title: const Text('Confirmare', style: TextStyle(color: _text, fontWeight: FontWeight.w900)),
+        title: const Text('Confirmare',
+            style: TextStyle(color: _text, fontWeight: FontWeight.w900)),
         content: Text(text, style: const TextStyle(color: _muted)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Anulează')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('OK')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Anulează')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('OK')),
         ],
       ),
     );
@@ -977,6 +1070,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
 // ===================== Models =====================
 
 enum _GalleryStatus { active, archived, deleted }
+
 enum _GalleryFilter { active, archived, deleted, all }
 
 class _GalleryItem {
@@ -1023,7 +1117,9 @@ class _GalleryItem {
 
     return _GalleryItem(
       id: (j['id'] ?? '').toString(),
-      ts: (j['ts'] is num) ? (j['ts'] as num).toInt() : int.tryParse('${j['ts']}') ?? 0,
+      ts: (j['ts'] is num)
+          ? (j['ts'] as num).toInt()
+          : int.tryParse('${j['ts']}') ?? 0,
       name: (j['name'] ?? 'imagine.jpg').toString(),
       mime: (j['mime'] ?? 'image/jpeg').toString(),
       base64: (j['base64'] ?? '').toString(),
@@ -1041,13 +1137,16 @@ class _TypingIndicator extends StatefulWidget {
   State<_TypingIndicator> createState() => _TypingIndicatorState();
 }
 
-class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerProviderStateMixin {
+class _TypingIndicatorState extends State<_TypingIndicator>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _c;
 
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat();
+    _c = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1100))
+      ..repeat();
   }
 
   @override
@@ -1073,7 +1172,9 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
               child: Container(
                 width: 10,
                 height: 10,
-                decoration: BoxDecoration(color: const Color(0x8CEAF1FF), borderRadius: BorderRadius.circular(99)),
+                decoration: BoxDecoration(
+                    color: const Color(0x8CEAF1FF),
+                    borderRadius: BorderRadius.circular(99)),
               ),
             );
 
@@ -1086,7 +1187,11 @@ class _TypingIndicatorState extends State<_TypingIndicator> with SingleTickerPro
             const SizedBox(width: 6),
             dot(2),
             const SizedBox(width: 10),
-            const Text('Scriu...', style: TextStyle(color: Color(0xB3EAF1FF), fontStyle: FontStyle.italic, fontWeight: FontWeight.w700)),
+            const Text('Scriu...',
+                style: TextStyle(
+                    color: Color(0xB3EAF1FF),
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w700)),
           ],
         );
       },
