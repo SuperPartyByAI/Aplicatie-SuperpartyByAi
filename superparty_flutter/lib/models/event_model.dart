@@ -3,14 +3,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Model pentru eveniment (schema v2)
 class EventModel {
   final String id;
-  final String date; // YYYY-MM-DD
+  final String date; // DD-MM-YYYY
   final String address;
   final String? cineNoteaza; // cod staff
   final String? sofer; // cod șofer alocat
   final String? soferPending; // cod șofer pending
   final String sarbatoritNume;
   final int sarbatoritVarsta;
-  final String? sarbatoritDob; // YYYY-MM-DD
+  final String? sarbatoritDob; // DD-MM-YYYY
   final IncasareModel incasare;
   final List<RoleModel> roles; // max 10 sloturi A-J
   
@@ -52,7 +52,7 @@ class EventModel {
     final data = doc.data() as Map<String, dynamic>;
     
     // DUAL-READ: suport v1 + v2
-    // v2: date (string YYYY-MM-DD), address, roles (array)
+    // v2: date (string DD-MM-YYYY), address, roles (array)
     // v1: data (Timestamp), locatie/adresa, alocari (map)
     
     final schemaVersion = data['schemaVersion'] as int? ?? 1;
@@ -62,9 +62,9 @@ class EventModel {
     if (data.containsKey('date') && data['date'] is String) {
       dateStr = data['date'] as String;
     } else if (data.containsKey('data') && data['data'] is Timestamp) {
-      // v1: convert Timestamp to YYYY-MM-DD
+      // v1: convert Timestamp to DD-MM-YYYY
       final timestamp = (data['data'] as Timestamp).toDate();
-      dateStr = '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}';
+      dateStr = '${timestamp.day.toString().padLeft(2, '0')}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.year}';
     } else {
       dateStr = '';
     }
@@ -149,11 +149,16 @@ class EventModel {
     final roles = <RoleModel>[];
     final slotMap = {
       'animator': 'A',
-      'fotograf': 'B',
-      'dj': 'C',
-      'barman': 'D',
-      'ospatar': 'E',
-      'bucatar': 'F',
+      'ursitoare': 'B',
+      'vata': 'C',
+      'popcorn': 'D',
+      'vata_popcorn': 'E',
+      'decoratiuni': 'F',
+      'baloane': 'G',
+      'baloane_heliu': 'H',
+      'aranjamente_masa': 'I',
+      'mos_craciun': 'J',
+      'gheata_carbonica': 'K',
     };
     
     alocari.forEach((key, value) {

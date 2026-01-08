@@ -46,7 +46,7 @@ bool _detectEventIntent(String message) {
 
 **Flow:**
 ```
-User: "Notează eveniment pentru Maria pe 2026-02-15 la Strada Florilor 10"
+User: "Notează eveniment pentru Maria pe 15-02-2026 la Strada Florilor 10"
   ↓
 App: Calls chatEventOps with dryRun=true
   ↓
@@ -75,12 +75,12 @@ App: Shows success message
 **Code:**
 ```javascript
 // Date validation
-const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+const dateRegex = /^\d{2}-\d{2}-\d{4}$/;
 if (!dateRegex.test(dateStr)) {
   return {
     ok: false,
     action: 'NONE',
-    message: `Data trebuie să fie în format YYYY-MM-DD (ex: 2026-01-15). Ai introdus: "${dateStr}"`,
+    message: `Data trebuie să fie în format DD-MM-YYYY (ex: 15-01-2026). Ai introdus: "${dateStr}"`,
   };
 }
 
@@ -133,8 +133,8 @@ IMPORTANT - OUTPUT FORMAT:
 - Răspunsul trebuie să fie JSON pur care poate fi parsat direct
 
 IMPORTANT - DATE FORMAT:
-- date MUST be in YYYY-MM-DD format (ex: 2026-01-15)
-- Dacă user spune "mâine", "săptămâna viitoare", "vinerea viitoare" → returnează action:"NONE" cu message:"Te rog să specifici data exactă în format YYYY-MM-DD (ex: 2026-01-15)"
+- date MUST be in DD-MM-YYYY format (ex: 15-01-2026)
+- Dacă user spune "mâine", "săptămâna viitoare", "vinerea viitoare" → returnează action:"NONE" cu message:"Te rog să specifici data exactă în format DD-MM-YYYY (ex: 15-01-2026)"
 - NU calcula date relative
 - NU accepta date în alt format (ex: "15 ianuarie 2026" → refuză)
 

@@ -9,8 +9,8 @@ This guide covers testing the AI-powered event creation feature with validation,
 The app should detect event creation intent from natural language messages.
 
 **Test patterns (with/without diacritics):**
-- ✅ "noteaza eveniment pentru Maria pe 2026-02-15"
-- ✅ "notează eveniment pentru Maria pe 2026-02-15"
+- ✅ "noteaza eveniment pentru Maria pe 15-02-2026"
+- ✅ "notează eveniment pentru Maria pe 15-02-2026"
 - ✅ "adauga petrecere la Strada Florilor 10"
 - ✅ "adaugă petrecere la Strada Florilor 10"
 - ✅ "creeaza eveniment maine" (should be refused)
@@ -25,12 +25,12 @@ The app should detect event creation intent from natural language messages.
 
 **Test:**
 ```
-Message: "Vreau eveniment pentru Ana, 5 ani, pe 2026-03-20 la Strada Mihai 15, București. Avem nevoie de animator și vată de zahăr."
+Message: "Vreau eveniment pentru Ana, 5 ani, pe 20-03-2026 la Strada Mihai 15, București. Avem nevoie de animator și vată de zahăr."
 
 Expected preview:
 - Sarbatorit: Ana
 - Varsta: 5
-- Data: 2026-03-20
+- Data: 20-03-2026
 - Adresa: Strada Mihai 15, București
 - Roluri: animator, vata
 - Button: "Confirmă"
@@ -43,14 +43,14 @@ After confirm:
 ### 3. Date Validation
 
 **Valid formats:**
-- ✅ "2026-02-15" (YYYY-MM-DD)
-- ✅ "2026-12-31"
+- ✅ "15-02-2026" (DD-MM-YYYY)
+- ✅ "31-12-2026"
 
 **Invalid formats (should be refused):**
-- ❌ "mâine" → Error: "Te rog să specifici data exactă în format YYYY-MM-DD"
-- ❌ "săptămâna viitoare" → Error: "Te rog să specifici data exactă în format YYYY-MM-DD"
-- ❌ "15 februarie 2026" → Error: "Data trebuie să fie în format YYYY-MM-DD"
-- ❌ "02/15/2026" → Error: "Data trebuie să fie în format YYYY-MM-DD"
+- ❌ "mâine" → Error: "Te rog să specifici data exactă în format DD-MM-YYYY"
+- ❌ "săptămâna viitoare" → Error: "Te rog să specifici data exactă în format DD-MM-YYYY"
+- ❌ "15 februarie 2026" → Error: "Data trebuie să fie în format DD-MM-YYYY"
+- ❌ "02/15/2026" → Error: "Data trebuie să fie în format DD-MM-YYYY"
 
 ### 4. Address Validation
 
@@ -66,7 +66,7 @@ After confirm:
 ### 5. Idempotency
 
 **Test:**
-1. Send message: "Eveniment pentru Laura pe 2026-04-10 la Strada Libertății 5"
+1. Send message: "Eveniment pentru Laura pe 10-04-2026 la Strada Libertății 5"
 2. Confirm → Event created with ID `event-123`
 3. Send SAME message again
 4. Confirm → Should return SAME event ID `event-123` (no duplicate)
@@ -117,7 +117,7 @@ After confirm:
 ### Test Cases
 
 #### TC1: Valid Event Creation
-- [ ] Send: "Notează eveniment pentru Maria, 5 ani, pe 2026-05-20 la Strada Florilor 10. Avem nevoie de animator."
+- [ ] Send: "Notează eveniment pentru Maria, 5 ani, pe 20-05-2026 la Strada Florilor 10. Avem nevoie de animator."
 - [ ] Verify preview shows all fields correctly
 - [ ] Tap "Confirmă"
 - [ ] Verify success message
@@ -125,14 +125,14 @@ After confirm:
 
 #### TC2: Missing Date
 - [ ] Send: "Eveniment pentru Ana la Strada Mihai 5"
-- [ ] Verify error: "Te rog să specifici data exactă în format YYYY-MM-DD"
+- [ ] Verify error: "Te rog să specifici data exactă în format DD-MM-YYYY"
 
 #### TC3: Relative Date (Refused)
 - [ ] Send: "Eveniment mâine la Strada Unirii 3 pentru Ion"
-- [ ] Verify error: "Te rog să specifici data exactă în format YYYY-MM-DD"
+- [ ] Verify error: "Te rog să specifici data exactă în format DD-MM-YYYY"
 
 #### TC4: Missing Address
-- [ ] Send: "Eveniment pentru Laura pe 2026-06-15"
+- [ ] Send: "Eveniment pentru Laura pe 15-06-2026"
 - [ ] Verify error: "Te rog să specifici adresa/locația evenimentului"
 
 #### TC5: Diacritics Tolerance
@@ -141,7 +141,7 @@ After confirm:
 - [ ] Both should trigger event creation flow
 
 #### TC6: Idempotency
-- [ ] Send: "Eveniment pentru Andrei pe 2026-07-10 la Bulevardul Libertății 25"
+- [ ] Send: "Eveniment pentru Andrei pe 10-07-2026 la Bulevardul Libertății 25"
 - [ ] Confirm → Note event ID
 - [ ] Send SAME message again
 - [ ] Confirm → Verify SAME event ID returned

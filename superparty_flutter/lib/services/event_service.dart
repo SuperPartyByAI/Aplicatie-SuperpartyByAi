@@ -120,6 +120,51 @@ class EventService {
     });
   }
 
+  /// Generic update method for event fields
+  /// Validates allowed fields and adds audit metadata
+  Future<void> updateEvent(String eventId, Map<String, dynamic> patch) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Utilizator neautentificat');
+
+    // Allowed fields for update
+    const allowedFields = {
+      'date',
+      'address',
+      'sarbatoritNume',
+      'sarbatoritVarsta',
+      'sarbatoritDob',
+      'incasare',
+      'roles',
+      'cineNoteaza',
+      'sofer',
+      'soferPending',
+    };
+
+    // Filter to only allowed fields
+    final sanitized = <String, dynamic>{};
+    for (final entry in patch.entries) {
+      if (allowedFields.contains(entry.key)) {
+        sanitized[entry.key] = entry.value;
+      }
+    }
+
+    if (sanitized.isEmpty) {
+      throw Exception('Nu există câmpuri valide pentru actualizare');
+    }
+
+    // Add audit metadata
+    sanitized['updatedAt'] = FieldValue.serverTimestamp();
+    sanitized['updatedBy'] = user.uid;
+
+    // Prevent changing archive status through this method
+    sanitized.remove('isArchived');
+    sanitized.remove('archivedAt');
+    sanitized.remove('archivedBy');
+    sanitized.remove('archiveReason');
+
+    await _firestore.collection('evenimente').doc(eventId).update(sanitized);
+  }
+
   /// Alocă rol (atomic update)
   Future<void> assignRole({
     required String eventId,
@@ -346,8 +391,8 @@ class EventService {
     });
   }
 
-  /// Helper: convert DateTime to YYYY-MM-DD string
+  /// Helper: convert DateTime to DD-MM-YYYY string
   String _dateToString(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
   }
 }

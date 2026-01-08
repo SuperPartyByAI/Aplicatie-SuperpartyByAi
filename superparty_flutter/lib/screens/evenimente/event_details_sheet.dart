@@ -30,14 +30,19 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
   bool _isLoading = true;
   String? _error;
 
-  // Roluri disponibile
+  // Roluri disponibile (servicii reale oferite)
   final List<String> _roles = [
-    'barman',
-    'ospatar',
-    'dj',
-    'fotograf',
     'animator',
-    'bucatar',
+    'ursitoare',
+    'vata',
+    'popcorn',
+    'vata_popcorn',
+    'decoratiuni',
+    'baloane',
+    'baloane_heliu',
+    'aranjamente_masa',
+    'mos_craciun',
+    'gheata_carbonica',
   ];
 
   @override
@@ -512,37 +517,57 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
 
   IconData _getRoleIcon(String role) {
     switch (role) {
-      case 'barman':
-        return Icons.local_bar;
-      case 'ospatar':
-        return Icons.restaurant;
-      case 'dj':
-        return Icons.music_note;
-      case 'fotograf':
-        return Icons.camera_alt;
       case 'animator':
         return Icons.celebration;
-      case 'bucatar':
-        return Icons.restaurant_menu;
+      case 'ursitoare':
+        return Icons.auto_awesome;
+      case 'vata':
+        return Icons.cloud;
+      case 'popcorn':
+        return Icons.local_movies;
+      case 'vata_popcorn':
+        return Icons.fastfood;
+      case 'decoratiuni':
+        return Icons.auto_fix_high;
+      case 'baloane':
+        return Icons.bubble_chart;
+      case 'baloane_heliu':
+        return Icons.air;
+      case 'aranjamente_masa':
+        return Icons.table_restaurant;
+      case 'mos_craciun':
+        return Icons.card_giftcard;
+      case 'gheata_carbonica':
+        return Icons.ac_unit;
       default:
-        return Icons.person;
+        return Icons.star;
     }
   }
 
   String _getRoleLabel(String role) {
     switch (role) {
-      case 'barman':
-        return 'Barman';
-      case 'ospatar':
-        return 'Ospătar';
-      case 'dj':
-        return 'DJ';
-      case 'fotograf':
-        return 'Fotograf';
       case 'animator':
         return 'Animator';
-      case 'bucatar':
-        return 'Bucătar';
+      case 'ursitoare':
+        return 'Ursitoare';
+      case 'vata':
+        return 'Vată de zahăr';
+      case 'popcorn':
+        return 'Popcorn';
+      case 'vata_popcorn':
+        return 'Vată + Popcorn';
+      case 'decoratiuni':
+        return 'Decorațiuni';
+      case 'baloane':
+        return 'Baloane';
+      case 'baloane_heliu':
+        return 'Baloane cu heliu';
+      case 'aranjamente_masa':
+        return 'Aranjamente de masă';
+      case 'mos_craciun':
+        return 'Moș Crăciun';
+      case 'gheata_carbonica':
+        return 'Gheață carbonică';
       default:
         return role;
     }
@@ -819,7 +844,7 @@ Exemple:
                 'Salvare Firestore',
                 '''Colecție: evenimente
 Schema v2:
-- date (YYYY-MM-DD)
+- date (DD-MM-YYYY)
 - address
 - sarbatoritNume
 - sarbatoritVarsta
@@ -883,7 +908,7 @@ Schema v2:
               TextField(
                 controller: dateController,
                 decoration: const InputDecoration(
-                  labelText: 'Data (YYYY-MM-DD)',
+                  labelText: 'Data (DD-MM-YYYY)',
                   prefixIcon: Icon(Icons.calendar_today),
                 ),
               ),

@@ -31,7 +31,7 @@ grep -n "clientRequestId" superparty_flutter/lib/screens/ai_chat/ai_chat_screen.
 ### 3. Backend Validation
 **File:** `functions/chatEventOps.js`
 
-- **Lines 280-289**: Date validation (YYYY-MM-DD regex)
+- **Lines 280-289**: Date validation (DD-MM-YYYY regex)
 - **Lines 290-293**: Address validation (non-empty)
 - **Lines 270-278**: Idempotency check (clientRequestId)
 
@@ -45,7 +45,7 @@ grep -A 8 "Idempotency: check if event" functions/chatEventOps.js
 **File:** `functions/chatEventOps.js`
 
 - **Lines 135-139**: OUTPUT FORMAT rules (JSON only, no markdown)
-- **Lines 140-145**: DATE FORMAT rules (YYYY-MM-DD, refuse relative)
+- **Lines 140-145**: DATE FORMAT rules (DD-MM-YYYY, refuse relative)
 - **Lines 147-149**: ADDRESS rules (non-empty required)
 
 **Verification:**
@@ -102,7 +102,7 @@ Comprehensive test cases covering:
 
 - [x] Natural language detection with diacritics normalization
 - [x] Two-step flow (preview + confirm)
-- [x] Date validation (YYYY-MM-DD only)
+- [x] Date validation (DD-MM-YYYY only)
 - [x] Refuse relative dates ("mâine", "săptămâna viitoare")
 - [x] Address validation (non-empty required)
 - [x] Idempotency via clientRequestId
@@ -161,7 +161,7 @@ grep "version:" superparty_flutter/pubspec.yaml
 grep -A 5 "IMPORTANT - OUTPUT FORMAT" functions/chatEventOps.js
 
 # Verify date validation
-grep -A 5 "YYYY-MM-DD" functions/chatEventOps.js
+grep -A 5 "DD-MM-YYYY" functions/chatEventOps.js
 
 # Verify idempotency
 grep -A 5 "clientRequestId" functions/chatEventOps.js

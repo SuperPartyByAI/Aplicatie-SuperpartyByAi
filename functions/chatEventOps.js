@@ -138,8 +138,8 @@ IMPORTANT - OUTPUT FORMAT:
 - Răspunsul trebuie să fie JSON pur care poate fi parsat direct
 
 IMPORTANT - DATE FORMAT:
-- date MUST be in YYYY-MM-DD format (ex: 2026-01-15)
-- Dacă user spune "mâine", "săptămâna viitoare", "vinerea viitoare" → returnează action:"NONE" cu message:"Te rog să specifici data exactă în format YYYY-MM-DD (ex: 2026-01-15)"
+- date MUST be in DD-MM-YYYY format (ex: 15-01-2026)
+- Dacă user spune "mâine", "săptămâna viitoare", "vinerea viitoare" → returnează action:"NONE" cu message:"Te rog să specifici data exactă în format DD-MM-YYYY (ex: 15-01-2026)"
 - NU calcula date relative
 - NU accepta date în alt format (ex: "15 ianuarie 2026" → refuză)
 
@@ -149,7 +149,7 @@ IMPORTANT - ADDRESS:
 
 Schema v2 relevantă:
 - schemaVersion: 2
-- date: "YYYY-MM-DD" (OBLIGATORIU pentru CREATE)
+- date: "DD-MM-YYYY" (OBLIGATORIU pentru CREATE)
 - address: string (OBLIGATORIU pentru CREATE)
 - sarbatoritNume: string
 - sarbatoritVarsta: int
@@ -244,7 +244,7 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         return {
           ok: false,
           action: 'NONE',
-          message: 'Lipsește data evenimentului. Te rog să specifici data în format YYYY-MM-DD (ex: 2026-01-15).',
+          message: 'Lipsește data evenimentului. Te rog să specifici data în format DD-MM-YYYY (ex: 15-01-2026).',
         };
       }
       
@@ -256,13 +256,13 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         };
       }
       
-      // Validate date format (YYYY-MM-DD)
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      // Validate date format (DD-MM-YYYY)
+      const dateRegex = /^\d{2}-\d{2}-\d{4}$/;
       if (!dateRegex.test(dateStr)) {
         return {
           ok: false,
           action: 'NONE',
-          message: `Data trebuie să fie în format YYYY-MM-DD (ex: 2026-01-15). Ai introdus: "${dateStr}"`,
+          message: `Data trebuie să fie în format DD-MM-YYYY (ex: 15-01-2026). Ai introdus: "${dateStr}"`,
         };
       }
 
