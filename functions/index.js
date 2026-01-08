@@ -480,7 +480,7 @@ Hai să facem fiecare conversație o mini-petrecere! 🎉🎊🥳✨💫🌟`,
       }
 
       const completion = await groq.chat.completions.create({
-        model: 'llama-3.1-70b-versatile',
+        model: 'llama-3.3-70b-versatile',
         messages: recentMessages,
         max_tokens: 200, // Further reduced for faster response
         temperature: 0.7,
@@ -556,3 +556,35 @@ Hai să facem fiecare conversație o mini-petrecere! 🎉🎊🥳✨💫🌟`,
   }
 );
 // Force redeploy - Sat Jan  3 08:39:53 UTC 2026
+
+// AI Event Creation
+const { createEventFromAI } = require('./createEventFromAI');
+exports.createEventFromAI = createEventFromAI;
+
+// AI Event Notation
+const { noteazaEventeAutomat } = require('./noteazaEventeAutomat');
+exports.noteazaEventeAutomat = noteazaEventeAutomat;
+
+// AI Event Reading
+const { getEventeAI } = require('./getEventeAI');
+exports.getEventeAI = getEventeAI;
+
+// AI Event Update
+const { updateEventAI } = require('./updateEventAI');
+exports.updateEventAI = updateEventAI;
+
+// AI Role Management
+const { manageRoleAI } = require('./manageRoleAI');
+exports.manageRoleAI = manageRoleAI;
+
+// AI Event Archive
+const { archiveEventAI } = require('./archiveEventAI');
+exports.archiveEventAI = archiveEventAI;
+
+// AI Evidence Management
+const { manageEvidenceAI } = require('./manageEvidenceAI');
+exports.manageEvidenceAI = manageEvidenceAI;
+
+// AI Report Generation
+const { generateReportAI } = require('./generateReportAI');
+exports.generateReportAI = generateReportAI;

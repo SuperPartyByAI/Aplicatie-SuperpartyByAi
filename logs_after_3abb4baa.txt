@@ -1,0 +1,416 @@
+2025-12-30T20:57:26.743686Z ? whatsappv4: 🔄 [account_1767002145379] Auto-reconnecting...
+2025-12-30T20:57:26.744560Z ? whatsappv4: 🔄 [account_1767127878344] Auto-reconnecting...
+2025-12-30T20:57:29.843758Z ? whatsappv4: ⏱️ [account_1767072488267] Connection timeout after 30000ms
+2025-12-30T20:57:29.843888Z ? whatsappv4: 🔄 [account_1767072488267] Reconnect attempt 2/5 in 2000ms...
+2025-12-30T20:57:29.844028Z ? whatsappv4: ⏱️ [account_1767128108345] Connection timeout after 30000ms
+2025-12-30T20:57:29.943924Z ? whatsappv4: 🔄 [account_1767128108345] Reconnect attempt 2/5 in 2000ms...
+2025-12-30T20:57:29.944025Z ? whatsappv4: ⏱️ [account_1767128110845] Connection timeout after 30000ms
+2025-12-30T20:57:29.944125Z ? whatsappv4: 🔄 [account_1767128110845] Reconnect attempt 2/5 in 2000ms...
+2025-12-30T20:57:29.944186Z ? whatsappv4: ⏱️ [account_1767128111644] Connection timeout after 30000ms
+2025-12-30T20:57:29.944228Z ? whatsappv4: 🔄 [account_1767128111644] Reconnect attempt 2/5 in 2000ms...
+2025-12-30T20:57:29.944286Z ? whatsappv4: ⏱️ [account_1767003100302] Connection timeout after 30000ms
+2025-12-30T20:57:29.944329Z ? whatsappv4: 🔄 [account_1767003100302] Reconnect attempt 1/5 in 1000ms...
+2025-12-30T20:57:29.944381Z ? whatsappv4: ⏱️ [account_1767002931111] Connection timeout after 30000ms
+2025-12-30T20:57:29.944411Z ? whatsappv4: 🔄 [account_1767002931111] Reconnect attempt 2/5 in 2000ms...
+2025-12-30T20:57:54.544032Z ? whatsappv4: ✅ [account_1767002145379] Reconnected successfully
+2025-12-30T20:57:57.644645Z ? whatsappv4: ✅ [account_1767003050123] Session restored from Firestore
+2025-12-30T20:57:57.644845Z ? whatsappv4: ✅ [account_1767003050123] Session restored from Firestore
+2025-12-30T20:57:58.444217Z ? whatsappv4: ✅ [account_1767002145379] Session restored from Firestore
+2025-12-30T20:57:58.444261Z ? whatsappv4: ✅ [account_1767002145379] Session restored from Firestore
+2025-12-30T20:57:58.943768Z ? whatsappv4: ✅ [account_1767072304168] Session restored from Firestore
+2025-12-30T20:57:58.943928Z ? whatsappv4: ✅ [account_1767072304168] Session restored from Firestore
+2025-12-30T20:57:59.943931Z ? whatsappv4: ✅ [account_1767003050123] Session restored from Firestore
+2025-12-30T20:57:59.943988Z ? whatsappv4: ✅ [account_1767003050123] Session restored from Firestore
+2025-12-30T20:58:00.946811Z ? whatsappv4: ✅ [account_1767067289790] Session restored from Firestore
+2025-12-30T20:58:00.946863Z ? whatsappv4: ✅ [account_1767067289790] Session restored from Firestore
+2025-12-30T20:58:02.443679Z ? whatsappv4: ✅ [account_1767002145379] Session restored from Firestore
+2025-12-30T20:58:02.443950Z ? whatsappv4: ✅ [account_1767002145379] Session restored from Firestore
+2025-12-30T20:58:03.043932Z ? whatsappv4: ✅ [account_1767002931111] Session restored from Firestore
+2025-12-30T20:58:03.044123Z ? whatsappv4: ✅ [account_1767002931111] Session restored from Firestore
+2025-12-30T20:58:05.046121Z ? whatsappv4: ✅ [account_1767002931111] Session restored from Firestore
+2025-12-30T20:58:05.046173Z ? whatsappv4: ✅ [account_1767002931111] Session restored from Firestore
+2025-12-30T20:58:05.543724Z ? whatsappv4: ✅ [account_1767072321868] Session restored from Firestore
+2025-12-30T20:58:05.543979Z ? whatsappv4: ✅ [account_1767072321868] Session restored from Firestore
+2025-12-30T20:58:05.744766Z ? whatsappv4: ✅ [account_1767067289790] Session restored from Firestore
+2025-12-30T20:58:05.744789Z ? whatsappv4: ✅ [account_1767067289790] Session restored from Firestore
+2025-12-30T20:58:06.643796Z ? whatsappv4: ℹ️ [account_1767127941646] No saved session in Firestore
+2025-12-30T20:58:08.544381Z ? whatsappv4: ✅ [account_1767003050123] Session restored from Firestore
+2025-12-30T20:58:08.544477Z ? whatsappv4: ✅ [account_1767003050123] Session restored from Firestore
+2025-12-30T20:58:10.244116Z ? whatsappv4: ✅ [account_1767071155439] Session restored from Firestore
+2025-12-30T20:58:10.244188Z ? whatsappv4: ✅ [account_1767071155439] Session restored from Firestore
+2025-12-30T20:58:16.443891Z ? whatsappv4: 💾 [account_1767002931111] Session saved to Firestore with metadata
+2025-12-30T20:58:16.844700Z ? whatsappv4: 💾 [account_1767003100302] Session saved to Firestore with metadata
+2025-12-30T20:58:19.043661Z ? whatsappv4: ⚠️ [account_1767067289790] Quality low (40%), proactive reconnect
+2025-12-30T20:58:19.043862Z ? whatsappv4: 🔄 [account_1767067289790] Proactive reconnect initiated
+2025-12-30T20:58:27.444646Z ? whatsappv4: 🔄 [account_1767072304168] Auto-reconnecting...
+2025-12-30T20:58:27.644282Z ? whatsappv4: 🔄 [account_1767071155439] Auto-reconnecting...
+2025-12-30T20:58:27.844370Z ? whatsappv4: 🔄 [account_1767003050123] Auto-reconnecting...
+2025-12-30T20:58:27.944216Z ? whatsappv4: ⏱️ [account_1767072321868] Connection timeout after 30000ms
+2025-12-30T20:58:27.944275Z ? whatsappv4: ❌ [account_1767072321868] Max reconnect attempts (5) reached, generating QR...
+2025-12-30T20:58:28.444195Z ? whatsappv4: 🔌 [account_1767072321868] Connection closed. Reason: unknown, Reconnect: true
+2025-12-30T20:58:29.944498Z ? whatsappv4: ⏱️ [account_1767067289790] Connection timeout after 30000ms
+2025-12-30T20:58:30.143637Z ? whatsappv4: ❌ [account_1767067289790] Max reconnect attempts (5) reached, generating QR...
+2025-12-30T20:58:30.144130Z ? whatsappv4: 🔌 [account_1767067289790] Connection closed. Reason: unknown, Reconnect: true
+2025-12-30T20:58:31.744834Z ? whatsappv4: ⏱️ [account_1767127877144] Connection timeout after 30000ms
+2025-12-30T20:58:31.848817Z ? whatsappv4: 🔄 [account_1767127877144] Reconnect attempt 5/5 in 16000ms...
+2025-12-30T20:58:31.848925Z ? whatsappv4: ⏱️ [account_1767127878344] Connection timeout after 30000ms
+2025-12-30T20:58:31.849048Z ? whatsappv4: 🔄 [account_1767127878344] Reconnect attempt 5/5 in 16000ms...
+2025-12-30T20:58:31.849083Z ? whatsappv4: ⏱️ [account_1767002145379] Connection timeout after 30000ms
+2025-12-30T20:58:31.849134Z ? whatsappv4: 🔄 [account_1767002145379] Reconnect attempt 3/5 in 4000ms...
+2025-12-30T20:58:31.849187Z ? whatsappv4: ⏱️ [account_1767127941646] Connection timeout after 30000ms
+2025-12-30T20:58:31.849235Z ? whatsappv4: 🔄 [account_1767127941646] Reconnect attempt 5/5 in 16000ms...
+2025-12-30T20:58:32.845365Z ? whatsappv4: ⚠️ [account_1767003100302] Keep-alive failed: Connection Closed
+2025-12-30T20:58:32.845432Z ? whatsappv4: 🔄 [account_1767003100302] Reconnecting in 4s (attempt 2)...
+2025-12-30T20:58:33.447104Z ? whatsappv4: ⚠️ [account_1767002931111] Keep-alive failed: Connection Closed
+2025-12-30T20:58:33.447303Z ? whatsappv4: 🔄 [account_1767002931111] Reconnecting in 8s (attempt 3)...
+2025-12-30T20:58:33.448035Z ? whatsappv4: ⚠️ [account_1767002145379] Keep-alive failed: Connection Closed
+2025-12-30T20:58:33.448086Z ? whatsappv4: 🔄 [account_1767002145379] Reconnecting in 2s (attempt 1)...
+2025-12-30T20:58:33.745468Z ? whatsappv4: 🔌 [account_1767003100302] Connection closed. Reason: 408, Reconnect: true
+2025-12-30T20:58:34.344926Z ? whatsappv4: 🔌 [account_1767002931111] Connection closed. Reason: 408, Reconnect: true
+2025-12-30T20:58:35.344652Z ? whatsappv4: 🔌 [account_1767002145379] Connection closed. Reason: 408, Reconnect: true
+2025-12-30T20:59:21.043676Z ? whatsappv4: ✅ [account_1767127941646] Client initialized
+2025-12-30T20:59:26.344118Z ? whatsappv4: ❌ [account_1767072321868] Failed to save session: 4 DEADLINE_EXCEEDED: Deadline exceeded after 79.601s,metadata filters: 0.300s,LB pick: 0.001s,remote_addr=[2607:f8b0:4001:c16::5f]:443
+2025-12-30T20:59:28.543797Z ? whatsappv4: ❌ [account_1767067289790] Failed to save session: 4 DEADLINE_EXCEEDED: Deadline exceeded after 85.800s,metadata filters: 0.600s,LB pick: 0.499s,remote_addr=[2607:f8b0:4001:c16::5f]:443
+2025-12-30T20:59:29.643682Z ? whatsappv4: ❌ [account_1767002145379] Failed to save session: 4 DEADLINE_EXCEEDED: Deadline exceeded after 83.201s,name resolution: 0.100s,metadata filters: 0.300s,time to current attempt start: 0.099s,LB pick: 0.801s,remote_addr=[2607:f8b0:4001:c16::5f]:443
+2025-12-30T20:59:38.343862Z ? whatsappv4: ⚠️ [account_1767003050123] Keep-alive failed: Connection Closed
+2025-12-30T20:59:38.443834Z ? whatsappv4: 🔄 [account_1767003050123] Reconnecting in 32s (attempt 5)...
+2025-12-30T20:59:39.443873Z ? whatsappv4: ⏱️ [account_1767072304168] Connection timeout after 30000ms
+2025-12-30T20:59:39.443975Z ? whatsappv4: 🔄 [account_1767072304168] Reconnect attempt 2/5 in 2000ms...
+2025-12-30T20:59:39.444140Z ? whatsappv4: ⏱️ [account_1767071155439] Connection timeout after 30000ms
+2025-12-30T20:59:39.444177Z ? whatsappv4: 🔄 [account_1767071155439] Reconnect attempt 2/5 in 2000ms...
+2025-12-30T20:59:39.444244Z ? whatsappv4: ⏱️ [account_1767003050123] Connection timeout after 30000ms
+2025-12-30T20:59:39.444281Z ? whatsappv4: 🔄 [account_1767003050123] Reconnect attempt 4/5 in 8000ms...
+2025-12-30T20:59:39.444359Z ? whatsappv4: ⏱️ [account_1767128308644] Connection timeout after 30000ms
+2025-12-30T20:59:39.444425Z ? whatsappv4: 🔄 [account_1767128308644] Reconnect attempt 1/5 in 1000ms...
+2025-12-30T20:59:39.444478Z ? whatsappv4: ⏱️ [account_1767128310244] Connection timeout after 30000ms
+2025-12-30T20:59:39.444530Z ? whatsappv4: 🔄 [account_1767128310244] Reconnect attempt 1/5 in 1000ms...
+2025-12-30T20:59:39.544688Z ? whatsappv4: ⏱️ [account_1767072488267] Connection timeout after 30000ms
+2025-12-30T20:59:39.544995Z ? whatsappv4: 🔄 [account_1767072488267] Reconnect attempt 3/5 in 4000ms...
+2025-12-30T20:59:39.545182Z ? whatsappv4: ⏱️ [account_1767128108345] Connection timeout after 30000ms
+2025-12-30T20:59:39.545283Z ? whatsappv4: 🔄 [account_1767128108345] Reconnect attempt 3/5 in 4000ms...
+2025-12-30T20:59:39.545375Z ? whatsappv4: ⏱️ [account_1767128110845] Connection timeout after 30000ms
+2025-12-30T20:59:39.545431Z ? whatsappv4: 🔄 [account_1767128110845] Reconnect attempt 3/5 in 4000ms...
+2025-12-30T20:59:39.545485Z ? whatsappv4: ⏱️ [account_1767128111644] Connection timeout after 30000ms
+2025-12-30T20:59:39.545519Z ? whatsappv4: 🔄 [account_1767128111644] Reconnect attempt 3/5 in 4000ms...
+2025-12-30T20:59:53.444006Z ? whatsappv4: ✅ [account_1767071155439] Reconnected successfully
+2025-12-30T20:59:59.643639Z ? whatsappv4: ❌ [account_1767072304168] Failed to save session: 4 DEADLINE_EXCEEDED: Deadline exceeded after 84.200s,metadata filters: 0.100s,LB pick: 0.200s,remote_addr=[2607:f8b0:4001:c16::5f]:443
+2025-12-30T21:00:00.145800Z ? whatsappv4: ❌ [account_1767071155439] Failed to save session: 4 DEADLINE_EXCEEDED: Deadline exceeded after 84.199s,name resolution: 0.199s,metadata filters: 0.001s,LB pick: 0.200s,remote_addr=[2607:f8b0:4001:c16::5f]:443
+2025-12-30T21:00:01.444272Z ? whatsappv4: ❌ [account_1767003050123] Failed to save session: 4 DEADLINE_EXCEEDED: Deadline exceeded after 82.801s,name resolution: 0.001s,metadata filters: 0.199s,LB pick: 0.500s,remote_addr=[2607:f8b0:4001:c16::5f]:443
+2025-12-30T21:00:03.544229Z ? whatsappv4: Failed to sync account status: Error: 4 DEADLINE_EXCEEDED: Deadline exceeded after 70.702s,metadata filters: 0.100s,LB pick: 0.101s,remote_addr=[2607:f8b0:4001:c16::5f]:443
+2025-12-30T21:00:03.544243Z ? whatsappv4:     at callErrorFromStatus (/workspace/node_modules/@grpc/grpc-js/build/src/call.js:32:19)
+2025-12-30T21:00:03.544249Z ? whatsappv4:     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:193:76)
+2025-12-30T21:00:03.544253Z ? whatsappv4:     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:367:141)
+2025-12-30T21:00:03.544257Z ? whatsappv4:     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)
+2025-12-30T21:00:03.544262Z ? whatsappv4:     at /workspace/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78
+2025-12-30T21:00:03.544267Z ? whatsappv4:     at processTicksAndRejections (node:internal/process/task_queues:77:11)
+2025-12-30T21:00:03.544272Z ? whatsappv4:     at runNextTicks (node:internal/process/task_queues:64:3)
+2025-12-30T21:00:03.544277Z ? whatsappv4:     at listOnTimeout (node:internal/timers:545:9)
+2025-12-30T21:00:03.544284Z ? whatsappv4:     at process.processTimers (node:internal/timers:519:7)
+2025-12-30T21:00:03.544288Z ? whatsappv4: for call at
+2025-12-30T21:00:03.544293Z ? whatsappv4:     at ServiceClientImpl.makeUnaryRequest (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:161:32)
+2025-12-30T21:00:03.544297Z ? whatsappv4:     at ServiceClientImpl.<anonymous> (/workspace/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)
+2025-12-30T21:00:03.544302Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33
+2025-12-30T21:00:03.544306Z ? whatsappv4:     at /workspace/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16
+2025-12-30T21:00:03.544310Z ? whatsappv4:     at repeat (/workspace/node_modules/google-gax/build/src/normalCalls/retries.js:82:25)
+2025-12-30T21:00:03.544314Z ? whatsappv4:     at /workspace/node_modules/google-gax/build/src/normalCalls/retries.js:125:13
+2025-12-30T21:00:03.544318Z ? whatsappv4:     at OngoingCallPromise.call (/workspace/node_modules/google-gax/build/src/call.js:67:27)
+2025-12-30T21:00:03.544323Z ? whatsappv4:     at NormalApiCaller.call (/workspace/node_modules/google-gax/build/src/normalCalls/normalApiCaller.js:34:19)
+2025-12-30T21:00:03.544327Z ? whatsappv4:     at /workspace/node_modules/google-gax/build/src/createApiCall.js:112:30
+2025-12-30T21:00:03.544331Z ? whatsappv4:     at processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-12-30T21:00:03.544380Z ? whatsappv4: Caused by: Error
+2025-12-30T21:00:03.544385Z ? whatsappv4:     at _firestore._traceUtil.startActiveSpan (/workspace/node_modules/@google-cloud/firestore/build/src/write-batch.js:438:27)
+2025-12-30T21:00:03.544390Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30
+2025-12-30T21:00:03.544395Z ? whatsappv4:     at NoopContextManager.with (/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextManager.js:25:19)
+2025-12-30T21:00:03.544401Z ? whatsappv4:     at ContextAPI.with (/workspace/node_modules/@opentelemetry/api/build/src/api/context.js:60:46)
+2025-12-30T21:00:03.544407Z ? whatsappv4:     at NoopTracer.startActiveSpan (/workspace/node_modules/@opentelemetry/api/build/src/trace/NoopTracer.js:65:31)
+2025-12-30T21:00:03.544412Z ? whatsappv4:     at ProxyTracer.startActiveSpan (/workspace/node_modules/@opentelemetry/api/build/src/trace/ProxyTracer.js:36:24)
+2025-12-30T21:00:03.544419Z ? whatsappv4:     at EnabledTraceUtil.startActiveSpan (/workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:102:28)
+2025-12-30T21:00:03.544424Z ? whatsappv4:     at WriteBatch.commit (/workspace/node_modules/@google-cloud/firestore/build/src/write-batch.js:436:43)
+2025-12-30T21:00:03.544428Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/reference/document-reference.js:350:31
+2025-12-30T21:00:03.544432Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30 {
+2025-12-30T21:00:03.544436Z ? whatsappv4:   code: 4,
+2025-12-30T21:00:03.544440Z ? whatsappv4:   details: 'Deadline exceeded after 70.702s,metadata filters: 0.100s,LB pick: 0.101s,remote_addr=[2607:f8b0:4001:c16::5f]:443',
+2025-12-30T21:00:03.544444Z ? whatsappv4:   metadata: Metadata {
+2025-12-30T21:00:03.544448Z ? whatsappv4:     internalRepr: Map(0) {},
+2025-12-30T21:00:03.544452Z ? whatsappv4:     opaqueData: Map(0) {},
+2025-12-30T21:00:03.544456Z ? whatsappv4:     options: {}
+2025-12-30T21:00:03.544459Z ? whatsappv4:   },
+2025-12-30T21:00:03.544467Z ? whatsappv4:   note: 'Exception occurred in retry method that was not classified as transient'
+2025-12-30T21:00:03.544472Z ? whatsappv4: }
+2025-12-30T21:00:04.746151Z ? whatsappv4: ❌ [Monitor] Failed to log incident: 4 DEADLINE_EXCEEDED: Deadline exceeded after 70.701s,metadata filters: 0.099s,time to current attempt start: 0.001s,LB pick: 0.199s,remote_addr=[2607:f8b0:4001:c16::5f]:443
+2025-12-30T21:00:10.944411Z ? whatsappv4: 🔄 [account_1767072321868] Auto-reconnecting...
+2025-12-30T21:00:13.345349Z ? whatsappv4: ⚠️ [account_1767072304168] Keep-alive failed: Connection Closed
+2025-12-30T21:00:13.345403Z ? whatsappv4: 🔄 [account_1767072304168] Reconnecting in 16s (attempt 4)...
+2025-12-30T21:00:13.544440Z ? whatsappv4: ⚠️ [account_1767071155439] Keep-alive failed: Connection Closed
+2025-12-30T21:00:13.544544Z ? whatsappv4: 🔄 [account_1767071155439] Reconnecting in 2s (attempt 1)...
+2025-12-30T21:00:13.545014Z ? whatsappv4: ⚠️ [account_1767003050123] Keep-alive failed: Connection Closed
+2025-12-30T21:00:13.545071Z ? whatsappv4: 🔄 [account_1767003050123] Reconnecting in 60s (attempt 6)...
+2025-12-30T21:00:18.244524Z ? whatsappv4: Failed to sync account status: Error: 4 DEADLINE_EXCEEDED: Deadline exceeded after 94.202s,metadata filters: 0.300s,LB pick: 0.601s,remote_addr=[2607:f8b0:4001:c16::5f]:443
+2025-12-30T21:00:18.244551Z ? whatsappv4:     at callErrorFromStatus (/workspace/node_modules/@grpc/grpc-js/build/src/call.js:32:19)
+2025-12-30T21:00:18.244557Z ? whatsappv4:     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:193:76)
+2025-12-30T21:00:18.244563Z ? whatsappv4:     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:367:141)
+2025-12-30T21:00:18.244573Z ? whatsappv4:     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)
+2025-12-30T21:00:18.244578Z ? whatsappv4:     at /workspace/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78
+2025-12-30T21:00:18.244584Z ? whatsappv4:     at processTicksAndRejections (node:internal/process/task_queues:77:11)
+2025-12-30T21:00:18.244590Z ? whatsappv4:     at runNextTicks (node:internal/process/task_queues:64:3)
+2025-12-30T21:00:18.244595Z ? whatsappv4:     at listOnTimeout (node:internal/timers:545:9)
+2025-12-30T21:00:18.244600Z ? whatsappv4:     at process.processTimers (node:internal/timers:519:7)
+2025-12-30T21:00:18.244605Z ? whatsappv4: for call at
+2025-12-30T21:00:18.244610Z ? whatsappv4:     at ServiceClientImpl.makeUnaryRequest (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:161:32)
+2025-12-30T21:00:18.244616Z ? whatsappv4:     at ServiceClientImpl.<anonymous> (/workspace/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)
+2025-12-30T21:00:18.244621Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33
+2025-12-30T21:00:18.244626Z ? whatsappv4:     at /workspace/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16
+2025-12-30T21:00:18.244633Z ? whatsappv4:     at repeat (/workspace/node_modules/google-gax/build/src/normalCalls/retries.js:82:25)
+2025-12-30T21:00:18.244638Z ? whatsappv4:     at /workspace/node_modules/google-gax/build/src/normalCalls/retries.js:125:13
+2025-12-30T21:00:18.244643Z ? whatsappv4:     at OngoingCallPromise.call (/workspace/node_modules/google-gax/build/src/call.js:67:27)
+2025-12-30T21:00:18.244649Z ? whatsappv4:     at NormalApiCaller.call (/workspace/node_modules/google-gax/build/src/normalCalls/normalApiCaller.js:34:19)
+2025-12-30T21:00:18.244654Z ? whatsappv4:     at /workspace/node_modules/google-gax/build/src/createApiCall.js:112:30
+2025-12-30T21:00:18.244659Z ? whatsappv4:     at processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-12-30T21:00:18.244668Z ? whatsappv4: Caused by: Error
+2025-12-30T21:00:18.244674Z ? whatsappv4:     at _firestore._traceUtil.startActiveSpan (/workspace/node_modules/@google-cloud/firestore/build/src/write-batch.js:438:27)
+2025-12-30T21:00:18.244679Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30
+2025-12-30T21:00:18.244685Z ? whatsappv4:     at NoopContextManager.with (/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextManager.js:25:19)
+2025-12-30T21:00:18.244691Z ? whatsappv4:     at ContextAPI.with (/workspace/node_modules/@opentelemetry/api/build/src/api/context.js:60:46)
+2025-12-30T21:00:18.244697Z ? whatsappv4:     at NoopTracer.startActiveSpan (/workspace/node_modules/@opentelemetry/api/build/src/trace/NoopTracer.js:65:31)
+2025-12-30T21:00:18.244703Z ? whatsappv4:     at ProxyTracer.startActiveSpan (/workspace/node_modules/@opentelemetry/api/build/src/trace/ProxyTracer.js:36:24)
+2025-12-30T21:00:18.244709Z ? whatsappv4:     at EnabledTraceUtil.startActiveSpan (/workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:102:28)
+2025-12-30T21:00:18.244715Z ? whatsappv4:     at WriteBatch.commit (/workspace/node_modules/@google-cloud/firestore/build/src/write-batch.js:436:43)
+2025-12-30T21:00:18.244721Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/reference/document-reference.js:350:31
+2025-12-30T21:00:18.244727Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30 {
+2025-12-30T21:00:18.244733Z ? whatsappv4:   code: 4,
+2025-12-30T21:00:18.244739Z ? whatsappv4:   details: 'Deadline exceeded after 94.202s,metadata filters: 0.300s,LB pick: 0.601s,remote_addr=[2607:f8b0:4001:c16::5f]:443',
+2025-12-30T21:00:18.244745Z ? whatsappv4:   metadata: Metadata {
+2025-12-30T21:00:18.244750Z ? whatsappv4:     internalRepr: Map(0) {},
+2025-12-30T21:00:18.244755Z ? whatsappv4:     opaqueData: Map(0) {},
+2025-12-30T21:00:18.244760Z ? whatsappv4:     options: {}
+2025-12-30T21:00:18.244769Z ? whatsappv4:   },
+2025-12-30T21:00:18.244779Z ? whatsappv4:   note: 'Exception occurred in retry method that was not classified as transient'
+2025-12-30T21:00:18.244784Z ? whatsappv4: }
+2025-12-30T21:00:20.944758Z ? whatsappv4: ❌ [Monitor] Failed to log incident: 4 DEADLINE_EXCEEDED: Deadline exceeded after 94.001s,name resolution: 0.001s,metadata filters: 0.099s,LB pick: 0.801s,remote_addr=[2607:f8b0:4001:c16::5f]:443
+2025-12-30T21:00:22.843738Z ? whatsappv4: Failed to sync account status: Error: 4 DEADLINE_EXCEEDED: Deadline exceeded after 90.801s,LB pick: 0.200s,remote_addr=[2607:f8b0:4001:c16::5f]:443
+2025-12-30T21:00:22.843755Z ? whatsappv4:     at callErrorFromStatus (/workspace/node_modules/@grpc/grpc-js/build/src/call.js:32:19)
+2025-12-30T21:00:22.843760Z ? whatsappv4:     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:193:76)
+2025-12-30T21:00:22.843765Z ? whatsappv4:     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:367:141)
+2025-12-30T21:00:22.843770Z ? whatsappv4:     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)
+2025-12-30T21:00:22.843774Z ? whatsappv4:     at /workspace/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78
+2025-12-30T21:00:22.843778Z ? whatsappv4:     at processTicksAndRejections (node:internal/process/task_queues:77:11)
+2025-12-30T21:00:22.843783Z ? whatsappv4:     at runNextTicks (node:internal/process/task_queues:64:3)
+2025-12-30T21:00:22.843786Z ? whatsappv4:     at process.processTimers (node:internal/timers:516:9)
+2025-12-30T21:00:22.843791Z ? whatsappv4: for call at
+2025-12-30T21:00:22.843808Z ? whatsappv4:     at ServiceClientImpl.makeUnaryRequest (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:161:32)
+2025-12-30T21:00:22.843812Z ? whatsappv4:     at ServiceClientImpl.<anonymous> (/workspace/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)
+2025-12-30T21:00:22.843817Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33
+2025-12-30T21:00:22.843821Z ? whatsappv4:     at /workspace/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16
+2025-12-30T21:00:22.843825Z ? whatsappv4:     at repeat (/workspace/node_modules/google-gax/build/src/normalCalls/retries.js:82:25)
+2025-12-30T21:00:22.843829Z ? whatsappv4:     at /workspace/node_modules/google-gax/build/src/normalCalls/retries.js:125:13
+2025-12-30T21:00:22.843833Z ? whatsappv4:     at OngoingCallPromise.call (/workspace/node_modules/google-gax/build/src/call.js:67:27)
+2025-12-30T21:00:22.843838Z ? whatsappv4:     at NormalApiCaller.call (/workspace/node_modules/google-gax/build/src/normalCalls/normalApiCaller.js:34:19)
+2025-12-30T21:00:22.843842Z ? whatsappv4:     at /workspace/node_modules/google-gax/build/src/createApiCall.js:112:30
+2025-12-30T21:00:22.843847Z ? whatsappv4:     at processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-12-30T21:00:22.843853Z ? whatsappv4: Caused by: Error
+2025-12-30T21:00:22.843858Z ? whatsappv4:     at _firestore._traceUtil.startActiveSpan (/workspace/node_modules/@google-cloud/firestore/build/src/write-batch.js:438:27)
+2025-12-30T21:00:22.843862Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30
+2025-12-30T21:00:22.843891Z ? whatsappv4:     at NoopContextManager.with (/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextManager.js:25:19)
+2025-12-30T21:00:22.843897Z ? whatsappv4:     at ContextAPI.with (/workspace/node_modules/@opentelemetry/api/build/src/api/context.js:60:46)
+2025-12-30T21:00:22.843903Z ? whatsappv4:     at NoopTracer.startActiveSpan (/workspace/node_modules/@opentelemetry/api/build/src/trace/NoopTracer.js:65:31)
+2025-12-30T21:00:22.843907Z ? whatsappv4:     at ProxyTracer.startActiveSpan (/workspace/node_modules/@opentelemetry/api/build/src/trace/ProxyTracer.js:36:24)
+2025-12-30T21:00:22.843911Z ? whatsappv4:     at EnabledTraceUtil.startActiveSpan (/workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:102:28)
+2025-12-30T21:00:22.843915Z ? whatsappv4:     at WriteBatch.commit (/workspace/node_modules/@google-cloud/firestore/build/src/write-batch.js:436:43)
+2025-12-30T21:00:22.843919Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/reference/document-reference.js:350:31
+2025-12-30T21:00:22.843923Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30 {
+2025-12-30T21:00:22.843927Z ? whatsappv4:   code: 4,
+2025-12-30T21:00:22.843931Z ? whatsappv4:   details: 'Deadline exceeded after 90.801s,LB pick: 0.200s,remote_addr=[2607:f8b0:4001:c16::5f]:443',
+2025-12-30T21:00:22.843940Z ? whatsappv4:   metadata: Metadata {
+2025-12-30T21:00:22.843945Z ? whatsappv4:     internalRepr: Map(0) {},
+2025-12-30T21:00:22.843976Z ? whatsappv4:     opaqueData: Map(0) {},
+2025-12-30T21:00:22.843981Z ? whatsappv4:     options: {}
+2025-12-30T21:00:22.843986Z ? whatsappv4:   },
+2025-12-30T21:00:22.843995Z ? whatsappv4:   note: 'Exception occurred in retry method that was not classified as transient'
+2025-12-30T21:00:22.844004Z ? whatsappv4: }
+2025-12-30T21:00:25.644186Z ? whatsappv4: Failed to sync account status: Error: 4 DEADLINE_EXCEEDED: Deadline exceeded after 90.799s,LB pick: 0.500s,remote_addr=[2607:f8b0:4001:c16::5f]:443
+2025-12-30T21:00:25.644206Z ? whatsappv4:     at callErrorFromStatus (/workspace/node_modules/@grpc/grpc-js/build/src/call.js:32:19)
+2025-12-30T21:00:25.644213Z ? whatsappv4:     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:193:76)
+2025-12-30T21:00:25.644219Z ? whatsappv4:     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:367:141)
+2025-12-30T21:00:25.644225Z ? whatsappv4:     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)
+2025-12-30T21:00:25.644230Z ? whatsappv4:     at /workspace/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78
+2025-12-30T21:00:25.644236Z ? whatsappv4:     at processTicksAndRejections (node:internal/process/task_queues:77:11)
+2025-12-30T21:00:25.644242Z ? whatsappv4:     at runNextTicks (node:internal/process/task_queues:64:3)
+2025-12-30T21:00:25.644248Z ? whatsappv4:     at process.processTimers (node:internal/timers:516:9)
+2025-12-30T21:00:25.644253Z ? whatsappv4: for call at
+2025-12-30T21:00:25.644259Z ? whatsappv4:     at ServiceClientImpl.makeUnaryRequest (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:161:32)
+2025-12-30T21:00:25.644266Z ? whatsappv4:     at ServiceClientImpl.<anonymous> (/workspace/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)
+2025-12-30T21:00:25.644271Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33
+2025-12-30T21:00:25.644276Z ? whatsappv4:     at /workspace/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16
+2025-12-30T21:00:25.644282Z ? whatsappv4:     at repeat (/workspace/node_modules/google-gax/build/src/normalCalls/retries.js:82:25)
+2025-12-30T21:00:25.644287Z ? whatsappv4:     at /workspace/node_modules/google-gax/build/src/normalCalls/retries.js:125:13
+2025-12-30T21:00:25.644293Z ? whatsappv4:     at OngoingCallPromise.call (/workspace/node_modules/google-gax/build/src/call.js:67:27)
+2025-12-30T21:00:25.644298Z ? whatsappv4:     at NormalApiCaller.call (/workspace/node_modules/google-gax/build/src/normalCalls/normalApiCaller.js:34:19)
+2025-12-30T21:00:25.644304Z ? whatsappv4:     at /workspace/node_modules/google-gax/build/src/createApiCall.js:112:30
+2025-12-30T21:00:25.644309Z ? whatsappv4:     at processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-12-30T21:00:25.644318Z ? whatsappv4: Caused by: Error
+2025-12-30T21:00:25.644324Z ? whatsappv4:     at _firestore._traceUtil.startActiveSpan (/workspace/node_modules/@google-cloud/firestore/build/src/write-batch.js:438:27)
+2025-12-30T21:00:25.644331Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30
+2025-12-30T21:00:25.644336Z ? whatsappv4:     at NoopContextManager.with (/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextManager.js:25:19)
+2025-12-30T21:00:25.644342Z ? whatsappv4:     at ContextAPI.with (/workspace/node_modules/@opentelemetry/api/build/src/api/context.js:60:46)
+2025-12-30T21:00:25.644348Z ? whatsappv4:     at NoopTracer.startActiveSpan (/workspace/node_modules/@opentelemetry/api/build/src/trace/NoopTracer.js:65:31)
+2025-12-30T21:00:25.644353Z ? whatsappv4:     at ProxyTracer.startActiveSpan (/workspace/node_modules/@opentelemetry/api/build/src/trace/ProxyTracer.js:36:24)
+2025-12-30T21:00:25.644360Z ? whatsappv4:     at EnabledTraceUtil.startActiveSpan (/workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:102:28)
+2025-12-30T21:00:25.644366Z ? whatsappv4:     at WriteBatch.commit (/workspace/node_modules/@google-cloud/firestore/build/src/write-batch.js:436:43)
+2025-12-30T21:00:25.644371Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/reference/document-reference.js:350:31
+2025-12-30T21:00:25.644377Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30 {
+2025-12-30T21:00:25.644382Z ? whatsappv4:   code: 4,
+2025-12-30T21:00:25.644389Z ? whatsappv4:   details: 'Deadline exceeded after 90.799s,LB pick: 0.500s,remote_addr=[2607:f8b0:4001:c16::5f]:443',
+2025-12-30T21:00:25.644394Z ? whatsappv4:   metadata: Metadata {
+2025-12-30T21:00:25.644399Z ? whatsappv4:     internalRepr: Map(0) {},
+2025-12-30T21:00:25.644404Z ? whatsappv4:     opaqueData: Map(0) {},
+2025-12-30T21:00:25.644410Z ? whatsappv4:     options: {}
+2025-12-30T21:00:25.644415Z ? whatsappv4:   },
+2025-12-30T21:00:25.644425Z ? whatsappv4:   note: 'Exception occurred in retry method that was not classified as transient'
+2025-12-30T21:00:25.644430Z ? whatsappv4: }
+2025-12-30T21:00:27.044544Z ? whatsappv4: Failed to sync account status: Error: 4 DEADLINE_EXCEEDED: Deadline exceeded after 90.001s,name resolution: 0.001s,LB pick: 0.099s,remote_addr=[2607:f8b0:4001:c16::5f]:443
+2025-12-30T21:00:27.044557Z ? whatsappv4:     at callErrorFromStatus (/workspace/node_modules/@grpc/grpc-js/build/src/call.js:32:19)
+2025-12-30T21:00:27.044562Z ? whatsappv4:     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:193:76)
+2025-12-30T21:00:27.044566Z ? whatsappv4:     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:367:141)
+2025-12-30T21:00:27.044570Z ? whatsappv4:     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)
+2025-12-30T21:00:27.044575Z ? whatsappv4:     at /workspace/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78
+2025-12-30T21:00:27.044579Z ? whatsappv4:     at processTicksAndRejections (node:internal/process/task_queues:77:11)
+2025-12-30T21:00:27.044583Z ? whatsappv4:     at runNextTicks (node:internal/process/task_queues:64:3)
+2025-12-30T21:00:27.044595Z ? whatsappv4:     at process.processTimers (node:internal/timers:516:9)
+2025-12-30T21:00:27.044600Z ? whatsappv4: for call at
+2025-12-30T21:00:27.044604Z ? whatsappv4:     at ServiceClientImpl.makeUnaryRequest (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:161:32)
+2025-12-30T21:00:27.044609Z ? whatsappv4:     at ServiceClientImpl.<anonymous> (/workspace/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)
+2025-12-30T21:00:27.044613Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33
+2025-12-30T21:00:27.044617Z ? whatsappv4:     at /workspace/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16
+2025-12-30T21:00:27.044622Z ? whatsappv4:     at repeat (/workspace/node_modules/google-gax/build/src/normalCalls/retries.js:82:25)
+2025-12-30T21:00:27.044625Z ? whatsappv4:     at /workspace/node_modules/google-gax/build/src/normalCalls/retries.js:125:13
+2025-12-30T21:00:27.044630Z ? whatsappv4:     at OngoingCallPromise.call (/workspace/node_modules/google-gax/build/src/call.js:67:27)
+2025-12-30T21:00:27.044634Z ? whatsappv4:     at NormalApiCaller.call (/workspace/node_modules/google-gax/build/src/normalCalls/normalApiCaller.js:34:19)
+2025-12-30T21:00:27.044638Z ? whatsappv4:     at /workspace/node_modules/google-gax/build/src/createApiCall.js:112:30
+2025-12-30T21:00:27.044642Z ? whatsappv4:     at processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-12-30T21:00:27.044648Z ? whatsappv4: Caused by: Error
+2025-12-30T21:00:27.044652Z ? whatsappv4:     at _firestore._traceUtil.startActiveSpan (/workspace/node_modules/@google-cloud/firestore/build/src/write-batch.js:438:27)
+2025-12-30T21:00:27.044655Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30
+2025-12-30T21:00:27.044659Z ? whatsappv4:     at NoopContextManager.with (/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextManager.js:25:19)
+2025-12-30T21:00:27.044663Z ? whatsappv4:     at ContextAPI.with (/workspace/node_modules/@opentelemetry/api/build/src/api/context.js:60:46)
+2025-12-30T21:00:27.044668Z ? whatsappv4:     at NoopTracer.startActiveSpan (/workspace/node_modules/@opentelemetry/api/build/src/trace/NoopTracer.js:65:31)
+2025-12-30T21:00:27.044672Z ? whatsappv4:     at ProxyTracer.startActiveSpan (/workspace/node_modules/@opentelemetry/api/build/src/trace/ProxyTracer.js:36:24)
+2025-12-30T21:00:27.044677Z ? whatsappv4:     at EnabledTraceUtil.startActiveSpan (/workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:102:28)
+2025-12-30T21:00:27.044681Z ? whatsappv4:     at WriteBatch.commit (/workspace/node_modules/@google-cloud/firestore/build/src/write-batch.js:436:43)
+2025-12-30T21:00:27.044685Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/reference/document-reference.js:350:31
+2025-12-30T21:00:27.044690Z ? whatsappv4:     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30 {
+2025-12-30T21:00:27.044694Z ? whatsappv4:   code: 4,
+2025-12-30T21:00:27.044699Z ? whatsappv4:   details: 'Deadline exceeded after 90.001s,name resolution: 0.001s,LB pick: 0.099s,remote_addr=[2607:f8b0:4001:c16::5f]:443',
+2025-12-30T21:00:27.044705Z ? whatsappv4:   metadata: Metadata {
+2025-12-30T21:00:27.044710Z ? whatsappv4:     internalRepr: Map(0) {},
+2025-12-30T21:00:27.044713Z ? whatsappv4:     opaqueData: Map(0) {},
+2025-12-30T21:00:27.044718Z ? whatsappv4:     options: {}
+2025-12-30T21:00:27.044721Z ? whatsappv4:   },
+2025-12-30T21:00:27.044729Z ? whatsappv4:   note: 'Exception occurred in retry method that was not classified as transient'
+2025-12-30T21:00:27.044733Z ? whatsappv4: }
+2025-12-30T21:00:27.944191Z ? whatsappv4: ⏱️ [account_1767002145379] Connection timeout after 30000ms
+2025-12-30T21:00:27.944267Z ? whatsappv4: 🔄 [account_1767002145379] Reconnect attempt 4/5 in 8000ms...
+2025-12-30T21:00:27.944343Z ? whatsappv4: ⏱️ [account_1767003100302] Connection timeout after 30000ms
+2025-12-30T21:00:27.944393Z ? whatsappv4: 🔄 [account_1767003100302] Reconnect attempt 2/5 in 2000ms...
+2025-12-30T21:00:27.944441Z ? whatsappv4: ⏱️ [account_1767002931111] Connection timeout after 30000ms
+2025-12-30T21:00:27.944471Z ? whatsappv4: 🔄 [account_1767002931111] Reconnect attempt 3/5 in 4000ms...
+2025-12-30T21:00:27.944527Z ? whatsappv4: ⏱️ [account_1767127877144] Connection timeout after 30000ms
+2025-12-30T21:00:28.043854Z ? whatsappv4: ❌ [account_1767127877144] Max reconnect attempts (5) reached, generating QR...
+2025-12-30T21:00:28.044317Z ? whatsappv4: 🔌 [account_1767127877144] Connection closed. Reason: unknown, Reconnect: true
+2025-12-30T21:00:29.544870Z ? whatsappv4: ⏱️ [account_1767127878344] Connection timeout after 30000ms
+2025-12-30T21:00:29.544928Z ? whatsappv4: ❌ [account_1767127878344] Max reconnect attempts (5) reached, generating QR...
+2025-12-30T21:00:29.545277Z ? whatsappv4: 🔌 [account_1767127878344] Connection closed. Reason: unknown, Reconnect: true
+2025-12-30T21:00:31.343686Z ? whatsappv4: ⏱️ [account_1767127941646] Connection timeout after 30000ms
+2025-12-30T21:00:31.343857Z ? whatsappv4: ❌ [account_1767127941646] Max reconnect attempts (5) reached, generating QR...
+2025-12-30T21:00:31.643919Z ? whatsappv4: 🔌 [account_1767127941646] Connection closed. Reason: unknown, Reconnect: true
+2025-12-30T21:00:40.043629Z ? whatsappv4: 🔄 [account_1767067289790] Auto-reconnecting...
+2025-12-30T21:00:40.352459Z ? whatsappv4: 🔄 [account_1767003100302] Auto-reconnecting...
+2025-12-30T21:00:40.544320Z ? whatsappv4: 🔄 [account_1767002931111] Auto-reconnecting...
+2025-12-30T21:01:15.844360Z ? whatsappv4: ✅ [account_1767072321868] Session restored from Firestore
+2025-12-30T21:01:15.844444Z ? whatsappv4: ✅ [account_1767072321868] Session restored from Firestore
+2025-12-30T21:01:22.043650Z ? whatsappv4: ℹ️ [account_1767128111644] No saved session in Firestore
+2025-12-30T21:01:24.844301Z ? whatsappv4: ℹ️ [account_1767128110845] No saved session in Firestore
+2025-12-30T21:01:26.044935Z ? whatsappv4: ℹ️ [account_1767128108345] No saved session in Firestore
+2025-12-30T21:01:26.443829Z ? whatsappv4: ℹ️ [account_1767127878344] No saved session in Firestore
+2025-12-30T21:01:26.743647Z ? whatsappv4: ✅ [account_1767002931111] Session restored from Firestore
+2025-12-30T21:01:26.843974Z ? whatsappv4: ✅ [account_1767002931111] Session restored from Firestore
+2025-12-30T21:01:27.044458Z ? whatsappv4: ✅ [account_1767071155439] Session restored from Firestore
+2025-12-30T21:01:27.044570Z ? whatsappv4: ✅ [account_1767071155439] Session restored from Firestore
+2025-12-30T21:01:28.544116Z ? whatsappv4: ✅ [account_1767003100302] Session restored from Firestore
+2025-12-30T21:01:28.544179Z ? whatsappv4: ✅ [account_1767003100302] Session restored from Firestore
+2025-12-30T21:01:30.744010Z ? whatsappv4: ✅ [account_1767067289790] Session restored from Firestore
+2025-12-30T21:01:30.744146Z ? whatsappv4: ✅ [account_1767067289790] Session restored from Firestore
+2025-12-30T21:01:32.143827Z ? whatsappv4: ✅ [account_1767072488267] Session restored from Firestore
+2025-12-30T21:01:32.143906Z ? whatsappv4: ✅ [account_1767072488267] Session restored from Firestore
+2025-12-30T21:01:32.743932Z ? whatsappv4: ℹ️ [account_1767127877144] No saved session in Firestore
+2025-12-30T21:01:33.743938Z ? whatsappv4: ✅ [account_1767002145379] Session restored from Firestore
+2025-12-30T21:01:33.744039Z ? whatsappv4: ✅ [account_1767002145379] Session restored from Firestore
+2025-12-30T21:01:35.143726Z ? whatsappv4: ℹ️ [account_1767127941646] No saved session in Firestore
+2025-12-30T21:01:36.044091Z ? whatsappv4: ✅ [account_1767072304168] Session restored from Firestore
+2025-12-30T21:01:36.044156Z ? whatsappv4: ✅ [account_1767072304168] Session restored from Firestore
+2025-12-30T21:01:36.244170Z ? whatsappv4: ℹ️ [account_1767127877144] No saved session in Firestore
+2025-12-30T21:01:36.444252Z ? whatsappv4: ✅ [account_1767003050123] Session restored from Firestore
+2025-12-30T21:01:36.444305Z ? whatsappv4: ✅ [account_1767003050123] Session restored from Firestore
+2025-12-30T21:01:37.743994Z ? whatsappv4: ✅ [account_1767002145379] Session restored from Firestore
+2025-12-30T21:01:37.843860Z ? whatsappv4: ✅ [account_1767002145379] Session restored from Firestore
+2025-12-30T21:01:38.943925Z ? whatsappv4: ℹ️ [account_1767127878344] No saved session in Firestore
+2025-12-30T21:01:39.845683Z ? whatsappv4: ✅ [account_1767072304168] Session restored from Firestore
+2025-12-30T21:01:39.845780Z ? whatsappv4: ✅ [account_1767072304168] Session restored from Firestore
+2025-12-30T21:01:41.043787Z ? whatsappv4: ✅ [account_1767071155439] Session restored from Firestore
+2025-12-30T21:01:41.043911Z ? whatsappv4: ✅ [account_1767071155439] Session restored from Firestore
+2025-12-30T21:01:41.147749Z ? whatsappv4: ✅ [account_1767072321868] Session restored from Firestore
+2025-12-30T21:01:41.147796Z ? whatsappv4: ✅ [account_1767072321868] Session restored from Firestore
+2025-12-30T21:01:41.743704Z ? whatsappv4: ✅ [account_1767067289790] Session restored from Firestore
+2025-12-30T21:01:41.743933Z ? whatsappv4: ✅ [account_1767067289790] Session restored from Firestore
+2025-12-30T21:01:43.345642Z ? whatsappv4: ✅ [account_1767003100302] Session restored from Firestore
+2025-12-30T21:01:43.345701Z ? whatsappv4: ✅ [account_1767003100302] Session restored from Firestore
+2025-12-30T21:01:43.843849Z ? whatsappv4: ✅ [account_1767071155439] Session restored from Firestore
+2025-12-30T21:01:43.844005Z ? whatsappv4: ✅ [account_1767071155439] Session restored from Firestore
+2025-12-30T21:01:45.043647Z ? whatsappv4: ✅ [account_1767072304168] Session restored from Firestore
+2025-12-30T21:01:45.043874Z ? whatsappv4: ✅ [account_1767072304168] Session restored from Firestore
+2025-12-30T21:01:45.644616Z ? whatsappv4: ✅ [account_1767002931111] Session restored from Firestore
+2025-12-30T21:01:45.644683Z ? whatsappv4: ✅ [account_1767002931111] Session restored from Firestore
+2025-12-30T21:01:46.344011Z ? whatsappv4: ℹ️ [account_1767128108345] No saved session in Firestore
+2025-12-30T21:01:48.144193Z ? whatsappv4: ℹ️ [account_1767128308644] No saved session in Firestore
+2025-12-30T21:01:49.944273Z ? whatsappv4: ✅ [account_1767003050123] Session restored from Firestore
+2025-12-30T21:01:49.945302Z ? whatsappv4: ✅ [account_1767003050123] Session restored from Firestore
+2025-12-30T21:01:50.944602Z ? whatsappv4: ℹ️ [account_1767128111644] No saved session in Firestore
+2025-12-30T21:01:51.444460Z ? whatsappv4: ℹ️ [account_1767128310244] No saved session in Firestore
+2025-12-30T21:01:51.843707Z ? whatsappv4: ✅ [account_1767072488267] Session restored from Firestore
+2025-12-30T21:01:51.843847Z ? whatsappv4: ✅ [account_1767072488267] Session restored from Firestore
+2025-12-30T21:01:52.444037Z ? whatsappv4: ℹ️ [account_1767128110845] No saved session in Firestore
+2025-12-30T21:01:53.544247Z ? whatsappv4: ✅ [account_1767002145379] Session restored from Firestore
+2025-12-30T21:01:53.643749Z ? whatsappv4: ✅ [account_1767002145379] Session restored from Firestore
+2025-12-30T21:01:54.543963Z ? whatsappv4: ✅ [account_1767002145379] Session restored from Firestore
+2025-12-30T21:01:54.544065Z ? whatsappv4: ✅ [account_1767002145379] Session restored from Firestore
+2025-12-30T21:01:55.246913Z ? whatsappv4: ℹ️ [account_1767127877144] No saved session in Firestore
+2025-12-30T21:01:55.944379Z ? whatsappv4: ✅ [account_1767003100302] Session restored from Firestore
+2025-12-30T21:01:55.944427Z ? whatsappv4: ✅ [account_1767003100302] Session restored from Firestore
+2025-12-30T21:01:56.245097Z ? whatsappv4: ℹ️ [account_1767127941646] No saved session in Firestore
+2025-12-30T21:01:56.644761Z ? whatsappv4: ℹ️ [account_1767127878344] No saved session in Firestore
+2025-12-30T21:01:58.149576Z ? whatsappv4: ✅ [account_1767002931111] Session restored from Firestore
+2025-12-30T21:01:58.149656Z ? whatsappv4: ✅ [account_1767002931111] Session restored from Firestore
+2025-12-30T21:01:59.643807Z ? whatsappv4: ✅ [account_1767067289790] Session restored from Firestore
+2025-12-30T21:01:59.643919Z ? whatsappv4: ✅ [account_1767067289790] Session restored from Firestore
+2025-12-30T21:02:00.444168Z ? whatsappv4: 💾 [account_1767072321868] Session saved to Firestore with metadata
+2025-12-30T21:02:05.244608Z ? whatsappv4: 🔄 [account_1767002145379] Auto-reconnecting...
+2025-12-30T21:02:05.443971Z ? whatsappv4: [Health Check] Account account_1767067289790 - no activity for 2 min, checking...
+2025-12-30T21:02:05.644184Z ? whatsappv4: Unhandled rejection
+2025-12-30T21:02:05.846439Z E whatsappv4: Error: Connection Closed
+    at sendRawMessage (file:///workspace/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:56:19)
+    at sendNode (file:///workspace/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:75:16)
+    at Object.sendPresenceUpdate (file:///workspace/node_modules/@whiskeysockets/baileys/lib/Socket/chats.js:492:19)
+    at Timeout._onTimeout (/workspace/whatsapp/manager.js:180:18)
+    at listOnTimeout (node:internal/timers:581:17)
+    at process.processTimers (node:internal/timers:519:7)
+2025-12-30T21:02:06.913363Z E whatsappv4: Error: Process exited with code 16
+    at process.<anonymous> (/layers/google.nodejs.functions-framework/functions-framework/node_modules/@google-cloud/functions-framework/build/src/invoker.js:96:22)
+    at process.emit (node:events:524:28)
+    at process.emit (node:domain:489:12)
+    at process.exit (node:internal/process/per_thread:184:15)
+    at sendCrashResponse (/layers/google.nodejs.functions-framework/functions-framework/node_modules/@google-cloud/functions-framework/build/src/logger.js:49:9)
+    at process.<anonymous> (/layers/google.nodejs.functions-framework/functions-framework/node_modules/@google-cloud/functions-framework/build/src/invoker.js:89:44)
+    at process.emit (node:events:524:28)
+    at process.emit (node:domain:489:12)
+    at emitUnhandledRejection (node:internal/process/promises:250:13)
+    at throwUnhandledRejectionsMode (node:internal/process/promises:385:19)
+2025-12-30T21:02:07.744046512Z W whatsappv4: Container called exit(16).
