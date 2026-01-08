@@ -8,20 +8,26 @@ service cloud.firestore {
       return request.auth != null;
     }
     
+    // Helper function: check if user is super admin by email
+    function isSuperAdminEmail() {
+      return request.auth != null && request.auth.token.email == 'ursache.andrei1995@gmail.com';
+    }
+    
     // Helper function: check if user has staff profile
     function hasStaffProfile() {
       return isAuthenticated() && exists(/databases/$(database)/documents/staffProfiles/$(request.auth.uid));
     }
     
-    // Helper function: check if user is employee (authenticated + has staff profile)
+    // Helper function: check if user is employee (authenticated + has staff profile OR super admin)
     function isEmployee() {
-      return isAuthenticated() && hasStaffProfile();
+      return isSuperAdminEmail() || (isAuthenticated() && hasStaffProfile());
     }
     
-    // Helper function: check if user is GM or Admin (based on role in staffProfiles)
+    // Helper function: check if user is GM or Admin (based on role in staffProfiles OR super admin)
     function isGmOrAdmin() {
-      return isEmployee() && 
-             get(/databases/$(database)/documents/staffProfiles/$(request.auth.uid)).data.role in ['gm', 'admin'];
+      return isSuperAdminEmail() || 
+             (hasStaffProfile() && 
+              get(/databases/$(database)/documents/staffProfiles/$(request.auth.uid)).data.role in ['gm', 'admin']);
     }
     
     // Helper function: get staff code
@@ -41,9 +47,25 @@ service cloud.firestore {
     }
     
     // Staff profiles - readable by all employees for display names/roles
+    // SECURITY: Prevent privilege escalation - users cannot change their own role
     match /staffProfiles/{profileId} {
       allow read: if isEmployee(); // All employees can read staff profiles
-      allow write: if isAuthenticated() && (request.auth.uid == profileId || isGmOrAdmin());
+      
+      // Create: Only GM/Admin can create staff profiles
+      allow create: if isGmOrAdmin();
+      
+      // Update: Users can update their own profile BUT cannot change role field
+      // GM/Admin can update any profile including role
+      allow update: if isAuthenticated() && (
+        // GM/Admin can update anything
+        isGmOrAdmin() ||
+        // User can update own profile but role must remain unchanged
+        (request.auth.uid == profileId && 
+         request.resource.data.role == resource.data.role)
+      );
+      
+      // Delete: Never allow (use isArchived instead)
+      allow delete: if false;
     }
     
     // KYC Submissions
@@ -69,13 +91,16 @@ service cloud.firestore {
       // Dovezi subcollection
       match /dovezi/{evidenceId} {
         allow read: if isAuthenticated();
-        allow create: if isAuthenticated() && hasStaffProfile();
+        allow create: if isEmployee(); // Use isEmployee (includes super-admin)
         // Update doar dacă categoria nu e locked (check both new and old schema)
-        allow update: if isAuthenticated() && hasStaffProfile() && 
-                       (!exists(/databases/$(database)/documents/evenimente/$(eventId)/evidenceState/$(resource.data.category)) ||
-                        !get(/databases/$(database)/documents/evenimente/$(eventId)/evidenceState/$(resource.data.category)).data.locked) &&
-                       (!exists(/databases/$(database)/documents/evenimente/$(eventId)/dovezi_meta/$(resource.data.categorie)) ||
-                        !get(/databases/$(database)/documents/evenimente/$(eventId)/dovezi_meta/$(resource.data.categorie)).data.locked);
+        // Super-admin can always update
+        allow update: if isEmployee() && (
+          isSuperAdminEmail() ||
+          ((!exists(/databases/$(database)/documents/evenimente/$(eventId)/evidenceState/$(resource.data.category)) ||
+            !get(/databases/$(database)/documents/evenimente/$(eventId)/evidenceState/$(resource.data.category)).data.locked) &&
+           (!exists(/databases/$(database)/documents/evenimente/$(eventId)/dovezi_meta/$(resource.data.categorie)) ||
+            !get(/databases/$(database)/documents/evenimente/$(eventId)/dovezi_meta/$(resource.data.categorie)).data.locked))
+        );
         allow delete: if false; // NEVER DELETE - use isArchived instead
       }
       
@@ -218,6 +243,13 @@ service cloud.firestore {
     match /app_config/{document} {
       allow read: if true;  // Public read for update checks
       allow write: if isAdmin();
+    }
+    
+    // Conversation states for interactive event creation
+    // Only accessible by the user who owns the session
+    match /conversationStates/{sessionId} {
+      allow read, write: if isAuthenticated();
+      allow delete: if isAuthenticated();
     }
     
     // Default deny all other collections
