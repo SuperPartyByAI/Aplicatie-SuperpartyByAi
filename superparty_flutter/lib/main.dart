@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'services/firebase_service.dart';
 import 'services/background_service.dart';
 import 'services/push_notification_service.dart';
+import 'services/role_service.dart';
 import 'providers/app_state_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
@@ -106,8 +107,20 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
-  // Note: Force update is now handled by UpdateGate at app root
-  // This wrapper only handles auth state changes
+  final RoleService _roleService = RoleService();
+
+  /// Load user role from staffProfiles and update AppState
+  Future<void> _loadUserRole(BuildContext context) async {
+    try {
+      final appState = Provider.of<AppStateProvider>(context, listen: false);
+      final role = await _roleService.getUserRole();
+      final isEmployee = role != null;
+      
+      appState.setEmployeeStatus(isEmployee, role);
+    } catch (e) {
+      print('Error loading user role: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -127,6 +140,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
           BackgroundService.startService().catchError((e) {
             print('Failed to start background service: $e');
           });
+          
+          // Load user role from staffProfiles
+          _loadUserRole(context);
           
           // Check user status in Firestore
           return StreamBuilder<DocumentSnapshot>(
