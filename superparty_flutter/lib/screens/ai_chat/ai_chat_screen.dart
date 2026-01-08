@@ -343,34 +343,73 @@ class _AIChatScreenState extends State<AIChatScreen> {
     _scrollToBottomSoon();
 
     try {
-      final callable =
-          FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
-        'chatWithAI',
-        options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
-      );
+      // Detect event management commands
+      final lowerText = text.toLowerCase();
+      final isEventCommand = lowerText.contains('creează eveniment') ||
+          lowerText.contains('creeaza eveniment') ||
+          lowerText.contains('notează petrecere') ||
+          lowerText.contains('noteaza petrecere') ||
+          lowerText.contains('vreau să notez') ||
+          lowerText.contains('adaugă eveniment') ||
+          lowerText.contains('adauga eveniment') ||
+          lowerText.contains('update eveniment') ||
+          lowerText.contains('actualizează eveniment') ||
+          lowerText.contains('arhivează eveniment') ||
+          lowerText.contains('arhiveaza eveniment') ||
+          lowerText.contains('listează evenimente') ||
+          lowerText.contains('listeaza evenimente');
 
-      final messagesToSend = _messages
-          .where((m) => m['content'] != '...')
-          .toList()
-          .reversed
-          .take(10)
-          .toList()
-          .reversed
-          .toList();
+      String aiResponse;
 
-      if (_userName != null && _userName!.isNotEmpty) {
-        messagesToSend.insert(0, {
-          'role': 'system',
-          'content': 'Numele utilizatorului este: $_userName'
+      if (isEventCommand) {
+        // Use chatEventOps for event management
+        final eventCallable =
+            FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
+          'chatEventOps',
+          options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+        );
+
+        final eventResult = await eventCallable.call({'text': text});
+        final data = Map<String, dynamic>.from(eventResult.data);
+        
+        aiResponse = data['message']?.toString() ?? 
+                     'Operație completată: ${data['action']}';
+        
+        // If event was created/updated, show success with details
+        if (data['ok'] == true && data['eventId'] != null) {
+          aiResponse = '✅ ${aiResponse}\n\nID Eveniment: ${data['eventId']}';
+        }
+      } else {
+        // Use regular chatWithAI for normal conversation
+        final callable =
+            FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
+          'chatWithAI',
+          options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+        );
+
+        final messagesToSend = _messages
+            .where((m) => m['content'] != '...')
+            .toList()
+            .reversed
+            .take(10)
+            .toList()
+            .reversed
+            .toList();
+
+        if (_userName != null && _userName!.isNotEmpty) {
+          messagesToSend.insert(0, {
+            'role': 'system',
+            'content': 'Numele utilizatorului este: $_userName'
+          });
+        }
+
+        final result = await callable.call({
+          'messages': messagesToSend,
+          'sessionId': _sessionId,
         });
+
+        aiResponse = result.data['message'] ?? 'No response';
       }
-
-      final result = await callable.call({
-        'messages': messagesToSend,
-        'sessionId': _sessionId,
-      });
-
-      final aiResponse = result.data['message'] ?? 'No response';
 
       if (!hasImage) {
         AICacheService.cacheResponse(text, aiResponse).catchError((_) {});
