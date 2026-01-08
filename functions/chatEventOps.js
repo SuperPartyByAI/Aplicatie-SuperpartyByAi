@@ -11,6 +11,15 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
+// Super admin email with full access
+const SUPER_ADMIN_EMAIL = 'ursache.andrei1995@gmail.com';
+
+// Admin emails from environment (comma-separated)
+function getAdminEmails() {
+  const envEmails = process.env.ADMIN_EMAILS || '';
+  return envEmails.split(',').map(e => e.trim()).filter(Boolean);
+}
+
 async function requireEmployee(request) {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Trebuie să fii autentificat.');
@@ -18,6 +27,19 @@ async function requireEmployee(request) {
 
   const uid = request.auth.uid;
   const email = request.auth.token?.email || '';
+
+  // Super admin override - full access without needing staffProfiles
+  const adminEmails = [SUPER_ADMIN_EMAIL, ...getAdminEmails()];
+  if (adminEmails.includes(email)) {
+    return {
+      uid,
+      email,
+      role: 'admin',
+      isGmOrAdmin: true,
+      staffCode: uid,
+      isSuperAdmin: true,
+    };
+  }
 
   // Check if user has staff profile
   const db = admin.firestore();
@@ -40,6 +62,7 @@ async function requireEmployee(request) {
     role,
     isGmOrAdmin,
     staffCode: staffData?.code || uid,
+    isSuperAdmin: false,
   };
 }
 
@@ -59,11 +82,16 @@ function extractJson(text) {
 function defaultRoles() {
   const base = [
     { slot: 'A', label: 'Animator', time: '14:00', durationMin: 120 },
-    { slot: 'B', label: 'Fotograf', time: '14:00', durationMin: 120 },
-    { slot: 'C', label: 'DJ', time: '14:00', durationMin: 120 },
-    { slot: 'D', label: 'Barman', time: '14:00', durationMin: 120 },
-    { slot: 'E', label: 'Ospatar', time: '14:00', durationMin: 120 },
-    { slot: 'F', label: 'Bucatar', time: '14:00', durationMin: 120 },
+    { slot: 'B', label: 'Ursitoare', time: '14:00', durationMin: 120 },
+    { slot: 'C', label: 'Vată de zahăr', time: '14:00', durationMin: 120 },
+    { slot: 'D', label: 'Popcorn', time: '14:00', durationMin: 120 },
+    { slot: 'E', label: 'Vată + Popcorn', time: '14:00', durationMin: 120 },
+    { slot: 'F', label: 'Decorațiuni', time: '14:00', durationMin: 120 },
+    { slot: 'G', label: 'Baloane', time: '14:00', durationMin: 120 },
+    { slot: 'H', label: 'Baloane cu heliu', time: '14:00', durationMin: 120 },
+    { slot: 'I', label: 'Aranjamente de masă', time: '14:00', durationMin: 120 },
+    { slot: 'J', label: 'Moș Crăciun', time: '14:00', durationMin: 120 },
+    { slot: 'K', label: 'Gheață carbonică', time: '14:00', durationMin: 120 },
   ];
   return base;
 }
@@ -92,6 +120,9 @@ exports.chatEventOps = onCall(
     const text = (request.data?.text || '').toString().trim();
     if (!text) throw new HttpsError('invalid-argument', 'Lipsește "text".');
 
+    // DryRun mode: parse command but don't execute (for preview)
+    const dryRun = request.data?.dryRun === true;
+
     const groqKey = process.env.GROQ_API_KEY;
     if (!groqKey) throw new HttpsError('failed-precondition', 'Lipsește GROQ_API_KEY.');
 
@@ -100,19 +131,48 @@ exports.chatEventOps = onCall(
     const system = `
 Ești un asistent pentru gestionarea evenimentelor din Firestore (colecția "evenimente").
 NU ȘTERGE NICIODATĂ. Ștergerea e interzisă (NEVER DELETE); folosește ARCHIVE (isArchived=true).
-Răspunde DOAR cu JSON valid, fără text extra.
+
+IMPORTANT - OUTPUT FORMAT:
+- Returnează DOAR JSON valid, fără text extra, fără markdown, fără explicații
+- NU folosi \`\`\`json sau alte formatări
+- Răspunsul trebuie să fie JSON pur care poate fi parsat direct
+
+IMPORTANT - DATE FORMAT:
+- date MUST be in YYYY-MM-DD format (ex: 2026-01-15)
+- Dacă user spune "mâine", "săptămâna viitoare", "vinerea viitoare" → returnează action:"NONE" cu message:"Te rog să specifici data exactă în format YYYY-MM-DD (ex: 2026-01-15)"
+- NU calcula date relative
+- NU accepta date în alt format (ex: "15 ianuarie 2026" → refuză)
+
+IMPORTANT - ADDRESS:
+- address trebuie să fie non-empty string
+- Dacă lipsește adresa → returnează action:"NONE" cu message:"Te rog să specifici adresa/locația evenimentului"
 
 Schema v2 relevantă:
 - schemaVersion: 2
-- date: "YYYY-MM-DD"
-- address: string
+- date: "YYYY-MM-DD" (OBLIGATORIU pentru CREATE)
+- address: string (OBLIGATORIU pentru CREATE)
 - sarbatoritNume: string
 - sarbatoritVarsta: int
 - incasare: { status: "INCASAT|NEINCASAT|ANULAT", metoda?: "CASH|CARD|TRANSFER", suma?: number }
-- roles: [{ slot:"A"-"J", label:string, time:"HH:mm", durationMin:int, assignedCode?:string, pendingCode?:string }]
+- roles: [{ slot:"A"-"K", label:string, time:"HH:mm", durationMin:int, assignedCode?:string, pendingCode?:string }]
 - isArchived: bool
 - archivedAt/by/reason (doar la arhivare)
 - createdAt/by, updatedAt/by (audit)
+
+ROLURI DISPONIBILE (folosește DOAR acestea):
+- Animator (animație petreceri)
+- Ursitoare (pentru botezuri)
+- Vată de zahăr
+- Popcorn
+- Vată + Popcorn (combo)
+- Decorațiuni
+- Baloane
+- Baloane cu heliu
+- Aranjamente de masă
+- Moș Crăciun
+- Gheață carbonică
+
+NU folosi: fotograf, DJ, candy bar, barman, ospătar, bucătar (nu sunt servicii oferite).
 
 Returnează:
 {
@@ -160,6 +220,8 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
 
     if (action === 'LIST') {
       const limit = Math.max(1, Math.min(50, Number(cmd.limit || 10)));
+      
+      // LIST is read-only, execute even in dryRun
       const snap = await db.collection('evenimente')
         .where('isArchived', '==', false)
         .orderBy('date', 'desc')
@@ -167,15 +229,45 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         .get();
 
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      return { ok: true, action: 'LIST', items };
+      return { ok: true, action: 'LIST', items, dryRun: false };
     }
 
     if (action === 'CREATE') {
       const data = cmd.data || {};
       const clientRequestId = request.data?.clientRequestId || null;
 
+      // VALIDATION: date and address are required
+      const dateStr = String(data.date || '').trim();
+      const addressStr = String(data.address || '').trim();
+      
+      if (!dateStr) {
+        return {
+          ok: false,
+          action: 'NONE',
+          message: 'Lipsește data evenimentului. Te rog să specifici data în format YYYY-MM-DD (ex: 2026-01-15).',
+        };
+      }
+      
+      if (!addressStr) {
+        return {
+          ok: false,
+          action: 'NONE',
+          message: 'Lipsește adresa evenimentului. Te rog să specifici locația (ex: București, Str. Exemplu 10).',
+        };
+      }
+      
+      // Validate date format (YYYY-MM-DD)
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(dateStr)) {
+        return {
+          ok: false,
+          action: 'NONE',
+          message: `Data trebuie să fie în format YYYY-MM-DD (ex: 2026-01-15). Ai introdus: "${dateStr}"`,
+        };
+      }
+
       // Idempotency: check if event with this clientRequestId already exists
-      if (clientRequestId) {
+      if (clientRequestId && !dryRun) {
         const existingSnap = await db.collection('evenimente')
           .where('clientRequestId', '==', clientRequestId)
           .limit(1)
@@ -189,6 +281,7 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
             eventId: existingDoc.id,
             message: `Eveniment deja creat: ${existingDoc.id}`,
             idempotent: true,
+            dryRun: false,
           };
         }
       }
@@ -216,8 +309,19 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         return { ok: false, action: 'NONE', message: 'CREATE necesită cel puțin date (YYYY-MM-DD) și address.' };
       }
 
+      // DryRun: return preview without writing to Firestore
+      if (dryRun) {
+        return {
+          ok: true,
+          action: 'CREATE',
+          data: doc,
+          message: 'Preview: Eveniment va fi creat cu aceste date',
+          dryRun: true,
+        };
+      }
+
       const ref = await db.collection('evenimente').add(doc);
-      return { ok: true, action: 'CREATE', eventId: ref.id, message: `Eveniment creat: ${ref.id}` };
+      return { ok: true, action: 'CREATE', eventId: ref.id, message: `Eveniment creat: ${ref.id}`, dryRun: false };
     }
 
     if (action === 'UPDATE') {
@@ -234,8 +338,20 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
       delete patch.archivedBy;
       delete patch.archiveReason;
 
+      // DryRun: return preview without writing to Firestore
+      if (dryRun) {
+        return {
+          ok: true,
+          action: 'UPDATE',
+          eventId,
+          data: patch,
+          message: `Preview: Eveniment ${eventId} va fi actualizat cu aceste date`,
+          dryRun: true,
+        };
+      }
+
       await db.collection('evenimente').doc(eventId).update(patch);
-      return { ok: true, action: 'UPDATE', eventId, message: `Eveniment actualizat: ${eventId}` };
+      return { ok: true, action: 'UPDATE', eventId, message: `Eveniment actualizat: ${eventId}`, dryRun: false };
     }
 
     if (action === 'ARCHIVE') {
@@ -251,13 +367,36 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         updatedBy: uid,
       };
 
+      // DryRun: return preview without writing to Firestore
+      if (dryRun) {
+        return {
+          ok: true,
+          action: 'ARCHIVE',
+          eventId,
+          reason: cmd.reason || '',
+          message: `Preview: Eveniment ${eventId} va fi arhivat`,
+          dryRun: true,
+        };
+      }
+
       await db.collection('evenimente').doc(eventId).update(update);
-      return { ok: true, action: 'ARCHIVE', eventId, message: `Eveniment arhivat: ${eventId}` };
+      return { ok: true, action: 'ARCHIVE', eventId, message: `Eveniment arhivat: ${eventId}`, dryRun: false };
     }
 
     if (action === 'UNARCHIVE') {
       const eventId = String(cmd.eventId || '').trim();
       if (!eventId) return { ok: false, action: 'NONE', message: 'UNARCHIVE necesită eventId.' };
+
+      // DryRun: return preview without writing to Firestore
+      if (dryRun) {
+        return {
+          ok: true,
+          action: 'UNARCHIVE',
+          eventId,
+          message: `Preview: Eveniment ${eventId} va fi dezarhivat`,
+          dryRun: true,
+        };
+      }
 
       await db.collection('evenimente').doc(eventId).update({
         isArchived: false,
@@ -268,7 +407,7 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         updatedBy: uid,
       });
 
-      return { ok: true, action: 'UNARCHIVE', eventId, message: `Eveniment dezarhivat: ${eventId}` };
+      return { ok: true, action: 'UNARCHIVE', eventId, message: `Eveniment dezarhivat: ${eventId}`, dryRun: false };
     }
 
     return { ok: false, action: 'NONE', message: `Acțiune necunoscută: ${action}`, raw };

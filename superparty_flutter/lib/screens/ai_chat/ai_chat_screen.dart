@@ -90,7 +90,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
   }
 
   String _welcomeText() => _userName != null
-      ? 'Salut, $_userName! Cu ce te pot ajuta?'
+      ? 'Salut, $_userName! Cu ce te pot ajuta?\n\n💡 Poți crea evenimente direct din chat:\n• "Notează o petrecere pe 15 martie"\n• "Am de notat un eveniment pe 10 aprilie"\n• "Creează o petrecere la Grand Hotel"\n• Sau folosește: /event [descriere]'
       : 'Salut! Cum te cheamă?';
 
   Future<void> _scrollToBottomSoon() async {
@@ -343,42 +343,58 @@ class _AIChatScreenState extends State<AIChatScreen> {
     _scrollToBottomSoon();
 
     try {
-      // Detect event management commands
-      final lowerText = text.toLowerCase();
-      final isEventCommand = lowerText.contains('creează eveniment') ||
-          lowerText.contains('creeaza eveniment') ||
-          lowerText.contains('notează petrecere') ||
-          lowerText.contains('noteaza petrecere') ||
-          lowerText.contains('vreau să notez') ||
-          lowerText.contains('adaugă eveniment') ||
-          lowerText.contains('adauga eveniment') ||
-          lowerText.contains('update eveniment') ||
-          lowerText.contains('actualizează eveniment') ||
-          lowerText.contains('arhivează eveniment') ||
-          lowerText.contains('arhiveaza eveniment') ||
-          lowerText.contains('listează evenimente') ||
-          lowerText.contains('listeaza evenimente');
+      // Detect event intent - both explicit commands and natural language
+      final isExplicitCommand = text.startsWith('/event ') || text.startsWith('/eveniment ');
+      final hasNaturalEventIntent = _detectEventIntent(text);
+      final isEventCommand = isExplicitCommand || hasNaturalEventIntent;
 
       String aiResponse;
 
       if (isEventCommand) {
-        // Use chatEventOps for event management
+        // Extract command text
+        String commandText;
+        if (isExplicitCommand) {
+          // Remove /event or /eveniment prefix
+          final prefixLength = text.startsWith('/event ') ? 7 : 11;
+          commandText = text.substring(prefixLength).trim();
+        } else {
+          // Use full text for natural language
+          commandText = text;
+        }
+        
+        // Generate unique clientRequestId for idempotency
+        final clientRequestId = 'req_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
+        
+        // Call chatEventOps with dryRun=true for preview
         final eventCallable =
             FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
           'chatEventOps',
           options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
         );
 
-        final eventResult = await eventCallable.call({'text': text});
-        final data = Map<String, dynamic>.from(eventResult.data);
+        final previewResult = await eventCallable.call({
+          'text': commandText,
+          'dryRun': true,
+          'clientRequestId': clientRequestId,
+        });
         
-        aiResponse = data['message']?.toString() ?? 
-                     'Operație completată: ${data['action']}';
+        final previewData = Map<String, dynamic>.from(previewResult.data);
         
-        // If event was created/updated, show success with details
-        if (data['ok'] == true && data['eventId'] != null) {
-          aiResponse = '✅ ${aiResponse}\n\nID Eveniment: ${data['eventId']}';
-        }
+        // Remove placeholder and show preview
+        setState(() {
+          _messages.removeAt(placeholderIndex);
+          _loading = false;
+        });
+        
+        // Show preview card with confirmation buttons
+        _showEventPreview(
+          context: context,
+          previewData: previewData,
+          commandText: commandText,
+          clientRequestId: clientRequestId,
+        );
+        
+        return; // Don't add response message yet, wait for confirmation
       } else {
         // Use regular chatWithAI for normal conversation
         final callable =
@@ -674,7 +690,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                 style: const TextStyle(color: _text, fontSize: 14, height: 1.3),
                 decoration: const InputDecoration(
                   border: InputBorder.none,
-                  hintText: 'Scrie un mesaj...',
+                  hintText: 'Scrie un mesaj sau "Notează o petrecere..."',
                   hintStyle: TextStyle(color: Color(0x8CEAF1FF)),
                 ),
                 textInputAction: TextInputAction.send,
@@ -1095,6 +1111,339 @@ class _AIChatScreenState extends State<AIChatScreen> {
   String _makeImageId() {
     final r = Random().nextInt(1 << 32).toRadixString(16);
     return 'img_${DateTime.now().millisecondsSinceEpoch}_$r';
+  }
+
+  // ===================== Event Command Preview =====================
+
+  void _showEventPreview({
+    required BuildContext context,
+    required Map<String, dynamic> previewData,
+    required String commandText,
+    required String clientRequestId,
+  }) {
+    final action = previewData['action']?.toString().toUpperCase() ?? 'NONE';
+    final ok = previewData['ok'] == true;
+    final message = previewData['message']?.toString() ?? '';
+
+    if (!ok || action == 'NONE') {
+      // Show error message
+      setState(() {
+        _messages.add({
+          'role': 'assistant',
+          'content': '❌ $message',
+        });
+      });
+      _scrollToBottomSoon();
+      return;
+    }
+
+    // For LIST action, show results directly (no confirmation needed)
+    if (action == 'LIST') {
+      final items = previewData['items'] as List<dynamic>? ?? [];
+      final listText = _formatEventList(items);
+      setState(() {
+        _messages.add({
+          'role': 'assistant',
+          'content': listText,
+        });
+      });
+      _scrollToBottomSoon();
+      return;
+    }
+
+    // Show preview card with confirmation buttons
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Preview: $action'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                message,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              if (previewData['data'] != null) ...[
+                const Text(
+                  'Date care vor fi scrise:',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _formatPreviewData(previewData['data']),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+              ],
+              if (previewData['eventId'] != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Event ID: ${previewData['eventId']}',
+                  style: const TextStyle(fontSize: 12, color: Colors.blue),
+                ),
+              ],
+              if (previewData['reason'] != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Motiv: ${previewData['reason']}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              setState(() {
+                _messages.add({
+                  'role': 'assistant',
+                  'content': '❌ Operație anulată.',
+                });
+              });
+              _scrollToBottomSoon();
+            },
+            child: const Text('Anulează'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _executeEventCommand(
+                commandText: commandText,
+                clientRequestId: clientRequestId,
+                action: action,
+              );
+            },
+            child: const Text('Confirmă'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatPreviewData(dynamic data) {
+    try {
+      if (data is Map) {
+        return const JsonEncoder.withIndent('  ').convert(data);
+      }
+      return data.toString();
+    } catch (e) {
+      return data.toString();
+    }
+  }
+
+  String _formatEventList(List<dynamic> items) {
+    if (items.isEmpty) {
+      return '📋 Nu există evenimente active.';
+    }
+
+    final buffer = StringBuffer('📋 Evenimente active (${items.length}):\n\n');
+    for (var i = 0; i < items.length; i++) {
+      final item = items[i] as Map<String, dynamic>;
+      final id = item['id'] ?? 'N/A';
+      final date = item['date'] ?? 'N/A';
+      final nume = item['sarbatoritNume'] ?? 'N/A';
+      final address = item['address'] ?? 'N/A';
+      
+      buffer.writeln('${i + 1}. $nume ($date)');
+      buffer.writeln('   📍 $address');
+      buffer.writeln('   🆔 $id');
+      if (i < items.length - 1) buffer.writeln();
+    }
+
+    return buffer.toString();
+  }
+
+  Future<void> _executeEventCommand({
+    required String commandText,
+    required String clientRequestId,
+    required String action,
+  }) async {
+    // Show loading
+    setState(() {
+      _messages.add({'role': 'assistant', 'content': '...'});
+      _loading = true;
+    });
+    _scrollToBottomSoon();
+
+    try {
+      final eventCallable =
+          FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
+        'chatEventOps',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+      );
+
+      final result = await eventCallable.call({
+        'text': commandText,
+        'dryRun': false,
+        'clientRequestId': clientRequestId,
+      });
+
+      final data = Map<String, dynamic>.from(result.data);
+      final ok = data['ok'] == true;
+      final message = data['message']?.toString() ?? 'Operație completată';
+      final eventId = data['eventId'];
+
+      String response;
+      if (ok) {
+        response = '✅ $message';
+        if (eventId != null) {
+          response += '\n\n🆔 Event ID: $eventId';
+          response += '\n\n💡 Poți deschide evenimentul din secțiunea Evenimente.';
+        }
+      } else {
+        response = '❌ $message';
+      }
+
+      setState(() {
+        _messages.removeLast(); // Remove loading
+        _messages.add({'role': 'assistant', 'content': response});
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _messages.removeLast(); // Remove loading
+        _messages.add({
+          'role': 'assistant',
+          'content': '❌ Eroare la executare: $e',
+        });
+        _loading = false;
+      });
+    }
+
+    _scrollToBottomSoon();
+  }
+
+  /// Normalize text: lowercase + strip diacritics
+  String _normalizeText(String text) {
+    return text
+        .toLowerCase()
+        .replaceAll('ă', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('î', 'i')
+        .replaceAll('ș', 's')
+        .replaceAll('ț', 't')
+        .trim();
+  }
+
+  /// Detect if user message has event creation/management intent
+  /// Returns true if message contains keywords indicating event operations
+  bool _detectEventIntent(String text) {
+    final normalized = _normalizeText(text);
+    
+    // Skip very short messages (likely not event commands)
+    if (normalized.length < 10) return false;
+    
+    // CREATE intent keywords (normalized - fără diacritice)
+    final createPatterns = [
+      // GENERIC - fără tip specific de eveniment
+      'noteaza o petrecere',
+      'noteaza un eveniment',
+      'noteaza petrecere',
+      'noteaza eveniment',
+      
+      // "am de notat"
+      'am de notat',
+      'trebuie sa notez',
+      
+      // "creeaza"
+      'creeaza o petrecere',
+      'creeaza un eveniment',
+      'creeaza petrecere',
+      'creeaza eveniment',
+      
+      // "vreau sa notez"
+      'vreau sa notez o petrecere',
+      'vreau sa notez un eveniment',
+      'vreau sa notez',
+      
+      // "am o petrecere"
+      'am o petrecere',
+      'am un eveniment',
+      'am petrecere',
+      'am eveniment',
+      
+      // Alte variante
+      'salveaza o petrecere',
+      'salveaza un eveniment',
+      'adauga o petrecere',
+      'adauga un eveniment',
+      
+      // Cu tipuri specifice (opțional, pentru backward compatibility)
+      'noteaza nunta',
+      'noteaza botez',
+      'am o nunta',
+      'am un botez',
+      'am o aniversare',
+      
+      // Event type + date pattern (strong signal)
+      'nuntă pe',
+      'nunta pe',
+      'botez pe',
+      'petrecere pe',
+      'aniversare pe',
+      'eveniment pe',
+    ];
+    
+    // UPDATE intent keywords (normalized)
+    final updatePatterns = [
+      'actualizeaza eveniment',
+      'modifica eveniment',
+      'schimba adresa',
+      'schimba data',
+      'update eveniment',
+    ];
+    
+    // ARCHIVE intent keywords (normalized)
+    final archivePatterns = [
+      'arhiveaza eveniment',
+      'anuleaza eveniment',
+      'sterge eveniment',
+      'inchide eveniment',
+    ];
+    
+    // LIST intent keywords (normalized)
+    final listPatterns = [
+      'arata evenimente',
+      'lista evenimente',
+      'ce evenimente am',
+      'evenimente active',
+      'vezi evenimente',
+      'afiseaza evenimente',
+      'show evenimente',
+    ];
+    
+    // Check all patterns (using normalized text)
+    for (final pattern in createPatterns) {
+      if (normalized.contains(pattern)) return true;
+    }
+    
+    for (final pattern in updatePatterns) {
+      if (normalized.contains(pattern)) return true;
+    }
+    
+    for (final pattern in archivePatterns) {
+      if (normalized.contains(pattern)) return true;
+    }
+    
+    for (final pattern in listPatterns) {
+      if (normalized.contains(pattern)) return true;
+    }
+    
+    return false;
   }
 
   @override
