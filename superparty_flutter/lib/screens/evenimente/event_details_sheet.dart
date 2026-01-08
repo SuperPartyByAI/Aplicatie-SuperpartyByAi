@@ -128,27 +128,37 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
               ],
             ),
           ),
-          // GM Mode buttons
+          // Employee/GM buttons
           Consumer<AppStateProvider>(
             builder: (context, appState, _) {
-              if (!appState.isGmMode && !appState.isAdminMode) {
+              // All employees can edit/archive
+              if (!appState.isEmployee) {
                 return const SizedBox.shrink();
               }
+              
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // View AI Logic button
-                  IconButton(
-                    icon: const Icon(Icons.psychology, color: Colors.amber),
-                    tooltip: 'Vezi Logica AI',
-                    onPressed: _showAILogic,
-                  ),
-                  // Edit button
+                  // View AI Logic button (GM/Admin only)
+                  if (appState.isGmOrAdmin)
+                    IconButton(
+                      icon: const Icon(Icons.psychology, color: Colors.amber),
+                      tooltip: 'Vezi Logica AI',
+                      onPressed: _showAILogic,
+                    ),
+                  // Edit button (all employees)
                   IconButton(
                     icon: const Icon(Icons.edit, color: Colors.white),
                     tooltip: 'Editează Eveniment',
                     onPressed: _showEditDialog,
                   ),
+                  // Archive button (all employees)
+                  if (_event != null && !_event!.isArchived)
+                    IconButton(
+                      icon: const Icon(Icons.archive, color: Colors.orange),
+                      tooltip: 'Arhivează Eveniment',
+                      onPressed: _showArchiveDialog,
+                    ),
                 ],
               );
             },
@@ -984,6 +994,96 @@ Schema v2:
               }
             },
             child: const Text('Salvează'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Show archive confirmation dialog
+  void _showArchiveDialog() {
+    if (_event == null) return;
+
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.archive, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Arhivează Eveniment'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Sigur vrei să arhivezi evenimentul "${_event!.sarbatoritNume}"?'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Motiv (opțional)',
+                hintText: 'Ex: Anulat, Amânat, etc.',
+                prefixIcon: Icon(Icons.note),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Anulează'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+            ),
+            onPressed: () async {
+              try {
+                final user = FirebaseAuth.instance.currentUser;
+                if (user == null) throw Exception('Nu ești autentificat');
+
+                final reason = reasonController.text.trim();
+
+                await FirebaseFirestore.instance
+                    .collection('evenimente')
+                    .doc(_event!.id)
+                    .update({
+                  'isArchived': true,
+                  'archivedAt': FieldValue.serverTimestamp(),
+                  'archivedBy': user.uid,
+                  if (reason.isNotEmpty) 'archiveReason': reason,
+                  'updatedAt': FieldValue.serverTimestamp(),
+                  'updatedBy': user.uid,
+                });
+
+                if (mounted) {
+                  Navigator.pop(context); // Close dialog
+                  Navigator.pop(context); // Close details sheet
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ Eveniment arhivat cu succes!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('❌ Eroare: ${e.toString()}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Arhivează'),
           ),
         ],
       ),
