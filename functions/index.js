@@ -588,3 +588,6 @@ exports.manageEvidenceAI = manageEvidenceAI;
 // AI Report Generation
 const { generateReportAI } = require('./generateReportAI');
 exports.generateReportAI = generateReportAI;
+
+// AI Event Operations (CREATE/UPDATE/ARCHIVE/LIST)
+exports.chatEventOps = require('./chatEventOps').chatEventOps;
