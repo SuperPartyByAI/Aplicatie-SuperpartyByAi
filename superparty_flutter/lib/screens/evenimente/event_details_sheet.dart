@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
+import '../../providers/app_state_provider.dart';
 import '../dovezi/dovezi_screen.dart';
 import '../../widgets/user_selector_dialog.dart';
 import '../../widgets/user_display_name.dart';
@@ -125,6 +127,31 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
                 ],
               ],
             ),
+          ),
+          // GM Mode buttons
+          Consumer<AppStateProvider>(
+            builder: (context, appState, _) {
+              if (!appState.isGmMode && !appState.isAdminMode) {
+                return const SizedBox.shrink();
+              }
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // View AI Logic button
+                  IconButton(
+                    icon: const Icon(Icons.psychology, color: Colors.amber),
+                    tooltip: 'Vezi Logica AI',
+                    onPressed: _showAILogic,
+                  ),
+                  // Edit button
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.white),
+                    tooltip: 'Editează Eveniment',
+                    onPressed: _showEditDialog,
+                  ),
+                ],
+              );
+            },
           ),
           IconButton(
             icon: const Icon(Icons.close, color: Colors.white),
@@ -729,5 +756,237 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
     }
 
     reasonController.dispose();
+  }
+
+  /// Show AI Logic dialog - displays prompts used for event creation
+  void _showAILogic() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.psychology, color: Colors.amber),
+            SizedBox(width: 8),
+            Text('Logica AI - Notare Evenimente'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildAILogicSection(
+                'Detectare Comandă',
+                '''Comenzi detectate:
+- "creează eveniment"
+- "notează petrecere"
+- "notez petrecere"
+- "vreau să notez"
+- "adaugă eveniment"
+- "adauga eveniment"
+- "creaza eveniment"''',
+              ),
+              const Divider(),
+              _buildAILogicSection(
+                'Extragere Date',
+                '''Model: llama-3.3-70b-versatile
+Prompt: "Extrage din text: data, adresa, nume sărbătorit, vârstă"
+Exemple:
+- "Nuntă pe 15 ianuarie la Hotel Central pentru Maria 25 ani"
+- "Botez duminică la Restaurant pentru Alex"''',
+              ),
+              const Divider(),
+              _buildAILogicSection(
+                'Validare',
+                '''Verificări:
+✓ Data trebuie să fie în viitor
+✓ Adresa obligatorie
+✓ Nume sărbătorit obligatoriu
+✓ Vârstă validă (0-120)''',
+              ),
+              const Divider(),
+              _buildAILogicSection(
+                'Salvare Firestore',
+                '''Colecție: evenimente
+Schema v2:
+- date (YYYY-MM-DD)
+- address
+- sarbatoritNume
+- sarbatoritVarsta
+- roles (array A-J)
+- incasare (total, avans, rest)
+- createdBy, updatedBy''',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Închide'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAILogicSection(String title, String content) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          content,
+          style: const TextStyle(fontSize: 14, height: 1.5),
+        ),
+      ],
+    );
+  }
+
+  /// Show edit dialog with all fields
+  void _showEditDialog() {
+    if (_event == null) return;
+
+    // Controllers for all fields
+    final dateController = TextEditingController(text: _event!.date);
+    final addressController = TextEditingController(text: _event!.address);
+    final numeController = TextEditingController(text: _event!.sarbatoritNume);
+    final varstaController = TextEditingController(text: _event!.sarbatoritVarsta.toString());
+    final totalController = TextEditingController(text: _event!.incasare.total.toString());
+    final avansController = TextEditingController(text: _event!.incasare.avans.toString());
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Editează Eveniment'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: dateController,
+                decoration: const InputDecoration(
+                  labelText: 'Data (YYYY-MM-DD)',
+                  prefixIcon: Icon(Icons.calendar_today),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: addressController,
+                decoration: const InputDecoration(
+                  labelText: 'Adresa',
+                  prefixIcon: Icon(Icons.location_on),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: numeController,
+                decoration: const InputDecoration(
+                  labelText: 'Sărbătorit Nume',
+                  prefixIcon: Icon(Icons.person),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: varstaController,
+                decoration: const InputDecoration(
+                  labelText: 'Sărbătorit Vârstă',
+                  prefixIcon: Icon(Icons.cake),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: totalController,
+                decoration: const InputDecoration(
+                  labelText: 'Total Încasare',
+                  prefixIcon: Icon(Icons.attach_money),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: avansController,
+                decoration: const InputDecoration(
+                  labelText: 'Avans',
+                  prefixIcon: Icon(Icons.payment),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Anulează'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                // Validate inputs
+                final date = dateController.text.trim();
+                final address = addressController.text.trim();
+                final nume = numeController.text.trim();
+                final varsta = int.tryParse(varstaController.text.trim()) ?? 0;
+                final total = double.tryParse(totalController.text.trim()) ?? 0;
+                final avans = double.tryParse(avansController.text.trim()) ?? 0;
+
+                if (date.isEmpty || address.isEmpty || nume.isEmpty) {
+                  throw Exception('Toate câmpurile sunt obligatorii');
+                }
+
+                // Update event in Firestore
+                final user = FirebaseAuth.instance.currentUser;
+                if (user == null) throw Exception('Nu ești autentificat');
+
+                await FirebaseFirestore.instance
+                    .collection('evenimente')
+                    .doc(_event!.id)
+                    .update({
+                  'date': date,
+                  'address': address,
+                  'sarbatoritNume': nume,
+                  'sarbatoritVarsta': varsta,
+                  'incasare.total': total,
+                  'incasare.avans': avans,
+                  'incasare.restDePlata': total - avans,
+                  'updatedAt': FieldValue.serverTimestamp(),
+                  'updatedBy': user.uid,
+                });
+
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ Eveniment actualizat cu succes!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  _loadEvent(); // Reload event
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('❌ Eroare: ${e.toString()}'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Salvează'),
+          ),
+        ],
+      ),
+    );
   }
 }
