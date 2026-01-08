@@ -8,14 +8,20 @@ service cloud.firestore {
       return request.auth != null;
     }
     
-    // Helper function: check if user is admin
-    function isAdmin() {
-      return isAuthenticated() && request.auth.token.email == 'ursache.andrei1995@gmail.com';
-    }
-    
     // Helper function: check if user has staff profile
     function hasStaffProfile() {
       return isAuthenticated() && exists(/databases/$(database)/documents/staffProfiles/$(request.auth.uid));
+    }
+    
+    // Helper function: check if user is employee (authenticated + has staff profile)
+    function isEmployee() {
+      return isAuthenticated() && hasStaffProfile();
+    }
+    
+    // Helper function: check if user is GM or Admin (based on role in staffProfiles)
+    function isGmOrAdmin() {
+      return isEmployee() && 
+             get(/databases/$(database)/documents/staffProfiles/$(request.auth.uid)).data.role in ['gm', 'admin'];
     }
     
     // Helper function: get staff code
@@ -23,16 +29,21 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/staffProfiles/$(request.auth.uid)).data.code;
     }
     
-    // Users collection
-    match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+    // DEPRECATED: Use isGmOrAdmin() instead
+    function isAdmin() {
+      return isGmOrAdmin();
     }
     
-    // Staff profiles
+    // Users collection - restricted, prefer staffProfiles for employee data
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isGmOrAdmin());
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isGmOrAdmin());
+    }
+    
+    // Staff profiles - readable by all employees for display names/roles
     match /staffProfiles/{profileId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (request.auth.uid == profileId || isAdmin());
+      allow read: if isEmployee(); // All employees can read staff profiles
+      allow write: if isAuthenticated() && (request.auth.uid == profileId || isGmOrAdmin());
     }
     
     // KYC Submissions
@@ -44,9 +55,16 @@ service cloud.firestore {
     
     // Evenimente - POLITICA: NEVER DELETE
     match /evenimente/{eventId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isAdmin();
-      allow delete: if false; // Nimeni nu poate șterge evenimente
+      allow read: if isEmployee();
+      allow create: if isEmployee();
+      allow update: if isEmployee(); // Includes archiving (isArchived=true)
+      allow delete: if false; // NEVER DELETE - use isArchived instead
+      
+      // Audit logs subcollection - only server can write, only GM/admin can read
+      match /audit/{logId} {
+        allow read: if isGmOrAdmin();
+        allow write: if false; // Only server (Admin SDK) can write audit logs
+      }
       
       // Dovezi subcollection
       match /dovezi/{evidenceId} {

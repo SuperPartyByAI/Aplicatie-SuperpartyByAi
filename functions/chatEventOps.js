@@ -11,28 +11,36 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-function requireAuth(request) {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Trebuie să fii autentificat.');
+async function requireEmployee(request) {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Trebuie să fii autentificat.');
+  }
+
+  const uid = request.auth.uid;
   const email = request.auth.token?.email || '';
-  return { uid: request.auth.uid, email };
-}
 
-// Simplu: allowlist de admini prin env ADMIN_EMAILS="a@x.com,b@y.com"
-function requireAdmin({ email }) {
-  const allow = (process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map(s => s.trim().toLowerCase())
-    .filter(Boolean);
+  // Check if user has staff profile
+  const db = admin.firestore();
+  const staffDoc = await db.collection('staffProfiles').doc(uid).get();
 
-  if (!allow.length) {
+  if (!staffDoc.exists) {
     throw new HttpsError(
-      'failed-precondition',
-      'ADMIN_EMAILS nu e setat. Setează env ADMIN_EMAILS cu emailurile admin.'
+      'permission-denied',
+      'Nu ai profil de angajat. Doar angajații pot gestiona evenimente.'
     );
   }
-  if (!allow.includes((email || '').toLowerCase())) {
-    throw new HttpsError('permission-denied', `Nu ai drepturi de admin (${email}).`);
-  }
+
+  const staffData = staffDoc.data();
+  const role = staffData?.role || 'staff';
+  const isGmOrAdmin = ['gm', 'admin'].includes(role.toLowerCase());
+
+  return {
+    uid,
+    email,
+    role,
+    isGmOrAdmin,
+    staffCode: staffData?.code || uid,
+  };
 }
 
 function extractJson(text) {
@@ -78,8 +86,8 @@ function sanitizeUpdateFields(data) {
 exports.chatEventOps = onCall(
   { region: 'us-central1', timeoutSeconds: 30 },
   async (request) => {
-    const { uid, email } = requireAuth(request);
-    requireAdmin({ email });
+    const employee = await requireEmployee(request);
+    const { uid, role, isGmOrAdmin } = employee;
 
     const text = (request.data?.text || '').toString().trim();
     if (!text) throw new HttpsError('invalid-argument', 'Lipsește "text".');
@@ -164,6 +172,27 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
 
     if (action === 'CREATE') {
       const data = cmd.data || {};
+      const clientRequestId = request.data?.clientRequestId || null;
+
+      // Idempotency: check if event with this clientRequestId already exists
+      if (clientRequestId) {
+        const existingSnap = await db.collection('evenimente')
+          .where('clientRequestId', '==', clientRequestId)
+          .limit(1)
+          .get();
+
+        if (!existingSnap.empty) {
+          const existingDoc = existingSnap.docs[0];
+          return {
+            ok: true,
+            action: 'CREATE',
+            eventId: existingDoc.id,
+            message: `Eveniment deja creat: ${existingDoc.id}`,
+            idempotent: true,
+          };
+        }
+      }
+
       const now = admin.firestore.FieldValue.serverTimestamp();
 
       const doc = {
@@ -180,6 +209,7 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         createdBy: uid,
         updatedAt: now,
         updatedBy: uid,
+        ...(clientRequestId ? { clientRequestId } : {}),
       };
 
       if (!doc.date || !doc.address) {

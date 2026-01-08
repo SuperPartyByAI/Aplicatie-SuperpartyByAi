@@ -591,3 +591,6 @@ exports.generateReportAI = generateReportAI;
 
 // AI Event Operations (CREATE/UPDATE/ARCHIVE/LIST)
 exports.chatEventOps = require('./chatEventOps').chatEventOps;
+
+// Audit trigger for event changes
+exports.auditEventChanges = require('./auditEventChanges').auditEventChanges;
