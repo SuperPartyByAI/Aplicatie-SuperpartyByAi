@@ -3,13 +3,17 @@
  * 
  * This script creates/updates the app_config/version document
  * to enable force update for older app versions.
+ * 
+ * Usage: GOOGLE_APPLICATION_CREDENTIALS=path/to/key.json node setup-force-update.js
  */
 
 const admin = require('firebase-admin');
 
-// Initialize Firebase Admin
+// Initialize Firebase Admin with explicit project ID
 if (!admin.apps.length) {
-  admin.initializeApp();
+  admin.initializeApp({
+    projectId: 'superparty-frontend',
+  });
 }
 
 const db = admin.firestore();
