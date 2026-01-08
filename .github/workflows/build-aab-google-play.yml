@@ -1,0 +1,70 @@
+name: Build AAB for Google Play
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'superparty_flutter/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+          cache-key: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > /tmp/superparty-release-key.jks
+
+      - name: Create key.properties
+        working-directory: superparty_flutter/android
+        run: |
+          cat > key.properties << EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=superparty-key
+          storeFile=/tmp/superparty-release-key.jks
+          EOF
+
+      - name: Get dependencies
+        working-directory: superparty_flutter
+        run: flutter pub get
+
+      - name: Build signed AAB
+        working-directory: superparty_flutter
+        run: |
+          echo "Starting AAB build..."
+          flutter build appbundle --release --verbose
+        timeout-minutes: 20
+
+      - name: Verify AAB exists
+        run: |
+          ls -la superparty_flutter/build/app/outputs/bundle || true
+          ls -la superparty_flutter/build/app/outputs/bundle/release || true
+          test -f superparty_flutter/build/app/outputs/bundle/release/app-release.aab
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-bundle
+          path: superparty_flutter/build/app/outputs/bundle/release/app-release.aab
+          retention-days: 30
+          if-no-files-found: error
