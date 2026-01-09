@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
+import '../../widgets/modals/range_modal.dart';
 import 'event_card_html.dart';
 
 /// Evenimente Screen - 100% identic cu HTML (4522 linii)
@@ -194,7 +195,7 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
               setState(() {
                 _datePreset = value;
                 if (value == 'custom') {
-                  // TODO: Deschide range modal
+                  _openRangeModal();
                 }
               });
             }
@@ -657,6 +658,26 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
         // TODO: Open assign modal for slot S (Șofer)
         print('Assign driver for event: ${event.id}');
       },
+    );
+  }
+
+  void _openRangeModal() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (context) => RangeModal(
+        initialStart: _customStart,
+        initialEnd: _customEnd,
+        onRangeSelected: (start, end) {
+          setState(() {
+            _customStart = start;
+            _customEnd = end;
+            if (start == null && end == null) {
+              _datePreset = 'all';
+            }
+          });
+        },
+      ),
     );
   }
 }
