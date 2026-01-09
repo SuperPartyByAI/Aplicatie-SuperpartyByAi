@@ -1,10 +1,12 @@
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
 import '../../widgets/modals/range_modal.dart';
 import '../../widgets/modals/code_modal.dart';
+import '../../widgets/modals/assign_modal.dart';
 import 'event_card_html.dart';
 
 /// Evenimente Screen - 100% identic cu HTML (4522 linii)
@@ -658,25 +660,32 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
     return EventCardHtml(
       event: event,
       onTap: () {
-        // TODO: Open evidence page
-        print('Open evidence for event: ${event.id}');
+        // TODO: Open evidence page (Faza 6)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pagina dovezi - în implementare'),
+            duration: Duration(seconds: 1),
+          ),
+        );
       },
       onSlotTap: (slot) {
-        // TODO: Open assign modal
-        print('Assign slot: $slot for event: ${event.id}');
+        _openAssignModal(event, slot);
       },
       onStatusTap: (slot, code) {
         if (code != null && code.isNotEmpty) {
-          // TODO: Open code info modal
-          print('Show info for code: $code (slot: $slot)');
+          // TODO: Open code info modal (Faza 5.4)
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Info cod: $code - în implementare'),
+              duration: const Duration(seconds: 1),
+            ),
+          );
         } else {
-          // TODO: Open assign modal
-          print('Assign slot: $slot for event: ${event.id}');
+          _openAssignModal(event, slot);
         }
       },
       onDriverTap: () {
-        // TODO: Open assign modal for slot S (Șofer)
-        print('Assign driver for event: ${event.id}');
+        _openAssignModal(event, 'S');
       },
     );
   }
@@ -722,5 +731,123 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
         },
       ),
     );
+  }
+
+  void _openAssignModal(EventModel event, String slot) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (context) => AssignModal(
+        event: event,
+        slot: slot,
+        onAssign: (code) async {
+          if (code != null && code.isNotEmpty) {
+            await _saveAssignment(event.id, slot, code);
+          }
+        },
+        onClear: () async {
+          await _clearAssignment(event.id, slot);
+        },
+      ),
+    );
+  }
+
+  Future<void> _saveAssignment(String eventId, String slot, String code) async {
+    try {
+      final db = FirebaseFirestore.instance;
+      final eventRef = db.collection('evenimente').doc(eventId);
+
+      // Get current event data
+      final eventDoc = await eventRef.get();
+      if (!eventDoc.exists) {
+        throw Exception('Event not found');
+      }
+
+      final data = eventDoc.data()!;
+      final roles = (data['roles'] as List<dynamic>?) ?? [];
+
+      // Find role by slot
+      final roleIndex = roles.indexWhere((r) => r['slot'] == slot);
+      if (roleIndex == -1) {
+        throw Exception('Role not found');
+      }
+
+      // Update role with pendingCode (not assignedCode - needs approval)
+      roles[roleIndex]['pendingCode'] = code;
+
+      // Save to Firestore
+      await eventRef.update({
+        'roles': roles,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cerere trimisă pentru $slot: $code'),
+            backgroundColor: const Color(0xFF4ECDC4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Eroare: $e'),
+            backgroundColor: const Color(0xFFFF7878),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _clearAssignment(String eventId, String slot) async {
+    try {
+      final db = FirebaseFirestore.instance;
+      final eventRef = db.collection('evenimente').doc(eventId);
+
+      // Get current event data
+      final eventDoc = await eventRef.get();
+      if (!eventDoc.exists) {
+        throw Exception('Event not found');
+      }
+
+      final data = eventDoc.data()!;
+      final roles = (data['roles'] as List<dynamic>?) ?? [];
+
+      // Find role by slot
+      final roleIndex = roles.indexWhere((r) => r['slot'] == slot);
+      if (roleIndex == -1) {
+        throw Exception('Role not found');
+      }
+
+      // Clear both assignedCode and pendingCode
+      roles[roleIndex]['assignedCode'] = null;
+      roles[roleIndex]['pendingCode'] = null;
+
+      // Save to Firestore
+      await eventRef.update({
+        'roles': roles,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Alocare ștearsă pentru $slot'),
+            backgroundColor: const Color(0xFF4ECDC4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Eroare: $e'),
+            backgroundColor: const Color(0xFFFF7878),
+          ),
+        );
+      }
+    }
   }
 }
