@@ -516,26 +516,107 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 color: Color(0xB3EAF1FF),
               ),
             ),
-            if (event.cineNoteaza != null) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.person_outline,
-                    size: 14,
-                    color: Color(0xB3EAF1FF),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              runSpacing: 4,
+              children: [
+                if (event.cineNoteaza != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.person_outline,
+                        size: 14,
+                        color: Color(0xB3EAF1FF),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Notat: ${event.cineNoteaza}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xB3EAF1FF),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Notat de: ${event.cineNoteaza}',
-                    style: const TextStyle(
-                      fontSize: 12,
+                if (event.sofer != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.local_shipping_outlined,
+                        size: 14,
+                        color: Color(0xFF10B981),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Șofer: ${event.sofer}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF10B981),
+                        ),
+                      ),
+                    ],
+                  ),
+                if (event.soferPending != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.local_shipping_outlined,
+                        size: 14,
+                        color: Color(0xFFFFBE5C),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Șofer pending: ${event.soferPending}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFFFFBE5C),
+                        ),
+                      ),
+                    ],
+                  ),
+                if (event.sarbatoritDob != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.cake_outlined,
+                        size: 14,
+                        color: Color(0xB3EAF1FF),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Naștere: ${event.sarbatoritDob}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xB3EAF1FF),
+                        ),
+                      ),
+                    ],
+                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.access_time,
+                      size: 14,
                       color: Color(0xB3EAF1FF),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 4),
+                    Text(
+                      'Creat: ${DateFormat('dd/MM HH:mm').format(event.createdAt)}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xB3EAF1FF),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
             if (event.roles.isNotEmpty) ...[
               const SizedBox(height: 12),
               Wrap(
