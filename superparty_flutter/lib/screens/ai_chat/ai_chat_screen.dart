@@ -317,8 +317,17 @@ class _AIChatScreenState extends State<AIChatScreen> {
     }
 
     // Check cache first (only for text without image)
-    final cachedResponse =
-        (!hasImage) ? await AICacheService.getCachedResponse(text) : null;
+    // Detect event intent early (before cache) to avoid cache hijacking event commands
+    final lowerText = text.toLowerCase();
+    final isExplicitCommand =
+        lowerText.startsWith('/event ') || lowerText.startsWith('/eveniment ');
+    final hasNaturalEventIntent = _detectEventIntent(text);
+    final isEventCommand = isExplicitCommand || hasNaturalEventIntent;
+
+    // Check cache first (only for non-event text without image)
+    final cachedResponse = (!hasImage && !isEventCommand)
+        ? await AICacheService.getCachedResponse(text)
+        : null;
     if (cachedResponse != null) {
       setState(() {
         _messages.add({'role': 'assistant', 'content': cachedResponse});
@@ -343,11 +352,6 @@ class _AIChatScreenState extends State<AIChatScreen> {
     _scrollToBottomSoon();
 
     try {
-      // Detect event intent - both explicit commands and natural language
-      final isExplicitCommand = text.startsWith('/event ') || text.startsWith('/eveniment ');
-      final hasNaturalEventIntent = _detectEventIntent(text);
-      final isEventCommand = isExplicitCommand || hasNaturalEventIntent;
-
       String aiResponse;
 
       if (isEventCommand) {
@@ -355,7 +359,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
         String commandText;
         if (isExplicitCommand) {
           // Remove /event or /eveniment prefix
-          final prefixLength = text.startsWith('/event ') ? 7 : 11;
+          final prefixLength = lowerText.startsWith('/event ') ? 7 : 11;
           commandText = text.substring(prefixLength).trim();
         } else {
           // Use full text for natural language
