@@ -1,0 +1,446 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../../models/event_model.dart';
+
+/// Event Card Widget - 100% identic cu HTML
+/// Referință: kyc-app/kyc-app/public/evenimente.html (buildEventCard)
+class EventCardHtml extends StatelessWidget {
+  final EventModel event;
+  final VoidCallback onTap;
+  final Function(String slot) onSlotTap;
+  final Function(String slot, String? code) onStatusTap;
+  final VoidCallback? onDriverTap;
+
+  const EventCardHtml({
+    super.key,
+    required this.event,
+    required this.onTap,
+    required this.onSlotTap,
+    required this.onStatusTap,
+    this.onDriverTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0x0FFFFFFF), // rgba(255,255,255,0.06) --card
+          border: Border.all(
+            color: const Color(0x1FFFFFFF), // rgba(255,255,255,0.12) --border
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Mobile layout: 3 rows
+            if (constraints.maxWidth < 600) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Row 1: Badge + Main
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildBadge(),
+                      const SizedBox(width: 12),
+                      Expanded(child: _buildMain()),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Row 2: Rolelist
+                  if (event.roles.isNotEmpty) ...[
+                    _buildRoleList(),
+                    const SizedBox(height: 10),
+                  ],
+
+                  // Row 3: Right
+                  _buildRight(),
+                ],
+              );
+            }
+
+            // Desktop layout: Grid
+            return IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildBadge(),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildMain(),
+                        if (event.roles.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          _buildRoleList(),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildRight(),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBadge() {
+    return Container(
+      width: 46,
+      height: 34,
+      decoration: BoxDecoration(
+        color: const Color(0x294ECDC4), // rgba(78,205,196,0.16)
+        border: Border.all(
+          color: const Color(0x384ECDC4), // rgba(78,205,196,0.22)
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: Text(
+          event.id.length > 4 ? event.id.substring(0, 4) : event.id,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.8,
+            color: Color(0xF2EAF1FF), // rgba(234,241,255,0.95)
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMain() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (event.address.isNotEmpty)
+          Text(
+            event.address,
+            style: TextStyle(
+              fontSize: 13,
+              color: const Color(0xFFEAF1FF).withOpacity(0.7), // --muted2
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildRoleList() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      children: event.roles.map((role) => _buildRoleItem(role)).toList(),
+    );
+  }
+
+  Widget _buildRoleItem(RoleModel role) {
+    final hasAssigned = role.assignedCode != null &&
+        role.assignedCode!.isNotEmpty &&
+        _isValidStaffCode(role.assignedCode!);
+    final hasPending = !hasAssigned &&
+        role.pendingCode != null &&
+        role.pendingCode!.isNotEmpty &&
+        _isValidStaffCode(role.pendingCode!);
+
+    final statusText = hasAssigned
+        ? role.assignedCode!
+        : hasPending
+            ? role.pendingCode!
+            : '!';
+    final statusType = hasAssigned
+        ? _StatusType.assigned
+        : hasPending
+            ? _StatusType.pending
+            : _StatusType.unassigned;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Slot
+        GestureDetector(
+          onTap: () => onSlotTap(role.slot),
+          child: Container(
+            width: 22,
+            height: 18,
+            decoration: BoxDecoration(
+              color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
+              border: Border.all(
+                color: const Color(0x1FFFFFFF), // rgba(255,255,255,0.12)
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                role.slot,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.3,
+                  color: Color(0xF2EAF1FF),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+
+        // Label
+        Flexible(
+          child: GestureDetector(
+            onTap: () => onStatusTap(
+              role.slot,
+              hasAssigned ? role.assignedCode : hasPending ? role.pendingCode : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Role name
+                Flexible(
+                  child: Text(
+                    role.label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: const Color(0xFFEAF1FF).withOpacity(0.7),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+
+                // Time
+                if (role.time.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    role.time,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFFEAF1FF).withOpacity(0.7),
+                    ),
+                  ),
+                ],
+
+                // Duration
+                if (role.durationMin > 0) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    height: 18,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0x0FFFFFFF),
+                      border: Border.all(
+                        color: const Color(0x1AFFFFFFF),
+                      ),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _formatDuration(role.durationMin),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.12,
+                          color: const Color(0xFFEAF1FF).withOpacity(0.78),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
+                // Status
+                const SizedBox(width: 8),
+                _buildStatus(statusText, statusType),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatus(String text, _StatusType type) {
+    Color bgColor;
+    Color borderColor;
+    Color textColor;
+
+    switch (type) {
+      case _StatusType.assigned:
+        // Normal assigned - no special styling
+        return Text(
+          text,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            color: const Color(0xFFEAF1FF).withOpacity(0.6),
+          ),
+        );
+
+      case _StatusType.pending:
+        bgColor = const Color(0x1AFFBE5C); // rgba(255,190,92,0.1)
+        borderColor = const Color(0x4DFFBE5C); // rgba(255,190,92,0.3)
+        textColor = const Color(0xEBEAF1FF); // rgba(234,241,255,0.92)
+        break;
+
+      case _StatusType.unassigned:
+        bgColor = const Color(0x244ECDC4); // rgba(78,205,196,0.14)
+        borderColor = const Color(0x524ECDC4); // rgba(78,205,196,0.32)
+        textColor = const Color(0xEBEAF1FF);
+        break;
+    }
+
+    return Container(
+      constraints: const BoxConstraints(minWidth: 18),
+      height: 18,
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      decoration: BoxDecoration(
+        color: bgColor,
+        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0x0FFFFFFF), // inset effect
+            offset: const Offset(0, 1),
+            blurRadius: 0,
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            color: textColor,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRight() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // Date
+        Text(
+          _formatDate(event.date),
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: Color(0xB3EAF1FF), // rgba(234,241,255,0.7)
+          ),
+        ),
+
+        // Cine noteaza
+        if (event.cineNoteaza != null && event.cineNoteaza!.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            'Cine noteaza: ${event.cineNoteaza}',
+            style: TextStyle(
+              fontSize: 11,
+              color: const Color(0xFFEAF1FF).withOpacity(0.6),
+            ),
+          ),
+        ],
+
+        // Șofer
+        const SizedBox(height: 2),
+        GestureDetector(
+          onTap: _needsDriver() ? onDriverTap : null,
+          child: Text(
+            _driverText(),
+            style: TextStyle(
+              fontSize: 11,
+              color: const Color(0xFFEAF1FF).withOpacity(0.6),
+              decoration: _needsDriver() ? TextDecoration.underline : null,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatDate(String dateStr) {
+    // dateStr is DD-MM-YYYY
+    try {
+      final parts = dateStr.split('-');
+      if (parts.length != 3) return dateStr;
+      final day = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      final year = int.parse(parts[2]);
+      final date = DateTime(year, month, day);
+      return DateFormat('dd MMM yyyy', 'ro').format(date);
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  String _formatDuration(int minutes) {
+    if (minutes >= 60) {
+      final hours = minutes ~/ 60;
+      final mins = minutes % 60;
+      if (mins == 0) return '${hours}h';
+      return '${hours}h${mins}min';
+    }
+    return '${minutes}min';
+  }
+
+  bool _isValidStaffCode(String code) {
+    final normalized = code.trim().toUpperCase();
+    if (normalized.isEmpty) return false;
+    // Valid patterns: A1, B2, BTRAINER, etc.
+    return RegExp(r'^[A-Z][A-Z0-9]*$').hasMatch(normalized);
+  }
+
+  bool _needsDriver() {
+    // Check if any role has slot 'S' (Șofer)
+    return event.roles.any((r) => r.slot.toUpperCase() == 'S');
+  }
+
+  String _driverText() {
+    final driverRole = event.roles.firstWhere(
+      (r) => r.slot.toUpperCase() == 'S',
+      orElse: () => RoleModel(
+        slot: 'S',
+        label: '',
+        time: '',
+        durationMin: 0,
+      ),
+    );
+
+    if (driverRole.label.isEmpty) {
+      return 'Șofer: nu necesită';
+    }
+
+    final hasAssigned = driverRole.assignedCode != null &&
+        driverRole.assignedCode!.isNotEmpty &&
+        _isValidStaffCode(driverRole.assignedCode!);
+    final hasPending = !hasAssigned &&
+        driverRole.pendingCode != null &&
+        driverRole.pendingCode!.isNotEmpty &&
+        _isValidStaffCode(driverRole.pendingCode!);
+
+    if (hasAssigned) {
+      return 'Șofer: ${driverRole.assignedCode}';
+    } else if (hasPending) {
+      return 'Șofer: ${driverRole.pendingCode} (pending)';
+    } else {
+      return 'Șofer: nerezervat';
+    }
+  }
+}
+
+enum _StatusType {
+  assigned,
+  pending,
+  unassigned,
+}

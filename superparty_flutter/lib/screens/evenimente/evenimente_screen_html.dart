@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
+import 'event_card_html.dart';
 
 /// Evenimente Screen - 100% identic cu HTML (4522 linii)
 /// Referință: kyc-app/kyc-app/public/evenimente.html
@@ -473,20 +474,29 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
   }
 
   Widget _buildEventCard(EventModel event) {
-    // TODO: Implementare card identic cu HTML
-    // Acesta va fi implementat în următorul pas
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0x0FFFFFFF),
-        border: Border.all(color: const Color(0x1FFFFFFF)),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        'Event: ${event.id} - ${event.sarbatoritNume}',
-        style: const TextStyle(color: Color(0xFFEAF1FF)),
-      ),
+    return EventCardHtml(
+      event: event,
+      onTap: () {
+        // TODO: Open evidence page
+        print('Open evidence for event: ${event.id}');
+      },
+      onSlotTap: (slot) {
+        // TODO: Open assign modal
+        print('Assign slot: $slot for event: ${event.id}');
+      },
+      onStatusTap: (slot, code) {
+        if (code != null && code.isNotEmpty) {
+          // TODO: Open code info modal
+          print('Show info for code: $code (slot: $slot)');
+        } else {
+          // TODO: Open assign modal
+          print('Assign slot: $slot for event: ${event.id}');
+        }
+      },
+      onDriverTap: () {
+        // TODO: Open assign modal for slot S (Șofer)
+        print('Assign driver for event: ${event.id}');
+      },
     );
   }
 }
