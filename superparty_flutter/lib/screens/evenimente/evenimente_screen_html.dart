@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
 import '../../widgets/modals/range_modal.dart';
+import '../../widgets/modals/code_modal.dart';
 import 'event_card_html.dart';
 
 /// Evenimente Screen - 100% identic cu HTML (4522 linii)
@@ -17,6 +18,7 @@ class EvenimenteScreenHtml extends StatefulWidget {
 
 class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
   final EventService _eventService = EventService();
+  final FocusNode _codeInputFocus = FocusNode();
 
   // Filtre - exact ca în HTML
   String _datePreset = 'all'; // all, today, yesterday, last7, next7, next30, custom
@@ -26,6 +28,12 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
   String _notedByFilter = '';
   DateTime? _customStart;
   DateTime? _customEnd;
+
+  @override
+  void dispose() {
+    _codeInputFocus.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -351,34 +359,46 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
   }
 
   Widget _buildCodeFilterInput() {
-    return Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: const Color(0x0FFFFFFF),
-        border: Border.all(color: const Color(0x24FFFFFF)),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: TextField(
-        onChanged: (value) {
-          setState(() {
-            _codeFilter = value.trim().toUpperCase();
-          });
-        },
-        style: const TextStyle(
-          fontSize: 12,
-          color: Color(0xFFEAF1FF),
-          fontWeight: FontWeight.w500,
+    return GestureDetector(
+      onTap: () {
+        // If input has valid code, don't open modal (let user edit)
+        if (_codeFilter.isNotEmpty && _isValidStaffCode(_codeFilter)) {
+          _codeInputFocus.requestFocus();
+          return;
+        }
+        // Otherwise open modal
+        _openCodeModal();
+      },
+      child: Container(
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: const Color(0x0FFFFFFF),
+          border: Border.all(color: const Color(0x24FFFFFF)),
+          borderRadius: BorderRadius.circular(12),
         ),
-        decoration: InputDecoration(
-          hintText: 'Ce cod am',
-          hintStyle: TextStyle(
+        child: TextField(
+          focusNode: _codeInputFocus,
+          onChanged: (value) {
+            setState(() {
+              _codeFilter = value.trim().toUpperCase();
+            });
+          },
+          style: const TextStyle(
             fontSize: 12,
-            color: const Color(0xFFEAF1FF).withOpacity(0.55),
+            color: Color(0xFFEAF1FF),
+            fontWeight: FontWeight.w500,
           ),
-          border: InputBorder.none,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: InputDecoration(
+            hintText: 'Ce cod am',
+            hintStyle: TextStyle(
+              fontSize: 12,
+              color: const Color(0xFFEAF1FF).withOpacity(0.55),
+            ),
+            border: InputBorder.none,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          ),
         ),
       ),
     );
@@ -674,6 +694,29 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
             _customEnd = end;
             if (start == null && end == null) {
               _datePreset = 'all';
+            }
+          });
+        },
+      ),
+    );
+  }
+
+  void _openCodeModal() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (context) => CodeModal(
+        onOptionSelected: (value) {
+          setState(() {
+            if (value == 'FOCUS_INPUT') {
+              // Clear and focus input
+              _codeFilter = '';
+              Future.delayed(const Duration(milliseconds: 100), () {
+                _codeInputFocus.requestFocus();
+              });
+            } else {
+              // Set filter value (NEREZOLVATE, REZOLVATE, or empty)
+              _codeFilter = value;
             }
           });
         },
