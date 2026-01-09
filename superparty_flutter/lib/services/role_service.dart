@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_service.dart';
 
 /// Service for detecting user roles from staffProfiles
 /// 
@@ -8,8 +9,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 /// - gm: employee + role == 'gm'
 /// - admin: employee + role == 'admin'
 class RoleService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  // Use lazy getters from FirebaseService instead of instance fields
+  FirebaseFirestore get _firestore => FirebaseService.firestore;
+  FirebaseAuth get _auth => FirebaseService.auth;
 
   /// Check if current user is an employee (has staff profile)
   Future<bool> isEmployee() async {

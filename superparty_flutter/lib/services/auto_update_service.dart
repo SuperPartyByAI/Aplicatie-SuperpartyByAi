@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
+import 'firebase_service.dart';
 
 /// Service pentru auto-update cu deconectare forțată
 /// 
@@ -27,7 +28,7 @@ class AutoUpdateService {
       print('[AutoUpdate] Current version: $currentVersion ($currentBuildNumber)');
       
       // 2. Obține versiunea minimă din Firestore
-      final doc = await FirebaseFirestore.instance
+      final doc = await FirebaseService.firestore
           .collection('app_config')
           .doc('version')
           .get();
@@ -100,7 +101,7 @@ class AutoUpdateService {
   /// Obține mesajul de update din Firestore
   static Future<String> getUpdateMessage() async {
     try {
-      final doc = await FirebaseFirestore.instance
+      final doc = await FirebaseService.firestore
           .collection('app_config')
           .doc('version')
           .get();
@@ -121,7 +122,7 @@ class AutoUpdateService {
   /// Obține URL-ul de download pentru platforma curentă
   static Future<String?> getDownloadUrl() async {
     try {
-      final doc = await FirebaseFirestore.instance
+      final doc = await FirebaseService.firestore
           .collection('app_config')
           .doc('version')
           .get();
@@ -205,7 +206,7 @@ class AutoUpdateService {
     String? iosDownloadUrl,
   }) async {
     try {
-      await FirebaseFirestore.instance
+      await FirebaseService.firestore
           .collection('app_config')
           .doc('version')
           .set({
