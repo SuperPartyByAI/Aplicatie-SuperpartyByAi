@@ -524,3 +524,5 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
     return { ok: false, action: 'NONE', message: `Acțiune necunoscută: ${action}`, raw };
   }
 );
+
+// Force redeploy Fri Jan  9 14:06:54 UTC 2026
