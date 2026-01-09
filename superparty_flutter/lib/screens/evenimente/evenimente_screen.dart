@@ -516,6 +516,26 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 color: Color(0xB3EAF1FF),
               ),
             ),
+            if (event.cineNoteaza != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.person_outline,
+                    size: 14,
+                    color: Color(0xB3EAF1FF),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Notat de: ${event.cineNoteaza}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xB3EAF1FF),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             if (event.roles.isNotEmpty) ...[
               const SizedBox(height: 12),
               Wrap(
