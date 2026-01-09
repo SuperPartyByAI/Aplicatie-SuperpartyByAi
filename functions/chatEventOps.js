@@ -20,20 +20,23 @@ function getAdminEmails() {
   return envEmails.split(',').map(e => e.trim()).filter(Boolean);
 }
 
-async function requireEmployee(request) {
+// Require authentication only (no employee check)
+function requireAuth(request) {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Trebuie să fii autentificat.');
   }
+  return {
+    uid: request.auth.uid,
+    email: request.auth.token?.email || '',
+  };
+}
 
-  const uid = request.auth.uid;
-  const email = request.auth.token?.email || '';
-
-  // Super admin override - full access without needing staffProfiles
+// Check if user is employee (for permission checks)
+async function isEmployee(uid, email) {
   const adminEmails = [SUPER_ADMIN_EMAIL, ...getAdminEmails()];
   if (adminEmails.includes(email)) {
     return {
-      uid,
-      email,
+      isEmployee: true,
       role: 'admin',
       isGmOrAdmin: true,
       staffCode: uid,
@@ -41,15 +44,17 @@ async function requireEmployee(request) {
     };
   }
 
-  // Check if user has staff profile
   const db = admin.firestore();
   const staffDoc = await db.collection('staffProfiles').doc(uid).get();
 
   if (!staffDoc.exists) {
-    throw new HttpsError(
-      'permission-denied',
-      'Nu ai profil de angajat. Doar angajații pot gestiona evenimente.'
-    );
+    return {
+      isEmployee: false,
+      role: 'user',
+      isGmOrAdmin: false,
+      staffCode: null,
+      isSuperAdmin: false,
+    };
   }
 
   const staffData = staffDoc.data();
@@ -57,13 +62,51 @@ async function requireEmployee(request) {
   const isGmOrAdmin = ['gm', 'admin'].includes(role.toLowerCase());
 
   return {
-    uid,
-    email,
+    isEmployee: true,
     role,
     isGmOrAdmin,
     staffCode: staffData?.code || uid,
     isSuperAdmin: false,
   };
+}
+
+// Rate limiting: check and increment user's daily event creation quota
+async function checkRateLimit(uid) {
+  const db = admin.firestore();
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const quotaRef = db.collection('userEventQuota').doc(uid);
+
+  return db.runTransaction(async (transaction) => {
+    const quotaDoc = await transaction.get(quotaRef);
+    const data = quotaDoc.data();
+
+    // Reset if different day or first time
+    if (!data || data.dayKey !== today) {
+      transaction.set(quotaRef, {
+        dayKey: today,
+        count: 1,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return true;
+    }
+
+    // Check limit (20 events per day for regular users)
+    const MAX_EVENTS_PER_DAY = 20;
+    if (data.count >= MAX_EVENTS_PER_DAY) {
+      throw new HttpsError(
+        'resource-exhausted',
+        `Ai atins limita zilnică de ${MAX_EVENTS_PER_DAY} evenimente. Încearcă mâine sau contactează un administrator.`
+      );
+    }
+
+    // Increment count
+    transaction.update(quotaRef, {
+      count: admin.firestore.FieldValue.increment(1),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return true;
+  });
 }
 
 function extractJson(text) {
@@ -114,8 +157,12 @@ function sanitizeUpdateFields(data) {
 exports.chatEventOps = onCall(
   { region: 'us-central1', timeoutSeconds: 30 },
   async (request) => {
-    const employee = await requireEmployee(request);
-    const { uid, role, isGmOrAdmin } = employee;
+    // Require authentication (all authenticated users can use this)
+    const auth = requireAuth(request);
+    const { uid, email } = auth;
+
+    // Check employee status for permission checks
+    const employeeInfo = await isEmployee(uid, email);
 
     const text = (request.data?.text || '').toString().trim();
     if (!text) throw new HttpsError('invalid-argument', 'Lipsește "text".');
@@ -270,6 +317,7 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
       if (clientRequestId && !dryRun) {
         const existingSnap = await db.collection('evenimente')
           .where('clientRequestId', '==', clientRequestId)
+          .where('createdBy', '==', uid)
           .limit(1)
           .get();
 
@@ -286,6 +334,11 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         }
       }
 
+      // Rate limiting for non-employees (employees bypass rate limit)
+      if (!dryRun && !employeeInfo.isEmployee) {
+        await checkRateLimit(uid);
+      }
+
       const now = admin.firestore.FieldValue.serverTimestamp();
 
       const doc = {
@@ -300,13 +353,14 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         isArchived: false,
         createdAt: now,
         createdBy: uid,
+        createdByEmail: email,
         updatedAt: now,
         updatedBy: uid,
         ...(clientRequestId ? { clientRequestId } : {}),
       };
 
       if (!doc.date || !doc.address) {
-        return { ok: false, action: 'NONE', message: 'CREATE necesită cel puțin date (YYYY-MM-DD) și address.' };
+        return { ok: false, action: 'NONE', message: 'CREATE necesită cel puțin date (DD-MM-YYYY) și address.' };
       }
 
       // DryRun: return preview without writing to Firestore
@@ -321,12 +375,31 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
       }
 
       const ref = await db.collection('evenimente').add(doc);
-      return { ok: true, action: 'CREATE', eventId: ref.id, message: `Eveniment creat: ${ref.id}`, dryRun: false };
+      return { ok: true, action: 'CREATE', eventId: ref.id, message: `Eveniment creat și adăugat în Evenimente.`, dryRun: false };
     }
 
     if (action === 'UPDATE') {
       const eventId = String(cmd.eventId || '').trim();
       if (!eventId) return { ok: false, action: 'NONE', message: 'UPDATE necesită eventId.' };
+
+      // Check permissions: employee OR owner
+      if (!dryRun) {
+        const eventDoc = await db.collection('evenimente').doc(eventId).get();
+        if (!eventDoc.exists) {
+          return { ok: false, action: 'NONE', message: 'Evenimentul nu există.' };
+        }
+
+        const eventData = eventDoc.data();
+        const isOwner = eventData.createdBy === uid;
+
+        if (!employeeInfo.isEmployee && !isOwner) {
+          return {
+            ok: false,
+            action: 'NONE',
+            message: 'Nu ai permisiunea să modifici acest eveniment. Doar creatorul sau un angajat poate face modificări.',
+          };
+        }
+      }
 
       const patch = sanitizeUpdateFields(cmd.data || {});
       patch.updatedAt = admin.firestore.FieldValue.serverTimestamp();
@@ -358,6 +431,25 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
       const eventId = String(cmd.eventId || '').trim();
       if (!eventId) return { ok: false, action: 'NONE', message: 'ARCHIVE necesită eventId.' };
 
+      // Check permissions: employee OR owner
+      if (!dryRun) {
+        const eventDoc = await db.collection('evenimente').doc(eventId).get();
+        if (!eventDoc.exists) {
+          return { ok: false, action: 'NONE', message: 'Evenimentul nu există.' };
+        }
+
+        const eventData = eventDoc.data();
+        const isOwner = eventData.createdBy === uid;
+
+        if (!employeeInfo.isEmployee && !isOwner) {
+          return {
+            ok: false,
+            action: 'NONE',
+            message: 'Nu ai permisiunea să arhivezi acest eveniment. Doar creatorul sau un angajat poate arhiva.',
+          };
+        }
+      }
+
       const update = {
         isArchived: true,
         archivedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -386,6 +478,25 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
     if (action === 'UNARCHIVE') {
       const eventId = String(cmd.eventId || '').trim();
       if (!eventId) return { ok: false, action: 'NONE', message: 'UNARCHIVE necesită eventId.' };
+
+      // Check permissions: employee OR owner
+      if (!dryRun) {
+        const eventDoc = await db.collection('evenimente').doc(eventId).get();
+        if (!eventDoc.exists) {
+          return { ok: false, action: 'NONE', message: 'Evenimentul nu există.' };
+        }
+
+        const eventData = eventDoc.data();
+        const isOwner = eventData.createdBy === uid;
+
+        if (!employeeInfo.isEmployee && !isOwner) {
+          return {
+            ok: false,
+            action: 'NONE',
+            message: 'Nu ai permisiunea să dezarhivezi acest eveniment. Doar creatorul sau un angajat poate dezarhiva.',
+          };
+        }
+      }
 
       // DryRun: return preview without writing to Firestore
       if (dryRun) {

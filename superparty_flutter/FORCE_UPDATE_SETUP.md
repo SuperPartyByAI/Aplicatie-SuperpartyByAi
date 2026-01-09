@@ -66,6 +66,27 @@ Sistemul de **Force Update** obligă utilizatorii să actualizeze aplicația în
 
 **IMPORTANT**: Schema folosește **snake_case** (nu camelCase) pentru consistență cu codul existent.
 
+### Legacy Schema Support
+
+The app also supports legacy field names for backward compatibility:
+- `latest_version` → fallback for `min_version`
+- `latest_build_number` → fallback for `min_build_number`
+
+If your Firestore document uses the legacy schema, the app will automatically map the fields. This prevents `FormatException` errors when migrating from old configurations.
+
+**Example Legacy Schema:**
+```javascript
+{
+  "latest_version": "1.2.2",        // Will be used as min_version
+  "latest_build_number": 22,        // Will be used as min_build_number
+  "force_update": true,
+  "update_message": "...",
+  "android_download_url": "..."
+}
+```
+
+**Recommendation**: Update to the new schema (`min_version`, `min_build_number`) for clarity, but legacy schemas will continue to work.
+
 ## Setup Inițial
 
 ### 1. Configurează Firestore

@@ -35,26 +35,85 @@ class AppVersionConfig {
     this.updatedAt,
   });
 
+  /// Create a safe default config (used when Firestore is unavailable)
+  factory AppVersionConfig.safeDefault() {
+    return AppVersionConfig(
+      minVersion: '0.0.0',
+      minBuildNumber: 0,
+      forceUpdate: false, // CRITICAL: don't block app
+      updateMessage: 'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.',
+      releaseNotes: '',
+      androidDownloadUrl: null,
+      iosDownloadUrl: null,
+      updatedAt: null,
+    );
+  }
+
   /// Parse din Firestore document data
   /// 
-  /// Throws FormatException dacă câmpurile obligatorii lipsesc sau au tip greșit
+  /// FAIL-SAFE: Returns safe default config if required fields are missing.
+  /// Supports multiple field name variations for backward compatibility:
+  /// - min_version / latest_version / minVersion / latestVersion
+  /// - min_build_number / latest_build_number / minBuildNumber / latestBuildNumber
   factory AppVersionConfig.fromFirestore(Map<String, dynamic> data) {
-    // Validare câmpuri obligatorii
-    if (!data.containsKey('min_version')) {
-      throw const FormatException('Missing required field: min_version');
-    }
-    if (!data.containsKey('min_build_number')) {
-      throw const FormatException('Missing required field: min_build_number');
+    // Try all possible field name variations (snake_case and camelCase)
+    final minVersionRaw = data['min_version'] ?? 
+                          data['latest_version'] ?? 
+                          data['minVersion'] ?? 
+                          data['latestVersion'];
+    
+    final minBuildNumberRaw = data['min_build_number'] ?? 
+                              data['latest_build_number'] ?? 
+                              data['minBuildNumber'] ?? 
+                              data['latestBuildNumber'];
+
+    // Normalize minVersion to String
+    String? minVersion;
+    if (minVersionRaw != null) {
+      minVersion = minVersionRaw.toString();
+      print('[AppVersionConfig] ✅ Found version field: $minVersion');
     }
 
-    final minVersion = data['min_version'];
-    if (minVersion is! String) {
-      throw FormatException('min_version must be String, got ${minVersion.runtimeType}');
+    // Normalize minBuildNumber to int (handle String, double, int)
+    int? minBuildNumber;
+    if (minBuildNumberRaw != null) {
+      if (minBuildNumberRaw is int) {
+        minBuildNumber = minBuildNumberRaw;
+      } else if (minBuildNumberRaw is double) {
+        minBuildNumber = minBuildNumberRaw.toInt();
+      } else if (minBuildNumberRaw is String) {
+        minBuildNumber = int.tryParse(minBuildNumberRaw);
+      }
+      print('[AppVersionConfig] ✅ Found build number field: $minBuildNumber');
     }
 
-    final minBuildNumber = data['min_build_number'];
-    if (minBuildNumber is! int) {
-      throw FormatException('min_build_number must be int, got ${minBuildNumber.runtimeType}');
+    // FAIL-SAFE: If required fields are missing, return safe default
+    if (minVersion == null || minBuildNumber == null) {
+      print('[AppVersionConfig] ⚠️ Missing required fields in Firestore config');
+      print('[AppVersionConfig] ⚠️ Using safe default: force_update=false, min_build_number=0');
+      print('[AppVersionConfig] 💡 Recommendation: Update Firestore app_config/version with:');
+      print('[AppVersionConfig]    - min_version: "1.0.0"');
+      print('[AppVersionConfig]    - min_build_number: 1');
+      
+      return AppVersionConfig(
+        minVersion: minVersion ?? '0.0.0',
+        minBuildNumber: minBuildNumber ?? 0,
+        forceUpdate: false, // SAFE DEFAULT: don't block app
+        updateMessage: data['update_message'] as String? ?? 
+            'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.',
+        releaseNotes: data['release_notes'] as String? ?? '',
+        androidDownloadUrl: data['android_download_url'] as String?,
+        iosDownloadUrl: data['ios_download_url'] as String?,
+        updatedAt: data['updated_at'] != null 
+            ? DateTime.tryParse(data['updated_at'].toString())
+            : null,
+      );
+    }
+
+    // Log if using legacy field names
+    if (data['latest_version'] != null || data['latest_build_number'] != null) {
+      print('[AppVersionConfig] ℹ️ Legacy schema detected: using latest_* fields');
+      print('[AppVersionConfig] 💡 Consider migrating to min_version and min_build_number');
     }
 
     return AppVersionConfig(

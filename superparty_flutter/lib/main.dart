@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -29,24 +30,46 @@ import 'widgets/update_gate.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
+  // FAIL-SAFE: Initialize Firebase with error handling
+  // App can run with limited functionality if Firebase fails
   try {
+    print('[Main] Initializing Firebase...');
     await FirebaseService.initialize();
-  } catch (e) {
-    print('Firebase init error: $e');
+    print('[Main] ✅ Firebase initialized successfully');
+  } catch (e, stackTrace) {
+    print('[Main] ❌ Firebase initialization failed: $e');
+    print('[Main] Stack trace: $stackTrace');
+    print('[Main] ⚠️ App will continue with limited functionality');
+    print('[Main] ℹ️ Features requiring Firebase will be unavailable');
   }
   
-  try {
-    await BackgroundService.initialize();
-  } catch (e) {
-    print('Background service init error: $e');
+  // FAIL-SAFE: Background service is optional (mobile only)
+  if (!kIsWeb) {
+    try {
+      print('[Main] Initializing background service...');
+      await BackgroundService.initialize();
+      print('[Main] ✅ Background service initialized');
+    } catch (e) {
+      print('[Main] ⚠️ Background service init error (non-critical): $e');
+    }
+  } else {
+    print('[Main] ℹ️ Background service skipped (not supported on web)');
   }
   
-  try {
-    await PushNotificationService.initialize();
-  } catch (e) {
-    print('Push notification init error: $e');
+  // FAIL-SAFE: Push notifications are optional (mobile only)
+  if (!kIsWeb) {
+    try {
+      print('[Main] Initializing push notifications...');
+      await PushNotificationService.initialize();
+      print('[Main] ✅ Push notifications initialized');
+    } catch (e) {
+      print('[Main] ⚠️ Push notification init error (non-critical): $e');
+    }
+  } else {
+    print('[Main] ℹ️ Push notifications skipped (not supported on web)');
   }
   
+  print('[Main] Starting app...');
   runApp(const SuperPartyApp());
 }
 
@@ -137,9 +160,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
         
         if (snapshot.hasData) {
-          BackgroundService.startService().catchError((e) {
-            print('Failed to start background service: $e');
-          });
+          // Start background service only on mobile platforms
+          if (!kIsWeb) {
+            BackgroundService.startService().catchError((e) {
+              print('Failed to start background service: $e');
+              return false; // IMPORTANT: catchError must return Future<bool>
+            });
+          }
           
           // Load user role from staffProfiles
           _loadUserRole(context);

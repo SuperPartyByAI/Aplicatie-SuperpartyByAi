@@ -54,7 +54,12 @@ class _UpdateGateState extends State<UpdateGate> {
       // If no update needed, check for data migration
       if (!needsUpdate) {
         print('[UpdateGate] No force update needed, checking for data migration...');
-        await AppStateMigrationService.checkAndMigrate();
+        try {
+          await AppStateMigrationService.checkAndMigrate();
+        } catch (e) {
+          print('[UpdateGate] ⚠️ Data migration failed (non-critical): $e');
+          // Continue anyway - migration failure shouldn't block app
+        }
       }
       
       if (mounted) {
@@ -63,8 +68,10 @@ class _UpdateGateState extends State<UpdateGate> {
           _checking = false;
         });
       }
-    } catch (e) {
-      print('[UpdateGate] Error checking for update: $e');
+    } catch (e, stackTrace) {
+      print('[UpdateGate] ❌ Error checking for update: $e');
+      print('[UpdateGate] Stack trace: $stackTrace');
+      print('[UpdateGate] ℹ️ FAIL-SAFE: App will continue without blocking');
       // Fail-safe: don't block app if check fails
       if (mounted) {
         setState(() {

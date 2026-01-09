@@ -45,11 +45,12 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyB5zJqeDVenc9ygUx2zyW2WLkczY6FLavI',
-    appId: '1:168752018174:web:YOUR_WEB_APP_ID',
+    appId: '1:168752018174:web:3886f632a089ee14d82baf',
     messagingSenderId: '168752018174',
     projectId: 'superparty-frontend',
     authDomain: 'superparty-frontend.firebaseapp.com',
     storageBucket: 'superparty-frontend.firebasestorage.app',
+    measurementId: 'G-MEASUREMENT_ID',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
