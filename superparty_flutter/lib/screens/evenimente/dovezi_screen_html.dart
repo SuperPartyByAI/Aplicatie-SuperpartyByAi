@@ -1,5 +1,7 @@
 import 'dart:ui' show ImageFilter;
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -348,7 +350,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: _photos[category]!.map((photo) {
+      children: _photos[category]!.map((photoPath) {
         return Container(
           width: 80,
           height: 80,
@@ -356,13 +358,34 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
             color: const Color(0x14FFFFFF),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: const Center(
-            child: Icon(
-              Icons.image,
-              color: Color(0xB3EAF1FF),
-              size: 32,
-            ),
-          ),
+          clipBehavior: Clip.antiAlias,
+          child: kIsWeb
+              ? Image.network(
+                  photoPath,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Center(
+                      child: Icon(
+                        Icons.broken_image,
+                        color: Color(0xB3EAF1FF),
+                        size: 32,
+                      ),
+                    );
+                  },
+                )
+              : Image.file(
+                  File(photoPath),
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Center(
+                      child: Icon(
+                        Icons.broken_image,
+                        color: Color(0xB3EAF1FF),
+                        size: 32,
+                      ),
+                    );
+                  },
+                ),
         );
       }).toList(),
     );
