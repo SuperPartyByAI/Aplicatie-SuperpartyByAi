@@ -27,7 +27,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   // Filtre - exact ca în HTML
   String _datePreset = 'all'; // all, today, yesterday, last7, next7, next30, custom
   bool _sortAsc = false; // false = desc (↓), true = asc (↑)
-  String _driverFilter = 'all'; // all, needs, needsUnassigned, noNeed
+  String _driverFilter = 'all'; // all, yes, open, no (conform HTML exact)
   String _codeFilter = '';
   String _notedByFilter = '';
   DateTime? _customStart;
@@ -266,44 +266,44 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   }
 
   Widget _buildDriverButton() {
-    // 4 states: all, yes, open, no (conform HTML)
+    // 4 states: all, yes, open, no (EXACT din HTML - lines 1695, 4213)
     // Badge text: T, NEC, NRZ, NU
     final badgeText = {
       'all': 'T',
-      'needs': 'NEC',
-      'needsUnassigned': 'NRZ',
-      'noNeed': 'NU',
+      'yes': 'NEC',
+      'open': 'NRZ',
+      'no': 'NU',
     };
 
     final badgeColors = {
       'all': const Color(0x1FEAF1FF), // rgba(234,241,255,0.12)
-      'needs': const Color(0x474ECDC4), // rgba(78,205,196,0.28)
-      'needsUnassigned': const Color(0x244ECDC4), // rgba(78,205,196,0.14)
-      'noNeed': const Color(0x2E000000), // rgba(0,0,0,0.18)
+      'yes': const Color(0x474ECDC4), // rgba(78,205,196,0.28)
+      'open': const Color(0x244ECDC4), // rgba(78,205,196,0.14)
+      'no': const Color(0x2E000000), // rgba(0,0,0,0.18)
     };
 
     final badgeBorderColors = {
       'all': const Color(0x2EFFFFFF), // rgba(255,255,255,0.18)
-      'needs': const Color(0x804ECDC4), // rgba(78,205,196,0.5)
-      'needsUnassigned': const Color(0x524ECDC4), // rgba(78,205,196,0.32)
-      'noNeed': const Color(0x42FFFFFF), // rgba(255,255,255,0.26)
+      'yes': const Color(0x804ECDC4), // rgba(78,205,196,0.5)
+      'open': const Color(0x524ECDC4), // rgba(78,205,196,0.32)
+      'no': const Color(0x42FFFFFF), // rgba(255,255,255,0.26)
     };
 
     return InkWell(
       onTap: () {
         setState(() {
-          // Cycle through states: all → needs → needsUnassigned → noNeed → all
+          // Cycle: all → yes → open → no → all (EXACT din HTML nextDriverState)
           switch (_driverFilter) {
             case 'all':
-              _driverFilter = 'needs';
+              _driverFilter = 'yes';
               break;
-            case 'needs':
-              _driverFilter = 'needsUnassigned';
+            case 'yes':
+              _driverFilter = 'open';
               break;
-            case 'needsUnassigned':
-              _driverFilter = 'noNeed';
+            case 'open':
+              _driverFilter = 'no';
               break;
-            case 'noNeed':
+            case 'no':
               _driverFilter = 'all';
               break;
           }
@@ -618,10 +618,10 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       case 'all':
         return true;
 
-      case 'needs':
+      case 'yes': // necesită șofer (HTML: driverState === 'yes')
         return needsDriver;
 
-      case 'needsUnassigned':
+      case 'open': // necesită șofer nerezolvat (HTML: driverState === 'open')
         if (!needsDriver) return false;
         final driverRole = event.roles.firstWhere(
           (r) => r.slot.toUpperCase() == 'S',
@@ -632,7 +632,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             _isValidStaffCode(driverRole.assignedCode!);
         return !hasAssigned;
 
-      case 'noNeed':
+      case 'no': // nu necesită șofer (HTML: driverState === 'no')
         return !needsDriver;
 
       default:
