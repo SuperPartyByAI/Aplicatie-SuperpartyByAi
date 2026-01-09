@@ -25,7 +25,6 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   DateTime? _customStart;
   DateTime? _customEnd;
 
-  /// Parse date from DD-MM-YYYY format to DateTime
   DateTime? _parseDate(String dateStr) {
     try {
       final parts = dateStr.split('-');
@@ -36,7 +35,6 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       if (day == null || month == null || year == null) return null;
       return DateTime(year, month, day);
     } catch (e) {
-      print('[EvenimenteScreen] Failed to parse date: $dateStr - $e');
       return null;
     }
   }
@@ -97,8 +95,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
 
       if (start != null || end != null) {
         events = events.where((e) {
-          final eventDate = _parseDate(e.date);
-          if (eventDate == null) return false; // Skip invalid dates
+          final eventDate = DateTime.parse(e.date);
           if (start != null && eventDate.isBefore(start)) return false;
           if (end != null && eventDate.isAfter(end)) return false;
           return true;
@@ -491,7 +488,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 Text(
                   _parseDate(event.date) != null
                       ? DateFormat('dd MMM yyyy').format(_parseDate(event.date)!)
-                      : event.date, // Fallback to raw string if parsing fails
+                      : event.date,
                   style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xB3EAF1FF),
@@ -515,107 +512,6 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 fontSize: 14,
                 color: Color(0xB3EAF1FF),
               ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 12,
-              runSpacing: 4,
-              children: [
-                if (event.cineNoteaza != null)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.person_outline,
-                        size: 14,
-                        color: Color(0xB3EAF1FF),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Notat: ${event.cineNoteaza}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xB3EAF1FF),
-                        ),
-                      ),
-                    ],
-                  ),
-                if (event.sofer != null)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.local_shipping_outlined,
-                        size: 14,
-                        color: Color(0xFF10B981),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Șofer: ${event.sofer}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF10B981),
-                        ),
-                      ),
-                    ],
-                  ),
-                if (event.soferPending != null)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.local_shipping_outlined,
-                        size: 14,
-                        color: Color(0xFFFFBE5C),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Șofer pending: ${event.soferPending}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFFFFBE5C),
-                        ),
-                      ),
-                    ],
-                  ),
-                if (event.sarbatoritDob != null)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.cake_outlined,
-                        size: 14,
-                        color: Color(0xB3EAF1FF),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Naștere: ${event.sarbatoritDob}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xB3EAF1FF),
-                        ),
-                      ),
-                    ],
-                  ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.access_time,
-                      size: 14,
-                      color: Color(0xB3EAF1FF),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Creat: ${DateFormat('dd/MM HH:mm').format(event.createdAt)}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xB3EAF1FF),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
             ),
             if (event.roles.isNotEmpty) ...[
               const SizedBox(height: 12),
