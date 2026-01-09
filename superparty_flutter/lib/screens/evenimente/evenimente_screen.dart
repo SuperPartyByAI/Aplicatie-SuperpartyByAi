@@ -444,7 +444,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
 
   Widget _buildEventsList() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('events').snapshots(),
+      stream: FirebaseFirestore.instance.collection('evenimente').snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
