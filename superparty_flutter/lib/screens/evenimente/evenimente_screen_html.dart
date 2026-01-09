@@ -467,16 +467,170 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
   List<EventModel> _applyFilters(List<EventModel> events) {
     var filtered = events.where((e) => !e.isArchived).toList();
 
-    // TODO: Aplică toate filtrele (date, driver, code, notedBy)
-    // Implementare completă în următorul pas
+    // Filter by date preset
+    filtered = filtered.where((e) => _matchesDateFilter(e)).toList();
+
+    // Filter by driver
+    filtered = filtered.where((e) => _matchesDriverFilter(e)).toList();
+
+    // Filter by notedBy
+    if (_notedByFilter.isNotEmpty) {
+      filtered = filtered.where((e) {
+        final notedBy = _notedByFilter.trim().toUpperCase();
+        if (!_isValidStaffCode(notedBy)) return false;
+        return (e.cineNoteaza ?? '').trim().toUpperCase() == notedBy;
+      }).toList();
+    }
+
+    // Filter by code
+    if (_codeFilter.isNotEmpty) {
+      filtered = filtered.where((e) => _matchesCodeFilter(e)).toList();
+    }
 
     // Sort
     filtered.sort((a, b) {
-      final comparison = a.date.compareTo(b.date);
+      final dateA = _parseDate(a.date);
+      final dateB = _parseDate(b.date);
+      if (dateA == null || dateB == null) return 0;
+      final comparison = dateA.compareTo(dateB);
       return _sortAsc ? comparison : -comparison;
     });
 
     return filtered;
+  }
+
+  bool _matchesDateFilter(EventModel event) {
+    final eventDate = _parseDate(event.date);
+    if (eventDate == null) return false;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    switch (_datePreset) {
+      case 'all':
+        return true;
+
+      case 'today':
+        final eventDay = DateTime(eventDate.year, eventDate.month, eventDate.day);
+        return eventDay == today;
+
+      case 'yesterday':
+        final yesterday = today.subtract(const Duration(days: 1));
+        final eventDay = DateTime(eventDate.year, eventDate.month, eventDate.day);
+        return eventDay == yesterday;
+
+      case 'last7':
+        final last7 = today.subtract(const Duration(days: 7));
+        return eventDate.isAfter(last7) && eventDate.isBefore(today.add(const Duration(days: 1)));
+
+      case 'next7':
+        final next7 = today.add(const Duration(days: 7));
+        return eventDate.isAfter(today.subtract(const Duration(days: 1))) && eventDate.isBefore(next7.add(const Duration(days: 1)));
+
+      case 'next30':
+        final next30 = today.add(const Duration(days: 30));
+        return eventDate.isAfter(today.subtract(const Duration(days: 1))) && eventDate.isBefore(next30.add(const Duration(days: 1)));
+
+      case 'custom':
+        if (_customStart != null && _customEnd != null) {
+          return eventDate.isAfter(_customStart!.subtract(const Duration(days: 1))) &&
+              eventDate.isBefore(_customEnd!.add(const Duration(days: 1)));
+        }
+        return true;
+
+      default:
+        return true;
+    }
+  }
+
+  bool _matchesDriverFilter(EventModel event) {
+    final needsDriver = event.roles.any((r) => r.slot.toUpperCase() == 'S');
+
+    switch (_driverFilter) {
+      case 'all':
+        return true;
+
+      case 'needs':
+        return needsDriver;
+
+      case 'needsUnassigned':
+        if (!needsDriver) return false;
+        final driverRole = event.roles.firstWhere(
+          (r) => r.slot.toUpperCase() == 'S',
+          orElse: () => RoleModel(slot: 'S', label: '', time: '', durationMin: 0),
+        );
+        final hasAssigned = driverRole.assignedCode != null &&
+            driverRole.assignedCode!.isNotEmpty &&
+            _isValidStaffCode(driverRole.assignedCode!);
+        return !hasAssigned;
+
+      case 'noNeed':
+        return !needsDriver;
+
+      default:
+        return true;
+    }
+  }
+
+  bool _matchesCodeFilter(EventModel event) {
+    final code = _codeFilter.trim().toUpperCase();
+    if (code.isEmpty) return true;
+
+    // Special values
+    if (code == 'NEREZOLVATE') {
+      // Has at least one unassigned role (!)
+      return event.roles.any((r) {
+        final hasAssigned = r.assignedCode != null &&
+            r.assignedCode!.isNotEmpty &&
+            _isValidStaffCode(r.assignedCode!);
+        final hasPending = !hasAssigned &&
+            r.pendingCode != null &&
+            r.pendingCode!.isNotEmpty &&
+            _isValidStaffCode(r.pendingCode!);
+        return !hasAssigned && !hasPending;
+      });
+    }
+
+    if (code == 'REZOLVATE') {
+      // All roles are assigned or pending
+      return event.roles.every((r) {
+        final hasAssigned = r.assignedCode != null &&
+            r.assignedCode!.isNotEmpty &&
+            _isValidStaffCode(r.assignedCode!);
+        final hasPending = !hasAssigned &&
+            r.pendingCode != null &&
+            r.pendingCode!.isNotEmpty &&
+            _isValidStaffCode(r.pendingCode!);
+        return hasAssigned || hasPending;
+      });
+    }
+
+    // Search for specific code in roles
+    return event.roles.any((r) {
+      final assigned = (r.assignedCode ?? '').trim().toUpperCase();
+      final pending = (r.pendingCode ?? '').trim().toUpperCase();
+      return assigned == code || pending == code;
+    });
+  }
+
+  DateTime? _parseDate(String dateStr) {
+    try {
+      final parts = dateStr.split('-');
+      if (parts.length != 3) return null;
+      final day = int.tryParse(parts[0]);
+      final month = int.tryParse(parts[1]);
+      final year = int.tryParse(parts[2]);
+      if (day == null || month == null || year == null) return null;
+      return DateTime(year, month, day);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  bool _isValidStaffCode(String code) {
+    final normalized = code.trim().toUpperCase();
+    if (normalized.isEmpty) return false;
+    return RegExp(r'^[A-Z][A-Z0-9]*$').hasMatch(normalized);
   }
 
   Widget _buildEventCard(EventModel event) {
