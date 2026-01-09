@@ -36,26 +36,26 @@ class EventCardHtml extends StatelessWidget {
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // Mobile layout: 3 rows
+            // Mobile layout: 3 rows (gap: 10px vertical)
             if (constraints.maxWidth < 600) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Row 1: Badge + Main
+                  // Row 1: Badge + Main (gap: 12px horizontal)
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildBadge(),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 12), // gap horizontal
                       Expanded(child: _buildMain()),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 10), // gap vertical
 
                   // Row 2: Rolelist
                   if (event.roles.isNotEmpty) ...[
                     _buildRoleList(),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 10), // gap vertical
                   ],
 
                   // Row 3: Right
@@ -136,14 +136,61 @@ class EventCardHtml extends StatelessWidget {
   }
 
   Widget _buildRoleList() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 4,
-      children: event.roles.map((role) => _buildRoleItem(role)).toList(),
+    // Grid layout: 46px (slot) + 1fr (label)
+    // Gap: 4px vertical, 8px horizontal
+    return Column(
+      children: event.roles.map((role) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Slot column (46px width to match badge)
+              SizedBox(
+                width: 46,
+                child: _buildSlot(role),
+              ),
+              const SizedBox(width: 8), // gap
+              // Label column (flexible)
+              Expanded(
+                child: _buildRoleLabel(role),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 
-  Widget _buildRoleItem(RoleModel role) {
+  Widget _buildSlot(RoleModel role) {
+    return GestureDetector(
+      onTap: () => onSlotTap(role.slot),
+      child: Container(
+        width: 22,
+        height: 18,
+        decoration: BoxDecoration(
+          color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
+          border: Border.all(
+            color: const Color(0x1FFFFFFF), // rgba(255,255,255,0.12)
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Center(
+          child: Text(
+            role.slot,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.3,
+              color: Color(0xF2EAF1FF),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoleLabel(RoleModel role) {
     final hasAssigned = role.assignedCode != null &&
         role.assignedCode!.isNotEmpty &&
         _isValidStaffCode(role.assignedCode!);
@@ -163,107 +210,71 @@ class EventCardHtml extends StatelessWidget {
             ? _StatusType.pending
             : _StatusType.unassigned;
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Slot
-        GestureDetector(
-          onTap: () => onSlotTap(role.slot),
-          child: Container(
-            width: 22,
-            height: 18,
-            decoration: BoxDecoration(
-              color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
-              border: Border.all(
-                color: const Color(0x1FFFFFFF), // rgba(255,255,255,0.12)
+    return GestureDetector(
+      onTap: () => onStatusTap(
+        role.slot,
+        hasAssigned ? role.assignedCode : hasPending ? role.pendingCode : null,
+      ),
+      child: Row(
+        children: [
+          // Role name
+          Flexible(
+            child: Text(
+              role.label,
+              style: TextStyle(
+                fontSize: 12,
+                color: const Color(0xFFEAF1FF).withOpacity(0.7),
               ),
-              borderRadius: BorderRadius.circular(8),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
-            child: Center(
-              child: Text(
-                role.slot,
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.3,
-                  color: Color(0xF2EAF1FF),
+          ),
+
+          // Time
+          if (role.time.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Text(
+              role.time,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                color: const Color(0xFFEAF1FF).withOpacity(0.7),
+              ),
+            ),
+          ],
+
+          // Duration
+          if (role.durationMin > 0) ...[
+            const SizedBox(width: 6),
+            Container(
+              height: 18,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                color: const Color(0x0FFFFFFF),
+                border: Border.all(
+                  color: const Color(0x1AFFFFFFF),
+                ),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Center(
+                child: Text(
+                  _formatDuration(role.durationMin),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.12,
+                    color: const Color(0xFFEAF1FF).withOpacity(0.78),
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
-        const SizedBox(width: 8),
+          ],
 
-        // Label
-        Flexible(
-          child: GestureDetector(
-            onTap: () => onStatusTap(
-              role.slot,
-              hasAssigned ? role.assignedCode : hasPending ? role.pendingCode : null,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Role name
-                Flexible(
-                  child: Text(
-                    role.label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: const Color(0xFFEAF1FF).withOpacity(0.7),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-
-                // Time
-                if (role.time.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Text(
-                    role.time,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      color: const Color(0xFFEAF1FF).withOpacity(0.7),
-                    ),
-                  ),
-                ],
-
-                // Duration
-                if (role.durationMin > 0) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    height: 18,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: const Color(0x0FFFFFFF),
-                      border: Border.all(
-                        color: const Color(0x1AFFFFFFF),
-                      ),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Center(
-                      child: Text(
-                        _formatDuration(role.durationMin),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.12,
-                          color: const Color(0xFFEAF1FF).withOpacity(0.78),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-
-                // Status
-                const SizedBox(width: 8),
-                _buildStatus(statusText, statusType),
-              ],
-            ),
-          ),
-        ),
-      ],
+          // Status
+          const SizedBox(width: 8),
+          _buildStatus(statusText, statusType),
+        ],
+      ),
     );
   }
 
@@ -300,28 +311,44 @@ class EventCardHtml extends StatelessWidget {
     return Container(
       constraints: const BoxConstraints(minWidth: 18),
       height: 18,
-      padding: const EdgeInsets.symmetric(horizontal: 7),
       decoration: BoxDecoration(
         color: bgColor,
         border: Border.all(color: borderColor),
         borderRadius: BorderRadius.circular(999),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0x0FFFFFFF), // inset effect
-            offset: const Offset(0, 1),
-            blurRadius: 0,
+      ),
+      child: Stack(
+        children: [
+          // Inset shadow simulation (top highlight)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                color: const Color(0x0FFFFFFF), // rgba(255,255,255,0.06)
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(999),
+                  topRight: Radius.circular(999),
+                ),
+              ),
+            ),
+          ),
+          // Text
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 7),
+              child: Text(
+                text,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: textColor,
+                ),
+              ),
+            ),
           ),
         ],
-      ),
-      child: Center(
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-            color: textColor,
-          ),
-        ),
       ),
     );
   }

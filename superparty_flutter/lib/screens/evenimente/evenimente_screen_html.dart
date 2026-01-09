@@ -1,3 +1,4 @@
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/event_model.dart';
@@ -54,38 +55,43 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
 
   /// AppBar sticky cu filtre - identic cu HTML
   Widget _buildAppBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF0B1220).withOpacity(0.72),
-        border: const Border(
-          bottom: BorderSide(
-            color: Color(0x14FFFFFF), // rgba(255,255,255,0.08)
-            width: 1,
-          ),
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Titlu
-              const Text(
-                'Evenimente',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.2,
-                  color: Color(0xFFEAF1FF), // --text
-                ),
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF0B1220).withOpacity(0.72), // rgba(11,18,32,0.72)
+            border: const Border(
+              bottom: BorderSide(
+                color: Color(0x14FFFFFF), // rgba(255,255,255,0.08)
+                width: 1,
               ),
-              const SizedBox(height: 10),
+            ),
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Titlu
+                  const Text(
+                    'Evenimente',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.2,
+                      color: Color(0xFFEAF1FF), // --text
+                    ),
+                  ),
+                  const SizedBox(height: 10),
 
-              // Filters block
-              _buildFiltersBlock(),
-            ],
+                  // Filters block
+                  _buildFiltersBlock(),
+                ],
+              ),
+            ),
           ),
         ),
       ),
