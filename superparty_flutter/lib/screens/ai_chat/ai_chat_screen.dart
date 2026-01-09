@@ -1129,6 +1129,18 @@ class _AIChatScreenState extends State<AIChatScreen> {
     final ok = previewData['ok'] == true;
     final message = previewData['message']?.toString() ?? '';
 
+    // ASK_INFO: AI needs more information (conversational mode)
+    if (action == 'ASK_INFO') {
+      setState(() {
+        _messages.add({
+          'role': 'assistant',
+          'content': message.isNotEmpty ? message : 'Am nevoie de mai multe informații pentru a continua.',
+        });
+      });
+      _scrollToBottomSoon();
+      return;
+    }
+
     if (!ok || action == 'NONE') {
       // Show error message
       setState(() {

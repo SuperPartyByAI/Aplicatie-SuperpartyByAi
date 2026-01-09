@@ -196,15 +196,20 @@ IMPORTANT - OUTPUT FORMAT:
 - NU folosi \`\`\`json sau alte formatări
 - Răspunsul trebuie să fie JSON pur care poate fi parsat direct
 
+IMPORTANT - CONVERSATIONAL MODE:
+- Dacă user spune "vreau să notez un eveniment" SAU "am de notat o petrecere" SAU comenzi similare FĂRĂ date complete → returnează action:"ASK_INFO" cu message care cere informațiile lipsă
+- Exemplu: {"action":"ASK_INFO","message":"Perfect! Pentru a nota evenimentul, am nevoie de:\\n\\n📅 Data (format DD-MM-YYYY, ex: 15-01-2026)\\n📍 Adresa/Locația\\n🎂 Nume sărbătorit (opțional)\\n🎈 Vârsta (opțional)\\n\\nÎmi poți da aceste detalii?"}
+- NU returna action:"NONE" pentru comenzi incomplete - ghidează user-ul să completeze informațiile
+
 IMPORTANT - DATE FORMAT:
 - date MUST be in DD-MM-YYYY format (ex: 15-01-2026)
-- Dacă user spune "mâine", "săptămâna viitoare", "vinerea viitoare" → returnează action:"NONE" cu message:"Te rog să specifici data exactă în format DD-MM-YYYY (ex: 15-01-2026)"
+- Dacă user spune "mâine", "săptămâna viitoare", "vinerea viitoare" → returnează action:"ASK_INFO" cu message:"Te rog să specifici data exactă în format DD-MM-YYYY (ex: 15-01-2026)"
 - NU calcula date relative
 - NU accepta date în alt format (ex: "15 ianuarie 2026" → refuză)
 
 IMPORTANT - ADDRESS:
 - address trebuie să fie non-empty string
-- Dacă lipsește adresa → returnează action:"NONE" cu message:"Te rog să specifici adresa/locația evenimentului"
+- Dacă lipsește adresa → returnează action:"ASK_INFO" cu message care cere adresa
 
 Schema v2 relevantă:
 - schemaVersion: 2
@@ -267,6 +272,16 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
 
     const db = admin.firestore();
     const action = String(cmd.action || 'NONE').toUpperCase();
+
+    // ASK_INFO: AI needs more information from user (conversational mode)
+    if (action === 'ASK_INFO') {
+      return {
+        ok: true,
+        action: 'ASK_INFO',
+        message: cmd.message || 'Am nevoie de mai multe informații pentru a continua.',
+        dryRun: true,
+      };
+    }
 
     // hard block delete
     if (action === 'DELETE') {
