@@ -1,10 +1,14 @@
 'use strict';
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 
 // Groq SDK
 const Groq = require('groq-sdk');
+
+// Define secret for GROQ API key
+const groqApiKey = defineSecret('GROQ_API_KEY');
 
 // Init admin once
 if (!admin.apps.length) {
@@ -155,7 +159,11 @@ function sanitizeUpdateFields(data) {
 }
 
 exports.chatEventOps = onCall(
-  { region: 'us-central1', timeoutSeconds: 30 },
+  { 
+    region: 'us-central1', 
+    timeoutSeconds: 30,
+    secrets: [groqApiKey]  // Attach GROQ_API_KEY secret
+  },
   async (request) => {
     // Require authentication (all authenticated users can use this)
     const auth = requireAuth(request);
@@ -170,8 +178,12 @@ exports.chatEventOps = onCall(
     // DryRun mode: parse command but don't execute (for preview)
     const dryRun = request.data?.dryRun === true;
 
-    const groqKey = process.env.GROQ_API_KEY;
-    if (!groqKey) throw new HttpsError('failed-precondition', 'Lipsește GROQ_API_KEY.');
+    // Access GROQ API key from secret
+    const groqKey = groqApiKey.value();
+    if (!groqKey) {
+      console.error('[chatEventOps] GROQ_API_KEY not available');
+      throw new HttpsError('failed-precondition', 'Lipsește GROQ_API_KEY.');
+    }
 
     const groq = new Groq({ apiKey: groqKey });
 
