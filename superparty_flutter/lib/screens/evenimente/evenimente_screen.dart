@@ -25,6 +25,22 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   DateTime? _customStart;
   DateTime? _customEnd;
 
+  /// Parse date from DD-MM-YYYY format to DateTime
+  DateTime? _parseDate(String dateStr) {
+    try {
+      final parts = dateStr.split('-');
+      if (parts.length != 3) return null;
+      final day = int.tryParse(parts[0]);
+      final month = int.tryParse(parts[1]);
+      final year = int.tryParse(parts[2]);
+      if (day == null || month == null || year == null) return null;
+      return DateTime(year, month, day);
+    } catch (e) {
+      print('[EvenimenteScreen] Failed to parse date: $dateStr - $e');
+      return null;
+    }
+  }
+
   EventFilters get _filters {
     return EventFilters(
       preset: _preset,
@@ -81,7 +97,8 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
 
       if (start != null || end != null) {
         events = events.where((e) {
-          final eventDate = DateTime.parse(e.date);
+          final eventDate = _parseDate(e.date);
+          if (eventDate == null) return false; // Skip invalid dates
           if (start != null && eventDate.isBefore(start)) return false;
           if (end != null && eventDate.isAfter(end)) return false;
           return true;
@@ -472,7 +489,9 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 ),
                 const Spacer(),
                 Text(
-                  DateFormat('dd MMM yyyy').format(DateTime.parse(event.date)),
+                  _parseDate(event.date) != null
+                      ? DateFormat('dd MMM yyyy').format(_parseDate(event.date)!)
+                      : event.date, // Fallback to raw string if parsing fails
                   style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xB3EAF1FF),
