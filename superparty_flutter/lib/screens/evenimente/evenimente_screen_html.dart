@@ -9,6 +9,7 @@ import '../../widgets/modals/code_modal.dart';
 import '../../widgets/modals/assign_modal.dart';
 import '../../widgets/modals/code_info_modal.dart';
 import 'event_card_html.dart';
+import 'dovezi_screen_html.dart';
 
 /// Evenimente Screen - 100% identic cu HTML (4522 linii)
 /// Referință: kyc-app/kyc-app/public/evenimente.html
@@ -661,11 +662,9 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
     return EventCardHtml(
       event: event,
       onTap: () {
-        // TODO: Open evidence page (Faza 6)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pagina dovezi - în implementare'),
-            duration: Duration(seconds: 1),
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => DoveziScreenHtml(event: event),
           ),
         );
       },
