@@ -51,6 +51,12 @@ class EventModel {
   factory EventModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     
+    // DEBUG: Log raw data to see what we're receiving
+    print('[EventModel] Parsing event ${doc.id}');
+    print('[EventModel] Raw data keys: ${data.keys.toList()}');
+    print('[EventModel] date field: ${data['date']} (type: ${data['date']?.runtimeType})');
+    print('[EventModel] data field: ${data['data']} (type: ${data['data']?.runtimeType})');
+    
     // DUAL-READ: suport v1 + v2
     // v2: date (string DD-MM-YYYY), address, roles (array)
     // v1: data (Timestamp), locatie/adresa, alocari (map)
@@ -58,21 +64,30 @@ class EventModel {
     final schemaVersion = data['schemaVersion'] as int? ?? 1;
     
     // Date field (v2: string, v1: Timestamp)
+    // Support both 'date' (English) and 'data' (Romanian) field names
     String dateStr;
     if (data.containsKey('date') && data['date'] is String) {
-      // v2: date as string DD-MM-YYYY
+      // v2: date as string DD-MM-YYYY (English field name)
       dateStr = data['date'] as String;
+      print('[EventModel] ✅ Using date as String: $dateStr');
+    } else if (data.containsKey('data') && data['data'] is String) {
+      // v2: data as string DD-MM-YYYY (Romanian field name)
+      dateStr = data['data'] as String;
+      print('[EventModel] ✅ Using data as String: $dateStr');
     } else if (data.containsKey('date') && data['date'] is Timestamp) {
       // v1: date as Timestamp (old schema) - convert to DD-MM-YYYY
       final timestamp = (data['date'] as Timestamp).toDate();
       dateStr = '${timestamp.day.toString().padLeft(2, '0')}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.year}';
+      print('[EventModel] ✅ Converted date Timestamp to String: $dateStr');
     } else if (data.containsKey('data') && data['data'] is Timestamp) {
       // v1 alternative: data as Timestamp - convert to DD-MM-YYYY
       final timestamp = (data['data'] as Timestamp).toDate();
       dateStr = '${timestamp.day.toString().padLeft(2, '0')}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.year}';
+      print('[EventModel] ✅ Converted data Timestamp to String: $dateStr');
     } else {
       // Fallback: empty date
       dateStr = '';
+      print('[EventModel] ⚠️ No valid date field found, using empty string');
     }
     
     // Address field (v2: address, v1: locatie or adresa)
