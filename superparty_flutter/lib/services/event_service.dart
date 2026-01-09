@@ -22,7 +22,15 @@ class EventService {
 
     return query.snapshots().map((snapshot) {
       var events = snapshot.docs
-          .map((doc) => EventModel.fromFirestore(doc))
+          .map((doc) {
+            try {
+              return EventModel.fromFirestore(doc);
+            } catch (e) {
+              print('[EventService] ⚠️ Failed to parse event ${doc.id}: $e');
+              return null;
+            }
+          })
+          .whereType<EventModel>() // Filter out nulls
           .toList();
 
       // Filtre client-side (nu pot fi făcute server-side)
@@ -38,7 +46,15 @@ class EventService {
         .orderBy('archivedAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => EventModel.fromFirestore(doc))
+            .map((doc) {
+              try {
+                return EventModel.fromFirestore(doc);
+              } catch (e) {
+                print('[EventService] ⚠️ Failed to parse archived event ${doc.id}: $e');
+                return null;
+              }
+            })
+            .whereType<EventModel>() // Filter out nulls
             .toList());
   }
 
