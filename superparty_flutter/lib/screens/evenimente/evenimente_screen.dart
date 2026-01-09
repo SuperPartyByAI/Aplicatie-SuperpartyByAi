@@ -1,144 +1,42 @@
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/event_model.dart';
-import '../../models/event_filters.dart';
 import '../../services/event_service.dart';
-import '../../utils/code_validator.dart';
-import '../../widgets/code_filter_modal.dart';
-import '../../widgets/assign_role_sheet.dart';
-import '../dovezi/dovezi_screen.dart';
+import '../../widgets/modals/range_modal.dart';
+import '../../widgets/modals/code_modal.dart';
+import '../../widgets/modals/assign_modal.dart';
+import '../../widgets/modals/code_info_modal.dart';
+import 'event_card_html.dart';
+import 'dovezi_screen_html.dart';
 
-class EvenimenteScreen extends StatefulWidget {
-  const EvenimenteScreen({super.key});
+/// Evenimente Screen - 100% identic cu HTML (4522 linii)
+/// Referință: kyc-app/kyc-app/public/evenimente.html
+class EvenimenteScreenHtml extends StatefulWidget {
+  const EvenimenteScreenHtml({super.key});
 
   @override
-  State<EvenimenteScreen> createState() => _EvenimenteScreenState();
+  State<EvenimenteScreenHtml> createState() => _EvenimenteScreenHtmlState();
 }
 
-class _EvenimenteScreenState extends State<EvenimenteScreen> {
+class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
   final EventService _eventService = EventService();
-  DatePreset _preset = DatePreset.all;
-  SortDirection _sortDir = SortDirection.desc;
-  DriverFilter _driverFilter = DriverFilter.all;
-  String? _staffCode;
-  String? _notedBy;
+  final FocusNode _codeInputFocus = FocusNode();
+
+  // Filtre - exact ca în HTML
+  String _datePreset = 'all'; // all, today, yesterday, last7, next7, next30, custom
+  bool _sortAsc = false; // false = desc (↓), true = asc (↑)
+  String _driverFilter = 'all'; // all, needs, needsUnassigned, noNeed
+  String _codeFilter = '';
+  String _notedByFilter = '';
   DateTime? _customStart;
   DateTime? _customEnd;
 
-  DateTime? _parseDate(String dateStr) {
-    try {
-      final parts = dateStr.split('-');
-      if (parts.length != 3) return null;
-      final day = int.tryParse(parts[0]);
-      final month = int.tryParse(parts[1]);
-      final year = int.tryParse(parts[2]);
-      if (day == null || month == null || year == null) return null;
-      return DateTime(year, month, day);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  EventFilters get _filters {
-    return EventFilters(
-      preset: _preset,
-      customStartDate: _customStart,
-      customEndDate: _customEnd,
-      sortDirection: _sortDir,
-      driverFilter: _driverFilter,
-      staffCode: _staffCode,
-      notedBy: _notedBy,
-    );
-  }
-
-  Stream<List<EventModel>> get _eventsStream {
-    return _eventService.getEventsStream(_filters);
-  }
-
-  List<EventModel> _applyClientFilters(List<EventModel> events) {
-    var filtered = List<EventModel>.from(events);
-
-    // Date filter
-    if (_preset != DatePreset.all || _customStart != null || _customEnd != null) {
-      final now = DateTime.now();
-      DateTime? start, end;
-
-      switch (_preset) {
-        case DatePreset.today:
-          start = DateTime(now.year, now.month, now.day);
-          end = DateTime(now.year, now.month, now.day, 23, 59, 59);
-          break;
-        case DatePreset.yesterday:
-          final yesterday = now.subtract(const Duration(days: 1));
-          start = DateTime(yesterday.year, yesterday.month, yesterday.day);
-          end = DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59);
-          break;
-        case DatePreset.last7:
-          start = now.subtract(const Duration(days: 7));
-          end = now;
-          break;
-        case DatePreset.next7:
-          start = now;
-          end = now.add(const Duration(days: 7));
-          break;
-        case DatePreset.next30:
-          start = now;
-          end = now.add(const Duration(days: 30));
-          break;
-        case DatePreset.custom:
-          start = _customStart;
-          end = _customEnd;
-          break;
-        case DatePreset.all:
-          break;
-      }
-
-      if (start != null || end != null) {
-        events = events.where((e) {
-          final eventDate = DateTime.parse(e.date);
-          if (start != null && eventDate.isBefore(start)) return false;
-          if (end != null && eventDate.isAfter(end)) return false;
-          return true;
-        }).toList();
-      }
-    }
-
-    // Driver filter
-    switch (_driverFilter) {
-      case DriverFilter.yes:
-        events = events.where((e) => e.needsDriver).toList();
-        break;
-      case DriverFilter.open:
-        events = events.where((e) => e.needsDriver && !e.hasDriverAssigned).toList();
-        break;
-      case DriverFilter.no:
-        events = events.where((e) => !e.needsDriver).toList();
-        break;
-      case DriverFilter.all:
-        break;
-    }
-
-    // Staff code filter
-    if (_staffCode != null && _staffCode!.isNotEmpty) {
-      final code = CodeValidator.normalize(_staffCode!);
-      events = events.where((e) {
-        return e.roles.any((r) => r.assignedCode == code || r.pendingCode == code);
-      }).toList();
-    }
-
-    // Noted by filter
-    if (_notedBy != null && _notedBy!.isNotEmpty) {
-      final code = CodeValidator.normalize(_notedBy!);
-      events = events.where((e) => e.cineNoteaza == code).toList();
-    }
-
-    // Sort
-    events.sort((a, b) {
-      final comparison = a.date.compareTo(b.date);
-      return _sortDir == SortDirection.asc ? comparison : -comparison;
-    });
-
-    return events;
+  @override
+  void dispose() {
+    _codeInputFocus.dispose();
+    super.dispose();
   }
 
   @override
@@ -148,11 +46,11 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF111C35),
-              Color(0xFF0B1220),
+              Color(0xFF111C35), // --bg2
+              Color(0xFF0B1220), // --bg
             ],
           ),
         ),
@@ -168,83 +66,154 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
     );
   }
 
+  /// AppBar sticky cu filtre - identic cu HTML
   Widget _buildAppBar() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0B1220).withOpacity(0.72),
-        border: const Border(
-          bottom: BorderSide(color: Color(0x14FFFFFF)),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Evenimente',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFFEAF1FF),
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF0B1220).withOpacity(0.72), // rgba(11,18,32,0.72)
+            border: const Border(
+              bottom: BorderSide(
+                color: Color(0x14FFFFFF), // rgba(255,255,255,0.08)
+                width: 1,
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-          _buildFiltersRow(),
-          const SizedBox(height: 8),
-          _buildExtraFiltersRow(),
-          const SizedBox(height: 8),
-          const Text(
-            'Click pe card deschide pagina de dovezi. Click pe slot sau pe cod pastreaza alocarea/tab cod.',
-            style: TextStyle(
-              fontSize: 12,
-              color: Color(0xB3EAF1FF),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Titlu
+                  const Text(
+                    'Evenimente',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.2,
+                      color: Color(0xFFEAF1FF), // --text
+                    ),
+                  ),
+                  const SizedBox(height: 10),
 
-  Widget _buildFiltersRow() {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: const Color(0x14FFFFFF),
-              border: Border.all(color: const Color(0x1FFFFFFF)),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<DatePreset>(
-                value: _preset,
-                dropdownColor: const Color(0xFF1A2332),
-                style: const TextStyle(color: Color(0xFFEAF1FF), fontSize: 14),
-                items: DatePreset.values.map((p) {
-                  return DropdownMenuItem(value: p, child: Text(p.label));
-                }).toList(),
-                onChanged: (value) {
-                  if (value == DatePreset.custom) {
-                    _showCustomDatePicker();
-                  } else {
-                    setState(() {
-                      _preset = value!;
-                      _customStart = null;
-                      _customEnd = null;
-                    });
-                  }
-                },
+                  // Filters block
+                  _buildFiltersBlock(),
+                ],
               ),
             ),
           ),
         ),
-        const SizedBox(width: 8),
-        _buildSortButton(),
-        const SizedBox(width: 8),
-        _buildDriverButton(),
+      ),
+    );
+  }
+
+  Widget _buildFiltersBlock() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Filtru dată (preset + sort + driver)
+        _buildFiltersDate(),
+        const SizedBox(height: 4),
+
+        // Filtru extra (cod + cine noteaza)
+        _buildFiltersExtra(),
+        const SizedBox(height: 4),
+
+        // Hint text
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+          child: Text(
+            'Click pe card deschide pagina de dovezi. Click pe slot sau pe cod pastreaza alocarea/tab cod.',
+            style: TextStyle(
+              fontSize: 11,
+              color: const Color(0xFFEAF1FF).withOpacity(0.7), // --muted
+              height: 1.3,
+            ),
+          ),
+        ),
       ],
+    );
+  }
+
+  Widget _buildFiltersDate() {
+    return Row(
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              // Date preset dropdown
+              Expanded(
+                child: _buildDatePresetDropdown(),
+              ),
+              const SizedBox(width: 0),
+
+              // Sort button
+              _buildSortButton(),
+              const SizedBox(width: 0),
+
+              // Driver button
+              _buildDriverButton(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDatePresetDropdown() {
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: const Color(0x0FFFFFFF), // rgba(255,255,255,0.06)
+        border: Border.all(
+          color: const Color(0x24FFFFFF), // rgba(255,255,255,0.14)
+        ),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(12),
+          bottomLeft: Radius.circular(12),
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _datePreset,
+          dropdownColor: const Color(0xFF111C35),
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFFEAF1FF),
+            letterSpacing: 0.15,
+          ),
+          icon: const Icon(
+            Icons.arrow_drop_down,
+            color: Color(0xB3EAF1FF),
+            size: 20,
+          ),
+          items: const [
+            DropdownMenuItem(value: 'all', child: Text('Toate')),
+            DropdownMenuItem(value: 'today', child: Text('Azi')),
+            DropdownMenuItem(value: 'yesterday', child: Text('Ieri')),
+            DropdownMenuItem(value: 'last7', child: Text('Ultimele 7 zile')),
+            DropdownMenuItem(value: 'next7', child: Text('Urmatoarele 7 zile')),
+            DropdownMenuItem(value: 'next30', child: Text('Urmatoarele 30 zile')),
+            DropdownMenuItem(value: 'custom', child: Text('Interval (aleg eu)')),
+          ],
+          onChanged: (value) {
+            if (value != null) {
+              setState(() {
+                _datePreset = value;
+                if (value == 'custom') {
+                  _openRangeModal();
+                }
+              });
+            }
+          },
+        ),
+      ),
     );
   }
 
@@ -252,33 +221,41 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
     return InkWell(
       onTap: () {
         setState(() {
-          _sortDir = _sortDir == SortDirection.asc ? SortDirection.desc : SortDirection.asc;
+          _sortAsc = !_sortAsc;
         });
       },
       child: Container(
-        width: 44,
-        height: 44,
+        width: 52,
+        height: 36,
         decoration: BoxDecoration(
-          color: const Color(0x14FFFFFF),
-          border: Border.all(color: const Color(0x1FFFFFFF)),
-          borderRadius: BorderRadius.circular(8),
+          color: const Color(0x0FFFFFFF),
+          border: const Border(
+            top: BorderSide(color: Color(0x24FFFFFF)),
+            bottom: BorderSide(color: Color(0x24FFFFFF)),
+            left: BorderSide(color: Color(0x1FFFFFFF)),
+          ),
         ),
-        child: Column(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               '↑',
               style: TextStyle(
-                color: _sortDir == SortDirection.asc ? const Color(0xFFEAF1FF) : const Color(0x73EAF1FF),
-                fontSize: 16,
+                fontSize: 14,
+                color: _sortAsc
+                    ? const Color(0xFFEAF1FF)
+                    : const Color(0xFFEAF1FF).withOpacity(0.35),
                 fontWeight: FontWeight.w900,
               ),
             ),
+            const SizedBox(width: 8),
             Text(
               '↓',
               style: TextStyle(
-                color: _sortDir == SortDirection.desc ? const Color(0xFFEAF1FF) : const Color(0x73EAF1FF),
-                fontSize: 16,
+                fontSize: 14,
+                color: !_sortAsc
+                    ? const Color(0xFFEAF1FF)
+                    : const Color(0xFFEAF1FF).withOpacity(0.35),
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -289,122 +266,191 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   }
 
   Widget _buildDriverButton() {
+    // 4 states: all, needs, needsUnassigned, noNeed
+    final icons = {
+      'all': Icons.local_shipping_outlined,
+      'needs': Icons.local_shipping,
+      'needsUnassigned': Icons.local_shipping_outlined,
+      'noNeed': Icons.block,
+    };
+
+    final labels = {
+      'all': 'Toate',
+      'needs': 'Necesită',
+      'needsUnassigned': 'Necesită nerezervat',
+      'noNeed': 'Nu necesită',
+    };
+
     return InkWell(
       onTap: () {
         setState(() {
-          _driverFilter = _driverFilter.next;
+          // Cycle through states
+          switch (_driverFilter) {
+            case 'all':
+              _driverFilter = 'needs';
+              break;
+            case 'needs':
+              _driverFilter = 'needsUnassigned';
+              break;
+            case 'needsUnassigned':
+              _driverFilter = 'noNeed';
+              break;
+            case 'noNeed':
+              _driverFilter = 'all';
+              break;
+          }
         });
       },
       child: Container(
         width: 44,
-        height: 44,
+        height: 36,
         decoration: BoxDecoration(
-          color: const Color(0x14FFFFFF),
-          border: Border.all(color: const Color(0x1FFFFFFF)),
-          borderRadius: BorderRadius.circular(8),
+          color: const Color(0x0FFFFFFF),
+          border: const Border(
+            top: BorderSide(color: Color(0x24FFFFFF)),
+            bottom: BorderSide(color: Color(0x24FFFFFF)),
+            right: BorderSide(color: Color(0x24FFFFFF)),
+            left: BorderSide(color: Color(0x1FFFFFFF)),
+          ),
+          borderRadius: const BorderRadius.only(
+            topRight: Radius.circular(12),
+            bottomRight: Radius.circular(12),
+          ),
         ),
-        child: Stack(
-          children: [
-            const Center(
-              child: Icon(Icons.directions_car, color: Color(0xD1EAF1FF), size: 20),
-            ),
-            Positioned(
-              right: 6,
-              top: 6,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(
-                  color: _driverFilter == DriverFilter.yes ? const Color(0x474ECDC4) : const Color(0x1FEAF1FF),
-                  border: Border.all(
-                    color: _driverFilter == DriverFilter.yes ? const Color(0x804ECDC4) : const Color(0x2DEAF1FF),
-                  ),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  _driverFilter.badgeText,
-                  style: const TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xDBEAF1FF),
-                  ),
-                ),
-              ),
-            ),
-          ],
+        child: Icon(
+          icons[_driverFilter],
+          size: 18,
+          color: const Color(0xD1EAF1FF), // rgba(234,241,255,0.82)
         ),
       ),
     );
   }
 
-  Widget _buildExtraFiltersRow() {
+  Widget _buildFiltersExtra() {
     return Row(
       children: [
         Expanded(
-          child: InkWell(
-            onTap: (_notedBy == null || _notedBy!.isEmpty) ? _showCodeFilterModal : null,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              decoration: BoxDecoration(
-                color: (_notedBy == null || _notedBy!.isEmpty) ? const Color(0x14FFFFFF) : const Color(0x08FFFFFF),
-                border: Border.all(color: const Color(0x1FFFFFFF)),
-                borderRadius: BorderRadius.circular(8),
+          child: Row(
+            children: [
+              // Input "Ce cod am"
+              Expanded(
+                child: _buildCodeFilterInput(),
               ),
-              child: Text(
-                _staffCode ?? 'Ce cod am',
+              const SizedBox(width: 8),
+
+              // Separator
+              Text(
+                '–',
                 style: TextStyle(
-                  color: _staffCode != null ? const Color(0xFFEAF1FF) : const Color(0x8CEAF1FF),
                   fontSize: 14,
+                  color: const Color(0xFFEAF1FF).withOpacity(0.5),
                 ),
               ),
-            ),
+              const SizedBox(width: 8),
+
+              // Input "Cine noteaza"
+              Expanded(
+                child: _buildNotedByFilterInput(),
+              ),
+            ],
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8),
-          child: Text('–', style: TextStyle(color: Color(0x8CEAF1FF), fontWeight: FontWeight.w900)),
-        ),
-        Expanded(
-          child: TextField(
-            enabled: _staffCode == null || _staffCode!.isEmpty,
-            onChanged: (value) {
-              setState(() {
-                _notedBy = value.isEmpty ? null : value;
-                if (_notedBy != null) _staffCode = null;
-              });
-            },
-            style: const TextStyle(color: Color(0xFFEAF1FF)),
-            decoration: InputDecoration(
-              hintText: 'Cine noteaza',
-              hintStyle: const TextStyle(color: Color(0x8CEAF1FF)),
-              filled: true,
-              fillColor: (_staffCode == null || _staffCode!.isEmpty) ? const Color(0x14FFFFFF) : const Color(0x08FFFFFF),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
-              ),
-              disabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0x0AFFFFFF)),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            ),
-          ),
-        ),
+
+        // Spacer pentru aliniere cu sort button
+        const SizedBox(width: 52),
       ],
+    );
+  }
+
+  Widget _buildCodeFilterInput() {
+    return GestureDetector(
+      onTap: () {
+        // If input has valid code, don't open modal (let user edit)
+        if (_codeFilter.isNotEmpty && _isValidStaffCode(_codeFilter)) {
+          _codeInputFocus.requestFocus();
+          return;
+        }
+        // Otherwise open modal
+        _openCodeModal();
+      },
+      child: Container(
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: const Color(0x0FFFFFFF),
+          border: Border.all(color: const Color(0x24FFFFFF)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: TextField(
+          focusNode: _codeInputFocus,
+          onChanged: (value) {
+            setState(() {
+              _codeFilter = value.trim().toUpperCase();
+            });
+          },
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFFEAF1FF),
+            fontWeight: FontWeight.w500,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Ce cod am',
+            hintStyle: TextStyle(
+              fontSize: 12,
+              color: const Color(0xFFEAF1FF).withOpacity(0.55),
+            ),
+            border: InputBorder.none,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotedByFilterInput() {
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: const Color(0x0FFFFFFF),
+        border: Border.all(color: const Color(0x24FFFFFF)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: TextField(
+        onChanged: (value) {
+          setState(() {
+            _notedByFilter = value.trim().toUpperCase();
+          });
+        },
+        style: const TextStyle(
+          fontSize: 12,
+          color: Color(0xFFEAF1FF),
+          fontWeight: FontWeight.w500,
+        ),
+        decoration: InputDecoration(
+          hintText: 'Cine noteaza',
+          hintStyle: TextStyle(
+            fontSize: 12,
+            color: const Color(0xFFEAF1FF).withOpacity(0.55),
+          ),
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        ),
+      ),
     );
   }
 
   Widget _buildEventsList() {
     return StreamBuilder<List<EventModel>>(
-      stream: _eventsStream,
+      stream: _eventService.getEventsStream(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: CircularProgressIndicator(color: Color(0xFF4ECDC4)),
+            child: CircularProgressIndicator(
+              color: Color(0xFF4ECDC4), // --accent
+            ),
           );
         }
 
@@ -412,307 +458,399 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
           return Center(
             child: Text(
               'Eroare: ${snapshot.error}',
-              style: const TextStyle(color: Color(0xFFFF7878), fontSize: 16),
+              style: const TextStyle(color: Color(0xFFFF7878)), // --bad
             ),
           );
         }
 
         final events = snapshot.data ?? [];
+        final filteredEvents = _applyFilters(events);
 
-        if (events.isEmpty) {
-          return const Center(
+        if (filteredEvents.isEmpty) {
+          return Center(
             child: Text(
               'Nu există evenimente',
-              style: TextStyle(color: Color(0x94EAF1FF), fontSize: 16),
+              style: TextStyle(
+                fontSize: 14,
+                color: const Color(0xFFEAF1FF).withOpacity(0.7),
+              ),
             ),
           );
         }
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: events.length,
-          itemBuilder: (context, index) => _buildEventCard(events[index]),
+          itemCount: filteredEvents.length,
+          itemBuilder: (context, index) {
+            return _buildEventCard(filteredEvents[index]);
+          },
         );
       },
     );
+  }
+
+  List<EventModel> _applyFilters(List<EventModel> events) {
+    var filtered = events.where((e) => !e.isArchived).toList();
+
+    // Filter by date preset
+    filtered = filtered.where((e) => _matchesDateFilter(e)).toList();
+
+    // Filter by driver
+    filtered = filtered.where((e) => _matchesDriverFilter(e)).toList();
+
+    // Filter by notedBy
+    if (_notedByFilter.isNotEmpty) {
+      filtered = filtered.where((e) {
+        final notedBy = _notedByFilter.trim().toUpperCase();
+        if (!_isValidStaffCode(notedBy)) return false;
+        return (e.cineNoteaza ?? '').trim().toUpperCase() == notedBy;
+      }).toList();
+    }
+
+    // Filter by code
+    if (_codeFilter.isNotEmpty) {
+      filtered = filtered.where((e) => _matchesCodeFilter(e)).toList();
+    }
+
+    // Sort
+    filtered.sort((a, b) {
+      final dateA = _parseDate(a.date);
+      final dateB = _parseDate(b.date);
+      if (dateA == null || dateB == null) return 0;
+      final comparison = dateA.compareTo(dateB);
+      return _sortAsc ? comparison : -comparison;
+    });
+
+    return filtered;
+  }
+
+  bool _matchesDateFilter(EventModel event) {
+    final eventDate = _parseDate(event.date);
+    if (eventDate == null) return false;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    switch (_datePreset) {
+      case 'all':
+        return true;
+
+      case 'today':
+        final eventDay = DateTime(eventDate.year, eventDate.month, eventDate.day);
+        return eventDay == today;
+
+      case 'yesterday':
+        final yesterday = today.subtract(const Duration(days: 1));
+        final eventDay = DateTime(eventDate.year, eventDate.month, eventDate.day);
+        return eventDay == yesterday;
+
+      case 'last7':
+        final last7 = today.subtract(const Duration(days: 7));
+        return eventDate.isAfter(last7) && eventDate.isBefore(today.add(const Duration(days: 1)));
+
+      case 'next7':
+        final next7 = today.add(const Duration(days: 7));
+        return eventDate.isAfter(today.subtract(const Duration(days: 1))) && eventDate.isBefore(next7.add(const Duration(days: 1)));
+
+      case 'next30':
+        final next30 = today.add(const Duration(days: 30));
+        return eventDate.isAfter(today.subtract(const Duration(days: 1))) && eventDate.isBefore(next30.add(const Duration(days: 1)));
+
+      case 'custom':
+        if (_customStart != null && _customEnd != null) {
+          return eventDate.isAfter(_customStart!.subtract(const Duration(days: 1))) &&
+              eventDate.isBefore(_customEnd!.add(const Duration(days: 1)));
+        }
+        return true;
+
+      default:
+        return true;
+    }
+  }
+
+  bool _matchesDriverFilter(EventModel event) {
+    final needsDriver = event.roles.any((r) => r.slot.toUpperCase() == 'S');
+
+    switch (_driverFilter) {
+      case 'all':
+        return true;
+
+      case 'needs':
+        return needsDriver;
+
+      case 'needsUnassigned':
+        if (!needsDriver) return false;
+        final driverRole = event.roles.firstWhere(
+          (r) => r.slot.toUpperCase() == 'S',
+          orElse: () => RoleModel(slot: 'S', label: '', time: '', durationMin: 0),
+        );
+        final hasAssigned = driverRole.assignedCode != null &&
+            driverRole.assignedCode!.isNotEmpty &&
+            _isValidStaffCode(driverRole.assignedCode!);
+        return !hasAssigned;
+
+      case 'noNeed':
+        return !needsDriver;
+
+      default:
+        return true;
+    }
+  }
+
+  bool _matchesCodeFilter(EventModel event) {
+    final code = _codeFilter.trim().toUpperCase();
+    if (code.isEmpty) return true;
+
+    // Special values
+    if (code == 'NEREZOLVATE') {
+      // Has at least one unassigned role (!)
+      return event.roles.any((r) {
+        final hasAssigned = r.assignedCode != null &&
+            r.assignedCode!.isNotEmpty &&
+            _isValidStaffCode(r.assignedCode!);
+        final hasPending = !hasAssigned &&
+            r.pendingCode != null &&
+            r.pendingCode!.isNotEmpty &&
+            _isValidStaffCode(r.pendingCode!);
+        return !hasAssigned && !hasPending;
+      });
+    }
+
+    if (code == 'REZOLVATE') {
+      // All roles are assigned or pending
+      return event.roles.every((r) {
+        final hasAssigned = r.assignedCode != null &&
+            r.assignedCode!.isNotEmpty &&
+            _isValidStaffCode(r.assignedCode!);
+        final hasPending = !hasAssigned &&
+            r.pendingCode != null &&
+            r.pendingCode!.isNotEmpty &&
+            _isValidStaffCode(r.pendingCode!);
+        return hasAssigned || hasPending;
+      });
+    }
+
+    // Search for specific code in roles
+    return event.roles.any((r) {
+      final assigned = (r.assignedCode ?? '').trim().toUpperCase();
+      final pending = (r.pendingCode ?? '').trim().toUpperCase();
+      return assigned == code || pending == code;
+    });
+  }
+
+  DateTime? _parseDate(String dateStr) {
+    try {
+      final parts = dateStr.split('-');
+      if (parts.length != 3) return null;
+      final day = int.tryParse(parts[0]);
+      final month = int.tryParse(parts[1]);
+      final year = int.tryParse(parts[2]);
+      if (day == null || month == null || year == null) return null;
+      return DateTime(year, month, day);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  bool _isValidStaffCode(String code) {
+    final normalized = code.trim().toUpperCase();
+    if (normalized.isEmpty) return false;
+    return RegExp(r'^[A-Z][A-Z0-9]*$').hasMatch(normalized);
   }
 
   Widget _buildEventCard(EventModel event) {
-    return InkWell(
+    return EventCardHtml(
+      event: event,
+      codeFilter: _codeFilter, // Pass filter for buildVisibleRoles
       onTap: () {
-        Navigator.push(
-          context,
+        Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (context) => DoveziScreen(eventId: event.id),
+            builder: (context) => DoveziScreenHtml(event: event),
           ),
         );
       },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0x0FFFFFFF),
-          border: Border.all(color: const Color(0x1FFFFFFF)),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _getIncasareColor(event.incasare.status),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    event.incasare.status,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFFEAF1FF),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '#${event.id}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xB3EAF1FF),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  _parseDate(event.date) != null
-                      ? DateFormat('dd MMM yyyy').format(_parseDate(event.date)!)
-                      : event.date,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xB3EAF1FF),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${event.sarbatoritNume} - ${event.sarbatoritVarsta} ani',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFEAF1FF),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              event.address,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Color(0xB3EAF1FF),
-              ),
-            ),
-            if (event.roles.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: event.roles.map((role) => _buildRoleChip(role, event)).toList(),
-              ),
-            ],
-            if (event.needsDriver) ...[
-              const SizedBox(height: 8),
-              _buildDriverChip(event),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRoleChip(RoleModel role, EventModel event) {
-    Color bgColor;
-    Color borderColor;
-    switch (role.status) {
-      case RoleStatus.assigned:
-        bgColor = const Color(0x2810B981);
-        borderColor = const Color(0x5010B981);
-        break;
-      case RoleStatus.pending:
-        bgColor = const Color(0x28FFBE5C);
-        borderColor = const Color(0x50FFBE5C);
-        break;
-      case RoleStatus.unassigned:
-        bgColor = const Color(0x14FFFFFF);
-        borderColor = const Color(0x1FFFFFFF);
-        break;
-    }
-
-    return InkWell(
-      onTap: () => _showAssignRoleSheet(event, role),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: bgColor,
-          border: Border.all(color: borderColor),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              role.slot,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFFEAF1FF),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              role.assignedCode ?? role.pendingCode ?? '!',
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xDBEAF1FF),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showAssignRoleSheet(EventModel event, RoleModel role) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => AssignRoleSheet(
-        eventId: event.id,
-        slot: role.slot,
-        roleLabel: role.label,
-        currentAssigned: role.assignedCode,
-        currentPending: role.pendingCode,
-        onAssign: (code) async {
-          await _eventService.assignRole(
-            eventId: event.id,
-            slot: role.slot,
-            staffCode: code,
-          );
-        },
-        onUnassign: role.assignedCode != null
-            ? () async {
-                await _eventService.unassignRole(
-                  eventId: event.id,
-                  slot: role.slot,
-                );
-              }
-            : null,
-        onAcceptPending: role.pendingCode != null
-            ? () async {
-                await _eventService.acceptPendingRole(
-                  eventId: event.id,
-                  slot: role.slot,
-                );
-              }
-            : null,
-        onRejectPending: role.pendingCode != null
-            ? () async {
-                await _eventService.rejectPendingRole(
-                  eventId: event.id,
-                  slot: role.slot,
-                );
-              }
-            : null,
-      ),
-    );
-  }
-
-  Widget _buildDriverChip(EventModel event) {
-    String text = 'S: ${event.driverStatusText}';
-    Color bgColor = const Color(0x14FFFFFF);
-    Color borderColor = const Color(0x1FFFFFFF);
-
-    if (event.hasDriverAssigned) {
-      bgColor = const Color(0x2810B981);
-      borderColor = const Color(0x5010B981);
-    } else if (event.hasDriverPending) {
-      bgColor = const Color(0x28FFBE5C);
-      borderColor = const Color(0x50FFBE5C);
-    } else if (event.needsDriver) {
-      bgColor = const Color(0x28FF7878);
-      borderColor = const Color(0x50FF7878);
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: bgColor,
-        border: Border.all(color: borderColor),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w900,
-          color: Color(0xFFEAF1FF),
-        ),
-      ),
-    );
-  }
-
-  Color _getIncasareColor(String status) {
-    switch (status) {
-      case 'INCASAT':
-        return const Color(0x5010B981);
-      case 'ANULAT':
-        return const Color(0x50FF7878);
-      default:
-        return const Color(0x50FFBE5C);
-    }
-  }
-
-  void _showCustomDatePicker() async {
-    final range = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF4ECDC4),
-              surface: Color(0xFF1A2332),
-            ),
-          ),
-          child: child!,
-        );
+      onSlotTap: (slot) {
+        _openAssignModal(event, slot);
+      },
+      onStatusTap: (slot, code) {
+        if (code != null && code.isNotEmpty) {
+          _openCodeInfoModal(code);
+        } else {
+          _openAssignModal(event, slot);
+        }
+      },
+      onDriverTap: () {
+        _openAssignModal(event, 'S');
       },
     );
-
-    if (range != null) {
-      setState(() {
-        _preset = DatePreset.custom;
-        _customStart = range.start;
-        _customEnd = range.end;
-      });
-    }
   }
 
-  void _showCodeFilterModal() {
+  void _openRangeModal() {
     showDialog(
       context: context,
-      builder: (context) => CodeFilterModal(
-        currentCode: _staffCode,
-        onApply: (code, option) {
+      barrierColor: Colors.transparent,
+      builder: (context) => RangeModal(
+        initialStart: _customStart,
+        initialEnd: _customEnd,
+        onRangeSelected: (start, end) {
           setState(() {
-            _staffCode = code;
-            _notedBy = null;
+            _customStart = start;
+            _customEnd = end;
+            if (start == null && end == null) {
+              _datePreset = 'all';
+            }
           });
         },
       ),
     );
+  }
+
+  void _openCodeModal() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (context) => CodeModal(
+        onOptionSelected: (value) {
+          setState(() {
+            if (value == 'FOCUS_INPUT') {
+              // Clear and focus input
+              _codeFilter = '';
+              Future.delayed(const Duration(milliseconds: 100), () {
+                _codeInputFocus.requestFocus();
+              });
+            } else {
+              // Set filter value (NEREZOLVATE, REZOLVATE, or empty)
+              _codeFilter = value;
+            }
+          });
+        },
+      ),
+    );
+  }
+
+  void _openAssignModal(EventModel event, String slot) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (context) => AssignModal(
+        event: event,
+        slot: slot,
+        onAssign: (code) async {
+          if (code != null && code.isNotEmpty) {
+            await _saveAssignment(event.id, slot, code);
+          }
+        },
+        onClear: () async {
+          await _clearAssignment(event.id, slot);
+        },
+      ),
+    );
+  }
+
+  void _openCodeInfoModal(String code) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (context) => CodeInfoModal(code: code),
+    );
+  }
+
+  Future<void> _saveAssignment(String eventId, String slot, String code) async {
+    try {
+      final db = FirebaseFirestore.instance;
+      final eventRef = db.collection('evenimente').doc(eventId);
+
+      // Get current event data
+      final eventDoc = await eventRef.get();
+      if (!eventDoc.exists) {
+        throw Exception('Event not found');
+      }
+
+      final data = eventDoc.data()!;
+      final roles = (data['roles'] as List<dynamic>?) ?? [];
+
+      // Find role by slot
+      final roleIndex = roles.indexWhere((r) => r['slot'] == slot);
+      if (roleIndex == -1) {
+        throw Exception('Role not found');
+      }
+
+      // Update role with pendingCode (not assignedCode - needs approval)
+      roles[roleIndex]['pendingCode'] = code;
+
+      // Save to Firestore
+      await eventRef.update({
+        'roles': roles,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cerere trimisă pentru $slot: $code'),
+            backgroundColor: const Color(0xFF4ECDC4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Eroare: $e'),
+            backgroundColor: const Color(0xFFFF7878),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _clearAssignment(String eventId, String slot) async {
+    try {
+      final db = FirebaseFirestore.instance;
+      final eventRef = db.collection('evenimente').doc(eventId);
+
+      // Get current event data
+      final eventDoc = await eventRef.get();
+      if (!eventDoc.exists) {
+        throw Exception('Event not found');
+      }
+
+      final data = eventDoc.data()!;
+      final roles = (data['roles'] as List<dynamic>?) ?? [];
+
+      // Find role by slot
+      final roleIndex = roles.indexWhere((r) => r['slot'] == slot);
+      if (roleIndex == -1) {
+        throw Exception('Role not found');
+      }
+
+      // Clear both assignedCode and pendingCode
+      roles[roleIndex]['assignedCode'] = null;
+      roles[roleIndex]['pendingCode'] = null;
+
+      // Save to Firestore
+      await eventRef.update({
+        'roles': roles,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Alocare ștearsă pentru $slot'),
+            backgroundColor: const Color(0xFF4ECDC4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Eroare: $e'),
+            backgroundColor: const Color(0xFFFF7878),
+          ),
+        );
+      }
+    }
   }
 }
