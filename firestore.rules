@@ -75,6 +75,14 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
     
+    // Events collection (alias for evenimente)
+    match /events/{eventId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isEmployee() || (isAuthenticated() && resource.data.createdBy == request.auth.uid);
+      allow delete: if false;
+    }
+    
     // Evenimente - POLITICA: NEVER DELETE
     // All authenticated users can read and create events
     // Only employees or event owner can update/archive
