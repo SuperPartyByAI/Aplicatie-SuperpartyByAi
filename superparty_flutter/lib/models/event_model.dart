@@ -60,12 +60,18 @@ class EventModel {
     // Date field (v2: string, v1: Timestamp)
     String dateStr;
     if (data.containsKey('date') && data['date'] is String) {
+      // v2: date as string DD-MM-YYYY
       dateStr = data['date'] as String;
+    } else if (data.containsKey('date') && data['date'] is Timestamp) {
+      // v1: date as Timestamp (old schema) - convert to DD-MM-YYYY
+      final timestamp = (data['date'] as Timestamp).toDate();
+      dateStr = '${timestamp.day.toString().padLeft(2, '0')}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.year}';
     } else if (data.containsKey('data') && data['data'] is Timestamp) {
-      // v1: convert Timestamp to DD-MM-YYYY
+      // v1 alternative: data as Timestamp - convert to DD-MM-YYYY
       final timestamp = (data['data'] as Timestamp).toDate();
       dateStr = '${timestamp.day.toString().padLeft(2, '0')}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.year}';
     } else {
+      // Fallback: empty date
       dateStr = '';
     }
     
