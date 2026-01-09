@@ -10,6 +10,7 @@ class EventCardHtml extends StatelessWidget {
   final Function(String slot) onSlotTap;
   final Function(String slot, String? code) onStatusTap;
   final VoidCallback? onDriverTap;
+  final String? codeFilter; // Pentru buildVisibleRoles
 
   const EventCardHtml({
     super.key,
@@ -18,6 +19,7 @@ class EventCardHtml extends StatelessWidget {
     required this.onSlotTap,
     required this.onStatusTap,
     this.onDriverTap,
+    this.codeFilter,
   });
 
   @override
@@ -136,10 +138,17 @@ class EventCardHtml extends StatelessWidget {
   }
 
   Widget _buildRoleList() {
+    // buildVisibleRoles - filter roles by codeFilter
+    final visibleRoles = _buildVisibleRoles();
+    
+    if (visibleRoles.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     // Grid layout: 46px (slot) + 1fr (label)
     // Gap: 4px vertical, 8px horizontal
     return Column(
-      children: event.roles.map((role) {
+      children: visibleRoles.map((role) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 4),
           child: Row(
@@ -160,6 +169,49 @@ class EventCardHtml extends StatelessWidget {
         );
       }).toList(),
     );
+  }
+
+  List<RoleModel> _buildVisibleRoles() {
+    var roles = event.roles;
+
+    // Filter by codeFilter (exact ca în HTML)
+    if (codeFilter != null && codeFilter!.isNotEmpty) {
+      final code = codeFilter!.trim().toUpperCase();
+      
+      // Special values
+      if (code == 'NEREZOLVATE') {
+        roles = roles.where((r) {
+          final hasAssigned = r.assignedCode != null &&
+              r.assignedCode!.isNotEmpty &&
+              _isValidStaffCode(r.assignedCode!);
+          final hasPending = !hasAssigned &&
+              r.pendingCode != null &&
+              r.pendingCode!.isNotEmpty &&
+              _isValidStaffCode(r.pendingCode!);
+          return !hasAssigned && !hasPending;
+        }).toList();
+      } else if (code == 'REZOLVATE') {
+        roles = roles.where((r) {
+          final hasAssigned = r.assignedCode != null &&
+              r.assignedCode!.isNotEmpty &&
+              _isValidStaffCode(r.assignedCode!);
+          final hasPending = !hasAssigned &&
+              r.pendingCode != null &&
+              r.pendingCode!.isNotEmpty &&
+              _isValidStaffCode(r.pendingCode!);
+          return hasAssigned || hasPending;
+        }).toList();
+      } else {
+        // Filter by specific code
+        roles = roles.where((r) {
+          final assigned = (r.assignedCode ?? '').trim().toUpperCase();
+          final pending = (r.pendingCode ?? '').trim().toUpperCase();
+          return assigned == code || pending == code;
+        }).toList();
+      }
+    }
+
+    return roles;
   }
 
   Widget _buildSlot(RoleModel role) {

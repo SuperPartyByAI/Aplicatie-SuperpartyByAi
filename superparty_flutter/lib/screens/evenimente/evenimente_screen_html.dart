@@ -661,6 +661,7 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
   Widget _buildEventCard(EventModel event) {
     return EventCardHtml(
       event: event,
+      codeFilter: _codeFilter, // Pass filter for buildVisibleRoles
       onTap: () {
         Navigator.of(context).push(
           MaterialPageRoute(

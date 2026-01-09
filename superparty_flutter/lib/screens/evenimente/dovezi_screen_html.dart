@@ -33,11 +33,11 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
     'laundry': [],
   };
 
-  final Map<String, bool> _locked = {
-    'onTime': false,
-    'luggage': false,
-    'accessories': false,
-    'laundry': false,
+  final Map<String, String> _verdict = {
+    'onTime': 'na',
+    'luggage': 'na',
+    'accessories': 'na',
+    'laundry': 'na',
   };
 
   @override
@@ -56,8 +56,8 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
           _photos[cat] = List<String>.from(jsonDecode(data));
         }
         
-        final lockKey = 'lock_${widget.event.id}_$cat';
-        _locked[cat] = prefs.getBool(lockKey) ?? false;
+        final verdictKey = 'verdict_${widget.event.id}_$cat';
+        _verdict[cat] = prefs.getString(verdictKey) ?? 'na';
       }
     });
   }
@@ -68,10 +68,10 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
     await prefs.setString(key, jsonEncode(_photos[category]));
   }
 
-  Future<void> _saveLockState(String category) async {
+  Future<void> _saveVerdictState(String category) async {
     final prefs = await SharedPreferences.getInstance();
-    final lockKey = 'lock_${widget.event.id}_$category';
-    await prefs.setBool(lockKey, _locked[category]!);
+    final verdictKey = 'verdict_${widget.event.id}_$category';
+    await prefs.setString(verdictKey, _verdict[category]!);
   }
 
   @override
@@ -234,8 +234,9 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
 
   Widget _buildProofBlock(String category, String label) {
     final count = _photos[category]!.length;
-    final isLocked = _locked[category]!;
-    final status = count > 0 ? (isLocked ? 'OK' : 'Necompletat') : 'N/A';
+    final verdict = _verdict[category]!;
+    final isLocked = verdict == 'ok';
+    final status = verdict == 'ok' ? 'OK' : (count > 0 ? 'Necompletat' : 'N/A');
 
     return Container(
       decoration: BoxDecoration(
@@ -347,47 +348,109 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
   }
 
   Widget _buildThumbnails(String category) {
+    final isLocked = _verdict[category] == 'ok';
+    
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: _photos[category]!.map((photoPath) {
-        return Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            color: const Color(0x14FFFFFF),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: kIsWeb
-              ? Image.network(
-                  photoPath,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Center(
-                      child: Icon(
-                        Icons.broken_image,
-                        color: Color(0xB3EAF1FF),
-                        size: 32,
-                      ),
-                    );
-                  },
-                )
-              : Image.file(
-                  File(photoPath),
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Center(
-                      child: Icon(
-                        Icons.broken_image,
-                        color: Color(0xB3EAF1FF),
-                        size: 32,
-                      ),
-                    );
-                  },
+      children: _photos[category]!.asMap().entries.map((entry) {
+        final index = entry.key;
+        final photoPath = entry.value;
+        
+        return GestureDetector(
+          onTap: () => _previewPhoto(photoPath),
+          child: Stack(
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: const Color(0x14FFFFFF),
+                  borderRadius: BorderRadius.circular(8),
                 ),
+                clipBehavior: Clip.antiAlias,
+                child: kIsWeb
+                    ? Image.network(
+                        photoPath,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Center(
+                            child: Icon(
+                              Icons.broken_image,
+                              color: Color(0xB3EAF1FF),
+                              size: 32,
+                            ),
+                          );
+                        },
+                      )
+                    : Image.file(
+                        File(photoPath),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Center(
+                            child: Icon(
+                              Icons.broken_image,
+                              color: Color(0xB3EAF1FF),
+                              size: 32,
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              // Delete button (doar dacă nu e locked)
+              if (!isLocked)
+                Positioned(
+                  top: 2,
+                  right: 2,
+                  child: GestureDetector(
+                    onTap: () => _deletePhoto(category, index),
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: const Color(0xEBFF7878), // rgba(255,120,120,0.92)
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: Text(
+                          '×',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         );
       }).toList(),
+    );
+  }
+
+  Future<void> _deletePhoto(String category, int index) async {
+    setState(() {
+      _photos[category]!.removeAt(index);
+    });
+    await _saveEvidence(category);
+  }
+
+  void _previewPhoto(String photoPath) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: kIsWeb
+              ? Image.network(photoPath, fit: BoxFit.contain)
+              : Image.file(File(photoPath), fit: BoxFit.contain),
+        ),
+      ),
     );
   }
 
@@ -396,9 +459,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextButton(
-          onPressed: () {
-            // Reverifica - în HTML nu face nimic special
-          },
+          onPressed: _reverifyAll,
           style: TextButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             backgroundColor: const Color(0x0FFFFFFF),
@@ -437,6 +498,26 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
         }
       });
       await _saveEvidence(category);
+      await _checkVerdict(category);
+    }
+  }
+
+  Future<void> _checkVerdict(String category) async {
+    // Simulate verdict check (în HTML e random sau backend)
+    final count = _photos[category]!.length;
+    if (count >= 2) {
+      // Dacă are 2+ poze, verdict = ok (locked)
+      setState(() {
+        _verdict[category] = 'ok';
+      });
+      await _saveVerdictState(category);
+    }
+  }
+
+  Future<void> _reverifyAll() async {
+    // Reverifica toate categoriile
+    for (final cat in _photos.keys) {
+      await _checkVerdict(cat);
     }
   }
 
