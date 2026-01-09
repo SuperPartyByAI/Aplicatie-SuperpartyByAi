@@ -13,14 +13,14 @@ import 'dovezi_screen_html.dart';
 
 /// Evenimente Screen - 100% identic cu HTML (4522 linii)
 /// Referință: kyc-app/kyc-app/public/evenimente.html
-class EvenimenteScreenHtml extends StatefulWidget {
-  const EvenimenteScreenHtml({super.key});
+class EvenimenteScreen extends StatefulWidget {
+  const EvenimenteScreen({super.key});
 
   @override
-  State<EvenimenteScreenHtml> createState() => _EvenimenteScreenHtmlState();
+  State<EvenimenteScreen> createState() => _EvenimenteScreenState();
 }
 
-class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
+class _EvenimenteScreenState extends State<EvenimenteScreen> {
   final EventService _eventService = EventService();
   final FocusNode _codeInputFocus = FocusNode();
 
@@ -443,8 +443,8 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
   }
 
   Widget _buildEventsList() {
-    return StreamBuilder<List<EventModel>>(
-      stream: _eventService.getEventsStream(),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('events').snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -463,7 +463,9 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
           );
         }
 
-        final events = snapshot.data ?? [];
+        final events = snapshot.data?.docs.map((doc) {
+          return EventModel.fromFirestore(doc);
+        }).toList() ?? [];
         final filteredEvents = _applyFilters(events);
 
         if (filteredEvents.isEmpty) {
