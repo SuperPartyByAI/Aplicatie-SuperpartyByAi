@@ -7,6 +7,7 @@ import '../../services/event_service.dart';
 import '../../widgets/modals/range_modal.dart';
 import '../../widgets/modals/code_modal.dart';
 import '../../widgets/modals/assign_modal.dart';
+import '../../widgets/modals/code_info_modal.dart';
 import 'event_card_html.dart';
 
 /// Evenimente Screen - 100% identic cu HTML (4522 linii)
@@ -673,13 +674,7 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
       },
       onStatusTap: (slot, code) {
         if (code != null && code.isNotEmpty) {
-          // TODO: Open code info modal (Faza 5.4)
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Info cod: $code - în implementare'),
-              duration: const Duration(seconds: 1),
-            ),
-          );
+          _openCodeInfoModal(code);
         } else {
           _openAssignModal(event, slot);
         }
@@ -749,6 +744,14 @@ class _EvenimenteScreenHtmlState extends State<EvenimenteScreenHtml> {
           await _clearAssignment(event.id, slot);
         },
       ),
+    );
+  }
+
+  void _openCodeInfoModal(String code) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (context) => CodeInfoModal(code: code),
     );
   }
 
