@@ -127,7 +127,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
           child: Text(
-            'Click pe card deschide pagina de dovezi. Click pe slot sau pe cod pastreaza alocarea/tab cod.',
+            'Filtrele sunt exclusive (NU se combină)',
             style: TextStyle(
               fontSize: 11,
               color: const Color(0xFFEAF1FF).withOpacity(0.7), // --muted
@@ -266,25 +266,33 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   }
 
   Widget _buildDriverButton() {
-    // 4 states: all, needs, needsUnassigned, noNeed
-    final icons = {
-      'all': Icons.local_shipping_outlined,
-      'needs': Icons.local_shipping,
-      'needsUnassigned': Icons.local_shipping_outlined,
-      'noNeed': Icons.block,
+    // 4 states: all, yes, open, no (conform HTML)
+    // Badge text: T, NEC, NRZ, NU
+    final badgeText = {
+      'all': 'T',
+      'needs': 'NEC',
+      'needsUnassigned': 'NRZ',
+      'noNeed': 'NU',
     };
 
-    final labels = {
-      'all': 'Toate',
-      'needs': 'Necesită',
-      'needsUnassigned': 'Necesită nerezervat',
-      'noNeed': 'Nu necesită',
+    final badgeColors = {
+      'all': const Color(0x1FEAF1FF), // rgba(234,241,255,0.12)
+      'needs': const Color(0x474ECDC4), // rgba(78,205,196,0.28)
+      'needsUnassigned': const Color(0x244ECDC4), // rgba(78,205,196,0.14)
+      'noNeed': const Color(0x2E000000), // rgba(0,0,0,0.18)
+    };
+
+    final badgeBorderColors = {
+      'all': const Color(0x2EFFFFFF), // rgba(255,255,255,0.18)
+      'needs': const Color(0x804ECDC4), // rgba(78,205,196,0.5)
+      'needsUnassigned': const Color(0x524ECDC4), // rgba(78,205,196,0.32)
+      'noNeed': const Color(0x42FFFFFF), // rgba(255,255,255,0.26)
     };
 
     return InkWell(
       onTap: () {
         setState(() {
-          // Cycle through states
+          // Cycle through states: all → needs → needsUnassigned → noNeed → all
           switch (_driverFilter) {
             case 'all':
               _driverFilter = 'needs';
@@ -317,10 +325,43 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             bottomRight: Radius.circular(12),
           ),
         ),
-        child: Icon(
-          icons[_driverFilter],
-          size: 18,
-          color: const Color(0xD1EAF1FF), // rgba(234,241,255,0.82)
+        child: Stack(
+          children: [
+            // Steering wheel icon
+            Center(
+              child: Icon(
+                Icons.local_shipping_outlined,
+                size: _driverFilter == 'all' ? 22 : 20,
+                color: const Color(0xF2EAF1FF), // rgba(234,241,255,0.95)
+              ),
+            ),
+            // Badge (top-right corner)
+            Positioned(
+              right: 6,
+              top: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  color: badgeColors[_driverFilter],
+                  border: Border.all(
+                    color: badgeBorderColors[_driverFilter]!,
+                    width: 1,
+                  ),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  badgeText[_driverFilter]!,
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.2,
+                    color: Color(0xDBEAF1FF), // rgba(234,241,255,0.86)
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
