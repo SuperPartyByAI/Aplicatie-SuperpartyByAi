@@ -110,20 +110,24 @@ class EventModel {
       roles = [];
     }
     
+    // Nullable fields: explicitly allow null (UI will show "—" fallback)
+    // These fields may be missing in Firestore after migration
     return EventModel(
       id: doc.id,
       date: dateStr,
       address: address,
-      cineNoteaza: data['cineNoteaza'] as String?,
-      sofer: data['sofer'] as String?,
-      soferPending: data['soferPending'] as String?,
+      cineNoteaza: data['cineNoteaza'] as String?, // null OK
+      sofer: data['sofer'] as String?, // null OK
+      soferPending: data['soferPending'] as String?, // null OK
       sarbatoritNume: data['sarbatoritNume'] as String? ?? 
                       data['nume'] as String? ?? '', // v1 fallback
       sarbatoritVarsta: data['sarbatoritVarsta'] as int? ?? 0,
       sarbatoritDob: data['sarbatoritDob'] as String?,
       incasare: IncasareModel.fromMap(data['incasare'] as Map<String, dynamic>?),
       roles: roles,
-      isArchived: data['isArchived'] as bool? ?? false,
+      isArchived: data['isArchived'] as bool? ?? 
+                  data['este arhivat'] as bool? ?? 
+                  false, // DUAL-READ: isArchived or 'este arhivat' (RO)
       archivedAt: (data['archivedAt'] as Timestamp?)?.toDate(),
       archivedBy: data['archivedBy'] as String?,
       archiveReason: data['archiveReason'] as String?,
@@ -319,8 +323,14 @@ class IncasareModel {
     if (map == null) {
       return IncasareModel(status: 'NEINCASAT');
     }
+    
+    // DUAL-READ: support RO field name 'stare' → EN 'status'
+    String status = map['status'] as String? ?? 
+                    map['stare'] as String? ?? 
+                    'NEINCASAT';
+    
     return IncasareModel(
-      status: map['status'] as String? ?? 'NEINCASAT',
+      status: status,
       metoda: map['metoda'] as String?,
       suma: (map['suma'] as num?)?.toDouble(),
     );
