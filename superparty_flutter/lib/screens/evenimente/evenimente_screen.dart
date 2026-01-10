@@ -23,6 +23,7 @@ class EvenimenteScreen extends StatefulWidget {
 class _EvenimenteScreenState extends State<EvenimenteScreen> {
   final EventService _eventService = EventService();
   final FocusNode _codeInputFocus = FocusNode();
+  late final TextEditingController _codeFilterController;
 
   // Filtre - exact ca în HTML
   String _datePreset = 'all'; // all, today, yesterday, last7, next7, next30, custom
@@ -37,8 +38,15 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   List<EventModel> _allEvents = [];
 
   @override
+  void initState() {
+    super.initState();
+    _codeFilterController = TextEditingController(text: _codeFilter);
+  }
+
+  @override
   void dispose() {
     _codeInputFocus.dispose();
+    _codeFilterController.dispose();
     super.dispose();
   }
 
@@ -399,40 +407,74 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   }
 
   Widget _buildCodeFilterInput() {
-    return GestureDetector(
-      onTap: () {
-        // Always open modal to show all filter options
-        _openCodeModal();
-      },
-      child: Container(
-        height: 36,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          color: const Color(0x0FFFFFFF),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0x24FFFFFF)),
+    final isDisabled = _notedByFilter.isNotEmpty;
+    
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: isDisabled ? const Color(0x05FFFFFF) : const Color(0x0FFFFFFF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDisabled ? const Color(0x12FFFFFF) : const Color(0x24FFFFFF),
         ),
-        child: TextField(
-          focusNode: _codeInputFocus,
-          onChanged: (value) {
-            setState(() {
-              _codeFilter = value.trim().toUpperCase();
-            });
-          },
-          style: const TextStyle(
+      ),
+      child: TextField(
+        controller: _codeFilterController,
+        focusNode: _codeInputFocus,
+        enabled: !isDisabled,
+        onChanged: (value) {
+          setState(() {
+            _codeFilter = value.trim().toUpperCase();
+            // Clear notedBy when user starts typing in code filter
+            if (_codeFilter.isNotEmpty && _notedByFilter.isNotEmpty) {
+              _notedByFilter = '';
+            }
+          });
+        },
+        style: TextStyle(
+          fontSize: 12,
+          color: isDisabled ? const Color(0x44EAF1FF) : const Color(0xFFEAF1FF),
+          fontWeight: FontWeight.w500,
+        ),
+        decoration: InputDecoration(
+          hintText: isDisabled ? 'Ce cod am (disabled)' : 'Ce cod am',
+          hintStyle: TextStyle(
             fontSize: 12,
-            color: Color(0xFFEAF1FF),
-            fontWeight: FontWeight.w500,
+            color: const Color(0xFFEAF1FF).withOpacity(0.55),
           ),
-          decoration: InputDecoration(
-            hintText: 'Ce cod am',
-            hintStyle: TextStyle(
-              fontSize: 12,
-              color: const Color(0xFFEAF1FF).withOpacity(0.55),
-            ),
-            border: InputBorder.none,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          suffixIcon: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Clear button
+              if (_codeFilter.isNotEmpty && !isDisabled)
+                IconButton(
+                  icon: const Icon(Icons.clear, size: 16),
+                  color: const Color(0x88EAF1FF),
+                  onPressed: () {
+                    setState(() {
+                      _codeFilter = '';
+                      _codeFilterController.clear();
+                    });
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: 'Clear',
+                ),
+              // Modal selector button
+              if (!isDisabled)
+                IconButton(
+                  icon: const Icon(Icons.list, size: 16),
+                  color: const Color(0x88EAF1FF),
+                  onPressed: _openCodeModal,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: 'Select from list',
+                ),
+            ],
           ),
         ),
       ),
@@ -440,27 +482,37 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   }
 
   Widget _buildNotedByFilterInput() {
+    final isDisabled = _codeFilter.isNotEmpty;
+    
     return Container(
       height: 36,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: const Color(0x0FFFFFFF),
+        color: isDisabled ? const Color(0x05FFFFFF) : const Color(0x0FFFFFFF),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0x24FFFFFF)),
+        border: Border.all(
+          color: isDisabled ? const Color(0x12FFFFFF) : const Color(0x24FFFFFF),
+        ),
       ),
       child: TextField(
+        enabled: !isDisabled,
         onChanged: (value) {
           setState(() {
             _notedByFilter = value.trim().toUpperCase();
+            // Clear code filter when user starts typing in notedBy
+            if (_notedByFilter.isNotEmpty && _codeFilter.isNotEmpty) {
+              _codeFilter = '';
+              _codeFilterController.clear();
+            }
           });
         },
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
-          color: Color(0xFFEAF1FF),
+          color: isDisabled ? const Color(0x44EAF1FF) : const Color(0xFFEAF1FF),
           fontWeight: FontWeight.w500,
         ),
         decoration: InputDecoration(
-          hintText: 'Cine noteaza',
+          hintText: isDisabled ? 'Cine noteaza (disabled)' : 'Cine noteaza',
           hintStyle: TextStyle(
             fontSize: 12,
             color: const Color(0xFFEAF1FF).withOpacity(0.55),
@@ -749,12 +801,18 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             if (value == 'FOCUS_INPUT') {
               // Clear and focus input
               _codeFilter = '';
+              _codeFilterController.clear();
               Future.delayed(const Duration(milliseconds: 100), () {
                 _codeInputFocus.requestFocus();
               });
             } else {
               // Set filter value (NEREZOLVATE, REZOLVATE, or empty)
               _codeFilter = value;
+              _codeFilterController.text = value;
+              // Clear notedBy when selecting code
+              if (_codeFilter.isNotEmpty && _notedByFilter.isNotEmpty) {
+                _notedByFilter = '';
+              }
             }
           });
         },
@@ -803,7 +861,10 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         throw Exception('Event not found');
       }
 
-      final data = eventDoc.data()!;
+      final data = eventDoc.data();
+      if (data == null) {
+        throw Exception('Event data is null');
+      }
       final roles = (data['roles'] as List<dynamic>?) ?? [];
 
       // Find role by slot
@@ -852,7 +913,10 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         throw Exception('Event not found');
       }
 
-      final data = eventDoc.data()!;
+      final data = eventDoc.data();
+      if (data == null) {
+        throw Exception('Event data is null');
+      }
       final roles = (data['roles'] as List<dynamic>?) ?? [];
 
       // Find role by slot

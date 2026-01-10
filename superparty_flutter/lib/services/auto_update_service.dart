@@ -38,7 +38,10 @@ class AutoUpdateService {
         return false;
       }
       
-      final data = doc.data()!;
+      final data = doc.data();
+      if (data == null) {
+        throw Exception('Document data is null');
+      }
       final minVersion = data['min_version'] as String?;
       final minBuildNumber = data['min_build_number'] as int?;
       final forceUpdate = data['force_update'] as bool? ?? false;
@@ -110,7 +113,10 @@ class AutoUpdateService {
         return 'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.';
       }
       
-      final data = doc.data()!;
+      final data = doc.data();
+      if (data == null) {
+        throw Exception('Document data is null');
+      }
       return data['update_message'] as String? ?? 
           'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.';
     } catch (e) {
@@ -131,7 +137,10 @@ class AutoUpdateService {
         return null;
       }
       
-      final data = doc.data()!;
+      final data = doc.data();
+      if (data == null) {
+        throw Exception('Document data is null');
+      }
       
       // Returnează URL-ul în funcție de platformă
       if (Platform.isAndroid) {
