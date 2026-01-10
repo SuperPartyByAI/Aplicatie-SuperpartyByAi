@@ -29,8 +29,9 @@ class AdminScreen extends StatelessWidget {
   Widget _buildAdminCard(BuildContext context, String title, IconData icon, VoidCallback onTap) {
     return Card(
       color: const Color(0xFFDC2626),
-      child: InkWell(
+      child: GestureDetector(
         onTap: onTap,
+        behavior: HitTestBehavior.opaque,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

@@ -31,10 +31,10 @@ class EventCardHtml extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: const Color(0x0FFFFFFF), // rgba(255,255,255,0.06) --card
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: const Color(0x1FFFFFFF), // rgba(255,255,255,0.12) --border
           ),
-          borderRadius: BorderRadius.circular(16),
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -66,33 +66,44 @@ class EventCardHtml extends StatelessWidget {
               );
             }
 
-            // Desktop layout: Grid
-            return IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildBadge(),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildMain(),
-                        if (event.roles.isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          _buildRoleList(),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  _buildRight(),
-                ],
-              ),
-            );
+            // Desktop layout: CSS Grid (3 columns: 46px 1fr auto)
+            // HTML lines 856-866: grid-template-columns: 46px 1fr auto
+            return _buildDesktopGrid();
           },
         ),
       ),
+    );
+  }
+
+  Widget _buildDesktopGrid() {
+    // Simulate CSS Grid with 3 columns: 46px, 1fr, auto
+    // Gap: 10px vertical, 12px horizontal
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Row 1: Badge (col 1) + Main (col 2) + Right (col 3)
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Column 1: Badge (46px width)
+            _buildBadge(),
+            const SizedBox(width: 12), // gap horizontal
+            
+            // Column 2: Main (flexible)
+            Expanded(child: _buildMain()),
+            const SizedBox(width: 12), // gap horizontal
+            
+            // Column 3: Right (auto width)
+            _buildRight(),
+          ],
+        ),
+        
+        // Row 2: Rolelist (spans columns 1-2)
+        if (event.roles.isNotEmpty) ...[
+          const SizedBox(height: 10), // gap vertical
+          _buildRoleList(),
+        ],
+      ],
     );
   }
 
@@ -118,10 +129,10 @@ class EventCardHtml extends StatelessWidget {
       height: 34,
       decoration: BoxDecoration(
         color: const Color(0x294ECDC4), // rgba(78,205,196,0.16)
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: const Color(0x384ECDC4), // rgba(78,205,196,0.22)
         ),
-        borderRadius: BorderRadius.circular(12),
       ),
       child: Center(
         child: Text(
@@ -140,6 +151,7 @@ class EventCardHtml extends StatelessWidget {
   }
 
   Widget _buildMain() {
+    // HTML lines 889-897: .main { gap: 6px }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -152,28 +164,29 @@ class EventCardHtml extends StatelessWidget {
             color: Color(0xFFEAF1FF),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6), // gap from .main
         // Address
-        if (event.address.isNotEmpty)
+        if (event.address.isNotEmpty) ...[
           Text(
             event.address,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 12,
-              color: const Color(0xFFEAF1FF).withOpacity(0.7), // --muted
+              color: Color(0xB3EAF1FF), // rgba(234,241,255,0.7) --muted
             ),
           ),
-        const SizedBox(height: 6),
+          const SizedBox(height: 6), // gap from .main
+        ],
         // Cine notează (ALWAYS show, even if null)
         Text(
           'Cine notează: ${event.cineNoteaza ?? '—'}',
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 12,
-            color: const Color(0xFFEAF1FF).withOpacity(0.58), // --muted2
+            color: Color(0x94EAF1FF), // rgba(234,241,255,0.58) --muted2
           ),
         ),
         // Șofer (ALWAYS show if needsDriver)
         if (event.needsDriver) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 6), // gap from .main
           GestureDetector(
             onTap: () {
               if (onDriverTap != null) onDriverTap!();
@@ -184,19 +197,19 @@ class EventCardHtml extends StatelessWidget {
                 color: event.hasDriverAssigned
                     ? const Color(0x144ECDC4) // rgba(78,205,196,0.08)
                     : const Color(0x14FFBE5C), // rgba(255,190,92,0.08)
+                borderRadius: BorderRadius.circular(999),
                 border: Border.all(
                   color: event.hasDriverAssigned
                       ? const Color(0x384ECDC4) // rgba(78,205,196,0.22)
                       : const Color(0x47FFBE5C), // rgba(255,190,92,0.28)
                 ),
-                borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
                 'Șofer: ${event.driverStatusText}',
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w900,
-                  color: const Color(0xFFEAF1FF).withOpacity(0.92),
+                  color: Color(0xEBEAF1FF), // rgba(234,241,255,0.92)
                 ),
               ),
             ),
@@ -214,12 +227,16 @@ class EventCardHtml extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    // Grid layout: 46px (slot) + 1fr (label)
-    // Gap: 4px vertical, 8px horizontal
-    return Column(
+    // HTML lines 901-908: .rolelist
+    // grid-template-columns: 46px 1fr
+    // gap: 4px 8px (vertical horizontal)
+    // This spans grid-column: 1 / 3 (badge + main columns)
+    return Wrap(
+      spacing: 0,
+      runSpacing: 4, // gap vertical
       children: visibleRoles.map((role) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 4),
+        return SizedBox(
+          width: double.infinity,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -228,7 +245,7 @@ class EventCardHtml extends StatelessWidget {
                 width: 46,
                 child: _buildSlot(role),
               ),
-              const SizedBox(width: 8), // gap
+              const SizedBox(width: 8), // gap horizontal
               // Label column (flexible)
               Expanded(
                 child: _buildRoleLabel(role),
@@ -291,10 +308,10 @@ class EventCardHtml extends StatelessWidget {
         height: 18,
         decoration: BoxDecoration(
           color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: const Color(0x1FFFFFFF), // rgba(255,255,255,0.12)
           ),
-          borderRadius: BorderRadius.circular(8),
         ),
         child: Center(
           child: Text(
@@ -342,9 +359,9 @@ class EventCardHtml extends StatelessWidget {
           Flexible(
             child: Text(
               role.label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 12,
-                color: const Color(0xFFEAF1FF).withOpacity(0.7),
+                color: Color(0x94EAF1FF), // rgba(234,241,255,0.58) --muted2
               ),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
@@ -356,10 +373,10 @@ class EventCardHtml extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               role.time,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
-                color: const Color(0xFFEAF1FF).withOpacity(0.7),
+                color: Color(0xB3EAF1FF), // rgba(234,241,255,0.7) --muted
               ),
             ),
           ],
@@ -371,20 +388,20 @@ class EventCardHtml extends StatelessWidget {
               height: 18,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               decoration: BoxDecoration(
-                color: const Color(0x0FFFFFFF),
-                border: Border.all(
-                  color: const Color(0x1AFFFFFFF),
-                ),
+                color: const Color(0x0FFFFFFF), // rgba(255,255,255,0.06)
                 borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: const Color(0x1AFFFFFFF), // rgba(255,255,255,0.1)
+                ),
               ),
               child: Center(
                 child: Text(
                   _formatDuration(role.durationMin),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0.12,
-                    color: const Color(0xFFEAF1FF).withOpacity(0.78),
+                    color: Color(0xC7EAF1FF), // rgba(234,241,255,0.78)
                   ),
                 ),
               ),
@@ -434,8 +451,8 @@ class EventCardHtml extends StatelessWidget {
       height: 18,
       decoration: BoxDecoration(
         color: bgColor,
-        border: Border.all(color: borderColor),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: borderColor),
       ),
       child: Stack(
         children: [
@@ -475,45 +492,49 @@ class EventCardHtml extends StatelessWidget {
   }
 
   Widget _buildRight() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        // Date
-        Text(
-          _formatDate(event.date),
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: Color(0xB3EAF1FF), // rgba(234,241,255,0.7)
-          ),
-        ),
-
-        // Cine noteaza
-        if (event.cineNoteaza != null && event.cineNoteaza!.isNotEmpty) ...[
-          const SizedBox(height: 2),
+    // HTML lines 985-993: .right { gap: 4px, padding-top: 2px }
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // Date
           Text(
-            'Cine noteaza: ${event.cineNoteaza}',
-            style: TextStyle(
-              fontSize: 11,
-              color: const Color(0xFFEAF1FF).withOpacity(0.6),
+            _formatDate(event.date),
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w900, // HTML: font-weight: 900
+              color: Color(0xDBEAF1FF), // rgba(234,241,255,0.86)
+            ),
+          ),
+
+          // Cine noteaza
+          if (event.cineNoteaza != null && event.cineNoteaza!.isNotEmpty) ...[
+            const SizedBox(height: 4), // gap from .right
+            Text(
+              'Cine noteaza: ${event.cineNoteaza}',
+              style: TextStyle(
+                fontSize: 11,
+                color: const Color(0xFFEAF1FF).withOpacity(0.6),
+              ),
+            ),
+          ],
+
+          // Șofer
+          const SizedBox(height: 4), // gap from .right
+          GestureDetector(
+            onTap: _needsDriver() ? onDriverTap : null,
+            child: Text(
+              _driverText(),
+              style: TextStyle(
+                fontSize: 11,
+                color: const Color(0xFFEAF1FF).withOpacity(0.6),
+                decoration: _needsDriver() ? TextDecoration.underline : null,
+              ),
             ),
           ),
         ],
-
-        // Șofer
-        const SizedBox(height: 2),
-        GestureDetector(
-          onTap: _needsDriver() ? onDriverTap : null,
-          child: Text(
-            _driverText(),
-            style: TextStyle(
-              fontSize: 11,
-              color: const Color(0xFFEAF1FF).withOpacity(0.6),
-              decoration: _needsDriver() ? TextDecoration.underline : null,
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 

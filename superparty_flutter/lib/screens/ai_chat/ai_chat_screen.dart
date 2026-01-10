@@ -568,17 +568,17 @@ class _AIChatScreenState extends State<AIChatScreen> {
   }
 
   Widget _pillButton(String label, {required VoidCallback onTap}) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
+    return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
         height: 30,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.08),
-          border: Border.all(color: Colors.white.withOpacity(0.14)),
           borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white.withOpacity(0.14)),
         ),
         child: Text(
           label,
@@ -594,8 +594,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
       margin: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.04),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
         boxShadow: const [
           BoxShadow(
               color: Colors.black54, blurRadius: 40, offset: Offset(0, 18))
@@ -645,8 +645,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: bg,
-                border: Border.all(color: border),
                 borderRadius: BorderRadius.circular(14),
+
+                border: Border.all(color: border),
               ),
               child: (msg['content'] == '...')
                   ? const _TypingIndicator()
@@ -682,8 +683,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(0.22),
-                border: Border.all(color: Colors.white.withOpacity(0.14)),
                 borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withOpacity(0.14)),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               child: TextField(

@@ -128,8 +128,8 @@ class _DoveziScreenState extends State<DoveziScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0x0FFFFFFF),
-        border: Border.all(color: const Color(0x1FFFFFFF)),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0x1FFFFFFF)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,8 +224,9 @@ class _DoveziScreenState extends State<DoveziScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: bgColor,
-        border: Border.all(color: borderColor),
         borderRadius: BorderRadius.circular(4),
+
+        border: Border.all(color: borderColor),
       ),
       child: Text(
         status.label,
@@ -246,8 +247,8 @@ class _DoveziScreenState extends State<DoveziScreen> {
           height: 80,
           decoration: BoxDecoration(
             color: const Color(0x14FFFFFF),
-            border: Border.all(color: const Color(0x1FFFFFFF)),
             borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0x1FFFFFFF)),
             image: evidence.downloadUrl.isNotEmpty
                 ? DecorationImage(
                     image: NetworkImage(evidence.downloadUrl),
@@ -265,8 +266,9 @@ class _DoveziScreenState extends State<DoveziScreen> {
           Positioned(
             top: 4,
             right: 4,
-            child: InkWell(
+            child: GestureDetector(
               onTap: () => _archiveEvidence(evidence),
+              behavior: HitTestBehavior.opaque,
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: const BoxDecoration(

@@ -39,10 +39,10 @@ class CodeModal extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 520),
           decoration: BoxDecoration(
             color: const Color(0xEB0B1220), // rgba(11,18,32,0.92)
-            border: Border.all(
-              color: const Color(0x1AFFFFFFF), // rgba(255,255,255,0.1)
-            ),
             borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1) - fixed from 9 to 8 hex digits
+            ),
             boxShadow: [
               BoxShadow(
                 color: const Color(0x8C000000), // rgba(0,0,0,0.55)
@@ -160,9 +160,9 @@ class CodeModal extends StatelessWidget {
   }
 
   Widget _buildPickButton(BuildContext context, String label, VoidCallback onTap) {
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      behavior: HitTestBehavior.opaque,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

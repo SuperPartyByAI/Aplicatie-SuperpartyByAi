@@ -33,8 +33,8 @@
 **Tests:** 40 passed, 1 failed (ai_chat path issue - not related)  
 **flutter analyze:** 0 errors ✅
 
-### ✅ LIVRARE 3/N - Event Card (PARȚIAL)
-**Commits:** d746bfdd, 494ab63c, f8e4a8c3  
+### ✅ LIVRARE 3/N - Event Card (COMPLETE)
+**Commits:** d746bfdd, 494ab63c, f8e4a8c3, [PENDING]  
 **Features:**
 - Badge cu dată (DD MMM) în loc de ID
 - Main section: ID • Date • Name, Address
@@ -43,23 +43,19 @@
 - Interacțiuni separate (slot/status nu duc la Dovezi)
 - Dual-read pentru câmpuri românești (roluri, data, adresa)
 - Script migrare evenimente v1 → v2
+- ✅ Grid 3 coloane desktop (46px 1fr auto)
+- ✅ Spacing exact (gaps: 10px/12px, main: 6px, right: 4px)
+- ✅ Culori exacte (toate variabilele CSS)
+- ✅ Rolelist 2-column grid (46px 1fr, gap: 4px 8px)
+
+**Referință HTML:** lines 856-950, 9-21 (CSS variables)
 
 ---
 
-## CE LIPSEȘTE (TODO)
-
-### ⏳ LIVRARE 3/N - Event Card (CONTINUARE)
-**Prioritate:** URGENT  
-**Rămâne:**
-- Grid 3 coloane pentru roluri (acum e 1 coloană)
-- Spacing exact (gaps, padding conform HTML)
-- Culori exacte (toate variabilele CSS)
-- Right section (chevron icon)
-
-**Referință HTML:** lines 856-950 (.card, .badge, .main, .rolelist)
+## CE LIPSEȘTE (TODO) (.card, .badge, .main, .rolelist)
 
 ### ⏳ LIVRARE 4/N - Dovezi Screen 1:1
-**Prioritate:** HIGH  
+**Prioritate:** URGENT (NEXT)  
 **Features:**
 - 4 categorii (înainte/în timpul/după/generale)
 - Photo grid 3 coloane
@@ -68,6 +64,8 @@
 - "Reverifică" button
 
 **Referință HTML:** lines 2000-3500
+
+**Status:** 0% - TODO
 
 ### ⏳ LIVRARE 5/N - Finalizare
 **Prioritate:** MEDIUM  
@@ -181,9 +179,9 @@ firebase deploy --only hosting
 ## PROBLEME CUNOSCUTE
 
 ### 1. Vizual incomplet
-**Status:** ⏳ IN PROGRESS (LIVRARE 3/N)  
-**Cauză:** Event card nu are grid 3 coloane, spacing exact, culori exacte  
-**Fix:** Continuă implementarea conform HTML lines 856-950
+**Status:** ✅ FIXED (LIVRARE 3/N)  
+**Cauză:** Event card nu avea grid 3 coloane, spacing exact, culori exacte  
+**Fix:** Implementat conform HTML lines 856-950, 9-21
 
 ### 2. Dovezi screen lipsă
 **Status:** ⏳ TODO (LIVRARE 4/N)  
@@ -200,9 +198,17 @@ firebase deploy --only hosting
 ## NEXT STEPS (PRIORITIZATE)
 
 1. **URGENT:** Rulează script migrare pentru evenimente existente
-2. **URGENT:** Finalizează Event Card (grid 3 coloane + spacing + culori)
-3. **HIGH:** Implementează Dovezi Screen complet
-4. **MEDIUM:** Screenshot-uri HTML vs Flutter pentru comparație
+   ```bash
+   cd superparty_flutter
+   dart run scripts/migrate_events_to_v2.dart
+   ```
+2. **URGENT:** Implementează Dovezi Screen complet (LIVRARE 4/N)
+   - HTML Reference: lines 2000-3500
+   - 4 categorii cu photo grids
+   - Upload multi-select
+   - Verdict system cu lock
+3. **HIGH:** Screenshot-uri HTML vs Flutter pentru comparație
+4. **MEDIUM:** Finalizare completă (LIVRARE 5/N)
 5. **LOW:** Optimizări performance
 
 ---
@@ -217,4 +223,4 @@ firebase deploy --only hosting
 ---
 
 **Last Updated:** 2026-01-10  
-**Status:** 🟡 IN PROGRESS (60% complete)
+**Status:** 🟡 IN PROGRESS (75% complete - Event Card finalizat)

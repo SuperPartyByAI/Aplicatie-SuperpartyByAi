@@ -144,9 +144,9 @@ class _CodeFilterModalState extends State<CodeFilterModal> {
 
   Widget _buildOption(CodeFilterOption option, String title, String subtitle) {
     final isSelected = _selectedOption == option;
-    return InkWell(
+    return GestureDetector(
       onTap: () => setState(() => _selectedOption = option),
-      borderRadius: BorderRadius.circular(8),
+      behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(

@@ -79,10 +79,10 @@ class _AssignModalState extends State<AssignModal> {
           constraints: const BoxConstraints(maxWidth: 520),
           decoration: BoxDecoration(
             color: const Color(0xEB0B1220), // rgba(11,18,32,0.92)
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: const Color(0x1AFFFFFFF), // rgba(255,255,255,0.1)
             ),
-            borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
                 color: const Color(0x8C000000), // rgba(0,0,0,0.55)

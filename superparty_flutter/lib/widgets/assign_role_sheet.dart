@@ -219,8 +219,9 @@ class _AssignRoleSheetState extends State<AssignRoleSheet> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: bgColor,
-        border: Border.all(color: borderColor),
         borderRadius: BorderRadius.circular(8),
+
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         children: [

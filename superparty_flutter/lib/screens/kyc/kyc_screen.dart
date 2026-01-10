@@ -388,8 +388,9 @@ class _KycScreenState extends State<KycScreen> {
               height: 150,
               width: double.infinity,
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
                 borderRadius: BorderRadius.circular(8),
+
+                border: Border.all(color: Colors.grey),
               ),
               child: file != null
                   ? Image.file(file, fit: BoxFit.cover)
