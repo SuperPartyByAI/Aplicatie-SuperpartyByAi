@@ -1,5 +1,6 @@
+import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -29,6 +30,19 @@ import 'widgets/update_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Global error handlers for debugging
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('[FlutterError] ${details.exceptionAsString()}');
+    debugPrint('[FlutterError] Stack: ${details.stack}');
+  };
+  
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('[UncaughtError] $error');
+    debugPrint('[UncaughtError] Stack: $stack');
+    return true;
+  };
   
   // FAIL-SAFE: Initialize Firebase with error handling and timeout
   // App can run with limited functionality if Firebase fails

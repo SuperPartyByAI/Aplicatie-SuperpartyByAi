@@ -123,7 +123,10 @@ class _KycScreenState extends State<KycScreen> {
 
       setState(() => _extractInfo = 'Se încarcă imaginile...');
 
-      final user = FirebaseAuth.instance.currentUser!;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('Nu ești autentificat. Te rog să te loghezi din nou.');
+      }
       final frontRef = FirebaseStorage.instance
           .ref()
           .child('kyc/${user.uid}/id_front_${DateTime.now().millisecondsSinceEpoch}.jpg');
@@ -174,7 +177,10 @@ class _KycScreenState extends State<KycScreen> {
         throw Exception('Trebuie să citești și să înțelegi contractul.');
       }
 
-      final user = FirebaseAuth.instance.currentUser!;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('Nu ești autentificat. Te rog să te loghezi din nou.');
+      }
       
       // Upload all images
       String? idFrontUrl, idBackUrl, driverLicenseUrl;
