@@ -96,9 +96,13 @@ class EventModel {
                     data['adresa'] as String? ?? '';
     
     // Roles (v2: array, v1: alocari map)
+    // Support both 'roles' (English) and 'roluri' (Romanian)
     List<RoleModel> roles;
     if (data.containsKey('roles') && data['roles'] is List) {
       roles = _parseRoles(data['roles'] as List<dynamic>?);
+    } else if (data.containsKey('roluri') && data['roluri'] is List) {
+      // Romanian field name
+      roles = _parseRoles(data['roluri'] as List<dynamic>?);
     } else if (data.containsKey('alocari') && data['alocari'] is Map) {
       // v1: convert alocari map to roles array
       roles = _parseAlocariV1(data['alocari'] as Map<String, dynamic>?);
