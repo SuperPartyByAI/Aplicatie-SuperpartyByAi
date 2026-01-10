@@ -73,11 +73,53 @@ void main() async {
   runApp(const SuperPartyApp());
 }
 
-class SuperPartyApp extends StatelessWidget {
+class SuperPartyApp extends StatefulWidget {
   const SuperPartyApp({super.key});
 
   @override
+  State<SuperPartyApp> createState() => _SuperPartyAppState();
+}
+
+class _SuperPartyAppState extends State<SuperPartyApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Trigger rebuild when Firebase is initialized
+    _waitForFirebase();
+  }
+  
+  Future<void> _waitForFirebase() async {
+    // Wait for Firebase to be initialized
+    while (!FirebaseService.isInitialized) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    // Trigger rebuild
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // CRITICAL: Wait for Firebase initialization before building any widgets
+    // This prevents [core/no-app] error on web
+    if (!FirebaseService.isInitialized) {
+      return MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Initializing Firebase...'),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    
     return ChangeNotifierProvider(
       create: (_) => AppStateProvider(),
       child: UpdateGate(
