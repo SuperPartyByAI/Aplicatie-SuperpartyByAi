@@ -26,6 +26,7 @@ import 'screens/gm/analytics_screen.dart';
 import 'screens/gm/staff_setup_screen.dart';
 import 'screens/ai_chat/ai_chat_screen.dart';
 import 'screens/kyc/kyc_screen.dart';
+import 'screens/error/not_found_screen.dart';
 import 'widgets/update_gate.dart';
 
 void main() async {
@@ -213,9 +214,17 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
               case '/ai-chat':
                 return MaterialPageRoute(builder: (_) => const AIChatScreen());
               default:
-                debugPrint('[ROUTE] Unknown path: $path - redirecting to AuthWrapper');
-                return MaterialPageRoute(builder: (_) => const AuthWrapper());
+                debugPrint('[ROUTE] Unknown path: $path - showing NotFoundScreen');
+                return MaterialPageRoute(
+                  builder: (_) => NotFoundScreen(routeName: path),
+                );
             }
+          },
+          onUnknownRoute: (settings) {
+            debugPrint('[ROUTE] onUnknownRoute called for: ${settings.name}');
+            return MaterialPageRoute(
+              builder: (_) => NotFoundScreen(routeName: settings.name),
+            );
           },
         ),
       ),
