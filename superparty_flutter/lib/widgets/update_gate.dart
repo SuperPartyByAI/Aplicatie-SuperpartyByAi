@@ -84,47 +84,55 @@ class _UpdateGateState extends State<UpdateGate> {
 
   @override
   Widget build(BuildContext context) {
-    // Always return child (main app) with overlay on top
-    // This preserves routing and prevents MaterialApp nesting
-    return Stack(
-      children: [
-        // Main app (always present)
-        widget.child,
-        
-        // Overlay for checking state
-        if (_checking)
-          Positioned.fill(
-            child: Material(
-              color: Colors.white,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Verificare actualizări...'),
-                  ],
+    // If no overlay needed, return child directly
+    if (!_checking && !_needsUpdate) {
+      return widget.child;
+    }
+    
+    // CRITICAL: Wrap Stack with Directionality to prevent "No Directionality widget found" error
+    // This ensures overlays have proper text direction even if MaterialApp context is not available
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Stack(
+        children: [
+          // Main app (always present)
+          widget.child,
+          
+          // Overlay for checking state
+          if (_checking)
+            Positioned.fill(
+              child: Material(
+                color: Colors.white,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Verificare actualizări...'),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        
-        // Overlay for force update screen
-        if (_needsUpdate)
-          Positioned.fill(
-            child: Material(
-              color: Colors.white,
-              child: ForceUpdateScreen(
-                onUpdateComplete: () {
-                  // After update is installed and app restarts,
-                  // this callback won't be called because app will restart.
-                  // But we keep it for potential future use.
-                  print('[UpdateGate] Update complete callback (app should restart)');
-                },
+          
+          // Overlay for force update screen
+          if (_needsUpdate)
+            Positioned.fill(
+              child: Material(
+                color: Colors.white,
+                child: ForceUpdateScreen(
+                  onUpdateComplete: () {
+                    // After update is installed and app restarts,
+                    // this callback won't be called because app will restart.
+                    // But we keep it for potential future use.
+                    print('[UpdateGate] Update complete callback (app should restart)');
+                  },
+                ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
