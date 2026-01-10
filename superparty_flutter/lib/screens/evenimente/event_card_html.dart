@@ -143,14 +143,65 @@ class EventCardHtml extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // ID + Date + Name
+        Text(
+          '${event.id} • ${event.date} • ${event.sarbatoritNume}',
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFFEAF1FF),
+          ),
+        ),
+        const SizedBox(height: 4),
+        // Address
         if (event.address.isNotEmpty)
           Text(
             event.address,
             style: TextStyle(
-              fontSize: 13,
-              color: const Color(0xFFEAF1FF).withOpacity(0.7), // --muted2
+              fontSize: 12,
+              color: const Color(0xFFEAF1FF).withOpacity(0.7), // --muted
             ),
           ),
+        const SizedBox(height: 6),
+        // Cine notează (ALWAYS show, even if null)
+        Text(
+          'Cine notează: ${event.cineNoteaza ?? '—'}',
+          style: TextStyle(
+            fontSize: 12,
+            color: const Color(0xFFEAF1FF).withOpacity(0.58), // --muted2
+          ),
+        ),
+        // Șofer (ALWAYS show if needsDriver)
+        if (event.needsDriver) ...[
+          const SizedBox(height: 4),
+          GestureDetector(
+            onTap: () {
+              if (onDriverTap != null) onDriverTap!();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: event.hasDriverAssigned
+                    ? const Color(0x144ECDC4) // rgba(78,205,196,0.08)
+                    : const Color(0x14FFBE5C), // rgba(255,190,92,0.08)
+                border: Border.all(
+                  color: event.hasDriverAssigned
+                      ? const Color(0x384ECDC4) // rgba(78,205,196,0.22)
+                      : const Color(0x47FFBE5C), // rgba(255,190,92,0.28)
+                ),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                'Șofer: ${event.driverStatusText}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFFEAF1FF).withOpacity(0.92),
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
