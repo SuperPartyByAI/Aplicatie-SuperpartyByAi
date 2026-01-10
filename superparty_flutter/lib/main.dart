@@ -30,11 +30,12 @@ import 'widgets/update_gate.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // FAIL-SAFE: Initialize Firebase with error handling
+  // FAIL-SAFE: Initialize Firebase with error handling and timeout
   // App can run with limited functionality if Firebase fails
   try {
     print('[Main] Initializing Firebase...');
-    await FirebaseService.initialize();
+    await FirebaseService.initialize()
+        .timeout(const Duration(seconds: 10));
     print('[Main] ✅ Firebase initialized successfully');
   } catch (e, stackTrace) {
     print('[Main] ❌ Firebase initialization failed: $e');
