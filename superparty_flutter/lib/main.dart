@@ -158,6 +158,7 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
         '/ai-chat': (context) => const AIChatScreen(),
       },
         home: const AuthWrapper(),
+        ),
       ),
     );
   }
