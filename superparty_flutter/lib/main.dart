@@ -139,8 +139,7 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
           ),
           useMaterial3: true,
         ),
-        home: const AuthWrapper(),
-      routes: {
+        routes: {
         '/home': (context) => const HomeScreen(),
         '/kyc': (context) => const KycScreen(),
         '/evenimente': (context) => const EvenimenteScreen(),
@@ -158,6 +157,7 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
         '/gm/staff-setup': (context) => const StaffSetupScreen(),
         '/ai-chat': (context) => const AIChatScreen(),
       },
+        home: const AuthWrapper(),
         ),
       ),
     );
