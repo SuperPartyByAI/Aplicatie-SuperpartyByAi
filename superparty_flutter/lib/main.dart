@@ -146,24 +146,47 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
             ),
             useMaterial3: true,
           ),
-          routes: {
-            '/': (context) => const AuthWrapper(),
-            '/home': (context) => const HomeScreen(),
-            '/kyc': (context) => const KycScreen(),
-            '/evenimente': (context) => const EvenimenteScreen(),
-            '/disponibilitate': (context) => const DisponibilitateScreen(),
-            '/salarizare': (context) => const SalarizareScreen(),
-            '/centrala': (context) => const CentralaScreen(),
-            '/whatsapp': (context) => const WhatsAppScreen(),
-            '/team': (context) => const TeamScreen(),
-            '/admin': (context) => const AdminScreen(),
-            '/admin/kyc': (context) => const KycApprovalsScreen(),
-            '/admin/ai-conversations': (context) => const AiConversationsScreen(),
-            '/gm/accounts': (context) => const AccountsScreen(),
-            '/gm/metrics': (context) => const MetricsScreen(),
-            '/gm/analytics': (context) => const AnalyticsScreen(),
-            '/gm/staff-setup': (context) => const StaffSetupScreen(),
-            '/ai-chat': (context) => const AIChatScreen(),
+          onGenerateRoute: (settings) {
+            // Handle all routes including deep-links
+            switch (settings.name) {
+              case '/':
+                return MaterialPageRoute(builder: (_) => const AuthWrapper());
+              case '/home':
+                return MaterialPageRoute(builder: (_) => const HomeScreen());
+              case '/kyc':
+                return MaterialPageRoute(builder: (_) => const KycScreen());
+              case '/evenimente':
+                return MaterialPageRoute(builder: (_) => const EvenimenteScreen());
+              case '/disponibilitate':
+                return MaterialPageRoute(builder: (_) => const DisponibilitateScreen());
+              case '/salarizare':
+                return MaterialPageRoute(builder: (_) => const SalarizareScreen());
+              case '/centrala':
+                return MaterialPageRoute(builder: (_) => const CentralaScreen());
+              case '/whatsapp':
+                return MaterialPageRoute(builder: (_) => const WhatsAppScreen());
+              case '/team':
+                return MaterialPageRoute(builder: (_) => const TeamScreen());
+              case '/admin':
+                return MaterialPageRoute(builder: (_) => const AdminScreen());
+              case '/admin/kyc':
+                return MaterialPageRoute(builder: (_) => const KycApprovalsScreen());
+              case '/admin/ai-conversations':
+                return MaterialPageRoute(builder: (_) => const AiConversationsScreen());
+              case '/gm/accounts':
+                return MaterialPageRoute(builder: (_) => const AccountsScreen());
+              case '/gm/metrics':
+                return MaterialPageRoute(builder: (_) => const MetricsScreen());
+              case '/gm/analytics':
+                return MaterialPageRoute(builder: (_) => const AnalyticsScreen());
+              case '/gm/staff-setup':
+                return MaterialPageRoute(builder: (_) => const StaffSetupScreen());
+              case '/ai-chat':
+                return MaterialPageRoute(builder: (_) => const AIChatScreen());
+              default:
+                // Unknown route - go to home
+                return MaterialPageRoute(builder: (_) => const AuthWrapper());
+            }
           },
         ),
       ),
