@@ -33,6 +33,9 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   DateTime? _customStart;
   DateTime? _customEnd;
 
+  // Cache events for CodeInfoModal
+  List<EventModel> _allEvents = [];
+
   @override
   void dispose() {
     _codeInputFocus.dispose();
@@ -507,6 +510,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         final events = snapshot.data?.docs.map((doc) {
           return EventModel.fromFirestore(doc);
         }).toList() ?? [];
+        _allEvents = events; // Cache for CodeInfoModal
         final filteredEvents = _applyFilters(events);
 
         if (filteredEvents.isEmpty) {
@@ -794,7 +798,10 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
     showDialog(
       context: context,
       barrierColor: Colors.transparent,
-      builder: (context) => CodeInfoModal(code: code),
+      builder: (context) => CodeInfoModal(
+        code: code,
+        events: _allEvents,
+      ),
     );
   }
 
