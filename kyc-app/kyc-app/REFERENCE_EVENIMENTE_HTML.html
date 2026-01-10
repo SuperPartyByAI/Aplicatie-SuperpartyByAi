@@ -1,0 +1,4521 @@
+<!doctype html>
+<html lang="ro">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Evenimente</title>
+
+    <style>
+      :root {
+        --bg: #0b1220;
+        --bg2: #111c35;
+        --text: #eaf1ff;
+        --muted: rgba(234, 241, 255, 0.7);
+        --muted2: rgba(234, 241, 255, 0.58);
+        --border: rgba(255, 255, 255, 0.12);
+        --card: rgba(255, 255, 255, 0.06);
+        --accent: rgba(78, 205, 196, 1);
+        --warn: rgba(255, 190, 92, 1);
+        --bad: rgba(255, 120, 120, 1);
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family:
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Arial,
+          sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(900px 520px at 18% 0%, rgba(78, 205, 196, 0.14), transparent 62%),
+          radial-gradient(820px 520px at 86% 10%, rgba(96, 165, 250, 0.1), transparent 58%),
+          linear-gradient(180deg, var(--bg2), var(--bg));
+        min-height: 100vh;
+      }
+
+      .appbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        padding: 14px 16px;
+        background: rgba(11, 18, 32, 0.72);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .appbar-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        gap: 10px;
+        max-width: 920px;
+        margin: 0 auto;
+      }
+
+      .appbar h1 {
+        margin: 0;
+        align-self: flex-start;
+        font-size: 18px;
+        font-weight: 900;
+        letter-spacing: 0.2px;
+        white-space: nowrap;
+      }
+
+      .filters-block {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        align-items: stretch;
+        flex: 1 1 auto;
+        max-width: 640px;
+      }
+
+      .filters {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+      }
+
+      .filters-date {
+        justify-content: flex-start;
+      }
+      .filters-date .filters-left {
+        gap: 0;
+      }
+      .filters-date .date-preset {
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+      }
+      .filters-date .sort-btn {
+        border-radius: 0;
+        margin-left: -1px;
+      }
+      .filters-date .driver-btn {
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+        margin-left: -1px;
+      }
+
+      .filters-left {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        min-width: 0;
+        flex: 1 1 auto;
+      }
+
+      .text-input {
+        width: 150px;
+        height: 36px;
+        border-radius: 12px;
+        padding: 0 8px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(0, 0, 0, 0.22);
+        color: var(--text);
+        outline: none;
+        font: inherit;
+        font-size: 12px;
+        letter-spacing: 0.1px;
+        min-width: 0;
+        -webkit-appearance: none;
+        appearance: none;
+        -webkit-tap-highlight-color: transparent;
+        color-scheme: dark;
+      }
+
+      .text-input::placeholder {
+        color: rgba(234, 241, 255, 0.55);
+      }
+
+      .sep {
+        color: rgba(234, 241, 255, 0.55);
+        font-weight: 900;
+        user-select: none;
+        margin: 0;
+      }
+
+      .date-preset {
+        width: 230px;
+        height: 36px;
+        border-radius: 12px;
+        padding: 0 28px 0 8px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text);
+        outline: none;
+        font: inherit;
+        font-size: 12px;
+        letter-spacing: 0.1px;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        -webkit-appearance: none;
+        appearance: none;
+        -webkit-tap-highlight-color: transparent;
+        color-scheme: dark;
+        background-image: url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2718%27 height=%2718%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27rgba(234,241,255,0.75)%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27/%3E%3C/svg%3E');
+        background-repeat: no-repeat;
+        background-position: right 8px center;
+        background-size: 16px 16px;
+      }
+
+      .date-preset::-ms-expand {
+        display: none;
+      }
+
+      .date-preset:focus {
+        border-color: rgba(78, 205, 196, 0.55);
+        box-shadow:
+          0 0 0 3px rgba(78, 205, 196, 0.18),
+          inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text);
+        -webkit-text-fill-color: var(--text);
+      }
+
+      .date-preset:active {
+        background: rgba(78, 205, 196, 0.16);
+        border-color: rgba(78, 205, 196, 0.3);
+        color: var(--text);
+        -webkit-text-fill-color: var(--text);
+      }
+
+      .date-preset option {
+        background-color: #0b1220;
+        color: #eaf1ff;
+      }
+
+      .btn {
+        height: 36px;
+        border-radius: 12px;
+        padding: 0 12px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text);
+        font-weight: 900;
+        cursor: pointer;
+        white-space: nowrap;
+        user-select: none;
+        -webkit-appearance: none;
+        appearance: none;
+        -webkit-tap-highlight-color: transparent;
+        color-scheme: dark;
+      }
+
+      .btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .btn:active {
+        transform: scale(0.99);
+        background: rgba(78, 205, 196, 0.16);
+        border-color: rgba(78, 205, 196, 0.3);
+        color: var(--text);
+      }
+
+      .btn:focus {
+        outline: none;
+      }
+
+      .btn:focus-visible {
+        outline: none;
+        border-color: rgba(78, 205, 196, 0.55);
+        box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.18);
+      }
+
+      .btnspacer {
+        visibility: hidden;
+      }
+
+      .sort-btn {
+        width: 44px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .driver-btn {
+        width: 44px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+      }
+
+      .driver-btn svg {
+        width: 20px;
+        height: 20px;
+        opacity: 1;
+        transform: translateY(1px);
+        stroke: rgba(234, 241, 255, 0.92);
+        stroke-width: 2.35;
+        filter: drop-shadow(0 0 10px rgba(78, 205, 196, 0.14));
+      }
+
+      .driver-btn[data-state='all'] svg {
+        width: 22px;
+        height: 22px;
+        stroke: rgba(234, 241, 255, 0.95);
+        filter: drop-shadow(0 0 14px rgba(78, 205, 196, 0.28));
+      }
+
+      .driver-btn::after {
+        content: 'T';
+        position: absolute;
+        min-width: 18px;
+        height: 16px;
+        padding: 0 4px;
+        border-radius: 999px;
+        right: 6px;
+        top: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        font-weight: 900;
+        letter-spacing: 0.2px;
+        color: rgba(234, 241, 255, 0.86);
+        background: rgba(234, 241, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+      }
+
+      .driver-btn[data-state='yes']::after {
+        content: 'NEC';
+        background: rgba(78, 205, 196, 0.28);
+        border-color: rgba(78, 205, 196, 0.5);
+        color: rgba(234, 241, 255, 0.92);
+      }
+
+      .driver-btn[data-state='open']::after {
+        content: 'NRZ';
+        background: rgba(78, 205, 196, 0.14);
+        border-color: rgba(78, 205, 196, 0.32);
+        color: rgba(234, 241, 255, 0.88);
+      }
+
+      .driver-btn[data-state='no']::after {
+        content: 'NU';
+        background: rgba(0, 0, 0, 0.18);
+        border-color: rgba(255, 255, 255, 0.26);
+        color: rgba(234, 241, 255, 0.78);
+      }
+
+      .sort-btn .arrow {
+        opacity: 0.45;
+        font-weight: 900;
+      }
+      .sort-btn[data-dir='asc'] .up {
+        opacity: 1;
+      }
+      .sort-btn[data-dir='desc'] .down {
+        opacity: 1;
+      }
+
+      .modal {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: flex-end;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.55);
+        z-index: 50;
+        padding: 16px;
+      }
+
+      .sheet {
+        width: 100%;
+        max-width: 520px;
+        border-radius: 18px;
+        background: rgba(11, 18, 32, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        padding: 12px;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+      }
+
+      .sheet-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+      }
+
+      .sheet-title {
+        font-size: 13px;
+        font-weight: 900;
+        color: rgba(234, 241, 255, 0.86);
+        letter-spacing: 0.2px;
+      }
+
+      .sheet-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .mini-btn {
+        height: 34px;
+        border-radius: 12px;
+        padding: 0 10px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text);
+        font-weight: 900;
+        cursor: pointer;
+        -webkit-appearance: none;
+        appearance: none;
+        -webkit-tap-highlight-color: transparent;
+        color-scheme: dark;
+      }
+
+      .mini-btn:active {
+        transform: scale(0.99);
+        background: rgba(78, 205, 196, 0.16);
+        border-color: rgba(78, 205, 196, 0.3);
+      }
+
+      .mini-btn.warn {
+        border-color: rgba(255, 190, 92, 0.28);
+        background: rgba(255, 190, 92, 0.1);
+      }
+
+      .mini-btn.danger {
+        border-color: rgba(255, 120, 120, 0.26);
+        background: rgba(255, 120, 120, 0.08);
+      }
+
+      .cal-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 2px 10px;
+      }
+
+      .cal-month {
+        font-size: 14px;
+        font-weight: 900;
+        letter-spacing: 0.2px;
+        color: rgba(234, 241, 255, 0.92);
+      }
+
+      .nav-btn {
+        width: 36px;
+        height: 34px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text);
+        font-weight: 900;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-appearance: none;
+        appearance: none;
+        -webkit-tap-highlight-color: transparent;
+        color-scheme: dark;
+      }
+
+      .nav-btn:active {
+        transform: scale(0.99);
+        background: rgba(78, 205, 196, 0.16);
+        border-color: rgba(78, 205, 196, 0.3);
+      }
+
+      .dow {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 6px;
+        padding: 0 2px 6px;
+        color: rgba(234, 241, 255, 0.55);
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.2px;
+      }
+
+      .dow div {
+        text-align: center;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 6px;
+        padding: 0 2px 10px;
+      }
+
+      .day {
+        height: 40px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(234, 241, 255, 0.88);
+        font-weight: 900;
+        font-size: 12px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        position: relative;
+      }
+
+      .day.blank {
+        background: transparent;
+        border: 1px solid transparent;
+        cursor: default;
+      }
+
+      .day:active {
+        transform: scale(0.99);
+      }
+
+      .day.sel-start,
+      .day.sel-end {
+        background: rgba(78, 205, 196, 0.22);
+        border-color: rgba(78, 205, 196, 0.35);
+        color: rgba(234, 241, 255, 0.95);
+      }
+
+      .day.in-range {
+        background: rgba(78, 205, 196, 0.12);
+        border-color: rgba(78, 205, 196, 0.18);
+      }
+
+      .hint {
+        font-size: 11px;
+        color: rgba(234, 241, 255, 0.65);
+        padding: 0 2px 10px;
+      }
+
+      .picklist {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 2px 0 6px;
+      }
+      .pickbtn {
+        width: 100%;
+        text-align: left;
+        justify-content: flex-start;
+      }
+
+      .assign-box {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 2px 0 2px;
+      }
+      .assign-meta {
+        font-size: 11px;
+        color: rgba(234, 241, 255, 0.62);
+        line-height: 1.35;
+      }
+      .assign-input {
+        width: 100%;
+      }
+      .assign-input.invalid {
+        border-color: rgba(255, 120, 120, 0.55);
+        box-shadow: 0 0 0 3px rgba(255, 120, 120, 0.12);
+      }
+
+      .codeinfo-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 2px 0 2px;
+      }
+      .codeinfo-item {
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .codeinfo-top {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .codeinfo-dt {
+        font-size: 12px;
+        font-weight: 900;
+        color: rgba(234, 241, 255, 0.92);
+      }
+      .codeinfo-time {
+        font-size: 11px;
+        font-weight: 900;
+        color: rgba(234, 241, 255, 0.7);
+        white-space: nowrap;
+      }
+      .codeinfo-line {
+        font-size: 12px;
+        color: rgba(234, 241, 255, 0.7);
+      }
+      .codeinfo-k {
+        color: rgba(234, 241, 255, 0.6);
+        font-weight: 900;
+      }
+      .codeinfo-v {
+        color: rgba(234, 241, 255, 0.82);
+        font-weight: 900;
+      }
+      .codeinfo-sub {
+        font-size: 11px;
+        color: rgba(234, 241, 255, 0.6);
+        line-height: 1.35;
+      }
+      .codeinfo-empty {
+        margin-top: 2px;
+        padding: 12px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: rgba(234, 241, 255, 0.7);
+        text-align: center;
+      }
+
+      .reqbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+      }
+      .reqpill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 190, 92, 0.28);
+        background: rgba(255, 190, 92, 0.1);
+        color: rgba(234, 241, 255, 0.92);
+        font-weight: 900;
+        font-size: 11px;
+        letter-spacing: 0.12px;
+      }
+      .reqactions {
+        display: flex;
+        gap: 8px;
+      }
+      .reqbtn {
+        height: 32px;
+        padding: 0 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(234, 241, 255, 0.92);
+        font-weight: 900;
+        font-size: 11px;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        appearance: none;
+      }
+      .reqbtn:active {
+        transform: scale(0.99);
+        background: rgba(78, 205, 196, 0.16);
+        border-color: rgba(78, 205, 196, 0.3);
+      }
+      .reqbtn.ok {
+        border-color: rgba(78, 205, 196, 0.3);
+        background: rgba(78, 205, 196, 0.1);
+      }
+      .reqbtn.no {
+        border-color: rgba(255, 120, 120, 0.22);
+        background: rgba(255, 120, 120, 0.06);
+      }
+
+      .paybox {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding-top: 2px;
+      }
+      .payrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .payseg {
+        display: inline-flex;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .payseg .paybtn {
+        height: 32px;
+        padding: 0 10px;
+        border: 0;
+        background: transparent;
+        color: rgba(234, 241, 255, 0.78);
+        font-weight: 900;
+        font-size: 11px;
+        letter-spacing: 0.2px;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .payseg .paybtn + .paybtn {
+        border-left: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .payseg .paybtn:active {
+        background: rgba(78, 205, 196, 0.16);
+      }
+      .payseg .paybtn[aria-pressed='true'] {
+        background: rgba(78, 205, 196, 0.18);
+        color: rgba(234, 241, 255, 0.92);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      }
+
+      .factbox {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .factlabel {
+        font-size: 11px;
+        color: rgba(234, 241, 255, 0.62);
+      }
+      .factinput {
+        width: 100%;
+        min-height: 70px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(0, 0, 0, 0.22);
+        color: var(--text);
+        font: inherit;
+        font-size: 12px;
+        letter-spacing: 0.1px;
+        outline: none;
+        resize: vertical;
+        -webkit-appearance: none;
+        appearance: none;
+        color-scheme: dark;
+      }
+      .factinput::placeholder {
+        color: rgba(234, 241, 255, 0.55);
+      }
+      .factinput.invalid {
+        border-color: rgba(255, 120, 120, 0.55);
+        box-shadow: 0 0 0 3px rgba(255, 120, 120, 0.12);
+      }
+
+      .aidetails {
+        margin-top: 6px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.04);
+        overflow: hidden;
+      }
+
+      .aidetails summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 8px 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .aidetails summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .aisum-left {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .aisum-title {
+        font-size: 11px;
+        font-weight: 900;
+        color: rgba(234, 241, 255, 0.78);
+        letter-spacing: 0.15px;
+      }
+
+      .aisum-sub {
+        font-size: 10px;
+        color: rgba(234, 241, 255, 0.55);
+        line-height: 1.25;
+      }
+
+      .aisum-chevron {
+        width: 18px;
+        height: 18px;
+        opacity: 0.75;
+        transform: rotate(0deg);
+        transition: transform 0.18s ease;
+        flex: 0 0 auto;
+      }
+
+      .aidetails[open] .aisum-chevron {
+        transform: rotate(180deg);
+      }
+
+      .aibox {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 8px 10px 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .ailabel {
+        font-size: 11px;
+        color: rgba(234, 241, 255, 0.62);
+      }
+      .ainput {
+        width: 100%;
+        min-height: 78px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(0, 0, 0, 0.22);
+        color: var(--text);
+        font: inherit;
+        font-size: 12px;
+        letter-spacing: 0.1px;
+        outline: none;
+        resize: vertical;
+        -webkit-appearance: none;
+        appearance: none;
+        color-scheme: dark;
+      }
+      .ainput::placeholder {
+        color: rgba(234, 241, 255, 0.55);
+      }
+
+      .role-slot {
+        cursor: pointer;
+      }
+      .role-slot:active {
+        transform: scale(0.99);
+      }
+
+      @media (max-width: 520px) {
+        .filters-left {
+          width: 100%;
+        }
+        .filters-extra .filters-left {
+          flex-wrap: nowrap;
+        }
+        .filters-extra .btnspacer {
+          display: none;
+        }
+
+        .text-input,
+        .date-preset {
+          width: auto;
+          flex: 1 1 0;
+          max-width: none;
+        }
+
+        .sort-btn {
+          width: 44px;
+        }
+      }
+
+      .wrap {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 12px;
+      }
+      .cards {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding-bottom: 24px;
+      }
+
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 12px;
+        display: grid;
+        grid-template-columns: 46px 1fr auto;
+        grid-template-rows: auto auto;
+        gap: 10px 12px;
+        align-items: start;
+      }
+
+      .badge {
+        width: 46px;
+        height: 34px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        letter-spacing: 0.8px;
+        font-size: 12px;
+        color: rgba(234, 241, 255, 0.95);
+        background: rgba(78, 205, 196, 0.16);
+        border: 1px solid rgba(78, 205, 196, 0.22);
+        user-select: none;
+        align-self: center;
+        grid-column: 1;
+        grid-row: 1;
+      }
+
+      .main {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        grid-column: 2;
+        grid-row: 1;
+      }
+      .meta {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .rolelist {
+        grid-column: 1 / 3;
+        grid-row: 2;
+        display: grid;
+        grid-template-columns: 46px 1fr;
+        gap: 4px 8px;
+        align-items: center;
+      }
+
+      .role-slot {
+        width: 22px;
+        height: 18px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        letter-spacing: 0.3px;
+        color: rgba(234, 241, 255, 0.95);
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        user-select: none;
+      }
+
+      .role-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12px;
+        color: var(--muted2);
+      }
+      .role-label .t {
+        margin-left: 8px;
+        font-weight: 900;
+        color: rgba(234, 241, 255, 0.7);
+      }
+      .role-label .d {
+        margin-left: 6px;
+        font-weight: 900;
+        font-size: 12px;
+        letter-spacing: 0.12px;
+        color: rgba(234, 241, 255, 0.78);
+        height: 18px;
+        padding: 0 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        display: inline-flex;
+        align-items: center;
+        vertical-align: middle;
+      }
+
+      .role-label .s {
+        margin-left: 8px;
+        font-weight: 900;
+        color: rgba(234, 241, 255, 0.6);
+        cursor: pointer;
+      }
+
+      .role-label .s.unassigned {
+        min-width: 18px;
+        height: 18px;
+        padding: 0 7px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(234, 241, 255, 0.92);
+        background: rgba(78, 205, 196, 0.14);
+        border: 1px solid rgba(78, 205, 196, 0.32);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      }
+
+      .role-label .s.pending {
+        min-width: 18px;
+        height: 18px;
+        padding: 0 7px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(234, 241, 255, 0.92);
+        background: rgba(255, 190, 92, 0.1);
+        border: 1px solid rgba(255, 190, 92, 0.3);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      }
+
+      .right {
+        text-align: right;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        align-items: flex-end;
+        padding-top: 2px;
+        grid-column: 3;
+        grid-row: 1;
+      }
+
+      .dt {
+        font-size: 12px;
+        font-weight: 900;
+        color: rgba(234, 241, 255, 0.86);
+        white-space: nowrap;
+      }
+
+      .subdt {
+        font-size: 11px;
+        color: rgba(234, 241, 255, 0.6);
+        white-space: nowrap;
+      }
+
+      .empty {
+        margin-top: 14px;
+        padding: 14px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: rgba(234, 241, 255, 0.75);
+        text-align: center;
+      }
+
+      @media (max-width: 520px) {
+        .card {
+          grid-template-columns: 46px 1fr;
+          grid-template-rows: auto auto auto;
+        }
+        .rolelist {
+          grid-column: 1 / -1;
+          grid-row: 2;
+        }
+        .right {
+          grid-column: 1 / -1;
+          grid-row: 3;
+          align-items: flex-start;
+          text-align: left;
+        }
+        .dt,
+        .subdt {
+          white-space: normal;
+        }
+      }
+
+      /* Pagina dovezi */
+      #pageEvidence {
+        display: none;
+      }
+
+      .evidence-meta {
+        margin: 10px 0 12px;
+        padding: 12px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.04);
+        color: rgba(234, 241, 255, 0.8);
+        line-height: 1.35;
+        font-size: 12px;
+      }
+
+      .evidence-card {
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.05);
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .evidence-title {
+        font-size: 13px;
+        font-weight: 900;
+        color: rgba(234, 241, 255, 0.88);
+      }
+
+      /* Evidence v2 */
+      .proof-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      @media (max-width: 520px) {
+        .proof-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .proof-block {
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(0, 0, 0, 0.16);
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .proof-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .proof-label {
+        font-size: 12px;
+        font-weight: 900;
+        color: rgba(234, 241, 255, 0.88);
+      }
+
+      .checkrow {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .evidence-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .muted {
+        color: rgba(234, 241, 255, 0.6);
+        font-size: 11px;
+        line-height: 1.35;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.06);
+        font-size: 11px;
+        font-weight: 900;
+        color: rgba(234, 241, 255, 0.8);
+      }
+
+      .pill.ok {
+        border-color: rgba(78, 205, 196, 0.35);
+        background: rgba(78, 205, 196, 0.12);
+        color: rgba(234, 241, 255, 0.92);
+      }
+      .pill.bad {
+        border-color: rgba(255, 120, 120, 0.3);
+        background: rgba(255, 120, 120, 0.1);
+        color: rgba(234, 241, 255, 0.92);
+      }
+      .pill.review {
+        border-color: rgba(255, 190, 92, 0.3);
+        background: rgba(255, 190, 92, 0.1);
+        color: rgba(234, 241, 255, 0.92);
+      }
+
+      .thumbs {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .thumbwrap {
+        position: relative;
+        width: 64px;
+        height: 64px;
+      }
+      .thumbwrap img {
+        width: 64px;
+        height: 64px;
+        object-fit: cover;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .xbtn {
+        position: absolute;
+        right: -6px;
+        top: -6px;
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(0, 0, 0, 0.55);
+        color: rgba(234, 241, 255, 0.92);
+        font-weight: 900;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-tap-highlight-color: transparent;
+        appearance: none;
+      }
+      .xbtn:active {
+        transform: scale(0.98);
+        background: rgba(255, 120, 120, 0.18);
+        border-color: rgba(255, 120, 120, 0.26);
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- PAGINA LISTA (varianta completa) -->
+    <div id="pageList">
+      <div class="appbar">
+        <div class="appbar-inner">
+          <h1>Evenimente</h1>
+
+          <div class="filters-block">
+            <div class="filters filters-date" aria-label="Filtru data">
+              <div class="filters-left">
+                <select class="date-preset" id="datePreset" aria-label="Filtru inteligent">
+                  <option value="all">Toate</option>
+                  <option value="today">Azi</option>
+                  <option value="yesterday">Ieri</option>
+                  <option value="last7">Ultimele 7 zile</option>
+                  <option value="next7">Urmatoarele 7 zile</option>
+                  <option value="next30">Urmatoarele 30 zile</option>
+                  <option value="custom">Interval (aleg eu)</option>
+                </select>
+
+                <button
+                  class="btn sort-btn"
+                  id="toggleSort"
+                  type="button"
+                  aria-label="Sortare"
+                  title="Sorteaza"
+                >
+                  <span class="arrow up">&uarr;</span
+                  ><span style="width: 8px; display: inline-block"></span
+                  ><span class="arrow down">&darr;</span>
+                </button>
+
+                <button
+                  class="btn driver-btn"
+                  id="toggleDriver"
+                  type="button"
+                  aria-label="Filtru sofer: toate"
+                  title="Sofer: Toate"
+                  data-state="all"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="rgba(234,241,255,0.82)"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M3 13l1-3a4 4 0 0 1 3.8-2.7h8.4A4 4 0 0 1 20 10l1 3" />
+                    <path d="M6 13h12" />
+                    <path d="M5 13v4" />
+                    <path d="M19 13v4" />
+                    <path d="M7 17h10" />
+                    <circle cx="7.5" cy="17.5" r="1.3" />
+                    <circle cx="16.5" cy="17.5" r="1.3" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="filters filters-extra" aria-label="Filtre extra">
+              <div class="filters-left">
+                <input
+                  class="text-input"
+                  id="codeFilter"
+                  type="text"
+                  placeholder="Ce cod am"
+                  aria-label="Ce cod am"
+                />
+                <span class="sep">&ndash;</span>
+                <input
+                  class="text-input"
+                  id="notedByFilter"
+                  type="text"
+                  placeholder="Cine noteaza"
+                  aria-label="Cine noteaza"
+                />
+              </div>
+              <div class="btnspacer" aria-hidden="true">
+                <button class="btn sort-btn" type="button" aria-label="Sortare">
+                  <span class="arrow up">&uarr;</span
+                  ><span style="width: 8px; display: inline-block"></span
+                  ><span class="arrow down">&darr;</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="muted" style="padding: 2px 2px 0">
+              Click pe card deschide pagina de dovezi. Click pe slot sau pe cod pastreaza
+              alocarea/tab cod.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="rangeModal"
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Alege interval"
+      >
+        <div class="sheet">
+          <div class="sheet-head">
+            <div class="sheet-title">
+              Alege interval (primul tap = start, al doilea tap = final)
+            </div>
+            <div class="sheet-actions">
+              <button class="mini-btn" id="clearRange" type="button">Toate</button>
+              <button class="mini-btn" id="closeRange" type="button">Gata</button>
+            </div>
+          </div>
+
+          <div class="cal-head">
+            <button class="nav-btn" id="prevMonth" type="button" aria-label="Luna anterioara">
+              &lsaquo;
+            </button>
+            <div class="cal-month" id="monthLabel">Luna Anul</div>
+            <button class="nav-btn" id="nextMonth" type="button" aria-label="Luna urmatoare">
+              &rsaquo;
+            </button>
+          </div>
+
+          <div class="dow" aria-hidden="true">
+            <div>L</div>
+            <div>M</div>
+            <div>M</div>
+            <div>J</div>
+            <div>V</div>
+            <div>S</div>
+            <div>D</div>
+          </div>
+
+          <div id="calGrid" class="grid"></div>
+          <div class="hint">
+            Nu aplic nimic dupa primul tap. Cand alegi si finalul, se aplica intervalul.
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="codeModal"
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Filtru cod / status"
+      >
+        <div class="sheet">
+          <div class="sheet-head">
+            <div class="sheet-title">Filtru "Ce cod am"</div>
+            <div class="sheet-actions">
+              <button class="mini-btn" id="closeCode" type="button">Gata</button>
+            </div>
+          </div>
+
+          <div class="hint" style="padding-bottom: 8px">
+            Alege: scrii un cod (A1, BTRAINER) sau filtrezi dupa status.
+          </div>
+
+          <div class="picklist">
+            <button class="btn pickbtn" id="pickCode" type="button">Scriu cod</button>
+            <button class="btn pickbtn" id="pickUnresolved" type="button">Nerezolvate</button>
+            <button class="btn pickbtn" id="pickResolved" type="button">Rezolvate</button>
+            <button class="btn pickbtn" id="pickAll" type="button">Toate</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="assignModal" class="modal" role="dialog" aria-modal="true" aria-label="Alocare rol">
+        <div class="sheet">
+          <div class="sheet-head">
+            <div class="sheet-title" id="assignTitle">Alocare</div>
+            <div class="sheet-actions">
+              <button
+                class="mini-btn danger"
+                id="clearAssign"
+                type="button"
+                title="Nerezervat"
+                aria-label="Nerezervat"
+              >
+                !
+              </button>
+              <button class="mini-btn" id="closeAssign" type="button">Gata</button>
+            </div>
+          </div>
+
+          <div class="assign-box">
+            <div class="assign-meta" id="assignMeta"></div>
+            <div class="assign-meta" id="assignSwapHint" style="display: none"></div>
+            <input
+              class="text-input assign-input"
+              id="assignInput"
+              type="text"
+              inputmode="text"
+              autocomplete="off"
+              autocapitalize="characters"
+              placeholder="Cod (ex: A1, BTRAINER)"
+              aria-label="Cod alocare"
+            />
+            <div class="hint" style="padding-bottom: 0">
+              Se trimite cerere, apoi omul accepta sau refuza din tabul codului.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="codeInfoModal"
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Detalii cod"
+      >
+        <div class="sheet">
+          <div class="sheet-head">
+            <div class="sheet-title" id="codeInfoTitle">Cod</div>
+            <div class="sheet-actions">
+              <button class="mini-btn" id="closeCodeInfo" type="button">Gata</button>
+            </div>
+          </div>
+          <div id="codeInfoBody"></div>
+        </div>
+      </div>
+
+      <div class="wrap">
+        <div id="cards" class="cards" aria-label="Lista evenimente"></div>
+        <div id="empty" class="empty" style="display: none">
+          Nu exista evenimente pentru filtrele selectate.
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGINA DOVEZI -->
+    <div id="pageEvidence">
+      <div class="appbar">
+        <div
+          class="appbar-inner"
+          style="flex-direction: row; align-items: center; justify-content: space-between"
+        >
+          <button class="btn" id="backToList" type="button">Inapoi</button>
+          <h1 id="evidenceTitle" style="margin: 0; font-size: 18px; font-weight: 900">Dovezi</h1>
+          <span style="width: 90px; display: inline-block" aria-hidden="true"></span>
+        </div>
+      </div>
+
+      <div class="wrap">
+        <div id="evidenceMeta" class="evidence-meta"></div>
+
+        <div class="evidence-card" aria-label="Dovezi">
+          <div class="evidence-title">Dovezi (incarci cate poze vrei)</div>
+          <div class="muted" id="proofHelp">
+            Incarca poze pe categorii. Dupa fiecare incarcare, sistemul le verifica si iti arata
+            status. Poti adauga poze in mai multe runde pana cand apar ca OK. Dupa ce o categorie
+            devine OK, pozele din acea categorie se blocheaza si nu mai pot fi sterse.
+          </div>
+
+          <div class="proof-grid" aria-label="Categorii dovezi">
+            <div class="proof-block" data-cat="onTime" aria-label="Categorie: Nu am intarziat">
+              <div class="proof-head">
+                <div class="proof-label">Nu am intarziat</div>
+                <span class="pill" id="statusOnTime">N/A</span>
+              </div>
+              <div class="checkrow" aria-label="Incarca poze - Nu am intarziat">
+                <button
+                  class="btn proof-upload"
+                  type="button"
+                  data-pick="onTime"
+                  style="height: 32px; padding: 0 10px"
+                >
+                  Incarca poze
+                </button>
+                <span class="muted" id="countOnTime">0 salvate</span>
+                <input
+                  id="evProofOnTime"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  style="position: absolute; left: -9999px; width: 1px; height: 1px"
+                />
+              </div>
+              <div
+                class="thumbs"
+                id="savedOnTime"
+                aria-label="Poze incarcate - Nu am intarziat"
+              ></div>
+            </div>
+
+            <div
+              class="proof-block"
+              data-cat="luggage"
+              aria-label="Categorie: Am pus bagajul la loc"
+            >
+              <div class="proof-head">
+                <div class="proof-label">Am pus bagajul la loc</div>
+                <span class="pill" id="statusLuggage">N/A</span>
+              </div>
+              <div class="checkrow" aria-label="Incarca poze - Am pus bagajul la loc">
+                <button
+                  class="btn proof-upload"
+                  type="button"
+                  data-pick="luggage"
+                  style="height: 32px; padding: 0 10px"
+                >
+                  Incarca poze
+                </button>
+                <span class="muted" id="countLuggage">0 salvate</span>
+                <input
+                  id="evProofLuggage"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  style="position: absolute; left: -9999px; width: 1px; height: 1px"
+                />
+              </div>
+              <div
+                class="thumbs"
+                id="savedLuggage"
+                aria-label="Poze incarcate - Am pus bagajul la loc"
+              ></div>
+            </div>
+
+            <div
+              class="proof-block"
+              data-cat="accessories"
+              aria-label="Categorie: Am pus accesoriile la loc"
+            >
+              <div class="proof-head">
+                <div class="proof-label">Am pus accesoriile la loc</div>
+                <span class="pill" id="statusAccessories">N/A</span>
+              </div>
+              <div class="checkrow" aria-label="Incarca poze - Am pus accesoriile la loc">
+                <button
+                  class="btn proof-upload"
+                  type="button"
+                  data-pick="accessories"
+                  style="height: 32px; padding: 0 10px"
+                >
+                  Incarca poze
+                </button>
+                <span class="muted" id="countAccessories">0 salvate</span>
+                <input
+                  id="evProofAccessories"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  style="position: absolute; left: -9999px; width: 1px; height: 1px"
+                />
+              </div>
+              <div
+                class="thumbs"
+                id="savedAccessories"
+                aria-label="Poze incarcate - Am pus accesoriile la loc"
+              ></div>
+            </div>
+
+            <div
+              class="proof-block"
+              data-cat="laundry"
+              aria-label="Categorie: Am pus hainele la spalat"
+            >
+              <div class="proof-head">
+                <div class="proof-label">Am pus hainele la spalat</div>
+                <span class="pill" id="statusLaundry">N/A</span>
+              </div>
+              <div class="checkrow" aria-label="Incarca poze - Am pus hainele la spalat">
+                <button
+                  class="btn proof-upload"
+                  type="button"
+                  data-pick="laundry"
+                  style="height: 32px; padding: 0 10px"
+                >
+                  Incarca poze
+                </button>
+                <span class="muted" id="countLaundry">0 salvate</span>
+                <input
+                  id="evProofLaundry"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  style="position: absolute; left: -9999px; width: 1px; height: 1px"
+                />
+              </div>
+              <div
+                class="thumbs"
+                id="savedLaundry"
+                aria-label="Poze incarcate - Am pus hainele la spalat"
+              ></div>
+            </div>
+          </div>
+
+          <div class="evidence-actions" style="padding-top: 4px">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center">
+              <button class="btn" id="verifyEvidence" type="button">Reverifica</button>
+            </div>
+            <div class="muted" id="evHelp">
+              Se salveaza local (demo). In aplicatie reala ar merge in backend.
+            </div>
+          </div>
+        </div>
+
+        <div id="currentProofs" style="display: none"></div>
+      </div>
+    </div>
+
+    <script type="text/javascript">
+      (function () {
+        'use strict';
+
+        function init() {
+          // ---------- Elemente pagina lista ----------
+          var presetEl = document.getElementById('datePreset');
+          if (!presetEl) return;
+
+          var customOptionEl = presetEl.querySelector('option[value="custom"]');
+
+          var codeEl = document.getElementById('codeFilter');
+          var notedByEl = document.getElementById('notedByFilter');
+          var sortBtn = document.getElementById('toggleSort');
+          var driverBtn = document.getElementById('toggleDriver');
+
+          var cardsEl = document.getElementById('cards');
+          var emptyEl = document.getElementById('empty');
+
+          var modal = document.getElementById('rangeModal');
+          var calGrid = document.getElementById('calGrid');
+          var monthLabel = document.getElementById('monthLabel');
+          var prevMonthBtn = document.getElementById('prevMonth');
+          var nextMonthBtn = document.getElementById('nextMonth');
+          var clearRangeBtn = document.getElementById('clearRange');
+          var closeRangeBtn = document.getElementById('closeRange');
+
+          var codeModal = document.getElementById('codeModal');
+          var closeCodeBtn = document.getElementById('closeCode');
+          var pickCodeBtn = document.getElementById('pickCode');
+          var pickUnresolvedBtn = document.getElementById('pickUnresolved');
+          var pickResolvedBtn = document.getElementById('pickResolved');
+          var pickAllBtn = document.getElementById('pickAll');
+
+          var assignModal = document.getElementById('assignModal');
+          var closeAssignBtn = document.getElementById('closeAssign');
+          var clearAssignBtn = document.getElementById('clearAssign');
+          var assignTitleEl = document.getElementById('assignTitle');
+          var assignMetaEl = document.getElementById('assignMeta');
+          var assignSwapHintEl = document.getElementById('assignSwapHint');
+          var assignInputEl = document.getElementById('assignInput');
+
+          var codeInfoModal = document.getElementById('codeInfoModal');
+          var closeCodeInfoBtn = document.getElementById('closeCodeInfo');
+          var codeInfoTitleEl = document.getElementById('codeInfoTitle');
+          var codeInfoBodyEl = document.getElementById('codeInfoBody');
+
+          // ---------- Elemente pagina dovezi ----------
+          var pageListEl = document.getElementById('pageList');
+          var pageEvidenceEl = document.getElementById('pageEvidence');
+
+          var backToListBtn = document.getElementById('backToList');
+          var evidenceTitleEl = document.getElementById('evidenceTitle');
+          var evidenceMetaEl = document.getElementById('evidenceMeta');
+
+          // Upload inputs
+          var evProofOnTimeEl = document.getElementById('evProofOnTime');
+          var countOnTimeEl = document.getElementById('countOnTime');
+          var evProofLuggageEl = document.getElementById('evProofLuggage');
+          var countLuggageEl = document.getElementById('countLuggage');
+          var evProofAccessoriesEl = document.getElementById('evProofAccessories');
+          var countAccessoriesEl = document.getElementById('countAccessories');
+          var evProofLaundryEl = document.getElementById('evProofLaundry');
+          var countLaundryEl = document.getElementById('countLaundry');
+
+          // Saved thumbnails containers (per categorie)
+          var savedOnTimeEl = document.getElementById('savedOnTime');
+          var savedLuggageEl = document.getElementById('savedLuggage');
+          var savedAccessoriesEl = document.getElementById('savedAccessories');
+          var savedLaundryEl = document.getElementById('savedLaundry');
+
+          // Status pills
+          var statusOnTimeEl = document.getElementById('statusOnTime');
+          var statusLuggageEl = document.getElementById('statusLuggage');
+          var statusAccessoriesEl = document.getElementById('statusAccessories');
+          var statusLaundryEl = document.getElementById('statusLaundry');
+
+          var verifyEvidenceBtn = document.getElementById('verifyEvidence');
+          var currentProofsEl = document.getElementById('currentProofs');
+          var evHelpEl = document.getElementById('evHelp');
+
+          // ---------- State lista ----------
+          var sortDir = 'desc';
+          var driverState = 'all';
+
+          var assignEvId = null;
+          var assignSlot = null;
+
+          var customFrom = null;
+          var customTo = null;
+          var draftFrom = null;
+          var draftTo = null;
+
+          var now = new Date();
+          var viewYear = now.getFullYear();
+          var viewMonth = now.getMonth();
+
+          // ---------- State dovezi ----------
+          var currentEvidenceEventId = null;
+          var EVIDENCE_KEY = 'evidence_v1';
+          var EVIDENCE_STATE_KEY = 'evidence_state_v2';
+
+          var PROOF_CATS = ['onTime', 'luggage', 'accessories', 'laundry'];
+
+          // Placeholder pentru "corect": momentan OK = ai cel putin 1 poza la categorie.
+          // Cand stabilim regula reala, o inlocuim aici.
+          var VALIDATION_RULES = {
+            onTime: { required: true, minFiles: 1 },
+            luggage: { required: true, minFiles: 1 },
+            accessories: { required: true, minFiles: 1 },
+            laundry: { required: true, minFiles: 1 },
+          };
+
+          // ---------- DEMO DATA ----------
+          var evenimente = [
+            {
+              id: '01',
+              date: '2026-01-15',
+              address: 'Bucuresti, Sector 3, acasa',
+              cineNoteaza: 'A1',
+              sofer: 'D1',
+              soferPending: '',
+              sarbatoritNume: 'Maria',
+              sarbatoritVarsta: 5,
+              sarbatoritDob: '2020-02-10',
+              incasare: { status: 'INCASAT', metoda: 'CASH', suma: 490 },
+              roles: [
+                {
+                  slot: 'A',
+                  label: 'Batman',
+                  time: '14:00',
+                  durationMin: 120,
+                  assignedCode: 'A3',
+                  pendingCode: '',
+                },
+              ],
+            },
+            {
+              id: '02',
+              date: '2026-01-20',
+              address: 'Cluj-Napoca, local',
+              cineNoteaza: 'B7',
+              sofer: '',
+              soferPending: '',
+              sarbatoritNume: 'Andrei',
+              sarbatoritVarsta: 6,
+              sarbatoritDob: '2019-06-03',
+              incasare: { status: 'AVANS', metoda: 'TRANSFER', suma: 250 },
+              roles: [
+                {
+                  slot: 'A',
+                  label: 'Spiderman',
+                  time: '18:30',
+                  durationMin: 120,
+                  assignedCode: '',
+                  pendingCode: '',
+                },
+              ],
+            },
+            {
+              id: '03',
+              date: '2026-01-28',
+              address: 'Iasi, sala',
+              cineNoteaza: 'A12',
+              sofer: 'C3',
+              soferPending: '',
+              sarbatoritNume: 'Sofia',
+              sarbatoritVarsta: 4,
+              sarbatoritDob: '2021-09-14',
+              incasare: { status: 'NEINCASAT', metoda: '-', suma: 840 },
+              roles: [
+                {
+                  slot: 'A',
+                  label: 'Elsa',
+                  time: '16:00',
+                  durationMin: 120,
+                  assignedCode: 'B12',
+                  pendingCode: '',
+                },
+              ],
+            },
+            {
+              id: '04',
+              date: '2026-02-05',
+              address: 'Ploiesti, acasa',
+              cineNoteaza: 'C1',
+              sofer: '',
+              soferPending: 'D7',
+              sarbatoritNume: 'Daria',
+              sarbatoritVarsta: 7,
+              sarbatoritDob: '2018-12-22',
+              incasare: { status: 'AVANS', metoda: 'CASH', suma: 300 },
+              roles: [
+                {
+                  slot: 'A',
+                  label: 'Printesa',
+                  time: '12:00',
+                  durationMin: 120,
+                  assignedCode: 'A1',
+                  pendingCode: '',
+                },
+                {
+                  slot: 'B',
+                  label: 'Vata de zahar',
+                  time: '12:30',
+                  durationMin: 90,
+                  assignedCode: '',
+                  pendingCode: 'B2',
+                },
+              ],
+            },
+            {
+              id: '05',
+              date: '2026-01-18',
+              address: 'Bucuresti, Sector 2, sala',
+              cineNoteaza: 'A3',
+              sofer: '',
+              soferPending: '',
+              sarbatoritNume: 'Rares',
+              sarbatoritVarsta: 5,
+              sarbatoritDob: '2020-03-01',
+              incasare: { status: 'INCASAT', metoda: 'CARD', suma: 490 },
+              roles: [
+                {
+                  slot: 'A',
+                  label: 'Batman',
+                  time: '11:00',
+                  durationMin: 120,
+                  assignedCode: 'A1',
+                  pendingCode: '',
+                },
+              ],
+            },
+            {
+              id: '06',
+              date: '2026-01-22',
+              address: 'Brasov, local',
+              cineNoteaza: 'B12',
+              sofer: '',
+              soferPending: '',
+              sarbatoritNume: 'Elena',
+              sarbatoritVarsta: 6,
+              sarbatoritDob: '2019-11-08',
+              incasare: { status: 'NEINCASAT', metoda: '-', suma: 840 },
+              roles: [
+                {
+                  slot: 'A',
+                  label: 'Elsa',
+                  time: '15:00',
+                  durationMin: 120,
+                  assignedCode: '',
+                  pendingCode: '',
+                },
+              ],
+            },
+            {
+              id: '07',
+              date: '2026-01-25',
+              address: 'Constanta, acasa',
+              cineNoteaza: 'C7',
+              sofer: 'A0',
+              soferPending: '',
+              sarbatoritNume: 'Matei',
+              sarbatoritVarsta: 8,
+              sarbatoritDob: '2017-07-19',
+              incasare: { status: 'AVANS', metoda: 'TRANSFER', suma: 400 },
+              roles: [
+                {
+                  slot: 'A',
+                  label: 'Ursitoare',
+                  time: '19:00',
+                  durationMin: 30,
+                  assignedCode: '',
+                  pendingCode: '',
+                },
+              ],
+            },
+          ];
+
+          // ---------- Utils ----------
+          function norm(s) {
+            return String(s || '')
+              .trim()
+              .toUpperCase();
+          }
+
+          function uppercaseInput(el) {
+            if (!el) return;
+            var v = String(el.value || '');
+            var u = v.toUpperCase();
+            if (v === u) return;
+            try {
+              var start = el.selectionStart;
+              var end = el.selectionEnd;
+              el.value = u;
+              if (typeof start === 'number' && typeof end === 'number') {
+                el.setSelectionRange(start, end);
+              }
+            } catch (e) {
+              el.value = u;
+            }
+          }
+
+          function isValidStaffCode(code) {
+            var c = norm(code);
+            var trainerPattern = /^[A-Z]TRAINER$/;
+            var memberPattern = /^[A-Z]([1-9]|[1-4][0-9]|50)$/;
+            return trainerPattern.test(c) || memberPattern.test(c);
+          }
+
+          function escapeHtml(s) {
+            return String(s || '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/\"/g, '&quot;');
+          }
+
+          function parseStart(ev) {
+            var t = '00:00';
+            if (Array.isArray(ev.roles) && ev.roles.length) {
+              var first = ev.roles[0];
+              if (first && first.time) t = String(first.time);
+            }
+            var iso = String(ev.date || '') + 'T' + t + ':00';
+            var d = new Date(iso);
+            if (isNaN(d.getTime())) return new Date(0);
+            return d;
+          }
+
+          function pad2(n) {
+            return String(n).padStart(2, '0');
+          }
+
+          function toISODate(d) {
+            var x = new Date(d);
+            x.setHours(0, 0, 0, 0);
+            return x.getFullYear() + '-' + pad2(x.getMonth() + 1) + '-' + pad2(x.getDate());
+          }
+
+          function fromISODate(iso) {
+            var m = String(iso || '').match(/^([0-9]{4})-([0-9]{2})-([0-9]{2})$/);
+            if (!m) return null;
+            return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
+          }
+
+          function formatISOAsDDMMYYYY(iso) {
+            var d = fromISODate(iso);
+            if (!d) return '';
+            return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.' + d.getFullYear();
+          }
+
+          // --- FIX: hhmmToMinutes / computeOnTime ---
+          function hhmmToMinutes(hhmm) {
+            var m = String(hhmm || '')
+              .trim()
+              .match(/^(\d{1,2}):(\d{2})$/);
+            if (!m) return NaN;
+            var h = Number(m[1]);
+            var mm = Number(m[2]);
+            if (!isFinite(h) || !isFinite(mm)) return NaN;
+            if (h < 0 || h > 23) return NaN;
+            if (mm < 0 || mm > 59) return NaN;
+            return h * 60 + mm;
+          }
+
+          function computeOnTime(actualHHMM, scheduledHHMM, graceMin) {
+            var a = hhmmToMinutes(actualHHMM);
+            var s = hhmmToMinutes(scheduledHHMM);
+            var g = Number(graceMin);
+            if (!isFinite(g)) g = 0;
+            if (!isFinite(a) || !isFinite(s)) return false;
+            return a <= s + g;
+          }
+
+          function setCustomOptionLabel(text) {
+            if (customOptionEl) customOptionEl.textContent = String(text || '');
+          }
+          function setCustomOptionDefault() {
+            setCustomOptionLabel('Interval (aleg eu)');
+          }
+
+          function setCustomOptionRange(from, to) {
+            if (from && to) {
+              setCustomOptionLabel(formatISOAsDDMMYYYY(from) + ' - ' + formatISOAsDDMMYYYY(to));
+            } else {
+              setCustomOptionDefault();
+            }
+          }
+
+          function formatDate(ev) {
+            var iso = String(ev.date || '');
+            var m = iso.match(/^([0-9]{4})-([0-9]{2})-([0-9]{2})$/);
+            if (m) return m[3] + '.' + m[2] + '.' + m[1];
+            var d = parseStart(ev);
+            try {
+              return new Intl.DateTimeFormat('ro-RO', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+              }).format(d);
+            } catch (e) {
+              return iso;
+            }
+          }
+
+          function addDays(d, days) {
+            var x = new Date(d);
+            x.setDate(x.getDate() + days);
+            x.setHours(0, 0, 0, 0);
+            return x;
+          }
+
+          function getPresetRange(preset, nowDate) {
+            var n = nowDate ? new Date(nowDate) : new Date();
+            n.setHours(0, 0, 0, 0);
+
+            if (!preset || preset === 'all') return null;
+            if (preset === 'custom') return null;
+
+            if (preset === 'today') {
+              var t = toISODate(n);
+              return { from: t, to: t };
+            }
+
+            if (preset === 'yesterday') {
+              var y = addDays(n, -1);
+              var yi = toISODate(y);
+              return { from: yi, to: yi };
+            }
+
+            if (preset === 'last7') return { from: toISODate(addDays(n, -6)), to: toISODate(n) };
+            if (preset === 'next7') return { from: toISODate(n), to: toISODate(addDays(n, 6)) };
+            if (preset === 'next30') return { from: toISODate(n), to: toISODate(addDays(n, 29)) };
+
+            return null;
+          }
+
+          function normalizeRange(from, to) {
+            if (from && to && to < from) return { from: to, to: from };
+            return { from: from || null, to: to || null };
+          }
+
+          function stripDiacriticsRO(s) {
+            return String(s || '')
+              .replace(/[ăĂ]/g, 'a')
+              .replace(/[âÂ]/g, 'a')
+              .replace(/[îÎ]/g, 'i')
+              .replace(/[șȘ]/g, 's')
+              .replace(/[țȚ]/g, 't');
+          }
+
+          function normNoDiacritics(s) {
+            return stripDiacriticsRO(s).trim().toUpperCase();
+          }
+
+          function isIlfovAddress(ev) {
+            var a = normNoDiacritics(ev && ev.address);
+            if (!a) return false;
+            if (a.indexOf('ILFOV') !== -1) return true;
+
+            var ilfovTokens = [
+              'OTOPENI',
+              'VOLUNTARI',
+              'PIPERA',
+              'POPESTI',
+              'POPESTI-LEORDENI',
+              'CHIAJNA',
+              'BUFTEA',
+              'BRAGADIRU',
+              'MAGURELE',
+              'CORBEANCA',
+              'MOGOSOAIA',
+              'SNAGOV',
+              'PANTELIMON',
+              'TUNARI',
+              'DOMNESTI',
+              'CIOLPANI',
+              'JILAVA',
+              'BALOTESTI',
+              'BERCENI',
+              'DOBROESTI',
+              'CERNICA',
+              'CHITILA',
+              'GLINA',
+              'PERIS',
+              'VIDRA',
+              'AFUMATI',
+            ];
+
+            for (var i = 0; i < ilfovTokens.length; i++) {
+              if (a.indexOf(ilfovTokens[i]) !== -1) return true;
+            }
+            return false;
+          }
+
+          function isBucharest(ev) {
+            var a = normNoDiacritics(ev && ev.address);
+            if (!a) return false;
+            if (isIlfovAddress(ev)) return false;
+            if (a.indexOf('BUCURESTI') !== -1) return true;
+            if (a.indexOf('SECTOR') !== -1) return true;
+            return false;
+          }
+
+          function isAnimatieEvent(ev) {
+            var at = normNoDiacritics(ev && ev.animatorType);
+            if (at === 'ANIMATOR_SIMPLU' || at === 'PERSONAJ') return true;
+
+            function isExtraLabel(lblNorm) {
+              return (
+                lblNorm.indexOf('VATA') !== -1 ||
+                lblNorm.indexOf('POPCORN') !== -1 ||
+                lblNorm.indexOf('FLORICELE') !== -1 ||
+                lblNorm.indexOf('CONFETTI') !== -1 ||
+                lblNorm.indexOf('GHEATA') !== -1 ||
+                lblNorm.indexOf('CARBONICA') !== -1 ||
+                lblNorm.indexOf('TORT') !== -1 ||
+                lblNorm.indexOf('BANNER') !== -1 ||
+                lblNorm.indexOf('ARCADE') !== -1 ||
+                lblNorm.indexOf('DECORATIUNI') !== -1 ||
+                lblNorm.indexOf('DECORATIUNE') !== -1 ||
+                lblNorm.indexOf('HELIU') !== -1
+              );
+            }
+
+            if (Array.isArray(ev && ev.roles)) {
+              for (var i = 0; i < ev.roles.length; i++) {
+                var lbl = normNoDiacritics(ev.roles[i] && ev.roles[i].label);
+                if (!lbl) continue;
+                if (lbl.indexOf('ANIMATIE') !== -1) return true;
+                if (lbl.indexOf('URSITOARE') !== -1) return true;
+                if (isExtraLabel(lbl)) continue;
+                return true;
+              }
+            }
+
+            return false;
+          }
+
+          function roleRequiresDriverLabel(lblNorm) {
+            if (!lblNorm) return false;
+            if (lblNorm.indexOf('VATA') !== -1) return true;
+            if (lblNorm.indexOf('POPCORN') !== -1) return true;
+            if (lblNorm.indexOf('FLORICELE') !== -1) return true;
+            if (lblNorm.indexOf('URSITOARE') !== -1) return true;
+            if (lblNorm.indexOf('GHEATA') !== -1) return true;
+            if (lblNorm.indexOf('CARBONICA') !== -1) return true;
+            if (lblNorm.indexOf('CONFETTI') !== -1) return true;
+            if (lblNorm.indexOf('ARCADE') !== -1) return true;
+            if (lblNorm.indexOf('DECORATIUNI') !== -1) return true;
+            if (lblNorm.indexOf('DECORATIUNE') !== -1) return true;
+            if (lblNorm.indexOf('HELIU') !== -1) return true;
+            if (lblNorm.indexOf('MOS') !== -1 && lblNorm.indexOf('CRACIUN') !== -1) return true;
+            return false;
+          }
+
+          function isExtraLabelGlobal(lblNorm) {
+            if (!lblNorm) return false;
+            return (
+              lblNorm.indexOf('VATA') !== -1 ||
+              lblNorm.indexOf('POPCORN') !== -1 ||
+              lblNorm.indexOf('FLORICELE') !== -1 ||
+              lblNorm.indexOf('CONFETTI') !== -1 ||
+              lblNorm.indexOf('GHEATA') !== -1 ||
+              lblNorm.indexOf('CARBONICA') !== -1 ||
+              lblNorm.indexOf('TORT') !== -1 ||
+              lblNorm.indexOf('BANNER') !== -1 ||
+              lblNorm.indexOf('ARCADE') !== -1 ||
+              lblNorm.indexOf('DECORATIUNI') !== -1 ||
+              lblNorm.indexOf('DECORATIUNE') !== -1 ||
+              lblNorm.indexOf('HELIU') !== -1 ||
+              (lblNorm.indexOf('MOS') !== -1 && lblNorm.indexOf('CRACIUN') !== -1)
+            );
+          }
+
+          function hasDriverNeededRole(ev) {
+            if (!ev || !Array.isArray(ev.roles)) return false;
+            for (var i = 0; i < ev.roles.length; i++) {
+              var lbl = normNoDiacritics(ev.roles[i] && ev.roles[i].label);
+              if (roleRequiresDriverLabel(lbl)) return true;
+            }
+            return false;
+          }
+
+          function driverRequiredByPolicy(ev) {
+            if (!isAnimatieEvent(ev)) return false;
+            return !isBucharest(ev);
+          }
+
+          function normalizeDriverCode(code) {
+            var c = norm(code);
+            return isValidStaffCode(c) ? c : '';
+          }
+
+          function getDriverAssignedCode(ev) {
+            return normalizeDriverCode(ev && ev.sofer);
+          }
+
+          function getDriverPendingCode(ev) {
+            var c = norm(ev && ev.soferPending);
+            return isValidStaffCode(c) ? c : '';
+          }
+
+          function hasDriverAssigned(ev) {
+            return !!getDriverAssignedCode(ev);
+          }
+          function hasDriverPending(ev) {
+            return !!getDriverPendingCode(ev);
+          }
+
+          function hasExplicitDriverRole(ev) {
+            if (!ev || !Array.isArray(ev.roles)) return false;
+            for (var i = 0; i < ev.roles.length; i++) {
+              var lbl = normNoDiacritics(ev.roles[i] && ev.roles[i].label);
+              if (lbl && lbl.indexOf('SOFER') !== -1) return true;
+            }
+            return false;
+          }
+
+          function needsDriverRole(ev) {
+            return (
+              hasExplicitDriverRole(ev) ||
+              hasDriverNeededRole(ev) ||
+              driverRequiredByPolicy(ev) ||
+              hasDriverAssigned(ev) ||
+              hasDriverPending(ev)
+            );
+          }
+
+          function driverText(ev) {
+            if (!needsDriverRole(ev)) return 'Sofer: FARA';
+            var c = getDriverAssignedCode(ev);
+            if (c) return 'Sofer: ' + c;
+            var p = getDriverPendingCode(ev);
+            if (p) return 'Sofer: ...';
+            return 'Sofer: !';
+          }
+
+          function parseCodeOrStatus(raw) {
+            var v = norm(raw);
+            if (!v) return { staffCode: null, resolve: null };
+            if (v === 'REZOLVATE') return { staffCode: null, resolve: 'resolved' };
+            if (v === 'NEREZOLVATE') return { staffCode: null, resolve: 'unresolved' };
+            if (v === 'TOATE') return { staffCode: null, resolve: null };
+            if (isValidStaffCode(v)) return { staffCode: v, resolve: null };
+            return { staffCode: null, resolve: null };
+          }
+
+          function findEventById(id) {
+            var x = String(id || '');
+            for (var i = 0; i < evenimente.length; i++) {
+              if (String(evenimente[i] && evenimente[i].id) === x) return evenimente[i];
+            }
+            return null;
+          }
+
+          function ensureLog(ev) {
+            if (!ev.assignmentLog) ev.assignmentLog = [];
+          }
+
+          function logChange(ev, slot, prev, next, action, meta) {
+            ensureLog(ev);
+            ev.assignmentLog.push({
+              ts: Date.now(),
+              eventId: String(ev.id || ''),
+              slot: norm(slot),
+              from: norm(prev),
+              to: norm(next),
+              action: String(action || ''),
+              meta: meta || null,
+            });
+          }
+
+          function getRoleBySlotRef(ev, slot) {
+            if (!ev || !Array.isArray(ev.roles)) return null;
+            var sl = norm(slot);
+            for (var i = 0; i < ev.roles.length; i++) {
+              var r = ev.roles[i] || {};
+              if (norm(r.slot) === sl) return r;
+            }
+            return null;
+          }
+
+          function requestAssignToRole(ev, slot, code) {
+            if (!ev) return false;
+            var sl = norm(slot);
+            var c = norm(code);
+            if (!c || !isValidStaffCode(c)) return false;
+
+            if (sl === 'S') {
+              var prevP = norm(getDriverPendingCode(ev));
+              ev.soferPending = c;
+              logChange(ev, sl, prevP, ev.soferPending, 'request', { kind: 'driver' });
+              return true;
+            }
+
+            var r = getRoleBySlotRef(ev, sl);
+            if (!r) return false;
+            var prev = norm(r.pendingCode);
+            r.pendingCode = c;
+            logChange(ev, sl, prev, r.pendingCode, 'request', { kind: 'role' });
+            return true;
+          }
+
+          function clearAllForSlot(ev, slot) {
+            if (!ev) return false;
+            var sl = norm(slot);
+            if (sl === 'S') {
+              var a = norm(getDriverAssignedCode(ev));
+              var p = norm(getDriverPendingCode(ev));
+              ev.sofer = '';
+              ev.soferPending = '';
+              logChange(ev, sl, a, '', 'clear', { cleared: 'assigned' });
+              if (p) logChange(ev, sl, p, '', 'cancel_request', { cleared: 'pending' });
+              return true;
+            }
+
+            var r = getRoleBySlotRef(ev, sl);
+            if (!r) return false;
+            var a2 = norm(r.assignedCode);
+            var p2 = norm(r.pendingCode);
+            r.assignedCode = '';
+            r.pendingCode = '';
+            logChange(ev, sl, a2, '', 'clear', { cleared: 'assigned' });
+            if (p2) logChange(ev, sl, p2, '', 'cancel_request', { cleared: 'pending' });
+            return true;
+          }
+
+          function acceptPending(ev, slot, code) {
+            if (!ev) return false;
+            var sl = norm(slot);
+            var c = norm(code);
+            if (!c || !isValidStaffCode(c)) return false;
+
+            if (sl === 'S') {
+              if (norm(getDriverPendingCode(ev)) !== c) return false;
+              var prevA = norm(getDriverAssignedCode(ev));
+              ev.sofer = c;
+              ev.soferPending = '';
+              logChange(ev, sl, prevA, ev.sofer, prevA ? 'reassign' : 'assign', { accepted: true });
+              return true;
+            }
+
+            var r = getRoleBySlotRef(ev, sl);
+            if (!r) return false;
+            if (norm(r.pendingCode) !== c) return false;
+            var prev = norm(r.assignedCode);
+            r.assignedCode = c;
+            r.pendingCode = '';
+            logChange(ev, sl, prev, r.assignedCode, prev ? 'reassign' : 'assign', {
+              accepted: true,
+            });
+            return true;
+          }
+
+          function rejectPending(ev, slot, code) {
+            if (!ev) return false;
+            var sl = norm(slot);
+            var c = norm(code);
+            if (!c || !isValidStaffCode(c)) return false;
+
+            if (sl === 'S') {
+              if (norm(getDriverPendingCode(ev)) !== c) return false;
+              ev.soferPending = '';
+              logChange(ev, sl, c, '', 'reject', { kind: 'driver' });
+              return true;
+            }
+
+            var r = getRoleBySlotRef(ev, sl);
+            if (!r) return false;
+            if (norm(r.pendingCode) !== c) return false;
+            r.pendingCode = '';
+            logChange(ev, sl, c, '', 'reject', { kind: 'role' });
+            return true;
+          }
+
+          function closeAssignModal() {
+            if (!assignModal) return;
+            assignModal.style.display = 'none';
+            assignEvId = null;
+            assignSlot = null;
+            if (assignInputEl) {
+              assignInputEl.value = '';
+              assignInputEl.classList.remove('invalid');
+              try {
+                assignInputEl.blur();
+              } catch (e) {}
+            }
+          }
+
+          function closeCodeInfoModal() {
+            if (!codeInfoModal) return;
+            codeInfoModal.style.display = 'none';
+            if (codeInfoTitleEl) codeInfoTitleEl.textContent = 'Cod';
+            if (codeInfoBodyEl) codeInfoBodyEl.innerHTML = '';
+          }
+
+          function isAnimatorRoleLabel(lblNorm) {
+            if (!lblNorm) return false;
+            if (lblNorm.indexOf('SOFER') !== -1) return false;
+            if (isExtraLabelGlobal(lblNorm)) return false;
+            return true;
+          }
+
+          function formatMoneyRON(x) {
+            var n = Number(x);
+            if (!isFinite(n)) return '-';
+            return String(Math.round(n)) + ' lei';
+          }
+
+          function formatDurationMin(min) {
+            var m = Number(min);
+            if (!isFinite(m) || m <= 0) return '';
+            m = Math.round(m);
+            var h = Math.floor(m / 60);
+            var r = m % 60;
+            if (h <= 0) return String(r) + 'm';
+            if (r === 0) return String(h) + 'h';
+            return String(h) + 'h' + String(r);
+          }
+
+          function eventRoleBySlot(ev, slot) {
+            var sl = norm(slot);
+            if (sl === 'S') {
+              var t =
+                Array.isArray(ev.roles) && ev.roles[0] && ev.roles[0].time
+                  ? String(ev.roles[0].time)
+                  : '';
+              return {
+                slot: 'S',
+                label: 'Sofer',
+                time: t,
+                assignedCode: getDriverAssignedCode(ev),
+                pendingCode: getDriverPendingCode(ev),
+              };
+            }
+            return getRoleBySlotRef(ev, sl);
+          }
+
+          function hasExplicitDriverRow(roles) {
+            for (var j = 0; j < roles.length; j++) {
+              var lbl = normNoDiacritics(roles[j] && roles[j].label);
+              if (lbl && lbl.indexOf('SOFER') !== -1) return true;
+            }
+            return false;
+          }
+
+          function buildDisplayRoles(ev, f) {
+            var src = Array.isArray(ev && ev.roles) ? ev.roles.slice() : [];
+
+            var out = [];
+            var seen = Object.create(null);
+
+            for (var i = 0; i < src.length; i++) {
+              var r = src[i] || {};
+              var slotKey = norm(r && r.slot);
+              if (slotKey && seen[slotKey]) continue;
+              if (slotKey) seen[slotKey] = true;
+              out.push(r);
+            }
+
+            if (needsDriverRole(ev) && !hasExplicitDriverRow(out)) {
+              out.push(eventRoleBySlot(ev, 'S'));
+            }
+
+            if (f && f.driver && f.driver !== 'all') {
+              if (f.driver === 'yes' || f.driver === 'open') {
+                var want = [];
+                var hasTrigger = false;
+
+                for (var k = 0; k < out.length; k++) {
+                  var rr = out[k] || {};
+                  var lblN = normNoDiacritics(rr && rr.label);
+                  if (!lblN) continue;
+
+                  if (lblN.indexOf('SOFER') !== -1) {
+                    want.push(rr);
+                    continue;
+                  }
+
+                  if (roleRequiresDriverLabel(lblN)) {
+                    want.push(rr);
+                    hasTrigger = true;
+                  }
+                }
+
+                if (!hasTrigger && driverRequiredByPolicy(ev)) {
+                  for (var kk = 0; kk < out.length; kk++) {
+                    var rrr = out[kk] || {};
+                    var lbn = normNoDiacritics(rrr && rrr.label);
+                    if (!lbn) continue;
+                    if (lbn.indexOf('SOFER') !== -1) continue;
+                    if (isExtraLabelGlobal(lbn)) continue;
+                    want.push(rrr);
+                    break;
+                  }
+                }
+
+                out = want.length ? want : out;
+              }
+            }
+
+            if (f && (f.driver === 'yes' || f.driver === 'open')) {
+              out.sort(function (a, b) {
+                var la = normNoDiacritics(a && a.label);
+                var lb = normNoDiacritics(b && b.label);
+                var aIs = la.indexOf('SOFER') !== -1;
+                var bIs = lb.indexOf('SOFER') !== -1;
+                if (aIs === bIs) return 0;
+                return aIs ? -1 : 1;
+              });
+            }
+
+            return out;
+          }
+
+          function roleIsResolved(role) {
+            var c = norm(role && role.assignedCode);
+            return !!c && isValidStaffCode(c);
+          }
+
+          function buildVisibleRoles(ev, f) {
+            var roles = buildDisplayRoles(ev, f);
+            if (!f) return roles;
+
+            if (f.staffCode) {
+              var sc = norm(f.staffCode);
+              roles = roles.filter(function (r) {
+                return norm(r && r.assignedCode) === sc || norm(r && r.pendingCode) === sc;
+              });
+            }
+
+            if (f.resolve === 'resolved')
+              roles = roles.filter(function (r) {
+                return roleIsResolved(r);
+              });
+            if (f.resolve === 'unresolved')
+              roles = roles.filter(function (r) {
+                return !roleIsResolved(r);
+              });
+
+            return roles;
+          }
+
+          function currentFilters() {
+            var parsed = parseCodeOrStatus(codeEl ? codeEl.value : '');
+            return {
+              preset: presetEl.value || 'all',
+              from: customFrom,
+              to: customTo,
+              staffCode: parsed.staffCode,
+              resolve: parsed.resolve,
+              notedBy: notedByEl && notedByEl.value ? notedByEl.value : null,
+              driver: driverState,
+            };
+          }
+
+          function matches(ev, f) {
+            var pr = getPresetRange(f.preset, new Date());
+            if (pr) {
+              if (pr.from && String(ev.date || '') < pr.from) return false;
+              if (pr.to && String(ev.date || '') > pr.to) return false;
+            }
+
+            if (f.preset === 'custom') {
+              if (f.from && f.to) {
+                if (String(ev.date || '') < String(f.from)) return false;
+                if (String(ev.date || '') > String(f.to)) return false;
+              }
+            }
+
+            if (f.notedBy) {
+              var notedBy = norm(f.notedBy);
+              if (!isValidStaffCode(notedBy)) return false;
+              if (norm(ev.cineNoteaza) !== notedBy) return false;
+            }
+
+            if (f.driver === 'yes') {
+              if (!needsDriverRole(ev)) return false;
+            }
+
+            if (f.driver === 'open') {
+              if (!needsDriverRole(ev)) return false;
+              if (hasDriverAssigned(ev)) return false;
+            }
+
+            if (f.driver === 'no') {
+              if (needsDriverRole(ev)) return false;
+            }
+
+            if (f.staffCode || f.resolve) {
+              var vis = buildVisibleRoles(ev, f);
+              if (!vis || !vis.length) return false;
+            }
+
+            return true;
+          }
+
+          function sortEvents(list, dir) {
+            return list.sort(function (a, b) {
+              var da = parseStart(a).getTime();
+              var db = parseStart(b).getTime();
+              return dir === 'asc' ? da - db : db - da;
+            });
+          }
+
+          // TAB COD (render + interactiuni) - pastrat din versiunea completa.
+          function openCodeInfoModal(payload) {
+            // In demo-ul curent, daca nu ai nevoie de tabul cod, poti sa-l ignori.
+            // Functia ramane ca sa nu stricam dependintele.
+            // (Implementarea completa poate fi re-adaugata dupa nevoie.)
+            if (!codeInfoModal) return;
+            var code = typeof payload === 'string' ? payload : payload && payload.code;
+            var c = norm(code);
+            if (!c || !isValidStaffCode(c)) return;
+            if (codeInfoTitleEl) codeInfoTitleEl.textContent = 'Cod: ' + c;
+            if (codeInfoBodyEl)
+              codeInfoBodyEl.innerHTML =
+                '<div class="codeinfo-empty">Demo: tab cod dezactivat in aceasta varianta.</div>';
+            codeInfoModal.style.display = 'flex';
+          }
+
+          function openAssignModal(evId, slot) {
+            if (!assignModal) return;
+            var ev = findEventById(evId);
+            if (!ev) return;
+
+            assignEvId = String(evId);
+            assignSlot = norm(slot);
+
+            var roleLabel = '';
+            var roleTime = '';
+            var currentAssigned = '';
+            var currentPending = '';
+
+            if (assignSlot === 'S') {
+              roleLabel = 'Sofer';
+              roleTime =
+                Array.isArray(ev.roles) && ev.roles[0] && ev.roles[0].time
+                  ? String(ev.roles[0].time)
+                  : '';
+              currentAssigned = getDriverAssignedCode(ev) || '';
+              currentPending = getDriverPendingCode(ev) || '';
+            } else {
+              var r = getRoleBySlotRef(ev, assignSlot);
+              if (r) {
+                roleLabel = String(r.label || '');
+                roleTime = String(r.time || '');
+                currentAssigned = norm(r.assignedCode || '');
+                currentPending = norm(r.pendingCode || '');
+              }
+            }
+
+            if (assignTitleEl) {
+              assignTitleEl.textContent =
+                'Alocare ' + assignSlot + (roleLabel ? ' - ' + roleLabel : '');
+            }
+            if (assignMetaEl) {
+              assignMetaEl.textContent =
+                (formatDate(ev) ? formatDate(ev) + ' • ' : '') +
+                (ev.address || '') +
+                (roleTime ? ' • ' + roleTime : '');
+            }
+
+            if (assignSwapHintEl) {
+              var a = norm(currentAssigned);
+              var p = norm(currentPending);
+              var lines = [];
+              if (a) lines.push('Curent: ' + a);
+              if (p) lines.push('In asteptare: ' + p);
+              assignSwapHintEl.style.display = lines.length ? 'block' : 'none';
+              assignSwapHintEl.textContent = lines.length
+                ? lines.join(' • ') + ' • scrie codul ca sa trimiti o cerere noua'
+                : '';
+            }
+
+            if (assignInputEl) {
+              assignInputEl.value = '';
+              assignInputEl.classList.remove('invalid');
+            }
+
+            assignModal.style.display = 'flex';
+            setTimeout(function () {
+              try {
+                if (assignInputEl) assignInputEl.focus();
+              } catch (e) {}
+            }, 0);
+          }
+
+          function updateSortButton() {
+            if (!sortBtn) return;
+            sortBtn.setAttribute('data-dir', sortDir);
+            sortBtn.title =
+              sortDir === 'asc'
+                ? 'Sorteaza crescator (vechi -> nou)'
+                : 'Sorteaza descrescator (nou -> vechi)';
+          }
+
+          function nextDriverState(s) {
+            if (s === 'all') return 'yes';
+            if (s === 'yes') return 'open';
+            if (s === 'open') return 'no';
+            return 'all';
+          }
+
+          function updateDriverButton() {
+            if (!driverBtn) return;
+            driverBtn.setAttribute('data-state', driverState);
+
+            if (driverState === 'yes') {
+              driverBtn.title = 'Sofer: Necesita';
+              driverBtn.setAttribute('aria-label', 'Filtru sofer: necesita');
+              return;
+            }
+
+            if (driverState === 'open') {
+              driverBtn.title = 'Sofer: Necesita (nerezervat)';
+              driverBtn.setAttribute('aria-label', 'Filtru sofer: necesita nerezervat');
+              return;
+            }
+
+            if (driverState === 'no') {
+              driverBtn.title = 'Sofer: Nu necesita';
+              driverBtn.setAttribute('aria-label', 'Filtru sofer: nu necesita');
+              return;
+            }
+
+            driverBtn.title = 'Sofer: Toate';
+            driverBtn.setAttribute('aria-label', 'Filtru sofer: toate');
+          }
+
+          function closeModal() {
+            if (modal) modal.style.display = 'none';
+          }
+
+          function updateCustomVisibility() {
+            var isCustom = presetEl && presetEl.value === 'custom';
+            if (!isCustom) {
+              draftFrom = null;
+              draftTo = null;
+              customFrom = null;
+              customTo = null;
+              closeModal();
+              setCustomOptionDefault();
+            } else {
+              setCustomOptionRange(customFrom, customTo);
+            }
+          }
+
+          // Calendar
+          function monthName(y, m) {
+            var names = [
+              'Ian',
+              'Feb',
+              'Mar',
+              'Apr',
+              'Mai',
+              'Iun',
+              'Iul',
+              'Aug',
+              'Sep',
+              'Oct',
+              'Noi',
+              'Dec',
+            ];
+            return names[m] + ' ' + y;
+          }
+
+          function firstDayOffsetMonday(y, m) {
+            var d = new Date(y, m, 1);
+            var js = d.getDay();
+            return (js + 6) % 7;
+          }
+
+          function daysInMonth(y, m) {
+            return new Date(y, m + 1, 0).getDate();
+          }
+
+          function refreshHighlights() {
+            if (!calGrid) return;
+            var nf = normalizeRange(draftFrom, draftTo);
+            var from = nf.from;
+            var to = nf.to;
+
+            var cells = calGrid.querySelectorAll('.day');
+            for (var i = 0; i < cells.length; i++) {
+              var el = cells[i];
+              var iso = el.getAttribute('data-iso');
+              el.classList.remove('sel-start', 'sel-end', 'in-range');
+              if (!iso) continue;
+
+              if (from && iso === from) el.classList.add('sel-start');
+              if (to && iso === to) el.classList.add('sel-end');
+              if (from && to && iso > from && iso < to) el.classList.add('in-range');
+            }
+          }
+
+          function renderCalendar() {
+            if (!calGrid || !monthLabel) return;
+            monthLabel.textContent = monthName(viewYear, viewMonth);
+            calGrid.innerHTML = '';
+
+            var offset = firstDayOffsetMonday(viewYear, viewMonth);
+            var dim = daysInMonth(viewYear, viewMonth);
+
+            for (var i = 0; i < offset; i++) {
+              var b = document.createElement('div');
+              b.className = 'day blank';
+              calGrid.appendChild(b);
+            }
+
+            for (var day = 1; day <= dim; day++) {
+              (function (dayNum) {
+                var cell = document.createElement('div');
+                cell.className = 'day';
+                cell.textContent = String(dayNum);
+
+                var iso = String(viewYear) + '-' + pad2(viewMonth + 1) + '-' + pad2(dayNum);
+                cell.setAttribute('data-iso', iso);
+
+                cell.addEventListener('click', function () {
+                  onPickDate(iso);
+                });
+
+                calGrid.appendChild(cell);
+              })(day);
+            }
+
+            var total = offset + dim;
+            var remaining = (7 - (total % 7)) % 7;
+            for (var r = 0; r < remaining; r++) {
+              var bb = document.createElement('div');
+              bb.className = 'day blank';
+              calGrid.appendChild(bb);
+            }
+
+            refreshHighlights();
+          }
+
+          function openModal() {
+            if (!modal) return;
+            modal.style.display = 'flex';
+
+            draftFrom = customFrom;
+            draftTo = customTo;
+
+            var base = customFrom ? fromISODate(customFrom) : new Date();
+            if (base) {
+              viewYear = base.getFullYear();
+              viewMonth = base.getMonth();
+            }
+            renderCalendar();
+          }
+
+          function onPickDate(iso) {
+            if (!draftFrom || (draftFrom && draftTo)) {
+              draftFrom = iso;
+              draftTo = null;
+              refreshHighlights();
+              return;
+            }
+
+            draftTo = iso;
+            var n = normalizeRange(draftFrom, draftTo);
+            draftFrom = n.from;
+            draftTo = n.to;
+
+            customFrom = draftFrom;
+            customTo = draftTo;
+
+            setCustomOptionRange(customFrom, customTo);
+
+            refreshHighlights();
+            apply();
+            closeModal();
+          }
+
+          function enforceExclusive(which) {
+            if (!codeEl || !notedByEl) return;
+
+            var hasCode = !!(codeEl.value && codeEl.value.trim());
+            var hasNotedBy = !!(notedByEl.value && notedByEl.value.trim());
+
+            if (which === 'code' && hasCode) {
+              notedByEl.value = '';
+              hasNotedBy = false;
+            }
+            if (which === 'notedBy' && hasNotedBy) {
+              codeEl.value = '';
+              hasCode = false;
+            }
+
+            codeEl.disabled = hasNotedBy;
+            notedByEl.disabled = hasCode;
+          }
+
+          function openCodeModal() {
+            if (!codeModal || !codeEl) return;
+            try {
+              codeEl.blur();
+            } catch (e) {}
+            codeModal.style.display = 'flex';
+          }
+
+          function closeCodeModal() {
+            if (codeModal) codeModal.style.display = 'none';
+          }
+
+          function setCodeValue(v) {
+            if (!codeEl) return;
+            codeEl.value = String(v || '');
+            uppercaseInput(codeEl);
+            enforceExclusive('code');
+            apply();
+          }
+
+          function closeEvidence() {
+            location.hash = '#/';
+          }
+          function openEvidence(evId) {
+            location.hash = '#/e/' + encodeURIComponent(String(evId || ''));
+          }
+
+          function showList() {
+            currentEvidenceEventId = null;
+            if (pageEvidenceEl) pageEvidenceEl.style.display = 'none';
+            if (pageListEl) pageListEl.style.display = 'block';
+            closeAssignModal();
+            closeCodeInfoModal();
+            closeCodeModal();
+            closeModal();
+          }
+
+          function showEvidence(evId) {
+            var ev = findEventById(evId);
+            if (!ev) {
+              showList();
+              return;
+            }
+
+            currentEvidenceEventId = String(evId);
+
+            if (pageListEl) pageListEl.style.display = 'none';
+            if (pageEvidenceEl) pageEvidenceEl.style.display = 'block';
+
+            if (evidenceTitleEl)
+              evidenceTitleEl.textContent = 'Dovezi - Eveniment ' + String(ev.id || '');
+
+            if (evidenceMetaEl) {
+              var firstTime = '';
+              if (Array.isArray(ev.roles) && ev.roles[0] && ev.roles[0].time)
+                firstTime = String(ev.roles[0].time);
+
+              var parts = [];
+              parts.push('<b>Data:</b> ' + escapeHtml(formatDate(ev)));
+              if (firstTime) parts.push('<b>Ora:</b> ' + escapeHtml(firstTime));
+              if (ev.address) parts.push('<b>Adresa:</b> ' + escapeHtml(ev.address));
+              if (ev.cineNoteaza)
+                parts.push('<b>Cine noteaza:</b> ' + escapeHtml(norm(ev.cineNoteaza)));
+              evidenceMetaEl.innerHTML = parts.join('<br/>');
+            }
+
+            // Reset doar inputurile de selectie (nu sterge dovezile salvate)
+            if (evProofOnTimeEl) evProofOnTimeEl.value = '';
+            if (evProofLuggageEl) evProofLuggageEl.value = '';
+            if (evProofAccessoriesEl) evProofAccessoriesEl.value = '';
+            if (evProofLaundryEl) evProofLaundryEl.value = '';
+
+            if (evHelpEl)
+              evHelpEl.textContent =
+                'Se salveaza local (demo). In aplicatie reala ar merge in backend.';
+
+            migrateEvidenceV1ToV2Once();
+            renderEvidenceList(evId);
+          }
+
+          function route() {
+            var h = String(location.hash || '#/');
+            var m = h.match(/^#\/e\/([^\/\?#]+)$/);
+            if (m) {
+              showEvidence(decodeURIComponent(m[1]));
+              return;
+            }
+            showList();
+            apply();
+          }
+
+          // -------- Dovezi (localStorage + IndexedDB demo) --------
+          function loadEvidenceAll() {
+            try {
+              var raw = localStorage.getItem(EVIDENCE_KEY);
+              if (!raw) return {};
+              var obj = JSON.parse(raw);
+              return obj && typeof obj === 'object' ? obj : {};
+            } catch (e) {
+              return {};
+            }
+          }
+
+          function normalizeEvidenceProofs(it) {
+            var out = { onTime: [], luggage: [], accessories: [], laundry: [] };
+            if (it && it.proofs && typeof it.proofs === 'object') {
+              if (Array.isArray(it.proofs.onTime)) out.onTime = it.proofs.onTime;
+              if (Array.isArray(it.proofs.luggage)) out.luggage = it.proofs.luggage;
+              if (Array.isArray(it.proofs.accessories)) out.accessories = it.proofs.accessories;
+              if (Array.isArray(it.proofs.laundry)) out.laundry = it.proofs.laundry;
+            }
+            return out;
+          }
+
+          function newEvidenceState() {
+            return {
+              proofs: { onTime: [], luggage: [], accessories: [], laundry: [] },
+              status: {
+                onTime: { verdict: 'na', ts: 0 },
+                luggage: { verdict: 'na', ts: 0 },
+                accessories: { verdict: 'na', ts: 0 },
+                laundry: { verdict: 'na', ts: 0 },
+              },
+              updatedTs: 0,
+            };
+          }
+
+          function loadEvidenceStateAll() {
+            try {
+              var raw = localStorage.getItem(EVIDENCE_STATE_KEY);
+              if (!raw) return {};
+              var obj = JSON.parse(raw);
+              return obj && typeof obj === 'object' ? obj : {};
+            } catch (e) {
+              return {};
+            }
+          }
+
+          function saveEvidenceStateAll(obj) {
+            try {
+              localStorage.setItem(EVIDENCE_STATE_KEY, JSON.stringify(obj || {}));
+            } catch (e) {}
+          }
+
+          function getEvidenceStateForEvent(evId) {
+            var all = loadEvidenceStateAll();
+            var st = all[String(evId || '')];
+            if (!st || typeof st !== 'object') return newEvidenceState();
+
+            if (!st.proofs || typeof st.proofs !== 'object')
+              st.proofs = { onTime: [], luggage: [], accessories: [], laundry: [] };
+            PROOF_CATS.forEach(function (k) {
+              if (!Array.isArray(st.proofs[k])) st.proofs[k] = [];
+              for (var j = 0; j < st.proofs[k].length; j++) {
+                var ref = st.proofs[k][j];
+                if (ref && typeof ref === 'object' && typeof ref.locked !== 'boolean')
+                  ref.locked = false;
+              }
+            });
+
+            if (!st.status || typeof st.status !== 'object') st.status = newEvidenceState().status;
+            PROOF_CATS.forEach(function (k) {
+              if (!st.status[k] || typeof st.status[k] !== 'object')
+                st.status[k] = { verdict: 'na', ts: 0 };
+              if (!st.status[k].verdict) st.status[k].verdict = 'na';
+              if (!st.status[k].ts) st.status[k].ts = 0;
+            });
+
+            if (!st.updatedTs) st.updatedTs = 0;
+            return st;
+          }
+
+          function saveEvidenceStateForEvent(evId, state) {
+            var id = String(evId || '');
+            if (!id) return;
+            var all = loadEvidenceStateAll();
+            all[id] = state;
+            saveEvidenceStateAll(all);
+          }
+
+          function migrateEvidenceV1ToV2Once() {
+            var marker = 'evidence_v2_migrated';
+            try {
+              if (localStorage.getItem(marker) === '1') return;
+            } catch (e) {
+              return;
+            }
+
+            var v1 = loadEvidenceAll();
+            if (!v1 || typeof v1 !== 'object') {
+              try {
+                localStorage.setItem(marker, '1');
+              } catch (e2) {}
+              return;
+            }
+
+            var v2 = loadEvidenceStateAll();
+            var changed = false;
+
+            Object.keys(v1).forEach(function (evId) {
+              var arr = v1[evId];
+              if (!Array.isArray(arr) || !arr.length) return;
+
+              var st =
+                v2[String(evId)] && typeof v2[String(evId)] === 'object'
+                  ? v2[String(evId)]
+                  : newEvidenceState();
+              if (!st.proofs || typeof st.proofs !== 'object')
+                st.proofs = newEvidenceState().proofs;
+
+              for (var i = 0; i < arr.length; i++) {
+                var it = arr[i] || {};
+                var p = normalizeEvidenceProofs(it);
+                PROOF_CATS.forEach(function (k) {
+                  if (Array.isArray(p[k]) && p[k].length) {
+                    if (!Array.isArray(st.proofs[k])) st.proofs[k] = [];
+                    st.proofs[k] = st.proofs[k].concat(p[k]);
+                    changed = true;
+                  }
+                });
+              }
+
+              v2[String(evId)] = st;
+            });
+
+            if (changed) saveEvidenceStateAll(v2);
+            try {
+              localStorage.setItem(marker, '1');
+            } catch (e3) {}
+          }
+
+          function setStatusPill(el, verdict) {
+            if (!el) return;
+            el.classList.remove('ok', 'bad', 'review');
+
+            if (verdict === 'ok') {
+              el.classList.add('ok');
+              el.textContent = 'OK';
+              return;
+            }
+            if (verdict === 'needs_more') {
+              el.classList.add('bad');
+              el.textContent = 'Mai trebuie';
+              return;
+            }
+            if (verdict === 'review') {
+              el.classList.add('review');
+              el.textContent = 'Se verifica';
+              return;
+            }
+
+            el.textContent = 'N/A';
+          }
+
+          function validateCategory(catKey, filesArr) {
+            var rules = VALIDATION_RULES[catKey] || { required: false, minFiles: 0 };
+            filesArr = Array.isArray(filesArr) ? filesArr : [];
+
+            if (!rules.required && filesArr.length === 0) return { verdict: 'na' };
+            if (
+              (rules.minFiles === 0 || rules.minFiles) &&
+              filesArr.length >= Number(rules.minFiles)
+            )
+              return { verdict: 'ok' };
+            return { verdict: 'needs_more' };
+          }
+
+          function validateAllCategories(state) {
+            if (!state) return;
+            if (!state.status || typeof state.status !== 'object')
+              state.status = newEvidenceState().status;
+            if (!state.proofs || typeof state.proofs !== 'object')
+              state.proofs = newEvidenceState().proofs;
+
+            var nowTs = Date.now();
+
+            PROOF_CATS.forEach(function (k) {
+              if (!Array.isArray(state.proofs[k])) state.proofs[k] = [];
+
+              var res = validateCategory(k, state.proofs[k]);
+              state.status[k] = { verdict: res.verdict, ts: nowTs };
+
+              // Regula ceruta: dupa ce o categorie este OK (aprobat), pozele devin blocate (nu mai pot fi sterse).
+              if (res.verdict === 'ok') {
+                for (var i = 0; i < state.proofs[k].length; i++) {
+                  var ref = state.proofs[k][i];
+                  if (ref && typeof ref === 'object') ref.locked = true;
+                }
+              } else {
+                // asiguram default pentru pozele vechi
+                for (var ii = 0; ii < state.proofs[k].length; ii++) {
+                  var ref2 = state.proofs[k][ii];
+                  if (ref2 && typeof ref2 === 'object' && typeof ref2.locked !== 'boolean')
+                    ref2.locked = false;
+                }
+              }
+            });
+
+            state.updatedTs = nowTs;
+          }
+
+          function renderStatusPillsForEvent(evId) {
+            var st = getEvidenceStateForEvent(evId);
+            setStatusPill(statusOnTimeEl, st.status.onTime && st.status.onTime.verdict);
+            setStatusPill(statusLuggageEl, st.status.luggage && st.status.luggage.verdict);
+            setStatusPill(
+              statusAccessoriesEl,
+              st.status.accessories && st.status.accessories.verdict
+            );
+            setStatusPill(statusLaundryEl, st.status.laundry && st.status.laundry.verdict);
+          }
+
+          // --- Evidence storage (IndexedDB) ---
+          var EVIDENCE_DB_NAME = 'evidence_db_v1';
+          var EVIDENCE_DB_STORE = 'photos';
+          var evidenceDbPromise = null;
+
+          function makePhotoKey(evId, catKey, photoId) {
+            return String(evId || '') + '::' + String(catKey || '') + '::' + String(photoId || '');
+          }
+
+          function openEvidenceDb() {
+            if (evidenceDbPromise) return evidenceDbPromise;
+            evidenceDbPromise = new Promise(function (resolve, reject) {
+              if (!('indexedDB' in window)) return reject(new Error('IndexedDB not available'));
+              var req;
+              try {
+                req = indexedDB.open(EVIDENCE_DB_NAME, 1);
+              } catch (e) {
+                return reject(e);
+              }
+
+              req.onupgradeneeded = function () {
+                var db = req.result;
+                if (!db.objectStoreNames.contains(EVIDENCE_DB_STORE)) {
+                  db.createObjectStore(EVIDENCE_DB_STORE, { keyPath: 'key' });
+                }
+              };
+
+              req.onsuccess = function () {
+                resolve(req.result);
+              };
+              req.onerror = function () {
+                reject(req.error || new Error('IndexedDB open failed'));
+              };
+            });
+            return evidenceDbPromise;
+          }
+
+          function genPhotoId() {
+            return 'p_' + Math.random().toString(16).slice(2) + '_' + Date.now().toString(16);
+          }
+
+          function idbPutPhoto(evId, catKey, photoId, file) {
+            return openEvidenceDb().then(function (db) {
+              return new Promise(function (resolve, reject) {
+                var tx = db.transaction(EVIDENCE_DB_STORE, 'readwrite');
+                var store = tx.objectStore(EVIDENCE_DB_STORE);
+                var key = makePhotoKey(evId, catKey, photoId);
+
+                var rec = {
+                  key: key,
+                  evId: String(evId || ''),
+                  catKey: String(catKey || ''),
+                  photoId: String(photoId || ''),
+                  name: String((file && file.name) || ''),
+                  type: String((file && file.type) || 'image/*'),
+                  size: Number((file && file.size) || 0),
+                  ts: Date.now(),
+                  blob: file,
+                };
+
+                try {
+                  store.put(rec);
+                } catch (e) {
+                  reject(e);
+                  return;
+                }
+
+                tx.oncomplete = function () {
+                  resolve({
+                    photoId: rec.photoId,
+                    name: rec.name,
+                    type: rec.type,
+                    size: rec.size,
+                    ts: rec.ts,
+                  });
+                };
+                tx.onerror = function () {
+                  reject(tx.error || new Error('IndexedDB write failed'));
+                };
+                tx.onabort = function () {
+                  reject(tx.error || new Error('IndexedDB write aborted'));
+                };
+              });
+            });
+          }
+
+          function idbGetPhotoBlob(evId, catKey, photoId) {
+            return openEvidenceDb()
+              .then(function (db) {
+                return new Promise(function (resolve, reject) {
+                  var tx = db.transaction(EVIDENCE_DB_STORE, 'readonly');
+                  var store = tx.objectStore(EVIDENCE_DB_STORE);
+                  var key = makePhotoKey(evId, catKey, photoId);
+                  var req = store.get(key);
+                  req.onsuccess = function () {
+                    resolve(req.result ? req.result.blob : null);
+                  };
+                  req.onerror = function () {
+                    reject(req.error || new Error('IndexedDB read failed'));
+                  };
+                });
+              })
+              .catch(function () {
+                return null;
+              });
+          }
+
+          function idbDeletePhoto(evId, catKey, photoId) {
+            return openEvidenceDb()
+              .then(function (db) {
+                return new Promise(function (resolve, reject) {
+                  var tx = db.transaction(EVIDENCE_DB_STORE, 'readwrite');
+                  var store = tx.objectStore(EVIDENCE_DB_STORE);
+                  var key = makePhotoKey(evId, catKey, photoId);
+                  var req = store.delete(key);
+                  req.onsuccess = function () {
+                    resolve(true);
+                  };
+                  req.onerror = function () {
+                    reject(req.error || new Error('IndexedDB delete failed'));
+                  };
+                });
+              })
+              .catch(function () {
+                return false;
+              });
+          }
+
+          function fileToThumbDataUrl(file, maxPx) {
+            return new Promise(function (resolve) {
+              try {
+                if (!file) return resolve(null);
+                var t = String(file.type || '');
+                if (t.indexOf('image/') !== 0) return resolve(null);
+
+                var maxSize = Number(maxPx);
+                if (!isFinite(maxSize) || maxSize <= 0) maxSize = 256;
+
+                function toDataUrlFromDrawable(drawable, w, h) {
+                  try {
+                    if (!w || !h) return resolve(null);
+                    var scale = Math.min(1, maxSize / Math.max(w, h));
+                    var tw = Math.max(1, Math.round(w * scale));
+                    var th = Math.max(1, Math.round(h * scale));
+
+                    var canvas = document.createElement('canvas');
+                    canvas.width = tw;
+                    canvas.height = th;
+                    var ctx = canvas.getContext('2d');
+                    if (!ctx) return resolve(null);
+                    ctx.drawImage(drawable, 0, 0, tw, th);
+
+                    var dataUrl = null;
+                    try {
+                      dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+                    } catch (e1) {
+                      try {
+                        dataUrl = canvas.toDataURL();
+                      } catch (e2) {
+                        dataUrl = null;
+                      }
+                    }
+                    return resolve(dataUrl);
+                  } catch (e) {
+                    return resolve(null);
+                  }
+                }
+
+                // Ruta rapida: createImageBitmap
+                if ('createImageBitmap' in window) {
+                  Promise.resolve()
+                    .then(function () {
+                      return createImageBitmap(file);
+                    })
+                    .then(function (bmp) {
+                      var w = bmp.width;
+                      var h = bmp.height;
+                      toDataUrlFromDrawable(bmp, w, h);
+                      try {
+                        if (bmp && bmp.close) bmp.close();
+                      } catch (e3) {}
+                    })
+                    .catch(function () {
+                      // Fallback: FileReader + Image
+                      try {
+                        var r = new FileReader();
+                        r.onload = function () {
+                          var img = new Image();
+                          img.onload = function () {
+                            toDataUrlFromDrawable(
+                              img,
+                              img.naturalWidth || img.width,
+                              img.naturalHeight || img.height
+                            );
+                          };
+                          img.onerror = function () {
+                            resolve(null);
+                          };
+                          img.src = String(r.result || '');
+                        };
+                        r.onerror = function () {
+                          resolve(null);
+                        };
+                        r.readAsDataURL(file);
+                      } catch (e4) {
+                        resolve(null);
+                      }
+                    });
+                  return;
+                }
+
+                // Fallback direct
+                try {
+                  var reader = new FileReader();
+                  reader.onload = function () {
+                    var img2 = new Image();
+                    img2.onload = function () {
+                      toDataUrlFromDrawable(
+                        img2,
+                        img2.naturalWidth || img2.width,
+                        img2.naturalHeight || img2.height
+                      );
+                    };
+                    img2.onerror = function () {
+                      resolve(null);
+                    };
+                    img2.src = String(reader.result || '');
+                  };
+                  reader.onerror = function () {
+                    resolve(null);
+                  };
+                  reader.readAsDataURL(file);
+                } catch (e5) {
+                  resolve(null);
+                }
+              } catch (e0) {
+                resolve(null);
+              }
+            });
+          }
+
+          function fileToLegacyObj(file) {
+            return new Promise(function (resolve) {
+              if (!file) return resolve(null);
+              var out = {
+                name: String(file.name || ''),
+                size: Number(file.size || 0),
+                type: String(file.type || ''),
+              };
+              try {
+                var reader = new FileReader();
+                reader.onload = function () {
+                  out.dataUrl = String(reader.result || '');
+                  out.thumbDataUrl = out.dataUrl;
+                  resolve(out);
+                };
+                reader.onerror = function () {
+                  resolve(out);
+                };
+                reader.readAsDataURL(file);
+              } catch (e) {
+                resolve(out);
+              }
+            });
+          }
+
+          function fileToRef(evId, catKey, file) {
+            if (!file) return Promise.resolve(null);
+            var id = genPhotoId();
+
+            return idbPutPhoto(evId, catKey, id, file)
+              .then(function (meta) {
+                return fileToThumbDataUrl(file, 256).then(function (thumb) {
+                  return {
+                    photoId: meta.photoId,
+                    name: meta.name,
+                    size: meta.size,
+                    type: meta.type,
+                    ts: meta.ts,
+                    thumbDataUrl: thumb || null,
+                  };
+                });
+              })
+              .catch(function () {
+                return fileToLegacyObj(file);
+              });
+          }
+
+          function validateProofs() {
+            var filesOnTime =
+              evProofOnTimeEl && evProofOnTimeEl.files
+                ? Array.prototype.slice.call(evProofOnTimeEl.files)
+                : [];
+            var filesLuggage =
+              evProofLuggageEl && evProofLuggageEl.files
+                ? Array.prototype.slice.call(evProofLuggageEl.files)
+                : [];
+            var filesAccessories =
+              evProofAccessoriesEl && evProofAccessoriesEl.files
+                ? Array.prototype.slice.call(evProofAccessoriesEl.files)
+                : [];
+            var filesLaundry =
+              evProofLaundryEl && evProofLaundryEl.files
+                ? Array.prototype.slice.call(evProofLaundryEl.files)
+                : [];
+
+            var any =
+              filesOnTime.length +
+                filesLuggage.length +
+                filesAccessories.length +
+                filesLaundry.length >
+              0;
+            var ok = any;
+
+            return {
+              ok: ok,
+              filesOnTime: filesOnTime,
+              filesLuggage: filesLuggage,
+              filesAccessories: filesAccessories,
+              filesLaundry: filesLaundry,
+            };
+          }
+
+          function runValidationAndRender(evId) {
+            var st = getEvidenceStateForEvent(evId);
+            validateAllCategories(st);
+            saveEvidenceStateForEvent(evId, st);
+            renderEvidenceList(evId);
+          }
+
+          var validateTimer = null;
+
+          function setAllCategoriesToReview(evId) {
+            var st = getEvidenceStateForEvent(evId);
+            if (!st.status || typeof st.status !== 'object') st.status = newEvidenceState().status;
+            var nowTs = Date.now();
+            for (var i = 0; i < PROOF_CATS.length; i++) {
+              var k = PROOF_CATS[i];
+              st.status[k] = { verdict: 'review', ts: nowTs };
+            }
+            st.updatedTs = nowTs;
+            saveEvidenceStateForEvent(evId, st);
+          }
+
+          function scheduleValidation(evId) {
+            if (validateTimer) {
+              try {
+                clearTimeout(validateTimer);
+              } catch (e) {}
+              validateTimer = null;
+            }
+
+            setAllCategoriesToReview(evId);
+            renderEvidenceList(evId);
+
+            validateTimer = setTimeout(function () {
+              runValidationAndRender(evId);
+            }, 600);
+          }
+
+          function catToKey(k) {
+            if (k === 'onTime') return 'onTime';
+            if (k === 'luggage') return 'luggage';
+            if (k === 'accessories') return 'accessories';
+            if (k === 'laundry') return 'laundry';
+            return null;
+          }
+
+          var evidenceRenderObjectUrls = [];
+
+          // Placeholder stabil ca sa nu apara iconita de imagine rupta.
+          var EVIDENCE_PLACEHOLDER_SVG =
+            "<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='rgba(255,255,255,0.08)'/><text x='32' y='34' text-anchor='middle' dominant-baseline='middle' fill='rgba(234,241,255,0.75)' font-size='10' font-family='system-ui, -apple-system, Segoe UI, Roboto, Arial'>IMG</text></svg>";
+          var EVIDENCE_PLACEHOLDER_IMG =
+            typeof btoa === 'function'
+              ? 'data:image/svg+xml;base64,' + btoa(EVIDENCE_PLACEHOLDER_SVG)
+              : 'data:image/svg+xml,' + encodeURIComponent(EVIDENCE_PLACEHOLDER_SVG);
+
+          function cleanupEvidenceRenderUrls() {
+            for (var i = 0; i < evidenceRenderObjectUrls.length; i++) {
+              try {
+                URL.revokeObjectURL(evidenceRenderObjectUrls[i]);
+              } catch (e) {}
+            }
+            evidenceRenderObjectUrls = [];
+          }
+
+          function loadThumbIntoImg(evId, catKey, ref, imgEl) {
+            if (!imgEl || !ref) return;
+
+            // 1) Cel mai stabil: miniatura (dataURL) salvata in state
+            if (ref.thumbDataUrl && String(ref.thumbDataUrl).indexOf('data:image') === 0) {
+              imgEl.src = String(ref.thumbDataUrl);
+              return;
+            }
+
+            // 2) Compat legacy
+            if (ref.dataUrl && String(ref.dataUrl).indexOf('data:image') === 0) {
+              imgEl.src = String(ref.dataUrl);
+              return;
+            }
+
+            // 3) Din IndexedDB (blob)
+            if (ref.photoId) {
+              idbGetPhotoBlob(evId, catKey, ref.photoId).then(function (blob) {
+                if (!blob) return;
+                try {
+                  var url = URL.createObjectURL(blob);
+                  evidenceRenderObjectUrls.push(url);
+                  imgEl.src = url;
+                } catch (e) {}
+              });
+            }
+          }
+
+          function updateSavedCounts(evId, st) {
+            st = st || getEvidenceStateForEvent(evId);
+            if (!st || !st.proofs) return;
+            if (countOnTimeEl)
+              countOnTimeEl.textContent = String((st.proofs.onTime || []).length) + ' salvate';
+            if (countLuggageEl)
+              countLuggageEl.textContent = String((st.proofs.luggage || []).length) + ' salvate';
+            if (countAccessoriesEl)
+              countAccessoriesEl.textContent =
+                String((st.proofs.accessories || []).length) + ' salvate';
+            if (countLaundryEl)
+              countLaundryEl.textContent = String((st.proofs.laundry || []).length) + ' salvate';
+          }
+
+          function renderSavedThumbsInCategories(evId, st) {
+            st = st || getEvidenceStateForEvent(evId);
+            var map = {
+              onTime: savedOnTimeEl,
+              luggage: savedLuggageEl,
+              accessories: savedAccessoriesEl,
+              laundry: savedLaundryEl,
+            };
+
+            PROOF_CATS.forEach(function (k) {
+              var host = map[k];
+              if (!host) return;
+              host.innerHTML = '';
+
+              var refs = st.proofs && st.proofs[k] ? st.proofs[k] : [];
+              if (!refs.length) return;
+
+              var frag = document.createDocumentFragment();
+              for (var i = 0; i < refs.length; i++) {
+                var ref = refs[i] || {};
+
+                var wrap = document.createElement('div');
+                wrap.className = 'thumbwrap';
+
+                var img = document.createElement('img');
+                img.alt = 'Dovada';
+                img.loading = 'lazy';
+                img.decoding = 'async';
+                img.src = EVIDENCE_PLACEHOLDER_IMG;
+                img.onerror = function () {
+                  try {
+                    this.onerror = null;
+                  } catch (e) {}
+                  this.src = EVIDENCE_PLACEHOLDER_IMG;
+                };
+                wrap.appendChild(img);
+
+                if (!ref.locked) {
+                  var btn = document.createElement('button');
+                  btn.className = 'xbtn';
+                  btn.type = 'button';
+                  btn.textContent = '×';
+                  btn.setAttribute('data-del-proof', '1');
+                  btn.setAttribute('data-ev', String(evId));
+                  btn.setAttribute('data-cat', String(k));
+                  btn.setAttribute('data-idx', String(i));
+                  btn.setAttribute('aria-label', 'Sterge poza');
+                  wrap.appendChild(btn);
+                } else {
+                  // blocat / aprobat
+                  wrap.title = 'Aprobat (nu poate fi sters)';
+                }
+
+                frag.appendChild(wrap);
+                loadThumbIntoImg(evId, k, ref, img);
+              }
+
+              host.appendChild(frag);
+            });
+          }
+
+          function renderEvidenceList(evId) {
+            cleanupEvidenceRenderUrls();
+            var st = getEvidenceStateForEvent(evId);
+
+            updateSavedCounts(evId, st);
+            renderSavedThumbsInCategories(evId, st);
+            renderStatusPillsForEvent(evId);
+
+            if (currentProofsEl) currentProofsEl.innerHTML = '';
+          }
+
+          function removeProofAt(evId, catKey, idx) {
+            var st = getEvidenceStateForEvent(evId);
+            if (!st.proofs || !Array.isArray(st.proofs[catKey])) return;
+            var i = Number(idx);
+            if (!isFinite(i) || i < 0) return;
+
+            var ref = st.proofs[catKey][i];
+            if (ref && typeof ref === 'object' && ref.locked) {
+              if (evHelpEl)
+                evHelpEl.textContent =
+                  'Poza este aprobata (categoria e OK) si nu poate fi stearsa.';
+              return;
+            }
+
+            var removed = st.proofs[catKey].splice(i, 1);
+            var rem = removed && removed.length ? removed[0] : null;
+
+            if (rem && rem.photoId) {
+              idbDeletePhoto(evId, catKey, rem.photoId);
+            }
+
+            validateAllCategories(st);
+            saveEvidenceStateForEvent(evId, st);
+            renderEvidenceList(evId);
+          }
+
+          function bindCurrentProofsDelete() {
+            if (!pageEvidenceEl) return;
+            if (pageEvidenceEl.__boundDelete) return;
+            pageEvidenceEl.__boundDelete = true;
+
+            pageEvidenceEl.addEventListener('click', function (e) {
+              var t = e.target;
+              if (!t) return;
+
+              var btn =
+                (t.closest ? t.closest('[data-del-proof]') : null) ||
+                (t.getAttribute && t.getAttribute('data-del-proof') ? t : null);
+              if (!btn) return;
+
+              e.preventDefault();
+              e.stopPropagation();
+
+              var evId = btn.getAttribute('data-ev');
+              var cat = btn.getAttribute('data-cat');
+              var idx = btn.getAttribute('data-idx');
+              var k = catToKey(cat);
+              if (!evId || !k) return;
+
+              removeProofAt(evId, k, idx);
+            });
+          }
+
+          function appendSelectedProofs(evId) {
+            if (!evId) return;
+
+            var v = validateProofs();
+            if (!v.ok) {
+              if (evHelpEl)
+                evHelpEl.textContent = 'Selecteaza cel putin o poza (in orice categorie).';
+              return;
+            }
+
+            if (evHelpEl)
+              evHelpEl.textContent =
+                'Se salveaza local (demo). In aplicatie reala ar merge in backend.';
+
+            Promise.all([
+              Promise.all(
+                v.filesOnTime.map(function (f) {
+                  return fileToRef(evId, 'onTime', f);
+                })
+              ),
+              Promise.all(
+                v.filesLuggage.map(function (f) {
+                  return fileToRef(evId, 'luggage', f);
+                })
+              ),
+              Promise.all(
+                v.filesAccessories.map(function (f) {
+                  return fileToRef(evId, 'accessories', f);
+                })
+              ),
+              Promise.all(
+                v.filesLaundry.map(function (f) {
+                  return fileToRef(evId, 'laundry', f);
+                })
+              ),
+            ]).then(function (groups) {
+              var addOnTime = (groups[0] || []).filter(function (x) {
+                return !!x;
+              });
+              var addLuggage = (groups[1] || []).filter(function (x) {
+                return !!x;
+              });
+              var addAccessories = (groups[2] || []).filter(function (x) {
+                return !!x;
+              });
+              var addLaundry = (groups[3] || []).filter(function (x) {
+                return !!x;
+              });
+
+              var st = getEvidenceStateForEvent(evId);
+              if (!st.proofs || typeof st.proofs !== 'object')
+                st.proofs = newEvidenceState().proofs;
+
+              if (addOnTime.length) st.proofs.onTime = (st.proofs.onTime || []).concat(addOnTime);
+              if (addLuggage.length)
+                st.proofs.luggage = (st.proofs.luggage || []).concat(addLuggage);
+              if (addAccessories.length)
+                st.proofs.accessories = (st.proofs.accessories || []).concat(addAccessories);
+              if (addLaundry.length)
+                st.proofs.laundry = (st.proofs.laundry || []).concat(addLaundry);
+
+              st.updatedTs = Date.now();
+              saveEvidenceStateForEvent(evId, st);
+
+              // Curatam selectiile curente; pozele deja salvate raman pe card
+              if (evProofOnTimeEl) evProofOnTimeEl.value = '';
+              if (evProofLuggageEl) evProofLuggageEl.value = '';
+              if (evProofAccessoriesEl) evProofAccessoriesEl.value = '';
+              if (evProofLaundryEl) evProofLaundryEl.value = '';
+
+              updateSavedCounts(evId, st);
+              scheduleValidation(evId);
+            });
+          }
+
+          function revalidateNow(evId) {
+            if (!evId) return;
+            scheduleValidation(evId);
+          }
+
+          function bindPreviewHandlers() {
+            function onPick() {
+              if (!currentEvidenceEventId) return;
+              appendSelectedProofs(currentEvidenceEventId);
+            }
+
+            if (evProofOnTimeEl) evProofOnTimeEl.addEventListener('change', onPick);
+            if (evProofLuggageEl) evProofLuggageEl.addEventListener('change', onPick);
+            if (evProofAccessoriesEl) evProofAccessoriesEl.addEventListener('change', onPick);
+            if (evProofLaundryEl) evProofLaundryEl.addEventListener('change', onPick);
+          }
+
+          function bindProofPickButtons() {
+            if (!pageEvidenceEl) return;
+            if (pageEvidenceEl.__boundPick) return;
+            pageEvidenceEl.__boundPick = true;
+
+            pageEvidenceEl.addEventListener('click', function (e) {
+              var t = e.target;
+              if (!t) return;
+              var btn =
+                (t.closest ? t.closest('.proof-upload') : null) ||
+                (t.classList && t.classList.contains('proof-upload') ? t : null);
+              if (!btn) return;
+              e.preventDefault();
+
+              var k = String(btn.getAttribute('data-pick') || '');
+              if (k === 'onTime' && evProofOnTimeEl) {
+                evProofOnTimeEl.click();
+                return;
+              }
+              if (k === 'luggage' && evProofLuggageEl) {
+                evProofLuggageEl.click();
+                return;
+              }
+              if (k === 'accessories' && evProofAccessoriesEl) {
+                evProofAccessoriesEl.click();
+                return;
+              }
+              if (k === 'laundry' && evProofLaundryEl) {
+                evProofLaundryEl.click();
+                return;
+              }
+            });
+          }
+
+          function render(list, f) {
+            if (!cardsEl || !emptyEl) return;
+            cardsEl.innerHTML = '';
+
+            if (!list.length) {
+              emptyEl.style.display = 'block';
+              return;
+            }
+            emptyEl.style.display = 'none';
+
+            list.forEach(function (ev) {
+              var card = document.createElement('div');
+              card.className = 'card';
+
+              card.addEventListener('click', function (e) {
+                var t = e.target;
+                if (!t) {
+                  openEvidence(String(ev.id || ''));
+                  return;
+                }
+                if (
+                  t.closest &&
+                  (t.closest('.rolelist') ||
+                    t.closest('.role-slot') ||
+                    t.closest('.role-label') ||
+                    t.closest('.right') ||
+                    t.closest('.s'))
+                ) {
+                  return;
+                }
+                openEvidence(String(ev.id || ''));
+              });
+
+              var badge = document.createElement('div');
+              badge.className = 'badge';
+              badge.textContent = ev.id || '--';
+
+              var main = document.createElement('div');
+              main.className = 'main';
+
+              var meta1 = document.createElement('p');
+              meta1.className = 'meta';
+              meta1.textContent = ev.address || '';
+
+              var roleList = document.createElement('div');
+              roleList.className = 'rolelist';
+
+              var displayRoles = buildVisibleRoles(ev, f);
+              displayRoles.forEach(function (r) {
+                var slot = document.createElement('span');
+                slot.className = 'role-slot';
+                slot.textContent = norm(r && r.slot) || '-';
+
+                var label = document.createElement('span');
+                label.className = 'role-label';
+
+                var lbl = String((r && r.label) || '');
+                var tm = String((r && r.time) || '');
+                var assigned = norm((r && r.assignedCode) || '');
+                var pending = norm((r && r.pendingCode) || '');
+
+                var hasAssigned = assigned && isValidStaffCode(assigned);
+                var hasPending2 = !hasAssigned && pending && isValidStaffCode(pending);
+
+                var statusText = hasAssigned ? assigned : hasPending2 ? pending : '!';
+                var statusCls = hasAssigned ? '' : hasPending2 ? ' pending' : ' unassigned';
+
+                var durTxt = formatDurationMin((r && (r.durationMin || r.duration || r.dur)) || 0);
+
+                label.innerHTML =
+                  escapeHtml(lbl) +
+                  (tm ? '<span class="t">' + escapeHtml(tm) + '</span>' : '') +
+                  (durTxt
+                    ? '<span class="d" title="Durata rol">' + escapeHtml(durTxt) + '</span>'
+                    : '') +
+                  ('<span class="s' + statusCls + '">' + escapeHtml(statusText) + '</span>');
+
+                (function (evId, sl, aCode, pCode) {
+                  var st = label.querySelector('.s');
+                  if (!st) return;
+
+                  st.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    var ac = norm(aCode);
+                    var pc = norm(pCode);
+
+                    if (ac && isValidStaffCode(ac)) {
+                      openCodeInfoModal({ code: ac, evId: evId, slot: sl });
+                      return;
+                    }
+                    if (pc && isValidStaffCode(pc)) {
+                      openCodeInfoModal({ code: pc, evId: evId, slot: sl });
+                      return;
+                    }
+
+                    openAssignModal(evId, sl);
+                  });
+                })(String(ev.id || ''), norm(r && r.slot) || '', assigned, pending);
+
+                slot.setAttribute('data-evid', String(ev.id || ''));
+                slot.setAttribute('data-slot', norm(r && r.slot) || '');
+                slot.addEventListener('click', function (e) {
+                  e.stopPropagation();
+                  openAssignModal(this.getAttribute('data-evid'), this.getAttribute('data-slot'));
+                });
+
+                roleList.appendChild(slot);
+                roleList.appendChild(label);
+              });
+
+              if (meta1.textContent) main.appendChild(meta1);
+
+              var right = document.createElement('div');
+              right.className = 'right';
+
+              var dt = document.createElement('div');
+              dt.className = 'dt';
+              dt.textContent = formatDate(ev);
+              right.appendChild(dt);
+
+              var cn = document.createElement('div');
+              cn.className = 'subdt';
+              cn.textContent = ev.cineNoteaza ? 'Cine noteaza: ' + norm(ev.cineNoteaza) : '';
+              if (cn.textContent) right.appendChild(cn);
+
+              var dr = document.createElement('div');
+              dr.className = 'subdt';
+              dr.textContent = driverText(ev);
+              if (needsDriverRole(ev)) {
+                dr.style.cursor = 'pointer';
+                dr.addEventListener('click', function (e) {
+                  e.stopPropagation();
+                  openAssignModal(String(ev.id || ''), 'S');
+                });
+              }
+              right.appendChild(dr);
+
+              card.appendChild(badge);
+              card.appendChild(main);
+              if (roleList.childElementCount) card.appendChild(roleList);
+              card.appendChild(right);
+
+              cardsEl.appendChild(card);
+            });
+          }
+
+          function apply() {
+            var f = currentFilters();
+            var filtered = evenimente
+              .filter(function (ev) {
+                return matches(ev, f);
+              })
+              .slice();
+            sortEvents(filtered, sortDir);
+            render(filtered, f);
+          }
+
+          // Modal events
+          if (codeEl) {
+            codeEl.addEventListener('pointerdown', function (e) {
+              if (codeEl.disabled) return;
+
+              var parsed = parseCodeOrStatus(codeEl.value);
+              if (parsed && parsed.staffCode) {
+                e.preventDefault();
+                openCodeInfoModal({ code: parsed.staffCode });
+                return;
+              }
+
+              e.preventDefault();
+              openCodeModal();
+            });
+
+            codeEl.addEventListener('input', function () {
+              uppercaseInput(codeEl);
+              enforceExclusive('code');
+              apply();
+            });
+          }
+
+          if (notedByEl) {
+            notedByEl.addEventListener('input', function () {
+              uppercaseInput(notedByEl);
+              enforceExclusive('notedBy');
+              apply();
+            });
+          }
+
+          if (pickCodeBtn) {
+            pickCodeBtn.addEventListener('click', function () {
+              closeCodeModal();
+              if (!codeEl) return;
+              codeEl.value = '';
+              enforceExclusive('code');
+              setTimeout(function () {
+                try {
+                  codeEl.focus();
+                } catch (e) {}
+              }, 0);
+            });
+          }
+
+          if (pickUnresolvedBtn) {
+            pickUnresolvedBtn.addEventListener('click', function () {
+              setCodeValue('NEREZOLVATE');
+              closeCodeModal();
+            });
+          }
+
+          if (pickResolvedBtn) {
+            pickResolvedBtn.addEventListener('click', function () {
+              setCodeValue('REZOLVATE');
+              closeCodeModal();
+            });
+          }
+
+          if (pickAllBtn) {
+            pickAllBtn.addEventListener('click', function () {
+              setCodeValue('');
+              closeCodeModal();
+            });
+          }
+
+          if (closeCodeBtn)
+            closeCodeBtn.addEventListener('click', function () {
+              closeCodeModal();
+            });
+
+          if (codeModal) {
+            codeModal.addEventListener('click', function (e) {
+              if (e.target === codeModal) closeCodeModal();
+            });
+          }
+
+          if (assignModal) {
+            assignModal.addEventListener('click', function (e) {
+              if (e.target === assignModal) closeAssignModal();
+            });
+          }
+
+          if (codeInfoModal) {
+            codeInfoModal.addEventListener('click', function (e) {
+              if (e.target === codeInfoModal) closeCodeInfoModal();
+            });
+          }
+
+          if (closeCodeInfoBtn)
+            closeCodeInfoBtn.addEventListener('click', function () {
+              closeCodeInfoModal();
+            });
+          if (closeAssignBtn)
+            closeAssignBtn.addEventListener('click', function () {
+              closeAssignModal();
+            });
+
+          if (clearAssignBtn) {
+            clearAssignBtn.addEventListener('click', function () {
+              if (!assignEvId || !assignSlot) {
+                closeAssignModal();
+                return;
+              }
+              var ev = findEventById(assignEvId);
+              clearAllForSlot(ev, assignSlot);
+              apply();
+              closeAssignModal();
+            });
+          }
+
+          function commitAssignIfValid() {
+            if (!assignInputEl || !assignEvId || !assignSlot) return;
+            uppercaseInput(assignInputEl);
+            var v = norm(assignInputEl.value);
+
+            if (!v) {
+              assignInputEl.classList.remove('invalid');
+              return;
+            }
+
+            if (!isValidStaffCode(v)) {
+              assignInputEl.classList.add('invalid');
+              return;
+            }
+
+            assignInputEl.classList.remove('invalid');
+            var ev = findEventById(assignEvId);
+            requestAssignToRole(ev, assignSlot, v);
+            apply();
+            closeAssignModal();
+          }
+
+          if (assignInputEl) {
+            assignInputEl.addEventListener('input', function () {
+              commitAssignIfValid();
+            });
+            assignInputEl.addEventListener('keydown', function (e) {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitAssignIfValid();
+              }
+            });
+          }
+
+          if (sortBtn) {
+            sortBtn.addEventListener('click', function () {
+              sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+              updateSortButton();
+              apply();
+            });
+          }
+
+          if (driverBtn) {
+            driverBtn.addEventListener('click', function () {
+              driverState = nextDriverState(driverState);
+              updateDriverButton();
+              apply();
+            });
+          }
+
+          presetEl.addEventListener('change', function () {
+            updateCustomVisibility();
+            if (presetEl.value === 'custom') {
+              openModal();
+              return;
+            }
+            apply();
+          });
+
+          if (modal) {
+            modal.addEventListener('click', function (e) {
+              if (e.target === modal) closeModal();
+            });
+          }
+
+          if (closeRangeBtn)
+            closeRangeBtn.addEventListener('click', function () {
+              closeModal();
+            });
+
+          if (clearRangeBtn) {
+            clearRangeBtn.addEventListener('click', function () {
+              draftFrom = null;
+              draftTo = null;
+              customFrom = null;
+              customTo = null;
+
+              setCustomOptionDefault();
+              presetEl.value = 'all';
+              updateCustomVisibility();
+              apply();
+            });
+          }
+
+          if (prevMonthBtn) {
+            prevMonthBtn.addEventListener('click', function () {
+              viewMonth -= 1;
+              if (viewMonth < 0) {
+                viewMonth = 11;
+                viewYear -= 1;
+              }
+              renderCalendar();
+            });
+          }
+
+          if (nextMonthBtn) {
+            nextMonthBtn.addEventListener('click', function () {
+              viewMonth += 1;
+              if (viewMonth > 11) {
+                viewMonth = 0;
+                viewYear += 1;
+              }
+              renderCalendar();
+            });
+          }
+
+          // Dovezi events
+          if (backToListBtn) backToListBtn.addEventListener('click', closeEvidence);
+          bindProofPickButtons();
+          bindPreviewHandlers();
+          bindCurrentProofsDelete();
+
+          if (verifyEvidenceBtn) {
+            verifyEvidenceBtn.addEventListener('click', function () {
+              if (!currentEvidenceEventId) return;
+              revalidateNow(currentEvidenceEventId);
+            });
+          }
+
+          window.addEventListener('hashchange', route);
+
+          // ---------------- TESTS (pastrate + extinse) ----------------
+          console.assert(isValidStaffCode('Atrainer') === true, 'Test: Atrainer valid');
+          console.assert(isValidStaffCode('atrainer') === true, 'Test: atrainer valid (lowercase)');
+          console.assert(isValidStaffCode('A50') === true, 'Test: A50 valid');
+          console.assert(isValidStaffCode('Z1') === true, 'Test: Z1 valid');
+          console.assert(isValidStaffCode('A0') === false, 'Test: A0 invalid');
+
+          console.assert(
+            /^[0-9]{2}[.][0-9]{2}[.][0-9]{4}$/.test(formatDate(evenimente[0])) === true,
+            'Test: formatDate ZZ.LL.AAAA'
+          );
+
+          var r1 = getPresetRange('last7', new Date('2026-01-10T00:00:00Z'));
+          console.assert(
+            r1 && r1.from === '2026-01-04' && r1.to === '2026-01-10',
+            'Test: last7 range'
+          );
+
+          console.assert(
+            matches(evenimente[0], {
+              preset: 'custom',
+              from: '2026-01-18',
+              to: null,
+              staffCode: null,
+              resolve: null,
+              notedBy: null,
+              driver: 'all',
+            }) === true,
+            'Test: custom incomplet nu filtreaza'
+          );
+
+          console.assert(
+            isBucharest({ address: 'Bucuresti, Sector 3, acasa' }) === true,
+            'Test: Bucuresti + Sector e Bucuresti'
+          );
+          console.assert(
+            isBucharest({ address: 'Otopeni, Ilfov' }) === false,
+            'Test: Ilfov nu e Bucuresti'
+          );
+          console.assert(
+            isBucharest({ address: 'Voluntari, Pipera' }) === false,
+            'Test: Voluntari/Pipera = Ilfov, nu Bucuresti'
+          );
+
+          console.assert(
+            driverRequiredByPolicy({ address: 'Otopeni, Ilfov', roles: [{ label: 'Batman' }] }) ===
+              true,
+            'Test: Otopeni animatie => necesita sofer'
+          );
+          console.assert(
+            needsDriverRole({
+              address: 'Bucuresti, Sector 3',
+              roles: [{ label: 'Batman' }],
+              sofer: '',
+              soferPending: '',
+            }) === false,
+            'Test: Animatie in Bucuresti => fara sofer'
+          );
+          console.assert(
+            needsDriverRole({
+              address: 'Bucuresti, Sector 1',
+              roles: [{ label: 'Vata de zahar' }],
+              sofer: '',
+              soferPending: '',
+            }) === true,
+            'Test: Vata => necesita sofer (si in Bucuresti)'
+          );
+
+          var evP = {
+            id: '90',
+            date: '2026-01-30',
+            address: 'Bucuresti',
+            cineNoteaza: 'A1',
+            sofer: '',
+            soferPending: '',
+            roles: [
+              {
+                slot: 'A',
+                label: 'Batman',
+                time: '10:00',
+                durationMin: 120,
+                assignedCode: '',
+                pendingCode: 'A1',
+              },
+            ],
+          };
+          console.assert(roleIsResolved(evP.roles[0]) === false, 'Test: pending nu e rezolvat');
+          var fByA1 = {
+            preset: 'all',
+            from: null,
+            to: null,
+            staffCode: 'A1',
+            resolve: null,
+            notedBy: null,
+            driver: 'all',
+          };
+          console.assert(
+            buildVisibleRoles(evP, fByA1).length === 1,
+            'Test: filtru pe cod include pending'
+          );
+          console.assert(
+            buildVisibleRoles(evP, {
+              preset: 'all',
+              from: null,
+              to: null,
+              staffCode: null,
+              resolve: 'resolved',
+              notedBy: null,
+              driver: 'all',
+            }).length === 0,
+            'Test: Rezolvate exclude pending'
+          );
+
+          console.assert(acceptPending(evP, 'A', 'A1') === true, 'Test: accept pending role');
+          console.assert(
+            norm(evP.roles[0].assignedCode) === 'A1' && !norm(evP.roles[0].pendingCode),
+            'Test: dupa accept, assigned setat si pending gol'
+          );
+
+          console.assert(hhmmToMinutes('10:30') === 630, 'Test: hhmmToMinutes 10:30');
+          console.assert(
+            computeOnTime('10:10', '10:00', 10) === true,
+            'Test: computeOnTime within grace'
+          );
+          console.assert(
+            computeOnTime('10:11', '10:00', 10) === false,
+            'Test: computeOnTime after grace'
+          );
+          console.assert(hhmmToMinutes('00:00') === 0, 'Test: hhmmToMinutes 00:00');
+          console.assert(hhmmToMinutes('23:59') === 1439, 'Test: hhmmToMinutes 23:59');
+          console.assert(
+            computeOnTime('09:59', '10:00', 0) === true,
+            'Test: computeOnTime early is ok'
+          );
+          console.assert(
+            computeOnTime('xx', '10:00', 10) === false,
+            'Test: computeOnTime invalid actual'
+          );
+
+          console.assert(
+            formatISOAsDDMMYYYY('2026-01-05') === '05.01.2026',
+            'Test: formatISOAsDDMMYYYY'
+          );
+
+          // Evidence v2 tests
+          var __st = newEvidenceState();
+          __st.proofs.onTime = [{ name: 'x', size: 100, type: 'image/jpeg' }];
+          validateAllCategories(__st);
+          console.assert(
+            __st.status.onTime.verdict === 'ok',
+            'Test: evidence validate ok with 1 file'
+          );
+          console.assert(
+            __st.status.luggage.verdict === 'needs_more',
+            'Test: evidence validate needs_more when empty'
+          );
+          console.assert(
+            makePhotoKey('01', 'onTime', 'p1') === '01::onTime::p1',
+            'Test: makePhotoKey'
+          );
+          console.assert(typeof fileToRef === 'function', 'Test: fileToRef exists');
+          console.assert(
+            typeof fileToThumbDataUrl === 'function',
+            'Test: fileToThumbDataUrl exists'
+          );
+          console.assert(
+            !!document.getElementById('savedOnTime'),
+            'Test: savedOnTime container exists'
+          );
+          console.assert(
+            !!document.getElementById('savedLuggage'),
+            'Test: savedLuggage container exists'
+          );
+          console.assert(
+            !!document.getElementById('savedAccessories'),
+            'Test: savedAccessories container exists'
+          );
+          console.assert(
+            !!document.getElementById('savedLaundry'),
+            'Test: savedLaundry container exists'
+          );
+          console.assert(!!document.getElementById('statusOnTime'), 'Test: statusOnTime exists');
+          console.assert(!!document.getElementById('statusLuggage'), 'Test: statusLuggage exists');
+          console.assert(
+            !!document.getElementById('statusAccessories'),
+            'Test: statusAccessories exists'
+          );
+          console.assert(!!document.getElementById('statusLaundry'), 'Test: statusLaundry exists');
+
+          // Evidence locking tests
+          var __stLock = newEvidenceState();
+          __stLock.proofs.onTime = [{ name: 'x', size: 1, type: 'image/jpeg' }];
+          validateAllCategories(__stLock);
+          console.assert(
+            __stLock.proofs.onTime[0].locked === true,
+            'Test: proof locked when category ok'
+          );
+
+          // Default locked=false for legacy refs
+          var __tmpAll = loadEvidenceStateAll();
+          __tmpAll['__test_lock'] = {
+            proofs: { onTime: [{ name: 'x' }], luggage: [], accessories: [], laundry: [] },
+            status: newEvidenceState().status,
+            updatedTs: 0,
+          };
+          saveEvidenceStateAll(__tmpAll);
+          var __tmp = getEvidenceStateForEvent('__test_lock');
+          console.assert(__tmp.proofs.onTime[0].locked === false, 'Test: default locked is false');
+          delete __tmpAll['__test_lock'];
+          saveEvidenceStateAll(__tmpAll);
+
+          console.assert(
+            typeof bindPreviewHandlers === 'function',
+            'Test: bindPreviewHandlers exists'
+          );
+
+          updateSortButton();
+          updateDriverButton();
+          enforceExclusive(null);
+          setCustomOptionDefault();
+          updateCustomVisibility();
+          route();
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', init, { once: true });
+        } else {
+          init();
+        }
+      })();
+    </script>
+  </body>
+</html>
