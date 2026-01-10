@@ -150,14 +150,35 @@ class _AuthWrapperState extends State<AuthWrapper> {
     // Note: Update check is now handled by UpdateGate
     // This widget only handles auth routing
     
+    // CRITICAL: Wait for Firebase to be initialized before accessing any Firebase services
+    // This prevents [core/no-app] error on web
+    if (!FirebaseService.isInitialized) {
+      return const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Initializing Firebase...'),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    
     return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+      stream: FirebaseService.auth.authStateChanges(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const MaterialApp(
+                home: Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                ),
+              );
+            }
         
         if (snapshot.hasData) {
           // Start background service only on mobile platforms
@@ -173,14 +194,16 @@ class _AuthWrapperState extends State<AuthWrapper> {
           
           // Check user status in Firestore
           return StreamBuilder<DocumentSnapshot>(
-            stream: FirebaseFirestore.instance
+            stream: FirebaseService.firestore
                 .collection('users')
                 .doc(snapshot.data!.uid)
                 .snapshots(),
             builder: (context, userSnapshot) {
               if (userSnapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
+                return const MaterialApp(
+                  home: Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  ),
                 );
               }
               
@@ -189,16 +212,16 @@ class _AuthWrapperState extends State<AuthWrapper> {
                 final status = userData['status'] ?? '';
                 
                 if (status == 'kyc_required') {
-                  return const KycScreen();
+                  return const MaterialApp(home: KycScreen());
                 }
               }
               
-              return const HomeScreen();
+              return const MaterialApp(home: HomeScreen());
             },
           );
         }
         
-        return const LoginScreen();
+        return const MaterialApp(home: LoginScreen());
       },
     );
   }
