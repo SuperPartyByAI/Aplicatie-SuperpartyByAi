@@ -144,24 +144,27 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
     
     return ChangeNotifierProvider(
       create: (_) => AppStateProvider(),
-      child: UpdateGate(
-        child: MaterialApp(
-          title: 'SuperParty',
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFFDC2626),
-              brightness: Brightness.light,
-            ),
-            useMaterial3: true,
+      child: MaterialApp(
+        title: 'SuperParty',
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFFDC2626),
+            brightness: Brightness.light,
           ),
-          darkTheme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFFDC2626),
-              brightness: Brightness.dark,
-            ),
-            useMaterial3: true,
+          useMaterial3: true,
+        ),
+        darkTheme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFFDC2626),
+            brightness: Brightness.dark,
           ),
-          onGenerateRoute: (settings) {
+          useMaterial3: true,
+        ),
+        builder: (context, child) {
+          // UpdateGate as overlay - preserves Directionality from MaterialApp
+          return UpdateGate(child: child ?? const SizedBox.shrink());
+        },
+        onGenerateRoute: (settings) {
             // Debug: log raw route
             debugPrint('[ROUTE] Raw: ${settings.name}');
             
