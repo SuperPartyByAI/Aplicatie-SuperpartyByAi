@@ -53,20 +53,32 @@ class AppStateProvider extends ChangeNotifier {
 
   /// Set employee status and role from staffProfiles
   void setEmployeeStatus(bool isEmployee, String? role) {
-    _isEmployee = isEmployee;
-    _userRole = role?.toLowerCase();
+    final newRole = role?.toLowerCase();
     
-    // Auto-set admin/gm mode based on role
-    if (_userRole == 'admin') {
-      _isAdminMode = true;
-      _isGmMode = true; // Admin has all GM permissions
-    } else if (_userRole == 'gm') {
-      _isGmMode = true;
-      _isAdminMode = false;
-    } else {
-      _isAdminMode = false;
-      _isGmMode = false;
+    // Calculate new admin/gm flags
+    bool newIsAdmin = false;
+    bool newIsGm = false;
+    if (newRole == 'admin') {
+      newIsAdmin = true;
+      newIsGm = true; // Admin has all GM permissions
+    } else if (newRole == 'gm') {
+      newIsGm = true;
+      newIsAdmin = false;
     }
+    
+    // Check if anything actually changed
+    final noChange = _isEmployee == isEmployee &&
+        _userRole == newRole &&
+        _isAdminMode == newIsAdmin &&
+        _isGmMode == newIsGm;
+    
+    if (noChange) return; // Skip notifyListeners if nothing changed
+    
+    // Update state
+    _isEmployee = isEmployee;
+    _userRole = newRole;
+    _isAdminMode = newIsAdmin;
+    _isGmMode = newIsGm;
     
     notifyListeners();
   }

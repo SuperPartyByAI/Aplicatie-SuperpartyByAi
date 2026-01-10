@@ -318,6 +318,19 @@ class _AuthWrapperState extends State<AuthWrapper> {
           );
         }
         
+        // On logout, reset role flags
+        if (_lastUid != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              final appState = Provider.of<AppStateProvider>(context, listen: false);
+              appState.clearRoles();
+            }
+          });
+          _lastUid = null;
+          _roleLoaded = false;
+          _backgroundServiceStarted = false;
+        }
+        
         return const LoginScreen();
       },
     );
