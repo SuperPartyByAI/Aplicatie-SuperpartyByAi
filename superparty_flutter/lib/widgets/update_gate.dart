@@ -84,41 +84,47 @@ class _UpdateGateState extends State<UpdateGate> {
 
   @override
   Widget build(BuildContext context) {
-    // Show loading while checking
-    if (_checking) {
-      return const MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: Scaffold(
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Verificare actualizări...'),
-              ],
+    // Always return child (main app) with overlay on top
+    // This preserves routing and prevents MaterialApp nesting
+    return Stack(
+      children: [
+        // Main app (always present)
+        widget.child,
+        
+        // Overlay for checking state
+        if (_checking)
+          Positioned.fill(
+            child: Material(
+              color: Colors.white,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Verificare actualizări...'),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      );
-    }
-
-    // Show ForceUpdateScreen if update is required
-    if (_needsUpdate) {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: ForceUpdateScreen(
-          onUpdateComplete: () {
-            // After update is installed and app restarts,
-            // this callback won't be called because app will restart.
-            // But we keep it for potential future use.
-            print('[UpdateGate] Update complete callback (app should restart)');
-          },
-        ),
-      );
-    }
-
-    // No update needed - show normal app
-    return widget.child;
+        
+        // Overlay for force update screen
+        if (_needsUpdate)
+          Positioned.fill(
+            child: Material(
+              color: Colors.white,
+              child: ForceUpdateScreen(
+                onUpdateComplete: () {
+                  // After update is installed and app restarts,
+                  // this callback won't be called because app will restart.
+                  // But we keep it for potential future use.
+                  print('[UpdateGate] Update complete callback (app should restart)');
+                },
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
