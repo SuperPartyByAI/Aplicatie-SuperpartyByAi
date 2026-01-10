@@ -25,9 +25,13 @@ class GridOverlay extends StatelessWidget {
                       padding: const EdgeInsets.all(16),
                       child: Align(
                         alignment: Alignment.topRight,
-                        child: IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white, size: 32),
-                          onPressed: () => appState.closeGrid(),
+                        child: GestureDetector(
+                          onTap: () => appState.closeGrid(),
+                          behavior: HitTestBehavior.opaque,
+                          child: const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Icon(Icons.close, color: Colors.white, size: 32),
+                          ),
                         ),
                       ),
                     ),
