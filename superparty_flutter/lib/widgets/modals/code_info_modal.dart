@@ -201,7 +201,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
       children: [
         Expanded(
           child: Text(
-            'Cod: $code',
+            'Cod: ${widget.code}',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
