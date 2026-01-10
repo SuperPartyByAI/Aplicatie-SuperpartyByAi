@@ -43,50 +43,42 @@ void main() {
         expect(config.iosDownloadUrl, null);
       });
 
-      test('throws FormatException when min_version is missing', () {
+      test('returns safe defaults when min_version is missing', () {
         final data = {
           'min_build_number': 1,
         };
 
-        expect(
-          () => AppVersionConfig.fromFirestore(data),
-          throwsA(isA<FormatException>()),
-        );
+        final config = AppVersionConfig.fromFirestore(data);
+        expect(config.minVersion, '1.0.0'); // safe default
       });
 
-      test('throws FormatException when min_build_number is missing', () {
+      test('returns safe defaults when min_build_number is missing', () {
         final data = {
           'min_version': '1.0.0',
         };
 
-        expect(
-          () => AppVersionConfig.fromFirestore(data),
-          throwsA(isA<FormatException>()),
-        );
+        final config = AppVersionConfig.fromFirestore(data);
+        expect(config.minBuildNumber, 1); // safe default
       });
 
-      test('throws FormatException when min_version has wrong type', () {
+      test('handles wrong type for min_version gracefully', () {
         final data = {
-          'min_version': 123, // Should be String
+          'min_version': 123, // Will be converted to String
           'min_build_number': 1,
         };
 
-        expect(
-          () => AppVersionConfig.fromFirestore(data),
-          throwsA(isA<FormatException>()),
-        );
+        final config = AppVersionConfig.fromFirestore(data);
+        expect(config.minVersion, '123'); // toString()
       });
 
-      test('throws FormatException when min_build_number has wrong type', () {
+      test('handles wrong type for min_build_number gracefully', () {
         final data = {
           'min_version': '1.0.0',
-          'min_build_number': '1', // Should be int
+          'min_build_number': '1', // Will be parsed to int
         };
 
-        expect(
-          () => AppVersionConfig.fromFirestore(data),
-          throwsA(isA<FormatException>()),
-        );
+        final config = AppVersionConfig.fromFirestore(data);
+        expect(config.minBuildNumber, 1); // parsed from String
       });
     });
 

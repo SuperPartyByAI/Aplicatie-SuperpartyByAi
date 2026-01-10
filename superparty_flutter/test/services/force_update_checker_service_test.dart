@@ -13,9 +13,10 @@ void main() {
     });
 
     group('getVersionConfig', () {
-      test('returns null when document does not exist', () async {
+      test('returns default config when document does not exist', () async {
         final config = await service.getVersionConfig();
-        expect(config, null);
+        expect(config, isNotNull); // Returns safe default
+        expect(config!.minVersion, '1.0.0'); // default
       });
 
       test('returns config when document exists', () async {
@@ -34,14 +35,14 @@ void main() {
         expect(config.forceUpdate, true);
       });
 
-      test('returns null when parsing fails', () async {
+      test('returns default config when parsing fails', () async {
         // Invalid data (missing required fields)
         await fakeFirestore.collection('app_config').doc('version').set({
           'invalid_field': 'value',
         });
 
         final config = await service.getVersionConfig();
-        expect(config, null);
+        expect(config, isNotNull); // Returns safe default
       });
     });
 
@@ -69,7 +70,8 @@ void main() {
     group('getDownloadUrl', () {
       test('returns null when config does not exist', () async {
         final url = await service.getDownloadUrl();
-        expect(url, null);
+        // Service returns default config, but URL fields are null
+        expect(url, isNull);
       });
 
       // Note: Testing platform-specific URLs requires mocking Platform.isAndroid/isIOS
