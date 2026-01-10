@@ -156,9 +156,9 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
         '/gm/analytics': (context) => const AnalyticsScreen(),
         '/gm/staff-setup': (context) => const StaffSetupScreen(),
         '/ai-chat': (context) => const AIChatScreen(),
-      },
+        },
         home: const AuthWrapper(),
-        ),
+      ),
       ),
     );
   }
