@@ -97,6 +97,22 @@ class EventCardHtml extends StatelessWidget {
   }
 
   Widget _buildBadge() {
+    // Parse date DD-MM-YYYY and format as "DD\nMMM"
+    String badgeText = '';
+    try {
+      final parts = event.date.split('-');
+      if (parts.length == 3) {
+        final day = parts[0];
+        final month = int.parse(parts[1]);
+        final monthNames = ['', 'Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun', 'Iul', 'Aug', 'Sep', 'Oct', 'Noi', 'Dec'];
+        badgeText = '$day\n${monthNames[month]}';
+      } else {
+        badgeText = event.id.substring(0, 4);
+      }
+    } catch (e) {
+      badgeText = event.id.substring(0, 4);
+    }
+
     return Container(
       width: 46,
       height: 34,
@@ -109,11 +125,13 @@ class EventCardHtml extends StatelessWidget {
       ),
       child: Center(
         child: Text(
-          event.id.length > 4 ? event.id.substring(0, 4) : event.id,
+          badgeText,
+          textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w900,
             letterSpacing: 0.8,
+            height: 1.1,
             color: Color(0xF2EAF1FF), // rgba(234,241,255,0.95)
           ),
         ),
