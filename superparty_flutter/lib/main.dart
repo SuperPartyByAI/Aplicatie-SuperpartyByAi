@@ -216,7 +216,7 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
           return MaterialPageRoute(
             builder: (_) => NotFoundScreen(routeName: settings.name),
           );
-          },
+          }
         ),
       ),
     );
