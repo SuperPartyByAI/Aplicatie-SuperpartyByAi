@@ -147,8 +147,19 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
             useMaterial3: true,
           ),
           onGenerateRoute: (settings) {
+            // Debug: log raw route
+            debugPrint('[ROUTE] Raw: ${settings.name}');
+            
+            // Normalize route: handle /#/evenimente, query params, trailing slash
+            final raw = settings.name ?? '/';
+            final cleaned = raw.startsWith('/#') ? raw.substring(2) : raw; // "/#/x" -> "/x"
+            final uri = Uri.tryParse(cleaned) ?? Uri(path: cleaned);
+            final path = uri.path.isEmpty ? '/' : uri.path;
+            
+            debugPrint('[ROUTE] Normalized: $path');
+            
             // Handle all routes including deep-links
-            switch (settings.name) {
+            switch (path) {
               case '/':
                 return MaterialPageRoute(builder: (_) => const AuthWrapper());
               case '/home':
@@ -184,7 +195,7 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
               case '/ai-chat':
                 return MaterialPageRoute(builder: (_) => const AIChatScreen());
               default:
-                // Unknown route - go to home
+                debugPrint('[ROUTE] Unknown path: $path - redirecting to AuthWrapper');
                 return MaterialPageRoute(builder: (_) => const AuthWrapper());
             }
           },
