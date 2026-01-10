@@ -2,22 +2,29 @@
 
 ## Status: ALL FIXES APPLIED AND PUSHED TO MAIN
 
+**Latest Update:** 2026-01-10 - Fixed UpdateGate nested MaterialApp causing blank screen
+
 All commits are in `main` branch. No PR needed - changes already merged.
 
 ---
 
-## Commit History (Latest 5)
+## Commit History (Latest 10)
 
 ```bash
-git log --oneline -n 5
+git log --oneline -n 10
 ```
 
 ```
+5e2b6d20 fix: refactor UpdateGate to use overlay instead of nested MaterialApp ✅ CRITICAL
+55106bbb fix: remove null-unsafe currentUser! + add global error handlers
+6085a494 fix: add timeout to Firebase initialization to prevent hang
+1dbb66ca fix: prevent unnecessary notifyListeners in setEmployeeStatus + logout reset
+7d38134f fix: prevent rebuild loop in AuthWrapper with guards
+1a2af537 fix: normalize route in onGenerateRoute to handle hash routing
+1ff8fb0a fix: remove nested MaterialApp from AuthWrapper + migration script env var
+8c597646 fix: use onGenerateRoute for proper deep-link handling
 aa04fdb5 fix: add Material wrapper to sheets and modals
 30f68b6a fix: replace IconButton with GestureDetector in grid_overlay
-10ba596c fix: use home instead of onGenerateRoute for loading state
-1890e490 Add fix verification report with evidence
-c388a4de Add migration scripts to package.json
 ```
 
 ---
