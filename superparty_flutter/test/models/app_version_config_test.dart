@@ -49,7 +49,7 @@ void main() {
         };
 
         final config = AppVersionConfig.fromFirestore(data);
-        expect(config.minVersion, '1.0.0'); // safe default
+        expect(config.minVersion, '0.0.0'); // safe default from safeDefault()
       });
 
       test('returns safe defaults when min_build_number is missing', () {
@@ -58,7 +58,7 @@ void main() {
         };
 
         final config = AppVersionConfig.fromFirestore(data);
-        expect(config.minBuildNumber, 1); // safe default
+        expect(config.minBuildNumber, 0); // safe default from safeDefault()
       });
 
       test('handles wrong type for min_version gracefully', () {

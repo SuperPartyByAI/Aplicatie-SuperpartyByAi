@@ -16,7 +16,8 @@ void main() {
       test('returns default config when document does not exist', () async {
         final config = await service.getVersionConfig();
         expect(config, isNotNull); // Returns safe default
-        expect(config!.minVersion, '1.0.0'); // default
+        expect(config!.minVersion, '0.0.0'); // safeDefault()
+        expect(config.minBuildNumber, 0); // safeDefault()
       });
 
       test('returns config when document exists', () async {
