@@ -221,7 +221,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   }
 
   Widget _buildSortButton() {
-    return InkWell(
+    return GestureDetector(
       onTap: () {
         setState(() {
           _sortAsc = !_sortAsc;
@@ -232,11 +232,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         height: 36,
         decoration: BoxDecoration(
           color: const Color(0x0FFFFFFF),
-          border: const Border(
-            top: BorderSide(color: Color(0x24FFFFFF)),
-            bottom: BorderSide(color: Color(0x24FFFFFF)),
-            left: BorderSide(color: Color(0x1FFFFFFF)),
-          ),
+          border: Border.all(color: const Color(0x24FFFFFF)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -292,7 +288,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       'no': const Color(0x42FFFFFF), // rgba(255,255,255,0.26)
     };
 
-    return InkWell(
+    return GestureDetector(
       onTap: () {
         setState(() {
           // Cycle: all → yes → open → no → all (EXACT din HTML nextDriverState)
@@ -317,12 +313,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         height: 36,
         decoration: BoxDecoration(
           color: const Color(0x0FFFFFFF),
-          border: const Border(
-            top: BorderSide(color: Color(0x24FFFFFF)),
-            bottom: BorderSide(color: Color(0x24FFFFFF)),
-            right: BorderSide(color: Color(0x24FFFFFF)),
-            left: BorderSide(color: Color(0x1FFFFFFF)),
-          ),
+          border: Border.all(color: const Color(0x24FFFFFF)),
           borderRadius: const BorderRadius.only(
             topRight: Radius.circular(12),
             bottomRight: Radius.circular(12),
