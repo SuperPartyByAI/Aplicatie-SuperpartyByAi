@@ -463,6 +463,37 @@ grep -A 30 "Another exception" crash.log
 
 ## Common Patterns
 
+### Pattern 0: Syntax Errors in MaterialApp
+
+**Always ensure closures end with commas inside MaterialApp**:
+
+```dart
+MaterialApp(
+  builder: (context, child) {
+    ...
+  },  // ✅ MUST have comma after closing brace
+  onGenerateRoute: (settings) {
+    ...
+  },  // ✅ MUST have comma after closing brace
+  onUnknownRoute: (settings) {
+    ...
+  }  // ✅ NO comma - last property
+),  // Closes MaterialApp
+```
+
+**Common mistakes**:
+
+- Missing comma after `builder: (context, child) { ... }` → Parser thinks onGenerateRoute is inside builder
+- Missing comma after `onGenerateRoute: (settings) { ... }` → Parser thinks onUnknownRoute is inside onGenerateRoute
+- Extra comma after last property → "Expected ';' after this" error
+- Wrong indentation → Parser gets confused about nesting level
+
+**How to fix**:
+
+1. Ensure each closure property ends with `},` (comma after brace)
+2. Last property should NOT have comma
+3. Use consistent indentation (properties at same level)
+
 ### Pattern 1: Directionality Errors
 
 **Always wrap directional widgets**:

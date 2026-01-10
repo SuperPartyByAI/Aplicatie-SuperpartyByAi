@@ -218,7 +218,6 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
           );
         }
       ),
-      ),
     );
   }
 }
