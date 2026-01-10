@@ -11,6 +11,19 @@
 
 ---
 
+> **⚠️ IMPORTANT**: If you're working on the Flutter app and experiencing crashes, see [PR #27](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/pull/27) for stability fixes.
+>
+> **Quick fix**: Switch to `stability-refactor` branch:
+>
+> ```bash
+> git fetch origin stability-refactor
+> git checkout stability-refactor
+> ```
+>
+> See [QUICK_START.md](./QUICK_START.md) for details.
+
+---
+
 ## 🎯 Quick Start
 
 ```bash
