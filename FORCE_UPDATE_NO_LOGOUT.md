@@ -6,10 +6,41 @@ Sistemul de Force Update acum **NU mai deconectează utilizatorul**. User-ul ră
 
 ### Key Changes
 
-1. **UpdateGate** la root-ul aplicației - verifică update înainte de orice routing
-2. **ForceUpdateScreen** full-screen non-dismissible - blochează app-ul complet
-3. **NO signOut()** - FirebaseAuth session persistă prin update
-4. **AppStateMigrationService** - curăță cache-uri fără să delogheze user-ul
+1. **Single MaterialApp** - Only ONE MaterialApp in entire app (no nesting)
+2. **UpdateGate as overlay** - Inside MaterialApp.builder, NOT wrapping MaterialApp
+3. **ForceUpdateScreen** full-screen non-dismissible - blochează app-ul complet
+4. **NO signOut()** - FirebaseAuth session persistă prin update
+5. **AppStateMigrationService** - curăță cache-uri fără să delogheze user-ul
+
+### Critical Architecture Rules
+
+**✅ CORRECT (current implementation)**:
+
+```dart
+MaterialApp(
+  builder: (context, child) {
+    if (!FirebaseService.isInitialized) {
+      return const Scaffold(...);  // Loading
+    }
+    return UpdateGate(child: child ?? const SizedBox.shrink());
+  },
+)
+```
+
+**❌ WRONG (old implementation)**:
+
+```dart
+UpdateGate(  // ❌ Wrapping MaterialApp from outside
+  child: MaterialApp(...),
+)
+```
+
+**Why this matters**:
+
+- UpdateGate inside builder has Directionality/Theme/MediaQuery from MaterialApp
+- No "No Directionality widget found" errors
+- No blank screens on web
+- Single Navigator, single Theme, single Directionality
 
 ---
 
@@ -18,24 +49,34 @@ Sistemul de Force Update acum **NU mai deconectează utilizatorul**. User-ul ră
 ```
 App Start
    ↓
-UpdateGate (root level)
+SuperPartyApp
    ↓
-   ├─→ Force Update Required?
-   │   ├─→ YES: Show ForceUpdateScreen (full-screen, non-dismissible)
-   │   │         ↓
-   │   │         User downloads & installs APK
-   │   │         ↓
-   │   │         App restarts with new version
-   │   │         ↓
-   │   │         UpdateGate checks again → NO update needed
-   │   │         ↓
-   │   │         AppStateMigrationService runs (cache cleanup)
-   │   │         ↓
-   │   │         User enters app (STILL AUTHENTICATED)
-   │   │
-   │   └─→ NO: AppStateMigrationService runs (if version changed)
-   │            ↓
-   │            MaterialApp → AuthWrapper → Home/Login
+MaterialApp (SINGLE INSTANCE)
+   ↓
+MaterialApp.builder
+   ├─→ Firebase not initialized?
+   │   └─→ YES: Show loading Scaffold
+   │
+   └─→ Firebase initialized
+       ↓
+       UpdateGate (overlay inside MaterialApp.builder)
+       ↓
+       ├─→ Force Update Required?
+       │   ├─→ YES: Show ForceUpdateScreen overlay (full-screen, non-dismissible)
+       │   │         ↓
+       │   │         User downloads & installs APK
+       │   │         ↓
+       │   │         App restarts with new version
+       │   │         ↓
+       │   │         UpdateGate checks again → NO update needed
+       │   │         ↓
+       │   │         AppStateMigrationService runs (cache cleanup)
+       │   │         ↓
+       │   │         User enters app (STILL AUTHENTICATED)
+       │   │
+       │   └─→ NO: AppStateMigrationService runs (if version changed)
+       │            ↓
+       │            Routes to AuthWrapper → Home/Login
 ```
 
 ---
@@ -45,9 +86,11 @@ UpdateGate (root level)
 ### New Files
 
 1. **lib/widgets/update_gate.dart**
-   - Root-level widget that checks for updates
-   - Wraps entire MaterialApp
-   - Shows ForceUpdateScreen if needed
+   - Overlay widget inside MaterialApp.builder
+   - Checks for updates before showing app
+   - Returns Stack with overlays when update needed
+   - Returns child directly when no overlay needed
+   - NO nested MaterialApp - only Directionality → Stack → Material overlays
 
 2. **lib/screens/update/force_update_screen.dart**
    - Full-screen non-dismissible UI
@@ -63,7 +106,9 @@ UpdateGate (root level)
 ### Modified Files
 
 1. **lib/main.dart**
-   - Wrapped MaterialApp with UpdateGate
+   - Single MaterialApp with UpdateGate in builder
+   - MaterialApp.builder: Firebase check → UpdateGate(child: child)
+   - UpdateGate is overlay, NOT wrapper
    - Simplified AuthWrapper (no update logic)
    - Removed AutoUpdateService calls
 
@@ -106,26 +151,66 @@ UpdateGate (root level)
 
 ## 🎯 Key Features
 
-### 1. UpdateGate (Root Level)
+### 1. UpdateGate (Overlay in MaterialApp.builder)
 
-**Location**: Wraps MaterialApp in main.dart
+**Location**: Inside MaterialApp.builder in main.dart
 
 **Responsibilities**:
 
 - Check for force update at app startup
-- Show ForceUpdateScreen if needed
+- Show overlay when checking or update needed
 - Run AppStateMigrationService if version changed
 - Pass through to normal app if no update
 
-**Code**:
+**Implementation**:
 
 ```dart
-UpdateGate(
-  child: MaterialApp(
-    home: AuthWrapper(),
-  ),
+// In main.dart
+MaterialApp(
+  builder: (context, child) {
+    // Firebase check first
+    if (!FirebaseService.isInitialized) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // UpdateGate as overlay
+    return UpdateGate(child: child ?? const SizedBox.shrink());
+  },
+  onGenerateRoute: (settings) {
+    // Routes...
+  },
 )
+
+// In update_gate.dart
+@override
+Widget build(BuildContext context) {
+  // Early return when no overlay needed
+  if (!_checking && !_needsUpdate) {
+    return widget.child;  // Passthrough
+  }
+
+  // Wrap with Directionality for overlays
+  return Directionality(
+    textDirection: TextDirection.ltr,
+    child: Stack(
+      children: [
+        widget.child,  // Main app always present
+        if (_checking) Positioned.fill(child: Material(...)),  // Loading overlay
+        if (_needsUpdate) Positioned.fill(child: Material(...)),  // Update overlay
+      ],
+    ),
+  );
+}
 ```
+
+**Key points**:
+
+- ✅ UpdateGate is INSIDE MaterialApp.builder (has Directionality/Theme)
+- ✅ Returns Stack with overlays, NOT nested MaterialApp
+- ✅ Early return when no overlay needed (performance)
+- ✅ Wraps Stack with Directionality (defensive)
 
 ### 2. ForceUpdateScreen (Full-Screen)
 
@@ -421,6 +506,134 @@ print('Needs force update: $needsUpdate');
   - [ ] User stays authenticated after update
   - [ ] No login screen after install
   - [ ] App works normally
+
+---
+
+## 🐛 Troubleshooting Web/Windows Crashes
+
+### Issue: "No Directionality widget found"
+
+**Cause**: UpdateGate wrapping MaterialApp from outside (old architecture)
+
+**Solution**: UpdateGate must be INSIDE MaterialApp.builder
+
+**Check**:
+
+```bash
+# Should show only 1 MaterialApp
+grep -rn "MaterialApp(" superparty_flutter/lib/
+# Result: lib/main.dart:122:      child: MaterialApp(
+
+# UpdateGate should NOT wrap MaterialApp
+grep -B 5 "MaterialApp(" superparty_flutter/lib/main.dart
+# Should show: ChangeNotifierProvider → MaterialApp
+# NOT: UpdateGate → MaterialApp
+```
+
+**Fix**:
+
+```dart
+// ❌ WRONG
+UpdateGate(
+  child: MaterialApp(...),
+)
+
+// ✅ CORRECT
+MaterialApp(
+  builder: (context, child) {
+    return UpdateGate(child: child ?? const SizedBox.shrink());
+  },
+)
+```
+
+### Issue: Blank screen on web
+
+**Cause**: UpdateGate returning MaterialApp in overlays
+
+**Solution**: UpdateGate must return Directionality → Stack, NOT MaterialApp
+
+**Check**:
+
+```bash
+# UpdateGate should NOT have MaterialApp
+grep -n "MaterialApp" superparty_flutter/lib/widgets/update_gate.dart
+# Result: No matches (good!)
+
+# UpdateGate should have Directionality wrapper
+grep -A 5 "return Directionality" superparty_flutter/lib/widgets/update_gate.dart
+# Should show: return Directionality(textDirection: ltr, child: Stack(...))
+```
+
+**Fix**:
+
+```dart
+// ❌ WRONG
+if (_checking) {
+  return MaterialApp(
+    home: Scaffold(body: Center(child: CircularProgressIndicator())),
+  );
+}
+
+// ✅ CORRECT
+if (_checking) {
+  return Directionality(
+    textDirection: TextDirection.ltr,
+    child: Stack(
+      children: [
+        widget.child,
+        Positioned.fill(child: Material(...)),
+      ],
+    ),
+  );
+}
+```
+
+### Issue: "Could not find a generator for route"
+
+**Cause**: Routing broken by nested MaterialApp
+
+**Solution**: Single MaterialApp with onGenerateRoute
+
+**Check**:
+
+```bash
+# Verify single MaterialApp
+bash scripts/check_unsafe_patterns.sh
+# Should show: ✅ Single MaterialApp found
+```
+
+### Testing on Web
+
+```bash
+cd superparty_flutter
+flutter run -d web-server --web-port=5051 -v
+
+# Test URLs:
+# http://localhost:5051/
+# http://localhost:5051/#/evenimente
+# http://localhost:5051/#/kyc
+# http://localhost:5051/#/admin
+
+# Expected:
+# ✅ No blank screen
+# ✅ No "No Directionality widget found"
+# ✅ No "Could not find a generator for route"
+# ✅ UI renders correctly
+```
+
+### Capture Crash Logs
+
+```bash
+# Use crash capture script
+bash scripts/capture_crash.sh
+
+# Navigate to URL that crashes
+# Press Ctrl+C
+
+# Check logs
+grep -A 30 "EXCEPTION CAUGHT" logs/crash_*.log
+# Look for first lib/...dart:line reference
+```
 
 ---
 
