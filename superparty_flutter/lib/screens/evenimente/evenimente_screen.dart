@@ -346,11 +346,12 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 decoration: BoxDecoration(
                   color: badgeColors[_driverFilter],
+                  borderRadius: BorderRadius.circular(999),
+
                   border: Border.all(
                     color: badgeBorderColors[_driverFilter]!,
                     width: 1,
                   ),
-                  borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   badgeText[_driverFilter]!,
@@ -409,12 +410,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   Widget _buildCodeFilterInput() {
     return GestureDetector(
       onTap: () {
-        // If input has valid code, don't open modal (let user edit)
-        if (_codeFilter.isNotEmpty && _isValidStaffCode(_codeFilter)) {
-          _codeInputFocus.requestFocus();
-          return;
-        }
-        // Otherwise open modal
+        // Always open modal to show all filter options
         _openCodeModal();
       },
       child: Container(
@@ -422,8 +418,8 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: const Color(0x0FFFFFFF),
-          border: Border.all(color: const Color(0x24FFFFFF)),
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0x24FFFFFF)),
         ),
         child: TextField(
           focusNode: _codeInputFocus,
@@ -458,8 +454,8 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: const Color(0x0FFFFFFF),
-        border: Border.all(color: const Color(0x24FFFFFF)),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0x24FFFFFF)),
       ),
       child: TextField(
         onChanged: (value) {
