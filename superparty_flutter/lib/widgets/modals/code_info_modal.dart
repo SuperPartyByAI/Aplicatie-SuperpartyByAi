@@ -35,7 +35,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
           usage.add({
             'eventId': event.id,
             'date': event.date,
-            'name': event.name,
+            'name': event.sarbatoritNume,
             'address': event.address,
             'slot': role.slot,
             'label': role.label,
@@ -45,7 +45,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
           usage.add({
             'eventId': event.id,
             'date': event.date,
-            'name': event.name,
+            'name': event.sarbatoritNume,
             'address': event.address,
             'slot': role.slot,
             'label': role.label,
