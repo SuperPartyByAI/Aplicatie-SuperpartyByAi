@@ -63,9 +63,7 @@ class AppDrawer extends StatelessWidget {
       title: Text(title),
       onTap: () {
         Navigator.pop(context);
-        if (ModalRoute.of(context)?.settings.name != route) {
-          Navigator.pushReplacementNamed(context, route);
-        }
+        Navigator.pushNamed(context, route);
       },
     );
   }
