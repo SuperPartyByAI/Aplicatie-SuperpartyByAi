@@ -74,31 +74,34 @@ class _AssignModalState extends State<AssignModal> {
       borderRadius: BorderRadius.circular(18),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          width: double.infinity,
-          constraints: const BoxConstraints(maxWidth: 520),
-          decoration: BoxDecoration(
-            color: const Color(0xEB0B1220), // rgba(11,18,32,0.92)
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: const Color(0x1AFFFFFFF), // rgba(255,255,255,0.1)
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0x8C000000), // rgba(0,0,0,0.55)
-                blurRadius: 80,
-                offset: const Offset(0, 24),
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(maxWidth: 520),
+            decoration: BoxDecoration(
+              color: const Color(0xEB0B1220), // rgba(11,18,32,0.92)
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: const Color(0x1AFFFFFFF), // rgba(255,255,255,0.1)
               ),
-            ],
-          ),
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildHeader(roleLabel),
-              const SizedBox(height: 12),
-              _buildAssignBox(roleTime, currentAssigned, currentPending),
-            ],
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0x8C000000), // rgba(0,0,0,0.55)
+                  blurRadius: 80,
+                  offset: const Offset(0, 24),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildHeader(roleLabel),
+                const SizedBox(height: 12),
+                _buildAssignBox(roleTime, currentAssigned, currentPending),
+              ],
+            ),
           ),
         ),
       ),

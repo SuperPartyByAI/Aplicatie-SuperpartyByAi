@@ -66,18 +66,20 @@ class _EventEditSheetState extends State<EventEditSheet> {
     final theme = Theme.of(context);
     final mediaQuery = MediaQuery.of(context);
 
-    return Container(
-      padding: EdgeInsets.only(
-        bottom: mediaQuery.viewInsets.bottom,
-        left: 16,
-        right: 16,
-        top: 24,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Form(
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: EdgeInsets.only(
+          bottom: mediaQuery.viewInsets.bottom,
+          left: 16,
+          right: 16,
+          top: 24,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Form(
         key: _formKey,
         child: SingleChildScrollView(
           child: Column(
@@ -257,6 +259,7 @@ class _EventEditSheetState extends State<EventEditSheet> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

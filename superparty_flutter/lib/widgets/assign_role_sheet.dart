@@ -42,18 +42,20 @@ class _AssignRoleSheetState extends State<AssignRoleSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1A2332),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A2332),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -210,6 +212,7 @@ class _AssignRoleSheetState extends State<AssignRoleSheet> {
             ),
           ),
         ],
+      ),
       ),
     );
   }
