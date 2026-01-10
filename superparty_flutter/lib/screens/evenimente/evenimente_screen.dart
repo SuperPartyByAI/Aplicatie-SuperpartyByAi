@@ -803,7 +803,10 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         throw Exception('Event not found');
       }
 
-      final data = eventDoc.data()!;
+      final data = eventDoc.data();
+      if (data == null) {
+        throw Exception('Event data is null');
+      }
       final roles = (data['roles'] as List<dynamic>?) ?? [];
 
       // Find role by slot
@@ -852,7 +855,10 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         throw Exception('Event not found');
       }
 
-      final data = eventDoc.data()!;
+      final data = eventDoc.data();
+      if (data == null) {
+        throw Exception('Event data is null');
+      }
       final roles = (data['roles'] as List<dynamic>?) ?? [];
 
       // Find role by slot

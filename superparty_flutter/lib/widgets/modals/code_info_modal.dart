@@ -69,7 +69,10 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
           throw Exception('Event not found');
         }
 
-        final data = eventDoc.data()!;
+        final data = eventDoc.data();
+        if (data == null) {
+          throw Exception('Event data is null');
+        }
         final roles = List<Map<String, dynamic>>.from(data['roles'] ?? []);
 
         bool found = false;
@@ -126,7 +129,10 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
           throw Exception('Event not found');
         }
 
-        final data = eventDoc.data()!;
+        final data = eventDoc.data();
+        if (data == null) {
+          throw Exception('Event data is null');
+        }
         final roles = List<Map<String, dynamic>>.from(data['roles'] ?? []);
 
         for (var i = 0; i < roles.length; i++) {

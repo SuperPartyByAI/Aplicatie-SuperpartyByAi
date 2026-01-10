@@ -117,32 +117,6 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
 
   @override
   Widget build(BuildContext context) {
-    // CRITICAL: Wait for Firebase initialization before building any widgets
-    // This prevents [core/no-app] error on web
-    if (!FirebaseService.isInitialized) {
-      return MaterialApp(
-        // Accept ANY route during initialization (including deep-links like /#/evenimente)
-        // Show loading screen for all routes until Firebase is ready
-        onGenerateRoute: (settings) {
-          return MaterialPageRoute(
-            settings: settings, // Preserve route settings for later navigation
-            builder: (context) => const Scaffold(
-              body: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Initializing Firebase...'),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      );
-    }
-    
     return ChangeNotifierProvider(
       create: (_) => AppStateProvider(),
       child: MaterialApp(
@@ -162,6 +136,23 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
           useMaterial3: true,
         ),
         builder: (context, child) {
+          // CRITICAL: Check Firebase initialization before showing app
+          // This prevents [core/no-app] error on web
+          if (!FirebaseService.isInitialized) {
+            return const Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Initializing Firebase...'),
+                  ],
+                ),
+              ),
+            );
+          }
+          
           // UpdateGate as overlay - preserves Directionality from MaterialApp
           return UpdateGate(child: child ?? const SizedBox.shrink());
         },
@@ -332,8 +323,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
               }
               
               if (userSnapshot.hasData && userSnapshot.data!.exists) {
-                final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                final status = userData['status'] ?? '';
+                final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+                final status = userData?['status'] ?? '';
                 
                 if (status == 'kyc_required') {
                   return const KycScreen();
