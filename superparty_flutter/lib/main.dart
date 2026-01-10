@@ -210,14 +210,14 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
                 builder: (_) => NotFoundScreen(routeName: path),
               );
           }
-          },
-          onUnknownRoute: (settings) {
+        },
+        onUnknownRoute: (settings) {
           debugPrint('[ROUTE] onUnknownRoute called for: ${settings.name}');
           return MaterialPageRoute(
             builder: (_) => NotFoundScreen(routeName: settings.name),
           );
-          }
-        ),
+        }
+      ),
       ),
     );
   }
