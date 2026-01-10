@@ -72,12 +72,26 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
         final data = eventDoc.data()!;
         final roles = List<Map<String, dynamic>>.from(data['roles'] ?? []);
 
+        bool found = false;
         for (var i = 0; i < roles.length; i++) {
           if (roles[i]['slot'] == slot) {
+            // SAFETY: Verify pendingCode matches widget.code before accepting
+            final pendingCode = (roles[i]['pendingCode'] ?? '').toString().trim().toUpperCase();
+            final expectedCode = widget.code.trim().toUpperCase();
+            
+            if (pendingCode != expectedCode) {
+              throw Exception('Pending code mismatch: expected $expectedCode, got $pendingCode');
+            }
+
             roles[i]['assignedCode'] = widget.code;
             roles[i]['pendingCode'] = null;
+            found = true;
             break;
           }
+        }
+
+        if (!found) {
+          throw Exception('Role slot not found');
         }
 
         transaction.update(eventRef, {
