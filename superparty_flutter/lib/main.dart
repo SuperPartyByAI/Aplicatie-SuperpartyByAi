@@ -105,23 +105,18 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
     // This prevents [core/no-app] error on web
     if (!FirebaseService.isInitialized) {
       return MaterialApp(
-        // Accept any route during initialization to prevent routing errors
-        onGenerateRoute: (settings) {
-          return MaterialPageRoute(
-            builder: (context) => Scaffold(
-              body: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Initializing Firebase...'),
-                  ],
-                ),
-              ),
+        home: Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Initializing Firebase...'),
+              ],
             ),
-          );
-        },
+          ),
+        ),
       );
     }
     
