@@ -123,15 +123,15 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
         title: 'SuperParty',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFFDC2626),
-            brightness: Brightness.light,
+          seedColor: const Color(0xFFDC2626),
+          brightness: Brightness.light,
           ),
           useMaterial3: true,
         ),
         darkTheme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFFDC2626),
-            brightness: Brightness.dark,
+          seedColor: const Color(0xFFDC2626),
+          brightness: Brightness.dark,
           ),
           useMaterial3: true,
         ),
@@ -139,83 +139,83 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
           // CRITICAL: Check Firebase initialization before showing app
           // This prevents [core/no-app] error on web
           if (!FirebaseService.isInitialized) {
-            return const Scaffold(
-              body: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Initializing Firebase...'),
-                  ],
-                ),
+          return const Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Initializing Firebase...'),
+                ],
               ),
-            );
+            ),
+          );
           }
           
           // UpdateGate as overlay - preserves Directionality from MaterialApp
           return UpdateGate(child: child ?? const SizedBox.shrink());
         },
         onGenerateRoute: (settings) {
-            // Debug: log raw route
-            debugPrint('[ROUTE] Raw: ${settings.name}');
-            
-            // Normalize route: handle /#/evenimente, query params, trailing slash
-            final raw = settings.name ?? '/';
-            final cleaned = raw.startsWith('/#') ? raw.substring(2) : raw; // "/#/x" -> "/x"
-            final uri = Uri.tryParse(cleaned) ?? Uri(path: cleaned);
-            final path = uri.path.isEmpty ? '/' : uri.path;
-            
-            debugPrint('[ROUTE] Normalized: $path');
-            
-            // Handle all routes including deep-links
-            switch (path) {
-              case '/':
-                return MaterialPageRoute(builder: (_) => const AuthWrapper());
-              case '/home':
-                return MaterialPageRoute(builder: (_) => const HomeScreen());
-              case '/kyc':
-                return MaterialPageRoute(builder: (_) => const KycScreen());
-              case '/evenimente':
-                return MaterialPageRoute(builder: (_) => const EvenimenteScreen());
-              case '/disponibilitate':
-                return MaterialPageRoute(builder: (_) => const DisponibilitateScreen());
-              case '/salarizare':
-                return MaterialPageRoute(builder: (_) => const SalarizareScreen());
-              case '/centrala':
-                return MaterialPageRoute(builder: (_) => const CentralaScreen());
-              case '/whatsapp':
-                return MaterialPageRoute(builder: (_) => const WhatsAppScreen());
-              case '/team':
-                return MaterialPageRoute(builder: (_) => const TeamScreen());
-              case '/admin':
-                return MaterialPageRoute(builder: (_) => const AdminScreen());
-              case '/admin/kyc':
-                return MaterialPageRoute(builder: (_) => const KycApprovalsScreen());
-              case '/admin/ai-conversations':
-                return MaterialPageRoute(builder: (_) => const AiConversationsScreen());
-              case '/gm/accounts':
-                return MaterialPageRoute(builder: (_) => const AccountsScreen());
-              case '/gm/metrics':
-                return MaterialPageRoute(builder: (_) => const MetricsScreen());
-              case '/gm/analytics':
-                return MaterialPageRoute(builder: (_) => const AnalyticsScreen());
-              case '/gm/staff-setup':
-                return MaterialPageRoute(builder: (_) => const StaffSetupScreen());
-              case '/ai-chat':
-                return MaterialPageRoute(builder: (_) => const AIChatScreen());
-              default:
-                debugPrint('[ROUTE] Unknown path: $path - showing NotFoundScreen');
-                return MaterialPageRoute(
-                  builder: (_) => NotFoundScreen(routeName: path),
-                );
-            }
+          // Debug: log raw route
+          debugPrint('[ROUTE] Raw: ${settings.name}');
+          
+          // Normalize route: handle /#/evenimente, query params, trailing slash
+          final raw = settings.name ?? '/';
+          final cleaned = raw.startsWith('/#') ? raw.substring(2) : raw; // "/#/x" -> "/x"
+          final uri = Uri.tryParse(cleaned) ?? Uri(path: cleaned);
+          final path = uri.path.isEmpty ? '/' : uri.path;
+          
+          debugPrint('[ROUTE] Normalized: $path');
+          
+          // Handle all routes including deep-links
+          switch (path) {
+            case '/':
+              return MaterialPageRoute(builder: (_) => const AuthWrapper());
+            case '/home':
+              return MaterialPageRoute(builder: (_) => const HomeScreen());
+            case '/kyc':
+              return MaterialPageRoute(builder: (_) => const KycScreen());
+            case '/evenimente':
+              return MaterialPageRoute(builder: (_) => const EvenimenteScreen());
+            case '/disponibilitate':
+              return MaterialPageRoute(builder: (_) => const DisponibilitateScreen());
+            case '/salarizare':
+              return MaterialPageRoute(builder: (_) => const SalarizareScreen());
+            case '/centrala':
+              return MaterialPageRoute(builder: (_) => const CentralaScreen());
+            case '/whatsapp':
+              return MaterialPageRoute(builder: (_) => const WhatsAppScreen());
+            case '/team':
+              return MaterialPageRoute(builder: (_) => const TeamScreen());
+            case '/admin':
+              return MaterialPageRoute(builder: (_) => const AdminScreen());
+            case '/admin/kyc':
+              return MaterialPageRoute(builder: (_) => const KycApprovalsScreen());
+            case '/admin/ai-conversations':
+              return MaterialPageRoute(builder: (_) => const AiConversationsScreen());
+            case '/gm/accounts':
+              return MaterialPageRoute(builder: (_) => const AccountsScreen());
+            case '/gm/metrics':
+              return MaterialPageRoute(builder: (_) => const MetricsScreen());
+            case '/gm/analytics':
+              return MaterialPageRoute(builder: (_) => const AnalyticsScreen());
+            case '/gm/staff-setup':
+              return MaterialPageRoute(builder: (_) => const StaffSetupScreen());
+            case '/ai-chat':
+              return MaterialPageRoute(builder: (_) => const AIChatScreen());
+            default:
+              debugPrint('[ROUTE] Unknown path: $path - showing NotFoundScreen');
+              return MaterialPageRoute(
+                builder: (_) => NotFoundScreen(routeName: path),
+              );
+          }
           },
           onUnknownRoute: (settings) {
-            debugPrint('[ROUTE] onUnknownRoute called for: ${settings.name}');
-            return MaterialPageRoute(
-              builder: (_) => NotFoundScreen(routeName: settings.name),
-            );
+          debugPrint('[ROUTE] onUnknownRoute called for: ${settings.name}');
+          return MaterialPageRoute(
+            builder: (_) => NotFoundScreen(routeName: settings.name),
+          );
           },
         ),
       ),
@@ -262,12 +262,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
       return const Scaffold(
         body: Center(
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Initializing Firebase...'),
-            ],
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Initializing Firebase...'),
+          ],
           ),
         ),
       );
@@ -278,7 +278,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+          body: Center(child: CircularProgressIndicator()),
           );
         }
         
@@ -287,62 +287,62 @@ class _AuthWrapperState extends State<AuthWrapper> {
           
           // Reset guards when user changes
           if (_lastUid != uid) {
-            _lastUid = uid;
-            _roleLoaded = false;
-            _backgroundServiceStarted = false;
+          _lastUid = uid;
+          _roleLoaded = false;
+          _backgroundServiceStarted = false;
           }
           
           // Start background service only once per user (mobile only)
           if (!kIsWeb && !_backgroundServiceStarted) {
-            _backgroundServiceStarted = true;
-            BackgroundService.startService().catchError((e) {
-              print('Failed to start background service: $e');
-              return false; // IMPORTANT: catchError must return Future<bool>
-            });
+          _backgroundServiceStarted = true;
+          BackgroundService.startService().catchError((e) {
+            print('Failed to start background service: $e');
+            return false; // IMPORTANT: catchError must return Future<bool>
+          });
           }
           
           // Load user role only once per user (post-frame to avoid rebuild loop)
           if (!_roleLoaded) {
-            _roleLoaded = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _loadUserRole(context);
-            });
+          _roleLoaded = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _loadUserRole(context);
+          });
           }
           
           // Check user status in Firestore
           return StreamBuilder<DocumentSnapshot>(
-            stream: FirebaseService.firestore
-                .collection('users')
-                .doc(snapshot.data!.uid)
-                .snapshots(),
-            builder: (context, userSnapshot) {
-              if (userSnapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              }
+          stream: FirebaseService.firestore
+              .collection('users')
+              .doc(snapshot.data!.uid)
+              .snapshots(),
+          builder: (context, userSnapshot) {
+            if (userSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            
+            if (userSnapshot.hasData && userSnapshot.data!.exists) {
+              final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+              final status = userData?['status'] ?? '';
               
-              if (userSnapshot.hasData && userSnapshot.data!.exists) {
-                final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
-                final status = userData?['status'] ?? '';
-                
-                if (status == 'kyc_required') {
-                  return const KycScreen();
-                }
+              if (status == 'kyc_required') {
+                return const KycScreen();
               }
-              
-              return const HomeScreen();
-            },
+            }
+            
+            return const HomeScreen();
+          },
           );
         }
         
         // On logout, reset role flags
         if (_lastUid != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              final appState = Provider.of<AppStateProvider>(context, listen: false);
-              appState.clearRoles();
-            }
+          if (mounted) {
+            final appState = Provider.of<AppStateProvider>(context, listen: false);
+            appState.clearRoles();
+          }
           });
           _lastUid = null;
           _roleLoaded = false;
