@@ -214,6 +214,11 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   final RoleService _roleService = RoleService();
+  
+  // Guards to prevent rebuild loops
+  bool _roleLoaded = false;
+  bool _backgroundServiceStarted = false;
+  String? _lastUid;
 
   /// Load user role from staffProfiles and update AppState
   Future<void> _loadUserRole(BuildContext context) async {
@@ -260,16 +265,31 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
         
         if (snapshot.hasData) {
-          // Start background service only on mobile platforms
-          if (!kIsWeb) {
+          final uid = snapshot.data!.uid;
+          
+          // Reset guards when user changes
+          if (_lastUid != uid) {
+            _lastUid = uid;
+            _roleLoaded = false;
+            _backgroundServiceStarted = false;
+          }
+          
+          // Start background service only once per user (mobile only)
+          if (!kIsWeb && !_backgroundServiceStarted) {
+            _backgroundServiceStarted = true;
             BackgroundService.startService().catchError((e) {
               print('Failed to start background service: $e');
               return false; // IMPORTANT: catchError must return Future<bool>
             });
           }
           
-          // Load user role from staffProfiles
-          _loadUserRole(context);
+          // Load user role only once per user (post-frame to avoid rebuild loop)
+          if (!_roleLoaded) {
+            _roleLoaded = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _loadUserRole(context);
+            });
+          }
           
           // Check user status in Firestore
           return StreamBuilder<DocumentSnapshot>(
