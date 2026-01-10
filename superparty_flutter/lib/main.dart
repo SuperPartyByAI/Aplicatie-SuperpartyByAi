@@ -124,41 +124,41 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
       create: (_) => AppStateProvider(),
       child: UpdateGate(
         child: MaterialApp(
-        title: 'SuperParty',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFFDC2626),
-            brightness: Brightness.light,
+          title: 'SuperParty',
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFFDC2626),
+              brightness: Brightness.light,
+            ),
+            useMaterial3: true,
           ),
-          useMaterial3: true,
-        ),
-        darkTheme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFFDC2626),
-            brightness: Brightness.dark,
+          darkTheme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFFDC2626),
+              brightness: Brightness.dark,
+            ),
+            useMaterial3: true,
           ),
-          useMaterial3: true,
+          routes: {
+            '/home': (context) => const HomeScreen(),
+            '/kyc': (context) => const KycScreen(),
+            '/evenimente': (context) => const EvenimenteScreen(),
+            '/disponibilitate': (context) => const DisponibilitateScreen(),
+            '/salarizare': (context) => const SalarizareScreen(),
+            '/centrala': (context) => const CentralaScreen(),
+            '/whatsapp': (context) => const WhatsAppScreen(),
+            '/team': (context) => const TeamScreen(),
+            '/admin': (context) => const AdminScreen(),
+            '/admin/kyc': (context) => const KycApprovalsScreen(),
+            '/admin/ai-conversations': (context) => const AiConversationsScreen(),
+            '/gm/accounts': (context) => const AccountsScreen(),
+            '/gm/metrics': (context) => const MetricsScreen(),
+            '/gm/analytics': (context) => const AnalyticsScreen(),
+            '/gm/staff-setup': (context) => const StaffSetupScreen(),
+            '/ai-chat': (context) => const AIChatScreen(),
+          },
+          home: const AuthWrapper(),
         ),
-        routes: {
-        '/home': (context) => const HomeScreen(),
-        '/kyc': (context) => const KycScreen(),
-        '/evenimente': (context) => const EvenimenteScreen(),
-        '/disponibilitate': (context) => const DisponibilitateScreen(),
-        '/salarizare': (context) => const SalarizareScreen(),
-        '/centrala': (context) => const CentralaScreen(),
-        '/whatsapp': (context) => const WhatsAppScreen(),
-        '/team': (context) => const TeamScreen(),
-        '/admin': (context) => const AdminScreen(),
-        '/admin/kyc': (context) => const KycApprovalsScreen(),
-        '/admin/ai-conversations': (context) => const AiConversationsScreen(),
-        '/gm/accounts': (context) => const AccountsScreen(),
-        '/gm/metrics': (context) => const MetricsScreen(),
-        '/gm/analytics': (context) => const AnalyticsScreen(),
-        '/gm/staff-setup': (context) => const StaffSetupScreen(),
-        '/ai-chat': (context) => const AIChatScreen(),
-        },
-        home: const AuthWrapper(),
-      ),
       ),
     );
   }
