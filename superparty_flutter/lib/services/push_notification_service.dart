@@ -1,6 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_service.dart';
 
 class PushNotificationService {
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
@@ -34,10 +34,15 @@ class PushNotificationService {
   }
 
   static Future<void> _saveTokenToFirestore(String token) async {
-    final user = FirebaseAuth.instance.currentUser;
+    if (!FirebaseService.isInitialized) {
+      print('[PushNotificationService] Firebase not initialized, skipping token save');
+      return;
+    }
+    
+    final user = FirebaseService.currentUser;
     if (user == null) return;
 
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+    await FirebaseService.firestore.collection('users').doc(user.uid).set({
       'fcmToken': token,
       'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
       'notificationsEnabled': true,
