@@ -231,12 +231,11 @@ class EventCardHtml extends StatelessWidget {
     // grid-template-columns: 46px 1fr
     // gap: 4px 8px (vertical horizontal)
     // This spans grid-column: 1 / 3 (badge + main columns)
-    return Wrap(
-      spacing: 0,
-      runSpacing: 4, // gap vertical
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: visibleRoles.map((role) {
-        return SizedBox(
-          width: double.infinity,
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 4),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
