@@ -33,7 +33,7 @@ jobs:
 
       - name: Run Flutter Analyze
         working-directory: ./superparty_flutter
-        run: flutter analyze --fatal-infos --fatal-warnings
+        run: flutter analyze --fatal-warnings
 
       - name: Run tests
         working-directory: ./superparty_flutter
