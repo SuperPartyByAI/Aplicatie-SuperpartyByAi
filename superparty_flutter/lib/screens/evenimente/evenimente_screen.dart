@@ -904,17 +904,21 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   }
 
   Future<void> _openTimePickerForRole(String eventId, String slot, String currentTime) async {
-    // Parse current time (HH:mm format)
+    // Parse current time (HH:mm format) - accept empty/invalid, fallback to now()
     TimeOfDay initialTime = TimeOfDay.now();
-    try {
-      final parts = currentTime.split(':');
-      if (parts.length == 2) {
-        final hour = int.parse(parts[0]);
-        final minute = int.parse(parts[1]);
-        initialTime = TimeOfDay(hour: hour, minute: minute);
+    if (currentTime.isNotEmpty) {
+      try {
+        final parts = currentTime.split(':');
+        if (parts.length == 2) {
+          final hour = int.parse(parts[0]);
+          final minute = int.parse(parts[1]);
+          if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
+            initialTime = TimeOfDay(hour: hour, minute: minute);
+          }
+        }
+      } catch (e) {
+        debugPrint('[Evenimente] Failed to parse time: $currentTime, using now()');
       }
-    } catch (e) {
-      debugPrint('[Evenimente] Failed to parse time: $currentTime, using now()');
     }
 
     // Show time picker
@@ -936,43 +940,47 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       },
     );
 
-    if (selectedTime == null) return;
+    if (selectedTime == null) return; // User cancelled
 
     // Format time as HH:mm (zero-padded)
     final newTime = '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}';
 
-    // Update Firestore
+    // Update Firestore using transaction to avoid lost updates
     try {
       final db = FirebaseFirestore.instance;
       final eventRef = db.collection('evenimente').doc(eventId);
 
-      // Get current event data
-      final eventDoc = await eventRef.get();
-      if (!eventDoc.exists) {
-        throw Exception('Event not found');
-      }
+      await db.runTransaction((transaction) async {
+        // Read current state
+        final snapshot = await transaction.get(eventRef);
+        
+        if (!snapshot.exists) {
+          throw Exception('Event not found');
+        }
 
-      final data = eventDoc.data();
-      if (data == null || data is! Map<String, dynamic>) {
-        debugPrint('[Evenimente] Event data is null');
-        throw Exception('Event data is null');
-      }
+        final data = snapshot.data();
+        if (data == null || data is! Map<String, dynamic>) {
+          throw Exception('Event data is null or invalid');
+        }
 
-      final roles = (data['roles'] as List<dynamic>?) ?? [];
+        final roles = (data['roles'] as List<dynamic>?) ?? [];
 
-      // Find role by slot
-      final roleIndex = roles.indexWhere((r) => r['slot'] == slot);
-      if (roleIndex == -1) {
-        throw Exception('Role not found');
-      }
+        // Find role by slot (type-safe)
+        final roleIndex = roles.indexWhere((r) => r is Map && r['slot'] == slot);
+        if (roleIndex == -1) {
+          throw Exception('Role not found for slot $slot');
+        }
 
-      // Update time
-      roles[roleIndex]['time'] = newTime;
+        // Update time in a type-safe way
+        final roleMap = Map<String, dynamic>.from(roles[roleIndex] as Map);
+        roleMap['time'] = newTime;
+        roles[roleIndex] = roleMap;
 
-      // Save to Firestore
-      await eventRef.update({
-        'roles': roles,
-        'updatedAt': FieldValue.serverTimestamp(),
+        // Write back with transaction
+        transaction.update(eventRef, {
+          'roles': roles,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
       });
 
       if (mounted) {

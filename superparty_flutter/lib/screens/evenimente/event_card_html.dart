@@ -404,27 +404,25 @@ class EventCardHtml extends StatelessWidget {
           ),
         ),
 
-        // Time (clickable separately)
-        if (role.time.isNotEmpty) ...[
+        // Time (clickable separately) - always show if onTimeTap is provided
+        if (onTimeTap != null) ...[
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: onTimeTap != null
-                ? () => onTimeTap!(role.slot, role.time)
-                : null,
+            onTap: () => onTimeTap!(role.slot, role.time),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              decoration: onTimeTap != null
-                  ? BoxDecoration(
-                      color: const Color(0x0AFFFFFF), // subtle highlight
-                      borderRadius: BorderRadius.circular(4),
-                    )
-                  : null,
+              decoration: BoxDecoration(
+                color: const Color(0x0AFFFFFF), // subtle highlight
+                borderRadius: BorderRadius.circular(4),
+              ),
               child: Text(
-                role.time,
-                style: const TextStyle(
+                role.time.isNotEmpty ? role.time : '--:--',
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xB3EAF1FF), // rgba(234,241,255,0.7) --muted
+                  color: role.time.isNotEmpty
+                      ? const Color(0xB3EAF1FF) // rgba(234,241,255,0.7) --muted
+                      : const Color(0x66EAF1FF), // dimmer for placeholder
                 ),
               ),
             ),
