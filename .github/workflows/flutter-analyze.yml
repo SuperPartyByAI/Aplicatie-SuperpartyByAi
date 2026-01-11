@@ -1,0 +1,85 @@
+name: Flutter Analyze
+
+on:
+  pull_request:
+    paths:
+      - 'superparty_flutter/**'
+  push:
+    branches: [main, 'feature/**']
+    paths:
+      - 'superparty_flutter/**'
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        working-directory: ./superparty_flutter
+        run: flutter pub get
+
+      - name: Check format
+        working-directory: ./superparty_flutter
+        run: flutter format --set-exit-if-changed lib test
+
+      - name: Run Flutter Analyze
+        working-directory: ./superparty_flutter
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+      - name: Run tests
+        working-directory: ./superparty_flutter
+        run: flutter test
+
+      - name: Guardrail - No print() in lib/
+        working-directory: ./superparty_flutter
+        run: |
+          if grep -r "print(" lib/ --include="*.dart" | grep -v "debugPrint\|blueprint"; then
+            echo "❌ Found print() calls in lib/. Use debugPrint() instead."
+            exit 1
+          fi
+          echo "✅ No print() calls found"
+
+      - name: Guardrail - No unsafe .data()! in lib/
+        working-directory: ./superparty_flutter
+        run: |
+          if grep -r "\.data()!" lib/ --include="*.dart"; then
+            echo "❌ Found unsafe .data()! in lib/"
+            exit 1
+          fi
+          echo "✅ No unsafe .data()! found"
+
+      - name: Guardrail - No unsafe currentUser!
+        working-directory: ./superparty_flutter
+        run: |
+          if grep -r "currentUser!" lib/ --include="*.dart"; then
+            echo "❌ Found unsafe currentUser! access"
+            exit 1
+          fi
+          echo "✅ No unsafe currentUser! found"
+
+      - name: Guardrail - No infinite loading loop
+        working-directory: ./superparty_flutter
+        run: |
+          if grep -r "while (!FirebaseService.isInitialized)" lib/ --include="*.dart"; then
+            echo "❌ Found infinite loading loop"
+            exit 1
+          fi
+          echo "✅ No infinite loading loop found"
+
+      - name: Guardrail - MaterialApp only in main.dart
+        working-directory: ./superparty_flutter
+        run: |
+          if grep -r "MaterialApp(" lib/ --include="*.dart" | grep -v "lib/main.dart"; then
+            echo "❌ Found MaterialApp outside main.dart (screens should return Scaffold)"
+            exit 1
+          fi
+          echo "✅ MaterialApp only in main.dart"
