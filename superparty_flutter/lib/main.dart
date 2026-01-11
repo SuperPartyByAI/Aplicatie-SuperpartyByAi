@@ -46,21 +46,28 @@ void main() async {
     return true;
   };
 
-  // Custom error widget builder
+  // Custom error widget builder (no MaterialApp to avoid nesting)
   ErrorWidget.builder = (FlutterErrorDetails details) {
-    return MaterialApp(
-      home: Scaffold(
-        body: Center(
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Material(
+        color: const Color(0xFF0A0E27),
+        child: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.error_outline, size: 64, color: Colors.red),
                 const SizedBox(height: 16),
                 const Text(
                   'Something went wrong',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 if (kDebugMode) ...[
@@ -68,12 +75,13 @@ void main() async {
                   Text(
                     details.exceptionAsString(),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12),
+                    style: const TextStyle(fontSize: 12, color: Colors.white70),
                   ),
                 ] else
                   const Text(
                     'Please restart the app',
                     textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70),
                   ),
               ],
             ),
@@ -170,13 +178,14 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
       return;
     }
 
+    // Calculate timeout BEFORE incrementing (retry 1/2/3 → 10/20/40s)
+    final timeout = Duration(seconds: 10 * (1 << _retryCount));
+    
     setState(() {
       _retryCount++;
     });
 
     try {
-      // Exponential backoff: 10s, 20s, 40s
-      final timeout = Duration(seconds: 10 * (1 << _retryCount));
       debugPrint('[Bootstrap] Retry $_retryCount/$_maxRetries with ${timeout.inSeconds}s timeout');
       
       FirebaseService.resetForRetry();
