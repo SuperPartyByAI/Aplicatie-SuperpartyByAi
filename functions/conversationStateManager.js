@@ -5,6 +5,9 @@
  * 
  * Manages conversation states for interactive event noting flow.
  * Supports notingMode with draft event collection and pending questions.
+ * 
+ * NOTE: This module is used by chatEventOpsV2 (Schema v2).
+ * For V3 EN, use chatEventOps with normalizers.
  */
 
 const admin = require('firebase-admin');

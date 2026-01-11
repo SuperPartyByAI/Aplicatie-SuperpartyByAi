@@ -61,10 +61,18 @@ function normalizeEventFields(input) {
     normalized.rolesBySlot = input.roluriPeSlot;
   } else if (Array.isArray(input.roles)) {
     // Convert roles[] to rolesBySlot (legacy v1/v2)
+    // Use V3 slot format: 01A, 01B, 01C...
     normalized.rolesBySlot = {};
+    const eventShortId = normalized.eventShortId || 1;
+    const prefix = String(eventShortId).padStart(2, '0');
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    
     input.roles.forEach((role, index) => {
-      const slot = `slot${index + 1}`;
-      normalized.rolesBySlot[slot] = normalizeRoleFields(role);
+      if (index < 26) { // Max 26 roles
+        const letter = alphabet[index];
+        const slot = `${prefix}${letter}`;
+        normalized.rolesBySlot[slot] = normalizeRoleFields(role);
+      }
     });
   } else {
     normalized.rolesBySlot = {};
@@ -372,12 +380,48 @@ function getRoleRequirements(roleType) {
   return ROLE_REQUIREMENTS[roleType] || null;
 }
 
+/**
+ * Normalize rolesBySlot keys to V3 format (01A, 01B...)
+ * Converts legacy keys like "slot1", "slot2" to proper format
+ * @param {object} rolesBySlot - Roles by slot object
+ * @param {number} eventShortId - Event short ID
+ * @returns {object} - Normalized rolesBySlot
+ */
+function normalizeRolesBySlotKeys(rolesBySlot, eventShortId) {
+  if (!rolesBySlot || typeof rolesBySlot !== 'object') {
+    return {};
+  }
+
+  const normalized = {};
+  const prefix = String(eventShortId || 1).padStart(2, '0');
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  
+  const entries = Object.entries(rolesBySlot);
+  
+  entries.forEach(([key, value], index) => {
+    // Check if key is already in V3 format (e.g., "01A")
+    if (/^\d{2}[A-Z]$/.test(key)) {
+      normalized[key] = value;
+    } else {
+      // Convert legacy key (e.g., "slot1", "A", "1") to V3 format
+      if (index < 26) {
+        const letter = alphabet[index];
+        const newKey = `${prefix}${letter}`;
+        normalized[newKey] = value;
+      }
+    }
+  });
+
+  return normalized;
+}
+
 module.exports = {
   normalizeEventFields,
   normalizeRoleFields,
   normalizeRoleType,
   getRoleSynonyms,
   getRoleRequirements,
+  normalizeRolesBySlotKeys,
   ROLE_SYNONYMS,
   ROLE_REQUIREMENTS,
 };

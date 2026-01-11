@@ -17,10 +17,15 @@ class ShortCodeGenerator {
   }
 
   /**
+   * @deprecated Use getNextEventShortId() instead (returns number)
    * Generate next event short code (01, 02, 03, ...)
    * Thread-safe using Firestore transaction
+   * 
+   * LEGACY: This returns a string. V3 uses eventShortId (number).
    */
   async generateEventShortCode() {
+    console.warn('[DEPRECATED] generateEventShortCode() is deprecated. Use getNextEventShortId() instead.');
+    
     const counterRef = this.db.collection(this.counterCollection).doc(this.counterDoc);
 
     try {
@@ -114,12 +119,54 @@ class ShortCodeGenerator {
   }
 
   /**
-   * Find event by short code
+   * Find event by eventShortId (V3 - numeric)
+   * @param {number} eventShortId - Numeric event ID
+   * @returns {Promise<object|null>}
    */
-  async findEventByShortCode(shortCode) {
-    if (!shortCode) return null;
+  async findEventByShortId(eventShortId) {
+    if (!eventShortId || typeof eventShortId !== 'number') return null;
 
     try {
+      const eventsSnap = await this.db
+        .collection('evenimente')
+        .where('eventShortId', '==', eventShortId)
+        .limit(1)
+        .get();
+
+      if (eventsSnap.empty) {
+        return null;
+      }
+
+      const doc = eventsSnap.docs[0];
+      return {
+        id: doc.id,
+        ...doc.data(),
+      };
+    } catch (error) {
+      console.error('Error finding event by eventShortId:', error);
+      return null;
+    }
+  }
+
+  /**
+   * @deprecated Use findEventByShortId() instead (numeric)
+   * Find event by legacy shortCode (string "01", "02")
+   * LEGACY: For backward compatibility only
+   */
+  async findEventByLegacyShortCode(shortCode) {
+    if (!shortCode) return null;
+
+    console.warn('[DEPRECATED] findEventByLegacyShortCode() is for legacy only. Use findEventByShortId() instead.');
+
+    try {
+      // Try to parse as number first (V3)
+      const numericId = parseInt(shortCode, 10);
+      if (!isNaN(numericId)) {
+        const v3Event = await this.findEventByShortId(numericId);
+        if (v3Event) return v3Event;
+      }
+
+      // Fallback: try legacy shortCode field
       const eventsSnap = await this.db
         .collection('evenimente')
         .where('shortCode', '==', shortCode)
@@ -136,7 +183,7 @@ class ShortCodeGenerator {
         ...doc.data(),
       };
     } catch (error) {
-      console.error('Error finding event by short code:', error);
+      console.error('Error finding event by legacy shortCode:', error);
       return null;
     }
   }
@@ -296,5 +343,17 @@ function getNextFreeSlot(eventShortId, existingSlots) {
 }
 
 module.exports = ShortCodeGenerator;
+
+// V3 EN exports (preferred)
 module.exports.getNextEventShortId = getNextEventShortId;
 module.exports.getNextFreeSlot = getNextFreeSlot;
+
+// Legacy exports (deprecated)
+module.exports.findEventByShortId = async (id) => {
+  const gen = new ShortCodeGenerator();
+  return gen.findEventByShortId(id);
+};
+module.exports.findEventByLegacyShortCode = async (code) => {
+  const gen = new ShortCodeGenerator();
+  return gen.findEventByLegacyShortCode(code);
+};

@@ -1,0 +1,78 @@
+vreau sa incheiem cu flow ul de notat petreceri prin chat ai analizeaza structura ai ului si flow ului si a paginii de evenimente adresa
+"București, Sector 3, Str. Florilor nr. 10"
+(şir)
+
+
+cineNoteaza
+nul
+(nul)
+
+
+creatLa
+10 ianuarie 2026, ora 10:42:10 UTC+2
+(marca temporală)
+
+
+creat de
+"script de configurare"
+(şir)
+
+
+data
+„15-01-2026"
+(şir)
+
+
+
+incasare
+(hartă)
+
+
+metodă
+nul
+(nul)
+
+
+stare
+„NEINCASAT"
+(şir)
+
+
+sumă
+0
+(număr)
+
+
+este arhivat
+fals
+(boolean)
+
+
+
+roluri
+(matrice)
+
+
+
+0
+(hartă)
+
+
+Cod atribuit
+nul
+(nul)
+
+
+duratăMin
+120
+(număr)
+
+
+eticheta
+„Director de animație"
+(şir)
+
+
+Cod în așteptare
+nul
+(nul)

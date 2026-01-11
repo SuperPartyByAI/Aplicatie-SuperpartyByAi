@@ -91,7 +91,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() 
                     && request.resource.data.createdBy == request.auth.uid
                     && request.resource.data.isArchived == false
-                    && request.resource.data.schemaVersion == 2;
+                    && request.resource.data.schemaVersion in [2, 3];
       allow update: if isEmployee() || (isAuthenticated() && resource.data.createdBy == request.auth.uid);
       allow delete: if false; // NEVER DELETE - use isArchived instead
       
@@ -269,6 +269,52 @@ service cloud.firestore {
     match /userEventQuota/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       allow write: if false; // Only backend can write
+    }
+    
+    // V3 EN Collections
+    
+    // Staff hours tracking (for salary calculation)
+    match /staffHours/{entryId} {
+      // Only GM/Admin can read all hours
+      // Staff can read their own hours
+      allow read: if isGmOrAdmin() || 
+                     (isAuthenticated() && hasStaffProfile() && 
+                      resource.data.staffUid == request.auth.uid);
+      // Only backend can write (via Cloud Functions)
+      allow write: if false;
+    }
+    
+    // Tasks (follow-ups, pending actions)
+    match /tasks/{taskId} {
+      // Staff can read tasks assigned to them or open tasks
+      allow read: if isEmployee() && (
+        resource.data.assigneeUid == request.auth.uid ||
+        resource.data.status == 'OPEN' ||
+        isGmOrAdmin()
+      );
+      // Only backend can write tasks
+      allow write: if false;
+    }
+    
+    // Notifications (for staff)
+    match /notifications/{notificationId} {
+      // Staff can read their own notifications
+      allow read: if isAuthenticated() && (
+        resource.data.assigneeUid == request.auth.uid ||
+        isGmOrAdmin()
+      );
+      // Staff can mark as read
+      allow update: if isAuthenticated() && 
+                       resource.data.assigneeUid == request.auth.uid &&
+                       request.resource.data.status == 'READ';
+      // Only backend can create/delete
+      allow create, delete: if false;
+    }
+    
+    // Counters (for eventShortId generation)
+    match /counters/{counterId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only backend via transactions
     }
     
     // Default deny all other collections

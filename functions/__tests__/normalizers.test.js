@@ -58,6 +58,7 @@ describe('normalizers', () => {
 
     it('should convert roles[] to rolesBySlot', () => {
       const input = {
+        eventShortId: 1,
         roles: [
           { slot: 'A', label: 'Animator' },
           { slot: 'B', label: 'Ursitoare' },
@@ -67,8 +68,9 @@ describe('normalizers', () => {
       const result = normalizeEventFields(input);
 
       expect(result.rolesBySlot).toBeDefined();
-      expect(result.rolesBySlot['slot1']).toBeDefined();
-      expect(result.rolesBySlot['slot2']).toBeDefined();
+      // V3 format: 01A, 01B (not slot1, slot2)
+      expect(result.rolesBySlot['01A']).toBeDefined();
+      expect(result.rolesBySlot['01B']).toBeDefined();
     });
 
     it('should normalize payment fields', () => {

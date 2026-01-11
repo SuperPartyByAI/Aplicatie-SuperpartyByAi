@@ -47,28 +47,45 @@ exports.createEventFromAI = onCall(
       const db = admin.firestore();
       const eventRef = db.collection('evenimente').doc();
 
+      // Use normalizers for V3 EN schema
+      const { normalizeEventFields } = require('./normalizers');
+      const { getNextEventShortId, getNextFreeSlot } = require('./shortCodeGenerator');
+      
+      const eventShortId = await getNextEventShortId();
+      const normalized = normalizeEventFields({
+        ...eventData,
+        eventShortId,
+      });
+
+      // Convert roles[] to rolesBySlot if needed
+      let rolesBySlot = normalized.rolesBySlot || {};
+      if (Array.isArray(eventData.roles) && eventData.roles.length > 0) {
+        rolesBySlot = {};
+        for (let i = 0; i < eventData.roles.length; i++) {
+          const slot = getNextFreeSlot(eventShortId, rolesBySlot);
+          rolesBySlot[slot] = eventData.roles[i];
+        }
+      }
+
       const event = {
-        date: eventData.date,
-        address: eventData.address,
-        tipEveniment: eventData.tipEveniment || 'Animație',
-        telefon: eventData.telefon || null,
-        email: eventData.email || null,
-        observatii: eventData.observatii || null,
-        numarCopii: eventData.numarCopii || null,
-        numarAdulti: eventData.numarAdulti || null,
-        sarbatoritNume: eventData.sarbatoritNume || '',
-        sarbatoritVarsta: eventData.sarbatoritVarsta || 0,
-        sarbatoritDob: eventData.sarbatoritDob || null,
-        cineNoteaza: null,
-        sofer: null,
-        soferPending: null,
-        roles: eventData.roles || [],
-        incasare: {
-          status: 'NEINCASAT',
-          metoda: null,
-          suma: null,
+        schemaVersion: 3,
+        eventShortId,
+        date: normalized.date,
+        address: normalized.address,
+        phoneE164: normalized.phoneE164,
+        phoneRaw: normalized.phoneRaw,
+        childName: normalized.childName,
+        childAge: normalized.childAge,
+        childDob: normalized.childDob,
+        parentName: normalized.parentName,
+        parentPhone: normalized.parentPhone,
+        numChildren: normalized.numChildren,
+        rolesBySlot,
+        payment: normalized.payment || {
+          status: 'UNPAID',
+          method: null,
+          amount: 0,
         },
-        schemaVersion: 2,
         isArchived: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         createdBy: userId,

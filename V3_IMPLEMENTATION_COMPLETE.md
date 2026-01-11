@@ -1,8 +1,78 @@
-# ✅ V3 EN Implementation - COMPLETE
+# ✅ V3 EN Implementation - COMPLETE (HARDENED)
 
 **Date**: 11 January 2026  
-**Status**: ✅ READY FOR PRODUCTION  
-**Schema Version**: 3 (EN)
+**Status**: ✅ PRODUCTION READY (Hardened)  
+**Schema Version**: 3 (EN)  
+**Last Update**: Hardening fixes applied (commit after b90bb236)
+
+---
+
+## 🔑 KEY DECISIONS - SCHEMA V3 FINAL
+
+### 1. **Event Short ID: eventShortId (number) is PRIMARY**
+
+**Decision**: `eventShortId` (numeric) is the single source of truth for V3.
+
+- ✅ **V3 Primary**: `eventShortId: number` (1, 2, 3, 4...)
+- ⚠️ **Legacy (deprecated)**: `shortCode: string` ("01", "02", "03"...)
+  - Read-only for backward compatibility
+  - Not written in new events
+  - Use `findEventByLegacyShortCode()` for migration only
+
+**Why**: Numeric IDs are simpler, more efficient, and avoid padding confusion.
+
+### 2. **Role Slot Format: "01A", "01B", "01C"...**
+
+**Decision**: Slot keys in `rolesBySlot` use format `{eventShortId:02d}{letter}`.
+
+- ✅ **Format**: `"01A"`, `"01B"`, `"42Z"`
+- ✅ **Generation**: `getNextFreeSlot(eventShortId, existingSlots)`
+- ✅ **Max**: 26 roles per event (A-Z)
+
+**Why**: Combines event ID with role slot for easy identification and sorting.
+
+### 3. **Legacy Field Mapping (RO → EN)**
+
+**Decision**: All RO fields are read via normalizers, but NEVER written in V3.
+
+| RO Field (v1/v2) | EN Field (v3) | Notes |
+|------------------|---------------|-------|
+| `numarEveniment` | `eventShortId` | String → Number conversion |
+| `data` | `date` | DD-MM-YYYY format |
+| `adresa` | `address` | String |
+| `telefonClientE164` | `phoneE164` | E.164 format |
+| `telefonClientRaw` | `phoneRaw` | Raw input |
+| `sarbatoritNume` | `childName` | Child name |
+| `sarbatoritVarsta` | `childAge` | Child age |
+| `sarbatoritDataNastere` | `childDob` | Child DOB |
+| `numeParinte` | `parentName` | Parent name |
+| `telefonParinte` | `parentPhone` | Parent phone |
+| `nrCopiiAprox` | `numChildren` | Number of children |
+| `incasare` | `payment` | Payment object |
+| `roluriPeSlot` | `rolesBySlot` | Roles map |
+| `roles[]` | `rolesBySlot` | Array → Map conversion |
+| `esteArhivat` | `isArchived` | Boolean |
+| `arhivatLa` | `archivedAt` | Timestamp |
+| `arhivatDe` | `archivedBy` | User ID |
+| `motivArhivare` | `archiveReason` | String |
+| `notatDeCod` | `notedByCode` | Staff code |
+| `creatLa` | `createdAt` | Timestamp |
+| `creatDe` | `createdBy` | User ID |
+| `actualizatLa` | `updatedAt` | Timestamp |
+| `actualizatDe` | `updatedBy` | User ID |
+
+**Normalizers handle all conversions automatically.**
+
+### 4. **Backward Compatibility Strategy**
+
+**Decision**: Read v1/v2/v3, write only v3.
+
+- ✅ **Read**: `normalizeEventFields()` accepts all versions
+- ✅ **Write**: Always `schemaVersion: 3` with EN fields
+- ✅ **Migration**: Optional (events work without migration)
+- ✅ **Coexistence**: v1/v2/v3 events can coexist
+
+**Why**: Zero downtime migration, gradual rollout.
 
 ---
 
