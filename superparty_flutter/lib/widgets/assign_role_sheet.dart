@@ -56,174 +56,182 @@ class _AssignRoleSheetState extends State<AssignRoleSheet> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Alocare ${widget.roleLabel} (${widget.slot})',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFFEAF1FF),
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close, color: Color(0xFFEAF1FF)),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          
-          // Current status
-          if (widget.currentAssigned != null) ...[
-            _buildStatusCard(
-              'Alocat curent',
-              widget.currentAssigned!,
-              const Color(0x2810B981),
-              const Color(0x5010B981),
-            ),
-            const SizedBox(height: 12),
-            if (widget.onUnassign != null)
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _isLoading ? null : () async {
-                    setState(() => _isLoading = true);
-                    await widget.onUnassign!();
-                    setState(() => _isLoading = false);
-                    if (mounted) Navigator.pop(context);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFFF7878),
-                    side: const BorderSide(color: Color(0xFFFF7878)),
-                  ),
-                  child: const Text('Dealocă'),
-                ),
-              ),
-            const SizedBox(height: 24),
-          ],
-          
-          if (widget.currentPending != null) ...[
-            _buildStatusCard(
-              'Cerere pending',
-              widget.currentPending!,
-              const Color(0x28FFBE5C),
-              const Color(0x50FFBE5C),
-            ),
-            const SizedBox(height: 12),
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
               children: [
-                if (widget.onAcceptPending != null)
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : () async {
-                        setState(() => _isLoading = true);
-                        await widget.onAcceptPending!();
-                        setState(() => _isLoading = false);
-                        if (mounted) Navigator.pop(context);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF10B981),
-                      ),
-                      child: const Text('Acceptă'),
+                Expanded(
+                  child: Text(
+                    'Alocare ${widget.roleLabel} (${widget.slot})',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFFEAF1FF),
                     ),
                   ),
-                if (widget.onAcceptPending != null && widget.onRejectPending != null)
-                  const SizedBox(width: 12),
-                if (widget.onRejectPending != null)
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _isLoading ? null : () async {
-                        setState(() => _isLoading = true);
-                        await widget.onRejectPending!();
-                        setState(() => _isLoading = false);
-                        if (mounted) Navigator.pop(context);
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFFF7878),
-                        side: const BorderSide(color: Color(0xFFFF7878)),
-                      ),
-                      child: const Text('Respinge'),
-                    ),
-                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Color(0xFFEAF1FF)),
+                  onPressed: () => Navigator.pop(context),
+                ),
               ],
             ),
             const SizedBox(height: 24),
-          ],
-          
-          // Assign new
-          const Text(
-            'Alocă cod nou',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFFEAF1FF),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _codeController,
-            autofocus: widget.currentAssigned == null && widget.currentPending == null,
-            style: const TextStyle(color: Color(0xFFEAF1FF)),
-            decoration: InputDecoration(
-              hintText: 'Ex: A1, B2, ATRAINER',
-              hintStyle: const TextStyle(color: Color(0x8CEAF1FF)),
-              filled: true,
-              fillColor: const Color(0x14FFFFFF),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
+
+            // Current status
+            if (widget.currentAssigned != null) ...[
+              _buildStatusCard(
+                'Alocat curent',
+                widget.currentAssigned!,
+                const Color(0x2810B981),
+                const Color(0x5010B981),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
+              const SizedBox(height: 12),
+              if (widget.onUnassign != null)
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _isLoading
+                        ? null
+                        : () async {
+                            setState(() => _isLoading = true);
+                            await widget.onUnassign!();
+                            setState(() => _isLoading = false);
+                            if (mounted) Navigator.pop(context);
+                          },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFFF7878),
+                      side: const BorderSide(color: Color(0xFFFF7878)),
+                    ),
+                    child: const Text('Dealocă'),
+                  ),
+                ),
+              const SizedBox(height: 24),
+            ],
+
+            if (widget.currentPending != null) ...[
+              _buildStatusCard(
+                'Cerere pending',
+                widget.currentPending!,
+                const Color(0x28FFBE5C),
+                const Color(0x50FFBE5C),
               ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Color(0xFF4ECDC4)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _assignCode,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4ECDC4),
-                foregroundColor: const Color(0xFF0B1220),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Color(0xFF0B1220),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  if (widget.onAcceptPending != null)
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () async {
+                                setState(() => _isLoading = true);
+                                await widget.onAcceptPending!();
+                                setState(() => _isLoading = false);
+                                if (mounted) Navigator.pop(context);
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                        ),
+                        child: const Text('Acceptă'),
                       ),
-                    )
-                  : const Text('Alocă'),
+                    ),
+                  if (widget.onAcceptPending != null &&
+                      widget.onRejectPending != null)
+                    const SizedBox(width: 12),
+                  if (widget.onRejectPending != null)
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () async {
+                                setState(() => _isLoading = true);
+                                await widget.onRejectPending!();
+                                setState(() => _isLoading = false);
+                                if (mounted) Navigator.pop(context);
+                              },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFFF7878),
+                          side: const BorderSide(color: Color(0xFFFF7878)),
+                        ),
+                        child: const Text('Respinge'),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 24),
+            ],
+
+            // Assign new
+            const Text(
+              'Alocă cod nou',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFEAF1FF),
+              ),
             ),
-          ),
-        ],
-      ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _codeController,
+              autofocus: widget.currentAssigned == null &&
+                  widget.currentPending == null,
+              style: const TextStyle(color: Color(0xFFEAF1FF)),
+              decoration: InputDecoration(
+                hintText: 'Ex: A1, B2, ATRAINER',
+                hintStyle: const TextStyle(color: Color(0x8CEAF1FF)),
+                filled: true,
+                fillColor: const Color(0x14FFFFFF),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0x1FFFFFFF)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF4ECDC4)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _assignCode,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4ECDC4),
+                  foregroundColor: const Color(0xFF0B1220),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF0B1220),
+                        ),
+                      )
+                    : const Text('Alocă'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildStatusCard(String label, String code, Color bgColor, Color borderColor) {
+  Widget _buildStatusCard(
+      String label, String code, Color bgColor, Color borderColor) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(8),
-
         border: Border.all(color: borderColor),
       ),
       child: Row(
@@ -258,17 +266,17 @@ class _AssignRoleSheetState extends State<AssignRoleSheet> {
 
   void _assignCode() async {
     final code = _codeController.text.trim();
-    
+
     if (code.isEmpty) {
       _showError('Introdu un cod');
       return;
     }
-    
+
     if (!CodeValidator.isValidStaffCode(code)) {
       _showError('Cod invalid. Format: A1-A50, ATRAINER, etc.');
       return;
     }
-    
+
     setState(() => _isLoading = true);
     try {
       await widget.onAssign(CodeValidator.normalize(code));

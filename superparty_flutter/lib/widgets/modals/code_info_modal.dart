@@ -21,7 +21,6 @@ class CodeInfoModal extends StatefulWidget {
 }
 
 class _CodeInfoModalState extends State<CodeInfoModal> {
-
   List<Map<String, dynamic>> _getCodeUsage() {
     final usage = <Map<String, dynamic>>[];
     final normalizedCode = widget.code.trim().toUpperCase();
@@ -79,11 +78,13 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
         for (var i = 0; i < roles.length; i++) {
           if (roles[i]['slot'] == slot) {
             // SAFETY: Verify pendingCode matches widget.code before accepting
-            final pendingCode = (roles[i]['pendingCode'] ?? '').toString().trim().toUpperCase();
+            final pendingCode =
+                (roles[i]['pendingCode'] ?? '').toString().trim().toUpperCase();
             final expectedCode = widget.code.trim().toUpperCase();
-            
+
             if (pendingCode != expectedCode) {
-              throw Exception('Pending code mismatch: expected $expectedCode, got $pendingCode');
+              throw Exception(
+                  'Pending code mismatch: expected $expectedCode, got $pendingCode');
             }
 
             roles[i]['assignedCode'] = widget.code;
@@ -354,7 +355,8 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
                 TextButton(
                   onPressed: () => _handleRefuz(item['eventId'], item['slot']),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     backgroundColor: const Color(0x14FF7878),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -375,7 +377,8 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
                 TextButton(
                   onPressed: () => _handleAccept(item['eventId'], item['slot']),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     backgroundColor: const Color(0x144ECDC4),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),

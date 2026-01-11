@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_service.dart';
 
 /// Service for detecting user roles from staffProfiles
-/// 
+///
 /// Roles:
 /// - employee: has staffProfiles/{uid} document
 /// - gm: employee + role == 'gm'
@@ -19,7 +21,8 @@ class RoleService {
     if (user == null) return false;
 
     try {
-      final doc = await _firestore.collection('staffProfiles').doc(user.uid).get();
+      final doc =
+          await _firestore.collection('staffProfiles').doc(user.uid).get();
       return doc.exists;
     } catch (e) {
       debugPrint('RoleService.isEmployee error: $e');
@@ -33,7 +36,8 @@ class RoleService {
     if (user == null) return false;
 
     try {
-      final doc = await _firestore.collection('staffProfiles').doc(user.uid).get();
+      final doc =
+          await _firestore.collection('staffProfiles').doc(user.uid).get();
       if (!doc.exists) return false;
 
       final role = (doc.data()?['role'] as String?)?.toLowerCase() ?? '';
@@ -51,7 +55,8 @@ class RoleService {
     if (user == null) return null;
 
     try {
-      final doc = await _firestore.collection('staffProfiles').doc(user.uid).get();
+      final doc =
+          await _firestore.collection('staffProfiles').doc(user.uid).get();
       if (!doc.exists) return null;
 
       return (doc.data()?['role'] as String?)?.toLowerCase();
@@ -67,7 +72,8 @@ class RoleService {
     if (user == null) return null;
 
     try {
-      final doc = await _firestore.collection('staffProfiles').doc(user.uid).get();
+      final doc =
+          await _firestore.collection('staffProfiles').doc(user.uid).get();
       if (!doc.exists) return null;
 
       return doc.data();

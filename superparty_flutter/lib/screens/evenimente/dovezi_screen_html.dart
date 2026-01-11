@@ -24,7 +24,7 @@ class DoveziScreenHtml extends StatefulWidget {
 
 class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
   final ImagePicker _picker = ImagePicker();
-  
+
   // 4 categorii exact ca în HTML
   final Map<String, List<String>> _photos = {
     'onTime': [],
@@ -55,7 +55,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
         if (data != null) {
           _photos[cat] = List<String>.from(jsonDecode(data));
         }
-        
+
         final verdictKey = 'verdict_${widget.event.id}_$cat';
         _verdict[cat] = prefs.getString(verdictKey) ?? 'na';
       }
@@ -135,7 +135,8 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                       backgroundColor: const Color(0x0FFFFFFF),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -272,8 +273,9 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
               TextButton(
                 onPressed: isLocked ? null : () => _uploadPhotos(category),
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  backgroundColor: isLocked 
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  backgroundColor: isLocked
                       ? const Color(0x0AFFFFFF)
                       : const Color(0x0FFFFFFF),
                   shape: RoundedRectangleBorder(
@@ -349,14 +351,14 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
 
   Widget _buildThumbnails(String category) {
     final isLocked = _verdict[category] == 'ok';
-    
+
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: _photos[category]!.asMap().entries.map((entry) {
         final index = entry.key;
         final photoPath = entry.value;
-        
+
         return GestureDetector(
           onTap: () => _previewPhoto(photoPath),
           child: Stack(
@@ -408,7 +410,8 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
                       width: 20,
                       height: 20,
                       decoration: BoxDecoration(
-                        color: const Color(0xEBFF7878), // rgba(255,120,120,0.92)
+                        color:
+                            const Color(0xEBFF7878), // rgba(255,120,120,0.92)
                         shape: BoxShape.circle,
                       ),
                       child: const Center(

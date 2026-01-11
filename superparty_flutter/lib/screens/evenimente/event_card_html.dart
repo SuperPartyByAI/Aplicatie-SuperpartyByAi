@@ -88,16 +88,16 @@ class EventCardHtml extends StatelessWidget {
             // Column 1: Badge (46px width)
             _buildBadge(),
             const SizedBox(width: 12), // gap horizontal
-            
+
             // Column 2: Main (flexible)
             Expanded(child: _buildMain()),
             const SizedBox(width: 12), // gap horizontal
-            
+
             // Column 3: Right (auto width)
             _buildRight(),
           ],
         ),
-        
+
         // Row 2: Rolelist (spans columns 1-2)
         if (event.roles.isNotEmpty) ...[
           const SizedBox(height: 10), // gap vertical
@@ -115,7 +115,21 @@ class EventCardHtml extends StatelessWidget {
       if (parts.length == 3) {
         final day = parts[0];
         final month = int.parse(parts[1]);
-        final monthNames = ['', 'Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun', 'Iul', 'Aug', 'Sep', 'Oct', 'Noi', 'Dec'];
+        final monthNames = [
+          '',
+          'Ian',
+          'Feb',
+          'Mar',
+          'Apr',
+          'Mai',
+          'Iun',
+          'Iul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Noi',
+          'Dec'
+        ];
         badgeText = '$day\n${monthNames[month]}';
       } else {
         badgeText = event.id.substring(0, 4);
@@ -222,7 +236,7 @@ class EventCardHtml extends StatelessWidget {
   Widget _buildRoleList() {
     // buildVisibleRoles - filter roles by codeFilter
     final visibleRoles = _buildVisibleRoles();
-    
+
     if (visibleRoles.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -262,7 +276,7 @@ class EventCardHtml extends StatelessWidget {
     // Filter by codeFilter (exact ca în HTML)
     if (codeFilter != null && codeFilter!.isNotEmpty) {
       final code = codeFilter!.trim().toUpperCase();
-      
+
       // Special values
       if (code == 'NEREZOLVATE') {
         roles = roles.where((r) {
@@ -350,7 +364,11 @@ class EventCardHtml extends StatelessWidget {
     return GestureDetector(
       onTap: () => onStatusTap(
         role.slot,
-        hasAssigned ? role.assignedCode : hasPending ? role.pendingCode : null,
+        hasAssigned
+            ? role.assignedCode
+            : hasPending
+                ? role.pendingCode
+                : null,
       ),
       child: Row(
         children: [

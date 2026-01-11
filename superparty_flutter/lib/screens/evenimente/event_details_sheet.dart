@@ -59,7 +59,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
       });
 
       final event = await _eventService.getEvent(widget.eventId);
-      
+
       setState(() {
         _event = event;
         _isLoading = false;
@@ -140,7 +140,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
               if (!appState.isEmployee) {
                 return const SizedBox.shrink();
               }
-              
+
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -325,7 +325,9 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
             ),
             child: Icon(
               _getRoleIcon(role),
-              color: isAssigned ? const Color(0xFFDC2626) : const Color(0xFF94A3B8),
+              color: isAssigned
+                  ? const Color(0xFFDC2626)
+                  : const Color(0xFF94A3B8),
               size: 24,
             ),
           ),
@@ -409,7 +411,9 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
             color: const Color(0xFF1A2332),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isAssigned ? const Color(0xFFDC2626) : const Color(0xFF2D3748),
+              color: isAssigned
+                  ? const Color(0xFFDC2626)
+                  : const Color(0xFF2D3748),
             ),
           ),
           child: Row(
@@ -424,7 +428,9 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
                 ),
                 child: Icon(
                   Icons.local_shipping,
-                  color: isAssigned ? const Color(0xFFDC2626) : const Color(0xFF94A3B8),
+                  color: isAssigned
+                      ? const Color(0xFFDC2626)
+                      : const Color(0xFF94A3B8),
                   size: 24,
                 ),
               ),
@@ -573,7 +579,8 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
     }
   }
 
-  Future<void> _handleRoleAssignment(String role, bool isAssigned, String? currentUserId) async {
+  Future<void> _handleRoleAssignment(
+      String role, bool isAssigned, String? currentUserId) async {
     try {
       if (isAssigned) {
         // Unassign
@@ -582,7 +589,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
           role: role,
           userId: null,
         );
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('${_getRoleLabel(role)} dezalocat')),
@@ -606,7 +613,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
           role: role,
           userId: selectedUserId, // null = unassign
         );
-        
+
         if (mounted) {
           final message = selectedUserId == null
               ? '${_getRoleLabel(role)} dealocat'
@@ -631,7 +638,8 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
     }
   }
 
-  Future<void> _handleDriverAssignment(bool isAssigned, String? currentUserId) async {
+  Future<void> _handleDriverAssignment(
+      bool isAssigned, String? currentUserId) async {
     try {
       if (isAssigned) {
         // Unassign
@@ -639,7 +647,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
           eventId: widget.eventId,
           userId: null,
         );
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Șofer dezalocat')),
@@ -662,7 +670,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
           eventId: widget.eventId,
           userId: selectedUserId, // null = unassign
         );
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Șofer alocat')),
@@ -893,9 +901,12 @@ Schema v2:
     final dateController = TextEditingController(text: _event!.date);
     final addressController = TextEditingController(text: _event!.address);
     final numeController = TextEditingController(text: _event!.sarbatoritNume);
-    final varstaController = TextEditingController(text: _event!.sarbatoritVarsta.toString());
-    final totalController = TextEditingController(text: _event!.incasare.total.toString());
-    final avansController = TextEditingController(text: _event!.incasare.avans.toString());
+    final varstaController =
+        TextEditingController(text: _event!.sarbatoritVarsta.toString());
+    final totalController =
+        TextEditingController(text: _event!.incasare.total.toString());
+    final avansController =
+        TextEditingController(text: _event!.incasare.avans.toString());
 
     showDialog(
       context: context,
@@ -1045,7 +1056,8 @@ Schema v2:
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Sigur vrei să arhivezi evenimentul "${_event!.sarbatoritNume}"?'),
+            Text(
+                'Sigur vrei să arhivezi evenimentul "${_event!.sarbatoritNume}"?'),
             const SizedBox(height: 16),
             TextField(
               controller: reasonController,

@@ -130,7 +130,8 @@ class _CodeFilterModalState extends State<CodeFilterModal> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4ECDC4),
                     foregroundColor: const Color(0xFF0B1220),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
                   ),
                   child: const Text('Aplică'),
                 ),
@@ -152,15 +153,20 @@ class _CodeFilterModalState extends State<CodeFilterModal> {
         decoration: BoxDecoration(
           color: isSelected ? const Color(0x284ECDC4) : const Color(0x0AFFFFFF),
           border: Border.all(
-            color: isSelected ? const Color(0x504ECDC4) : const Color(0x1FFFFFFF),
+            color:
+                isSelected ? const Color(0x504ECDC4) : const Color(0x1FFFFFFF),
           ),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           children: [
             Icon(
-              isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-              color: isSelected ? const Color(0xFF4ECDC4) : const Color(0x8CEAF1FF),
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color: isSelected
+                  ? const Color(0xFF4ECDC4)
+                  : const Color(0x8CEAF1FF),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -172,7 +178,9 @@ class _CodeFilterModalState extends State<CodeFilterModal> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: isSelected ? const Color(0xFFEAF1FF) : const Color(0xDBEAF1FF),
+                      color: isSelected
+                          ? const Color(0xFFEAF1FF)
+                          : const Color(0xDBEAF1FF),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -206,7 +214,7 @@ class _CodeFilterModalState extends State<CodeFilterModal> {
         return;
       }
     }
-    
+
     widget.onApply(code, _selectedOption);
     Navigator.pop(context);
   }

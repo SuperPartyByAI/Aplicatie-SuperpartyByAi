@@ -9,13 +9,17 @@ class TeamScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Echipă')),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('staffProfiles').snapshots(),
+        stream:
+            FirebaseFirestore.instance.collection('staffProfiles').snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.hasError) return Center(child: Text('Eroare: ${snapshot.error}'));
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (snapshot.hasError)
+            return Center(child: Text('Eroare: ${snapshot.error}'));
+          if (!snapshot.hasData)
+            return const Center(child: CircularProgressIndicator());
 
           final staff = snapshot.data!.docs;
-          if (staff.isEmpty) return const Center(child: Text('Nu există membri în echipă'));
+          if (staff.isEmpty)
+            return const Center(child: Text('Nu există membri în echipă'));
 
           return ListView.builder(
             itemCount: staff.length,
@@ -34,8 +38,12 @@ class TeamScreen extends StatelessWidget {
                   title: Text(member['cineNoteaza'] ?? 'N/A'),
                   subtitle: Text('Cod: ${member['code'] ?? 'N/A'}'),
                   trailing: Icon(
-                    member['setupDone'] == true ? Icons.check_circle : Icons.pending,
-                    color: member['setupDone'] == true ? Colors.green : Colors.orange,
+                    member['setupDone'] == true
+                        ? Icons.check_circle
+                        : Icons.pending,
+                    color: member['setupDone'] == true
+                        ? Colors.green
+                        : Colors.orange,
                   ),
                 ),
               );

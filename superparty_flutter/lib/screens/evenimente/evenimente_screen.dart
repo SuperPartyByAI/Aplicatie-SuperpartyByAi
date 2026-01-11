@@ -1,9 +1,7 @@
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/event_model.dart';
-import '../../services/event_service.dart';
 import '../../widgets/modals/range_modal.dart';
 import '../../widgets/modals/code_modal.dart';
 import '../../widgets/modals/assign_modal.dart';
@@ -21,11 +19,11 @@ class EvenimenteScreen extends StatefulWidget {
 }
 
 class _EvenimenteScreenState extends State<EvenimenteScreen> {
-  final EventService _eventService = EventService();
   final FocusNode _codeInputFocus = FocusNode();
 
   // Filtre - exact ca în HTML
-  String _datePreset = 'all'; // all, today, yesterday, last7, next7, next30, custom
+  String _datePreset =
+      'all'; // all, today, yesterday, last7, next7, next30, custom
   bool _sortAsc = false; // false = desc (↓), true = asc (↑)
   String _driverFilter = 'all'; // all, yes, open, no (conform HTML exact)
   String _codeFilter = '';
@@ -76,7 +74,8 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0B1220).withOpacity(0.72), // rgba(11,18,32,0.72)
+            color: const Color(0xFF0B1220)
+                .withOpacity(0.72), // rgba(11,18,32,0.72)
             border: const Border(
               bottom: BorderSide(
                 color: Color(0x14FFFFFF), // rgba(255,255,255,0.08)
@@ -202,8 +201,10 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             DropdownMenuItem(value: 'yesterday', child: Text('Ieri')),
             DropdownMenuItem(value: 'last7', child: Text('Ultimele 7 zile')),
             DropdownMenuItem(value: 'next7', child: Text('Urmatoarele 7 zile')),
-            DropdownMenuItem(value: 'next30', child: Text('Urmatoarele 30 zile')),
-            DropdownMenuItem(value: 'custom', child: Text('Interval (aleg eu)')),
+            DropdownMenuItem(
+                value: 'next30', child: Text('Urmatoarele 30 zile')),
+            DropdownMenuItem(
+                value: 'custom', child: Text('Interval (aleg eu)')),
           ],
           onChanged: (value) {
             if (value != null) {
@@ -338,7 +339,6 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 decoration: BoxDecoration(
                   color: badgeColors[_driverFilter],
                   borderRadius: BorderRadius.circular(999),
-
                   border: Border.all(
                     color: badgeBorderColors[_driverFilter]!,
                     width: 1,
@@ -495,8 +495,9 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         }
 
         final events = snapshot.data?.docs.map((doc) {
-          return EventModel.fromFirestore(doc);
-        }).toList() ?? [];
+              return EventModel.fromFirestore(doc);
+            }).toList() ??
+            [];
         _allEvents = events; // Cache for CodeInfoModal
         final filteredEvents = _applyFilters(events);
 
@@ -570,29 +571,35 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         return true;
 
       case 'today':
-        final eventDay = DateTime(eventDate.year, eventDate.month, eventDate.day);
+        final eventDay =
+            DateTime(eventDate.year, eventDate.month, eventDate.day);
         return eventDay == today;
 
       case 'yesterday':
         final yesterday = today.subtract(const Duration(days: 1));
-        final eventDay = DateTime(eventDate.year, eventDate.month, eventDate.day);
+        final eventDay =
+            DateTime(eventDate.year, eventDate.month, eventDate.day);
         return eventDay == yesterday;
 
       case 'last7':
         final last7 = today.subtract(const Duration(days: 7));
-        return eventDate.isAfter(last7) && eventDate.isBefore(today.add(const Duration(days: 1)));
+        return eventDate.isAfter(last7) &&
+            eventDate.isBefore(today.add(const Duration(days: 1)));
 
       case 'next7':
         final next7 = today.add(const Duration(days: 7));
-        return eventDate.isAfter(today.subtract(const Duration(days: 1))) && eventDate.isBefore(next7.add(const Duration(days: 1)));
+        return eventDate.isAfter(today.subtract(const Duration(days: 1))) &&
+            eventDate.isBefore(next7.add(const Duration(days: 1)));
 
       case 'next30':
         final next30 = today.add(const Duration(days: 30));
-        return eventDate.isAfter(today.subtract(const Duration(days: 1))) && eventDate.isBefore(next30.add(const Duration(days: 1)));
+        return eventDate.isAfter(today.subtract(const Duration(days: 1))) &&
+            eventDate.isBefore(next30.add(const Duration(days: 1)));
 
       case 'custom':
         if (_customStart != null && _customEnd != null) {
-          return eventDate.isAfter(_customStart!.subtract(const Duration(days: 1))) &&
+          return eventDate
+                  .isAfter(_customStart!.subtract(const Duration(days: 1))) &&
               eventDate.isBefore(_customEnd!.add(const Duration(days: 1)));
         }
         return true;
@@ -616,7 +623,8 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         if (!needsDriver) return false;
         final driverRole = event.roles.firstWhere(
           (r) => r.slot.toUpperCase() == 'S',
-          orElse: () => RoleModel(slot: 'S', label: '', time: '', durationMin: 0),
+          orElse: () =>
+              RoleModel(slot: 'S', label: '', time: '', durationMin: 0),
         );
         final hasAssigned = driverRole.assignedCode != null &&
             driverRole.assignedCode!.isNotEmpty &&

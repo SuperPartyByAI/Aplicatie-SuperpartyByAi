@@ -5,7 +5,7 @@ import '../services/apk_downloader_service.dart';
 import '../services/apk_installer_bridge.dart';
 
 /// Dialog obligatoriu pentru force update
-/// 
+///
 /// Features:
 /// - Non-dismissible (WillPopScope + barrierDismissible=false)
 /// - Download APK cu progress bar
@@ -27,11 +27,11 @@ class ForceUpdateDialog extends StatefulWidget {
   State<ForceUpdateDialog> createState() => _ForceUpdateDialogState();
 
   /// Afișează dialog-ul de force update
-  /// 
+  ///
   /// Citește config din Firestore și afișează dialog non-dismissible
   static Future<void> show(BuildContext context) async {
     final checker = ForceUpdateCheckerService();
-    
+
     final message = await checker.getUpdateMessage();
     final releaseNotes = await checker.getReleaseNotes();
     final downloadUrl = await checker.getDownloadUrl();
@@ -109,7 +109,7 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
 
       // 2. Verifică permisiunea de instalare
       final canInstall = await ApkInstallerBridge.canInstallPackages();
-      
+
       if (!canInstall) {
         debugPrint('[ForceUpdateDialog] Install permission required');
         setState(() {
@@ -120,7 +120,6 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
 
       // 3. Instalează APK
       await _installApk(filePath);
-
     } catch (e) {
       debugPrint('[ForceUpdateDialog] Error: $e');
       _showError(e.toString());
@@ -139,7 +138,6 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
       // Installerul Android s-a deschis
       // User-ul va instala manual și va redeschide app-ul
       debugPrint('[ForceUpdateDialog] Installer opened successfully');
-
     } catch (e) {
       debugPrint('[ForceUpdateDialog] Install error: $e');
       _showError(e.toString());
@@ -149,12 +147,12 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
   Future<void> _openUnknownSourcesSettings() async {
     try {
       await ApkInstallerBridge.openUnknownSourcesSettings();
-      
+
       // Așteaptă 2 secunde și verifică din nou permisiunea
       await Future.delayed(const Duration(seconds: 2));
-      
+
       final canInstall = await ApkInstallerBridge.canInstallPackages();
-      
+
       if (canInstall && _downloadedFilePath != null) {
         // Permisiunea a fost acordată, reluăm instalarea
         await _installApk(_downloadedFilePath!);
@@ -218,7 +216,7 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
                 widget.message,
                 style: const TextStyle(fontSize: 16),
               ),
-              
+
               // Release notes
               if (widget.releaseNotes.isNotEmpty) ...[
                 const SizedBox(height: 16),
@@ -248,7 +246,7 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
                   ),
                 ),
               ],
-              
+
               // Progress bar (download)
               if (_state == _UpdateState.downloading) ...[
                 const SizedBox(height: 16),
@@ -268,7 +266,7 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
                   ),
                 ),
               ],
-              
+
               // Installing status
               if (_state == _UpdateState.installing) ...[
                 const SizedBox(height: 16),
@@ -288,7 +286,7 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
                   ],
                 ),
               ],
-              
+
               // Permission required
               if (_state == _UpdateState.permissionRequired) ...[
                 const SizedBox(height: 16),
@@ -304,7 +302,8 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.warning, color: Colors.orange.shade700, size: 20),
+                          Icon(Icons.warning,
+                              color: Colors.orange.shade700, size: 20),
                           const SizedBox(width: 8),
                           const Expanded(
                             child: Text(
@@ -326,7 +325,7 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
                   ),
                 ),
               ],
-              
+
               // Error message
               if (_state == _UpdateState.error) ...[
                 const SizedBox(height: 16),

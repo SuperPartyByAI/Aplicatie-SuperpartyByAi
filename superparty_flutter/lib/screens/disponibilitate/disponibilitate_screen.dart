@@ -17,14 +17,18 @@ class _DisponibilitateScreenState extends State<DisponibilitateScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    await FirebaseFirestore.instance.collection('disponibilitate').doc('${user.uid}_${_selectedDate.toIso8601String().split('T')[0]}').set({
+    await FirebaseFirestore.instance
+        .collection('disponibilitate')
+        .doc('${user.uid}_${_selectedDate.toIso8601String().split('T')[0]}')
+        .set({
       'userId': user.uid,
       'data': _selectedDate,
       'disponibil': _isAvailable,
       'timestamp': FieldValue.serverTimestamp(),
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Disponibilitate salvată')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Disponibilitate salvată')));
   }
 
   @override

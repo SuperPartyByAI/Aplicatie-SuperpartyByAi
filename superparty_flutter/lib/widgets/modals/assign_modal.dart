@@ -174,9 +174,12 @@ class _AssignModalState extends State<AssignModal> {
     );
   }
 
-  Widget _buildAssignBox(String roleTime, String currentAssigned, String currentPending) {
-    final hasAssigned = currentAssigned.isNotEmpty && _isValidStaffCode(currentAssigned);
-    final hasPending = currentPending.isNotEmpty && _isValidStaffCode(currentPending);
+  Widget _buildAssignBox(
+      String roleTime, String currentAssigned, String currentPending) {
+    final hasAssigned =
+        currentAssigned.isNotEmpty && _isValidStaffCode(currentAssigned);
+    final hasPending =
+        currentPending.isNotEmpty && _isValidStaffCode(currentPending);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,9 +198,10 @@ class _AssignModalState extends State<AssignModal> {
           const SizedBox(height: 8),
           Text(
             [
-              if (hasAssigned) 'Curent: $currentAssigned',
-              if (hasPending) 'In asteptare: $currentPending',
-            ].join(' • ') + ' • scrie codul ca sa trimiti o cerere noua',
+                  if (hasAssigned) 'Curent: $currentAssigned',
+                  if (hasPending) 'In asteptare: $currentPending',
+                ].join(' • ') +
+                ' • scrie codul ca sa trimiti o cerere noua',
             style: TextStyle(
               fontSize: 11,
               color: const Color(0xFFEAF1FF).withOpacity(0.6),
@@ -243,7 +247,8 @@ class _AssignModalState extends State<AssignModal> {
                 color: Color(0x4DFFFFFF),
               ),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
           onChanged: (value) {
             // Auto-uppercase

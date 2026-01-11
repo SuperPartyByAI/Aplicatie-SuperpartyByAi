@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import '../models/evidence_model.dart';
 import '../models/evidence_state_model.dart';
@@ -55,7 +56,8 @@ class EvidenceService {
       }
 
       // Generează UUID pentru fișier
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(imageFile.path)}';
+      final fileName =
+          '${DateTime.now().millisecondsSinceEpoch}_${path.basename(imageFile.path)}';
       final storagePath = 'event_images/$eventId/${category.value}/$fileName';
 
       // Upload în Storage
@@ -106,10 +108,8 @@ class EvidenceService {
     required String eventId,
     EvidenceCategory? category,
   }) {
-    Query query = _firestore
-        .collection('evenimente')
-        .doc(eventId)
-        .collection('dovezi');
+    Query query =
+        _firestore.collection('evenimente').doc(eventId).collection('dovezi');
 
     // Exclude dovezi arhivate implicit (politica: never delete)
     query = query.where('isArchived', isEqualTo: false);
@@ -132,10 +132,8 @@ class EvidenceService {
     required String eventId,
     EvidenceCategory? category,
   }) {
-    Query query = _firestore
-        .collection('evenimente')
-        .doc(eventId)
-        .collection('dovezi');
+    Query query =
+        _firestore.collection('evenimente').doc(eventId).collection('dovezi');
 
     query = query.where('isArchived', isEqualTo: true);
 
@@ -158,10 +156,8 @@ class EvidenceService {
     EvidenceCategory? category,
   }) async {
     try {
-      Query query = _firestore
-          .collection('evenimente')
-          .doc(eventId)
-          .collection('dovezi');
+      Query query =
+          _firestore.collection('evenimente').doc(eventId).collection('dovezi');
 
       // Exclude dovezi arhivate implicit
       query = query.where('isArchived', isEqualTo: false);
@@ -182,7 +178,7 @@ class EvidenceService {
   }
 
   /// Arhivează dovadă (POLITICA: NEVER DELETE)
-  /// 
+  ///
   /// Fișierul din Storage rămâne intact.
   /// Doar metadata din Firestore se marchează ca arhivată.
   Future<void> archiveEvidence({
@@ -393,11 +389,11 @@ class EvidenceService {
           .doc(category.value);
 
       final doc = await docRef.get();
-      
+
       if (doc.exists) {
         final currentCount = (doc.data()?['photoCount'] as int?) ?? 0;
         final newCount = increment ? currentCount + 1 : currentCount - 1;
-        
+
         await docRef.update({
           'photoCount': newCount.clamp(0, 999999),
           'lastUpdated': FieldValue.serverTimestamp(),
@@ -448,7 +444,8 @@ class EvidenceService {
   }
 
   /// Stream pentru category states
-  Stream<Map<EvidenceCategory, EvidenceStateModel>> getCategoryStatesStream(String eventId) {
+  Stream<Map<EvidenceCategory, EvidenceStateModel>> getCategoryStatesStream(
+      String eventId) {
     return _firestore
         .collection('evenimente')
         .doc(eventId)

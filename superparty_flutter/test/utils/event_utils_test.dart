@@ -70,13 +70,13 @@ void main() {
         requiresSofer(tipEveniment: 'Nunta', tipLocatie: ''),
         isFalse,
       );
-      
+
       // Unknown types
       expect(
         requiresSofer(tipEveniment: 'Unknown', tipLocatie: 'Unknown'),
         isFalse,
       );
-      
+
       // Case sensitivity
       expect(
         requiresSofer(tipEveniment: 'Nunta', tipLocatie: 'exterior'),
@@ -85,9 +85,17 @@ void main() {
     });
 
     test('comprehensive location coverage', () {
-      final locatiiCuSofer = ['Exterior', 'Casa', 'Vila', 'Gradina', 'Parc', 'Plaja', 'Munte'];
+      final locatiiCuSofer = [
+        'Exterior',
+        'Casa',
+        'Vila',
+        'Gradina',
+        'Parc',
+        'Plaja',
+        'Munte'
+      ];
       final locatiiFaraSofer = ['Sala', 'Restaurant', 'Hotel', 'Club', 'Bar'];
-      
+
       for (final locatie in locatiiCuSofer) {
         expect(
           requiresSofer(tipEveniment: 'Nunta', tipLocatie: locatie),
@@ -95,7 +103,7 @@ void main() {
           reason: 'Locația $locatie ar trebui să necesite șofer',
         );
       }
-      
+
       for (final locatie in locatiiFaraSofer) {
         expect(
           requiresSofer(tipEveniment: 'Nunta', tipLocatie: locatie),

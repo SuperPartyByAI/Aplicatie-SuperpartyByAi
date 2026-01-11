@@ -41,7 +41,8 @@ class CodeModal extends StatelessWidget {
             color: const Color(0xEB0B1220), // rgba(11,18,32,0.92)
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1) - fixed from 9 to 8 hex digits
+              color: const Color(
+                  0x1AFFFFFF), // rgba(255,255,255,0.1) - fixed from 9 to 8 hex digits
             ),
             boxShadow: [
               BoxShadow(
@@ -159,7 +160,8 @@ class CodeModal extends StatelessWidget {
     );
   }
 
-  Widget _buildPickButton(BuildContext context, String label, VoidCallback onTap) {
+  Widget _buildPickButton(
+      BuildContext context, String label, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,

@@ -30,7 +30,8 @@ class GridOverlay extends StatelessWidget {
                           behavior: HitTestBehavior.opaque,
                           child: const Padding(
                             padding: EdgeInsets.all(8),
-                            child: Icon(Icons.close, color: Colors.white, size: 32),
+                            child: Icon(Icons.close,
+                                color: Colors.white, size: 32),
                           ),
                         ),
                       ),
@@ -40,14 +41,17 @@ class GridOverlay extends StatelessWidget {
                         onTap: () {}, // Prevent closing when tapping on grid
                         child: GridView.count(
                           crossAxisCount: 4, // 4 butoane pe rând
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 24),
                           mainAxisSpacing: 12,
                           crossAxisSpacing: 12,
                           childAspectRatio: 0.85, // Puțin mai înalt pentru text
                           children: [
                             ..._buildNormalButtons(context, appState),
-                            if (appState.isAdminMode) ..._buildAdminButtons(context, appState),
-                            if (appState.isGmMode) ..._buildGmButtons(context, appState),
+                            if (appState.isAdminMode)
+                              ..._buildAdminButtons(context, appState),
+                            if (appState.isGmMode)
+                              ..._buildGmButtons(context, appState),
                           ],
                         ),
                       ),
@@ -62,34 +66,53 @@ class GridOverlay extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildNormalButtons(BuildContext context, AppStateProvider appState) {
+  List<Widget> _buildNormalButtons(
+      BuildContext context, AppStateProvider appState) {
     return [
-      _buildAppIcon(context, appState, 'Evenimente', Icons.event, '/evenimente'),
-      _buildAppIcon(context, appState, 'Disponibilitate', Icons.calendar_today, '/disponibilitate'),
-      _buildAppIcon(context, appState, 'Salarii', Icons.attach_money, '/salarizare'),
+      _buildAppIcon(
+          context, appState, 'Evenimente', Icons.event, '/evenimente'),
+      _buildAppIcon(context, appState, 'Disponibilitate', Icons.calendar_today,
+          '/disponibilitate'),
+      _buildAppIcon(
+          context, appState, 'Salarii', Icons.attach_money, '/salarizare'),
       _buildAppIcon(context, appState, 'Centrala', Icons.phone, '/centrala'),
       _buildAppIcon(context, appState, 'WhatsApp', Icons.chat, '/whatsapp'),
       _buildAppIcon(context, appState, 'Echipă', Icons.people, '/team'),
     ];
   }
 
-  List<Widget> _buildAdminButtons(BuildContext context, AppStateProvider appState) {
+  List<Widget> _buildAdminButtons(
+      BuildContext context, AppStateProvider appState) {
     return [
-      _buildAppIcon(context, appState, 'Aprobări KYC', Icons.check_circle, '/admin/kyc', color: const Color(0xFFEF4444)),
-      _buildAppIcon(context, appState, 'Conversații AI', Icons.chat_bubble, '/admin/ai-conversations', color: const Color(0xFFEF4444)),
-      _buildAppIconAction(context, appState, 'Ieși Admin', Icons.exit_to_app, () {
+      _buildAppIcon(
+          context, appState, 'Aprobări KYC', Icons.check_circle, '/admin/kyc',
+          color: const Color(0xFFEF4444)),
+      _buildAppIcon(context, appState, 'Conversații AI', Icons.chat_bubble,
+          '/admin/ai-conversations',
+          color: const Color(0xFFEF4444)),
+      _buildAppIconAction(context, appState, 'Ieși Admin', Icons.exit_to_app,
+          () {
         appState.exitAdminMode();
         appState.closeGrid();
       }, color: const Color(0xFFEF4444)),
     ];
   }
 
-  List<Widget> _buildGmButtons(BuildContext context, AppStateProvider appState) {
+  List<Widget> _buildGmButtons(
+      BuildContext context, AppStateProvider appState) {
     return [
-      _buildAppIcon(context, appState, 'Conturi WA', Icons.settings, '/gm/accounts', color: const Color(0xFFFBBF24), glowOpacity: 0.12),
-      _buildAppIcon(context, appState, 'Metrice', Icons.bar_chart, '/gm/metrics', color: const Color(0xFFFBBF24), glowOpacity: 0.12),
-      _buildAppIcon(context, appState, 'Analiză', Icons.analytics, '/gm/analytics', color: const Color(0xFFFBBF24), glowOpacity: 0.12),
-      _buildAppIcon(context, appState, 'Setări Staff', Icons.people_outline, '/gm/staff-setup', color: const Color(0xFFFBBF24), glowOpacity: 0.12),
+      _buildAppIcon(
+          context, appState, 'Conturi WA', Icons.settings, '/gm/accounts',
+          color: const Color(0xFFFBBF24), glowOpacity: 0.12),
+      _buildAppIcon(
+          context, appState, 'Metrice', Icons.bar_chart, '/gm/metrics',
+          color: const Color(0xFFFBBF24), glowOpacity: 0.12),
+      _buildAppIcon(
+          context, appState, 'Analiză', Icons.analytics, '/gm/analytics',
+          color: const Color(0xFFFBBF24), glowOpacity: 0.12),
+      _buildAppIcon(context, appState, 'Setări Staff', Icons.people_outline,
+          '/gm/staff-setup',
+          color: const Color(0xFFFBBF24), glowOpacity: 0.12),
       _buildAppIconAction(context, appState, 'Ieși GM', Icons.exit_to_app, () {
         appState.exitGmMode();
         appState.closeGrid();

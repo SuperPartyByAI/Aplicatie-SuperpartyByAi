@@ -12,8 +12,10 @@ void main() {
       );
 
       expect(result.docId, equals('test-doc-id'));
-      expect(result.downloadUrl, equals('https://storage.googleapis.com/bucket/path/file.jpg'));
-      expect(result.storagePath, equals('event_images/event123/Mancare/file.jpg'));
+      expect(result.downloadUrl,
+          equals('https://storage.googleapis.com/bucket/path/file.jpg'));
+      expect(
+          result.storagePath, equals('event_images/event123/Mancare/file.jpg'));
       expect(result.uploadedAt, equals(DateTime(2024, 1, 1)));
     });
 
@@ -22,7 +24,8 @@ void main() {
       // and is not manually constructed from docId or other fields
       final result = EvidenceUploadResult(
         docId: 'abc123',
-        downloadUrl: 'https://firebasestorage.googleapis.com/v0/b/bucket/o/path%2Ffile.jpg?alt=media&token=xyz',
+        downloadUrl:
+            'https://firebasestorage.googleapis.com/v0/b/bucket/o/path%2Ffile.jpg?alt=media&token=xyz',
         storagePath: 'path/file.jpg',
         uploadedAt: DateTime.now(),
       );
@@ -30,7 +33,7 @@ void main() {
       // downloadUrl should be a complete Firebase Storage URL with token
       expect(result.downloadUrl, contains('firebasestorage.googleapis.com'));
       expect(result.downloadUrl, contains('alt=media'));
-      
+
       // downloadUrl should NOT be constructed from docId
       expect(result.downloadUrl, isNot(contains(result.docId)));
     });
@@ -40,7 +43,7 @@ void main() {
     test('returns EvidenceUploadResult with all fields', () {
       // This is a documentation test - actual implementation requires mocking
       // Firebase Storage and Firestore, which is complex.
-      // 
+      //
       // Expected behavior:
       // 1. Upload file to Storage → get downloadUrl from snapshot.ref.getDownloadURL()
       // 2. Create Firestore doc → get docId from docRef.id
@@ -54,7 +57,7 @@ void main() {
       // - Manual URL construction
       // - Query after upload to get URL
       // - Race conditions with firstWhere()
-      
+
       expect(true, isTrue); // Placeholder - real test would mock Firebase
     });
   });
@@ -66,21 +69,22 @@ void main() {
       // - Upload button disabled
       // - Remove button disabled on all images
       // - Status dropdown disabled
-      // 
+      //
       // This prevents accidental changes after approval.
-      
+
       const status = 'ok';
       final isLocked = (status == 'ok');
-      
+
       expect(isLocked, isTrue);
     });
 
     test('category should be unlocked for non-OK statuses', () {
       // Categories with status 'n/a', 'verifying', or 'needed' remain unlocked
-      
+
       for (final status in ['n/a', 'verifying', 'needed']) {
         final isLocked = (status == 'ok');
-        expect(isLocked, isFalse, reason: 'Status $status should not be locked');
+        expect(isLocked, isFalse,
+            reason: 'Status $status should not be locked');
       }
     });
 
@@ -91,13 +95,13 @@ void main() {
       // - Status dropdown: disabled
       //
       // This is enforced at UI level, not service level
-      
+
       const isLocked = true;
-      
+
       // Upload should be disabled
       final canUpload = !isLocked;
       expect(canUpload, isFalse);
-      
+
       // Remove should be disabled
       final canRemove = !isLocked;
       expect(canRemove, isFalse);
@@ -109,18 +113,18 @@ void main() {
       // Expected behavior:
       // archiveEvidence() calls:
       //   doc.update({'isArchived': true, 'archivedAt': FieldValue.serverTimestamp()})
-      // 
+      //
       // It NEVER calls:
       //   doc.delete()
       //
       // This implements the NEVER DELETE policy
-      
+
       // Simulated Firestore operation
       final updates = {
         'isArchived': true,
         'archivedAt': DateTime.now(),
       };
-      
+
       expect(updates.containsKey('isArchived'), isTrue);
       expect(updates['isArchived'], isTrue);
       expect(updates.containsKey('archivedAt'), isTrue);
@@ -132,10 +136,10 @@ void main() {
       //   .where('isArchived', isEqualTo: false)
       //
       // This hides archived items from normal views
-      
+
       const isArchived = false;
       final shouldInclude = !isArchived;
-      
+
       expect(shouldInclude, isTrue);
     });
 
@@ -145,10 +149,10 @@ void main() {
       //   .where('isArchived', isEqualTo: true)
       //
       // This allows viewing archived items if needed
-      
+
       const isArchived = true;
       final shouldInclude = isArchived;
-      
+
       expect(shouldInclude, isTrue);
     });
 
@@ -159,10 +163,11 @@ void main() {
       // }
       //
       // This enforces NEVER DELETE at database level
-      
+
       const allowDelete = false;
-      
-      expect(allowDelete, isFalse, reason: 'Firestore rules must prevent .delete()');
+
+      expect(allowDelete, isFalse,
+          reason: 'Firestore rules must prevent .delete()');
     });
   });
 }

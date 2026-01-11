@@ -16,7 +16,8 @@ class AdminScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           _buildAdminCard(context, 'Aprobări KYC', Icons.verified_user, () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const KycApprovalsScreen()));
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const KycApprovalsScreen()));
           }),
           _buildAdminCard(context, 'Conversații AI', Icons.chat, () {}),
           _buildAdminCard(context, 'Utilizatori', Icons.people, () {}),
@@ -26,7 +27,8 @@ class AdminScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildAdminCard(BuildContext context, String title, IconData icon, VoidCallback onTap) {
+  Widget _buildAdminCard(
+      BuildContext context, String title, IconData icon, VoidCallback onTap) {
     return Card(
       color: const Color(0xFFDC2626),
       child: GestureDetector(
@@ -37,7 +39,11 @@ class AdminScreen extends StatelessWidget {
           children: [
             Icon(icon, size: 48, color: Colors.white),
             const SizedBox(height: 8),
-            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text(title,
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white)),
           ],
         ),
       ),

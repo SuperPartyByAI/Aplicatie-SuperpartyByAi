@@ -5,11 +5,11 @@ import '../services/app_state_migration_service.dart';
 import '../screens/update/force_update_screen.dart';
 
 /// UpdateGate: Single point of control for Force Update flow
-/// 
+///
 /// This widget sits at the root of the app and decides whether to:
 /// - Show ForceUpdateScreen (if update is required)
 /// - Show the normal app (if no update needed)
-/// 
+///
 /// IMPORTANT: User stays authenticated through the update process.
 /// No signOut() is called - FirebaseAuth session persists.
 class UpdateGate extends StatefulWidget {
@@ -38,30 +38,33 @@ class _UpdateGateState extends State<UpdateGate> {
     try {
       debugPrint('[UpdateGate] ========================================');
       debugPrint('[UpdateGate] Starting force update check...');
-      
+
       final checker = ForceUpdateCheckerService();
-      
+
       // Get current build info
       final packageInfo = await PackageInfo.fromPlatform();
       debugPrint('[UpdateGate] Current app version: ${packageInfo.version}');
-      debugPrint('[UpdateGate] Current build number: ${packageInfo.buildNumber}');
-      
+      debugPrint(
+          '[UpdateGate] Current build number: ${packageInfo.buildNumber}');
+
       final needsUpdate = await checker.needsForceUpdate();
-      
+
       debugPrint('[UpdateGate] Force update required: $needsUpdate');
       debugPrint('[UpdateGate] ========================================');
-      
+
       // If no update needed, check for data migration
       if (!needsUpdate) {
-        debugPrint('[UpdateGate] No force update needed, checking for data migration...');
+        debugPrint(
+            '[UpdateGate] No force update needed, checking for data migration...');
         try {
           await AppStateMigrationService.checkAndMigrate();
         } catch (e) {
-          debugPrint('[UpdateGate] ⚠️ Data migration failed (non-critical): $e');
+          debugPrint(
+              '[UpdateGate] ⚠️ Data migration failed (non-critical): $e');
           // Continue anyway - migration failure shouldn't block app
         }
       }
-      
+
       if (mounted) {
         setState(() {
           _needsUpdate = needsUpdate;
@@ -71,7 +74,8 @@ class _UpdateGateState extends State<UpdateGate> {
     } catch (e, stackTrace) {
       debugPrint('[UpdateGate] ❌ Error checking for update: $e');
       debugPrint('[UpdateGate] Stack trace: $stackTrace');
-      debugPrint('[UpdateGate] ℹ️ FAIL-SAFE: App will continue without blocking');
+      debugPrint(
+          '[UpdateGate] ℹ️ FAIL-SAFE: App will continue without blocking');
       // Fail-safe: don't block app if check fails
       if (mounted) {
         setState(() {
@@ -90,7 +94,7 @@ class _UpdateGateState extends State<UpdateGate> {
       children: [
         // Main app (always present)
         widget.child,
-        
+
         // Overlay for checking state
         if (_checking)
           Positioned.fill(
@@ -108,7 +112,7 @@ class _UpdateGateState extends State<UpdateGate> {
               ),
             ),
           ),
-        
+
         // Overlay for force update screen
         if (_needsUpdate)
           Positioned.fill(
@@ -119,7 +123,8 @@ class _UpdateGateState extends State<UpdateGate> {
                   // After update is installed and app restarts,
                   // this callback won't be called because app will restart.
                   // But we keep it for potential future use.
-                  debugPrint('[UpdateGate] Update complete callback (app should restart)');
+                  debugPrint(
+                      '[UpdateGate] Update complete callback (app should restart)');
                 },
               ),
             ),

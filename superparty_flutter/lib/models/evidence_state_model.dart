@@ -21,10 +21,11 @@ class EvidenceStateModel {
 
   factory EvidenceStateModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    
+
     return EvidenceStateModel(
       id: doc.id,
-      category: EvidenceCategory.fromString(data['category'] as String? ?? 'onTime'),
+      category:
+          EvidenceCategory.fromString(data['category'] as String? ?? 'onTime'),
       status: EvidenceStatus.fromString(data['status'] as String? ?? 'na'),
       locked: data['locked'] as bool? ?? false,
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -60,10 +61,10 @@ class EvidenceStateModel {
 
 /// Status categorie dovezi
 enum EvidenceStatus {
-  na('na', 'N/A'),                      // nu e aplicabil / nu e setat
+  na('na', 'N/A'), // nu e aplicabil / nu e setat
   verifying('verifying', 'Se verifică'), // are poze, se verifică
-  needed('needed', 'Mai trebuie'),       // lipsesc poze
-  ok('ok', 'OK');                        // validat, categorie locked
+  needed('needed', 'Mai trebuie'), // lipsesc poze
+  ok('ok', 'OK'); // validat, categorie locked
 
   final String value;
   final String label;
