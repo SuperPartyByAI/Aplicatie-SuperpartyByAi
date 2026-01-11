@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 /// Model pentru eveniment (schema v2)
 class EventModel {
   final String id;
-  final String date; // DD-MM-YYYY
+  final String date; // YYYY-MM-DD (ISO 8601)
   final String address;
   final String? cineNoteaza; // cod staff
   final String? sofer; // cod șofer alocat
@@ -49,51 +49,100 @@ class EventModel {
     required this.updatedBy,
   });
 
+  /// Helper: Convert DateTime to ISO date string (YYYY-MM-DD)
+  static String _toIsoDateString(DateTime dt) {
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+  }
+
+  /// Helper: Normalize date string to ISO format (YYYY-MM-DD)
+  /// Accepts: YYYY-MM-DD (ISO) or DD-MM-YYYY (legacy)
+  static String _normalizeDateString(String s) {
+    // ISO format: YYYY-MM-DD
+    if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(s)) {
+      return s;
+    }
+
+    // Legacy format: DD-MM-YYYY
+    if (RegExp(r'^\d{2}-\d{2}-\d{4}$').hasMatch(s)) {
+      final parts = s.split('-');
+      final day = int.tryParse(parts[0]);
+      final month = int.tryParse(parts[1]);
+      final year = int.tryParse(parts[2]);
+
+      if (day != null && month != null && year != null) {
+        try {
+          final dt = DateTime(year, month, day);
+          return _toIsoDateString(dt);
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint('[EventModel] ⚠️ Invalid date components: $s');
+          }
+        }
+      }
+    }
+
+    // Unknown format - return as-is with warning
+    if (kDebugMode) {
+      debugPrint('[EventModel] ⚠️ Unknown date format: $s');
+    }
+    return s;
+  }
+
   factory EventModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
-    // DEBUG: Log raw data to see what we're receiving
-    debugPrint('[EventModel] Parsing event ${doc.id}');
-    debugPrint('[EventModel] Raw data keys: ${data.keys.toList()}');
-    debugPrint(
-        '[EventModel] date field: ${data['date']} (type: ${data['date']?.runtimeType})');
-    debugPrint(
-        '[EventModel] data field: ${data['data']} (type: ${data['data']?.runtimeType})');
+    if (kDebugMode) {
+      debugPrint('[EventModel] Parsing event ${doc.id}');
+      debugPrint('[EventModel] Raw data keys: ${data.keys.toList()}');
+      debugPrint(
+          '[EventModel] date field: ${data['date']} (type: ${data['date']?.runtimeType})');
+      debugPrint(
+          '[EventModel] data field: ${data['data']} (type: ${data['data']?.runtimeType})');
+    }
 
     // DUAL-READ: suport v1 + v2
-    // v2: date (string DD-MM-YYYY), address, roles (array)
+    // v2: date (string YYYY-MM-DD or DD-MM-YYYY), address, roles (array)
     // v1: data (Timestamp), locatie/adresa, alocari (map)
 
     final schemaVersion = data['schemaVersion'] as int? ?? 1;
 
     // Date field (v2: string, v1: Timestamp)
     // Support both 'date' (English) and 'data' (Romanian) field names
+    // Normalize to ISO format (YYYY-MM-DD)
     String dateStr;
     if (data.containsKey('date') && data['date'] is String) {
-      // v2: date as string DD-MM-YYYY (English field name)
-      dateStr = data['date'] as String;
-      debugPrint('[EventModel] ✅ Using date as String: $dateStr');
+      // v2: date as string - normalize to ISO
+      dateStr = _normalizeDateString(data['date'] as String);
+      if (kDebugMode) {
+        debugPrint('[EventModel] ✅ Using date as String: $dateStr');
+      }
     } else if (data.containsKey('data') && data['data'] is String) {
-      // v2: data as string DD-MM-YYYY (Romanian field name)
-      dateStr = data['data'] as String;
-      debugPrint('[EventModel] ✅ Using data as String: $dateStr');
+      // v2: data as string - normalize to ISO
+      dateStr = _normalizeDateString(data['data'] as String);
+      if (kDebugMode) {
+        debugPrint('[EventModel] ✅ Using data as String: $dateStr');
+      }
     } else if (data.containsKey('date') && data['date'] is Timestamp) {
-      // v1: date as Timestamp (old schema) - convert to DD-MM-YYYY
+      // v1: date as Timestamp - convert to ISO
       final timestamp = (data['date'] as Timestamp).toDate();
-      dateStr =
-          '${timestamp.day.toString().padLeft(2, '0')}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.year}';
-      debugPrint('[EventModel] ✅ Converted date Timestamp to String: $dateStr');
+      dateStr = _toIsoDateString(timestamp);
+      if (kDebugMode) {
+        debugPrint('[EventModel] ✅ Converted date Timestamp to ISO: $dateStr');
+      }
     } else if (data.containsKey('data') && data['data'] is Timestamp) {
-      // v1 alternative: data as Timestamp - convert to DD-MM-YYYY
+      // v1 alternative: data as Timestamp - convert to ISO
       final timestamp = (data['data'] as Timestamp).toDate();
-      dateStr =
-          '${timestamp.day.toString().padLeft(2, '0')}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.year}';
-      debugPrint('[EventModel] ✅ Converted data Timestamp to String: $dateStr');
+      dateStr = _toIsoDateString(timestamp);
+      if (kDebugMode) {
+        debugPrint('[EventModel] ✅ Converted data Timestamp to ISO: $dateStr');
+      }
     } else {
       // Fallback: empty date
       dateStr = '';
-      debugPrint(
-          '[EventModel] ⚠️ No valid date field found, using empty string');
+      if (kDebugMode) {
+        debugPrint(
+            '[EventModel] ⚠️ No valid date field found, using empty string');
+      }
     }
 
     // Address field (v2: address, v1: locatie or adresa)
