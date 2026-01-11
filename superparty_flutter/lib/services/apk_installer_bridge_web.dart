@@ -5,7 +5,8 @@ class ApkInstallerBridge {
   /// Verifică dacă aplicația poate instala pachete (Web: always false)
   static Future<bool> canInstallPackages() async {
     if (kDebugMode) {
-      debugPrint('[ApkInstallerBridge] Web platform - APK installation not supported');
+      debugPrint(
+          '[ApkInstallerBridge] Web platform - APK installation not supported');
     }
     return false;
   }
