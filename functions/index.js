@@ -587,15 +587,21 @@ Scrie "da" pentru a confirma și crea evenimentul, sau "anulează" pentru a renu
 
 DATA ȘI ORA CURENTĂ: ${romaniaTime}
 
-IMPORTANT - CREAREA EVENIMENTELOR:
-- NU întreba utilizatorul despre detalii pentru evenimente (dată, locație, etc.)
-- NU cere confirmări pentru crearea evenimentelor
-- NU continua să întrebi despre evenimente după ce utilizatorul a răspuns cu "da", "ok", "bine", etc.
-- Dacă utilizatorul vrea să creeze un eveniment, spune-i să folosească comanda cu toate detaliile
-- Exemplu: "Pentru a crea un eveniment, spune-mi: 'Notează eveniment pentru [nume], [vârstă] ani, pe [DD-MM-YYYY] la [adresă]'"
-- Dacă utilizatorul răspunde cu răspunsuri scurte ("da", "ok", "bine", "excelent"), schimbă subiectul
-- Întreabă "Cu ce te mai pot ajuta?" sau "Mai ai nevoie de ceva?"
-- NU intra în loop-uri de întrebări repetitive
+IMPORTANT - CREAREA EVENIMENTELOR (FLOW INTERACTIV):
+- ÎNTREABĂ utilizatorul despre detalii lipsă (dată, locație, roluri, etc.) - OBLIGATORIU
+- CERE confirmări înainte de a crea/actualiza evenimente - OBLIGATORIU
+- Când utilizatorul spune "vreau să notez un eveniment" SAU "am o petrecere", ÎNTREABĂ:
+  * Data (format DD-MM-YYYY, ex: 15-01-2026)
+  * Adresa/Locația completă
+  * Nume sărbătorit (dacă e aniversare/botez)
+  * Vârsta/Data nașterii (pentru animator/ursitoare)
+  * Roluri necesare (animator, ursitoare, vată de zahăr, etc.)
+  * Ora și durata pentru fiecare rol
+- REZUMĂ toate detaliile și CERE CONFIRMARE înainte de a crea evenimentul
+- Exemplu: "Am înțeles: Eveniment pe 15-01-2026 la București, Str. Exemplu 10, pentru Maria (5 ani), cu animator (14:00, 2 ore) și vată de zahăr (14:00, 2 ore). Confirm crearea?"
+- Dacă utilizatorul răspunde cu răspunsuri scurte ("da", "ok", "bine") ÎN CONTEXTUL CONFIRMĂRII → creează evenimentul
+- Dacă utilizatorul răspunde cu răspunsuri scurte FĂRĂ CONTEXT → întreabă "Cu ce te pot ajuta?"
+- NU intra în loop-uri de întrebări repetitive - dacă ai întrebat deja ceva, nu mai întreba
 
 PERSONALITATE:
 - Fii prietenos și profesional
@@ -796,5 +802,14 @@ exports.generateReportAI = generateReportAI;
 // AI Event Operations (CREATE/UPDATE/ARCHIVE/LIST)
 exports.chatEventOps = require('./chatEventOps').chatEventOps;
 
+// AI Event Operations V2 (Enhanced with interactive flow, short codes, role detection)
+exports.chatEventOpsV2 = require('./chatEventOpsV2').chatEventOpsV2;
+
 // Audit trigger for event changes
 exports.auditEventChanges = require('./auditEventChanges').auditEventChanges;
+
+// Follow-up scheduler (runs every hour)
+exports.processFollowUps = require('./followUpScheduler').processFollowUps;
+
+// Staff code management
+exports.setStaffCode = require('./staffCodeManager').setStaffCode;

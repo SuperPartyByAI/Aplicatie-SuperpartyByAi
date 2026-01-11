@@ -7,6 +7,10 @@ const admin = require('firebase-admin');
 // Groq SDK
 const Groq = require('groq-sdk');
 
+// Normalizers for V3 EN schema
+const { normalizeEventFields, normalizeRoleFields, normalizeRoleType } = require('./normalizers');
+const { getNextEventShortId, getNextFreeSlot } = require('./shortCodeGenerator');
+
 // Define secret for GROQ API key
 const groqApiKey = defineSecret('GROQ_API_KEY');
 
@@ -144,17 +148,41 @@ function defaultRoles() {
 }
 
 function sanitizeUpdateFields(data) {
+  // V3 EN allowed fields
   const allowed = new Set([
-    'date', 'address', 'cineNoteaza', 'sofer', 'soferPending',
+    'date', 'address', 'phoneE164', 'phoneRaw',
+    'childName', 'childAge', 'childDob',
+    'parentName', 'parentPhone', 'numChildren',
+    'payment', 'rolesBySlot',
+    // Legacy RO fields (will be normalized)
     'sarbatoritNume', 'sarbatoritVarsta', 'sarbatoritDob',
     'incasare', 'roles'
   ]);
 
-  const out = {};
+  const raw = {};
   for (const [k, v] of Object.entries(data || {})) {
     if (!allowed.has(k)) continue;
-    out[k] = v;
+    raw[k] = v;
   }
+
+  // Normalize to V3 EN
+  const normalized = normalizeEventFields(raw);
+
+  // Return only the fields that were in the input
+  const out = {};
+  if (data.date || data.data) out.date = normalized.date;
+  if (data.address || data.adresa) out.address = normalized.address;
+  if (data.phoneE164 || data.telefonClientE164) out.phoneE164 = normalized.phoneE164;
+  if (data.phoneRaw || data.telefonClientRaw) out.phoneRaw = normalized.phoneRaw;
+  if (data.childName || data.sarbatoritNume) out.childName = normalized.childName;
+  if (data.childAge || data.sarbatoritVarsta) out.childAge = normalized.childAge;
+  if (data.childDob || data.sarbatoritDob) out.childDob = normalized.childDob;
+  if (data.parentName || data.numeParinte) out.parentName = normalized.parentName;
+  if (data.parentPhone || data.telefonParinte) out.parentPhone = normalized.parentPhone;
+  if (data.numChildren || data.nrCopiiAprox) out.numChildren = normalized.numChildren;
+  if (data.payment || data.incasare) out.payment = normalized.payment;
+  if (data.rolesBySlot || data.roluriPeSlot || data.roles) out.rolesBySlot = normalized.rolesBySlot;
+
   return out;
 }
 
@@ -196,10 +224,13 @@ IMPORTANT - OUTPUT FORMAT:
 - NU folosi \`\`\`json sau alte formatări
 - Răspunsul trebuie să fie JSON pur care poate fi parsat direct
 
-IMPORTANT - CONVERSATIONAL MODE:
+IMPORTANT - CONVERSATIONAL MODE (INTERACTIVE FLOW):
 - Dacă user spune "vreau să notez un eveniment" SAU "am de notat o petrecere" SAU comenzi similare FĂRĂ date complete → returnează action:"ASK_INFO" cu message care cere informațiile lipsă
-- Exemplu: {"action":"ASK_INFO","message":"Perfect! Pentru a nota evenimentul, am nevoie de:\\n\\n📅 Data (format DD-MM-YYYY, ex: 15-01-2026)\\n📍 Adresa/Locația\\n🎂 Nume sărbătorit (opțional)\\n🎈 Vârsta (opțional)\\n\\nÎmi poți da aceste detalii?"}
+- Exemplu: {"action":"ASK_INFO","message":"Perfect! Pentru a nota evenimentul, am nevoie de:\\n\\n📅 Data (format DD-MM-YYYY, ex: 15-01-2026)\\n📍 Adresa/Locația\\n🎂 Nume sărbătorit (opțional)\\n🎈 Vârsta (opțional)\\n🎭 Roluri necesare (animator, ursitoare, vată de zahăr, etc.)\\n\\nÎmi poți da aceste detalii?"}
 - NU returna action:"NONE" pentru comenzi incomplete - ghidează user-ul să completeze informațiile
+- Când ai toate detaliile necesare, REZUMĂ și CERE CONFIRMARE înainte de CREATE
+- Exemplu confirmare: {"action":"ASK_INFO","message":"Am înțeles:\\n\\n📅 Data: 15-01-2026\\n📍 Adresa: București, Str. Exemplu 10\\n🎂 Sărbătorit: Maria (5 ani)\\n🎭 Roluri:\\n  • Animator (14:00, 2 ore)\\n  • Vată de zahăr (14:00, 2 ore)\\n\\nConfirm crearea evenimentului?"}
+- Dacă user confirmă ("da", "ok", "confirm", "bine") → execută CREATE
 
 IMPORTANT - DATE FORMAT:
 - date MUST be in DD-MM-YYYY format (ex: 15-01-2026)
@@ -211,40 +242,60 @@ IMPORTANT - ADDRESS:
 - address trebuie să fie non-empty string
 - Dacă lipsește adresa → returnează action:"ASK_INFO" cu message care cere adresa
 
-Schema v2 relevantă:
-- schemaVersion: 2
+IMPORTANT - EVENT SHORT ID:
+- eventShortId este un număr numeric (1, 2, 3, ...) generat automat
+- NU folosi string-uri cu zero-padding ("01", "02")
+- Când referențiezi evenimente, folosește eventShortId numeric
+
+Schema V3 (EN) relevantă:
+- schemaVersion: 3
+- eventShortId: number (generat automat, identificator scurt numeric)
 - date: "DD-MM-YYYY" (OBLIGATORIU pentru CREATE)
 - address: string (OBLIGATORIU pentru CREATE)
-- sarbatoritNume: string
-- sarbatoritVarsta: int
-- incasare: { status: "INCASAT|NEINCASAT|ANULAT", metoda?: "CASH|CARD|TRANSFER", suma?: number }
-- roles: [{ slot:"A"-"K", label:string, time:"HH:mm", durationMin:int, assignedCode?:string, pendingCode?:string }]
+- phoneE164: string (telefon în format E.164, ex: "+40712345678")
+- phoneRaw: string (telefon raw din input)
+- childName: string (nume sărbătorit)
+- childAge: number (vârstă sărbătorit)
+- childDob: string (data nașterii, format DD-MM-YYYY)
+- parentName: string (nume părinte)
+- parentPhone: string (telefon părinte)
+- numChildren: number (număr aproximativ copii)
+- payment: { status: "PAID|UNPAID|CANCELLED", method?: "CASH|CARD|TRANSFER", amount?: number }
+- rolesBySlot: { "01A": {...}, "01B": {...} } (roluri organizate pe sloturi)
 - isArchived: bool
-- archivedAt/by/reason (doar la arhivare)
-- createdAt/by, updatedAt/by (audit)
+- archivedAt/By/Reason (doar la arhivare)
+- notedByCode: string (codul angajatului care a notat)
+- createdAt/By, updatedAt/By (audit)
 
 ROLURI DISPONIBILE (folosește DOAR acestea):
-- Animator (animație petreceri)
-- Ursitoare (pentru botezuri)
-- Vată de zahăr
-- Popcorn
-- Vată + Popcorn (combo)
-- Decorațiuni
-- Baloane
-- Baloane cu heliu
-- Aranjamente de masă
-- Moș Crăciun
-- Gheață carbonică
+- ANIMATOR (animație petreceri)
+- URSITOARE (pentru botezuri)
+- COTTON_CANDY (vată de zahăr)
+- POPCORN (popcorn)
+- DECORATIONS (decorațiuni)
+- BALLOONS (baloane)
+- HELIUM_BALLOONS (baloane cu heliu)
+- SANTA_CLAUS (Moș Crăciun)
+- DRY_ICE (gheață carbonică)
+- ARCADE (arcadă jocuri)
 
 NU folosi: fotograf, DJ, candy bar, barman, ospătar, bucătar (nu sunt servicii oferite).
 
 Returnează:
 {
-  "action": "CREATE|UPDATE|ARCHIVE|UNARCHIVE|LIST|NONE",
+  "action": "CREATE|UPDATE|ARCHIVE|UNARCHIVE|LIST|NONE|ASK_INFO",
   "eventId": "optional",
-  "data": { ... },          // pt CREATE/UPDATE
-  "reason": "optional",     // pt ARCHIVE
-  "limit": 10               // pt LIST
+  "data": { 
+    "date": "DD-MM-YYYY",
+    "address": "string",
+    "childName": "string",
+    "childAge": number,
+    "phoneE164": "+40...",
+    "rolesBySlot": {}
+  },
+  "reason": "optional",
+  "message": "optional",
+  "limit": 10
 }
 Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
 `.trim();
@@ -368,16 +419,44 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
 
       const now = admin.firestore.FieldValue.serverTimestamp();
 
+      // Normalize input to V3 EN schema
+      const normalized = normalizeEventFields(data);
+
+      // Generate eventShortId (numeric)
+      const eventShortId = await getNextEventShortId();
+
+      // Convert roles[] to rolesBySlot if needed
+      let rolesBySlot = normalized.rolesBySlot || {};
+      if (Array.isArray(data.roles) && data.roles.length > 0) {
+        rolesBySlot = {};
+        for (let i = 0; i < data.roles.length; i++) {
+          const slot = getNextFreeSlot(eventShortId, rolesBySlot);
+          rolesBySlot[slot] = normalizeRoleFields(data.roles[i]);
+        }
+      } else if (Object.keys(rolesBySlot).length === 0) {
+        // No roles provided, use default
+        const defaultRole = defaultRoles()[0];
+        const slot = getNextFreeSlot(eventShortId, {});
+        rolesBySlot[slot] = normalizeRoleFields(defaultRole);
+      }
+
       const doc = {
-        schemaVersion: 2,
-        date: String(data.date || '').trim(),
-        address: String(data.address || '').trim(),
-        sarbatoritNume: String(data.sarbatoritNume || '').trim(),
-        sarbatoritVarsta: Number.isFinite(Number(data.sarbatoritVarsta)) ? Number(data.sarbatoritVarsta) : 0,
-        ...(data.sarbatoritDob ? { sarbatoritDob: String(data.sarbatoritDob) } : {}),
-        incasare: data.incasare && typeof data.incasare === 'object' ? data.incasare : { status: 'NEINCASAT' },
-        roles: Array.isArray(data.roles) ? data.roles : defaultRoles(),
+        schemaVersion: 3,
+        eventShortId,
+        date: String(normalized.date || '').trim(),
+        address: String(normalized.address || '').trim(),
+        phoneE164: normalized.phoneE164 || null,
+        phoneRaw: normalized.phoneRaw || null,
+        childName: String(normalized.childName || '').trim(),
+        childAge: Number.isFinite(Number(normalized.childAge)) ? Number(normalized.childAge) : 0,
+        childDob: normalized.childDob || null,
+        parentName: normalized.parentName || null,
+        parentPhone: normalized.parentPhone || null,
+        numChildren: normalized.numChildren || null,
+        payment: normalized.payment || { status: 'UNPAID', method: null, amount: 0 },
+        rolesBySlot,
         isArchived: false,
+        notedByCode: employeeInfo.staffCode || null,
         createdAt: now,
         createdBy: uid,
         createdByEmail: email,
