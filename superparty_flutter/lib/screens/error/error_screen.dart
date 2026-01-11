@@ -13,13 +13,12 @@ class ErrorScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('Eroare'),
-          backgroundColor: Colors.red,
-        ),
-        body: Center(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Eroare'),
+        backgroundColor: Colors.red,
+      ),
+      body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(

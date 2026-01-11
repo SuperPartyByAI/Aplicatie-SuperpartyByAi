@@ -1,6 +1,7 @@
+import 'dart:async' show runZonedGuarded;
 import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -44,6 +45,43 @@ void main() async {
     debugPrint('[UncaughtError] Stack: $stack');
     return true;
   };
+
+  // Custom error widget builder
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                const Text(
+                  'Something went wrong',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                if (kDebugMode) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    details.exceptionAsString(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ] else
+                  const Text(
+                    'Please restart the app',
+                    textAlign: TextAlign.center,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  };
   
   // FAIL-SAFE: Initialize Firebase with error handling and timeout
   // App can run with limited functionality if Firebase fails
@@ -86,7 +124,15 @@ void main() async {
   }
   
   debugPrint('[Main] Starting app...');
-  runApp(const SuperPartyApp());
+  
+  // Wrap app in error zone to catch async errors
+  runZonedGuarded(
+    () => runApp(const SuperPartyApp()),
+    (error, stack) {
+      debugPrint('[ZonedGuarded] Uncaught async error: $error');
+      debugPrint('[ZonedGuarded] Stack: $stack');
+    },
+  );
 }
 
 class SuperPartyApp extends StatefulWidget {
@@ -97,29 +143,104 @@ class SuperPartyApp extends StatefulWidget {
 }
 
 class _SuperPartyAppState extends State<SuperPartyApp> {
+  int _retryCount = 0;
+  static const int _maxRetries = 3;
+
   @override
   void initState() {
     super.initState();
-    // Trigger rebuild when Firebase is initialized
-    _waitForFirebase();
+    // Check bootstrap status (no polling loop)
+    _checkBootstrapStatus();
   }
-  
-  Future<void> _waitForFirebase() async {
-    // Wait for Firebase to be initialized
-    while (!FirebaseService.isInitialized) {
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
-    // Trigger rebuild
+
+  void _checkBootstrapStatus() {
+    // If Firebase init failed in main(), status will be failed
+    // If it succeeded, status will be success
+    // No need to poll - just check once and rebuild
     if (mounted) {
       setState(() {});
     }
   }
 
+  Future<void> _retryBootstrap() async {
+    if (_retryCount >= _maxRetries) {
+      if (mounted) {
+        setState(() {});
+      }
+      return;
+    }
+
+    setState(() {
+      _retryCount++;
+    });
+
+    try {
+      // Exponential backoff: 10s, 20s, 40s
+      final timeout = Duration(seconds: 10 * (1 << _retryCount));
+      debugPrint('[Bootstrap] Retry $_retryCount/$_maxRetries with ${timeout.inSeconds}s timeout');
+      
+      FirebaseService.resetForRetry();
+      await FirebaseService.initialize().timeout(timeout);
+      
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('[Bootstrap] Retry $_retryCount failed: $e');
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // CRITICAL: Wait for Firebase initialization before building any widgets
-    // This prevents [core/no-app] error on web
-    if (!FirebaseService.isInitialized) {
+    final status = FirebaseService.status;
+
+    // Show error UI if Firebase init failed
+    if (status == BootstrapStatus.failed) {
+      return MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Initialization Failed',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    FirebaseService.lastError ?? 'Unknown error',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 24),
+                  if (_retryCount < _maxRetries)
+                    ElevatedButton(
+                      onPressed: _retryBootstrap,
+                      child: Text('Retry ($_retryCount/$_maxRetries)'),
+                    )
+                  else
+                    const Text(
+                      'Max retries reached. Please restart the app.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.red),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Show loading UI while initializing
+    if (status == BootstrapStatus.loading || !FirebaseService.isInitialized) {
       return MaterialApp(
         // Accept ANY route during initialization (including deep-links like /#/evenimente)
         // Show loading screen for all routes until Firebase is ready
@@ -332,7 +453,38 @@ class _AuthWrapperState extends State<AuthWrapper> {
               }
               
               if (userSnapshot.hasData && userSnapshot.data!.exists) {
-                final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                final raw = userSnapshot.data!.data();
+                
+                // Validate data structure before casting
+                if (raw is! Map<String, dynamic>) {
+                  debugPrint('[AuthWrapper] Invalid user data structure: ${raw.runtimeType}');
+                  return Scaffold(
+                    body: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Account data error',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text('Please contact support or try logging out and back in.'),
+                          const SizedBox(height: 24),
+                          ElevatedButton(
+                            onPressed: () async {
+                              await FirebaseService.auth.signOut();
+                            },
+                            child: const Text('Sign Out'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                
+                final userData = raw;
                 final status = userData['status'] ?? '';
                 
                 if (status == 'kyc_required') {
