@@ -14,6 +14,8 @@
 ///   "updated_at": Timestamp
 /// }
 /// ```
+import 'package:flutter/foundation.dart';
+
 class AppVersionConfig {
   final String minVersion;
   final int minBuildNumber;
