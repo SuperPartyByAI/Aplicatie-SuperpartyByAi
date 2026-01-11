@@ -273,48 +273,58 @@ service cloud.firestore {
     
     // V3 EN Collections
     
+    // AI Global Rules (only super admin can write)
+    match /ai_global_rules/{ruleId} {
+      allow read: if isEmployee();
+      allow write: if request.auth.token.email == 'ursache.andrei1995@gmail.com';
+    }
+    
     // Staff hours tracking (for salary calculation)
     match /staffHours/{entryId} {
-      // Only GM/Admin can read all hours
-      // Staff can read their own hours
       allow read: if isGmOrAdmin() || 
                      (isAuthenticated() && hasStaffProfile() && 
                       resource.data.staffUid == request.auth.uid);
-      // Only backend can write (via Cloud Functions)
-      allow write: if false;
+      allow write: if false; // Only backend
     }
     
     // Tasks (follow-ups, pending actions)
     match /tasks/{taskId} {
-      // Staff can read tasks assigned to them or open tasks
       allow read: if isEmployee() && (
         resource.data.assigneeUid == request.auth.uid ||
         resource.data.status == 'OPEN' ||
         isGmOrAdmin()
       );
-      // Only backend can write tasks
-      allow write: if false;
+      allow write: if false; // Only backend
     }
     
     // Notifications (for staff)
     match /notifications/{notificationId} {
-      // Staff can read their own notifications
       allow read: if isAuthenticated() && (
         resource.data.assigneeUid == request.auth.uid ||
         isGmOrAdmin()
       );
-      // Staff can mark as read
       allow update: if isAuthenticated() && 
                        resource.data.assigneeUid == request.auth.uid &&
                        request.resource.data.status == 'READ';
-      // Only backend can create/delete
-      allow create, delete: if false;
+      allow create, delete: if false; // Only backend
     }
     
     // Counters (for eventShortId generation)
     match /counters/{counterId} {
       allow read: if isAuthenticated();
       allow write: if false; // Only backend via transactions
+    }
+    
+    // Event history subcollection
+    match /evenimente/{eventId}/history/{historyId} {
+      allow read: if isEmployee();
+      allow write: if false; // Only backend
+    }
+    
+    // Conversations (for AI chat)
+    match /conversations/{conversationId} {
+      allow read, write: if isAuthenticated() && 
+                            resource.data.userId == request.auth.uid;
     }
     
     // Default deny all other collections

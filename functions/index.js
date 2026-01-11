@@ -813,3 +813,6 @@ exports.processFollowUps = require('./followUpScheduler').processFollowUps;
 
 // Staff code management
 exports.setStaffCode = require('./staffCodeManager').setStaffCode;
+
+// V3 AI Event Handler
+exports.aiEventHandler = require('./aiEventHandler_v3').aiEventHandler;
