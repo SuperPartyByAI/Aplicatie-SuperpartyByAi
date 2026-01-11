@@ -21,9 +21,11 @@ class _WhatsAppScreenState extends State<WhatsAppScreen> {
 
   void _connectWebSocket() {
     try {
-      _channel = WebSocketChannel.connect(Uri.parse('wss://your-server.com/whatsapp'));
+      _channel =
+          WebSocketChannel.connect(Uri.parse('wss://your-server.com/whatsapp'));
       _channel!.stream.listen((message) {
-        setState(() => _chats.add({'message': message, 'timestamp': DateTime.now()}));
+        setState(() =>
+            _chats.add({'message': message, 'timestamp': DateTime.now()}));
       });
     } catch (e) {
       debugPrint('WebSocket error: $e');

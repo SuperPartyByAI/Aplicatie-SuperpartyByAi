@@ -49,7 +49,8 @@ class UpdateDialog extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.warning, color: Colors.orange.shade700, size: 20),
+                    Icon(Icons.warning,
+                        color: Colors.orange.shade700, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -84,11 +85,11 @@ class UpdateDialog extends StatelessWidget {
                   await launchUrl(uri, mode: LaunchMode.externalApplication);
                 }
               }
-              
+
               if (forceUpdate) {
                 // Deconectează userul
                 await AutoUpdateService.forceLogout();
-                
+
                 // Închide aplicația (sau navighează la login)
                 if (context.mounted) {
                   Navigator.of(context).pushNamedAndRemoveUntil(
@@ -118,12 +119,12 @@ class UpdateDialog extends StatelessWidget {
   }) async {
     // Obține mesajul din Firestore dacă nu e furnizat
     final updateMessage = message ?? await AutoUpdateService.getUpdateMessage();
-    
+
     // Obține URL-ul de download dacă nu e furnizat
     final url = downloadUrl ?? await AutoUpdateService.getDownloadUrl();
-    
+
     if (!context.mounted) return;
-    
+
     await showDialog(
       context: context,
       barrierDismissible: !forceUpdate,

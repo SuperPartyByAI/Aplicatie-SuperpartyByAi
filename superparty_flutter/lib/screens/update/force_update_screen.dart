@@ -5,7 +5,7 @@ import '../../services/apk_downloader_service.dart';
 import '../../services/apk_installer_bridge.dart';
 
 /// ForceUpdateScreen: Full-screen non-dismissible update UI
-/// 
+///
 /// Features:
 /// - Non-dismissible (back button disabled)
 /// - Download APK with progress bar
@@ -37,7 +37,7 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
   double _progress = 0.0;
   String _errorMessage = '';
   String? _downloadedFilePath;
-  
+
   String _updateMessage = '';
   String _releaseNotes = '';
   String _downloadUrl = '';
@@ -51,11 +51,11 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
   Future<void> _loadUpdateInfo() async {
     try {
       final checker = ForceUpdateCheckerService();
-      
+
       final message = await checker.getUpdateMessage();
       final notes = await checker.getReleaseNotes();
       final url = await checker.getDownloadUrl();
-      
+
       if (mounted) {
         setState(() {
           _updateMessage = message;
@@ -113,7 +113,7 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
 
       // 2. Verifică permisiunea de instalare
       final canInstall = await ApkInstallerBridge.canInstallPackages();
-      
+
       if (!canInstall) {
         debugPrint('[ForceUpdateScreen] Install permission required');
         setState(() {
@@ -124,7 +124,6 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
 
       // 3. Instalează APK
       await _installApk(filePath);
-
     } catch (e) {
       debugPrint('[ForceUpdateScreen] Error: $e');
       _showError(e.toString());
@@ -144,7 +143,6 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
       // User-ul va instala manual și va redeschide app-ul
       // La redeschidere, UpdateGate va vedea că build-ul e OK și va lăsa user-ul să intre
       debugPrint('[ForceUpdateScreen] Installer opened successfully');
-
     } catch (e) {
       debugPrint('[ForceUpdateScreen] Install error: $e');
       _showError(e.toString());
@@ -154,12 +152,12 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
   Future<void> _openUnknownSourcesSettings() async {
     try {
       await ApkInstallerBridge.openUnknownSourcesSettings();
-      
+
       // Așteaptă 2 secunde și verifică din nou permisiunea
       await Future.delayed(const Duration(seconds: 2));
-      
+
       final canInstall = await ApkInstallerBridge.canInstallPackages();
-      
+
       if (canInstall && _downloadedFilePath != null) {
         // Permisiunea a fost acordată, reluăm instalarea
         await _installApk(_downloadedFilePath!);
@@ -201,7 +199,7 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
                   color: Theme.of(context).primaryColor,
                 ),
                 const SizedBox(height: 32),
-                
+
                 // Title
                 const Text(
                   'Actualizare Obligatorie',
@@ -212,16 +210,16 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Message
                 Text(
-                  _updateMessage.isNotEmpty 
-                      ? _updateMessage 
+                  _updateMessage.isNotEmpty
+                      ? _updateMessage
                       : 'O versiune nouă este disponibilă. Actualizează pentru a continua.',
                   style: const TextStyle(fontSize: 16),
                   textAlign: TextAlign.center,
                 ),
-                
+
                 // Release notes
                 if (_releaseNotes.isNotEmpty) ...[
                   const SizedBox(height: 24),
@@ -251,9 +249,9 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
                     ),
                   ),
                 ],
-                
+
                 const SizedBox(height: 32),
-                
+
                 // Progress indicator
                 if (_state == _UpdateState.downloading) ...[
                   LinearProgressIndicator(
@@ -274,7 +272,7 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
                     textAlign: TextAlign.center,
                   ),
                 ],
-                
+
                 // Installing status
                 if (_state == _UpdateState.installing) ...[
                   const CircularProgressIndicator(),
@@ -288,7 +286,7 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
                     textAlign: TextAlign.center,
                   ),
                 ],
-                
+
                 // Permission required
                 if (_state == _UpdateState.permissionRequired) ...[
                   Container(
@@ -302,7 +300,8 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.warning, color: Colors.orange.shade700, size: 24),
+                            Icon(Icons.warning,
+                                color: Colors.orange.shade700, size: 24),
                             const SizedBox(width: 12),
                             const Expanded(
                               child: Text(
@@ -324,7 +323,7 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
                     ),
                   ),
                 ],
-                
+
                 // Error message
                 if (_state == _UpdateState.error) ...[
                   Container(
@@ -351,9 +350,9 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
                     ),
                   ),
                 ],
-                
+
                 const SizedBox(height: 32),
-                
+
                 // Action button
                 SizedBox(
                   height: 56,
@@ -376,9 +375,9 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Info text
                 Text(
                   'Vei rămâne autentificat după actualizare',

@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/event_model.dart';
@@ -17,7 +19,8 @@ class EventService {
   /// Stream evenimente ACTIVE (isArchived=false implicit)
   Stream<List<EventModel>> getEventsStream(EventFilters filters) {
     // Fetch ALL non-archived events, sort client-side to avoid index requirement
-    Query query = _firestore.collection('evenimente')
+    Query query = _firestore
+        .collection('evenimente')
         .where('isArchived', isEqualTo: false);
 
     return query.snapshots().map((snapshot) {
@@ -26,7 +29,8 @@ class EventService {
             try {
               return EventModel.fromFirestore(doc);
             } catch (e) {
-              debugPrint('[EventService] ⚠️ Failed to parse event ${doc.id}: $e');
+              debugPrint(
+                  '[EventService] ⚠️ Failed to parse event ${doc.id}: $e');
               return null;
             }
           })
@@ -50,7 +54,8 @@ class EventService {
               try {
                 return EventModel.fromFirestore(doc);
               } catch (e) {
-                debugPrint('[EventService] ⚠️ Failed to parse archived event ${doc.id}: $e');
+                debugPrint(
+                    '[EventService] ⚠️ Failed to parse archived event ${doc.id}: $e');
                 return null;
               }
             })
@@ -83,7 +88,7 @@ class EventService {
       if (filters.staffCode != null) {
         final code = CodeValidator.normalize(filters.staffCode!);
         if (!CodeValidator.isValidStaffCode(code)) return false;
-        
+
         // Verifică dacă codul e alocat sau pending în roles
         bool found = false;
         for (var role in event.roles) {
@@ -197,14 +202,14 @@ class EventService {
     await _firestore.runTransaction((transaction) async {
       final docRef = _firestore.collection('evenimente').doc(eventId);
       final snapshot = await transaction.get(docRef);
-      
+
       if (!snapshot.exists) {
         throw Exception('Eveniment nu există');
       }
 
       final event = EventModel.fromFirestore(snapshot);
       final roles = List<RoleModel>.from(event.roles);
-      
+
       // Găsește slot-ul
       final index = roles.indexWhere((r) => r.slot == slot);
       if (index == -1) {
@@ -245,14 +250,14 @@ class EventService {
     await _firestore.runTransaction((transaction) async {
       final docRef = _firestore.collection('evenimente').doc(eventId);
       final snapshot = await transaction.get(docRef);
-      
+
       if (!snapshot.exists) {
         throw Exception('Eveniment nu există');
       }
 
       final event = EventModel.fromFirestore(snapshot);
       final roles = List<RoleModel>.from(event.roles);
-      
+
       final index = roles.indexWhere((r) => r.slot == slot);
       if (index == -1) {
         throw Exception('Slot $slot nu există');
@@ -287,14 +292,14 @@ class EventService {
     await _firestore.runTransaction((transaction) async {
       final docRef = _firestore.collection('evenimente').doc(eventId);
       final snapshot = await transaction.get(docRef);
-      
+
       if (!snapshot.exists) {
         throw Exception('Eveniment nu există');
       }
 
       final event = EventModel.fromFirestore(snapshot);
       final roles = List<RoleModel>.from(event.roles);
-      
+
       final index = roles.indexWhere((r) => r.slot == slot);
       if (index == -1) {
         throw Exception('Slot $slot nu există');
@@ -334,14 +339,14 @@ class EventService {
     await _firestore.runTransaction((transaction) async {
       final docRef = _firestore.collection('evenimente').doc(eventId);
       final snapshot = await transaction.get(docRef);
-      
+
       if (!snapshot.exists) {
         throw Exception('Eveniment nu există');
       }
 
       final event = EventModel.fromFirestore(snapshot);
       final roles = List<RoleModel>.from(event.roles);
-      
+
       final index = roles.indexWhere((r) => r.slot == slot);
       if (index == -1) {
         throw Exception('Slot $slot nu există');
@@ -376,14 +381,14 @@ class EventService {
     await _firestore.runTransaction((transaction) async {
       final docRef = _firestore.collection('evenimente').doc(eventId);
       final snapshot = await transaction.get(docRef);
-      
+
       if (!snapshot.exists) {
         throw Exception('Eveniment nu există');
       }
 
       final event = EventModel.fromFirestore(snapshot);
       final roles = List<RoleModel>.from(event.roles);
-      
+
       final index = roles.indexWhere((r) => r.slot == slot);
       if (index == -1) {
         throw Exception('Slot $slot nu există');

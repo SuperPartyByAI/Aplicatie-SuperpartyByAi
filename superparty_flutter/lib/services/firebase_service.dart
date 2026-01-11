@@ -13,7 +13,7 @@ enum BootstrapStatus {
 }
 
 /// Firebase service with lazy initialization
-/// 
+///
 /// CRITICAL: Always call FirebaseService.initialize() before accessing
 /// auth or firestore getters. On web, accessing Firebase instances before
 /// initialization causes "[core/no-app] No Firebase App '[DEFAULT]' has been created".
@@ -23,7 +23,7 @@ class FirebaseService {
   static String? _lastError;
 
   /// Initialize Firebase with platform-specific options
-  /// 
+  ///
   /// Must be called before accessing any Firebase services.
   /// Safe to call multiple times (idempotent).
   static Future<void> initialize() async {
@@ -35,7 +35,7 @@ class FirebaseService {
 
     try {
       debugPrint('[FirebaseService] Initializing Firebase...');
-      
+
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
@@ -55,7 +55,7 @@ class FirebaseService {
   }
 
   /// Lazy getter for FirebaseAuth
-  /// 
+  ///
   /// Accesses FirebaseAuth.instance only after initialization.
   /// Throws if accessed before initialize() is called.
   static FirebaseAuth get auth {
@@ -69,7 +69,7 @@ class FirebaseService {
   }
 
   /// Lazy getter for FirebaseFirestore
-  /// 
+  ///
   /// Accesses FirebaseFirestore.instance only after initialization.
   /// Throws if accessed before initialize() is called.
   static FirebaseFirestore get firestore {

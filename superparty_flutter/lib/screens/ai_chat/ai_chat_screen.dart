@@ -365,10 +365,11 @@ class _AIChatScreenState extends State<AIChatScreen> {
           // Use full text for natural language
           commandText = text;
         }
-        
+
         // Generate unique clientRequestId for idempotency
-        final clientRequestId = 'req_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
-        
+        final clientRequestId =
+            'req_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
+
         // Call chatEventOps with dryRun=true for preview
         final eventCallable =
             FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
@@ -381,15 +382,15 @@ class _AIChatScreenState extends State<AIChatScreen> {
           'dryRun': true,
           'clientRequestId': clientRequestId,
         });
-        
+
         final previewData = Map<String, dynamic>.from(previewResult.data);
-        
+
         // Remove placeholder and show preview
         setState(() {
           _messages.removeAt(placeholderIndex);
           _loading = false;
         });
-        
+
         // Show preview card with confirmation buttons
         _showEventPreview(
           context: context,
@@ -397,7 +398,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
           commandText: commandText,
           clientRequestId: clientRequestId,
         );
-        
+
         return; // Don't add response message yet, wait for confirmation
       } else {
         // Use regular chatWithAI for normal conversation
@@ -646,7 +647,6 @@ class _AIChatScreenState extends State<AIChatScreen> {
               decoration: BoxDecoration(
                 color: bg,
                 borderRadius: BorderRadius.circular(14),
-
                 border: Border.all(color: border),
               ),
               child: (msg['content'] == '...')
@@ -1135,7 +1135,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
       setState(() {
         _messages.add({
           'role': 'assistant',
-          'content': message.isNotEmpty ? message : 'Am nevoie de mai multe informații pentru a continua.',
+          'content': message.isNotEmpty
+              ? message
+              : 'Am nevoie de mai multe informații pentru a continua.',
         });
       });
       _scrollToBottomSoon();
@@ -1274,7 +1276,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
       final date = item['date'] ?? 'N/A';
       final nume = item['sarbatoritNume'] ?? 'N/A';
       final address = item['address'] ?? 'N/A';
-      
+
       buffer.writeln('${i + 1}. $nume ($date)');
       buffer.writeln('   📍 $address');
       buffer.writeln('   🆔 $id');
@@ -1319,7 +1321,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
         response = '✅ $message';
         if (eventId != null) {
           response += '\n\n🆔 Event ID: $eventId';
-          response += '\n\n💡 Poți deschide evenimentul din secțiunea Evenimente.';
+          response +=
+              '\n\n💡 Poți deschide evenimentul din secțiunea Evenimente.';
         }
       } else {
         response = '❌ $message';
@@ -1360,10 +1363,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
   /// Returns true if message contains keywords indicating event operations
   bool _detectEventIntent(String text) {
     final normalized = _normalizeText(text);
-    
+
     // Skip very short messages (likely not event commands)
     if (normalized.length < 10) return false;
-    
+
     // CREATE intent keywords (normalized - fără diacritice)
     final createPatterns = [
       // GENERIC - fără tip specific de eveniment
@@ -1371,41 +1374,41 @@ class _AIChatScreenState extends State<AIChatScreen> {
       'noteaza un eveniment',
       'noteaza petrecere',
       'noteaza eveniment',
-      
+
       // "am de notat"
       'am de notat',
       'trebuie sa notez',
-      
+
       // "creeaza"
       'creeaza o petrecere',
       'creeaza un eveniment',
       'creeaza petrecere',
       'creeaza eveniment',
-      
+
       // "vreau sa notez"
       'vreau sa notez o petrecere',
       'vreau sa notez un eveniment',
       'vreau sa notez',
-      
+
       // "am o petrecere"
       'am o petrecere',
       'am un eveniment',
       'am petrecere',
       'am eveniment',
-      
+
       // Alte variante
       'salveaza o petrecere',
       'salveaza un eveniment',
       'adauga o petrecere',
       'adauga un eveniment',
-      
+
       // Cu tipuri specifice (opțional, pentru backward compatibility)
       'noteaza nunta',
       'noteaza botez',
       'am o nunta',
       'am un botez',
       'am o aniversare',
-      
+
       // Event type + date pattern (strong signal)
       'nuntă pe',
       'nunta pe',
@@ -1414,7 +1417,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
       'aniversare pe',
       'eveniment pe',
     ];
-    
+
     // UPDATE intent keywords (normalized)
     final updatePatterns = [
       'actualizeaza eveniment',
@@ -1423,7 +1426,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
       'schimba data',
       'update eveniment',
     ];
-    
+
     // ARCHIVE intent keywords (normalized)
     final archivePatterns = [
       'arhiveaza eveniment',
@@ -1431,7 +1434,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
       'sterge eveniment',
       'inchide eveniment',
     ];
-    
+
     // LIST intent keywords (normalized)
     final listPatterns = [
       'arata evenimente',
@@ -1442,24 +1445,24 @@ class _AIChatScreenState extends State<AIChatScreen> {
       'afiseaza evenimente',
       'show evenimente',
     ];
-    
+
     // Check all patterns (using normalized text)
     for (final pattern in createPatterns) {
       if (normalized.contains(pattern)) return true;
     }
-    
+
     for (final pattern in updatePatterns) {
       if (normalized.contains(pattern)) return true;
     }
-    
+
     for (final pattern in archivePatterns) {
       if (normalized.contains(pattern)) return true;
     }
-    
+
     for (final pattern in listPatterns) {
       if (normalized.contains(pattern)) return true;
     }
-    
+
     return false;
   }
 

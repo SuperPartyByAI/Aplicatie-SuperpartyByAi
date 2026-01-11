@@ -1,12 +1,13 @@
+import 'package:flutter/foundation.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import 'firebase_service.dart';
 
 /// Service pentru auto-update cu deconectare forțată
-/// 
+///
 /// Flow:
 /// 1. La deschidere app → verifică versiune în Firestore
 /// 2. Dacă versiune nouă → deconectează user + salvează flag
@@ -15,7 +16,7 @@ import 'firebase_service.dart';
 class AutoUpdateService {
   static const String _updateFlagKey = 'pending_update';
   static const String _lastVersionKey = 'last_checked_version';
-  
+
   /// Verifică dacă există actualizări disponibile
   /// Returnează true dacă trebuie să deconecteze userul
   static Future<bool> checkForUpdates() async {
@@ -24,20 +25,21 @@ class AutoUpdateService {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
       final currentBuildNumber = int.parse(packageInfo.buildNumber);
-      
-      debugPrint('[AutoUpdate] Current version: $currentVersion ($currentBuildNumber)');
-      
+
+      debugPrint(
+          '[AutoUpdate] Current version: $currentVersion ($currentBuildNumber)');
+
       // 2. Obține versiunea minimă din Firestore
       final doc = await FirebaseService.firestore
           .collection('app_config')
           .doc('version')
           .get();
-      
+
       if (!doc.exists) {
         debugPrint('[AutoUpdate] No version config in Firestore');
         return false;
       }
-      
+
       final data = doc.data();
       if (data == null || data is! Map<String, dynamic>) {
         debugPrint('[AutoUpdate] Invalid data');
@@ -46,32 +48,32 @@ class AutoUpdateService {
       final minVersion = data['min_version'] as String?;
       final minBuildNumber = data['min_build_number'] as int?;
       final forceUpdate = data['force_update'] as bool? ?? false;
-      
+
       debugPrint('[AutoUpdate] Min version: $minVersion ($minBuildNumber)');
       debugPrint('[AutoUpdate] Force update: $forceUpdate');
-      
+
       // 3. Verifică dacă versiunea curentă e mai veche
       if (minBuildNumber != null && currentBuildNumber < minBuildNumber) {
-        debugPrint('[AutoUpdate] Update required! Current: $currentBuildNumber < Min: $minBuildNumber');
-        
+        debugPrint(
+            '[AutoUpdate] Update required! Current: $currentBuildNumber < Min: $minBuildNumber');
+
         // Salvează flag pentru update
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool(_updateFlagKey, true);
         await prefs.setString(_lastVersionKey, minVersion ?? '');
-        
+
         // Returnează true pentru a declanșa deconectarea
         return true;
       }
-      
+
       debugPrint('[AutoUpdate] App is up to date');
       return false;
-      
     } catch (e) {
       debugPrint('[AutoUpdate] Error checking updates: $e');
       return false;
     }
   }
-  
+
   /// Verifică dacă există un update pending (flag setat)
   static Future<bool> hasPendingUpdate() async {
     try {
@@ -82,7 +84,7 @@ class AutoUpdateService {
       return false;
     }
   }
-  
+
   /// Șterge flag-ul de update pending (după ce s-a descărcat)
   static Future<void> clearPendingUpdate() async {
     try {
@@ -93,15 +95,16 @@ class AutoUpdateService {
       debugPrint('[AutoUpdate] Error clearing pending update: $e');
     }
   }
-  
+
   /// DEPRECATED: No longer logs out user for updates
   /// User stays authenticated through update process
   @Deprecated('Force Update no longer requires logout')
   static Future<void> forceLogout() async {
-    debugPrint('[AutoUpdate] forceLogout() called but deprecated - user stays authenticated');
+    debugPrint(
+        '[AutoUpdate] forceLogout() called but deprecated - user stays authenticated');
     // DO NOT sign out - user should remain authenticated through update
   }
-  
+
   /// Obține mesajul de update din Firestore
   static Future<String> getUpdateMessage() async {
     try {
@@ -109,24 +112,24 @@ class AutoUpdateService {
           .collection('app_config')
           .doc('version')
           .get();
-      
+
       if (!doc.exists) {
         return 'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.';
       }
-      
+
       final data = doc.data();
       if (data == null || data is! Map<String, dynamic>) {
         debugPrint('[AutoUpdate] Invalid data');
-        return false;
+        return 'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.';
       }
-      return data['update_message'] as String? ?? 
+      return data['update_message'] as String? ??
           'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.';
     } catch (e) {
       debugPrint('[AutoUpdate] Error getting update message: $e');
       return 'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.';
     }
   }
-  
+
   /// Obține URL-ul de download pentru platforma curentă
   static Future<String?> getDownloadUrl() async {
     try {
@@ -134,37 +137,37 @@ class AutoUpdateService {
           .collection('app_config')
           .doc('version')
           .get();
-      
+
       if (!doc.exists) {
         return null;
       }
-      
+
       final data = doc.data();
       if (data == null || data is! Map<String, dynamic>) {
         debugPrint('[AutoUpdate] Invalid data');
-        return false;
+        return null;
       }
-      
+
       // Returnează URL-ul în funcție de platformă
       if (Platform.isAndroid) {
         return data['android_download_url'] as String?;
       } else if (Platform.isIOS) {
         return data['ios_download_url'] as String?;
       }
-      
+
       return null;
     } catch (e) {
       debugPrint('[AutoUpdate] Error getting download URL: $e');
       return null;
     }
   }
-  
+
   /// Verifică și aplică update-ul (flow complet)
   /// DEPRECATED: Use ForceUpdateCheckerService instead
-  /// 
+  ///
   /// This old system is kept for backward compatibility but should not be used.
   /// The new ForceUpdateCheckerService handles updates without logging out users.
-  /// 
+  ///
   /// Returnează:
   /// - null: nu e nevoie de update
   /// - 'update_available': există update disponibil (fără logout)
@@ -173,31 +176,30 @@ class AutoUpdateService {
     try {
       // 1. Verifică dacă există update pending (flag setat anterior)
       final hasPending = await hasPendingUpdate();
-      
+
       if (hasPending) {
         debugPrint('[AutoUpdate] Pending update detected');
         return 'update_available';
       }
-      
+
       // 2. Verifică dacă există versiune nouă în Firestore
       final needsUpdate = await checkForUpdates();
-      
+
       if (needsUpdate) {
         debugPrint('[AutoUpdate] New version available (no logout required)');
         return 'update_available';
       }
-      
+
       // 3. Nu e nevoie de update
       return null;
-      
     } catch (e) {
       debugPrint('[AutoUpdate] Error in checkAndApplyUpdate: $e');
       return null;
     }
   }
-  
+
   /// Inițializează configurația de versiune în Firestore (doar pentru admin)
-  /// 
+  ///
   /// Exemplu:
   /// ```dart
   /// await AutoUpdateService.initializeVersionConfig(
@@ -225,14 +227,15 @@ class AutoUpdateService {
         'min_version': minVersion,
         'min_build_number': minBuildNumber,
         'force_update': forceUpdate,
-        'update_message': updateMessage ?? 
+        'update_message': updateMessage ??
             'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.',
         'android_download_url': androidDownloadUrl,
         'ios_download_url': iosDownloadUrl,
         'updated_at': FieldValue.serverTimestamp(),
       });
-      
-      debugPrint('[AutoUpdate] Version config initialized: $minVersion ($minBuildNumber)');
+
+      debugPrint(
+          '[AutoUpdate] Version config initialized: $minVersion ($minBuildNumber)');
     } catch (e) {
       debugPrint('[AutoUpdate] Error initializing version config: $e');
       rethrow;

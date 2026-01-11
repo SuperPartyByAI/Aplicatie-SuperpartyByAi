@@ -20,7 +20,8 @@ class _CentralaScreenState extends State<CentralaScreen> {
 
   void _connectWebSocket() {
     try {
-      _channel = WebSocketChannel.connect(Uri.parse('wss://your-server.com/centrala'));
+      _channel =
+          WebSocketChannel.connect(Uri.parse('wss://your-server.com/centrala'));
       _channel!.stream.listen((message) {
         setState(() => _calls.add(message.toString()));
       });

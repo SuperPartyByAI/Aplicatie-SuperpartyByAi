@@ -30,7 +30,8 @@ class ChatCacheService {
             important INTEGER DEFAULT 0
           )
         ''');
-        await db.execute('CREATE INDEX idx_timestamp ON messages(timestamp DESC)');
+        await db
+            .execute('CREATE INDEX idx_timestamp ON messages(timestamp DESC)');
         await db.execute('CREATE INDEX idx_important ON messages(important)');
       },
     );
@@ -44,7 +45,7 @@ class ChatCacheService {
     bool important = false,
   }) async {
     final db = await database;
-    
+
     await db.insert('messages', {
       'sessionId': sessionId,
       'userMessage': userMessage,
@@ -58,7 +59,8 @@ class ChatCacheService {
   }
 
   // Get recent messages from cache
-  static Future<List<Map<String, dynamic>>> getRecentMessages({int limit = 50}) async {
+  static Future<List<Map<String, dynamic>>> getRecentMessages(
+      {int limit = 50}) async {
     final db = await database;
     return await db.query(
       'messages',
@@ -68,7 +70,8 @@ class ChatCacheService {
   }
 
   // Get important messages for AI context
-  static Future<List<Map<String, dynamic>>> getImportantMessages({int limit = 10}) async {
+  static Future<List<Map<String, dynamic>>> getImportantMessages(
+      {int limit = 10}) async {
     final db = await database;
     return await db.query(
       'messages',
@@ -129,12 +132,15 @@ class ChatCacheService {
   static Future<Map<String, int>> getCacheStats() async {
     final db = await database;
     final totalCount = Sqflite.firstIntValue(
-      await db.rawQuery('SELECT COUNT(*) FROM messages'),
-    ) ?? 0;
-    
+          await db.rawQuery('SELECT COUNT(*) FROM messages'),
+        ) ??
+        0;
+
     final importantCount = Sqflite.firstIntValue(
-      await db.rawQuery('SELECT COUNT(*) FROM messages WHERE important = 1'),
-    ) ?? 0;
+          await db
+              .rawQuery('SELECT COUNT(*) FROM messages WHERE important = 1'),
+        ) ??
+        0;
 
     return {
       'total': totalCount,

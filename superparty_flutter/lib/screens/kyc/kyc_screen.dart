@@ -15,12 +15,12 @@ class KycScreen extends StatefulWidget {
 
 class _KycScreenState extends State<KycScreen> {
   final _picker = ImagePicker();
-  
+
   // Files
   File? _idFront;
   File? _idBack;
   File? _driverLicense;
-  
+
   // User data
   final _fullNameController = TextEditingController();
   final _cnpController = TextEditingController();
@@ -31,7 +31,7 @@ class _KycScreenState extends State<KycScreen> {
   final _issuedAtController = TextEditingController();
   final _expiresAtController = TextEditingController();
   final _ibanController = TextEditingController();
-  
+
   // Parent data (for minors)
   final _pFullNameController = TextEditingController();
   final _pCnpController = TextEditingController();
@@ -41,7 +41,7 @@ class _KycScreenState extends State<KycScreen> {
   final _pNumberController = TextEditingController();
   final _pIssuedAtController = TextEditingController();
   final _pExpiresAtController = TextEditingController();
-  
+
   bool _isMinor = false;
   bool _wantsDriver = false;
   bool _aiOk = false;
@@ -76,17 +76,17 @@ class _KycScreenState extends State<KycScreen> {
     if (s == '1' || s == '2') prefix = '19';
     if (s == '5' || s == '6') prefix = '20';
     if (prefix == null) return false;
-    
+
     final year = int.parse(prefix + cnp.substring(1, 3));
     final mm = int.parse(cnp.substring(3, 5));
     final dd = int.parse(cnp.substring(5, 7));
     final dob = DateTime(year, mm, dd);
     final today = DateTime.now();
-    
+
     int age = today.year - dob.year;
     final m = today.month - dob.month;
     if (m < 0 || (m == 0 && today.day < dob.day)) age--;
-    
+
     return age < 18;
   }
 
@@ -127,16 +127,16 @@ class _KycScreenState extends State<KycScreen> {
       if (user == null) {
         throw Exception('Nu ești autentificat. Te rog să te loghezi din nou.');
       }
-      final frontRef = FirebaseStorage.instance
-          .ref()
-          .child('kyc/${user.uid}/id_front_${DateTime.now().millisecondsSinceEpoch}.jpg');
-      
+      final frontRef = FirebaseStorage.instance.ref().child(
+          'kyc/${user.uid}/id_front_${DateTime.now().millisecondsSinceEpoch}.jpg');
+
       await frontRef.putFile(_idFront!);
       final frontUrl = await frontRef.getDownloadURL();
 
       setState(() => _extractInfo = 'Se trimite la AI pentru extragere...');
 
-      final callable = FirebaseFunctions.instance.httpsCallable('extractKYCData');
+      final callable =
+          FirebaseFunctions.instance.httpsCallable('extractKYCData');
       final result = await callable.call({'imageUrl': frontUrl});
 
       if (result.data['success'] == true) {
@@ -147,7 +147,8 @@ class _KycScreenState extends State<KycScreen> {
           _seriesController.text = extracted['series'] ?? '';
           _numberController.text = extracted['number'] ?? '';
           _addressController.text = extracted['address'] ?? '';
-          _extractInfo = '✅ Date extrase cu succes din CI! Verifică și confirmă.';
+          _extractInfo =
+              '✅ Date extrase cu succes din CI! Verifică și confirmă.';
           _contractOpen = true;
           _contractScrolled = false;
           _contractRead = false;
@@ -181,24 +182,29 @@ class _KycScreenState extends State<KycScreen> {
       if (user == null) {
         throw Exception('Nu ești autentificat. Te rog să te loghezi din nou.');
       }
-      
+
       // Upload all images
       String? idFrontUrl, idBackUrl, driverLicenseUrl;
-      
+
       if (_idFront != null) {
-        final ref = FirebaseStorage.instance.ref().child('kyc/${user.uid}/id_front.jpg');
+        final ref = FirebaseStorage.instance
+            .ref()
+            .child('kyc/${user.uid}/id_front.jpg');
         await ref.putFile(_idFront!);
         idFrontUrl = await ref.getDownloadURL();
       }
-      
+
       if (_idBack != null) {
-        final ref = FirebaseStorage.instance.ref().child('kyc/${user.uid}/id_back.jpg');
+        final ref =
+            FirebaseStorage.instance.ref().child('kyc/${user.uid}/id_back.jpg');
         await ref.putFile(_idBack!);
         idBackUrl = await ref.getDownloadURL();
       }
-      
+
       if (_driverLicense != null) {
-        final ref = FirebaseStorage.instance.ref().child('kyc/${user.uid}/driver_license.jpg');
+        final ref = FirebaseStorage.instance
+            .ref()
+            .child('kyc/${user.uid}/driver_license.jpg');
         await ref.putFile(_driverLicense!);
         driverLicenseUrl = await ref.getDownloadURL();
       }
@@ -235,7 +241,10 @@ class _KycScreenState extends State<KycScreen> {
       }
 
       // Save to Firestore
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({
         'kycData': data,
         'status': 'pending',
         'updatedAt': FieldValue.serverTimestamp(),
@@ -243,7 +252,8 @@ class _KycScreenState extends State<KycScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ KYC trimis cu succes! Așteaptă aprobarea.')),
+          const SnackBar(
+              content: Text('✅ KYC trimis cu succes! Așteaptă aprobarea.')),
         );
         Navigator.pop(context);
       }
@@ -273,15 +283,20 @@ class _KycScreenState extends State<KycScreen> {
             ElevatedButton.icon(
               onPressed: _extractBusy ? null : _handleExtract,
               icon: _extractBusy
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.auto_awesome),
               label: Text(_extractBusy ? 'Extragere...' : 'Extrage date cu AI'),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF20C997)),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF20C997)),
             ),
             if (_extractInfo.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text(_extractInfo, style: const TextStyle(color: Colors.green)),
+                child: Text(_extractInfo,
+                    style: const TextStyle(color: Colors.green)),
               ),
             const SizedBox(height: 24),
             _buildSection('2. Date personale'),
@@ -302,7 +317,8 @@ class _KycScreenState extends State<KycScreen> {
             ),
             if (_wantsDriver) ...[
               const SizedBox(height: 16),
-              _buildImagePicker('Permis conducere', _driverLicense, () => _pickImage('driverLicense')),
+              _buildImagePicker('Permis conducere', _driverLicense,
+                  () => _pickImage('driverLicense')),
             ],
             if (_isMinor) ...[
               const SizedBox(height: 24),
@@ -326,7 +342,8 @@ class _KycScreenState extends State<KycScreen> {
             CheckboxListTile(
               title: const Text('Am înțeles termenii'),
               value: _contractUnderstood,
-              onChanged: (val) => setState(() => _contractUnderstood = val ?? false),
+              onChanged: (val) =>
+                  setState(() => _contractUnderstood = val ?? false),
             ),
             if (_error.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -336,7 +353,8 @@ class _KycScreenState extends State<KycScreen> {
                   color: Colors.red.shade50,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(_error, style: TextStyle(color: Colors.red.shade900)),
+                child:
+                    Text(_error, style: TextStyle(color: Colors.red.shade900)),
               ),
             ],
             const SizedBox(height: 24),
@@ -345,10 +363,12 @@ class _KycScreenState extends State<KycScreen> {
               height: 50,
               child: ElevatedButton(
                 onPressed: _busy ? null : _handleSubmit,
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF20C997)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF20C997)),
                 child: _busy
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Trimite KYC', style: TextStyle(fontSize: 16, color: Colors.white)),
+                    : const Text('Trimite KYC',
+                        style: TextStyle(fontSize: 16, color: Colors.white)),
               ),
             ),
           ],
@@ -362,7 +382,10 @@ class _KycScreenState extends State<KycScreen> {
       padding: const EdgeInsets.only(bottom: 16),
       child: Text(
         title,
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF4ECDC4)),
+        style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF4ECDC4)),
       ),
     );
   }
@@ -395,12 +418,13 @@ class _KycScreenState extends State<KycScreen> {
               width: double.infinity,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-
                 border: Border.all(color: Colors.grey),
               ),
               child: file != null
                   ? Image.file(file, fit: BoxFit.cover)
-                  : const Center(child: Icon(Icons.add_a_photo, size: 48, color: Colors.grey)),
+                  : const Center(
+                      child: Icon(Icons.add_a_photo,
+                          size: 48, color: Colors.grey)),
             ),
           ),
         ],

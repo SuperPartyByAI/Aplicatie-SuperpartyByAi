@@ -146,9 +146,12 @@ class _UserSelectorDialogState extends State<UserSelectorDialog> {
                     if (_searchQuery.isEmpty) return true;
 
                     final data = doc.data() as Map<String, dynamic>;
-                    final displayName = (data['displayName'] as String? ?? '').toLowerCase();
-                    final staffCode = (data['staffCode'] as String? ?? '').toLowerCase();
-                    final email = (data['email'] as String? ?? '').toLowerCase();
+                    final displayName =
+                        (data['displayName'] as String? ?? '').toLowerCase();
+                    final staffCode =
+                        (data['staffCode'] as String? ?? '').toLowerCase();
+                    final email =
+                        (data['email'] as String? ?? '').toLowerCase();
 
                     return displayName.contains(_searchQuery) ||
                         staffCode.contains(_searchQuery) ||
@@ -170,7 +173,8 @@ class _UserSelectorDialogState extends State<UserSelectorDialog> {
                       final doc = users[index];
                       final data = doc.data() as Map<String, dynamic>;
                       final userId = doc.id;
-                      final displayName = data['displayName'] as String? ?? 'Fără nume';
+                      final displayName =
+                          data['displayName'] as String? ?? 'Fără nume';
                       final staffCode = data['staffCode'] as String? ?? '';
                       final role = data['role'] as String? ?? '';
                       final isSelected = userId == widget.currentUserId;
@@ -277,7 +281,9 @@ class _UserSelectorDialogState extends State<UserSelectorDialog> {
         ),
         child: Center(
           child: Text(
-            staffCode.isNotEmpty ? staffCode[0].toUpperCase() : displayName[0].toUpperCase(),
+            staffCode.isNotEmpty
+                ? staffCode[0].toUpperCase()
+                : displayName[0].toUpperCase(),
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,

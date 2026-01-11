@@ -105,7 +105,8 @@ class _DoveziScreenState extends State<DoveziScreen> {
               padding: const EdgeInsets.all(16),
               children: EvidenceCategory.values.map((cat) {
                 final state = states[cat];
-                final categoryEvidence = allEvidence.where((e) => e.category == cat).toList();
+                final categoryEvidence =
+                    allEvidence.where((e) => e.category == cat).toList();
                 return _buildCategoryBlock(cat, state, categoryEvidence);
               }).toList(),
             );
@@ -155,11 +156,14 @@ class _DoveziScreenState extends State<DoveziScreen> {
               ElevatedButton(
                 onPressed: locked ? null : () => _uploadPhotos(category),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: locked ? const Color(0x08FFFFFF) : const Color(0x14FFFFFF),
+                  backgroundColor: locked
+                      ? const Color(0x08FFFFFF)
+                      : const Color(0x14FFFFFF),
                   foregroundColor: const Color(0xFFEAF1FF),
                   disabledBackgroundColor: const Color(0x08FFFFFF),
                   disabledForegroundColor: const Color(0x4DEAF1FF),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
                 child: const Text('Incarca poze'),
               ),
@@ -188,7 +192,8 @@ class _DoveziScreenState extends State<DoveziScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0x284ECDC4),
                 foregroundColor: const Color(0xFFEAF1FF),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
               child: const Text('Reverifica'),
             ),
@@ -225,7 +230,6 @@ class _DoveziScreenState extends State<DoveziScreen> {
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(4),
-
         border: Border.all(color: borderColor),
       ),
       child: Text(
@@ -344,7 +348,8 @@ class _DoveziScreenState extends State<DoveziScreen> {
     }
   }
 
-  Future<void> _reverifyCategory(EvidenceCategory category, int evidenceCount) async {
+  Future<void> _reverifyCategory(
+      EvidenceCategory category, int evidenceCount) async {
     try {
       EvidenceStatus newStatus;
       bool shouldLock = false;

@@ -39,12 +39,15 @@ class AppDrawer extends StatelessWidget {
           ),
           _buildDrawerItem(context, Icons.home, 'Home', '/home'),
           _buildDrawerItem(context, Icons.event, 'Evenimente', '/evenimente'),
-          _buildDrawerItem(context, Icons.calendar_today, 'Disponibilitate', '/disponibilitate'),
-          _buildDrawerItem(context, Icons.attach_money, 'Salarii', '/salarizare'),
+          _buildDrawerItem(context, Icons.calendar_today, 'Disponibilitate',
+              '/disponibilitate'),
+          _buildDrawerItem(
+              context, Icons.attach_money, 'Salarii', '/salarizare'),
           _buildDrawerItem(context, Icons.phone, 'Centrala', '/centrala'),
           _buildDrawerItem(context, Icons.chat, 'WhatsApp', '/whatsapp'),
           _buildDrawerItem(context, Icons.people, 'Echipă', '/team'),
-          _buildDrawerItem(context, Icons.admin_panel_settings, 'Admin', '/admin'),
+          _buildDrawerItem(
+              context, Icons.admin_panel_settings, 'Admin', '/admin'),
           _buildDrawerItem(context, Icons.smart_toy, 'AI Chat', '/ai-chat'),
           const Divider(),
           ListTile(
@@ -57,7 +60,8 @@ class AppDrawer extends StatelessWidget {
     );
   }
 
-  Widget _buildDrawerItem(BuildContext context, IconData icon, String title, String route) {
+  Widget _buildDrawerItem(
+      BuildContext context, IconData icon, String title, String route) {
     return ListTile(
       leading: Icon(icon, color: const Color(0xFFDC2626)),
       title: Text(title),

@@ -31,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final updateChecker = ForceUpdateCheckerService();
       final isRequired = await updateChecker.needsForceUpdate();
-      
+
       if (isRequired && mounted) {
         // Show non-dismissible update dialog
         await ForceUpdateDialog.show(context);
@@ -70,7 +70,8 @@ class _LoginScreenState extends State<LoginScreen> {
         if (password != password2) throw Exception('Parolele nu coincid.');
 
         // Create user in Firebase Auth
-        final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        final userCredential =
+            await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: email,
           password: password,
         );
@@ -158,11 +159,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.celebration, size: 80, color: Color(0xFF4ECDC4)),
+                    const Icon(Icons.celebration,
+                        size: 80, color: Color(0xFF4ECDC4)),
                     const SizedBox(height: 16),
                     Text(
                       _isRegister ? 'Create account' : 'Login',
-                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          fontSize: 28, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 32),
                     TextField(
@@ -231,10 +234,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           backgroundColor: const Color(0xFF20C997),
                         ),
                         child: _loading
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? const CircularProgressIndicator(
+                                color: Colors.white)
                             : Text(
                                 _isRegister ? 'Register' : 'Login',
-                                style: const TextStyle(fontSize: 16, color: Colors.white),
+                                style: const TextStyle(
+                                    fontSize: 16, color: Colors.white),
                               ),
                       ),
                     ),
@@ -247,7 +252,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         });
                       },
                       child: Text(
-                        _isRegister ? 'Already have an account? Login' : 'Don\'t have an account? Register',
+                        _isRegister
+                            ? 'Already have an account? Login'
+                            : 'Don\'t have an account? Register',
                         style: const TextStyle(color: Color(0xFF20C997)),
                       ),
                     ),

@@ -226,8 +226,10 @@ class _RangeModalState extends State<RangeModal> {
   }
 
   Widget _buildCalendarGrid() {
-    final firstDayOfMonth = DateTime(_currentMonth.year, _currentMonth.month, 1);
-    final lastDayOfMonth = DateTime(_currentMonth.year, _currentMonth.month + 1, 0);
+    final firstDayOfMonth =
+        DateTime(_currentMonth.year, _currentMonth.month, 1);
+    final lastDayOfMonth =
+        DateTime(_currentMonth.year, _currentMonth.month + 1, 0);
     final firstWeekday = firstDayOfMonth.weekday; // 1 = Monday, 7 = Sunday
     final daysInMonth = lastDayOfMonth.day;
 
@@ -278,7 +280,8 @@ class _RangeModalState extends State<RangeModal> {
     return GestureDetector(
       onTap: () {
         setState(() {
-          if (_selectedStart == null || (_selectedStart != null && _selectedEnd != null)) {
+          if (_selectedStart == null ||
+              (_selectedStart != null && _selectedEnd != null)) {
             // First tap or reset
             _selectedStart = date;
             _selectedEnd = null;

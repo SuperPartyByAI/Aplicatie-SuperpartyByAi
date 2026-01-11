@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
+
 import 'dart:io';
 import 'package:flutter/services.dart';
 
 /// Bridge pentru comunicare Flutter <-> Android native code
-/// 
+///
 /// Funcții:
 /// - canInstallPackages(): verifică dacă app-ul poate instala APK-uri
 /// - installApk(filePath): deschide installerul Android pentru APK
@@ -13,7 +15,7 @@ class ApkInstallerBridge {
   );
 
   /// Verifică dacă aplicația poate instala pachete
-  /// 
+  ///
   /// Returns true dacă permisiunea REQUEST_INSTALL_PACKAGES e acordată
   /// Returns false pe iOS sau dacă verificarea eșuează
   static Future<bool> canInstallPackages() async {
@@ -25,7 +27,8 @@ class ApkInstallerBridge {
       final result = await _channel.invokeMethod<bool>('canInstallPackages');
       return result ?? false;
     } on PlatformException catch (e) {
-      debugPrint('[ApkInstallerBridge] Error checking install permission: ${e.message}');
+      debugPrint(
+          '[ApkInstallerBridge] Error checking install permission: ${e.message}');
       return false;
     } catch (e) {
       debugPrint('[ApkInstallerBridge] Unexpected error: $e');
@@ -34,7 +37,7 @@ class ApkInstallerBridge {
   }
 
   /// Instalează APK-ul de la path-ul specificat
-  /// 
+  ///
   /// Deschide installerul Android nativ
   /// Returns true dacă installerul s-a deschis cu succes
   /// Throws PlatformException dacă instalarea eșuează
@@ -45,12 +48,12 @@ class ApkInstallerBridge {
 
     try {
       debugPrint('[ApkInstallerBridge] Installing APK: $filePath');
-      
+
       final result = await _channel.invokeMethod<bool>(
         'installApk',
         {'filePath': filePath},
       );
-      
+
       return result ?? false;
     } on PlatformException catch (e) {
       debugPrint('[ApkInstallerBridge] Install error: ${e.message}');
@@ -62,7 +65,7 @@ class ApkInstallerBridge {
   }
 
   /// Deschide Settings pentru permisiunea "Install unknown apps"
-  /// 
+  ///
   /// Navighează user-ul la Settings > Apps > Special access > Install unknown apps
   /// Returns true dacă Settings s-au deschis cu succes
   static Future<bool> openUnknownSourcesSettings() async {
@@ -72,11 +75,11 @@ class ApkInstallerBridge {
 
     try {
       debugPrint('[ApkInstallerBridge] Opening unknown sources settings');
-      
+
       final result = await _channel.invokeMethod<bool>(
         'openUnknownSourcesSettings',
       );
-      
+
       return result ?? false;
     } on PlatformException catch (e) {
       debugPrint('[ApkInstallerBridge] Error opening settings: ${e.message}');

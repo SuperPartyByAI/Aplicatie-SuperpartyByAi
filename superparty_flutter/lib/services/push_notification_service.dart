@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_service.dart';
@@ -15,7 +17,7 @@ class PushNotificationService {
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       debugPrint('User granted permission');
-      
+
       // Get FCM token
       String? token = await _messaging.getToken();
       if (token != null) {
@@ -29,16 +31,18 @@ class PushNotificationService {
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
       // Handle background messages
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      FirebaseMessaging.onBackgroundMessage(
+          _firebaseMessagingBackgroundHandler);
     }
   }
 
   static Future<void> _saveTokenToFirestore(String token) async {
     if (!FirebaseService.isInitialized) {
-      debugPrint('[PushNotificationService] Firebase not initialized, skipping token save');
+      debugPrint(
+          '[PushNotificationService] Firebase not initialized, skipping token save');
       return;
     }
-    
+
     final user = FirebaseService.currentUser;
     if (user == null) return;
 

@@ -60,7 +60,8 @@ class NotFoundScreen extends StatelessWidget {
               ],
               const SizedBox(height: 32),
               ElevatedButton.icon(
-                onPressed: () => Navigator.of(context).pushReplacementNamed('/'),
+                onPressed: () =>
+                    Navigator.of(context).pushReplacementNamed('/'),
                 icon: const Icon(Icons.home),
                 label: const Text('Înapoi la Pagina Principală'),
                 style: ElevatedButton.styleFrom(

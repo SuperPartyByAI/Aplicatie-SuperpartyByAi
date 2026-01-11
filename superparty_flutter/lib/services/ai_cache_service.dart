@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
@@ -7,8 +9,9 @@ class AICacheService {
   static const String _cachePrefix = 'ai_cache_';
   static const String _frequentQuestionsKey = 'frequent_questions';
   static const int _maxCacheEntries = 1000; // Max 1000 unique questions cached
-  static const Duration _cacheDuration = Duration(days: 365 * 100); // Permanent (100 years)
-  
+  static const Duration _cacheDuration =
+      Duration(days: 365 * 100); // Permanent (100 years)
+
   // Common questions with pre-cached responses
   static const Map<String, String> _commonResponses = {
     'bună': 'Bună! Cu ce te pot ajuta astăzi?',
@@ -25,75 +28,75 @@ class AICacheService {
   /// Get cached response for a message
   static Future<String?> getCachedResponse(String message) async {
     final normalized = _normalizeMessage(message);
-    
+
     // Check common responses first (instant)
     if (_commonResponses.containsKey(normalized)) {
       return _commonResponses[normalized];
     }
-    
+
     // Check SharedPreferences cache (PERMANENT - no expiration)
     try {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = _cachePrefix + normalized;
       final cached = prefs.getString(cacheKey);
-      
+
       if (cached != null) {
         final data = json.decode(cached);
-        
+
         // Update lastAccessed timestamp (LRU tracking)
         data['lastAccessed'] = DateTime.now().toIso8601String();
         await prefs.setString(cacheKey, json.encode(data));
-        
+
         return data['response'] as String;
       }
     } catch (e) {
       debugPrint('Cache read error: $e');
     }
-    
+
     return null;
   }
 
   /// Save response to cache (PERMANENT)
   static Future<void> cacheResponse(String message, String response) async {
     final normalized = _normalizeMessage(message);
-    
+
     // Don't cache very short or common responses
     if (normalized.length < 3 || _commonResponses.containsKey(normalized)) {
       return;
     }
-    
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = _cachePrefix + normalized;
-      
+
       // Check if we need to cleanup old cache (LRU - Least Recently Used)
       await _cleanupOldCacheIfNeeded(prefs);
-      
+
       final data = {
         'response': response,
         'timestamp': DateTime.now().toIso8601String(),
         'lastAccessed': DateTime.now().toIso8601String(),
       };
-      
+
       await prefs.setString(cacheKey, json.encode(data));
-      
+
       // Track frequent questions
       await _trackFrequentQuestion(normalized);
     } catch (e) {
       debugPrint('Cache write error: $e');
     }
   }
-  
+
   /// Cleanup old cache entries if exceeds max (keep most recently used)
   static Future<void> _cleanupOldCacheIfNeeded(SharedPreferences prefs) async {
     try {
       final keys = prefs.getKeys();
       final cacheKeys = keys.where((k) => k.startsWith(_cachePrefix)).toList();
-      
+
       if (cacheKeys.length >= _maxCacheEntries) {
         // Get all cache entries with timestamps
         final entries = <String, DateTime>{};
-        
+
         for (final key in cacheKeys) {
           final cached = prefs.getString(key);
           if (cached != null) {
@@ -104,17 +107,17 @@ class AICacheService {
             } catch (_) {}
           }
         }
-        
+
         // Sort by last accessed (oldest first)
         final sorted = entries.entries.toList()
           ..sort((a, b) => a.value.compareTo(b.value));
-        
+
         // Remove oldest 20% to make room
         final toRemove = (cacheKeys.length * 0.2).round();
         for (var i = 0; i < toRemove && i < sorted.length; i++) {
           await prefs.remove(sorted[i].key);
         }
-        
+
         debugPrint('Cache cleanup: Removed $toRemove old entries');
       }
     } catch (e) {
@@ -127,21 +130,21 @@ class AICacheService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final frequentJson = prefs.getString(_frequentQuestionsKey);
-      
+
       Map<String, int> frequent = {};
       if (frequentJson != null) {
         frequent = Map<String, int>.from(json.decode(frequentJson));
       }
-      
+
       frequent[message] = (frequent[message] ?? 0) + 1;
-      
+
       // Keep only top 50 frequent questions
       if (frequent.length > 50) {
         final sorted = frequent.entries.toList()
           ..sort((a, b) => b.value.compareTo(a.value));
         frequent = Map.fromEntries(sorted.take(50));
       }
-      
+
       await prefs.setString(_frequentQuestionsKey, json.encode(frequent));
     } catch (e) {
       debugPrint('Frequent tracking error: $e');
@@ -153,7 +156,7 @@ class AICacheService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final frequentJson = prefs.getString(_frequentQuestionsKey);
-      
+
       if (frequentJson != null) {
         final frequent = Map<String, int>.from(json.decode(frequentJson));
         final sorted = frequent.entries.toList()
@@ -163,7 +166,7 @@ class AICacheService {
     } catch (e) {
       debugPrint('Get frequent error: $e');
     }
-    
+
     return [];
   }
 
@@ -172,13 +175,13 @@ class AICacheService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final keys = prefs.getKeys();
-      
+
       for (final key in keys) {
         if (key.startsWith(_cachePrefix)) {
           await prefs.remove(key);
         }
       }
-      
+
       await prefs.remove(_frequentQuestionsKey);
     } catch (e) {
       debugPrint('Clear cache error: $e');
@@ -190,15 +193,15 @@ class AICacheService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final keys = prefs.getKeys();
-      
+
       int totalCached = 0;
-      
+
       for (final key in keys) {
         if (key.startsWith(_cachePrefix)) {
           totalCached++;
         }
       }
-      
+
       return {
         'total': totalCached,
         'valid': totalCached, // All cache is permanent

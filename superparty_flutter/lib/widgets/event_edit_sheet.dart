@@ -80,192 +80,196 @@ class _EventEditSheetState extends State<EventEditSheet> {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Editează Eveniment',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Editează Eveniment',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Date field
-              TextFormField(
-                controller: _dateController,
-                decoration: const InputDecoration(
-                  labelText: 'Data (DD-MM-YYYY)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.calendar_today),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
                 ),
-                readOnly: true,
-                onTap: () => _selectDate(context),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Data este obligatorie';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
-              // Address field
-              TextFormField(
-                controller: _addressController,
-                decoration: const InputDecoration(
-                  labelText: 'Adresă',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.location_on),
-                ),
-                maxLines: 2,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Adresa este obligatorie';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-
-              // Sarbatorit nume
-              TextFormField(
-                controller: _numeController,
-                decoration: const InputDecoration(
-                  labelText: 'Nume Sărbătorit',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Numele este obligatoriu';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-
-              // Sarbatorit varsta
-              TextFormField(
-                controller: _varstaController,
-                decoration: const InputDecoration(
-                  labelText: 'Vârstă Sărbătorit',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.cake),
-                ),
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              ),
-              const SizedBox(height: 16),
-
-              // Incasare section
-              Text(
-                'Încasare',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // Incasare status
-              DropdownButtonFormField<String>(
-                value: _incasareStatus,
-                decoration: const InputDecoration(
-                  labelText: 'Status Încasare',
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'NEINCASAT', child: Text('Neîncasat')),
-                  DropdownMenuItem(value: 'INCASAT', child: Text('Încasat')),
-                  DropdownMenuItem(value: 'ANULAT', child: Text('Anulat')),
-                ],
-                onChanged: (value) {
-                  setState(() {
-                    _incasareStatus = value!;
-                  });
-                },
-              ),
-              const SizedBox(height: 12),
-
-              // Incasare metoda (only if INCASAT)
-              if (_incasareStatus == 'INCASAT') ...[
-                DropdownButtonFormField<String>(
-                  value: _incasareMetoda,
+                // Date field
+                TextFormField(
+                  controller: _dateController,
                   decoration: const InputDecoration(
-                    labelText: 'Metodă Plată',
+                    labelText: 'Data (DD-MM-YYYY)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.calendar_today),
+                  ),
+                  readOnly: true,
+                  onTap: () => _selectDate(context),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Data este obligatorie';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                // Address field
+                TextFormField(
+                  controller: _addressController,
+                  decoration: const InputDecoration(
+                    labelText: 'Adresă',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.location_on),
+                  ),
+                  maxLines: 2,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Adresa este obligatorie';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                // Sarbatorit nume
+                TextFormField(
+                  controller: _numeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nume Sărbătorit',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Numele este obligatoriu';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                // Sarbatorit varsta
+                TextFormField(
+                  controller: _varstaController,
+                  decoration: const InputDecoration(
+                    labelText: 'Vârstă Sărbătorit',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.cake),
+                  ),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                ),
+                const SizedBox(height: 16),
+
+                // Incasare section
+                Text(
+                  'Încasare',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Incasare status
+                DropdownButtonFormField<String>(
+                  value: _incasareStatus,
+                  decoration: const InputDecoration(
+                    labelText: 'Status Încasare',
                     border: OutlineInputBorder(),
                   ),
                   items: const [
-                    DropdownMenuItem(value: 'CASH', child: Text('Cash')),
-                    DropdownMenuItem(value: 'CARD', child: Text('Card')),
-                    DropdownMenuItem(value: 'TRANSFER', child: Text('Transfer')),
+                    DropdownMenuItem(
+                        value: 'NEINCASAT', child: Text('Neîncasat')),
+                    DropdownMenuItem(value: 'INCASAT', child: Text('Încasat')),
+                    DropdownMenuItem(value: 'ANULAT', child: Text('Anulat')),
                   ],
                   onChanged: (value) {
                     setState(() {
-                      _incasareMetoda = value;
+                      _incasareStatus = value!;
                     });
                   },
                 ),
                 const SizedBox(height: 12),
 
-                // Suma
-                TextFormField(
-                  controller: _sumaController,
-                  decoration: const InputDecoration(
-                    labelText: 'Sumă (RON)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.attach_money),
+                // Incasare metoda (only if INCASAT)
+                if (_incasareStatus == 'INCASAT') ...[
+                  DropdownButtonFormField<String>(
+                    value: _incasareMetoda,
+                    decoration: const InputDecoration(
+                      labelText: 'Metodă Plată',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'CASH', child: Text('Cash')),
+                      DropdownMenuItem(value: 'CARD', child: Text('Card')),
+                      DropdownMenuItem(
+                          value: 'TRANSFER', child: Text('Transfer')),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _incasareMetoda = value;
+                      });
+                    },
                   ),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                  ],
-                ),
-                const SizedBox(height: 12),
-              ],
+                  const SizedBox(height: 12),
 
-              // Save button
-              ElevatedButton(
-                onPressed: _isLoading ? null : _saveChanges,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  // Suma
+                  TextFormField(
+                    controller: _sumaController,
+                    decoration: const InputDecoration(
+                      labelText: 'Sumă (RON)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.attach_money),
+                    ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d+\.?\d{0,2}')),
+                    ],
                   ),
+                  const SizedBox(height: 12),
+                ],
+
+                // Save button
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _saveChanges,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Salvează Modificările'),
                 ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Salvează Modificările'),
-              ),
-              const SizedBox(height: 16),
-            ],
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
 
   Future<void> _selectDate(BuildContext context) async {
-    final currentDate = DateTime.tryParse(_dateController.text) ?? DateTime.now();
+    final currentDate =
+        DateTime.tryParse(_dateController.text) ?? DateTime.now();
     final picked = await showDatePicker(
       context: context,
       initialDate: currentDate,

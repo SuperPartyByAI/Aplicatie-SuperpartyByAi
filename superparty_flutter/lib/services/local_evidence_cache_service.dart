@@ -34,7 +34,7 @@ class LocalEvidenceCacheService {
             retryCount INTEGER DEFAULT 0
           )
         ''');
-        
+
         await db.execute(
           'CREATE INDEX idx_event_category ON event_evidence_cache(eventId, categorie)',
         );
@@ -123,7 +123,7 @@ class LocalEvidenceCacheService {
     required String errorMessage,
   }) async {
     final db = await database;
-    
+
     // Obține retry count curent
     final List<Map<String, dynamic>> maps = await db.query(
       'event_evidence_cache',
@@ -131,11 +131,10 @@ class LocalEvidenceCacheService {
       whereArgs: [id],
       limit: 1,
     );
-    
-    final currentRetryCount = maps.isNotEmpty 
-        ? (maps.first['retryCount'] as int?) ?? 0 
-        : 0;
-    
+
+    final currentRetryCount =
+        maps.isNotEmpty ? (maps.first['retryCount'] as int?) ?? 0 : 0;
+
     await db.update(
       'event_evidence_cache',
       {
@@ -219,7 +218,7 @@ class LocalEvidenceCacheService {
       'SELECT COUNT(*) as count FROM event_evidence_cache WHERE syncStatus = ?',
       [status.value],
     );
-    
+
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
@@ -228,7 +227,7 @@ class LocalEvidenceCacheService {
     final db = await database;
     final cutoffDate = DateTime.now().subtract(Duration(days: daysOld));
     final cutoffTimestamp = cutoffDate.millisecondsSinceEpoch;
-    
+
     await db.delete(
       'event_evidence_cache',
       where: 'syncStatus = ? AND createdAt < ?',

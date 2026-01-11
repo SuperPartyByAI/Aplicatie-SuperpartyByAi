@@ -10,12 +10,12 @@ class EvidenceModel {
   final String fileName;
   final int fileSize;
   final String mimeType;
-  
+
   // Arhivare (NEVER DELETE)
   final bool isArchived;
   final DateTime? archivedAt;
   final String? archivedBy;
-  
+
   // Audit
   final DateTime uploadedAt;
   final String uploadedBy;
@@ -38,10 +38,12 @@ class EvidenceModel {
 
   factory EvidenceModel.fromFirestore(DocumentSnapshot doc, String eventId) {
     final data = doc.data() as Map<String, dynamic>;
-    
+
     // Backward compatibility: read from 'category' or fallback to 'categorie'
-    final categoryValue = (data['category'] as String?) ?? (data['categorie'] as String?) ?? 'onTime';
-    
+    final categoryValue = (data['category'] as String?) ??
+        (data['categorie'] as String?) ??
+        'onTime';
+
     return EvidenceModel(
       id: doc.id,
       eventId: eventId,
@@ -54,7 +56,8 @@ class EvidenceModel {
       isArchived: data['isArchived'] as bool? ?? false,
       archivedAt: (data['archivedAt'] as Timestamp?)?.toDate(),
       archivedBy: data['archivedBy'] as String?,
-      uploadedAt: (data['uploadedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      uploadedAt:
+          (data['uploadedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       uploadedBy: data['uploadedBy'] as String? ?? '',
     );
   }

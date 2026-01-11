@@ -8,7 +8,7 @@ class SalarizareScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    
+
     return Scaffold(
       appBar: AppBar(title: const Text('Salarizare')),
       body: StreamBuilder<QuerySnapshot>(
@@ -18,11 +18,14 @@ class SalarizareScreen extends StatelessWidget {
             .orderBy('data', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.hasError) return Center(child: Text('Eroare: ${snapshot.error}'));
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (snapshot.hasError)
+            return Center(child: Text('Eroare: ${snapshot.error}'));
+          if (!snapshot.hasData)
+            return const Center(child: CircularProgressIndicator());
 
           final salarii = snapshot.data!.docs;
-          if (salarii.isEmpty) return const Center(child: Text('Nu există date despre salarii'));
+          if (salarii.isEmpty)
+            return const Center(child: Text('Nu există date despre salarii'));
 
           return ListView.builder(
             itemCount: salarii.length,
@@ -31,7 +34,8 @@ class SalarizareScreen extends StatelessWidget {
               return Card(
                 margin: const EdgeInsets.all(8),
                 child: ListTile(
-                  leading: const Icon(Icons.attach_money, color: Color(0xFFDC2626)),
+                  leading:
+                      const Icon(Icons.attach_money, color: Color(0xFFDC2626)),
                   title: Text('${salariu['suma']} RON'),
                   subtitle: Text(salariu['descriere'] ?? ''),
                   trailing: Text(salariu['data']?.toString() ?? ''),

@@ -53,8 +53,10 @@ class EventFilters {
 
       case DatePreset.yesterday:
         final yesterday = now.subtract(const Duration(days: 1));
-        final startOfDay = DateTime(yesterday.year, yesterday.month, yesterday.day);
-        final endOfDay = DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59);
+        final startOfDay =
+            DateTime(yesterday.year, yesterday.month, yesterday.day);
+        final endOfDay = DateTime(
+            yesterday.year, yesterday.month, yesterday.day, 23, 59, 59);
         return (startOfDay, endOfDay);
 
       case DatePreset.last7:
@@ -96,7 +98,8 @@ class EventFilters {
     bool clearNotedBy = false,
   }) {
     // Enforce mutual exclusivity
-    String? newStaffCode = clearStaffCode ? null : (staffCode ?? this.staffCode);
+    String? newStaffCode =
+        clearStaffCode ? null : (staffCode ?? this.staffCode);
     String? newNotedBy = clearNotedBy ? null : (notedBy ?? this.notedBy);
 
     if (staffCode != null) {
@@ -108,8 +111,10 @@ class EventFilters {
 
     return EventFilters(
       preset: preset ?? this.preset,
-      customStartDate: clearCustomDates ? null : (customStartDate ?? this.customStartDate),
-      customEndDate: clearCustomDates ? null : (customEndDate ?? this.customEndDate),
+      customStartDate:
+          clearCustomDates ? null : (customStartDate ?? this.customStartDate),
+      customEndDate:
+          clearCustomDates ? null : (customEndDate ?? this.customEndDate),
       sortDirection: sortDirection ?? this.sortDirection,
       driverFilter: driverFilter ?? this.driverFilter,
       staffCode: newStaffCode,
@@ -149,10 +154,10 @@ enum SortDirection {
 
 /// Filtru șofer cu 4 stări ciclice
 enum DriverFilter {
-  all('Toate'),           // toate evenimentele
-  yes('Necesită'),        // doar evenimente care necesită șofer
-  open('Nerezolvate'),    // necesită șofer ȘI nu e alocat încă
-  no('Fără șofer');       // nu necesită șofer
+  all('Toate'), // toate evenimentele
+  yes('Necesită'), // doar evenimente care necesită șofer
+  open('Nerezolvate'), // necesită șofer ȘI nu e alocat încă
+  no('Fără șofer'); // nu necesită șofer
 
   final String label;
   const DriverFilter(this.label);

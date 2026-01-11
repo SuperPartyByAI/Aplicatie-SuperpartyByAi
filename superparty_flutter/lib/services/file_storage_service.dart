@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -16,13 +18,13 @@ class FileStorageService {
       eventId,
       category.value,
     );
-    
+
     // Creează directorul dacă nu există
     final directory = Directory(eventDir);
     if (!await directory.exists()) {
       await directory.create(recursive: true);
     }
-    
+
     return eventDir;
   }
 
@@ -37,16 +39,16 @@ class FileStorageService {
         eventId: eventId,
         category: category,
       );
-      
+
       // Generează nume unic pentru fișier
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final extension = path.extension(sourceFile.path);
       final fileName = '$timestamp$extension';
       final targetPath = path.join(dirPath, fileName);
-      
+
       // Copiază fișierul
       await sourceFile.copy(targetPath);
-      
+
       return targetPath;
     } catch (e) {
       throw Exception('Eroare la salvarea fișierului local: $e');
@@ -93,7 +95,7 @@ class FileStorageService {
     try {
       final appDir = await getApplicationDocumentsDirectory();
       final eventDir = Directory(path.join(appDir.path, 'evidence', eventId));
-      
+
       if (await eventDir.exists()) {
         await eventDir.delete(recursive: true);
       }
@@ -107,11 +109,11 @@ class FileStorageService {
     try {
       final appDir = await getApplicationDocumentsDirectory();
       final evidenceDir = Directory(path.join(appDir.path, 'evidence'));
-      
+
       if (!await evidenceDir.exists()) return;
-      
+
       final cutoffDate = DateTime.now().subtract(Duration(days: daysOld));
-      
+
       await for (final entity in evidenceDir.list(recursive: true)) {
         if (entity is File) {
           final stat = await entity.stat();
@@ -130,9 +132,9 @@ class FileStorageService {
     try {
       final appDir = await getApplicationDocumentsDirectory();
       final evidenceDir = Directory(path.join(appDir.path, 'evidence'));
-      
+
       if (!await evidenceDir.exists()) return 0;
-      
+
       int totalSize = 0;
       await for (final entity in evidenceDir.list(recursive: true)) {
         if (entity is File) {
@@ -140,7 +142,7 @@ class FileStorageService {
           totalSize += stat.size;
         }
       }
-      
+
       return totalSize;
     } catch (e) {
       return 0;
