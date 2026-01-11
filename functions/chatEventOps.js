@@ -7,6 +7,16 @@ const admin = require('firebase-admin');
 // Groq SDK
 const Groq = require('groq-sdk');
 
+// v3 modules
+const { validateEventV3 } = require('./v3Validators');
+const { applyChangeWithAudit, createEventV3, getNextEventShortId } = require('./v3Operations');
+const { identifyEventForUpdate, checkRoleExists } = require('./eventIdentification');
+const { createPendingPersonajTask } = require('./taskManagement');
+const { isAffirmative } = require('./confirmationParser');
+const { parseDuration } = require('./durationParser');
+const { parseDOB } = require('./dobParser');
+const { createUrsitoareRoles } = require('./ursitoareLogic');
+
 // Define secret for GROQ API key
 const groqApiKey = defineSecret('GROQ_API_KEY');
 
@@ -21,7 +31,10 @@ const SUPER_ADMIN_EMAIL = 'ursache.andrei1995@gmail.com';
 // Admin emails from environment (comma-separated)
 function getAdminEmails() {
   const envEmails = process.env.ADMIN_EMAILS || '';
-  return envEmails.split(',').map(e => e.trim()).filter(Boolean);
+  return envEmails
+    .split(',')
+    .map(e => e.trim())
+    .filter(Boolean);
 }
 
 // Require authentication only (no employee check)
@@ -80,7 +93,7 @@ async function checkRateLimit(uid) {
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
   const quotaRef = db.collection('userEventQuota').doc(uid);
 
-  return db.runTransaction(async (transaction) => {
+  return db.runTransaction(async transaction => {
     const quotaDoc = await transaction.get(quotaRef);
     const data = quotaDoc.data();
 
@@ -145,9 +158,29 @@ function defaultRoles() {
 
 function sanitizeUpdateFields(data) {
   const allowed = new Set([
-    'date', 'address', 'cineNoteaza', 'sofer', 'soferPending',
-    'sarbatoritNume', 'sarbatoritVarsta', 'sarbatoritDob',
-    'incasare', 'roles'
+    // v3 fields
+    'date',
+    'address',
+    'phoneE164',
+    'phoneRaw',
+    'childName',
+    'childAge',
+    'childDob',
+    'parentName',
+    'parentPhone',
+    'numChildren',
+    'payment',
+    'rolesBySlot',
+    'notedByCode',
+    // v2 backward compatibility
+    'cineNoteaza',
+    'sofer',
+    'soferPending',
+    'sarbatoritNume',
+    'sarbatoritVarsta',
+    'sarbatoritDob',
+    'incasare',
+    'roles',
   ]);
 
   const out = {};
@@ -159,12 +192,12 @@ function sanitizeUpdateFields(data) {
 }
 
 exports.chatEventOps = onCall(
-  { 
-    region: 'us-central1', 
+  {
+    region: 'us-central1',
     timeoutSeconds: 30,
-    secrets: [groqApiKey]  // Attach GROQ_API_KEY secret
+    secrets: [groqApiKey], // Attach GROQ_API_KEY secret
   },
-  async (request) => {
+  async request => {
     // Require authentication (all authenticated users can use this)
     const auth = requireAuth(request);
     const { uid, email } = auth;
@@ -196,10 +229,14 @@ IMPORTANT - OUTPUT FORMAT:
 - NU folosi \`\`\`json sau alte formatări
 - Răspunsul trebuie să fie JSON pur care poate fi parsat direct
 
-IMPORTANT - CONVERSATIONAL MODE:
-- Dacă user spune "vreau să notez un eveniment" SAU "am de notat o petrecere" SAU comenzi similare FĂRĂ date complete → returnează action:"ASK_INFO" cu message care cere informațiile lipsă
-- Exemplu: {"action":"ASK_INFO","message":"Perfect! Pentru a nota evenimentul, am nevoie de:\\n\\n📅 Data (format DD-MM-YYYY, ex: 15-01-2026)\\n📍 Adresa/Locația\\n🎂 Nume sărbătorit (opțional)\\n🎈 Vârsta (opțional)\\n\\nÎmi poți da aceste detalii?"}
-- NU returna action:"NONE" pentru comenzi incomplete - ghidează user-ul să completeze informațiile
+IMPORTANT - CONVERSATIONAL MODE (STATE MACHINE):
+- Când user spune "vreau să notez un eveniment":
+  1. Colectează 1-2 câmpuri pe mesaj (ASK_INFO)
+  2. Când ai toate câmpurile obligatorii: generează PREVIEW
+  3. Cere confirmare: "Confirmați aceste date?"
+  4. Așteaptă răspuns afirmativ (da/confirm/corect/exact/e ok/sigur)
+  5. Doar după confirmare: scrie în Firestore
+- NU scrie NICIODATĂ fără confirmare explicită
 
 IMPORTANT - DATE FORMAT:
 - date MUST be in DD-MM-YYYY format (ex: 15-01-2026)
@@ -211,14 +248,22 @@ IMPORTANT - ADDRESS:
 - address trebuie să fie non-empty string
 - Dacă lipsește adresa → returnează action:"ASK_INFO" cu message care cere adresa
 
-Schema v2 relevantă:
-- schemaVersion: 2
+Schema v3 relevantă (English fields):
+- schemaVersion: 3
+- eventShortId: int (auto-generated)
 - date: "DD-MM-YYYY" (OBLIGATORIU pentru CREATE)
 - address: string (OBLIGATORIU pentru CREATE)
-- sarbatoritNume: string
-- sarbatoritVarsta: int
-- incasare: { status: "INCASAT|NEINCASAT|ANULAT", metoda?: "CASH|CARD|TRANSFER", suma?: number }
-- roles: [{ slot:"A"-"K", label:string, time:"HH:mm", durationMin:int, assignedCode?:string, pendingCode?:string }]
+- phoneE164: string (E.164 format, ex: +40712345678)
+- phoneRaw: string (original format)
+- childName: string
+- childAge: int
+- childDob: "DD-MM-YYYY"
+- parentName: string
+- parentPhone: string
+- numChildren: int
+- payment: { status: "PAID|UNPAID|CANCELLED", method?: "CASH|CARD|TRANSFER", amount?: number }
+- rolesBySlot: { "01A": {...}, "01B": {...} } (slot format: eventShortId + letter)
+- notedByCode: string
 - isArchived: bool
 - archivedAt/by/reason (doar la arhivare)
 - createdAt/by, updatedAt/by (audit)
@@ -238,13 +283,54 @@ ROLURI DISPONIBILE (folosește DOAR acestea):
 
 NU folosi: fotograf, DJ, candy bar, barman, ospătar, bucătar (nu sunt servicii oferite).
 
+IMPORTANT - ARHIVARE:
+- Când user cere "arhivează" sau "anulează", întreabă OBLIGATORIU:
+  "Arhivezi doar un rol specific sau întregul eveniment?"
+- Pentru rol: action:"ARCHIVE_ROLE", roleSlot:"01A"
+- Pentru eveniment: action:"ARCHIVE", eventId:"..."
+- Cere confirmare: "Sigur vrei să arhivezi [rol X / evenimentul Y]?"
+
+IMPORTANT - ADĂUGARE ROL:
+- Când user cere "mai vreau un animator" sau "adaugă rol":
+  1. Identifică evenimentul (după ID sau telefon)
+  2. Verifică dacă rolul există deja
+  3. Dacă da: întreabă "Modificăm rolul existent sau adăugăm încă unul?"
+  4. Reconfirmă: "Acesta este pentru data X, adresa Y?"
+  5. Doar după confirmare: action:"ADD_ROLE"
+
+IMPORTANT - PERSONAJ NEHOTĂRÂT (ANIMATOR):
+- Dacă user zice explicit "nu m-am hotărât la personaj" sau "nu știu ce personaj":
+  1. Salvezi rolul cu details.personaj = null
+  2. Setezi pending.personaj = true
+  3. Întrebare de control: "Am notat animator fără personaj. Vă contactăm mâine pentru a decide. Confirmați?"
+  4. Doar după confirmare: creezi task PENDING_PERSONAJ pentru mâine 12:00
+
+IMPORTANT - DURATĂ ANIMATOR:
+- Acceptă: "2", "120", "90", "1.5", "2 ore", "120 min", "90 min"
+- Convertește în minute
+- Confirmă interpretarea: "Am înțeles {interpretation}. Confirmați?"
+- Exemplu: user zice "2" → AI: "Am înțeles 2 ore = 120 minute. Confirmați?"
+- Exemplu: user zice "90" → AI: "Am înțeles 90 minute = 1.5 ore. Confirmați?"
+
+IMPORTANT - URSITOARE:
+- Întreabă: "3 ursitoare bune sau 3 bune + 1 rea (total 4)?"
+- Dacă user zice "4 ursitoare" → automat 3 bune + 1 rea
+- Dacă user zice "3 ursitoare" → doar 3 bune
+- Întreabă ora de început (ex: "14:00")
+- Durată: 60 minute (FIX, nu întreba)
+- Creezi roluri consecutive: 01B, 01C, 01D (și 01E dacă 4)
+- Toate au aceeași oră de început
+- Returnează: roles: [{ roleType: "ursitoare_buna", ... }, { roleType: "ursitoare_rea", ... }]
+
 Returnează:
 {
-  "action": "CREATE|UPDATE|ARCHIVE|UNARCHIVE|LIST|NONE",
+  "action": "CREATE|UPDATE|ARCHIVE|ARCHIVE_ROLE|ADD_ROLE|UNARCHIVE|LIST|NONE|ASK_INFO",
   "eventId": "optional",
-  "data": { ... },          // pt CREATE/UPDATE
+  "roleSlot": "optional",    // pt ARCHIVE_ROLE
+  "data": { ... },          // pt CREATE/UPDATE/ADD_ROLE
   "reason": "optional",     // pt ARCHIVE
-  "limit": 10               // pt LIST
+  "limit": 10,              // pt LIST
+  "message": "optional"     // pt ASK_INFO
 }
 Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
 `.trim();
@@ -265,7 +351,8 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
       return {
         ok: false,
         action: 'NONE',
-        message: 'Nu am putut interpreta comanda. Încearcă: "CREEAZA eveniment pe 2026-01-12 la Adresa..., Sarbatorit X, 7 ani".',
+        message:
+          'Nu am putut interpreta comanda. Încearcă: "CREEAZA eveniment pe 2026-01-12 la Adresa..., Sarbatorit X, 7 ani".',
         raw,
       };
     }
@@ -294,9 +381,10 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
 
     if (action === 'LIST') {
       const limit = Math.max(1, Math.min(50, Number(cmd.limit || 10)));
-      
+
       // LIST is read-only, execute even in dryRun
-      const snap = await db.collection('evenimente')
+      const snap = await db
+        .collection('evenimente')
         .where('isArchived', '==', false)
         .orderBy('date', 'desc')
         .limit(limit)
@@ -310,39 +398,10 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
       const data = cmd.data || {};
       const clientRequestId = request.data?.clientRequestId || null;
 
-      // VALIDATION: date and address are required
-      const dateStr = String(data.date || '').trim();
-      const addressStr = String(data.address || '').trim();
-      
-      if (!dateStr) {
-        return {
-          ok: false,
-          action: 'NONE',
-          message: 'Lipsește data evenimentului. Te rog să specifici data în format DD-MM-YYYY (ex: 15-01-2026).',
-        };
-      }
-      
-      if (!addressStr) {
-        return {
-          ok: false,
-          action: 'NONE',
-          message: 'Lipsește adresa evenimentului. Te rog să specifici locația (ex: București, Str. Exemplu 10).',
-        };
-      }
-      
-      // Validate date format (DD-MM-YYYY)
-      const dateRegex = /^\d{2}-\d{2}-\d{4}$/;
-      if (!dateRegex.test(dateStr)) {
-        return {
-          ok: false,
-          action: 'NONE',
-          message: `Data trebuie să fie în format DD-MM-YYYY (ex: 15-01-2026). Ai introdus: "${dateStr}"`,
-        };
-      }
-
       // Idempotency: check if event with this clientRequestId already exists
       if (clientRequestId && !dryRun) {
-        const existingSnap = await db.collection('evenimente')
+        const existingSnap = await db
+          .collection('evenimente')
           .where('clientRequestId', '==', clientRequestId)
           .where('createdBy', '==', uid)
           .limit(1)
@@ -366,28 +425,64 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         await checkRateLimit(uid);
       }
 
-      const now = admin.firestore.FieldValue.serverTimestamp();
+      // Get next eventShortId
+      const eventShortId = await getNextEventShortId();
 
-      const doc = {
-        schemaVersion: 2,
+      // Build v3 event data
+      const eventData = {
+        schemaVersion: 3,
+        eventShortId,
         date: String(data.date || '').trim(),
         address: String(data.address || '').trim(),
-        sarbatoritNume: String(data.sarbatoritNume || '').trim(),
-        sarbatoritVarsta: Number.isFinite(Number(data.sarbatoritVarsta)) ? Number(data.sarbatoritVarsta) : 0,
-        ...(data.sarbatoritDob ? { sarbatoritDob: String(data.sarbatoritDob) } : {}),
-        incasare: data.incasare && typeof data.incasare === 'object' ? data.incasare : { status: 'NEINCASAT' },
-        roles: Array.isArray(data.roles) ? data.roles : defaultRoles(),
+        phoneE164: data.phoneE164 || null,
+        phoneRaw: data.phoneRaw || null,
+        childName: data.childName || data.sarbatoritNume || null,
+        childAge: data.childAge || data.sarbatoritVarsta || null,
+        childDob: data.childDob || data.sarbatoritDob || null,
+        parentName: data.parentName || null,
+        parentPhone: data.parentPhone || null,
+        numChildren: data.numChildren || null,
+        payment: data.payment || data.incasare || { status: 'UNPAID', method: null, amount: 0 },
+        rolesBySlot: {},
+        notedByCode: null,
         isArchived: false,
-        createdAt: now,
-        createdBy: uid,
-        createdByEmail: email,
-        updatedAt: now,
-        updatedBy: uid,
-        ...(clientRequestId ? { clientRequestId } : {}),
+        clientRequestId,
       };
 
-      if (!doc.date || !doc.address) {
-        return { ok: false, action: 'NONE', message: 'CREATE necesită cel puțin date (DD-MM-YYYY) și address.' };
+      // Convert roles array to rolesBySlot
+      if (Array.isArray(data.roles) && data.roles.length > 0) {
+        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const prefix = eventShortId.toString().padStart(2, '0');
+        data.roles.forEach((role, index) => {
+          const slot = `${prefix}${letters[index] || 'A'}`;
+          eventData.rolesBySlot[slot] = {
+            slot,
+            roleType: role.roleType || role.label || 'unknown',
+            label: role.label || role.roleType || 'Unknown',
+            startTime: role.startTime || role.time || '14:00',
+            durationMin: role.durationMin || 120,
+            status: 'active',
+            assigneeUid: null,
+            assigneeCode: null,
+            assignedCode: role.assignedCode || null,
+            pendingCode: role.pendingCode || null,
+            details: role.details || {},
+            pending: role.pending || null,
+            notes: null,
+            checklist: [],
+            resources: [],
+          };
+        });
+      }
+
+      // Validate with v3Validators
+      const validation = validateEventV3(eventData);
+      if (!validation.valid) {
+        return {
+          ok: false,
+          action: 'NONE',
+          message: `Validare eșuată: ${validation.errors.join(', ')}`,
+        };
       }
 
       // DryRun: return preview without writing to Firestore
@@ -395,14 +490,50 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         return {
           ok: true,
           action: 'CREATE',
-          data: doc,
+          data: eventData,
           message: 'Preview: Eveniment va fi creat cu aceste date',
           dryRun: true,
         };
       }
 
-      const ref = await db.collection('evenimente').add(doc);
-      return { ok: true, action: 'CREATE', eventId: ref.id, message: `Eveniment creat și adăugat în Evenimente.`, dryRun: false };
+      // Create event with v3Operations
+      const userContext = { uid, email };
+      const result = await createEventV3(eventData, userContext);
+
+      // Check for pending personaj (animator with personaj=null)
+      const pendingTasks = [];
+      for (const [slot, role] of Object.entries(eventData.rolesBySlot)) {
+        if (
+          role.roleType === 'animator' &&
+          role.pending &&
+          role.pending.personaj === true
+        ) {
+          const taskId = await createPendingPersonajTask(
+            result.eventId,
+            result.eventShortId,
+            slot,
+            eventData.date,
+            eventData.address,
+            eventData.phoneE164,
+            employeeInfo.staffCode || uid
+          );
+          pendingTasks.push({ taskId, slot });
+        }
+      }
+
+      return {
+        ok: true,
+        action: 'CREATE',
+        eventId: result.eventId,
+        eventShortId: result.eventShortId,
+        message: `Eveniment creat și adăugat în Evenimente.${
+          pendingTasks.length > 0
+            ? ` Task creat pentru personaj nehotărât (${pendingTasks.map((t) => t.slot).join(', ')}).`
+            : ''
+        }`,
+        pendingTasks,
+        dryRun: false,
+      };
     }
 
     if (action === 'UPDATE') {
@@ -410,27 +541,24 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
       if (!eventId) return { ok: false, action: 'NONE', message: 'UPDATE necesită eventId.' };
 
       // Check permissions: employee OR owner
-      if (!dryRun) {
-        const eventDoc = await db.collection('evenimente').doc(eventId).get();
-        if (!eventDoc.exists) {
-          return { ok: false, action: 'NONE', message: 'Evenimentul nu există.' };
-        }
+      const eventDoc = await db.collection('evenimente').doc(eventId).get();
+      if (!eventDoc.exists) {
+        return { ok: false, action: 'NONE', message: 'Evenimentul nu există.' };
+      }
 
-        const eventData = eventDoc.data();
-        const isOwner = eventData.createdBy === uid;
+      const eventData = eventDoc.data();
+      const isOwner = eventData.createdBy === uid;
 
-        if (!employeeInfo.isEmployee && !isOwner) {
-          return {
-            ok: false,
-            action: 'NONE',
-            message: 'Nu ai permisiunea să modifici acest eveniment. Doar creatorul sau un angajat poate face modificări.',
-          };
-        }
+      if (!dryRun && !employeeInfo.isEmployee && !isOwner) {
+        return {
+          ok: false,
+          action: 'NONE',
+          message:
+            'Nu ai permisiunea să modifici acest eveniment. Doar creatorul sau un angajat poate face modificări.',
+        };
       }
 
       const patch = sanitizeUpdateFields(cmd.data || {});
-      patch.updatedAt = admin.firestore.FieldValue.serverTimestamp();
-      patch.updatedBy = uid;
 
       // NU permitem schimbarea isArchived aici
       delete patch.isArchived;
@@ -450,8 +578,23 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         };
       }
 
-      await db.collection('evenimente').doc(eventId).update(patch);
-      return { ok: true, action: 'UPDATE', eventId, message: `Eveniment actualizat: ${eventId}`, dryRun: false };
+      // Apply changes with audit trail
+      const userContext = { uid, email };
+      const metadata = {
+        source: 'ai_chat',
+        action: 'UPDATE',
+        reason: cmd.reason || 'AI chat update',
+      };
+
+      await applyChangeWithAudit(eventId, patch, userContext, metadata);
+
+      return {
+        ok: true,
+        action: 'UPDATE',
+        eventId,
+        message: `Eveniment actualizat: ${eventId}`,
+        dryRun: false,
+      };
     }
 
     if (action === 'ARCHIVE') {
@@ -459,22 +602,21 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
       if (!eventId) return { ok: false, action: 'NONE', message: 'ARCHIVE necesită eventId.' };
 
       // Check permissions: employee OR owner
-      if (!dryRun) {
-        const eventDoc = await db.collection('evenimente').doc(eventId).get();
-        if (!eventDoc.exists) {
-          return { ok: false, action: 'NONE', message: 'Evenimentul nu există.' };
-        }
+      const eventDoc = await db.collection('evenimente').doc(eventId).get();
+      if (!eventDoc.exists) {
+        return { ok: false, action: 'NONE', message: 'Evenimentul nu există.' };
+      }
 
-        const eventData = eventDoc.data();
-        const isOwner = eventData.createdBy === uid;
+      const eventData = eventDoc.data();
+      const isOwner = eventData.createdBy === uid;
 
-        if (!employeeInfo.isEmployee && !isOwner) {
-          return {
-            ok: false,
-            action: 'NONE',
-            message: 'Nu ai permisiunea să arhivezi acest eveniment. Doar creatorul sau un angajat poate arhiva.',
-          };
-        }
+      if (!dryRun && !employeeInfo.isEmployee && !isOwner) {
+        return {
+          ok: false,
+          action: 'NONE',
+          message:
+            'Nu ai permisiunea să arhivezi acest eveniment. Doar creatorul sau un angajat poate arhiva.',
+        };
       }
 
       const update = {
@@ -482,8 +624,6 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         archivedAt: admin.firestore.FieldValue.serverTimestamp(),
         archivedBy: uid,
         ...(cmd.reason ? { archiveReason: String(cmd.reason) } : {}),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedBy: uid,
       };
 
       // DryRun: return preview without writing to Firestore
@@ -498,8 +638,23 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         };
       }
 
-      await db.collection('evenimente').doc(eventId).update(update);
-      return { ok: true, action: 'ARCHIVE', eventId, message: `Eveniment arhivat: ${eventId}`, dryRun: false };
+      // Apply changes with audit trail
+      const userContext = { uid, email };
+      const metadata = {
+        source: 'ai_chat',
+        action: 'ARCHIVE',
+        reason: cmd.reason || 'AI chat archive',
+      };
+
+      await applyChangeWithAudit(eventId, update, userContext, metadata);
+
+      return {
+        ok: true,
+        action: 'ARCHIVE',
+        eventId,
+        message: `Eveniment arhivat: ${eventId}`,
+        dryRun: false,
+      };
     }
 
     if (action === 'UNARCHIVE') {
@@ -507,22 +662,21 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
       if (!eventId) return { ok: false, action: 'NONE', message: 'UNARCHIVE necesită eventId.' };
 
       // Check permissions: employee OR owner
-      if (!dryRun) {
-        const eventDoc = await db.collection('evenimente').doc(eventId).get();
-        if (!eventDoc.exists) {
-          return { ok: false, action: 'NONE', message: 'Evenimentul nu există.' };
-        }
+      const eventDoc = await db.collection('evenimente').doc(eventId).get();
+      if (!eventDoc.exists) {
+        return { ok: false, action: 'NONE', message: 'Evenimentul nu există.' };
+      }
 
-        const eventData = eventDoc.data();
-        const isOwner = eventData.createdBy === uid;
+      const eventData = eventDoc.data();
+      const isOwner = eventData.createdBy === uid;
 
-        if (!employeeInfo.isEmployee && !isOwner) {
-          return {
-            ok: false,
-            action: 'NONE',
-            message: 'Nu ai permisiunea să dezarhivezi acest eveniment. Doar creatorul sau un angajat poate dezarhiva.',
-          };
-        }
+      if (!dryRun && !employeeInfo.isEmployee && !isOwner) {
+        return {
+          ok: false,
+          action: 'NONE',
+          message:
+            'Nu ai permisiunea să dezarhivezi acest eveniment. Doar creatorul sau un angajat poate dezarhiva.',
+        };
       }
 
       // DryRun: return preview without writing to Firestore
@@ -536,16 +690,243 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         };
       }
 
-      await db.collection('evenimente').doc(eventId).update({
+      const update = {
         isArchived: false,
         archivedAt: admin.firestore.FieldValue.delete(),
         archivedBy: admin.firestore.FieldValue.delete(),
         archiveReason: admin.firestore.FieldValue.delete(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedBy: uid,
+      };
+
+      // Apply changes with audit trail
+      const userContext = { uid, email };
+      const metadata = {
+        source: 'ai_chat',
+        action: 'UNARCHIVE',
+        reason: 'AI chat unarchive',
+      };
+
+      await applyChangeWithAudit(eventId, update, userContext, metadata);
+
+      return {
+        ok: true,
+        action: 'UNARCHIVE',
+        eventId,
+        message: `Eveniment dezarhivat: ${eventId}`,
+        dryRun: false,
+      };
+    }
+
+    if (action === 'ARCHIVE_ROLE') {
+      const eventId = String(cmd.eventId || '').trim();
+      const roleSlot = String(cmd.roleSlot || '').trim();
+
+      if (!eventId) {
+        return { ok: false, action: 'NONE', message: 'ARCHIVE_ROLE necesită eventId.' };
+      }
+      if (!roleSlot) {
+        return { ok: false, action: 'NONE', message: 'ARCHIVE_ROLE necesită roleSlot.' };
+      }
+
+      // Check permissions: employee OR owner
+      const eventDoc = await db.collection('evenimente').doc(eventId).get();
+      if (!eventDoc.exists) {
+        return { ok: false, action: 'NONE', message: 'Evenimentul nu există.' };
+      }
+
+      const eventData = eventDoc.data();
+      const isOwner = eventData.createdBy === uid;
+
+      if (!dryRun && !employeeInfo.isEmployee && !isOwner) {
+        return {
+          ok: false,
+          action: 'NONE',
+          message:
+            'Nu ai permisiunea să arhivezi roluri. Doar creatorul sau un angajat poate arhiva.',
+        };
+      }
+
+      // Check if role exists
+      const rolesBySlot = eventData.rolesBySlot || {};
+      if (!rolesBySlot[roleSlot]) {
+        return { ok: false, action: 'NONE', message: `Rolul ${roleSlot} nu există.` };
+      }
+
+      // DryRun: return preview
+      if (dryRun) {
+        return {
+          ok: true,
+          action: 'ARCHIVE_ROLE',
+          eventId,
+          roleSlot,
+          message: `Preview: Rolul ${roleSlot} va fi arhivat`,
+          dryRun: true,
+        };
+      }
+
+      // Archive role
+      const update = {
+        [`rolesBySlot.${roleSlot}.isArchived`]: true,
+        [`rolesBySlot.${roleSlot}.archivedAt`]: admin.firestore.FieldValue.serverTimestamp(),
+        [`rolesBySlot.${roleSlot}.archivedBy`]: uid,
+        [`rolesBySlot.${roleSlot}.archiveReason`]: cmd.reason || 'AI chat archive',
+      };
+
+      const userContext = { uid, email };
+      const metadata = {
+        source: 'ai_chat',
+        action: 'ARCHIVE_ROLE',
+        reason: cmd.reason || 'AI chat archive role',
+        roleSlot,
+      };
+
+      await applyChangeWithAudit(eventId, update, userContext, metadata);
+
+      return {
+        ok: true,
+        action: 'ARCHIVE_ROLE',
+        eventId,
+        roleSlot,
+        message: `Rol ${roleSlot} arhivat cu succes.`,
+        dryRun: false,
+      };
+    }
+
+    if (action === 'ADD_ROLE') {
+      const data = cmd.data || {};
+      const { eventShortId, phoneE164, date, address } = data;
+
+      // Identify event
+      const identification = await identifyEventForUpdate({
+        eventShortId,
+        phoneE164,
+        date,
+        address,
       });
 
-      return { ok: true, action: 'UNARCHIVE', eventId, message: `Eveniment dezarhivat: ${eventId}`, dryRun: false };
+      if (!identification.found) {
+        return {
+          ok: false,
+          action: 'ASK_INFO',
+          message: identification.message,
+        };
+      }
+
+      if (identification.events.length > 1) {
+        return {
+          ok: false,
+          action: 'ASK_INFO',
+          message: identification.message,
+        };
+      }
+
+      const event = identification.events[0];
+      const eventId = event.id;
+
+      // Check if role already exists
+      const roleType = data.roleType || data.label || 'unknown';
+      const roleCheck = checkRoleExists(event, roleType);
+
+      if (roleCheck.exists) {
+        return {
+          ok: false,
+          action: 'ASK_INFO',
+          message: `Rolul ${roleType} există deja (slot ${roleCheck.slot}).\n\nVrei să:\n1. Modifici rolul existent?\n2. Adaugi încă un rol de același tip?`,
+        };
+      }
+
+      // Check permissions
+      const isOwner = event.createdBy === uid;
+      if (!dryRun && !employeeInfo.isEmployee && !isOwner) {
+        return {
+          ok: false,
+          action: 'NONE',
+          message:
+            'Nu ai permisiunea să adaugi roluri. Doar creatorul sau un angajat poate adăuga.',
+        };
+      }
+
+      // Allocate slot
+      const { allocateSlot } = require('./v3Operations');
+      const existingSlots = Object.keys(event.rolesBySlot || {});
+      const newSlot = allocateSlot(event.eventShortId, existingSlots);
+
+      // Build role data
+      const roleData = {
+        slot: newSlot,
+        roleType: roleType,
+        label: data.label || roleType,
+        startTime: data.startTime || '14:00',
+        durationMin: data.durationMin || 120,
+        status: 'active',
+        assigneeUid: null,
+        assigneeCode: null,
+        assignedCode: data.assignedCode || null,
+        pendingCode: data.pendingCode || null,
+        details: data.details || {},
+        pending: data.pending || null,
+        notes: null,
+        checklist: [],
+        resources: [],
+        isArchived: false,
+      };
+
+      // DryRun: return preview
+      if (dryRun) {
+        return {
+          ok: true,
+          action: 'ADD_ROLE',
+          eventId,
+          roleSlot: newSlot,
+          data: roleData,
+          message: `Preview: Rol ${newSlot} va fi adăugat la evenimentul ${event.eventShortId}`,
+          dryRun: true,
+        };
+      }
+
+      // Add role
+      const update = {
+        [`rolesBySlot.${newSlot}`]: roleData,
+      };
+
+      const userContext = { uid, email };
+      const metadata = {
+        source: 'ai_chat',
+        action: 'ADD_ROLE',
+        reason: 'AI chat add role',
+        roleSlot: newSlot,
+      };
+
+      await applyChangeWithAudit(eventId, update, userContext, metadata);
+
+      // Check for pending personaj (animator with personaj=null)
+      let taskId = null;
+      if (
+        roleData.roleType === 'animator' &&
+        roleData.pending &&
+        roleData.pending.personaj === true
+      ) {
+        taskId = await createPendingPersonajTask(
+          eventId,
+          event.eventShortId,
+          newSlot,
+          event.date,
+          event.address,
+          event.phoneE164,
+          employeeInfo.staffCode || uid
+        );
+      }
+
+      return {
+        ok: true,
+        action: 'ADD_ROLE',
+        eventId,
+        roleSlot: newSlot,
+        message: `Rol ${newSlot} adăugat cu succes la evenimentul ${event.eventShortId}.${
+          taskId ? ` Task creat pentru personaj nehotărât.` : ''
+        }`,
+        taskId,
+        dryRun: false,
+      };
     }
 
     return { ok: false, action: 'NONE', message: `Acțiune necunoscută: ${action}`, raw };
