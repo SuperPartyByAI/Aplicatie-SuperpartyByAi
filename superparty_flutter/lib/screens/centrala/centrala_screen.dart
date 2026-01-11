@@ -25,7 +25,7 @@ class _CentralaScreenState extends State<CentralaScreen> {
         setState(() => _calls.add(message.toString()));
       });
     } catch (e) {
-      print('WebSocket error: $e');
+      debugPrint('WebSocket error: $e');
     }
   }
 

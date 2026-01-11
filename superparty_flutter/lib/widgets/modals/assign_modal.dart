@@ -83,7 +83,7 @@ class _AssignModalState extends State<AssignModal> {
               color: const Color(0xEB0B1220), // rgba(11,18,32,0.92)
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: const Color(0x1AFFFFFFF), // rgba(255,255,255,0.1)
+                color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
               ),
               boxShadow: [
                 BoxShadow(

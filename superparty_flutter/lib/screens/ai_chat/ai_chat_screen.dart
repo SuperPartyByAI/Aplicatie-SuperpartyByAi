@@ -129,7 +129,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
       }
     }).catchError((e) {
       // ignore
-      // print('Error loading cache: $e');
+      // debugPrint('Error loading cache: $e');
     });
   }
 

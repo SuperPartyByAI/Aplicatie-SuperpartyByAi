@@ -55,7 +55,7 @@ void startCallback() {
 class BackgroundTaskHandler extends TaskHandler {
   @override
   Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {
-    print('Background service started');
+    debugPrint('Background service started');
   }
 
   @override
@@ -65,6 +65,6 @@ class BackgroundTaskHandler extends TaskHandler {
 
   @override
   void onDestroy(DateTime timestamp, SendPort? sendPort) {
-    print('Background service stopped');
+    debugPrint('Background service stopped');
   }
 }

@@ -390,7 +390,7 @@ class EventCardHtml extends StatelessWidget {
                 color: const Color(0x0FFFFFFF), // rgba(255,255,255,0.06)
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
-                  color: const Color(0x1AFFFFFFF), // rgba(255,255,255,0.1)
+                  color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
                 ),
               ),
               child: Center(

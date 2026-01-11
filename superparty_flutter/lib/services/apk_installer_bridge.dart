@@ -25,10 +25,10 @@ class ApkInstallerBridge {
       final result = await _channel.invokeMethod<bool>('canInstallPackages');
       return result ?? false;
     } on PlatformException catch (e) {
-      print('[ApkInstallerBridge] Error checking install permission: ${e.message}');
+      debugPrint('[ApkInstallerBridge] Error checking install permission: ${e.message}');
       return false;
     } catch (e) {
-      print('[ApkInstallerBridge] Unexpected error: $e');
+      debugPrint('[ApkInstallerBridge] Unexpected error: $e');
       return false;
     }
   }
@@ -44,7 +44,7 @@ class ApkInstallerBridge {
     }
 
     try {
-      print('[ApkInstallerBridge] Installing APK: $filePath');
+      debugPrint('[ApkInstallerBridge] Installing APK: $filePath');
       
       final result = await _channel.invokeMethod<bool>(
         'installApk',
@@ -53,10 +53,10 @@ class ApkInstallerBridge {
       
       return result ?? false;
     } on PlatformException catch (e) {
-      print('[ApkInstallerBridge] Install error: ${e.message}');
+      debugPrint('[ApkInstallerBridge] Install error: ${e.message}');
       throw Exception('Instalare eșuată: ${e.message}');
     } catch (e) {
-      print('[ApkInstallerBridge] Unexpected error: $e');
+      debugPrint('[ApkInstallerBridge] Unexpected error: $e');
       throw Exception('Eroare neașteptată la instalare');
     }
   }
@@ -71,7 +71,7 @@ class ApkInstallerBridge {
     }
 
     try {
-      print('[ApkInstallerBridge] Opening unknown sources settings');
+      debugPrint('[ApkInstallerBridge] Opening unknown sources settings');
       
       final result = await _channel.invokeMethod<bool>(
         'openUnknownSourcesSettings',
@@ -79,10 +79,10 @@ class ApkInstallerBridge {
       
       return result ?? false;
     } on PlatformException catch (e) {
-      print('[ApkInstallerBridge] Error opening settings: ${e.message}');
+      debugPrint('[ApkInstallerBridge] Error opening settings: ${e.message}');
       return false;
     } catch (e) {
-      print('[ApkInstallerBridge] Unexpected error: $e');
+      debugPrint('[ApkInstallerBridge] Unexpected error: $e');
       return false;
     }
   }

@@ -26,7 +26,7 @@ class _WhatsAppScreenState extends State<WhatsAppScreen> {
         setState(() => _chats.add({'message': message, 'timestamp': DateTime.now()}));
       });
     } catch (e) {
-      print('WebSocket error: $e');
+      debugPrint('WebSocket error: $e');
     }
   }
 

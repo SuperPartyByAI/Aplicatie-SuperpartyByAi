@@ -48,44 +48,44 @@ void main() async {
   // FAIL-SAFE: Initialize Firebase with error handling and timeout
   // App can run with limited functionality if Firebase fails
   try {
-    print('[Main] Initializing Firebase...');
+    debugPrint('[Main] Initializing Firebase...');
     await FirebaseService.initialize()
         .timeout(const Duration(seconds: 10));
-    print('[Main] ✅ Firebase initialized successfully');
+    debugPrint('[Main] ✅ Firebase initialized successfully');
   } catch (e, stackTrace) {
-    print('[Main] ❌ Firebase initialization failed: $e');
-    print('[Main] Stack trace: $stackTrace');
-    print('[Main] ⚠️ App will continue with limited functionality');
-    print('[Main] ℹ️ Features requiring Firebase will be unavailable');
+    debugPrint('[Main] ❌ Firebase initialization failed: $e');
+    debugPrint('[Main] Stack trace: $stackTrace');
+    debugPrint('[Main] ⚠️ App will continue with limited functionality');
+    debugPrint('[Main] ℹ️ Features requiring Firebase will be unavailable');
   }
   
   // FAIL-SAFE: Background service is optional (mobile only)
   if (!kIsWeb) {
     try {
-      print('[Main] Initializing background service...');
+      debugPrint('[Main] Initializing background service...');
       await BackgroundService.initialize();
-      print('[Main] ✅ Background service initialized');
+      debugPrint('[Main] ✅ Background service initialized');
     } catch (e) {
-      print('[Main] ⚠️ Background service init error (non-critical): $e');
+      debugPrint('[Main] ⚠️ Background service init error (non-critical): $e');
     }
   } else {
-    print('[Main] ℹ️ Background service skipped (not supported on web)');
+    debugPrint('[Main] ℹ️ Background service skipped (not supported on web)');
   }
   
   // FAIL-SAFE: Push notifications are optional (mobile only)
   if (!kIsWeb) {
     try {
-      print('[Main] Initializing push notifications...');
+      debugPrint('[Main] Initializing push notifications...');
       await PushNotificationService.initialize();
-      print('[Main] ✅ Push notifications initialized');
+      debugPrint('[Main] ✅ Push notifications initialized');
     } catch (e) {
-      print('[Main] ⚠️ Push notification init error (non-critical): $e');
+      debugPrint('[Main] ⚠️ Push notification init error (non-critical): $e');
     }
   } else {
-    print('[Main] ℹ️ Push notifications skipped (not supported on web)');
+    debugPrint('[Main] ℹ️ Push notifications skipped (not supported on web)');
   }
   
-  print('[Main] Starting app...');
+  debugPrint('[Main] Starting app...');
   runApp(const SuperPartyApp());
 }
 
@@ -256,7 +256,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       
       appState.setEmployeeStatus(isEmployee, role);
     } catch (e) {
-      print('Error loading user role: $e');
+      debugPrint('Error loading user role: $e');
     }
   }
 
@@ -305,7 +305,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           if (!kIsWeb && !_backgroundServiceStarted) {
             _backgroundServiceStarted = true;
             BackgroundService.startService().catchError((e) {
-              print('Failed to start background service: $e');
+              debugPrint('Failed to start background service: $e');
               return false; // IMPORTANT: catchError must return Future<bool>
             });
           }

@@ -26,7 +26,7 @@ class EventService {
             try {
               return EventModel.fromFirestore(doc);
             } catch (e) {
-              print('[EventService] ⚠️ Failed to parse event ${doc.id}: $e');
+              debugPrint('[EventService] ⚠️ Failed to parse event ${doc.id}: $e');
               return null;
             }
           })
@@ -50,7 +50,7 @@ class EventService {
               try {
                 return EventModel.fromFirestore(doc);
               } catch (e) {
-                print('[EventService] ⚠️ Failed to parse archived event ${doc.id}: $e');
+                debugPrint('[EventService] ⚠️ Failed to parse archived event ${doc.id}: $e');
                 return null;
               }
             })

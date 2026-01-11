@@ -188,7 +188,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
       decoration: BoxDecoration(
         color: const Color(0x0DFFFFFF), // rgba(255,255,255,0.05)
         border: Border.all(
-          color: const Color(0x1AFFFFFFF), // rgba(255,255,255,0.1)
+          color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
         ),
         borderRadius: BorderRadius.circular(16),
       ),
@@ -242,7 +242,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
       decoration: BoxDecoration(
         color: const Color(0x29000000), // rgba(0,0,0,0.16)
         border: Border.all(
-          color: const Color(0x1AFFFFFFF),
+          color: const Color(0x1AFFFFFF),
         ),
         borderRadius: BorderRadius.circular(16),
       ),

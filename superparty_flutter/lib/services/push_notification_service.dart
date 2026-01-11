@@ -14,7 +14,7 @@ class PushNotificationService {
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      print('User granted permission');
+      debugPrint('User granted permission');
       
       // Get FCM token
       String? token = await _messaging.getToken();
@@ -35,7 +35,7 @@ class PushNotificationService {
 
   static Future<void> _saveTokenToFirestore(String token) async {
     if (!FirebaseService.isInitialized) {
-      print('[PushNotificationService] Firebase not initialized, skipping token save');
+      debugPrint('[PushNotificationService] Firebase not initialized, skipping token save');
       return;
     }
     
@@ -48,17 +48,17 @@ class PushNotificationService {
       'notificationsEnabled': true,
     }, SetOptions(merge: true));
 
-    print('FCM Token saved: $token');
+    debugPrint('FCM Token saved: $token');
   }
 
   static void _handleForegroundMessage(RemoteMessage message) {
-    print('Foreground message: ${message.notification?.title}');
+    debugPrint('Foreground message: ${message.notification?.title}');
     // Show local notification or update UI
   }
 }
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  print('Background message: ${message.messageId}');
+  debugPrint('Background message: ${message.messageId}');
   // Handle background message
 }

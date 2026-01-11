@@ -64,7 +64,7 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
         });
       }
     } catch (e) {
-      print('[ForceUpdateScreen] Error loading update info: $e');
+      debugPrint('[ForceUpdateScreen] Error loading update info: $e');
     }
   }
 
@@ -87,7 +87,7 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
 
     try {
       // 1. Download APK cu progress
-      print('[ForceUpdateScreen] Starting download...');
+      debugPrint('[ForceUpdateScreen] Starting download...');
       final filePath = await ApkDownloaderService.downloadApk(
         _downloadUrl,
         onProgress: (progress) {
@@ -103,7 +103,7 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
         throw Exception('Download eșuat - verifică conexiunea la internet');
       }
 
-      print('[ForceUpdateScreen] Download complete: $filePath');
+      debugPrint('[ForceUpdateScreen] Download complete: $filePath');
       _downloadedFilePath = filePath;
 
       setState(() {
@@ -115,7 +115,7 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
       final canInstall = await ApkInstallerBridge.canInstallPackages();
       
       if (!canInstall) {
-        print('[ForceUpdateScreen] Install permission required');
+        debugPrint('[ForceUpdateScreen] Install permission required');
         setState(() {
           _state = _UpdateState.permissionRequired;
         });
@@ -126,14 +126,14 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
       await _installApk(filePath);
 
     } catch (e) {
-      print('[ForceUpdateScreen] Error: $e');
+      debugPrint('[ForceUpdateScreen] Error: $e');
       _showError(e.toString());
     }
   }
 
   Future<void> _installApk(String filePath) async {
     try {
-      print('[ForceUpdateScreen] Installing APK...');
+      debugPrint('[ForceUpdateScreen] Installing APK...');
       final success = await ApkInstallerBridge.installApk(filePath);
 
       if (!success) {
@@ -143,10 +143,10 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
       // Installerul Android s-a deschis
       // User-ul va instala manual și va redeschide app-ul
       // La redeschidere, UpdateGate va vedea că build-ul e OK și va lăsa user-ul să intre
-      print('[ForceUpdateScreen] Installer opened successfully');
+      debugPrint('[ForceUpdateScreen] Installer opened successfully');
 
     } catch (e) {
-      print('[ForceUpdateScreen] Install error: $e');
+      debugPrint('[ForceUpdateScreen] Install error: $e');
       _showError(e.toString());
     }
   }
@@ -170,7 +170,7 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
         });
       }
     } catch (e) {
-      print('[ForceUpdateScreen] Error opening settings: $e');
+      debugPrint('[ForceUpdateScreen] Error opening settings: $e');
       _showError('Nu s-au putut deschide setările');
     }
   }

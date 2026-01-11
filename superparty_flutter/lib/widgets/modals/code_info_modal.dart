@@ -69,7 +69,10 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
           throw Exception('Event not found');
         }
 
-        final data = eventDoc.data()!;
+        final data = eventDoc.data();
+        if (data == null || data is! Map<String, dynamic>) {
+          throw Exception('Invalid event data');
+        }
         final roles = List<Map<String, dynamic>>.from(data['roles'] ?? []);
 
         bool found = false;
@@ -126,7 +129,10 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
           throw Exception('Event not found');
         }
 
-        final data = eventDoc.data()!;
+        final data = eventDoc.data();
+        if (data == null || data is! Map<String, dynamic>) {
+          throw Exception('Invalid event data');
+        }
         final roles = List<Map<String, dynamic>>.from(data['roles'] ?? []);
 
         for (var i = 0; i < roles.length; i++) {
@@ -185,7 +191,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
           decoration: BoxDecoration(
             color: const Color(0xEB0B1220), // rgba(11,18,32,0.92)
             border: Border.all(
-              color: const Color(0x1AFFFFFFF), // rgba(255,255,255,0.1)
+              color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
             ),
             borderRadius: BorderRadius.circular(18),
             boxShadow: [

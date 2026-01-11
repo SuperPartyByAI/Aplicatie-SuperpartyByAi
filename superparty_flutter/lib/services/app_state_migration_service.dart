@@ -25,25 +25,25 @@ class AppStateMigrationService {
       final currentBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
       final lastSeenBuild = prefs.getInt(_lastSeenBuildKey) ?? 0;
       
-      print('[AppStateMigration] Current build: $currentBuild, Last seen: $lastSeenBuild');
+      debugPrint('[AppStateMigration] Current build: $currentBuild, Last seen: $lastSeenBuild');
       
       if (currentBuild > lastSeenBuild) {
-        print('[AppStateMigration] New version detected, running migration...');
+        debugPrint('[AppStateMigration] New version detected, running migration...');
         
         await _performMigration(lastSeenBuild, currentBuild, prefs);
         
         // Save current build number
         await prefs.setInt(_lastSeenBuildKey, currentBuild);
         
-        print('[AppStateMigration] Migration complete');
+        debugPrint('[AppStateMigration] Migration complete');
         return true;
       }
       
-      print('[AppStateMigration] No migration needed');
+      debugPrint('[AppStateMigration] No migration needed');
       return false;
       
     } catch (e) {
-      print('[AppStateMigration] Error during migration: $e');
+      debugPrint('[AppStateMigration] Error during migration: $e');
       return false;
     }
   }
@@ -54,20 +54,20 @@ class AppStateMigrationService {
     int toBuild,
     SharedPreferences prefs,
   ) async {
-    print('[AppStateMigration] Migrating from build $fromBuild to $toBuild');
+    debugPrint('[AppStateMigration] Migrating from build $fromBuild to $toBuild');
     
     // Example migrations (add your own as needed):
     
     // Migration 1→2: Clear old cache flags
     if (fromBuild < 2 && toBuild >= 2) {
-      print('[AppStateMigration] Clearing old cache flags');
+      debugPrint('[AppStateMigration] Clearing old cache flags');
       await prefs.remove('old_cache_flag');
       // Add more cleanup as needed
     }
     
     // Migration 2→3: Reset specific preferences
     if (fromBuild < 3 && toBuild >= 3) {
-      print('[AppStateMigration] Resetting specific preferences');
+      debugPrint('[AppStateMigration] Resetting specific preferences');
       // Example: await prefs.remove('some_old_setting');
     }
     
@@ -79,7 +79,7 @@ class AppStateMigrationService {
 
   /// General cleanup that runs on every version change
   static Future<void> _generalCleanup(SharedPreferences prefs) async {
-    print('[AppStateMigration] Running general cleanup');
+    debugPrint('[AppStateMigration] Running general cleanup');
     
     // Clear temporary flags
     await prefs.remove('temp_flag');
@@ -120,10 +120,10 @@ class AppStateMigrationService {
         }
       }
       
-      print('[AppStateMigration] Cleared all app state (preserved auth)');
+      debugPrint('[AppStateMigration] Cleared all app state (preserved auth)');
       
     } catch (e) {
-      print('[AppStateMigration] Error clearing app state: $e');
+      debugPrint('[AppStateMigration] Error clearing app state: $e');
     }
   }
 
@@ -133,7 +133,7 @@ class AppStateMigrationService {
       final packageInfo = await PackageInfo.fromPlatform();
       return int.tryParse(packageInfo.buildNumber) ?? 0;
     } catch (e) {
-      print('[AppStateMigration] Error getting build number: $e');
+      debugPrint('[AppStateMigration] Error getting build number: $e');
       return 0;
     }
   }
@@ -144,7 +144,7 @@ class AppStateMigrationService {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getInt(_lastSeenBuildKey) ?? 0;
     } catch (e) {
-      print('[AppStateMigration] Error getting last seen build: $e');
+      debugPrint('[AppStateMigration] Error getting last seen build: $e');
       return 0;
     }
   }

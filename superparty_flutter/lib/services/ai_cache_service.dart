@@ -47,7 +47,7 @@ class AICacheService {
         return data['response'] as String;
       }
     } catch (e) {
-      print('Cache read error: $e');
+      debugPrint('Cache read error: $e');
     }
     
     return null;
@@ -80,7 +80,7 @@ class AICacheService {
       // Track frequent questions
       await _trackFrequentQuestion(normalized);
     } catch (e) {
-      print('Cache write error: $e');
+      debugPrint('Cache write error: $e');
     }
   }
   
@@ -115,10 +115,10 @@ class AICacheService {
           await prefs.remove(sorted[i].key);
         }
         
-        print('Cache cleanup: Removed $toRemove old entries');
+        debugPrint('Cache cleanup: Removed $toRemove old entries');
       }
     } catch (e) {
-      print('Cache cleanup error: $e');
+      debugPrint('Cache cleanup error: $e');
     }
   }
 
@@ -144,7 +144,7 @@ class AICacheService {
       
       await prefs.setString(_frequentQuestionsKey, json.encode(frequent));
     } catch (e) {
-      print('Frequent tracking error: $e');
+      debugPrint('Frequent tracking error: $e');
     }
   }
 
@@ -161,7 +161,7 @@ class AICacheService {
         return sorted.take(limit).map((e) => e.key).toList();
       }
     } catch (e) {
-      print('Get frequent error: $e');
+      debugPrint('Get frequent error: $e');
     }
     
     return [];
@@ -181,7 +181,7 @@ class AICacheService {
       
       await prefs.remove(_frequentQuestionsKey);
     } catch (e) {
-      print('Clear cache error: $e');
+      debugPrint('Clear cache error: $e');
     }
   }
 
@@ -205,7 +205,7 @@ class AICacheService {
         'expired': 0,
       };
     } catch (e) {
-      print('Cache stats error: $e');
+      debugPrint('Cache stats error: $e');
       return {'total': 0, 'valid': 0, 'expired': 0};
     }
   }

@@ -22,7 +22,7 @@ class RoleService {
       final doc = await _firestore.collection('staffProfiles').doc(user.uid).get();
       return doc.exists;
     } catch (e) {
-      print('RoleService.isEmployee error: $e');
+      debugPrint('RoleService.isEmployee error: $e');
       return false;
     }
   }
@@ -39,7 +39,7 @@ class RoleService {
       final role = (doc.data()?['role'] as String?)?.toLowerCase() ?? '';
       return role == 'gm' || role == 'admin';
     } catch (e) {
-      print('RoleService.isGmOrAdmin error: $e');
+      debugPrint('RoleService.isGmOrAdmin error: $e');
       return false;
     }
   }
@@ -56,7 +56,7 @@ class RoleService {
 
       return (doc.data()?['role'] as String?)?.toLowerCase();
     } catch (e) {
-      print('RoleService.getUserRole error: $e');
+      debugPrint('RoleService.getUserRole error: $e');
       return null;
     }
   }
@@ -72,7 +72,7 @@ class RoleService {
 
       return doc.data();
     } catch (e) {
-      print('RoleService.getStaffProfile error: $e');
+      debugPrint('RoleService.getStaffProfile error: $e');
       return null;
     }
   }

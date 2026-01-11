@@ -18,18 +18,18 @@ class FirebaseService {
   /// Safe to call multiple times (idempotent).
   static Future<void> initialize() async {
     if (_initialized) {
-      print('[FirebaseService] Already initialized, skipping');
+      debugPrint('[FirebaseService] Already initialized, skipping');
       return;
     }
 
-    print('[FirebaseService] Initializing Firebase...');
+    debugPrint('[FirebaseService] Initializing Firebase...');
     
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
     _initialized = true;
-    print('[FirebaseService] ✅ Firebase initialized successfully');
+    debugPrint('[FirebaseService] ✅ Firebase initialized successfully');
   }
 
   /// Lazy getter for FirebaseAuth
