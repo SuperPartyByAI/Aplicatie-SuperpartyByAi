@@ -713,6 +713,9 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
           _openAssignModal(event, slot);
         }
       },
+      onTimeTap: (slot, currentTime) {
+        _openTimePickerForRole(event.id, slot, currentTime);
+      },
       onDriverTap: () {
         _openAssignModal(event, 'S');
       },
@@ -893,6 +896,98 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Eroare: $e'),
+            backgroundColor: const Color(0xFFFF7878),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openTimePickerForRole(String eventId, String slot, String currentTime) async {
+    // Parse current time (HH:mm format)
+    TimeOfDay initialTime = TimeOfDay.now();
+    try {
+      final parts = currentTime.split(':');
+      if (parts.length == 2) {
+        final hour = int.parse(parts[0]);
+        final minute = int.parse(parts[1]);
+        initialTime = TimeOfDay(hour: hour, minute: minute);
+      }
+    } catch (e) {
+      debugPrint('[Evenimente] Failed to parse time: $currentTime, using now()');
+    }
+
+    // Show time picker
+    final selectedTime = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFF4ECDC4),
+              onPrimary: Color(0xFF0A0E27),
+              surface: Color(0xFF0F1535),
+              onSurface: Color(0xFFEAF1FF),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (selectedTime == null) return;
+
+    // Format time as HH:mm (zero-padded)
+    final newTime = '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}';
+
+    // Update Firestore
+    try {
+      final db = FirebaseFirestore.instance;
+      final eventRef = db.collection('evenimente').doc(eventId);
+
+      // Get current event data
+      final eventDoc = await eventRef.get();
+      if (!eventDoc.exists) {
+        throw Exception('Event not found');
+      }
+
+      final data = eventDoc.data();
+      if (data == null || data is! Map<String, dynamic>) {
+        debugPrint('[Evenimente] Event data is null');
+        throw Exception('Event data is null');
+      }
+
+      final roles = (data['roles'] as List<dynamic>?) ?? [];
+
+      // Find role by slot
+      final roleIndex = roles.indexWhere((r) => r['slot'] == slot);
+      if (roleIndex == -1) {
+        throw Exception('Role not found');
+      }
+
+      // Update time
+      roles[roleIndex]['time'] = newTime;
+
+      // Save to Firestore
+      await eventRef.update({
+        'roles': roles,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ora actualizată pentru slot $slot: $newTime'),
+            backgroundColor: const Color(0xFF4ECDC4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Eroare la actualizare oră: $e'),
             backgroundColor: const Color(0xFFFF7878),
           ),
         );

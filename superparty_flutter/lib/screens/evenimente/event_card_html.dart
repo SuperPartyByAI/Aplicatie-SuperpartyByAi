@@ -9,6 +9,7 @@ class EventCardHtml extends StatelessWidget {
   final VoidCallback onTap;
   final Function(String slot) onSlotTap;
   final Function(String slot, String? code) onStatusTap;
+  final Function(String slot, String currentTime)? onTimeTap;
   final VoidCallback? onDriverTap;
   final String? codeFilter; // Pentru buildVisibleRoles
 
@@ -18,6 +19,7 @@ class EventCardHtml extends StatelessWidget {
     required this.onTap,
     required this.onSlotTap,
     required this.onStatusTap,
+    this.onTimeTap,
     this.onDriverTap,
     this.codeFilter,
   });
@@ -347,71 +349,98 @@ class EventCardHtml extends StatelessWidget {
             ? _StatusType.pending
             : _StatusType.unassigned;
 
-    return GestureDetector(
-      onTap: () => onStatusTap(
-        role.slot,
-        hasAssigned ? role.assignedCode : hasPending ? role.pendingCode : null,
-      ),
-      child: Row(
-        children: [
-          // Role name
-          Flexible(
-            child: Text(
-              role.label,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0x94EAF1FF), // rgba(234,241,255,0.58) --muted2
-              ),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
+    return Row(
+      children: [
+        // Role name + Duration (clickable for status)
+        Expanded(
+          child: GestureDetector(
+            onTap: () => onStatusTap(
+              role.slot,
+              hasAssigned ? role.assignedCode : hasPending ? role.pendingCode : null,
             ),
-          ),
-
-          // Time
-          if (role.time.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            Text(
-              role.time,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                color: Color(0xB3EAF1FF), // rgba(234,241,255,0.7) --muted
-              ),
-            ),
-          ],
-
-          // Duration
-          if (role.durationMin > 0) ...[
-            const SizedBox(width: 6),
-            Container(
-              height: 18,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              decoration: BoxDecoration(
-                color: const Color(0x0FFFFFFF), // rgba(255,255,255,0.06)
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  _formatDuration(role.durationMin),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.12,
-                    color: Color(0xC7EAF1FF), // rgba(234,241,255,0.78)
+            child: Row(
+              children: [
+                // Role name
+                Flexible(
+                  child: Text(
+                    role.label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0x94EAF1FF), // rgba(234,241,255,0.58) --muted2
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
+
+                // Duration
+                if (role.durationMin > 0) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    height: 18,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0x0FFFFFFF), // rgba(255,255,255,0.06)
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _formatDuration(role.durationMin),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.12,
+                          color: Color(0xC7EAF1FF), // rgba(234,241,255,0.78)
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+
+        // Time (clickable separately)
+        if (role.time.isNotEmpty) ...[
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: onTimeTap != null
+                ? () => onTimeTap!(role.slot, role.time)
+                : null,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: onTimeTap != null
+                  ? BoxDecoration(
+                      color: const Color(0x0AFFFFFF), // subtle highlight
+                      borderRadius: BorderRadius.circular(4),
+                    )
+                  : null,
+              child: Text(
+                role.time,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xB3EAF1FF), // rgba(234,241,255,0.7) --muted
+                ),
               ),
             ),
-          ],
-
-          // Status
-          const SizedBox(width: 8),
-          _buildStatus(statusText, statusType),
+          ),
         ],
-      ),
+
+        // Status (clickable for status)
+        const SizedBox(width: 8),
+        GestureDetector(
+          onTap: () => onStatusTap(
+            role.slot,
+            hasAssigned ? role.assignedCode : hasPending ? role.pendingCode : null,
+          ),
+          child: _buildStatus(statusText, statusType),
+        ),
+      ],
     );
   }
 
