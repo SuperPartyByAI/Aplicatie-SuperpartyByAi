@@ -19,6 +19,9 @@ class AdminScreen extends StatelessWidget {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const KycApprovalsScreen()));
           }),
           _buildAdminCard(context, 'Conversații AI', Icons.chat, () {}),
+          _buildAdminCard(context, 'Firestore Migration', Icons.storage, () {
+            Navigator.pushNamed(context, '/admin/firestore-migration');
+          }),
           _buildAdminCard(context, 'Utilizatori', Icons.people, () {}),
           _buildAdminCard(context, 'Statistici', Icons.analytics, () {}),
         ],

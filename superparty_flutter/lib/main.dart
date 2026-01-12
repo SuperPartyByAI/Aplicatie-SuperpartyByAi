@@ -21,6 +21,7 @@ import 'screens/team/team_screen.dart';
 import 'screens/admin/admin_screen.dart';
 import 'screens/admin/kyc_approvals_screen.dart';
 import 'screens/admin/ai_conversations_screen.dart';
+import 'screens/admin/firestore_migration_screen.dart';
 import 'screens/gm/accounts_screen.dart';
 import 'screens/gm/metrics_screen.dart';
 import 'screens/gm/analytics_screen.dart';
@@ -204,6 +205,8 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
               return MaterialPageRoute(builder: (_) => const KycApprovalsScreen());
             case '/admin/ai-conversations':
               return MaterialPageRoute(builder: (_) => const AiConversationsScreen());
+            case '/admin/firestore-migration':
+              return MaterialPageRoute(builder: (_) => const FirestoreMigrationScreen());
             case '/gm/accounts':
               return MaterialPageRoute(builder: (_) => const AccountsScreen());
             case '/gm/metrics':
