@@ -260,6 +260,9 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   final RoleService _roleService = RoleService();
   
+  // Current user state - used instead of StreamBuilder to avoid conflicts
+  User? _currentUser;
+  
   // Guards to prevent rebuild loops
   bool _roleLoaded = false;
   bool _backgroundServiceStarted = false;
@@ -270,12 +273,20 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
+    // Initialize current user from Firebase auth
+    _currentUser = FirebaseService.auth.currentUser;
+    
     // Set up auth state listener in initState, NOT in build()
     // This ensures provider calls happen outside of build()
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && FirebaseService.isInitialized) {
         _authSubscription = FirebaseService.auth.authStateChanges().listen((user) {
           if (!mounted) return;
+          
+          // Update state first, then handle in post-frame callback
+          setState(() {
+            _currentUser = user;
+          });
           
           // Handle auth state change in post-frame callback to avoid rebuild loops
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -286,7 +297,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
         });
         
         // Handle initial auth state
-        _handleAuthStateChange(FirebaseService.auth.currentUser);
+        if (_currentUser != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _handleAuthStateChange(_currentUser);
+            }
+          });
+        }
       }
     });
   }
@@ -343,16 +360,30 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Future<void> _loadUserRole() async {
     if (!mounted) return;
     
+    // Capture uid at request time to guard against user changes
+    final uidAtRequest = _lastUid;
+    if (uidAtRequest == null) return;
+    
     try {
-      // Access context safely after frame is built
-      final appState = Provider.of<AppStateProvider>(context, listen: false);
       final role = await _roleService.getUserRole();
       final isEmployee = role != null;
       
-      // Only update if still mounted and user hasn't changed
-      if (mounted && _lastUid != null) {
-        appState.setEmployeeStatus(isEmployee, role);
-      }
+      // Use post-frame callback for provider calls to avoid build conflicts
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        
+        // Guard: verify user hasn't changed during async operation
+        if (_lastUid != uidAtRequest) {
+          return; // User changed, skip update
+        }
+        
+        try {
+          final appState = Provider.of<AppStateProvider>(context, listen: false);
+          appState.setEmployeeStatus(isEmployee, role);
+        } catch (e) {
+          print('Error setting employee status: $e');
+        }
+      });
     } catch (e) {
       print('Error loading user role: $e');
     }
@@ -362,12 +393,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
   void _clearRoles() {
     if (!mounted) return;
     
-    try {
-      final appState = Provider.of<AppStateProvider>(context, listen: false);
-      appState.clearRoles();
-    } catch (e) {
-      print('Error clearing roles: $e');
-    }
+    // Use post-frame callback for provider calls to avoid build conflicts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      
+      try {
+        final appState = Provider.of<AppStateProvider>(context, listen: false);
+        appState.clearRoles();
+      } catch (e) {
+        print('Error clearing roles: $e');
+      }
+    });
   }
 
   @override
@@ -393,45 +429,34 @@ class _AuthWrapperState extends State<AuthWrapper> {
     }
     
     // CRITICAL: build() method must be pure - no side effects, no provider calls, no callbacks
-    // All provider logic moved to initState() and handled via StreamSubscription
-    return StreamBuilder<User?>(
-      stream: FirebaseService.auth.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+    // Use _currentUser state instead of StreamBuilder to avoid conflicts with subscription
+    if (_currentUser == null) {
+      return const LoginScreen();
+    }
+    
+    // Check user status in Firestore
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseService.firestore
+          .collection('users')
+          .doc(_currentUser!.uid)
+          .snapshots(),
+      builder: (context, userSnapshot) {
+        if (userSnapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
         
-        if (snapshot.hasData) {
-          // Check user status in Firestore
-          return StreamBuilder<DocumentSnapshot>(
-            stream: FirebaseService.firestore
-                .collection('users')
-                .doc(snapshot.data!.uid)
-                .snapshots(),
-            builder: (context, userSnapshot) {
-              if (userSnapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              }
-              
-              if (userSnapshot.hasData && userSnapshot.data!.exists) {
-                final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                final status = userData['status'] ?? '';
-                
-                if (status == 'kyc_required') {
-                  return const KycScreen();
-                }
-              }
-              
-              return const HomeScreen();
-            },
-          );
+        if (userSnapshot.hasData && userSnapshot.data!.exists) {
+          final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+          final status = userData['status'] ?? '';
+          
+          if (status == 'kyc_required') {
+            return const KycScreen();
+          }
         }
         
-        return const LoginScreen();
+        return const HomeScreen();
       },
     );
   }
