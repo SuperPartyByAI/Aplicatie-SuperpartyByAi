@@ -270,17 +270,25 @@ class ShortCodeGenerator {
 }
 
 // Helper functions for direct use
-const defaultGenerator = new ShortCodeGenerator();
+let defaultGenerator = null;
+
+function getDefaultGenerator() {
+  if (!defaultGenerator) {
+    defaultGenerator = new ShortCodeGenerator();
+  }
+  return defaultGenerator;
+}
 
 /**
  * Get next eventShortId (numeric)
  * @returns {Promise<number>} - Next numeric event ID
  */
 async function getNextEventShortId() {
-  const counterRef = defaultGenerator.db.collection(defaultGenerator.counterCollection).doc(defaultGenerator.counterDoc);
+  const generator = getDefaultGenerator();
+  const counterRef = generator.db.collection(generator.counterCollection).doc(generator.counterDoc);
 
   try {
-    const eventShortId = await defaultGenerator.db.runTransaction(async (transaction) => {
+    const eventShortId = await generator.db.runTransaction(async (transaction) => {
       const counterDoc = await transaction.get(counterRef);
 
       let currentValue = 0;
