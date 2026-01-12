@@ -111,21 +111,11 @@ class SuperPartyApp extends StatefulWidget {
 }
 
 class _SuperPartyAppState extends State<SuperPartyApp> {
-  // CRITICAL: Single instance of AppStateProvider to avoid InheritedNotifier assertion failures
-  // Provider must not be recreated on rebuild to maintain stable widget tree
-  final AppStateProvider _appState = AppStateProvider();
-
   @override
   void initState() {
     super.initState();
     // Trigger rebuild when Firebase is initialized
     _waitForFirebase();
-  }
-
-  @override
-  void dispose() {
-    _appState.dispose();
-    super.dispose();
   }
   
   Future<void> _waitForFirebase() async {
@@ -167,8 +157,8 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
       );
     }
     
-    return ChangeNotifierProvider.value(
-      value: _appState,
+    return ChangeNotifierProvider(
+      create: (_) => AppStateProvider(),
       child: MaterialApp(
         title: 'SuperParty',
         theme: ThemeData(
