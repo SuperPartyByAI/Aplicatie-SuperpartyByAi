@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -37,8 +37,20 @@ void main() async {
   // Global error handlers for debugging
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
-    print('[FlutterError] ${details.exceptionAsString()}');
+    print('[FlutterError] Exception: ${details.exceptionAsString()}');
+    print('[FlutterError] Library: ${details.library}');
+    print('[FlutterError] Context: ${details.context}');
     print('[FlutterError] Stack: ${details.stack}');
+    print('[FlutterError] Information: ${details.informationCollector?.call()}');
+  };
+  
+  // ErrorWidget builder pentru debug (doar în debug mode)
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    if (kDebugMode) {
+      print('[ErrorWidget] Building error widget for: ${details.exceptionAsString()}');
+      print('[ErrorWidget] Stack: ${details.stack}');
+    }
+    return ErrorWidget(details.exception);
   };
   
   PlatformDispatcher.instance.onError = (error, stack) {
@@ -99,11 +111,21 @@ class SuperPartyApp extends StatefulWidget {
 }
 
 class _SuperPartyAppState extends State<SuperPartyApp> {
+  // CRITICAL: Single instance of AppStateProvider to avoid InheritedNotifier assertion failures
+  // Provider must not be recreated on rebuild to maintain stable widget tree
+  final AppStateProvider _appState = AppStateProvider();
+
   @override
   void initState() {
     super.initState();
     // Trigger rebuild when Firebase is initialized
     _waitForFirebase();
+  }
+
+  @override
+  void dispose() {
+    _appState.dispose();
+    super.dispose();
   }
   
   Future<void> _waitForFirebase() async {
@@ -145,8 +167,8 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
       );
     }
     
-    return ChangeNotifierProvider(
-      create: (_) => AppStateProvider(),
+    return ChangeNotifierProvider.value(
+      value: _appState,
       child: MaterialApp(
         title: 'SuperParty',
         theme: ThemeData(
@@ -252,7 +274,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
   bool _roleLoaded = false;
   bool _backgroundServiceStarted = false;
   String? _lastUid;
-  bool _rolesCleared = false; // Guard to prevent multiple clearRoles() calls
   StreamSubscription<User?>? _authSubscription;
 
   @override
@@ -260,37 +281,82 @@ class _AuthWrapperState extends State<AuthWrapper> {
     super.initState();
     // Initialize current user from Firebase auth
     _currentUser = FirebaseService.auth.currentUser;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     
-    // Set up auth state listener in initState, NOT in build()
-    // This ensures provider calls happen outside of build()
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && FirebaseService.isInitialized) {
-        _authSubscription = FirebaseService.auth.authStateChanges().listen((user) {
-          if (!mounted) return;
-          
-          // Update state first, then handle in post-frame callback
-          setState(() {
-            _currentUser = user;
-          });
-          
-          // Handle auth state change in post-frame callback to avoid rebuild loops
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              _handleAuthStateChange(user);
-            }
-          });
+    // Set up auth state listener once (guard: only if subscription doesn't exist)
+    // CRITICAL: Subscription must be created in didChangeDependencies (not initState)
+    // to access Provider.of safely, and only once to avoid duplicate subscriptions
+    if (_authSubscription == null && FirebaseService.isInitialized) {
+      // Get AppStateProvider once to use in listener
+      final appState = Provider.of<AppStateProvider>(context, listen: false);
+      
+      _authSubscription = FirebaseService.auth.authStateChanges().listen((user) {
+        if (!mounted) return;
+        
+        // Update state
+        setState(() {
+          _currentUser = user;
         });
         
-        // Handle initial auth state
-        if (_currentUser != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              _handleAuthStateChange(_currentUser);
-            }
+        if (user != null) {
+          final uid = user.uid;
+          
+          // Reset guards when user changes
+          if (_lastUid != uid) {
+            _lastUid = uid;
+            _roleLoaded = false;
+            _backgroundServiceStarted = false;
+          }
+          
+          // Start background service only once per user (mobile only)
+          if (!kIsWeb && !_backgroundServiceStarted) {
+            _backgroundServiceStarted = true;
+            BackgroundService.startService().catchError((e) {
+              print('Failed to start background service: $e');
+              return false;
+            });
+          }
+          
+          // Load user role only once per user
+          if (!_roleLoaded) {
+            _roleLoaded = true;
+            _loadUserRole(appState);
+          }
+        } else {
+          // On logout: clear roles directly in listener (no post-frame callback/microtask)
+          // This avoids notifyListeners during widget tree deactivation
+          _lastUid = null;
+          _roleLoaded = false;
+          _backgroundServiceStarted = false;
+          appState.clearRoles();
+        }
+      });
+      
+      // Handle initial auth state
+      if (_currentUser != null) {
+        final uid = _currentUser!.uid;
+        _lastUid = uid;
+        
+        // Start background service (mobile only)
+        if (!kIsWeb && !_backgroundServiceStarted) {
+          _backgroundServiceStarted = true;
+          BackgroundService.startService().catchError((e) {
+            print('Failed to start background service: $e');
+            return false;
           });
         }
+        
+        // Load user role
+        if (!_roleLoaded) {
+          _roleLoaded = true;
+          _loadUserRole(appState);
+        }
       }
-    });
+    }
   }
 
   @override
@@ -299,50 +365,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
     super.dispose();
   }
 
-  /// Handle auth state changes - called from post-frame callback, NOT during build()
-  void _handleAuthStateChange(User? user) {
-    if (!mounted) return;
-    
-    if (user != null) {
-      final uid = user.uid;
-      
-      // Reset guards when user changes
-      if (_lastUid != uid) {
-        _lastUid = uid;
-        _roleLoaded = false;
-        _backgroundServiceStarted = false;
-        _rolesCleared = false;
-      }
-      
-      // Start background service only once per user (mobile only)
-      if (!kIsWeb && !_backgroundServiceStarted) {
-        _backgroundServiceStarted = true;
-        BackgroundService.startService().catchError((e) {
-          print('Failed to start background service: $e');
-          return false;
-        });
-      }
-      
-      // Load user role only once per user
-      if (!_roleLoaded) {
-        _roleLoaded = true;
-        _loadUserRole();
-      }
-    } else {
-      // On logout, reset role flags only once
-      if (!_rolesCleared && _lastUid != null) {
-        _rolesCleared = true;
-        _clearRoles();
-        _lastUid = null;
-        _roleLoaded = false;
-        _backgroundServiceStarted = false;
-      }
-    }
-  }
-
   /// Load user role from staffProfiles and update AppState
-  /// Called from post-frame callback to avoid rebuild loops
-  Future<void> _loadUserRole() async {
+  /// CRITICAL: appState is captured before async gap to avoid using context after await
+  Future<void> _loadUserRole(AppStateProvider appState) async {
     if (!mounted) return;
     
     // Capture uid at request time to guard against user changes
@@ -353,43 +378,21 @@ class _AuthWrapperState extends State<AuthWrapper> {
       final role = await _roleService.getUserRole();
       final isEmployee = role != null;
       
-      // Use post-frame callback for provider calls to avoid build conflicts
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        
-        // Guard: verify user hasn't changed during async operation
-        if (_lastUid != uidAtRequest) {
-          return; // User changed, skip update
-        }
-        
-        try {
-          final appState = Provider.of<AppStateProvider>(context, listen: false);
-          appState.setEmployeeStatus(isEmployee, role);
-        } catch (e) {
-          print('Error setting employee status: $e');
-        }
-      });
+      // CRITICAL: Check mounted after async gap
+      if (!mounted) return;
+      
+      // Guard: verify user hasn't changed during async operation
+      if (_lastUid != uidAtRequest) {
+        return; // User changed, skip update
+      }
+      
+      // Use captured appState (no context access after async gap)
+      appState.setEmployeeStatus(isEmployee, role);
     } catch (e) {
       print('Error loading user role: $e');
     }
   }
 
-  /// Clear roles on logout - called from post-frame callback
-  void _clearRoles() {
-    if (!mounted) return;
-    
-    // Use post-frame callback for provider calls to avoid build conflicts
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      
-      try {
-        final appState = Provider.of<AppStateProvider>(context, listen: false);
-        appState.clearRoles();
-      } catch (e) {
-        print('Error clearing roles: $e');
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
