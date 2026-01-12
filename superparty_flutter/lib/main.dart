@@ -1,6 +1,7 @@
+import 'dart:async';
 import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -12,6 +13,8 @@ import 'providers/app_state_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/evenimente/evenimente_screen.dart';
+import 'screens/events/events_screen.dart';
+import 'screens/evidence/evidence_screen.dart';
 import 'screens/disponibilitate/disponibilitate_screen.dart';
 import 'screens/salarizare/salarizare_screen.dart';
 import 'screens/centrala/centrala_screen.dart';
@@ -35,57 +38,57 @@ void main() async {
   // Global error handlers for debugging
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
-    debugPrint('[FlutterError] ${details.exceptionAsString()}');
-    debugPrint('[FlutterError] Stack: ${details.stack}');
+    print('[FlutterError] ${details.exceptionAsString()}');
+    print('[FlutterError] Stack: ${details.stack}');
   };
   
   PlatformDispatcher.instance.onError = (error, stack) {
-    debugPrint('[UncaughtError] $error');
-    debugPrint('[UncaughtError] Stack: $stack');
+    print('[UncaughtError] $error');
+    print('[UncaughtError] Stack: $stack');
     return true;
   };
   
   // FAIL-SAFE: Initialize Firebase with error handling and timeout
   // App can run with limited functionality if Firebase fails
   try {
-    debugPrint('[Main] Initializing Firebase...');
+    print('[Main] Initializing Firebase...');
     await FirebaseService.initialize()
         .timeout(const Duration(seconds: 10));
-    debugPrint('[Main] ✅ Firebase initialized successfully');
+    print('[Main] ✅ Firebase initialized successfully');
   } catch (e, stackTrace) {
-    debugPrint('[Main] ❌ Firebase initialization failed: $e');
-    debugPrint('[Main] Stack trace: $stackTrace');
-    debugPrint('[Main] ⚠️ App will continue with limited functionality');
-    debugPrint('[Main] ℹ️ Features requiring Firebase will be unavailable');
+    print('[Main] ❌ Firebase initialization failed: $e');
+    print('[Main] Stack trace: $stackTrace');
+    print('[Main] ⚠️ App will continue with limited functionality');
+    print('[Main] ℹ️ Features requiring Firebase will be unavailable');
   }
   
   // FAIL-SAFE: Background service is optional (mobile only)
   if (!kIsWeb) {
     try {
-      debugPrint('[Main] Initializing background service...');
+      print('[Main] Initializing background service...');
       await BackgroundService.initialize();
-      debugPrint('[Main] ✅ Background service initialized');
+      print('[Main] ✅ Background service initialized');
     } catch (e) {
-      debugPrint('[Main] ⚠️ Background service init error (non-critical): $e');
+      print('[Main] ⚠️ Background service init error (non-critical): $e');
     }
   } else {
-    debugPrint('[Main] ℹ️ Background service skipped (not supported on web)');
+    print('[Main] ℹ️ Background service skipped (not supported on web)');
   }
   
   // FAIL-SAFE: Push notifications are optional (mobile only)
   if (!kIsWeb) {
     try {
-      debugPrint('[Main] Initializing push notifications...');
+      print('[Main] Initializing push notifications...');
       await PushNotificationService.initialize();
-      debugPrint('[Main] ✅ Push notifications initialized');
+      print('[Main] ✅ Push notifications initialized');
     } catch (e) {
-      debugPrint('[Main] ⚠️ Push notification init error (non-critical): $e');
+      print('[Main] ⚠️ Push notification init error (non-critical): $e');
     }
   } else {
-    debugPrint('[Main] ℹ️ Push notifications skipped (not supported on web)');
+    print('[Main] ℹ️ Push notifications skipped (not supported on web)');
   }
   
-  debugPrint('[Main] Starting app...');
+  print('[Main] Starting app...');
   runApp(const SuperPartyApp());
 }
 
@@ -166,67 +169,82 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
           return UpdateGate(child: child ?? const SizedBox.shrink());
         },
         onGenerateRoute: (settings) {
-            // Debug: log raw route
-            debugPrint('[ROUTE] Raw: ${settings.name}');
-            
-            // Normalize route: handle /#/evenimente, query params, trailing slash
-            final raw = settings.name ?? '/';
-            final cleaned = raw.startsWith('/#') ? raw.substring(2) : raw; // "/#/x" -> "/x"
-            final uri = Uri.tryParse(cleaned) ?? Uri(path: cleaned);
-            final path = uri.path.isEmpty ? '/' : uri.path;
-            
-            debugPrint('[ROUTE] Normalized: $path');
-            
-            // Handle all routes including deep-links
-            switch (path) {
-              case '/':
-                return MaterialPageRoute(builder: (_) => const AuthWrapper());
-              case '/home':
-                return MaterialPageRoute(builder: (_) => const HomeScreen());
-              case '/kyc':
-                return MaterialPageRoute(builder: (_) => const KycScreen());
-              case '/evenimente':
-                return MaterialPageRoute(builder: (_) => const EvenimenteScreen());
-              case '/disponibilitate':
-                return MaterialPageRoute(builder: (_) => const DisponibilitateScreen());
-              case '/salarizare':
-                return MaterialPageRoute(builder: (_) => const SalarizareScreen());
-              case '/centrala':
-                return MaterialPageRoute(builder: (_) => const CentralaScreen());
-              case '/whatsapp':
-                return MaterialPageRoute(builder: (_) => const WhatsAppScreen());
-              case '/team':
-                return MaterialPageRoute(builder: (_) => const TeamScreen());
-              case '/admin':
-                return MaterialPageRoute(builder: (_) => const AdminScreen());
-              case '/admin/kyc':
-                return MaterialPageRoute(builder: (_) => const KycApprovalsScreen());
-              case '/admin/ai-conversations':
-                return MaterialPageRoute(builder: (_) => const AiConversationsScreen());
-              case '/gm/accounts':
-                return MaterialPageRoute(builder: (_) => const AccountsScreen());
-              case '/gm/metrics':
-                return MaterialPageRoute(builder: (_) => const MetricsScreen());
-              case '/gm/analytics':
-                return MaterialPageRoute(builder: (_) => const AnalyticsScreen());
-              case '/gm/staff-setup':
-                return MaterialPageRoute(builder: (_) => const StaffSetupScreen());
-              case '/ai-chat':
-                return MaterialPageRoute(builder: (_) => const AIChatScreen());
-              default:
-                debugPrint('[ROUTE] Unknown path: $path - showing NotFoundScreen');
+          // Debug: log raw route
+          print('[ROUTE] Raw: ${settings.name}');
+          
+          // Normalize route: handle /#/evenimente, query params, trailing slash
+          final raw = settings.name ?? '/';
+          final cleaned = raw.startsWith('/#') ? raw.substring(2) : raw; // "/#/x" -> "/x"
+          final uri = Uri.tryParse(cleaned) ?? Uri(path: cleaned);
+          final path = uri.path.isEmpty ? '/' : uri.path;
+          
+          print('[ROUTE] Normalized: $path');
+          
+          // Handle all routes including deep-links
+          switch (path) {
+            case '/':
+              return MaterialPageRoute(builder: (_) => const AuthWrapper());
+            case '/home':
+              return MaterialPageRoute(builder: (_) => const HomeScreen());
+            case '/kyc':
+              return MaterialPageRoute(builder: (_) => const KycScreen());
+            case '/evenimente':
+              return MaterialPageRoute(builder: (_) => const EvenimenteScreen());
+            case '/events':
+              return MaterialPageRoute(builder: (_) => const EventsScreen());
+            case '/evidence':
+              // Handle /evidence?id=:id from query params or route args
+              final eventId = uri.queryParameters['id'];
+              if (eventId != null && eventId.isNotEmpty) {
                 return MaterialPageRoute(
-                  builder: (_) => NotFoundScreen(routeName: path),
+                  builder: (_) => EvidenceScreen(eventId: eventId),
                 );
-            }
-          },
-          onUnknownRoute: (settings) {
-            debugPrint('[ROUTE] onUnknownRoute called for: ${settings.name}');
-            return MaterialPageRoute(
-              builder: (_) => NotFoundScreen(routeName: settings.name),
-            );
-          },
-        ),
+              }
+              // Try to get from route arguments (Navigator.pushNamed with arguments)
+              // Note: This won't work with onGenerateRoute, need to use Navigator.push directly
+              // For now, fallback to NotFoundScreen
+              return MaterialPageRoute(
+                builder: (_) => NotFoundScreen(routeName: path),
+              );
+            case '/disponibilitate':
+              return MaterialPageRoute(builder: (_) => const DisponibilitateScreen());
+            case '/salarizare':
+              return MaterialPageRoute(builder: (_) => const SalarizareScreen());
+            case '/centrala':
+              return MaterialPageRoute(builder: (_) => const CentralaScreen());
+            case '/whatsapp':
+              return MaterialPageRoute(builder: (_) => const WhatsAppScreen());
+            case '/team':
+              return MaterialPageRoute(builder: (_) => const TeamScreen());
+            case '/admin':
+              return MaterialPageRoute(builder: (_) => const AdminScreen());
+            case '/admin/kyc':
+              return MaterialPageRoute(builder: (_) => const KycApprovalsScreen());
+            case '/admin/ai-conversations':
+              return MaterialPageRoute(builder: (_) => const AiConversationsScreen());
+            case '/gm/accounts':
+              return MaterialPageRoute(builder: (_) => const AccountsScreen());
+            case '/gm/metrics':
+              return MaterialPageRoute(builder: (_) => const MetricsScreen());
+            case '/gm/analytics':
+              return MaterialPageRoute(builder: (_) => const AnalyticsScreen());
+            case '/gm/staff-setup':
+              return MaterialPageRoute(builder: (_) => const StaffSetupScreen());
+            case '/ai-chat':
+              return MaterialPageRoute(builder: (_) => const AIChatScreen());
+            default:
+              print('[ROUTE] Unknown path: $path - showing NotFoundScreen');
+              return MaterialPageRoute(
+                builder: (_) => NotFoundScreen(routeName: path),
+              );
+          }
+        },
+        onUnknownRoute: (settings) {
+          print('[ROUTE] onUnknownRoute called for: ${settings.name}');
+          return MaterialPageRoute(
+            builder: (_) => NotFoundScreen(routeName: settings.name),
+          );
+        },
       ),
     );
   }
@@ -246,17 +264,109 @@ class _AuthWrapperState extends State<AuthWrapper> {
   bool _roleLoaded = false;
   bool _backgroundServiceStarted = false;
   String? _lastUid;
+  bool _rolesCleared = false; // Guard to prevent multiple clearRoles() calls
+  StreamSubscription<User?>? _authSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    // Set up auth state listener in initState, NOT in build()
+    // This ensures provider calls happen outside of build()
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && FirebaseService.isInitialized) {
+        _authSubscription = FirebaseService.auth.authStateChanges().listen((user) {
+          if (!mounted) return;
+          
+          // Handle auth state change in post-frame callback to avoid rebuild loops
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _handleAuthStateChange(user);
+            }
+          });
+        });
+        
+        // Handle initial auth state
+        _handleAuthStateChange(FirebaseService.auth.currentUser);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+
+  /// Handle auth state changes - called from post-frame callback, NOT during build()
+  void _handleAuthStateChange(User? user) {
+    if (!mounted) return;
+    
+    if (user != null) {
+      final uid = user.uid;
+      
+      // Reset guards when user changes
+      if (_lastUid != uid) {
+        _lastUid = uid;
+        _roleLoaded = false;
+        _backgroundServiceStarted = false;
+        _rolesCleared = false;
+      }
+      
+      // Start background service only once per user (mobile only)
+      if (!kIsWeb && !_backgroundServiceStarted) {
+        _backgroundServiceStarted = true;
+        BackgroundService.startService().catchError((e) {
+          print('Failed to start background service: $e');
+          return false;
+        });
+      }
+      
+      // Load user role only once per user
+      if (!_roleLoaded) {
+        _roleLoaded = true;
+        _loadUserRole();
+      }
+    } else {
+      // On logout, reset role flags only once
+      if (!_rolesCleared && _lastUid != null) {
+        _rolesCleared = true;
+        _clearRoles();
+        _lastUid = null;
+        _roleLoaded = false;
+        _backgroundServiceStarted = false;
+      }
+    }
+  }
 
   /// Load user role from staffProfiles and update AppState
-  Future<void> _loadUserRole(BuildContext context) async {
+  /// Called from post-frame callback to avoid rebuild loops
+  Future<void> _loadUserRole() async {
+    if (!mounted) return;
+    
     try {
+      // Access context safely after frame is built
       final appState = Provider.of<AppStateProvider>(context, listen: false);
       final role = await _roleService.getUserRole();
       final isEmployee = role != null;
       
-      appState.setEmployeeStatus(isEmployee, role);
+      // Only update if still mounted and user hasn't changed
+      if (mounted && _lastUid != null) {
+        appState.setEmployeeStatus(isEmployee, role);
+      }
     } catch (e) {
-      debugPrint('Error loading user role: $e');
+      print('Error loading user role: $e');
+    }
+  }
+
+  /// Clear roles on logout - called from post-frame callback
+  void _clearRoles() {
+    if (!mounted) return;
+    
+    try {
+      final appState = Provider.of<AppStateProvider>(context, listen: false);
+      appState.clearRoles();
+    } catch (e) {
+      print('Error clearing roles: $e');
     }
   }
 
@@ -282,6 +392,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
       );
     }
     
+    // CRITICAL: build() method must be pure - no side effects, no provider calls, no callbacks
+    // All provider logic moved to initState() and handled via StreamSubscription
     return StreamBuilder<User?>(
       stream: FirebaseService.auth.authStateChanges(),
       builder: (context, snapshot) {
@@ -292,32 +404,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
         
         if (snapshot.hasData) {
-          final uid = snapshot.data!.uid;
-          
-          // Reset guards when user changes
-          if (_lastUid != uid) {
-            _lastUid = uid;
-            _roleLoaded = false;
-            _backgroundServiceStarted = false;
-          }
-          
-          // Start background service only once per user (mobile only)
-          if (!kIsWeb && !_backgroundServiceStarted) {
-            _backgroundServiceStarted = true;
-            BackgroundService.startService().catchError((e) {
-              debugPrint('Failed to start background service: $e');
-              return false; // IMPORTANT: catchError must return Future<bool>
-            });
-          }
-          
-          // Load user role only once per user (post-frame to avoid rebuild loop)
-          if (!_roleLoaded) {
-            _roleLoaded = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _loadUserRole(context);
-            });
-          }
-          
           // Check user status in Firestore
           return StreamBuilder<DocumentSnapshot>(
             stream: FirebaseService.firestore
@@ -343,19 +429,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
               return const HomeScreen();
             },
           );
-        }
-        
-        // On logout, reset role flags
-        if (_lastUid != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              final appState = Provider.of<AppStateProvider>(context, listen: false);
-              appState.clearRoles();
-            }
-          });
-          _lastUid = null;
-          _roleLoaded = false;
-          _backgroundServiceStarted = false;
         }
         
         return const LoginScreen();
