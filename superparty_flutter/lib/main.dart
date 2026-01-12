@@ -157,9 +157,21 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
       );
     }
     
-    return ChangeNotifierProvider(
-      create: (_) => AppStateProvider(),
-      child: MaterialApp(
+    // CRITICAL: Recreate AppStateProvider per user uid to avoid InheritedNotifier assertions
+    // When uid changes (login/logout), Flutter replaces the entire provider subtree,
+    // and the old notifier is properly disposed before new dependents are created
+    return StreamBuilder<User?>(
+      stream: FirebaseService.auth.authStateChanges(),
+      builder: (context, snapshot) {
+        final user = snapshot.data;
+        final uid = user?.uid;
+        
+        // Create provider with key dependent on uid (null for logout)
+        // This ensures provider is recreated when user changes, avoiding notifyListeners during deactivation
+        return ChangeNotifierProvider<AppStateProvider>(
+          key: ValueKey<String?>(uid),
+          create: (_) => AppStateProvider(),
+          child: MaterialApp(
         title: 'SuperParty',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
@@ -194,7 +206,7 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
           // Handle all routes including deep-links
           switch (path) {
             case '/':
-              return MaterialPageRoute(builder: (_) => const AuthWrapper());
+              return MaterialPageRoute(builder: (_) => AuthWrapper(user: user));
             case '/home':
               return MaterialPageRoute(builder: (_) => const HomeScreen());
             case '/kyc':
@@ -243,154 +255,22 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
           );
         },
       ),
+        );
+      },
     );
   }
 }
 
-class AuthWrapper extends StatefulWidget {
-  const AuthWrapper({super.key});
-
-  @override
-  State<AuthWrapper> createState() => _AuthWrapperState();
-}
-
-class _AuthWrapperState extends State<AuthWrapper> {
-  final RoleService _roleService = RoleService();
+/// Pure routing widget - receives user from parent StreamBuilder
+/// No auth subscriptions, no state management, no side effects
+class AuthWrapper extends StatelessWidget {
+  final User? user;
   
-  // Current user state - used instead of StreamBuilder to avoid conflicts
-  User? _currentUser;
-  
-  // Guards to prevent rebuild loops
-  bool _roleLoaded = false;
-  bool _backgroundServiceStarted = false;
-  String? _lastUid;
-  StreamSubscription<User?>? _authSubscription;
-
-  @override
-  void initState() {
-    super.initState();
-    // Initialize current user from Firebase auth
-    _currentUser = FirebaseService.auth.currentUser;
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    
-    // Set up auth state listener once (guard: only if subscription doesn't exist)
-    // CRITICAL: Subscription must be created in didChangeDependencies (not initState)
-    // to access Provider.of safely, and only once to avoid duplicate subscriptions
-    if (_authSubscription == null && FirebaseService.isInitialized) {
-      // Get AppStateProvider once to use in listener
-      final appState = Provider.of<AppStateProvider>(context, listen: false);
-      
-      _authSubscription = FirebaseService.auth.authStateChanges().listen((user) {
-        if (!mounted) return;
-        
-        // Update state
-        setState(() {
-          _currentUser = user;
-        });
-        
-        if (user != null) {
-          final uid = user.uid;
-          
-          // Reset guards when user changes
-          if (_lastUid != uid) {
-            _lastUid = uid;
-            _roleLoaded = false;
-            _backgroundServiceStarted = false;
-          }
-          
-          // Start background service only once per user (mobile only)
-          if (!kIsWeb && !_backgroundServiceStarted) {
-            _backgroundServiceStarted = true;
-            BackgroundService.startService().catchError((e) {
-              print('Failed to start background service: $e');
-              return false;
-            });
-          }
-          
-          // Load user role only once per user
-          if (!_roleLoaded) {
-            _roleLoaded = true;
-            _loadUserRole(appState);
-          }
-        } else {
-          // On logout: clear roles directly in listener (no post-frame callback/microtask)
-          // This avoids notifyListeners during widget tree deactivation
-          _lastUid = null;
-          _roleLoaded = false;
-          _backgroundServiceStarted = false;
-          appState.clearRoles();
-        }
-      });
-      
-      // Handle initial auth state
-      if (_currentUser != null) {
-        final uid = _currentUser!.uid;
-        _lastUid = uid;
-        
-        // Start background service (mobile only)
-        if (!kIsWeb && !_backgroundServiceStarted) {
-          _backgroundServiceStarted = true;
-          BackgroundService.startService().catchError((e) {
-            print('Failed to start background service: $e');
-            return false;
-          });
-        }
-        
-        // Load user role
-        if (!_roleLoaded) {
-          _roleLoaded = true;
-          _loadUserRole(appState);
-        }
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _authSubscription?.cancel();
-    super.dispose();
-  }
-
-  /// Load user role from staffProfiles and update AppState
-  /// CRITICAL: appState is captured before async gap to avoid using context after await
-  Future<void> _loadUserRole(AppStateProvider appState) async {
-    if (!mounted) return;
-    
-    // Capture uid at request time to guard against user changes
-    final uidAtRequest = _lastUid;
-    if (uidAtRequest == null) return;
-    
-    try {
-      final role = await _roleService.getUserRole();
-      final isEmployee = role != null;
-      
-      // CRITICAL: Check mounted after async gap
-      if (!mounted) return;
-      
-      // Guard: verify user hasn't changed during async operation
-      if (_lastUid != uidAtRequest) {
-        return; // User changed, skip update
-      }
-      
-      // Use captured appState (no context access after async gap)
-      appState.setEmployeeStatus(isEmployee, role);
-    } catch (e) {
-      print('Error loading user role: $e');
-    }
-  }
-
+  const AuthWrapper({super.key, required this.user});
 
   @override
   Widget build(BuildContext context) {
-    // Note: Update check is now handled by UpdateGate
-    // This widget only handles auth routing
-    
-    // CRITICAL: Wait for Firebase to be initialized before accessing any Firebase services
-    // This prevents [core/no-app] error on web
+    // Wait for Firebase initialization
     if (!FirebaseService.isInitialized) {
       return const Scaffold(
         body: Center(
@@ -406,36 +286,101 @@ class _AuthWrapperState extends State<AuthWrapper> {
       );
     }
     
-    // CRITICAL: build() method must be pure - no side effects, no provider calls, no callbacks
-    // Use _currentUser state instead of StreamBuilder to avoid conflicts with subscription
-    if (_currentUser == null) {
+    // Show login screen when no user
+    if (user == null) {
       return const LoginScreen();
     }
     
-    // Check user status in Firestore
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseService.firestore
-          .collection('users')
-          .doc(_currentUser!.uid)
-          .snapshots(),
-      builder: (context, userSnapshot) {
-        if (userSnapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        
-        if (userSnapshot.hasData && userSnapshot.data!.exists) {
-          final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-          final status = userData['status'] ?? '';
-          
-          if (status == 'kyc_required') {
-            return const KycScreen();
+    // Wrap authenticated content with RoleBootstrapper
+    return RoleBootstrapper(
+      uid: user!.uid,
+      child: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseService.firestore
+            .collection('users')
+            .doc(user!.uid)
+            .snapshots(),
+        builder: (context, userSnapshot) {
+          if (userSnapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
           }
-        }
-        
-        return const HomeScreen();
-      },
+          
+          if (userSnapshot.hasData && userSnapshot.data!.exists) {
+            final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+            final status = userData['status'] ?? '';
+            
+            if (status == 'kyc_required') {
+              return const KycScreen();
+            }
+          }
+          
+          return const HomeScreen();
+        },
+      ),
     );
+  }
+}
+
+/// Widget that loads user role in initState (lifecycle-safe)
+/// Must be used only when user != null (uid is non-null)
+class RoleBootstrapper extends StatefulWidget {
+  final String uid;
+  final Widget child;
+  
+  const RoleBootstrapper({
+    super.key,
+    required this.uid,
+    required this.child,
+  });
+
+  @override
+  State<RoleBootstrapper> createState() => _RoleBootstrapperState();
+}
+
+class _RoleBootstrapperState extends State<RoleBootstrapper> {
+  final RoleService _roleService = RoleService();
+  bool _backgroundServiceStarted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRoleAndStartServices();
+  }
+
+  Future<void> _loadRoleAndStartServices() async {
+    if (!mounted) return;
+    
+    // Capture uid and appState before async gap
+    final uidAtRequest = widget.uid;
+    final appState = context.read<AppStateProvider>();
+    
+    // Start background service (mobile only) - only once per widget instance
+    if (!kIsWeb && !_backgroundServiceStarted) {
+      _backgroundServiceStarted = true;
+      BackgroundService.startService().catchError((e) {
+        print('Failed to start background service: $e');
+        return false;
+      });
+    }
+    
+    try {
+      final role = await _roleService.getUserRole();
+      final isEmployee = role != null;
+      
+      // Check mounted and uid still matches after async gap
+      if (!mounted) return;
+      if (FirebaseService.auth.currentUser?.uid != uidAtRequest) return; // User changed, skip update
+      
+      // Update app state with role
+      appState.setEmployeeStatus(isEmployee, role);
+    } catch (e) {
+      print('Error loading user role: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }
