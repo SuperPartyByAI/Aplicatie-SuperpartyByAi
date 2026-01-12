@@ -13,8 +13,6 @@ import 'providers/app_state_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/evenimente/evenimente_screen.dart';
-import 'screens/events/events_screen.dart';
-import 'screens/evidence/evidence_screen.dart';
 import 'screens/disponibilitate/disponibilitate_screen.dart';
 import 'screens/salarizare/salarizare_screen.dart';
 import 'screens/centrala/centrala_screen.dart';
@@ -190,22 +188,6 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
               return MaterialPageRoute(builder: (_) => const KycScreen());
             case '/evenimente':
               return MaterialPageRoute(builder: (_) => const EvenimenteScreen());
-            case '/events':
-              return MaterialPageRoute(builder: (_) => const EventsScreen());
-            case '/evidence':
-              // Handle /evidence?id=:id from query params or route args
-              final eventId = uri.queryParameters['id'];
-              if (eventId != null && eventId.isNotEmpty) {
-                return MaterialPageRoute(
-                  builder: (_) => EvidenceScreen(eventId: eventId),
-                );
-              }
-              // Try to get from route arguments (Navigator.pushNamed with arguments)
-              // Note: This won't work with onGenerateRoute, need to use Navigator.push directly
-              // For now, fallback to NotFoundScreen
-              return MaterialPageRoute(
-                builder: (_) => NotFoundScreen(routeName: path),
-              );
             case '/disponibilitate':
               return MaterialPageRoute(builder: (_) => const DisponibilitateScreen());
             case '/salarizare':
