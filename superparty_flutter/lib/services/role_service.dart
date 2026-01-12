@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'firebase_service.dart';
 
 /// Service for detecting user roles from staffProfiles
@@ -22,7 +23,7 @@ class RoleService {
       final doc = await _firestore.collection('staffProfiles').doc(user.uid).get();
       return doc.exists;
     } catch (e) {
-      debugPrint('RoleService.isEmployee error: $e');
+      print('RoleService.isEmployee error: $e');
       return false;
     }
   }
@@ -39,7 +40,7 @@ class RoleService {
       final role = (doc.data()?['role'] as String?)?.toLowerCase() ?? '';
       return role == 'gm' || role == 'admin';
     } catch (e) {
-      debugPrint('RoleService.isGmOrAdmin error: $e');
+      print('RoleService.isGmOrAdmin error: $e');
       return false;
     }
   }
@@ -56,7 +57,7 @@ class RoleService {
 
       return (doc.data()?['role'] as String?)?.toLowerCase();
     } catch (e) {
-      debugPrint('RoleService.getUserRole error: $e');
+      print('RoleService.getUserRole error: $e');
       return null;
     }
   }
@@ -72,7 +73,7 @@ class RoleService {
 
       return doc.data();
     } catch (e) {
-      debugPrint('RoleService.getStaffProfile error: $e');
+      print('RoleService.getStaffProfile error: $e');
       return null;
     }
   }

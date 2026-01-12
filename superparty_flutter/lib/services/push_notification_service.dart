@@ -1,5 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'firebase_service.dart';
 
 class PushNotificationService {
@@ -14,7 +15,7 @@ class PushNotificationService {
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      debugPrint('User granted permission');
+      print('User granted permission');
       
       // Get FCM token
       String? token = await _messaging.getToken();
@@ -35,7 +36,7 @@ class PushNotificationService {
 
   static Future<void> _saveTokenToFirestore(String token) async {
     if (!FirebaseService.isInitialized) {
-      debugPrint('[PushNotificationService] Firebase not initialized, skipping token save');
+      print('[PushNotificationService] Firebase not initialized, skipping token save');
       return;
     }
     
@@ -48,17 +49,17 @@ class PushNotificationService {
       'notificationsEnabled': true,
     }, SetOptions(merge: true));
 
-    debugPrint('FCM Token saved: $token');
+    print('FCM Token saved: $token');
   }
 
   static void _handleForegroundMessage(RemoteMessage message) {
-    debugPrint('Foreground message: ${message.notification?.title}');
+    print('Foreground message: ${message.notification?.title}');
     // Show local notification or update UI
   }
 }
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  debugPrint('Background message: ${message.messageId}');
+  print('Background message: ${message.messageId}');
   // Handle background message
 }

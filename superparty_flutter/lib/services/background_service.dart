@@ -1,5 +1,6 @@
 import 'dart:isolate';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:flutter/foundation.dart';
 
 class BackgroundService {
   static Future<void> initialize() async {
@@ -55,7 +56,7 @@ void startCallback() {
 class BackgroundTaskHandler extends TaskHandler {
   @override
   Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {
-    debugPrint('Background service started');
+    print('Background service started');
   }
 
   @override
@@ -65,6 +66,6 @@ class BackgroundTaskHandler extends TaskHandler {
 
   @override
   void onDestroy(DateTime timestamp, SendPort? sendPort) {
-    debugPrint('Background service stopped');
+    print('Background service stopped');
   }
 }

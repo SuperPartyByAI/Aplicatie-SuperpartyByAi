@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../models/event_model.dart';
 import '../models/event_filters.dart';
 import '../utils/code_validator.dart';
@@ -26,7 +27,7 @@ class EventService {
             try {
               return EventModel.fromFirestore(doc);
             } catch (e) {
-              debugPrint('[EventService] ⚠️ Failed to parse event ${doc.id}: $e');
+              print('[EventService] ⚠️ Failed to parse event ${doc.id}: $e');
               return null;
             }
           })
@@ -50,7 +51,7 @@ class EventService {
               try {
                 return EventModel.fromFirestore(doc);
               } catch (e) {
-                debugPrint('[EventService] ⚠️ Failed to parse archived event ${doc.id}: $e');
+                print('[EventService] ⚠️ Failed to parse archived event ${doc.id}: $e');
                 return null;
               }
             })

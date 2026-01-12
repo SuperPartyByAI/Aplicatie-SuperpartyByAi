@@ -39,7 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       // Fail silently - don't block login if update check fails
-      debugPrint('[LoginScreen] Update check error: $e');
+      print('[LoginScreen] Update check error: $e');
     } finally {
       if (mounted) {
         setState(() => _checkingUpdate = false);

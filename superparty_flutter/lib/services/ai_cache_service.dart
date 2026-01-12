@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 
 /// Aggressive caching for AI responses with predictive prefetching
@@ -47,7 +48,7 @@ class AICacheService {
         return data['response'] as String;
       }
     } catch (e) {
-      debugPrint('Cache read error: $e');
+      print('Cache read error: $e');
     }
     
     return null;
@@ -80,7 +81,7 @@ class AICacheService {
       // Track frequent questions
       await _trackFrequentQuestion(normalized);
     } catch (e) {
-      debugPrint('Cache write error: $e');
+      print('Cache write error: $e');
     }
   }
   
@@ -115,10 +116,10 @@ class AICacheService {
           await prefs.remove(sorted[i].key);
         }
         
-        debugPrint('Cache cleanup: Removed $toRemove old entries');
+        print('Cache cleanup: Removed $toRemove old entries');
       }
     } catch (e) {
-      debugPrint('Cache cleanup error: $e');
+      print('Cache cleanup error: $e');
     }
   }
 
@@ -144,7 +145,7 @@ class AICacheService {
       
       await prefs.setString(_frequentQuestionsKey, json.encode(frequent));
     } catch (e) {
-      debugPrint('Frequent tracking error: $e');
+      print('Frequent tracking error: $e');
     }
   }
 
@@ -161,7 +162,7 @@ class AICacheService {
         return sorted.take(limit).map((e) => e.key).toList();
       }
     } catch (e) {
-      debugPrint('Get frequent error: $e');
+      print('Get frequent error: $e');
     }
     
     return [];
@@ -181,7 +182,7 @@ class AICacheService {
       
       await prefs.remove(_frequentQuestionsKey);
     } catch (e) {
-      debugPrint('Clear cache error: $e');
+      print('Clear cache error: $e');
     }
   }
 
@@ -205,7 +206,7 @@ class AICacheService {
         'expired': 0,
       };
     } catch (e) {
-      debugPrint('Cache stats error: $e');
+      print('Cache stats error: $e');
       return {'total': 0, 'valid': 0, 'expired': 0};
     }
   }

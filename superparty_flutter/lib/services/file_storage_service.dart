@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import '../models/evidence_model.dart';
@@ -61,7 +62,7 @@ class FileStorageService {
         await file.delete();
       }
     } catch (e) {
-      debugPrint('Warning: Could not delete local file: $e');
+      print('Warning: Could not delete local file: $e');
     }
   }
 
@@ -98,7 +99,7 @@ class FileStorageService {
         await eventDir.delete(recursive: true);
       }
     } catch (e) {
-      debugPrint('Warning: Could not delete event files: $e');
+      print('Warning: Could not delete event files: $e');
     }
   }
 
@@ -121,7 +122,7 @@ class FileStorageService {
         }
       }
     } catch (e) {
-      debugPrint('Warning: Could not cleanup old files: $e');
+      print('Warning: Could not cleanup old files: $e');
     }
   }
 

@@ -227,7 +227,7 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
         onUnknownRoute: (settings) {
           print('[ROUTE] onUnknownRoute called for: ${settings.name}');
           return MaterialPageRoute(
-            builder: (_) => NotFoundScreen(routeName: settings.name),
+            builder: (_) => NotFoundScreen(routeName: settings.name ?? ''),
           );
         },
       ),

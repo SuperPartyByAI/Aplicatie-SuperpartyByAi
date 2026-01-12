@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'firebase_service.dart';
 
@@ -25,7 +26,7 @@ class AutoUpdateService {
       final currentVersion = packageInfo.version;
       final currentBuildNumber = int.parse(packageInfo.buildNumber);
       
-      debugPrint('[AutoUpdate] Current version: $currentVersion ($currentBuildNumber)');
+      print('[AutoUpdate] Current version: $currentVersion ($currentBuildNumber)');
       
       // 2. Obține versiunea minimă din Firestore
       final doc = await FirebaseService.firestore
@@ -34,25 +35,25 @@ class AutoUpdateService {
           .get();
       
       if (!doc.exists) {
-        debugPrint('[AutoUpdate] No version config in Firestore');
+        print('[AutoUpdate] No version config in Firestore');
         return false;
       }
       
       final data = doc.data();
       if (data == null || data is! Map<String, dynamic>) {
-        debugPrint('[AutoUpdate] Invalid data');
+        print('[AutoUpdate] Invalid data');
         return false;
       }
       final minVersion = data['min_version'] as String?;
       final minBuildNumber = data['min_build_number'] as int?;
       final forceUpdate = data['force_update'] as bool? ?? false;
       
-      debugPrint('[AutoUpdate] Min version: $minVersion ($minBuildNumber)');
-      debugPrint('[AutoUpdate] Force update: $forceUpdate');
+      print('[AutoUpdate] Min version: $minVersion ($minBuildNumber)');
+      print('[AutoUpdate] Force update: $forceUpdate');
       
       // 3. Verifică dacă versiunea curentă e mai veche
       if (minBuildNumber != null && currentBuildNumber < minBuildNumber) {
-        debugPrint('[AutoUpdate] Update required! Current: $currentBuildNumber < Min: $minBuildNumber');
+        print('[AutoUpdate] Update required! Current: $currentBuildNumber < Min: $minBuildNumber');
         
         // Salvează flag pentru update
         final prefs = await SharedPreferences.getInstance();
@@ -63,11 +64,11 @@ class AutoUpdateService {
         return true;
       }
       
-      debugPrint('[AutoUpdate] App is up to date');
+      print('[AutoUpdate] App is up to date');
       return false;
       
     } catch (e) {
-      debugPrint('[AutoUpdate] Error checking updates: $e');
+      print('[AutoUpdate] Error checking updates: $e');
       return false;
     }
   }
@@ -78,7 +79,7 @@ class AutoUpdateService {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getBool(_updateFlagKey) ?? false;
     } catch (e) {
-      debugPrint('[AutoUpdate] Error checking pending update: $e');
+      print('[AutoUpdate] Error checking pending update: $e');
       return false;
     }
   }
@@ -88,9 +89,9 @@ class AutoUpdateService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_updateFlagKey);
-      debugPrint('[AutoUpdate] Cleared pending update flag');
+      print('[AutoUpdate] Cleared pending update flag');
     } catch (e) {
-      debugPrint('[AutoUpdate] Error clearing pending update: $e');
+      print('[AutoUpdate] Error clearing pending update: $e');
     }
   }
   
@@ -98,7 +99,7 @@ class AutoUpdateService {
   /// User stays authenticated through update process
   @Deprecated('Force Update no longer requires logout')
   static Future<void> forceLogout() async {
-    debugPrint('[AutoUpdate] forceLogout() called but deprecated - user stays authenticated');
+    print('[AutoUpdate] forceLogout() called but deprecated - user stays authenticated');
     // DO NOT sign out - user should remain authenticated through update
   }
   
@@ -116,13 +117,13 @@ class AutoUpdateService {
       
       final data = doc.data();
       if (data == null || data is! Map<String, dynamic>) {
-        debugPrint('[AutoUpdate] Invalid data');
-        return false;
+        print('[AutoUpdate] Invalid data');
+        return 'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.';
       }
       return data['update_message'] as String? ?? 
           'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.';
     } catch (e) {
-      debugPrint('[AutoUpdate] Error getting update message: $e');
+      print('[AutoUpdate] Error getting update message: $e');
       return 'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.';
     }
   }
@@ -141,8 +142,8 @@ class AutoUpdateService {
       
       final data = doc.data();
       if (data == null || data is! Map<String, dynamic>) {
-        debugPrint('[AutoUpdate] Invalid data');
-        return false;
+        print('[AutoUpdate] Invalid data');
+        return null;
       }
       
       // Returnează URL-ul în funcție de platformă
@@ -154,7 +155,7 @@ class AutoUpdateService {
       
       return null;
     } catch (e) {
-      debugPrint('[AutoUpdate] Error getting download URL: $e');
+      print('[AutoUpdate] Error getting download URL: $e');
       return null;
     }
   }
@@ -175,7 +176,7 @@ class AutoUpdateService {
       final hasPending = await hasPendingUpdate();
       
       if (hasPending) {
-        debugPrint('[AutoUpdate] Pending update detected');
+        print('[AutoUpdate] Pending update detected');
         return 'update_available';
       }
       
@@ -183,7 +184,7 @@ class AutoUpdateService {
       final needsUpdate = await checkForUpdates();
       
       if (needsUpdate) {
-        debugPrint('[AutoUpdate] New version available (no logout required)');
+        print('[AutoUpdate] New version available (no logout required)');
         return 'update_available';
       }
       
@@ -191,7 +192,7 @@ class AutoUpdateService {
       return null;
       
     } catch (e) {
-      debugPrint('[AutoUpdate] Error in checkAndApplyUpdate: $e');
+      print('[AutoUpdate] Error in checkAndApplyUpdate: $e');
       return null;
     }
   }
@@ -232,9 +233,9 @@ class AutoUpdateService {
         'updated_at': FieldValue.serverTimestamp(),
       });
       
-      debugPrint('[AutoUpdate] Version config initialized: $minVersion ($minBuildNumber)');
+      print('[AutoUpdate] Version config initialized: $minVersion ($minBuildNumber)');
     } catch (e) {
-      debugPrint('[AutoUpdate] Error initializing version config: $e');
+      print('[AutoUpdate] Error initializing version config: $e');
       rethrow;
     }
   }
