@@ -132,8 +132,8 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  SizedBox(
-                    maxWidth: 640,
+                  Container(
+                    constraints: const BoxConstraints(maxWidth: 640),
                     child: _buildFiltersBlock(),
                   ),
                 ],
