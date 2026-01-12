@@ -35,8 +35,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   DateTime? _customStart;
   DateTime? _customEnd;
 
-  // Cache events for CodeInfoModal
-  List<EventModel> _allEvents = [];
+  // Removed _allEvents cache - events are passed directly to modals
 
   @override
   void dispose() {
@@ -242,10 +241,13 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             if (value != null) {
               setState(() {
                 _datePreset = value;
-                if (value == 'custom') {
-                  _openRangeModal();
-                }
               });
+              if (value == 'custom') {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  _openRangeModal();
+                });
+              }
             }
           },
         ),
@@ -530,7 +532,6 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
               return EventModel.fromFirestore(doc);
             }).toList() ??
             [];
-        _allEvents = events; // Cache for CodeInfoModal
         final filteredEvents = _applyFilters(events);
 
         if (filteredEvents.isEmpty) {
@@ -568,7 +569,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             itemBuilder: (context, index) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: _buildEventCard(filteredEvents[index]),
+                child: _buildEventCard(filteredEvents[index], events),
               );
             },
           ),
@@ -783,7 +784,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
     return trainerPattern.hasMatch(normalized) || memberPattern.hasMatch(normalized);
   }
 
-  Widget _buildEventCard(EventModel event) {
+  Widget _buildEventCard(EventModel event, List<EventModel> allEvents) {
     return EventCardHtml(
       event: event,
       codeFilter: _codeFilter, // Pass filter for buildVisibleRoles
@@ -799,7 +800,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       },
       onStatusTap: (slot, code) {
         if (code != null && code.isNotEmpty) {
-          _openCodeInfoModal(code);
+          _openCodeInfoModal(code, allEvents);
         } else {
           _openAssignModal(event, slot);
         }
@@ -841,7 +842,10 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
               // Clear and focus input
               _codeFilter = '';
               Future.delayed(const Duration(milliseconds: 100), () {
-                _codeInputFocus.requestFocus();
+                if (!mounted) return;
+                if (_codeInputFocus.canRequestFocus) {
+                  _codeInputFocus.requestFocus();
+                }
               });
             } else {
               // Set filter value (NEREZOLVATE, REZOLVATE, or empty)
@@ -872,13 +876,13 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
     );
   }
 
-  void _openCodeInfoModal(String code) {
+  void _openCodeInfoModal(String code, List<EventModel> events) {
     showDialog(
       context: context,
       barrierColor: Colors.transparent,
       builder: (context) => CodeInfoModal(
         code: code,
-        events: _allEvents,
+        events: events,
       ),
     );
   }
