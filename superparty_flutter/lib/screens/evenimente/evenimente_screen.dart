@@ -10,6 +10,7 @@ import '../../widgets/modals/assign_modal.dart';
 import '../../widgets/modals/code_info_modal.dart';
 import 'event_card_html.dart';
 import 'dovezi_screen_html.dart';
+import '../evidence/evidence_screen.dart';
 
 /// Evenimente Screen - 100% identic cu HTML (4522 linii)
 /// Referință: kyc-app/kyc-app/public/evenimente.html
@@ -25,7 +26,8 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   final FocusNode _codeInputFocus = FocusNode();
 
   // Filtre - exact ca în HTML
-  String _datePreset = 'all'; // all, today, yesterday, last7, next7, next30, custom
+  String _datePreset =
+      'all'; // all, today, yesterday, last7, next7, next30, custom
   bool _sortAsc = false; // false = desc (↓), true = asc (↑)
   String _driverFilter = 'all'; // all, yes, open, no (conform HTML exact)
   String _codeFilter = '';
@@ -48,22 +50,48 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       backgroundColor: const Color(0xFF0B1220),
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+          gradient: RadialGradient(
+            center: Alignment(0.18, 0),
+            radius: 1.5,
             colors: [
-              Color(0xFF111C35), // --bg2
-              Color(0xFF0B1220), // --bg
+              Color(0x244ECDC4), // rgba(78,205,196,0.14) at 18% 0%
+              Colors.transparent,
             ],
+            stops: [0, 0.62],
           ),
         ),
-        child: Column(
-          children: [
-            _buildAppBar(),
-            Expanded(
-              child: _buildEventsList(),
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(0.86, 0.1),
+              radius: 1.3,
+              colors: [
+                Color(0x1960A5FA), // rgba(96,165,250,0.10) at 86% 10%
+                Colors.transparent,
+              ],
+              stops: [0, 0.58],
             ),
-          ],
+          ),
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF111C35), // --bg2
+                  Color(0xFF0B1220), // --bg
+                ],
+              ),
+            ),
+            child: Column(
+              children: [
+                _buildAppBar(),
+                Expanded(
+                  child: _buildEventsList(),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -76,7 +104,8 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0B1220).withOpacity(0.72), // rgba(11,18,32,0.72)
+            color: const Color(0xFF0B1220)
+                .withOpacity(0.72), // rgba(11,18,32,0.72)
             border: const Border(
               bottom: BorderSide(
                 color: Color(0x14FFFFFF), // rgba(255,255,255,0.08)
@@ -86,25 +115,27 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
           ),
           child: SafeArea(
             bottom: false,
-            child: Padding(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 920),
+              margin: const EdgeInsets.symmetric(horizontal: 0),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Titlu
                   const Text(
                     'Evenimente',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0.2,
-                      color: Color(0xFFEAF1FF), // --text
+                      color: Color(0xFFEAF1FF),
                     ),
                   ),
                   const SizedBox(height: 10),
-
-                  // Filters block
-                  _buildFiltersBlock(),
+                  SizedBox(
+                    maxWidth: 640,
+                    child: _buildFiltersBlock(),
+                  ),
                 ],
               ),
             ),
@@ -130,11 +161,11 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
           child: Text(
-            'Filtrele sunt exclusive (NU se combină)',
+            'Click pe card deschide pagina de dovezi. Click pe slot sau pe cod pastreaza alocarea/tab cod.',
             style: TextStyle(
               fontSize: 11,
-              color: const Color(0xFFEAF1FF).withOpacity(0.7), // --muted
-              height: 1.3,
+              color: const Color(0xFFEAF1FF).withOpacity(0.65), // --muted
+              height: 1.35,
             ),
           ),
         ),
@@ -145,56 +176,56 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   Widget _buildFiltersDate() {
     return Row(
       children: [
-        Expanded(
-          child: Row(
-            children: [
-              // Date preset dropdown
-              Expanded(
-                child: _buildDatePresetDropdown(),
-              ),
-              const SizedBox(width: 0),
+        // Date preset dropdown
+        _buildDatePresetDropdown(),
+        const SizedBox(width: -1),
 
-              // Sort button
-              _buildSortButton(),
-              const SizedBox(width: 0),
+        // Sort button
+        _buildSortButton(),
+        const SizedBox(width: -1),
 
-              // Driver button
-              _buildDriverButton(),
-            ],
-          ),
-        ),
+        // Driver button
+        _buildDriverButton(),
       ],
     );
   }
 
   Widget _buildDatePresetDropdown() {
     return Container(
+      width: 230,
       height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.only(left: 8, right: 28),
       decoration: BoxDecoration(
-        color: const Color(0x0FFFFFFF), // rgba(255,255,255,0.06)
+        color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
         border: Border.all(
-          color: const Color(0x24FFFFFF), // rgba(255,255,255,0.14)
+          color: const Color(0x2EFFFFFF), // rgba(255,255,255,0.18)
         ),
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(12),
           bottomLeft: Radius.circular(12),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.white.withOpacity(0.06),
+            offset: const Offset(0, 1),
+            blurRadius: 0,
+          ),
+        ],
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: _datePreset,
-          dropdownColor: const Color(0xFF111C35),
+          dropdownColor: const Color(0xFF0B1220),
           style: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w900,
             color: Color(0xFFEAF1FF),
-            letterSpacing: 0.15,
+            letterSpacing: 0.1,
           ),
           icon: const Icon(
             Icons.arrow_drop_down,
             color: Color(0xB3EAF1FF),
-            size: 20,
+            size: 18,
           ),
           items: const [
             DropdownMenuItem(value: 'all', child: Text('Toate')),
@@ -202,8 +233,10 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             DropdownMenuItem(value: 'yesterday', child: Text('Ieri')),
             DropdownMenuItem(value: 'last7', child: Text('Ultimele 7 zile')),
             DropdownMenuItem(value: 'next7', child: Text('Urmatoarele 7 zile')),
-            DropdownMenuItem(value: 'next30', child: Text('Urmatoarele 30 zile')),
-            DropdownMenuItem(value: 'custom', child: Text('Interval (aleg eu)')),
+            DropdownMenuItem(
+                value: 'next30', child: Text('Urmatoarele 30 zile')),
+            DropdownMenuItem(
+                value: 'custom', child: Text('Interval (aleg eu)')),
           ],
           onChanged: (value) {
             if (value != null) {
@@ -228,11 +261,12 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         });
       },
       child: Container(
-        width: 52,
+        width: 44,
         height: 36,
         decoration: BoxDecoration(
-          color: const Color(0x0FFFFFFF),
+          color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
           border: Border.all(color: const Color(0x24FFFFFF)),
+          borderRadius: BorderRadius.zero,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -243,7 +277,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 fontSize: 14,
                 color: _sortAsc
                     ? const Color(0xFFEAF1FF)
-                    : const Color(0xFFEAF1FF).withOpacity(0.35),
+                    : const Color(0xFFEAF1FF).withOpacity(0.45),
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -254,7 +288,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 fontSize: 14,
                 color: !_sortAsc
                     ? const Color(0xFFEAF1FF)
-                    : const Color(0xFFEAF1FF).withOpacity(0.35),
+                    : const Color(0xFFEAF1FF).withOpacity(0.45),
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -312,7 +346,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         width: 44,
         height: 36,
         decoration: BoxDecoration(
-          color: const Color(0x0FFFFFFF),
+          color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
           border: Border.all(color: const Color(0x24FFFFFF)),
           borderRadius: const BorderRadius.only(
             topRight: Radius.circular(12),
@@ -338,7 +372,6 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 decoration: BoxDecoration(
                   color: badgeColors[_driverFilter],
                   borderRadius: BorderRadius.circular(999),
-
                   border: Border.all(
                     color: badgeBorderColors[_driverFilter]!,
                     width: 1,
@@ -365,52 +398,50 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   Widget _buildFiltersExtra() {
     return Row(
       children: [
-        Expanded(
-          child: Row(
-            children: [
-              // Input "Ce cod am"
-              Expanded(
-                child: _buildCodeFilterInput(),
-              ),
-              const SizedBox(width: 8),
+        // Input "Ce cod am"
+        _buildCodeFilterInput(),
+        const SizedBox(width: 8),
 
-              // Separator
-              Text(
-                '–',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: const Color(0xFFEAF1FF).withOpacity(0.5),
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              // Input "Cine noteaza"
-              Expanded(
-                child: _buildNotedByFilterInput(),
-              ),
-            ],
+        // Separator
+        Text(
+          '–',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            color: const Color(0xFFEAF1FF).withOpacity(0.55),
           ),
         ),
+        const SizedBox(width: 8),
 
-        // Spacer pentru aliniere cu sort button
-        const SizedBox(width: 52),
+        // Input "Cine noteaza"
+        _buildNotedByFilterInput(),
+
+        // Spacer pentru aliniere cu sort button (HTML: .btnspacer)
+        const Spacer(),
+        SizedBox(
+          width: 44,
+          child: Opacity(
+            opacity: 0,
+            child: _buildSortButton(),
+          ),
+        ),
       ],
     );
   }
 
   Widget _buildCodeFilterInput() {
     return GestureDetector(
-      onTap: () {
-        // Always open modal to show all filter options
+      onTapDown: (_) {
         _openCodeModal();
       },
       child: Container(
+        width: 150,
         height: 36,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: const Color(0x0FFFFFFF),
+          color: const Color(0x38000000), // rgba(0,0,0,0.22)
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0x24FFFFFF)),
+          border: Border.all(color: const Color(0x24FFFFFF)), // rgba(255,255,255,0.14)
         ),
         child: TextField(
           focusNode: _codeInputFocus,
@@ -422,7 +453,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
           style: const TextStyle(
             fontSize: 12,
             color: Color(0xFFEAF1FF),
-            fontWeight: FontWeight.w500,
+            letterSpacing: 0.1,
           ),
           decoration: InputDecoration(
             hintText: 'Ce cod am',
@@ -432,7 +463,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             ),
             border: InputBorder.none,
             isDense: true,
-            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+            contentPadding: EdgeInsets.zero,
           ),
         ),
       ),
@@ -441,12 +472,13 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
 
   Widget _buildNotedByFilterInput() {
     return Container(
+      width: 150,
       height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: const Color(0x0FFFFFFF),
+        color: const Color(0x38000000), // rgba(0,0,0,0.22)
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0x24FFFFFF)),
+        border: Border.all(color: const Color(0x24FFFFFF)), // rgba(255,255,255,0.14)
       ),
       child: TextField(
         onChanged: (value) {
@@ -457,7 +489,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         style: const TextStyle(
           fontSize: 12,
           color: Color(0xFFEAF1FF),
-          fontWeight: FontWeight.w500,
+          letterSpacing: 0.1,
         ),
         decoration: InputDecoration(
           hintText: 'Cine noteaza',
@@ -467,7 +499,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
           ),
           border: InputBorder.none,
           isDense: true,
-          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          contentPadding: EdgeInsets.zero,
         ),
       ),
     );
@@ -495,29 +527,51 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         }
 
         final events = snapshot.data?.docs.map((doc) {
-          return EventModel.fromFirestore(doc);
-        }).toList() ?? [];
+              return EventModel.fromFirestore(doc);
+            }).toList() ??
+            [];
         _allEvents = events; // Cache for CodeInfoModal
         final filteredEvents = _applyFilters(events);
 
         if (filteredEvents.isEmpty) {
           return Center(
-            child: Text(
-              'Nu există evenimente',
-              style: TextStyle(
-                fontSize: 14,
-                color: const Color(0xFFEAF1FF).withOpacity(0.7),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0x0DFFFFFF), // rgba(255,255,255,0.05)
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.10)
+                  ),
+                ),
+                child: Text(
+                  'Nu există evenimente pentru filtrele selectate.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: const Color(0xFFEAF1FF).withOpacity(0.75),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: filteredEvents.length,
-          itemBuilder: (context, index) {
-            return _buildEventCard(filteredEvents[index]);
-          },
+        return Container(
+          constraints: const BoxConstraints(maxWidth: 920),
+          margin: const EdgeInsets.symmetric(horizontal: 0),
+          child: ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: filteredEvents.length,
+            itemBuilder: (context, index) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _buildEventCard(filteredEvents[index]),
+              );
+            },
+          ),
         );
       },
     );
@@ -546,10 +600,10 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       filtered = filtered.where((e) => _matchesCodeFilter(e)).toList();
     }
 
-    // Sort
+    // Sort (HTML lines 2611-2617: sortEvents function)
     filtered.sort((a, b) {
-      final dateA = _parseDate(a.date);
-      final dateB = _parseDate(b.date);
+      final dateA = _parseStart(a);
+      final dateB = _parseStart(b);
       if (dateA == null || dateB == null) return 0;
       final comparison = dateA.compareTo(dateB);
       return _sortAsc ? comparison : -comparison;
@@ -570,29 +624,35 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         return true;
 
       case 'today':
-        final eventDay = DateTime(eventDate.year, eventDate.month, eventDate.day);
+        final eventDay =
+            DateTime(eventDate.year, eventDate.month, eventDate.day);
         return eventDay == today;
 
       case 'yesterday':
         final yesterday = today.subtract(const Duration(days: 1));
-        final eventDay = DateTime(eventDate.year, eventDate.month, eventDate.day);
+        final eventDay =
+            DateTime(eventDate.year, eventDate.month, eventDate.day);
         return eventDay == yesterday;
 
       case 'last7':
         final last7 = today.subtract(const Duration(days: 7));
-        return eventDate.isAfter(last7) && eventDate.isBefore(today.add(const Duration(days: 1)));
+        return eventDate.isAfter(last7) &&
+            eventDate.isBefore(today.add(const Duration(days: 1)));
 
       case 'next7':
         final next7 = today.add(const Duration(days: 7));
-        return eventDate.isAfter(today.subtract(const Duration(days: 1))) && eventDate.isBefore(next7.add(const Duration(days: 1)));
+        return eventDate.isAfter(today.subtract(const Duration(days: 1))) &&
+            eventDate.isBefore(next7.add(const Duration(days: 1)));
 
       case 'next30':
         final next30 = today.add(const Duration(days: 30));
-        return eventDate.isAfter(today.subtract(const Duration(days: 1))) && eventDate.isBefore(next30.add(const Duration(days: 1)));
+        return eventDate.isAfter(today.subtract(const Duration(days: 1))) &&
+            eventDate.isBefore(next30.add(const Duration(days: 1)));
 
       case 'custom':
         if (_customStart != null && _customEnd != null) {
-          return eventDate.isAfter(_customStart!.subtract(const Duration(days: 1))) &&
+          return eventDate
+                  .isAfter(_customStart!.subtract(const Duration(days: 1))) &&
               eventDate.isBefore(_customEnd!.add(const Duration(days: 1)));
         }
         return true;
@@ -603,28 +663,19 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   }
 
   bool _matchesDriverFilter(EventModel event) {
-    final needsDriver = event.roles.any((r) => r.slot.toUpperCase() == 'S');
-
     switch (_driverFilter) {
       case 'all':
         return true;
 
-      case 'yes': // necesită șofer (HTML: driverState === 'yes')
-        return needsDriver;
+      case 'yes':
+        return event.needsDriver;
 
-      case 'open': // necesită șofer nerezolvat (HTML: driverState === 'open')
-        if (!needsDriver) return false;
-        final driverRole = event.roles.firstWhere(
-          (r) => r.slot.toUpperCase() == 'S',
-          orElse: () => RoleModel(slot: 'S', label: '', time: '', durationMin: 0),
-        );
-        final hasAssigned = driverRole.assignedCode != null &&
-            driverRole.assignedCode!.isNotEmpty &&
-            _isValidStaffCode(driverRole.assignedCode!);
-        return !hasAssigned;
+      case 'open':
+        if (!event.needsDriver) return false;
+        return !event.hasDriverAssigned;
 
-      case 'no': // nu necesită șofer (HTML: driverState === 'no')
-        return !needsDriver;
+      case 'no':
+        return !event.needsDriver;
 
       default:
         return true;
@@ -674,22 +725,62 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
 
   DateTime? _parseDate(String dateStr) {
     try {
+      final isoMatch = RegExp(r'^([0-9]{4})-([0-9]{2})-([0-9]{2})$').firstMatch(dateStr);
+      if (isoMatch != null) {
+        final year = int.parse(isoMatch.group(1)!);
+        final month = int.parse(isoMatch.group(2)!);
+        final day = int.parse(isoMatch.group(3)!);
+        return DateTime(year, month, day);
+      }
       final parts = dateStr.split('-');
-      if (parts.length != 3) return null;
-      final day = int.tryParse(parts[0]);
-      final month = int.tryParse(parts[1]);
-      final year = int.tryParse(parts[2]);
-      if (day == null || month == null || year == null) return null;
-      return DateTime(year, month, day);
+      if (parts.length == 3) {
+        final day = int.tryParse(parts[0]);
+        final month = int.tryParse(parts[1]);
+        final year = int.tryParse(parts[2]);
+        if (day != null && month != null && year != null) {
+          return DateTime(year, month, day);
+        }
+      }
+      return null;
     } catch (e) {
       return null;
     }
   }
 
+  DateTime? _parseStart(EventModel event) {
+    // HTML lines 1930-1940: parseStart function
+    String time = '00:00';
+    if (event.roles.isNotEmpty && event.roles[0].time.isNotEmpty) {
+      time = event.roles[0].time;
+    }
+    final dateStr = event.date;
+    final isoMatch = RegExp(r'^([0-9]{4})-([0-9]{2})-([0-9]{2})$').firstMatch(dateStr);
+    if (isoMatch != null) {
+      final year = int.parse(isoMatch.group(1)!);
+      final month = int.parse(isoMatch.group(2)!);
+      final day = int.parse(isoMatch.group(3)!);
+      final timeParts = time.split(':');
+      final hour = timeParts.length >= 1 ? int.tryParse(timeParts[0]) ?? 0 : 0;
+      final minute = timeParts.length >= 2 ? int.tryParse(timeParts[1]) ?? 0 : 0;
+      return DateTime(year, month, day, hour, minute);
+    }
+    final date = _parseDate(dateStr);
+    if (date != null) {
+      final timeParts = time.split(':');
+      final hour = timeParts.length >= 1 ? int.tryParse(timeParts[0]) ?? 0 : 0;
+      final minute = timeParts.length >= 2 ? int.tryParse(timeParts[1]) ?? 0 : 0;
+      return DateTime(date.year, date.month, date.day, hour, minute);
+    }
+    return null;
+  }
+
   bool _isValidStaffCode(String code) {
+    // HTML lines 1915-1920: isValidStaffCode function
     final normalized = code.trim().toUpperCase();
     if (normalized.isEmpty) return false;
-    return RegExp(r'^[A-Z][A-Z0-9]*$').hasMatch(normalized);
+    final trainerPattern = RegExp(r'^[A-Z]TRAINER$');
+    final memberPattern = RegExp(r'^[A-Z]([1-9]|[1-4][0-9]|50)$');
+    return trainerPattern.hasMatch(normalized) || memberPattern.hasMatch(normalized);
   }
 
   Widget _buildEventCard(EventModel event) {
@@ -699,7 +790,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       onTap: () {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (context) => DoveziScreenHtml(event: event),
+            builder: (context) => EvidenceScreen(eventId: event.id),
           ),
         );
       },
@@ -805,7 +896,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
 
       final data = eventDoc.data();
       if (data == null || data is! Map<String, dynamic>) {
-        debugPrint('[Evenimente] Event data is null');
+        print('[Evenimente] Event data is null');
         throw Exception('Event data is null');
       }
       final roles = (data['roles'] as List<dynamic>?) ?? [];
@@ -858,7 +949,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
 
       final data = eventDoc.data();
       if (data == null || data is! Map<String, dynamic>) {
-        debugPrint('[Evenimente] Event data is null');
+        print('[Evenimente] Event data is null');
         throw Exception('Event data is null');
       }
 
