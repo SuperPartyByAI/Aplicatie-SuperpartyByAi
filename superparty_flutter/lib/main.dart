@@ -194,6 +194,7 @@ class AppShell extends StatelessWidget {
         // UpdateGate as overlay - preserves Directionality from MaterialApp
         return UpdateGate(child: child ?? const SizedBox.shrink());
       },
+      home: const AuthGate(),
       onGenerateRoute: (settings) {
         if (kDebugMode) {
           debugPrint('[ROUTE] Raw: ${settings.name}');
@@ -211,8 +212,6 @@ class AppShell extends StatelessWidget {
         
         // Handle all routes including deep-links
         switch (path) {
-          case '/':
-            return MaterialPageRoute(builder: (_) => const AuthGate());
           case '/home':
             return MaterialPageRoute(builder: (_) => const HomeScreen());
           case '/kyc':
