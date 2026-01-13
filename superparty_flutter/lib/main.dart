@@ -11,6 +11,8 @@ import 'services/push_notification_service.dart';
 import 'services/role_service.dart';
 import 'providers/app_state_provider.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/home/home_screen.dart';
+import 'screens/kyc/kyc_screen.dart';
 import 'widgets/update_gate.dart';
 import 'routing/app_router.dart';
 
