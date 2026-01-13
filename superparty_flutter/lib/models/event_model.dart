@@ -50,7 +50,29 @@ class EventModel {
   });
 
   factory EventModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final raw = doc.data();
+    if (raw is! Map<String, dynamic>) {
+      debugPrint(
+        '[EventModel] ⚠️ Invalid doc.data() for ${doc.id}: ${raw.runtimeType}. Marking archived.',
+      );
+      final now = DateTime.now();
+      return EventModel(
+        id: doc.id,
+        date: '',
+        address: '',
+        sarbatoritNume: '',
+        sarbatoritVarsta: 0,
+        incasare: IncasareModel(status: 'NEINCASAT'),
+        roles: const [],
+        isArchived: true,
+        createdAt: now,
+        createdBy: '',
+        updatedAt: now,
+        updatedBy: '',
+      );
+    }
+
+    final data = raw;
     
     // DEBUG: Log raw data to see what we're receiving
     debugPrint('[EventModel] Parsing event ${doc.id}');
@@ -62,7 +84,7 @@ class EventModel {
     // v2: date (string DD-MM-YYYY), address, roles (array)
     // v1: data (Timestamp), locatie/adresa, alocari (map)
     
-    final schemaVersion = data['schemaVersion'] as int? ?? 1;
+    // schemaVersion is currently informational; parsing left intentionally best-effort.
     
     // Date field (v2: string, v1: Timestamp)
     // Support both 'date' (English) and 'data' (Romanian) field names
@@ -163,11 +185,19 @@ class EventModel {
     };
   }
 
-  static List<RoleModel> _parseRoles(List<dynamic>? data) {
-    if (data == null) return [];
-    return data
-        .map((item) => RoleModel.fromMap(item as Map<String, dynamic>))
-        .toList();
+  static List<RoleModel> _parseRoles(dynamic data) {
+    if (data is! List) return const [];
+    final roles = <RoleModel>[];
+    for (final item in data) {
+      if (item is! Map) continue;
+      try {
+        roles.add(RoleModel.fromMap(Map<String, dynamic>.from(item)));
+      } catch (e, st) {
+        debugPrint('[EventModel] ⚠️ Skip invalid role item: $e');
+        debugPrint('$st');
+      }
+    }
+    return roles;
   }
 
   /// Parse alocari v1 (map) to roles v2 (array)
@@ -269,13 +299,22 @@ class RoleModel {
   });
 
   factory RoleModel.fromMap(Map<String, dynamic> map) {
+    final durationRaw =
+        map['durationMin'] ?? map['duration'] ?? map['dur'];
+    final durationMin = switch (durationRaw) {
+      int v => v,
+      num v => v.toInt(),
+      String v => int.tryParse(v.trim()) ?? 0,
+      _ => 0,
+    };
+
     return RoleModel(
-      slot: map['slot'] as String? ?? '',
-      label: map['label'] as String? ?? '',
-      time: map['time'] as String? ?? '',
-      durationMin: map['durationMin'] as int? ?? 0,
-      assignedCode: map['assignedCode'] as String?,
-      pendingCode: map['pendingCode'] as String?,
+      slot: map['slot']?.toString() ?? '',
+      label: map['label']?.toString() ?? '',
+      time: map['time']?.toString() ?? '',
+      durationMin: durationMin,
+      assignedCode: map['assignedCode']?.toString(),
+      pendingCode: map['pendingCode']?.toString(),
     );
   }
 

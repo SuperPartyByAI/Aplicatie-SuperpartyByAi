@@ -21,6 +21,9 @@ class EvenimenteScreen extends StatefulWidget {
 class _EvenimenteScreenState extends State<EvenimenteScreen> {
   final FocusNode _codeInputFocus = FocusNode();
 
+  // Cache events list for modals and actions (kept in-memory, not persisted).
+  List<EventModel> _allEvents = const [];
+
   // Filtre - exact ca în HTML
   String _datePreset =
       'all'; // all, today, yesterday, last7, next7, next30, custom
@@ -538,11 +541,22 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
           );
         }
 
-        final events = snapshot.data?.docs.map((doc) {
-              return EventModel.fromFirestore(doc);
-            }).toList() ??
-            [];
-        final filteredEvents = _applyFilters(events);
+        final docs = snapshot.data?.docs ?? const <QueryDocumentSnapshot>[];
+        final parsed = <EventModel>[];
+
+        for (final doc in docs) {
+          try {
+            parsed.add(EventModel.fromFirestore(doc));
+          } catch (e, st) {
+            debugPrint('[Evenimente] ⚠️ Skip doc ${doc.id}: $e');
+            debugPrint('$st');
+          }
+        }
+
+        // Keep a cache for modals/actions; avoid setState here.
+        _allEvents = parsed;
+
+        final filteredEvents = _applyFilters(parsed);
 
         if (filteredEvents.isEmpty) {
           // HTML: inside .wrap { padding: 12px }, then .empty { margin-top: 14px; padding: 14px; }
@@ -586,7 +600,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
               itemBuilder: (context, index) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: _buildEventCard(filteredEvents[index], events),
+                  child: _buildEventCard(filteredEvents[index], _allEvents),
                 );
               },
             ),
@@ -904,8 +918,22 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
     );
   }
 
+  Map<String, dynamic> _coerceToRoleMap(dynamic value) {
+    if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
+    if (value is Map) {
+      final out = <String, dynamic>{};
+      value.forEach((k, v) {
+        if (k == null) return;
+        out[k.toString()] = v;
+      });
+      return out;
+    }
+    return <String, dynamic>{};
+  }
+
   Future<void> _saveAssignment(String eventId, String slot, String code) async {
     try {
+      final messenger = ScaffoldMessenger.of(context);
       final db = FirebaseFirestore.instance;
       final eventRef = db.collection('evenimente').doc(eventId);
 
@@ -916,20 +944,24 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       }
 
       final data = eventDoc.data();
-      if (data == null || data is! Map<String, dynamic>) {
-        print('[Evenimente] Event data is null');
+      if (data == null) {
+        debugPrint('[Evenimente] Event data is null for $eventId');
         throw Exception('Event data is null');
       }
       final roles = (data['roles'] as List<dynamic>?) ?? [];
 
       // Find role by slot
-      final roleIndex = roles.indexWhere((r) => r['slot'] == slot);
+      final roleIndex =
+          roles.indexWhere((r) => r is Map && (r['slot']?.toString() == slot));
       if (roleIndex == -1) {
         throw Exception('Role not found');
       }
 
+      final role = _coerceToRoleMap(roles[roleIndex]);
+
       // Update role with pendingCode (not assignedCode - needs approval)
-      roles[roleIndex]['pendingCode'] = code;
+      role['pendingCode'] = code;
+      roles[roleIndex] = role;
 
       // Save to Firestore
       await eventRef.update({
@@ -938,7 +970,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: Text('Cerere trimisă pentru $slot: $code'),
             backgroundColor: const Color(0xFF4ECDC4),
@@ -947,7 +979,8 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.showSnackBar(
           SnackBar(
             content: Text('Eroare: $e'),
             backgroundColor: const Color(0xFFFF7878),
@@ -959,6 +992,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
 
   Future<void> _clearAssignment(String eventId, String slot) async {
     try {
+      final messenger = ScaffoldMessenger.of(context);
       final db = FirebaseFirestore.instance;
       final eventRef = db.collection('evenimente').doc(eventId);
 
@@ -969,22 +1003,26 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       }
 
       final data = eventDoc.data();
-      if (data == null || data is! Map<String, dynamic>) {
-        print('[Evenimente] Event data is null');
+      if (data == null) {
+        debugPrint('[Evenimente] Event data is null for $eventId');
         throw Exception('Event data is null');
       }
 
       final roles = (data['roles'] as List<dynamic>?) ?? [];
 
       // Find role by slot
-      final roleIndex = roles.indexWhere((r) => r['slot'] == slot);
+      final roleIndex =
+          roles.indexWhere((r) => r is Map && (r['slot']?.toString() == slot));
       if (roleIndex == -1) {
         throw Exception('Role not found');
       }
 
+      final role = _coerceToRoleMap(roles[roleIndex]);
+
       // Clear both assignedCode and pendingCode
-      roles[roleIndex]['assignedCode'] = null;
-      roles[roleIndex]['pendingCode'] = null;
+      role['assignedCode'] = null;
+      role['pendingCode'] = null;
+      roles[roleIndex] = role;
 
       // Save to Firestore
       await eventRef.update({
@@ -993,7 +1031,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: Text('Alocare ștearsă pentru $slot'),
             backgroundColor: const Color(0xFF4ECDC4),
@@ -1002,7 +1040,8 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.showSnackBar(
           SnackBar(
             content: Text('Eroare: $e'),
             backgroundColor: const Color(0xFFFF7878),
