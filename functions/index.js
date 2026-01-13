@@ -814,10 +814,9 @@ exports.generateReportAI = generateReportAI;
 // - cd functions
 // - npm install
 // - firebase emulators:start --only functions,firestore
-// - Call callable `chatWithAI` to start interactive noting flow:
-//   message: "am de notat o petrecere" → answer date/address → confirm "da"
-// - Or call callable `chatEventOps` directly with:
-//   { text: "...", dryRun:false, clientRequestId:"test_1" }
+// - Preferred gateway: call callable `chatEventOpsV2`:
+//   { text:"am de notat o petrecere", sessionId:"s1" } → answer questions → confirm "da"
+// - Or call callable `chatWithAI` (interactive) which internally creates events via callables.
 exports.chatEventOps = require('./chatEventOps').chatEventOps;
 
 // AI Event Operations V2 (Enhanced with interactive flow, short codes, role detection)

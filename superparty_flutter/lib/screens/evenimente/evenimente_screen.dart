@@ -142,43 +142,19 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
               });
 
               try {
-                final clientRequestId =
-                    'noteaza_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
-                final callable =
-                    FirebaseFunctions.instanceFor(region: 'us-central1')
-                        .httpsCallable(
-                  'chatEventOps',
-                  options: HttpsCallableOptions(
-                    timeout: const Duration(seconds: 30),
-                  ),
-                );
-
-                final res = await callable.call({
-                  'text': text,
-                  'dryRun': false,
-                  'clientRequestId': clientRequestId,
-                });
-
-                final data = res.data;
-                final map = data is Map
-                    ? Map<String, dynamic>.from(data)
-                    : <String, dynamic>{};
-                final ok = map['ok'] == true;
-                final message = map['message']?.toString() ?? '';
-
                 if (!mounted) return;
                 navigator.pop();
+                Navigator.pushNamed(
+                  context,
+                  '/ai-chat',
+                  arguments: {
+                    'initialText': text,
+                  },
+                );
                 messenger.showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      ok
-                          ? (message.isNotEmpty
-                              ? message
-                              : 'Eveniment creat. Vezi în lista Evenimente.')
-                          : (message.isNotEmpty ? message : 'Nu am putut crea evenimentul.'),
-                    ),
-                    backgroundColor:
-                        ok ? const Color(0xFF4ECDC4) : const Color(0xFFFF7878),
+                  const SnackBar(
+                    content: Text('Deschis AI Chat pentru notare (server-only writes)'),
+                    backgroundColor: Color(0xFF4ECDC4),
                   ),
                 );
               } catch (e) {
@@ -1180,179 +1156,56 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   }
 
   Future<void> _saveAssignment(String eventId, String slot, String code) async {
-    try {
-      final messenger = ScaffoldMessenger.of(context);
-      final db = FirebaseFirestore.instance;
-      final eventRef = db.collection('evenimente').doc(eventId);
+    final messenger = ScaffoldMessenger.of(context);
+    final normalizedSlot = slot.trim();
+    final normalizedCode = code.trim().toUpperCase();
 
-      final normalizedSlot = slot.trim();
-      final normalizedCode = code.trim().toUpperCase();
-      if (normalizedSlot.isEmpty) {
-        throw Exception('Slot invalid');
-      }
-      if (normalizedCode.isEmpty) {
-        throw Exception('Cod invalid');
-      }
-      if (normalizedCode.length > 32) {
-        throw Exception('Cod prea lung');
-      }
-
-      final updatedBy = FirebaseAuth.instance.currentUser?.uid;
-
-      // Transaction to avoid lost updates when multiple clients update roles concurrently.
-      await db.runTransaction((tx) async {
-        final snap = await tx.get(eventRef);
-        if (!snap.exists) {
-          throw Exception('Event not found');
-        }
-        final data = snap.data();
-        if (data == null) {
-          throw Exception('Event data is null');
-        }
-
-        // Prefer V3 schema: rolesBySlot (map), fallback to legacy roles[] array.
-        final schemaVersionRaw = data['schemaVersion'];
-        final schemaVersion = switch (schemaVersionRaw) {
-          int v => v,
-          num v => v.toInt(),
-          String v => int.tryParse(v.trim()) ?? 0,
-          _ => 0,
-        };
-
-        final rolesBySlotRaw = data['rolesBySlot'];
-        if (schemaVersion >= 3 || rolesBySlotRaw is Map) {
-          tx.update(eventRef, {
-            'rolesBySlot.$normalizedSlot.slot': normalizedSlot,
-            'rolesBySlot.$normalizedSlot.pendingCode': normalizedCode,
-            'updatedAt': FieldValue.serverTimestamp(),
-            if (updatedBy != null) 'updatedBy': updatedBy,
-          });
-          return;
-        }
-
-        final roles = (data['roles'] as List<dynamic>?) ?? [];
-        final roleIndex = roles.indexWhere(
-          (r) => r is Map && (r['slot']?.toString() == normalizedSlot),
-        );
-        if (roleIndex == -1) {
-          throw Exception('Role not found');
-        }
-
-        final role = _coerceToRoleMap(roles[roleIndex]);
-        role['slot'] = normalizedSlot;
-        role['pendingCode'] = normalizedCode;
-        roles[roleIndex] = role;
-
-        tx.update(eventRef, {
-          'roles': roles,
-          'updatedAt': FieldValue.serverTimestamp(),
-          if (updatedBy != null) 'updatedBy': updatedBy,
-        });
-      });
-
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Cerere trimisă pentru $normalizedSlot: $normalizedCode'),
-            backgroundColor: const Color(0xFF4ECDC4),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        final messenger = ScaffoldMessenger.of(context);
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Eroare: $e'),
-            backgroundColor: const Color(0xFFFF7878),
-          ),
-        );
-      }
+    if (normalizedSlot.isEmpty || normalizedCode.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text('Slot/cod invalid')));
+      return;
     }
+
+    // POLICY: /evenimente is read-only from client. All mutations must go via AI.
+    if (!mounted) return;
+    Navigator.pushNamed(
+      context,
+      '/ai-chat',
+      arguments: {
+        'eventId': eventId,
+        'initialText':
+            'Te rog execută: ASSIGN_ROLE_CODE. slot: $normalizedSlot. code: $normalizedCode.',
+      },
+    );
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Trimite comanda în AI Chat pentru $normalizedSlot → $normalizedCode'),
+        backgroundColor: const Color(0xFF4ECDC4),
+      ),
+    );
   }
 
   Future<void> _clearAssignment(String eventId, String slot) async {
-    try {
-      final messenger = ScaffoldMessenger.of(context);
-      final db = FirebaseFirestore.instance;
-      final eventRef = db.collection('evenimente').doc(eventId);
-
-      final normalizedSlot = slot.trim();
-      if (normalizedSlot.isEmpty) {
-        throw Exception('Slot invalid');
-      }
-
-      final updatedBy = FirebaseAuth.instance.currentUser?.uid;
-
-      await db.runTransaction((tx) async {
-        final snap = await tx.get(eventRef);
-        if (!snap.exists) {
-          throw Exception('Event not found');
-        }
-        final data = snap.data();
-        if (data == null) {
-          throw Exception('Event data is null');
-        }
-
-        final schemaVersionRaw = data['schemaVersion'];
-        final schemaVersion = switch (schemaVersionRaw) {
-          int v => v,
-          num v => v.toInt(),
-          String v => int.tryParse(v.trim()) ?? 0,
-          _ => 0,
-        };
-
-        final rolesBySlotRaw = data['rolesBySlot'];
-        if (schemaVersion >= 3 || rolesBySlotRaw is Map) {
-          tx.update(eventRef, {
-            'rolesBySlot.$normalizedSlot.slot': normalizedSlot,
-            'rolesBySlot.$normalizedSlot.assignedCode': null,
-            'rolesBySlot.$normalizedSlot.pendingCode': null,
-            'updatedAt': FieldValue.serverTimestamp(),
-            if (updatedBy != null) 'updatedBy': updatedBy,
-          });
-          return;
-        }
-
-        final roles = (data['roles'] as List<dynamic>?) ?? [];
-        final roleIndex = roles.indexWhere(
-          (r) => r is Map && (r['slot']?.toString() == normalizedSlot),
-        );
-        if (roleIndex == -1) {
-          throw Exception('Role not found');
-        }
-
-        final role = _coerceToRoleMap(roles[roleIndex]);
-        role['slot'] = normalizedSlot;
-        role['assignedCode'] = null;
-        role['pendingCode'] = null;
-        roles[roleIndex] = role;
-
-        tx.update(eventRef, {
-          'roles': roles,
-          'updatedAt': FieldValue.serverTimestamp(),
-          if (updatedBy != null) 'updatedBy': updatedBy,
-        });
-      });
-
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Alocare ștearsă pentru $normalizedSlot'),
-            backgroundColor: const Color(0xFF4ECDC4),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        final messenger = ScaffoldMessenger.of(context);
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Eroare: $e'),
-            backgroundColor: const Color(0xFFFF7878),
-          ),
-        );
-      }
+    final messenger = ScaffoldMessenger.of(context);
+    final normalizedSlot = slot.trim();
+    if (normalizedSlot.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text('Slot invalid')));
+      return;
     }
+
+    if (!mounted) return;
+    Navigator.pushNamed(
+      context,
+      '/ai-chat',
+      arguments: {
+        'eventId': eventId,
+        'initialText': 'Te rog execută: UNASSIGN_ROLE_CODE. slot: $normalizedSlot.',
+      },
+    );
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Trimite comanda în AI Chat pentru dealocare ($normalizedSlot)'),
+        backgroundColor: const Color(0xFF4ECDC4),
+      ),
+    );
   }
 }

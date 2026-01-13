@@ -11,7 +11,7 @@ const admin = require('firebase-admin');
 
 class ShortCodeGenerator {
   constructor(db) {
-    this.db = db || admin.firestore();
+    this.db = db || (admin.apps && admin.apps.length ? admin.firestore() : null);
     this.counterCollection = 'counters';
     this.counterDoc = 'eventShortCode';
   }

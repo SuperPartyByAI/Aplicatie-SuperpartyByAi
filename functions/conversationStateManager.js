@@ -44,7 +44,8 @@ class ConversationStateManager {
 
     const state = {
       sessionId,
-      userId,
+      // Firestore rules expect ownerUid for access control.
+      ownerUid: userId,
       notingMode: true,
       mode: 'collecting_event',
       conversationState: 'collecting_event',
@@ -57,9 +58,15 @@ class ConversationStateManager {
         sarbatoritDob: initialData.sarbatoritDob || null,
         rolesDraft: initialData.rolesDraft || [],
       },
-      pendingQuestions: this._generatePendingQuestions(initialData),
-      transcriptMessages: [],
-      aiInterpretationLog: [],
+      pendingQuestions: this._generatePendingQuestions({
+        date: initialData.date || null,
+        address: initialData.address || null,
+        client: initialData.client || null,
+        sarbatoritNume: initialData.sarbatoritNume || null,
+        sarbatoritVarsta: initialData.sarbatoritVarsta || null,
+        sarbatoritDob: initialData.sarbatoritDob || null,
+        rolesDraft: initialData.rolesDraft || [],
+      }),
       createdAt: now,
       updatedAt: now,
     };
@@ -72,7 +79,7 @@ class ConversationStateManager {
   /**
    * Update draft event with new information
    */
-  async updateDraft(sessionId, updates, userMessage = null, aiInterpretation = null) {
+  async updateDraft(sessionId, updates) {
     const state = await this.getState(sessionId);
     
     if (!state || !state.notingMode) {
@@ -93,26 +100,6 @@ class ConversationStateManager {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
-    // Add transcript message if provided
-    if (userMessage) {
-      updateData.transcriptMessages = admin.firestore.FieldValue.arrayUnion({
-        role: 'user',
-        content: userMessage,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // Add AI interpretation log if provided
-    if (aiInterpretation) {
-      updateData.aiInterpretationLog = admin.firestore.FieldValue.arrayUnion({
-        input: userMessage,
-        extracted: updates,
-        decision: aiInterpretation.decision || 'update_draft',
-        clarifications: aiInterpretation.clarifications || [],
-        timestamp: new Date().toISOString(),
-      });
-    }
-
     await this.db.collection(this.statesCollection).doc(sessionId).update(updateData);
 
     return {
@@ -125,14 +112,10 @@ class ConversationStateManager {
    * Add AI response to transcript
    */
   async addAIResponse(sessionId, aiMessage) {
-    await this.db.collection(this.statesCollection).doc(sessionId).update({
-      transcriptMessages: admin.firestore.FieldValue.arrayUnion({
-        role: 'assistant',
-        content: aiMessage,
-        timestamp: new Date().toISOString(),
-      }),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    // Transcript is stored server-side in /evenimente/{eventId}/ai_sessions/... for super-admin.
+    // Keep this as a no-op for backward compatibility with older call sites.
+    void sessionId;
+    void aiMessage;
   }
 
   /**

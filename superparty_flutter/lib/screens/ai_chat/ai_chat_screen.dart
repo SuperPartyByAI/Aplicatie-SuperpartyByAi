@@ -15,7 +15,14 @@ import '../../services/ai_cache_service.dart';
 import '../../services/chat_cache_service.dart';
 
 class AIChatScreen extends StatefulWidget {
-  const AIChatScreen({super.key});
+  final String? eventId;
+  final String? initialText;
+
+  const AIChatScreen({
+    super.key,
+    this.eventId,
+    this.initialText,
+  });
 
   @override
   State<AIChatScreen> createState() => _AIChatScreenState();
@@ -45,6 +52,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
   bool _loading = false;
   String? _sessionId;
+  String? _eventContextId;
   String? _lastSentMessage;
   DateTime? _lastSentTime;
   String? _userName;
@@ -61,7 +69,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
   @override
   void initState() {
     super.initState();
-    _sessionId = 'session_${DateTime.now().millisecondsSinceEpoch}';
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? 'anon';
+    _sessionId = 'session_${uid}_${DateTime.now().millisecondsSinceEpoch}';
+    _eventContextId = widget.eventId;
     _bootstrap();
   }
 
@@ -78,6 +88,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
       setState(() {
         _messages.add({'role': 'assistant', 'content': _welcomeText()});
       });
+    }
+
+    if (widget.initialText != null && widget.initialText!.trim().isNotEmpty) {
+      _inputController.text = widget.initialText!.trim();
     }
 
     _scrollToBottomSoon();
@@ -366,41 +380,43 @@ class _AIChatScreenState extends State<AIChatScreen> {
           // Use full text for natural language
           commandText = text;
         }
-        
-        // Generate unique clientRequestId for idempotency
-        final clientRequestId = 'req_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
-        
-        // Call chatEventOps with dryRun=true for preview
+
+        // Production policy: all event operations via server-side gateway (chatEventOpsV2).
+        // No direct Firestore writes; no client-side preview/confirm buttons.
         final eventCallable =
             FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
-          'chatEventOps',
-          options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+          'chatEventOpsV2',
+          options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
         );
 
-        final previewResult = await eventCallable.call({
+        final result = await eventCallable.call({
           'text': commandText,
-          'dryRun': true,
-          'clientRequestId': clientRequestId,
+          'sessionId': _sessionId,
+          'eventId': _eventContextId,
         });
-        
-        final previewData = Map<String, dynamic>.from(previewResult.data);
-        if (!mounted) return;
-        
-        // Remove placeholder and show preview
-        setState(() {
-          _messages.removeAt(placeholderIndex);
-          _loading = false;
-        });
-        
-        // Show preview card with confirmation buttons
-        _showEventPreview(
-          context: context,
-          previewData: previewData,
-          commandText: commandText,
-          clientRequestId: clientRequestId,
-        );
-        
-        return; // Don't add response message yet, wait for confirmation
+
+        final data = Map<String, dynamic>.from(result.data);
+        final ok = data['ok'] == true;
+        final action = (data['action']?.toString() ?? '').toUpperCase();
+        final message = data['message']?.toString() ?? 'Operație completată';
+        if (action == 'LIST' && data['items'] is List) {
+          aiResponse = _formatEventList(List<dynamic>.from(data['items'] as List));
+        } else {
+          aiResponse = ok ? message : '❌ $message';
+        }
+
+        // Super-admin debug payload (server-controlled)
+        final debugPayload = data['debug'];
+        if (isAdmin && debugPayload is Map) {
+          try {
+            aiResponse +=
+                '\n\n--- DEBUG (super-admin) ---\n${const JsonEncoder.withIndent('  ').convert(debugPayload)}';
+          } catch (_) {
+            // ignore
+          }
+        }
+
+        // Cache only non-event responses; event commands should always hit server.
       } else {
         // Use regular chatWithAI for normal conversation
         final callable =
@@ -1122,149 +1138,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
     return 'img_${DateTime.now().millisecondsSinceEpoch}_$r';
   }
 
-  // ===================== Event Command Preview =====================
-
-  void _showEventPreview({
-    required BuildContext context,
-    required Map<String, dynamic> previewData,
-    required String commandText,
-    required String clientRequestId,
-  }) {
-    final action = previewData['action']?.toString().toUpperCase() ?? 'NONE';
-    final ok = previewData['ok'] == true;
-    final message = previewData['message']?.toString() ?? '';
-
-    // ASK_INFO: AI needs more information (conversational mode)
-    if (action == 'ASK_INFO') {
-      setState(() {
-        _messages.add({
-          'role': 'assistant',
-          'content': message.isNotEmpty ? message : 'Am nevoie de mai multe informații pentru a continua.',
-        });
-      });
-      _scrollToBottomSoon();
-      return;
-    }
-
-    if (!ok || action == 'NONE') {
-      // Show error message
-      setState(() {
-        _messages.add({
-          'role': 'assistant',
-          'content': '❌ $message',
-        });
-      });
-      _scrollToBottomSoon();
-      return;
-    }
-
-    // For LIST action, show results directly (no confirmation needed)
-    if (action == 'LIST') {
-      final items = previewData['items'] as List<dynamic>? ?? [];
-      final listText = _formatEventList(items);
-      setState(() {
-        _messages.add({
-          'role': 'assistant',
-          'content': listText,
-        });
-      });
-      _scrollToBottomSoon();
-      return;
-    }
-
-    // Show preview card with confirmation buttons
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Preview: $action'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                message,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              if (previewData['data'] != null) ...[
-                const Text(
-                  'Date care vor fi scrise:',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _formatPreviewData(previewData['data']),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ),
-              ],
-              if (previewData['eventId'] != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Event ID: ${previewData['eventId']}',
-                  style: const TextStyle(fontSize: 12, color: Colors.blue),
-                ),
-              ],
-              if (previewData['reason'] != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Motiv: ${previewData['reason']}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              setState(() {
-                _messages.add({
-                  'role': 'assistant',
-                  'content': '❌ Operație anulată.',
-                });
-              });
-              _scrollToBottomSoon();
-            },
-            child: const Text('Anulează'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              _executeEventCommand(
-                commandText: commandText,
-                clientRequestId: clientRequestId,
-                action: action,
-              );
-            },
-            child: const Text('Confirmă'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatPreviewData(dynamic data) {
-    try {
-      if (data is Map) {
-        return const JsonEncoder.withIndent('  ').convert(data);
-      }
-      return data.toString();
-    } catch (e) {
-      return data.toString();
-    }
-  }
+  // ===================== Event helpers =====================
 
   String _formatEventList(List<dynamic> items) {
     if (items.isEmpty) {
@@ -1286,74 +1160,6 @@ class _AIChatScreenState extends State<AIChatScreen> {
     }
 
     return buffer.toString();
-  }
-
-  Future<void> _executeEventCommand({
-    required String commandText,
-    required String clientRequestId,
-    required String action,
-  }) async {
-    final nav = Navigator.of(context);
-
-    // Show loading
-    setState(() {
-      _messages.add({'role': 'assistant', 'content': '...'});
-      _loading = true;
-    });
-    _scrollToBottomSoon();
-
-    try {
-      final eventCallable =
-          FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
-        'chatEventOps',
-        options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
-      );
-
-      final result = await eventCallable.call({
-        'text': commandText,
-        'dryRun': false,
-        'clientRequestId': clientRequestId,
-      });
-
-      final data = Map<String, dynamic>.from(result.data);
-      final ok = data['ok'] == true;
-      final message = data['message']?.toString() ?? 'Operație completată';
-      final eventId = data['eventId'];
-
-      String response;
-      if (ok) {
-        response = '✅ $message';
-        if (eventId != null) {
-          response += '\n\n🆔 Event ID: $eventId';
-          response += '\n\n💡 Poți deschide evenimentul din secțiunea Evenimente.';
-        }
-      } else {
-        response = '❌ $message';
-      }
-
-      setState(() {
-        _messages.removeLast(); // Remove loading
-        _messages.add({'role': 'assistant', 'content': response});
-        _loading = false;
-      });
-
-      if (!mounted) return;
-      if (ok && (action == 'CREATE' || action == 'UPDATE')) {
-        // Navigate to Evenimente so the new/updated event is visible immediately.
-        nav.pushNamed('/evenimente');
-      }
-    } catch (e) {
-      setState(() {
-        _messages.removeLast(); // Remove loading
-        _messages.add({
-          'role': 'assistant',
-          'content': '❌ Eroare la executare: $e',
-        });
-        _loading = false;
-      });
-    }
-
-    _scrollToBottomSoon();
   }
 
   /// Normalize text: lowercase + strip diacritics

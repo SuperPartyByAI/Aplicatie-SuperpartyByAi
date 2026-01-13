@@ -11,6 +11,9 @@ import '../screens/team/team_screen.dart';
 import '../screens/admin/admin_screen.dart';
 import '../screens/admin/kyc_approvals_screen.dart';
 import '../screens/admin/ai_conversations_screen.dart';
+import '../screens/admin/ai_event_override_screen.dart';
+import '../screens/admin/ai_logic_global_screen.dart';
+import '../screens/admin/ai_sessions_screen.dart';
 import '../screens/admin/firestore_migration_screen.dart';
 import '../screens/gm/accounts_screen.dart';
 import '../screens/gm/metrics_screen.dart';
@@ -93,6 +96,29 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
         settings: settings,
         builder: (_) => const AiConversationsScreen(),
       );
+    case '/admin/ai-logic':
+      return MaterialPageRoute(
+        settings: settings,
+        builder: (_) => const AiLogicGlobalScreen(),
+      );
+    case '/admin/ai-sessions':
+      final args = settings.arguments;
+      final eventId = (args is Map) ? args['eventId']?.toString() : null;
+      return MaterialPageRoute(
+        settings: settings,
+        builder: (_) => eventId == null
+            ? UnknownRoutePage(routeName: '/admin/ai-sessions (missing eventId)')
+            : AiSessionsScreen(eventId: eventId),
+      );
+    case '/admin/ai-override':
+      final args = settings.arguments;
+      final eventId = (args is Map) ? args['eventId']?.toString() : null;
+      return MaterialPageRoute(
+        settings: settings,
+        builder: (_) => eventId == null
+            ? UnknownRoutePage(routeName: '/admin/ai-override (missing eventId)')
+            : AiEventOverrideScreen(eventId: eventId),
+      );
     case '/admin/firestore-migration':
       return MaterialPageRoute(
         settings: settings,
@@ -119,9 +145,16 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
         builder: (_) => const StaffSetupScreen(),
       );
     case '/ai-chat':
+      final args = settings.arguments;
+      String? eventId;
+      String? initialText;
+      if (args is Map) {
+        eventId = args['eventId']?.toString();
+        initialText = args['initialText']?.toString();
+      }
       return MaterialPageRoute(
         settings: settings,
-        builder: (_) => const AIChatScreen(),
+        builder: (_) => AIChatScreen(eventId: eventId, initialText: initialText),
       );
     default:
       if (kDebugMode) {

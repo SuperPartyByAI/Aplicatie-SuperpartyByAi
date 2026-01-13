@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../screens/admin/admin_screen.dart';
 import '../screens/admin/ai_conversations_screen.dart';
+import '../screens/admin/ai_event_override_screen.dart';
+import '../screens/admin/ai_logic_global_screen.dart';
+import '../screens/admin/ai_sessions_screen.dart';
 import '../screens/admin/firestore_migration_screen.dart';
 import '../screens/admin/kyc_approvals_screen.dart';
 import '../screens/ai_chat/ai_chat_screen.dart';
@@ -71,6 +74,23 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
     case '/admin/ai-conversations':
       page = const AiConversationsScreen();
       break;
+    case '/admin/ai-logic':
+      page = const AiLogicGlobalScreen();
+      break;
+    case '/admin/ai-sessions':
+      final args = settings.arguments;
+      final eventId = (args is Map) ? args['eventId']?.toString() : null;
+      page = eventId == null
+          ? const NotFoundScreen(routeName: '/admin/ai-sessions (missing eventId)')
+          : AiSessionsScreen(eventId: eventId);
+      break;
+    case '/admin/ai-override':
+      final args = settings.arguments;
+      final eventId = (args is Map) ? args['eventId']?.toString() : null;
+      page = eventId == null
+          ? const NotFoundScreen(routeName: '/admin/ai-override (missing eventId)')
+          : AiEventOverrideScreen(eventId: eventId);
+      break;
     case '/admin/firestore-migration':
       page = const FirestoreMigrationScreen();
       break;
@@ -91,7 +111,14 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
       page = const StaffSetupScreen();
       break;
     case '/ai-chat':
-      page = const AIChatScreen();
+      final args = settings.arguments;
+      String? eventId;
+      String? initialText;
+      if (args is Map) {
+        eventId = args['eventId']?.toString();
+        initialText = args['initialText']?.toString();
+      }
+      page = AIChatScreen(eventId: eventId, initialText: initialText);
       break;
     default:
       debugPrint('[ROUTE] Unknown path: $path - showing NotFoundScreen');

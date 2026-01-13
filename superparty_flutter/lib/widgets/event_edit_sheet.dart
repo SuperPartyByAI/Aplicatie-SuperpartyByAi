@@ -1,8 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../models/event_model.dart';
-import '../services/event_service.dart';
 
 /// Bottom sheet for editing basic event fields
 /// Editable fields: date, address, sarbatoritNume, sarbatoritVarsta, incasare
@@ -20,7 +21,6 @@ class EventEditSheet extends StatefulWidget {
 
 class _EventEditSheetState extends State<EventEditSheet> {
   final _formKey = GlobalKey<FormState>();
-  final EventService _eventService = EventService();
 
   late TextEditingController _dateController;
   late TextEditingController _addressController;
@@ -319,17 +319,25 @@ class _EventEditSheetState extends State<EventEditSheet> {
         patch['sarbatoritVarsta'] = int.tryParse(varstaText) ?? 0;
       }
 
-      await _eventService.updateEvent(widget.event.id, patch);
-
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Eveniment actualizat cu succes'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      if (!mounted) return;
+      Navigator.pop(context);
+      Navigator.pushNamed(
+        context,
+        '/ai-chat',
+        arguments: {
+          'eventId': widget.event.id,
+          'initialText':
+              'Te rog execută: UPDATE_EVENT_FIELDS. Data: ${patch['date']}. Adresă: ${patch['address']}. '
+              'Sărbătorit: ${patch['sarbatoritNume']}, ${patch['sarbatoritVarsta'] ?? ''}. '
+              'Încasare: ${jsonEncode(patch['incasare'])}.',
+        },
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Deschis AI Chat pentru actualizare (server-only write)'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

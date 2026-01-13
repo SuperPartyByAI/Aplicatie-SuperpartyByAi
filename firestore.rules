@@ -77,28 +77,43 @@ service cloud.firestore {
     
     // Events collection (alias for evenimente)
     match /events/{eventId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isEmployee() || (isAuthenticated() && resource.data.createdBy == request.auth.uid);
-      allow delete: if false;
+      // POLICY (Phase 1): employees can read, client never writes.
+      allow read: if isEmployee();
+      allow create, update, delete: if false;
     }
     
     // Evenimente - POLITICA: NEVER DELETE
-    // All authenticated users can read and create events
-    // Only employees or event owner can update/archive
+    // POLICY (Phase 1): employees can read, client never writes (all mutations via Cloud Functions).
     match /evenimente/{eventId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() 
-                    && request.resource.data.createdBy == request.auth.uid
-                    && request.resource.data.isArchived == false
-                    && request.resource.data.schemaVersion in [2, 3];
-      allow update: if isEmployee() || (isAuthenticated() && resource.data.createdBy == request.auth.uid);
-      allow delete: if false; // NEVER DELETE - use isArchived instead
+      allow read: if isEmployee();
+      allow create, update, delete: if false; // NEVER DELETE - use isArchived instead (server-only)
       
       // Audit logs subcollection - only server can write, only GM/admin can read
       match /audit/{logId} {
         allow read: if isGmOrAdmin();
         allow write: if false; // Only server (Admin SDK) can write audit logs
+      }
+
+      // AI debug sessions (super-admin read-only; server writes via Admin SDK)
+      match /ai_sessions/{sessionId} {
+        allow read: if isSuperAdminEmail();
+        allow write: if false;
+
+        match /messages/{msgId} {
+          allow read: if isSuperAdminEmail();
+          allow write: if false;
+        }
+
+        match /steps/{stepId} {
+          allow read: if isSuperAdminEmail();
+          allow write: if false;
+        }
+      }
+
+      // Per-event AI override config (super-admin can read/write)
+      match /ai_overrides/{docId} {
+        allow read, write: if isSuperAdminEmail();
+        allow delete: if false;
       }
       
       // Dovezi subcollection
@@ -136,6 +151,29 @@ service cloud.firestore {
         allow read: if isAuthenticated();
         allow create, update: if isAdmin();
         allow delete: if false; // Nimeni nu poate șterge din subcolecții
+      }
+    }
+
+    // Global AI config documents
+    match /ai_config/{docId} {
+      allow read: if isEmployee();
+      allow write: if isSuperAdminEmail();
+      allow delete: if false;
+    }
+
+    // Temporary AI sessions (CREATE before eventId exists) - super-admin read-only
+    match /ai_temp_sessions/{sessionId} {
+      allow read: if isSuperAdminEmail();
+      allow write: if false;
+
+      match /messages/{msgId} {
+        allow read: if isSuperAdminEmail();
+        allow write: if false;
+      }
+
+      match /steps/{stepId} {
+        allow read: if isSuperAdminEmail();
+        allow write: if false;
       }
     }
     

@@ -11,7 +11,7 @@ const admin = require('firebase-admin');
 
 class RoleDetector {
   constructor(db) {
-    this.db = db || admin.firestore();
+    this.db = db || (admin.apps && admin.apps.length ? admin.firestore() : null);
     this.overridesCollection = 'aiOverrides';
     
     // Base role definitions with synonyms
@@ -189,6 +189,7 @@ class RoleDetector {
    */
   async loadOverrides() {
     try {
+      if (!this.db) return {};
       const overridesSnap = await this.db
         .collection(this.overridesCollection)
         .where('scope', 'in', ['global', 'roleType'])
@@ -422,8 +423,9 @@ class RoleDetector {
 
     // Hours patterns
     const hoursPatterns = [
-      /(\d+(?:[.,]\d+)?)\s*(?:ore|hour|hours|h|hr|hrs)/i,
-      /(\d+)\s*ore\s*(?:si|și)?\s*(\d+)\s*(?:minute|min)/i,
+      // Hours + minutes must be checked before "hours only"
+      /(\d+)\s*(?:ora|ore)\s*(?:si|și)?\s*(\d+)\s*(?:minute|min)/i,
+      /(\d+(?:[.,]\d+)?)\s*(?:ora|ore|hour|hours|h|hr|hrs)/i,
     ];
 
     for (const pattern of hoursPatterns) {
@@ -454,6 +456,11 @@ class RoleDetector {
 
     // Special cases
     if (/jumatate|jumătate|1\/2|0\.5|0,5/.test(normalizedText)) {
+      // "o ora jumatate" / "1 ora jumătate" => 90 min
+      if (/\b(o|1)\s+ora\b/.test(normalizedText) || /\b(o|1)\s+ore\b/.test(normalizedText)) {
+        return 90;
+      }
+      // "jumatate de ora" => 30 min
       if (/ora|ore|hour/.test(normalizedText)) {
         return 30;
       }
