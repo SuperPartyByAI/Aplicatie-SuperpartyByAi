@@ -1,36 +1,34 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:superparty_flutter/app/app_router.dart' as app_router;
-import 'package:superparty_flutter/routing/app_router.dart' as routing_router;
+import 'package:superparty_flutter/routing/route_guards.dart';
 
 void main() {
-  test('app_router blocks /admin for non-superadmin', () {
-    final route = app_router.onGenerateRoute(
-      const RouteSettings(name: '/admin'),
-    ) as MaterialPageRoute;
-    expect(route.settings.name, '/evenimente');
+  test('non-superadmin should be redirected from /admin/*', () {
+    expect(
+      shouldRedirectToEvenimente(path: '/admin', email: 'x@example.com'),
+      true,
+    );
+    expect(
+      shouldRedirectToEvenimente(path: '/admin/ai-logic', email: 'x@example.com'),
+      true,
+    );
   });
 
-  test('app_router blocks /gm for non-superadmin', () {
-    final route = app_router.onGenerateRoute(
-      const RouteSettings(name: '/gm/accounts'),
-    ) as MaterialPageRoute;
-    expect(route.settings.name, '/evenimente');
+  test('non-superadmin should be redirected from /gm/*', () {
+    expect(
+      shouldRedirectToEvenimente(path: '/gm/accounts', email: 'x@example.com'),
+      true,
+    );
   });
 
-  test('routing_router blocks /admin for non-superadmin', () {
-    final route = routing_router.onGenerateRoute(
-      const RouteSettings(name: '/admin'),
-    ) as MaterialPageRoute;
-    expect(route.settings.name, '/evenimente');
-  });
-
-  test('routing_router blocks /gm for non-superadmin', () {
-    final route = routing_router.onGenerateRoute(
-      const RouteSettings(name: '/gm/accounts'),
-    ) as MaterialPageRoute;
-    expect(route.settings.name, '/evenimente');
+  test('superadmin is NOT redirected from /admin/* and /gm/*', () {
+    expect(
+      shouldRedirectToEvenimente(path: '/admin', email: 'ursache.andrei1995@gmail.com'),
+      false,
+    );
+    expect(
+      shouldRedirectToEvenimente(path: '/gm/accounts', email: 'ursache.andrei1995@gmail.com'),
+      false,
+    );
   });
 }
 

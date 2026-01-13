@@ -23,6 +23,7 @@ import '../screens/gm/staff_setup_screen.dart';
 import '../screens/ai_chat/ai_chat_screen.dart';
 import 'unknown_route_page.dart';
 import '../core/auth/is_super_admin.dart';
+import 'route_guards.dart';
 
 /// Generate routes for the app
 /// Preserves route settings (name + arguments) for all routes
@@ -42,8 +43,10 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
   }
   
   // HARD GUARD: block any /admin or /gm deep link for non-superadmin
-  if ((path.startsWith('/admin') || path.startsWith('/gm')) &&
-      !isSuperAdmin(FirebaseAuth.instance.currentUser)) {
+  if (shouldRedirectToEvenimente(
+    path: path,
+    email: FirebaseAuth.instance.currentUser?.email,
+  )) {
     return MaterialPageRoute(
       settings: const RouteSettings(name: '/evenimente'),
       builder: (_) => const EvenimenteScreen(),

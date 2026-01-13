@@ -3,6 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../core/auth/is_super_admin.dart';
 
 class AppStateProvider extends ChangeNotifier {
+  AppStateProvider({bool Function()? isSuperAdminGetter})
+      : _isSuperAdminGetter = (isSuperAdminGetter ??
+            (() => isSuperAdmin(FirebaseAuth.instance.currentUser)));
+
+  final bool Function() _isSuperAdminGetter;
   bool _isGridOpen = false;
   bool _isAdminMode = false;
   bool _isGmMode = false;
@@ -18,7 +23,7 @@ class AppStateProvider extends ChangeNotifier {
   /// Check if user is GM or Admin (has elevated permissions)
   bool get isGmOrAdmin => _isGmMode || _isAdminMode;
 
-  bool get _isSuperAdmin => isSuperAdmin(FirebaseAuth.instance.currentUser);
+  bool get _isSuperAdmin => _isSuperAdminGetter();
 
   void toggleGrid() {
     _isGridOpen = !_isGridOpen;
