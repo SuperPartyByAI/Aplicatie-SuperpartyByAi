@@ -101,6 +101,6 @@ This seeds:
   - Any non-admin read attempt results in **PERMISSION_DENIED** even if UI leaks a route.
 
 - **Flutter route guard (anti deep link)**:
-  - Any route starting with `/admin` is redirected to `/evenimente` for non-superadmin.
+  - Any route starting with `/admin` OR `/gm` is redirected to `/evenimente` for non-superadmin.
   - Admin menu items/buttons are hidden unless `isSuperAdmin(currentUser)` is true.
 

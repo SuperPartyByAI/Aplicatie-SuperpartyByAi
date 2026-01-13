@@ -41,8 +41,9 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
     debugPrint('[ROUTE] Normalized: $path');
   }
   
-  // HARD GUARD: block any /admin deep link for non-superadmin
-  if (path.startsWith('/admin') && !isSuperAdmin(FirebaseAuth.instance.currentUser)) {
+  // HARD GUARD: block any /admin or /gm deep link for non-superadmin
+  if ((path.startsWith('/admin') || path.startsWith('/gm')) &&
+      !isSuperAdmin(FirebaseAuth.instance.currentUser)) {
     return MaterialPageRoute(
       settings: const RouteSettings(name: '/evenimente'),
       builder: (_) => const EvenimenteScreen(),

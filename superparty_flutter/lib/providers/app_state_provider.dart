@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../core/auth/is_super_admin.dart';
 
 class AppStateProvider extends ChangeNotifier {
   bool _isGridOpen = false;
@@ -15,6 +17,8 @@ class AppStateProvider extends ChangeNotifier {
   
   /// Check if user is GM or Admin (has elevated permissions)
   bool get isGmOrAdmin => _isGmMode || _isAdminMode;
+
+  bool get _isSuperAdmin => isSuperAdmin(FirebaseAuth.instance.currentUser);
 
   void toggleGrid() {
     _isGridOpen = !_isGridOpen;
@@ -34,12 +38,16 @@ class AppStateProvider extends ChangeNotifier {
   }
 
   void setAdminMode(bool value) {
+    // Hard block: only super-admin can enter admin mode
+    if (value && !_isSuperAdmin) return;
     if (_isAdminMode == value) return; // Early return if value didn't change
     _isAdminMode = value;
     notifyListeners();
   }
 
   void setGmMode(bool value) {
+    // Hard block: only super-admin can enter GM mode
+    if (value && !_isSuperAdmin) return;
     if (_isGmMode == value) return; // Early return if value didn't change
     _isGmMode = value;
     notifyListeners();
@@ -65,12 +73,16 @@ class AppStateProvider extends ChangeNotifier {
     // Calculate new admin/gm flags
     bool newIsAdmin = false;
     bool newIsGm = false;
-    if (newRole == 'admin') {
-      newIsAdmin = true;
-      newIsGm = true; // Admin has all GM permissions
-    } else if (newRole == 'gm') {
-      newIsGm = true;
+    // SECURITY: ignore staffProfiles gm/admin roles; only super-admin gets gm/admin modes.
+    if (_isSuperAdmin) {
+      // super-admin can optionally use both modes; default enable none
       newIsAdmin = false;
+      newIsGm = false;
+    }
+    // If user is NOT super-admin, force modes off even if they were previously set.
+    if (!_isSuperAdmin) {
+      newIsAdmin = false;
+      newIsGm = false;
     }
     
     // CRITICAL: Early return if nothing changed to prevent rebuild loops

@@ -50,7 +50,8 @@ class GridOverlay extends StatelessWidget {
                             ..._buildNormalButtons(context, appState),
                             if (isSuperAdmin(FirebaseAuth.instance.currentUser))
                               ..._buildAdminButtons(context, appState),
-                            if (appState.isGmMode) ..._buildGmButtons(context, appState),
+                            if (isSuperAdmin(FirebaseAuth.instance.currentUser) && appState.isGmMode)
+                              ..._buildGmButtons(context, appState),
                           ],
                         ),
                       ),
