@@ -70,9 +70,41 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
         }
 
         final data = eventDoc.data();
-        if (data == null || data is! Map<String, dynamic>) {
+        if (data == null) {
           throw Exception('Invalid event data');
         }
+        final schemaVersionRaw = data['schemaVersion'];
+        final schemaVersion = switch (schemaVersionRaw) {
+          int v => v,
+          num v => v.toInt(),
+          String v => int.tryParse(v.trim()) ?? 0,
+          _ => 0,
+        };
+
+        final expectedCode = widget.code.trim().toUpperCase();
+
+        final rolesBySlotRaw = data['rolesBySlot'];
+        if (schemaVersion >= 3 || rolesBySlotRaw is Map) {
+          final roleRaw =
+              rolesBySlotRaw is Map ? rolesBySlotRaw[slot] : null;
+          final role = roleRaw is Map ? Map<String, dynamic>.from(roleRaw) : {};
+          final pendingCode =
+              (role['pendingCode'] ?? '').toString().trim().toUpperCase();
+
+          if (pendingCode != expectedCode) {
+            throw Exception(
+              'Pending code mismatch: expected $expectedCode, got $pendingCode',
+            );
+          }
+
+          transaction.update(eventRef, {
+            'rolesBySlot.$slot.assignedCode': expectedCode,
+            'rolesBySlot.$slot.pendingCode': null,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          return;
+        }
+
         final roles = List<Map<String, dynamic>>.from(data['roles'] ?? []);
 
         bool found = false;
@@ -80,13 +112,12 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
           if (roles[i]['slot'] == slot) {
             // SAFETY: Verify pendingCode matches widget.code before accepting
             final pendingCode = (roles[i]['pendingCode'] ?? '').toString().trim().toUpperCase();
-            final expectedCode = widget.code.trim().toUpperCase();
             
             if (pendingCode != expectedCode) {
               throw Exception('Pending code mismatch: expected $expectedCode, got $pendingCode');
             }
 
-            roles[i]['assignedCode'] = widget.code;
+            roles[i]['assignedCode'] = expectedCode;
             roles[i]['pendingCode'] = null;
             found = true;
             break;
@@ -130,9 +161,26 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
         }
 
         final data = eventDoc.data();
-        if (data == null || data is! Map<String, dynamic>) {
+        if (data == null) {
           throw Exception('Invalid event data');
         }
+        final schemaVersionRaw = data['schemaVersion'];
+        final schemaVersion = switch (schemaVersionRaw) {
+          int v => v,
+          num v => v.toInt(),
+          String v => int.tryParse(v.trim()) ?? 0,
+          _ => 0,
+        };
+
+        final rolesBySlotRaw = data['rolesBySlot'];
+        if (schemaVersion >= 3 || rolesBySlotRaw is Map) {
+          transaction.update(eventRef, {
+            'rolesBySlot.$slot.pendingCode': null,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          return;
+        }
+
         final roles = List<Map<String, dynamic>>.from(data['roles'] ?? []);
 
         for (var i = 0; i < roles.length; i++) {

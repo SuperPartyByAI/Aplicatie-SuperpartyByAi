@@ -206,8 +206,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
   String _describeUserMessage(String text, bool hasImage, String? imageName) {
     final t = text.trim();
-    if (t.isNotEmpty && hasImage)
+    if (t.isNotEmpty && hasImage) {
       return '$t\n[Imagine atașată: ${imageName ?? "poză"}]';
+    }
     if (hasImage) return '[Imagine atașată: ${imageName ?? "poză"}]';
     return t;
   }
@@ -383,6 +384,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
         });
         
         final previewData = Map<String, dynamic>.from(previewResult.data);
+        if (!mounted) return;
         
         // Remove placeholder and show preview
         setState(() {
@@ -802,10 +804,12 @@ class _AIChatScreenState extends State<AIChatScreen> {
   Widget _buildGalleryBody() {
     final filtered = _gallery.where((x) {
       if (_galleryFilter == _GalleryFilter.all) return true;
-      if (_galleryFilter == _GalleryFilter.active)
+      if (_galleryFilter == _GalleryFilter.active) {
         return x.status == _GalleryStatus.active;
-      if (_galleryFilter == _GalleryFilter.archived)
+      }
+      if (_galleryFilter == _GalleryFilter.archived) {
         return x.status == _GalleryStatus.archived;
+      }
       return x.status == _GalleryStatus.deleted;
     }).toList()
       ..sort((a, b) => (b.ts).compareTo(a.ts));
@@ -865,7 +869,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
               builder: (context, constraints) {
                 final w = constraints.maxWidth;
                 final cols = w < 420 ? 1 : 2;
-                final spacing = 10.0;
+                const spacing = 10.0;
                 final itemW = (w - (cols - 1) * spacing) / cols;
 
                 return Wrap(
@@ -1289,6 +1293,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
     required String clientRequestId,
     required String action,
   }) async {
+    final nav = Navigator.of(context);
+
     // Show loading
     setState(() {
       _messages.add({'role': 'assistant', 'content': '...'});
@@ -1330,6 +1336,12 @@ class _AIChatScreenState extends State<AIChatScreen> {
         _messages.add({'role': 'assistant', 'content': response});
         _loading = false;
       });
+
+      if (!mounted) return;
+      if (ok && (action == 'CREATE' || action == 'UPDATE')) {
+        // Navigate to Evenimente so the new/updated event is visible immediately.
+        nav.pushNamed('/evenimente');
+      }
     } catch (e) {
       setState(() {
         _messages.removeLast(); // Remove loading

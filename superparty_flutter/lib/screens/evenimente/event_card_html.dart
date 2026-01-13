@@ -494,7 +494,7 @@ class EventCardHtml extends StatelessWidget {
     final r = m % 60;
     if (h <= 0) return '${r}m';
     if (r == 0) return '${h}h';
-    return '${h}h${r}';
+    return '${h}h$r';
   }
 
   bool _isValidStaffCode(String code) {

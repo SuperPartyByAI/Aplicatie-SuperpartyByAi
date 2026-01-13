@@ -1,6 +1,9 @@
 import 'dart:ui' show ImageFilter;
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/event_model.dart';
 import '../../widgets/modals/range_modal.dart';
 import '../../widgets/modals/code_modal.dart';
@@ -46,6 +49,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
+      floatingActionButton: _buildNoteazaAiFab(),
       body: Container(
         decoration: const BoxDecoration(
           gradient: RadialGradient(
@@ -93,6 +97,248 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildNoteazaAiFab() {
+    return FloatingActionButton.extended(
+      onPressed: _openNoteazaAiModal,
+      backgroundColor: const Color(0xFF4ECDC4),
+      foregroundColor: const Color(0xFF0B1220),
+      label: const Text(
+        'Noteaza (AI)',
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.2,
+        ),
+      ),
+      icon: const Icon(Icons.auto_awesome),
+    );
+  }
+
+  void _openNoteazaAiModal() {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      barrierColor: const Color(0x8C000000),
+      builder: (dialogContext) {
+        var loading = false;
+        String? errorText;
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            Future<void> submit() async {
+              final text = controller.text.trim();
+              if (text.isEmpty) {
+                setModalState(() => errorText = 'Scrie descrierea evenimentului.');
+                return;
+              }
+
+              setModalState(() {
+                loading = true;
+                errorText = null;
+              });
+
+              try {
+                final clientRequestId =
+                    'noteaza_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
+                final callable =
+                    FirebaseFunctions.instanceFor(region: 'us-central1')
+                        .httpsCallable(
+                  'chatEventOps',
+                  options: HttpsCallableOptions(
+                    timeout: const Duration(seconds: 30),
+                  ),
+                );
+
+                final res = await callable.call({
+                  'text': text,
+                  'dryRun': false,
+                  'clientRequestId': clientRequestId,
+                });
+
+                final data = res.data;
+                final map = data is Map
+                    ? Map<String, dynamic>.from(data)
+                    : <String, dynamic>{};
+                final ok = map['ok'] == true;
+                final message = map['message']?.toString() ?? '';
+
+                if (!mounted) return;
+                navigator.pop();
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      ok
+                          ? (message.isNotEmpty
+                              ? message
+                              : 'Eveniment creat. Vezi în lista Evenimente.')
+                          : (message.isNotEmpty ? message : 'Nu am putut crea evenimentul.'),
+                    ),
+                    backgroundColor:
+                        ok ? const Color(0xFF4ECDC4) : const Color(0xFFFF7878),
+                  ),
+                );
+              } catch (e) {
+                setModalState(() {
+                  loading = false;
+                  errorText = 'Eroare: $e';
+                });
+              }
+            }
+
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  decoration: BoxDecoration(
+                    color: const Color(0xEB0B1220),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0x1AFFFFFF)),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x8C000000),
+                        blurRadius: 80,
+                        offset: Offset(0, 24),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Noteaza o petrecere (AI)',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                color:
+                                    const Color(0xFFEAF1FF).withOpacity(0.92),
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: loading ? null : () => navigator.pop(),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              backgroundColor: const Color(0x14FFFFFF),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              'Închide',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFFEAF1FF)
+                                    .withOpacity(0.9),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Ex: "Notează o petrecere pentru Maria pe 15-02-2026 la București, Str. Exemplu 10, 10 copii, animator + popcorn".',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: const Color(0xFFEAF1FF).withOpacity(0.6),
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: controller,
+                        enabled: !loading,
+                        minLines: 3,
+                        maxLines: 6,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFFEAF1FF),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Scrie aici...',
+                          hintStyle: TextStyle(
+                            color: const Color(0xFFEAF1FF).withOpacity(0.45),
+                          ),
+                          filled: true,
+                          fillColor: const Color(0x14FFFFFF),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: Color(0x24FFFFFF)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: Color(0x24FFFFFF)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: Color(0x5EFFFFFF)),
+                          ),
+                        ),
+                        onSubmitted: (_) => submit(),
+                      ),
+                      if (errorText != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          errorText!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFFFF7878),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Spacer(),
+                          TextButton(
+                            onPressed: loading ? null : submit,
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 8),
+                              backgroundColor: const Color(0xFF4ECDC4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              loading ? 'Se procesează...' : 'Trimite',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF0B1220),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    ).then((_) {
+      controller.dispose();
+    });
   }
 
   /// AppBar sticky cu filtre - identic cu HTML
@@ -793,15 +1039,17 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       final month = int.parse(isoMatch.group(2)!);
       final day = int.parse(isoMatch.group(3)!);
       final timeParts = time.split(':');
-      final hour = timeParts.length >= 1 ? int.tryParse(timeParts[0]) ?? 0 : 0;
-      final minute = timeParts.length >= 2 ? int.tryParse(timeParts[1]) ?? 0 : 0;
+      final hour = int.tryParse(timeParts.first) ?? 0;
+      final minute =
+          timeParts.length >= 2 ? int.tryParse(timeParts[1]) ?? 0 : 0;
       return DateTime(year, month, day, hour, minute);
     }
     final date = _parseDate(dateStr);
     if (date != null) {
       final timeParts = time.split(':');
-      final hour = timeParts.length >= 1 ? int.tryParse(timeParts[0]) ?? 0 : 0;
-      final minute = timeParts.length >= 2 ? int.tryParse(timeParts[1]) ?? 0 : 0;
+      final hour = int.tryParse(timeParts.first) ?? 0;
+      final minute =
+          timeParts.length >= 2 ? int.tryParse(timeParts[1]) ?? 0 : 0;
       return DateTime(date.year, date.month, date.day, hour, minute);
     }
     return null;
@@ -937,42 +1185,75 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       final db = FirebaseFirestore.instance;
       final eventRef = db.collection('evenimente').doc(eventId);
 
-      // Get current event data
-      final eventDoc = await eventRef.get();
-      if (!eventDoc.exists) {
-        throw Exception('Event not found');
+      final normalizedSlot = slot.trim();
+      final normalizedCode = code.trim().toUpperCase();
+      if (normalizedSlot.isEmpty) {
+        throw Exception('Slot invalid');
+      }
+      if (normalizedCode.isEmpty) {
+        throw Exception('Cod invalid');
+      }
+      if (normalizedCode.length > 32) {
+        throw Exception('Cod prea lung');
       }
 
-      final data = eventDoc.data();
-      if (data == null) {
-        debugPrint('[Evenimente] Event data is null for $eventId');
-        throw Exception('Event data is null');
-      }
-      final roles = (data['roles'] as List<dynamic>?) ?? [];
+      final updatedBy = FirebaseAuth.instance.currentUser?.uid;
 
-      // Find role by slot
-      final roleIndex =
-          roles.indexWhere((r) => r is Map && (r['slot']?.toString() == slot));
-      if (roleIndex == -1) {
-        throw Exception('Role not found');
-      }
+      // Transaction to avoid lost updates when multiple clients update roles concurrently.
+      await db.runTransaction((tx) async {
+        final snap = await tx.get(eventRef);
+        if (!snap.exists) {
+          throw Exception('Event not found');
+        }
+        final data = snap.data();
+        if (data == null) {
+          throw Exception('Event data is null');
+        }
 
-      final role = _coerceToRoleMap(roles[roleIndex]);
+        // Prefer V3 schema: rolesBySlot (map), fallback to legacy roles[] array.
+        final schemaVersionRaw = data['schemaVersion'];
+        final schemaVersion = switch (schemaVersionRaw) {
+          int v => v,
+          num v => v.toInt(),
+          String v => int.tryParse(v.trim()) ?? 0,
+          _ => 0,
+        };
 
-      // Update role with pendingCode (not assignedCode - needs approval)
-      role['pendingCode'] = code;
-      roles[roleIndex] = role;
+        final rolesBySlotRaw = data['rolesBySlot'];
+        if (schemaVersion >= 3 || rolesBySlotRaw is Map) {
+          tx.update(eventRef, {
+            'rolesBySlot.$normalizedSlot.slot': normalizedSlot,
+            'rolesBySlot.$normalizedSlot.pendingCode': normalizedCode,
+            'updatedAt': FieldValue.serverTimestamp(),
+            if (updatedBy != null) 'updatedBy': updatedBy,
+          });
+          return;
+        }
 
-      // Save to Firestore
-      await eventRef.update({
-        'roles': roles,
-        'updatedAt': FieldValue.serverTimestamp(),
+        final roles = (data['roles'] as List<dynamic>?) ?? [];
+        final roleIndex = roles.indexWhere(
+          (r) => r is Map && (r['slot']?.toString() == normalizedSlot),
+        );
+        if (roleIndex == -1) {
+          throw Exception('Role not found');
+        }
+
+        final role = _coerceToRoleMap(roles[roleIndex]);
+        role['slot'] = normalizedSlot;
+        role['pendingCode'] = normalizedCode;
+        roles[roleIndex] = role;
+
+        tx.update(eventRef, {
+          'roles': roles,
+          'updatedAt': FieldValue.serverTimestamp(),
+          if (updatedBy != null) 'updatedBy': updatedBy,
+        });
       });
 
       if (mounted) {
         messenger.showSnackBar(
           SnackBar(
-            content: Text('Cerere trimisă pentru $slot: $code'),
+            content: Text('Cerere trimisă pentru $normalizedSlot: $normalizedCode'),
             backgroundColor: const Color(0xFF4ECDC4),
           ),
         );
@@ -996,44 +1277,68 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       final db = FirebaseFirestore.instance;
       final eventRef = db.collection('evenimente').doc(eventId);
 
-      // Get current event data
-      final eventDoc = await eventRef.get();
-      if (!eventDoc.exists) {
-        throw Exception('Event not found');
+      final normalizedSlot = slot.trim();
+      if (normalizedSlot.isEmpty) {
+        throw Exception('Slot invalid');
       }
 
-      final data = eventDoc.data();
-      if (data == null) {
-        debugPrint('[Evenimente] Event data is null for $eventId');
-        throw Exception('Event data is null');
-      }
+      final updatedBy = FirebaseAuth.instance.currentUser?.uid;
 
-      final roles = (data['roles'] as List<dynamic>?) ?? [];
+      await db.runTransaction((tx) async {
+        final snap = await tx.get(eventRef);
+        if (!snap.exists) {
+          throw Exception('Event not found');
+        }
+        final data = snap.data();
+        if (data == null) {
+          throw Exception('Event data is null');
+        }
 
-      // Find role by slot
-      final roleIndex =
-          roles.indexWhere((r) => r is Map && (r['slot']?.toString() == slot));
-      if (roleIndex == -1) {
-        throw Exception('Role not found');
-      }
+        final schemaVersionRaw = data['schemaVersion'];
+        final schemaVersion = switch (schemaVersionRaw) {
+          int v => v,
+          num v => v.toInt(),
+          String v => int.tryParse(v.trim()) ?? 0,
+          _ => 0,
+        };
 
-      final role = _coerceToRoleMap(roles[roleIndex]);
+        final rolesBySlotRaw = data['rolesBySlot'];
+        if (schemaVersion >= 3 || rolesBySlotRaw is Map) {
+          tx.update(eventRef, {
+            'rolesBySlot.$normalizedSlot.slot': normalizedSlot,
+            'rolesBySlot.$normalizedSlot.assignedCode': null,
+            'rolesBySlot.$normalizedSlot.pendingCode': null,
+            'updatedAt': FieldValue.serverTimestamp(),
+            if (updatedBy != null) 'updatedBy': updatedBy,
+          });
+          return;
+        }
 
-      // Clear both assignedCode and pendingCode
-      role['assignedCode'] = null;
-      role['pendingCode'] = null;
-      roles[roleIndex] = role;
+        final roles = (data['roles'] as List<dynamic>?) ?? [];
+        final roleIndex = roles.indexWhere(
+          (r) => r is Map && (r['slot']?.toString() == normalizedSlot),
+        );
+        if (roleIndex == -1) {
+          throw Exception('Role not found');
+        }
 
-      // Save to Firestore
-      await eventRef.update({
-        'roles': roles,
-        'updatedAt': FieldValue.serverTimestamp(),
+        final role = _coerceToRoleMap(roles[roleIndex]);
+        role['slot'] = normalizedSlot;
+        role['assignedCode'] = null;
+        role['pendingCode'] = null;
+        roles[roleIndex] = role;
+
+        tx.update(eventRef, {
+          'roles': roles,
+          'updatedAt': FieldValue.serverTimestamp(),
+          if (updatedBy != null) 'updatedBy': updatedBy,
+        });
       });
 
       if (mounted) {
         messenger.showSnackBar(
           SnackBar(
-            content: Text('Alocare ștearsă pentru $slot'),
+            content: Text('Alocare ștearsă pentru $normalizedSlot'),
             backgroundColor: const Color(0xFF4ECDC4),
           ),
         );
