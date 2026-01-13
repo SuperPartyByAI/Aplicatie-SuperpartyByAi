@@ -194,10 +194,10 @@ class _AssignModalState extends State<AssignModal> {
         if (hasAssigned || hasPending) ...[
           const SizedBox(height: 8),
           Text(
-            [
+            '${[
               if (hasAssigned) 'Curent: $currentAssigned',
               if (hasPending) 'In asteptare: $currentPending',
-            ].join(' • ') + ' • scrie codul ca sa trimiti o cerere noua',
+            ].join(' • ')} • scrie codul ca sa trimiti o cerere noua',
             style: TextStyle(
               fontSize: 11,
               color: const Color(0xFFEAF1FF).withOpacity(0.6),
