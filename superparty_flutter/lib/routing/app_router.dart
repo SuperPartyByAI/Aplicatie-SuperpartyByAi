@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import '../screens/home/home_screen.dart';
 import '../screens/kyc/kyc_screen.dart';
-import '../screens/evenimente/evenimente_screen.dart';
+import '../features/evenimente/evenimente.dart';
 import '../screens/disponibilitate/disponibilitate_screen.dart';
 import '../screens/salarizare/salarizare_screen.dart';
 import '../screens/centrala/centrala_screen.dart';
