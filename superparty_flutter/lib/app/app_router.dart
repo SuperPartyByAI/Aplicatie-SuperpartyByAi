@@ -27,7 +27,12 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
   final raw = settings.name ?? '/';
   final cleaned = raw.startsWith('/#') ? raw.substring(2) : raw; // "/#/x" -> "/x"
   final uri = Uri.tryParse(cleaned) ?? Uri(path: cleaned);
-  final path = uri.path.isEmpty ? '/' : uri.path;
+  var path = uri.path.isEmpty ? '/' : uri.path;
+
+  // Normalize trailing slashes (except root).
+  if (path.length > 1 && path.endsWith('/')) {
+    path = path.replaceAll(RegExp(r'/+$'), '');
+  }
 
   debugPrint('[ROUTE] Normalized: $path');
 
@@ -68,6 +73,10 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
       page = const AiConversationsScreen();
       break;
     case '/admin/firestore-migration':
+      page = const FirestoreMigrationScreen();
+      break;
+    // Backwards-compatible alias (underscore).
+    case '/admin/firestore_migration':
       page = const FirestoreMigrationScreen();
       break;
     case '/gm/accounts':
