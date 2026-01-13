@@ -490,21 +490,28 @@ Scrie "da" pentru a confirma și crea evenimentul, sau "anulează" pentru a renu
         if (step === 'confirm') {
           if (userText === 'da' || userText === 'confirm' || userText === 'confirma') {
             // Call chatEventOps to create event
-            const chatEventOps = require('./chatEventOps');
+            const { chatEventOps } = require('./chatEventOps');
             
             const eventText = `Notează eveniment pentru ${eventData.sarbatoritNume}, ${eventData.sarbatoritVarsta} ani, pe ${eventData.date} la ${eventData.address}`;
             
             try {
+              console.log(`[${requestId}] Confirmed event creation via chatEventOps`, {
+                uid: request.auth?.uid,
+                sessionId: currentSessionId,
+                eventTextPreview: eventText.slice(0, 180),
+              });
+
+              // IMPORTANT: chatEventOps is a v2 onCall handler.
+              // It must be invoked with the callable request shape (single argument),
+              // NOT with (req, res) like an express handler.
               const eventResult = await chatEventOps({
                 data: {
                   text: eventText,
                   dryRun: false,
                   clientRequestId: `interactive_${currentSessionId}_${Date.now()}`
                 },
-                auth: request.auth
-              }, {
-                status: () => ({ json: () => {} }),
-                json: (data) => data
+                auth: request.auth,
+                rawRequest: request.rawRequest,
               });
               
               // Clear conversation state
@@ -515,7 +522,7 @@ Scrie "da" pentru a confirma și crea evenimentul, sau "anulează" pentru a renu
                 message: `🎉 Perfect! Evenimentul a fost creat cu succes! ✅\n\nPoți vedea detaliile în lista de evenimente.`,
                 sessionId: currentSessionId,
                 eventCreated: true,
-                eventId: eventResult.eventId
+                eventId: eventResult?.eventId || eventResult?.data?.eventId
               };
             } catch (error) {
               console.error(`[${requestId}] Error creating event:`, error);
@@ -523,7 +530,7 @@ Scrie "da" pentru a confirma și crea evenimentul, sau "anulează" pentru a renu
               
               return {
                 success: false,
-                message: `❌ A apărut o eroare la crearea evenimentului: ${error.message}`,
+                message: `❌ Nu am reușit să salvez evenimentul. Încearcă din nou. (errorId: ${requestId})`,
                 sessionId: currentSessionId
               };
             }
@@ -550,9 +557,12 @@ Scrie "da" pentru a confirma și crea evenimentul, sau "anulează" pentru a renu
       const shortConfirmations = ['da', 'ok', 'bine', 'excelent', 'perfect', 'super', 'yes', 'no', 'nu'];
       const isShortConfirmation = shortConfirmations.includes(userText) || userText.length <= 3;
 
+      const cacheKey = conversationState
+        ? null
+        : `ai:response:${userMessage.content.toLowerCase().trim().substring(0, 100)}`;
+
       // OPTIMIZATION: Check cache for common questions (skip if in conversation state)
       if (!conversationState) {
-        const cacheKey = `ai:response:${userMessage.content.toLowerCase().trim().substring(0, 100)}`;
         const cachedResponse = cache.get(cacheKey);
 
         if (cachedResponse && !isShortConfirmation) {
@@ -704,7 +714,7 @@ Hai să facem fiecare conversație o mini-petrecere! 🎉🎊🥳✨💫🌟`,
       console.log(`[${requestId}] AI response in ${duration}ms`);
 
       // OPTIMIZATION: Cache response for common questions (2 minutes)
-      if (userMessage.content.length < 100) {
+      if (cacheKey && userMessage.content.length < 100) {
         cache.set(cacheKey, aiResponse, 2 * 60 * 1000);
       }
 
@@ -800,6 +810,14 @@ const { generateReportAI } = require('./generateReportAI');
 exports.generateReportAI = generateReportAI;
 
 // AI Event Operations (CREATE/UPDATE/ARCHIVE/LIST)
+// Local emulator test (Functions + Firestore):
+// - cd functions
+// - npm install
+// - firebase emulators:start --only functions,firestore
+// - Call callable `chatWithAI` to start interactive noting flow:
+//   message: "am de notat o petrecere" → answer date/address → confirm "da"
+// - Or call callable `chatEventOps` directly with:
+//   { text: "...", dryRun:false, clientRequestId:"test_1" }
 exports.chatEventOps = require('./chatEventOps').chatEventOps;
 
 // AI Event Operations V2 (Enhanced with interactive flow, short codes, role detection)
