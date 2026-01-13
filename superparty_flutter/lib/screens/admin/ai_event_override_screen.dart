@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import '../../core/auth/is_super_admin.dart';
 
 class AiEventOverrideScreen extends StatefulWidget {
   final String eventId;
@@ -16,16 +17,13 @@ class AiEventOverrideScreen extends StatefulWidget {
 }
 
 class _AiEventOverrideScreenState extends State<AiEventOverrideScreen> {
-  static const _superAdminEmail = 'ursache.andrei1995@gmail.com';
-
   final _json = TextEditingController();
 
   bool _loading = true;
   bool _saving = false;
   String? _error;
 
-  bool get _isSuperAdmin =>
-      (FirebaseAuth.instance.currentUser?.email ?? '') == _superAdminEmail;
+  bool get _isSuperAdmin => isSuperAdmin(FirebaseAuth.instance.currentUser);
 
   DocumentReference<Map<String, dynamic>> get _publicRef => FirebaseFirestore.instance
       .collection('ai_config_overrides')

@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/auth/is_super_admin.dart';
 import '../../providers/app_state_provider.dart';
 import '../../services/ai_cache_service.dart';
 import '../../services/chat_cache_service.dart';
@@ -316,22 +317,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
       return;
     }
 
-    final isAdmin = user.email == 'ursache.andrei1995@gmail.com';
+    final isAdmin = isSuperAdmin(user);
     final appState = Provider.of<AppStateProvider>(context, listen: false);
 
-    // Secret commands for admin
-    if (isAdmin && text.toLowerCase() == 'admin') {
-      appState.setAdminMode(true);
-      Navigator.pop(context);
-      appState.openGrid();
-      return;
-    }
-    if (isAdmin && text.toLowerCase() == 'gm') {
-      appState.setGmMode(true);
-      Navigator.pop(context);
-      appState.openGrid();
-      return;
-    }
+    // SECURITY: no secret privilege escalation commands.
 
     // Check cache first (only for text without image)
     // Detect event intent early (before cache) to avoid cache hijacking event commands

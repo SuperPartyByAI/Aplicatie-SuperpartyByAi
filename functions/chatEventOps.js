@@ -19,14 +19,8 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-// Super admin email with full access
-const SUPER_ADMIN_EMAIL = 'ursache.andrei1995@gmail.com';
-
-// Admin emails from environment (comma-separated)
-function getAdminEmails() {
-  const envEmails = process.env.ADMIN_EMAILS || '';
-  return envEmails.split(',').map(e => e.trim()).filter(Boolean);
-}
+// SECURITY: single super-admin email only (no env overrides).
+const { SUPER_ADMIN_EMAIL } = require('./authGuards');
 
 // Require authentication only (no employee check)
 function requireAuth(request) {
@@ -41,8 +35,7 @@ function requireAuth(request) {
 
 // Check if user is employee (for permission checks)
 async function isEmployee(uid, email) {
-  const adminEmails = [SUPER_ADMIN_EMAIL, ...getAdminEmails()];
-  if (adminEmails.includes(email)) {
+  if ((email || '').toString().trim().toLowerCase() === SUPER_ADMIN_EMAIL) {
     return {
       isEmployee: true,
       role: 'admin',

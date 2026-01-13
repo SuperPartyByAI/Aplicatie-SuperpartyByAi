@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../core/auth/is_super_admin.dart';
+
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
 
@@ -44,7 +46,8 @@ class AppDrawer extends StatelessWidget {
           _buildDrawerItem(context, Icons.phone, 'Centrala', '/centrala'),
           _buildDrawerItem(context, Icons.chat, 'WhatsApp', '/whatsapp'),
           _buildDrawerItem(context, Icons.people, 'Echipă', '/team'),
-          _buildDrawerItem(context, Icons.admin_panel_settings, 'Admin', '/admin'),
+          if (isSuperAdmin(FirebaseAuth.instance.currentUser))
+            _buildDrawerItem(context, Icons.admin_panel_settings, 'Admin', '/admin'),
           _buildDrawerItem(context, Icons.smart_toy, 'AI Chat', '/ai-chat'),
           const Divider(),
           ListTile(

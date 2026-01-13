@@ -22,7 +22,7 @@ const aiSessionLogger = require('./aiSessionLogger');
 const { normalizeEventFields, normalizeRoleFields, normalizeRoleType } = require('./normalizers');
 const { createEvent, addRole, updateRole, archiveRole, archiveEvent } = require('./eventOperations_v3');
 
-const SUPER_ADMIN_EMAIL = 'ursache.andrei1995@gmail.com';
+const { SUPER_ADMIN_EMAIL } = require('./authGuards');
 
 function requireAuth(request) {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Trebuie să fii autentificat.');

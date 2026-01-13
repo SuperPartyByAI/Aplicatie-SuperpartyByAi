@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_service.dart';
+import '../core/auth/is_super_admin.dart';
 
 /// Service for detecting user roles from staffProfiles
 /// 
@@ -78,9 +79,9 @@ class RoleService {
   }
 
   /// BACKWARD COMPATIBILITY: Check if user is admin by email
-  /// This is kept as fallback for existing "admin" secret command
+  /// SECURITY: single source of truth for super-admin gating
   bool isAdminByEmail() {
     final user = _auth.currentUser;
-    return user?.email == 'ursache.andrei1995@gmail.com';
+    return isSuperAdmin(user);
   }
 }

@@ -3,10 +3,9 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../core/auth/is_super_admin.dart';
 
 class AiSessionDetailScreen extends StatelessWidget {
-  static const _superAdminEmail = 'ursache.andrei1995@gmail.com';
-
   final String sessionId;
 
   const AiSessionDetailScreen({
@@ -14,8 +13,7 @@ class AiSessionDetailScreen extends StatelessWidget {
     required this.sessionId,
   });
 
-  bool get _isSuperAdmin =>
-      (FirebaseAuth.instance.currentUser?.email ?? '') == _superAdminEmail;
+  bool get _isSuperAdmin => isSuperAdmin(FirebaseAuth.instance.currentUser);
 
   @override
   Widget build(BuildContext context) {

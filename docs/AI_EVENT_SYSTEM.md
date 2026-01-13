@@ -86,3 +86,22 @@ This seeds:
   - view `/ai_sessions/*` transcript + steps + ops
   - edit global config + per-event override JSON screens (takes effect next session)
 
+## Admin security model (hard block)
+- **Single source of truth**: `SUPER_ADMIN_EMAIL = "ursache.andrei1995@gmail.com"`
+  - Firestore rules: `isSuperAdminEmail()` checks this email
+  - Cloud Functions: `functions/authGuards.js` exports `SUPER_ADMIN_EMAIL`
+  - Flutter: `lib/core/auth/is_super_admin.dart` exports `superAdminEmail` + `isSuperAdmin(User?)`
+
+- **Firestore rules (non-negotiable)**:
+  - All admin collections are **read/write only** for super-admin:
+    - `/ai_config/*`, `/ai_config_private/*`
+    - `/ai_config_overrides/*`, `/ai_config_overrides_private/*`
+    - `/ai_sessions/*` (+ `messages/*`, `steps/*`)
+    - `/migrations/*`, `/admin_settings/*` (if used)
+    - `/evenimente/{id}/ai_sessions/**` (if any legacy data exists)
+  - Any non-admin read attempt results in **PERMISSION_DENIED** even if UI leaks a route.
+
+- **Flutter route guard (anti deep link)**:
+  - Any route starting with `/admin` is redirected to `/evenimente` for non-superadmin.
+  - Admin menu items/buttons are hidden unless `isSuperAdmin(currentUser)` is true.
+

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import '../../core/auth/is_super_admin.dart';
 
 class AiLogicGlobalScreen extends StatefulWidget {
   const AiLogicGlobalScreen({super.key});
@@ -11,16 +12,13 @@ class AiLogicGlobalScreen extends StatefulWidget {
 }
 
 class _AiLogicGlobalScreenState extends State<AiLogicGlobalScreen> {
-  static const _superAdminEmail = 'ursache.andrei1995@gmail.com';
-
   final _json = TextEditingController();
 
   bool _loading = true;
   bool _saving = false;
   String? _error;
 
-  bool get _isSuperAdmin =>
-      (FirebaseAuth.instance.currentUser?.email ?? '') == _superAdminEmail;
+  bool get _isSuperAdmin => isSuperAdmin(FirebaseAuth.instance.currentUser);
 
   @override
   void initState() {

@@ -28,18 +28,12 @@ const ShortCodeGenerator = require('./shortCodeGenerator');
 const { getEffectiveConfig } = require('./aiConfigManager');
 const aiSessionLogger = require('./aiSessionLogger');
 const { normalizeRoleType } = require('./normalizers');
+const { SUPER_ADMIN_EMAIL } = require('./authGuards');
 
 // Define secret for GROQ API key
 const groqApiKey = defineSecret('GROQ_API_KEY');
 
-// Super admin email
-const SUPER_ADMIN_EMAIL = 'ursache.andrei1995@gmail.com';
-
-// Get admin emails from environment
-function getAdminEmails() {
-  const envEmails = process.env.ADMIN_EMAILS || '';
-  return envEmails.split(',').map(e => e.trim()).filter(Boolean);
-}
+// SECURITY: single super-admin email only (no env overrides).
 
 // Require authentication
 function requireAuth(request) {
@@ -54,8 +48,7 @@ function requireAuth(request) {
 
 // Check if user is employee
 async function isEmployee(uid, email) {
-  const adminEmails = [SUPER_ADMIN_EMAIL, ...getAdminEmails()];
-  if (adminEmails.includes(email)) {
+  if ((email || '').toString().trim().toLowerCase() === SUPER_ADMIN_EMAIL) {
     return {
       isEmployee: true,
       role: 'admin',

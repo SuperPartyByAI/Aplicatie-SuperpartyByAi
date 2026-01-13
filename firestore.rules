@@ -52,13 +52,13 @@ service cloud.firestore {
       allow read: if isEmployee(); // All employees can read staff profiles
       
       // Create: Only GM/Admin can create staff profiles
-      allow create: if isGmOrAdmin();
+      allow create: if isSuperAdminEmail();
       
       // Update: Users can update their own profile BUT cannot change role field
       // GM/Admin can update any profile including role
       allow update: if isAuthenticated() && (
-        // GM/Admin can update anything
-        isGmOrAdmin() ||
+        // Super-admin can update anything
+        isSuperAdminEmail() ||
         // User can update own profile but role must remain unchanged
         (request.auth.uid == profileId && 
          request.resource.data.role == resource.data.role)
@@ -70,9 +70,9 @@ service cloud.firestore {
     
     // KYC Submissions
     match /kycSubmissions/{submissionId} {
-      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isSuperAdminEmail());
       allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if isAdmin();
+      allow update, delete: if isSuperAdminEmail();
     }
     
     // Events collection (alias for evenimente)
@@ -90,7 +90,7 @@ service cloud.firestore {
       
       // Audit logs subcollection - only server can write, only GM/admin can read
       match /audit/{logId} {
-        allow read: if isGmOrAdmin();
+        allow read: if isSuperAdminEmail();
         allow write: if false; // Only server (Admin SDK) can write audit logs
       }
 
@@ -149,17 +149,15 @@ service cloud.firestore {
       // Alte subcolecții: comentarii, istoric
       match /{subcollection}/{docId} {
         allow read: if isAuthenticated();
-        allow create, update: if isAdmin();
+        allow create, update: if isSuperAdminEmail();
         allow delete: if false; // Nimeni nu poate șterge din subcolecții
       }
     }
 
     // Global AI config documents
     match /ai_config/{docId} {
-      // Public (employees can read). Write only by super-admin.
-      // NOTE: store sensitive prompt/private logic in /ai_config_private/*
-      allow read: if isEmployee();
-      allow write: if isSuperAdminEmail();
+      // ADMIN-ONLY (hard block)
+      allow read, write: if isSuperAdminEmail();
       allow delete: if false;
     }
 
@@ -171,8 +169,8 @@ service cloud.firestore {
 
     // Per-event overrides (public) - employees can read; super-admin can write
     match /ai_config_overrides/{eventId} {
-      allow read: if isEmployee();
-      allow write: if isSuperAdminEmail();
+      // ADMIN-ONLY (hard block)
+      allow read, write: if isSuperAdminEmail();
       allow delete: if false;
     }
 
@@ -226,8 +224,19 @@ service cloud.firestore {
     
     // AI Corrections
     match /aiCorrections/{correctionId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read, write: if isSuperAdminEmail();
+    }
+
+    // Admin settings (if present)
+    match /admin_settings/{docId} {
+      allow read, write: if isSuperAdminEmail();
+      allow delete: if false;
+    }
+
+    // Migrations (if present)
+    match /migrations/{docId} {
+      allow read, write: if isSuperAdminEmail();
+      allow delete: if false;
     }
     
     // Outbox - WhatsApp message queue - POLITICA: NEVER DELETE

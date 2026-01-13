@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../screens/admin/admin_screen.dart';
 import '../screens/admin/ai_conversations_screen.dart';
@@ -21,6 +22,7 @@ import '../screens/kyc/kyc_screen.dart';
 import '../screens/salarizare/salarizare_screen.dart';
 import '../screens/team/team_screen.dart';
 import '../screens/whatsapp/whatsapp_screen.dart';
+import '../core/auth/is_super_admin.dart';
 
 Route<dynamic> onGenerateRoute(RouteSettings settings) {
   debugPrint('[ROUTE] Raw: ${settings.name}');
@@ -37,6 +39,14 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
   }
 
   debugPrint('[ROUTE] Normalized: $path');
+
+  // HARD GUARD: block any /admin deep link for non-superadmin
+  if (path.startsWith('/admin') && !isSuperAdmin(FirebaseAuth.instance.currentUser)) {
+    return MaterialPageRoute(
+      settings: const RouteSettings(name: '/evenimente'),
+      builder: (_) => const EvenimenteScreen(),
+    );
+  }
 
   Widget page;
   switch (path) {

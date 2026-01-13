@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
 import '../../providers/app_state_provider.dart';
+import '../../core/auth/is_super_admin.dart';
 import '../dovezi/dovezi_screen.dart';
 import '../../widgets/user_selector_dialog.dart';
 import '../../widgets/user_display_name.dart';
@@ -150,14 +151,12 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
               if (!appState.isEmployee) {
                 return const SizedBox.shrink();
               }
-              final isSuperAdmin =
-                  (FirebaseAuth.instance.currentUser?.email ?? '') ==
-                      'ursache.andrei1995@gmail.com';
+              final superAdmin = isSuperAdmin(FirebaseAuth.instance.currentUser);
               
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (isSuperAdmin) ...[
+                  if (superAdmin) ...[
                     IconButton(
                       icon: const Icon(Icons.psychology, color: Colors.amber),
                       tooltip: 'AI Logic (Global)',
