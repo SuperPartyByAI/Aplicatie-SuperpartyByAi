@@ -7,7 +7,7 @@ import '../../widgets/modals/code_modal.dart';
 import '../../widgets/modals/assign_modal.dart';
 import '../../widgets/modals/code_info_modal.dart';
 import 'event_card_html.dart';
-import '../evidence/evidence_screen.dart';
+import 'dovezi_screen_html.dart';
 
 /// Evenimente Screen - 100% identic cu HTML (4522 linii)
 /// Referință: kyc-app/kyc-app/public/evenimente.html
@@ -823,7 +823,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       onTap: () {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (context) => EvidenceScreen(eventId: event.id),
+            builder: (context) => DoveziScreenHtml(event: event),
           ),
         );
       },

@@ -1,12 +1,11 @@
 import 'dart:ui' show ImageFilter;
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../../models/event_model.dart';
+import 'photo_image.dart';
 
 /// Dovezi Screen - 100% identic cu HTML
 /// Referință: kyc-app/kyc-app/public/evenimente.html (#pageEvidence)
@@ -369,33 +368,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: kIsWeb
-                    ? Image.network(
-                        photoPath,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Center(
-                            child: Icon(
-                              Icons.broken_image,
-                              color: Color(0xB3EAF1FF),
-                              size: 32,
-                            ),
-                          );
-                        },
-                      )
-                    : Image.file(
-                        File(photoPath),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Center(
-                            child: Icon(
-                              Icons.broken_image,
-                              color: Color(0xB3EAF1FF),
-                              size: 32,
-                            ),
-                          );
-                        },
-                      ),
+                child: buildDoveziImage(photoPath, fit: BoxFit.cover),
               ),
               // Delete button (doar dacă nu e locked)
               if (!isLocked)
@@ -446,9 +419,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
         backgroundColor: Colors.transparent,
         child: GestureDetector(
           onTap: () => Navigator.of(context).pop(),
-          child: kIsWeb
-              ? Image.network(photoPath, fit: BoxFit.contain)
-              : Image.file(File(photoPath), fit: BoxFit.contain),
+          child: buildDoveziImage(photoPath, fit: BoxFit.contain),
         ),
       ),
     );
