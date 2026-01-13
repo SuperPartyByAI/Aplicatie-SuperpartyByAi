@@ -13,6 +13,8 @@ FINAL-ENV-VARS.txt
 *serviceAccount*.json
 *service-account*.json
 firebase-adminsdk*.json
+COPY_THIS_firebase-adminsdk.json
+COPY_THIS_firebase-adminsdk*.json
 
 # Logs
 *.log

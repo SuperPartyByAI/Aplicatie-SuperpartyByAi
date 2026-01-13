@@ -361,7 +361,8 @@ exports.chatWithAI = onCall(
       const currentSessionId = data.sessionId || `session_${Date.now()}`;
       const userText = userMessage.content.toLowerCase().trim();
 
-      // Check for event creation intent
+      // SECURITY: chatWithAI is a general chat endpoint.
+      // Event operations must go through `chatEventOpsV2` (interpret) + `aiEventGateway` (single writer).
       const eventIntentPatterns = [
         'vreau sa notez', 'vreau sa adaug', 'vreau sa creez',
         'trebuie sa notez', 'am de notat', 'pot sa notez',
@@ -369,189 +370,18 @@ exports.chatWithAI = onCall(
         'noteaza', 'adauga', 'creeaza'
       ];
       const hasEventIntent = eventIntentPatterns.some(p => userText.includes(p));
-
-      // Get or create conversation state from Firestore
-      const db = admin.firestore();
-      const stateRef = db.collection('conversationStates').doc(currentSessionId);
-      const stateDoc = await stateRef.get();
-      let conversationState = stateDoc.exists ? stateDoc.data() : null;
-
-      // INTERACTIVE EVENT CREATION FLOW
-      if (hasEventIntent && !conversationState) {
-        // Start interactive flow
-        conversationState = {
-          mode: 'collecting_event',
-          step: 'name',
-          data: {},
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
-        };
-        await stateRef.set(conversationState);
-        
+      if (hasEventIntent) {
         return {
           success: true,
-          message: 'Perfect! 🎉 Pentru cine este petrecerea? (spune-mi numele)',
+          message:
+            'Pentru operațiuni pe evenimente folosește flow-ul AI-first: chatEventOpsV2 + aiEventGateway. ' +
+            'În aplicație, scrie /event <descriere> (sau scrie natural, iar app-ul va rula /event).',
           sessionId: currentSessionId,
-          conversationState: 'collecting_event'
         };
       }
 
-      // Continue interactive flow if in collecting mode
-      if (conversationState && conversationState.mode === 'collecting_event') {
-        const step = conversationState.step;
-        const eventData = conversationState.data || {};
-
-        if (step === 'name') {
-          eventData.sarbatoritNume = userMessage.content.trim();
-          conversationState.step = 'age';
-          conversationState.data = eventData;
-          await stateRef.update(conversationState);
-          
-          return {
-            success: true,
-            message: `Super! Câți ani are ${eventData.sarbatoritNume}?`,
-            sessionId: currentSessionId,
-            conversationState: 'collecting_event'
-          };
-        }
-
-        if (step === 'age') {
-          const age = parseInt(userText.match(/\d+/)?.[0] || '0');
-          if (age > 0) {
-            eventData.sarbatoritVarsta = age;
-            conversationState.step = 'date';
-            conversationState.data = eventData;
-            await stateRef.update(conversationState);
-            
-            return {
-              success: true,
-              message: 'Excelent! Ce dată va fi petrecerea? (format DD-MM-YYYY, ex: 15-01-2026)',
-              sessionId: currentSessionId,
-              conversationState: 'collecting_event'
-            };
-          } else {
-            return {
-              success: true,
-              message: 'Te rog să specifici vârsta (un număr, ex: 5)',
-              sessionId: currentSessionId,
-              conversationState: 'collecting_event'
-            };
-          }
-        }
-
-        if (step === 'date') {
-          const dateRegex = /^\d{2}-\d{2}-\d{4}$/;
-          const dateMatch = userText.match(/\d{2}-\d{2}-\d{4}/);
-          
-          if (dateMatch && dateRegex.test(dateMatch[0])) {
-            eventData.date = dateMatch[0];
-            conversationState.step = 'address';
-            conversationState.data = eventData;
-            await stateRef.update(conversationState);
-            
-            return {
-              success: true,
-              message: 'Perfect! Unde va fi petrecerea? (adresa completă)',
-              sessionId: currentSessionId,
-              conversationState: 'collecting_event'
-            };
-          } else {
-            return {
-              success: true,
-              message: 'Te rog să specifici data în format DD-MM-YYYY (ex: 15-01-2026)',
-              sessionId: currentSessionId,
-              conversationState: 'collecting_event'
-            };
-          }
-        }
-
-        if (step === 'address') {
-          eventData.address = userMessage.content.trim();
-          conversationState.step = 'confirm';
-          conversationState.data = eventData;
-          await stateRef.update(conversationState);
-          
-          const summary = `Gata! ✅ Iată ce am notat:
-
-📝 Eveniment pentru ${eventData.sarbatoritNume}, ${eventData.sarbatoritVarsta} ani
-📅 Data: ${eventData.date}
-📍 Locație: ${eventData.address}
-
-Scrie "da" pentru a confirma și crea evenimentul, sau "anulează" pentru a renunța.`;
-          
-          return {
-            success: true,
-            message: summary,
-            sessionId: currentSessionId,
-            conversationState: 'collecting_event',
-            eventPreview: eventData
-          };
-        }
-
-        if (step === 'confirm') {
-          if (userText === 'da' || userText === 'confirm' || userText === 'confirma') {
-            // Call chatEventOps to create event
-            const { chatEventOps } = require('./chatEventOps');
-            
-            const eventText = `Notează eveniment pentru ${eventData.sarbatoritNume}, ${eventData.sarbatoritVarsta} ani, pe ${eventData.date} la ${eventData.address}`;
-            
-            try {
-              console.log(`[${requestId}] Confirmed event creation via chatEventOps`, {
-                uid: request.auth?.uid,
-                sessionId: currentSessionId,
-                eventTextPreview: eventText.slice(0, 180),
-              });
-
-              // IMPORTANT: chatEventOps is a v2 onCall handler.
-              // It must be invoked with the callable request shape (single argument),
-              // NOT with (req, res) like an express handler.
-              const eventResult = await chatEventOps({
-                data: {
-                  text: eventText,
-                  dryRun: false,
-                  clientRequestId: `interactive_${currentSessionId}_${Date.now()}`
-                },
-                auth: request.auth,
-                rawRequest: request.rawRequest,
-              });
-              
-              // Clear conversation state
-              await stateRef.delete();
-              
-              return {
-                success: true,
-                message: `🎉 Perfect! Evenimentul a fost creat cu succes! ✅\n\nPoți vedea detaliile în lista de evenimente.`,
-                sessionId: currentSessionId,
-                eventCreated: true,
-                eventId: eventResult?.eventId || eventResult?.data?.eventId
-              };
-            } catch (error) {
-              console.error(`[${requestId}] Error creating event:`, error);
-              await stateRef.delete();
-              
-              return {
-                success: false,
-                message: `❌ Nu am reușit să salvez evenimentul. Încearcă din nou. (errorId: ${requestId})`,
-                sessionId: currentSessionId
-              };
-            }
-          } else if (userText === 'anuleaza' || userText === 'nu' || userText === 'renunt') {
-            await stateRef.delete();
-            
-            return {
-              success: true,
-              message: 'OK, am anulat crearea evenimentului. Cu ce te mai pot ajuta? 😊',
-              sessionId: currentSessionId
-            };
-          } else {
-            return {
-              success: true,
-              message: 'Te rog să confirmi cu "da" sau să anulezi cu "nu"',
-              sessionId: currentSessionId,
-              conversationState: 'collecting_event'
-            };
-          }
-        }
-      }
+      // No conversationStates usage in this endpoint (avoid server-side cross-user state artifacts).
+      const conversationState = null;
 
       // Check for short confirmation messages that might cause loops
       const shortConfirmations = ['da', 'ok', 'bine', 'excelent', 'perfect', 'super', 'yes', 'no', 'nu'];
