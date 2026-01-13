@@ -156,8 +156,7 @@ service cloud.firestore {
 
     // Global AI config documents
     match /ai_config/{docId} {
-      allow read: if isEmployee();
-      allow write: if isSuperAdminEmail();
+      allow read, write: if isSuperAdminEmail();
       allow delete: if false;
     }
 

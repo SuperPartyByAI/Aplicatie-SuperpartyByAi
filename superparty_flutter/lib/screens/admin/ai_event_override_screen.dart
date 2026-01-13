@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'dart:convert';
 
 class AiEventOverrideScreen extends StatefulWidget {
   final String eventId;
@@ -17,9 +18,7 @@ class AiEventOverrideScreen extends StatefulWidget {
 class _AiEventOverrideScreenState extends State<AiEventOverrideScreen> {
   static const _superAdminEmail = 'ursache.andrei1995@gmail.com';
 
-  final _systemPrompt = TextEditingController();
-  final _systemPromptAppend = TextEditingController();
-  final _requiredFields = TextEditingController();
+  final _json = TextEditingController();
 
   bool _loading = true;
   bool _saving = false;
@@ -48,14 +47,10 @@ class _AiEventOverrideScreenState extends State<AiEventOverrideScreen> {
     try {
       final snap = await _ref.get();
       final data = snap.data() ?? <String, dynamic>{};
-      _systemPrompt.text = (data['systemPrompt'] ?? '').toString();
-      _systemPromptAppend.text = (data['systemPromptAppend'] ?? '').toString();
-      final rf = data['requiredFields'];
-      if (rf is List) {
-        _requiredFields.text = rf.map((e) => e.toString()).join(',');
-      } else {
-        _requiredFields.text = '';
-      }
+      final overrides = (data['overrides'] is Map)
+          ? Map<String, dynamic>.from(data['overrides'] as Map)
+          : <String, dynamic>{};
+      _json.text = const JsonEncoder.withIndent('  ').convert(overrides);
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -71,22 +66,16 @@ class _AiEventOverrideScreenState extends State<AiEventOverrideScreen> {
       _error = null;
     });
     try {
-      final fields = _requiredFields.text
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
-
       final snap = await _ref.get();
       final currentVersion = (snap.data()?['version'] is num)
           ? (snap.data()!['version'] as num).toInt()
           : 0;
 
+      final overrides = jsonDecode(_json.text) as Map<String, dynamic>;
+
       await _ref.set(
         {
-          'systemPrompt': _systemPrompt.text.trim(),
-          'systemPromptAppend': _systemPromptAppend.text.trim(),
-          'requiredFields': fields.isEmpty ? FieldValue.delete() : fields,
+          'overrides': overrides,
           'version': currentVersion + 1,
           'updatedAt': FieldValue.serverTimestamp(),
           'updatedBy': FirebaseAuth.instance.currentUser?.uid,
@@ -109,9 +98,7 @@ class _AiEventOverrideScreenState extends State<AiEventOverrideScreen> {
 
   @override
   void dispose() {
-    _systemPrompt.dispose();
-    _systemPromptAppend.dispose();
-    _requiredFields.dispose();
+    _json.dispose();
     super.dispose();
   }
 
@@ -150,32 +137,11 @@ class _AiEventOverrideScreenState extends State<AiEventOverrideScreen> {
                       child: Text(_error!, style: const TextStyle(color: Colors.red)),
                     ),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: _requiredFields,
-                    decoration: const InputDecoration(
-                      labelText: 'requiredFields override (comma-separated, optional)',
-                    ),
-                    enabled: canEdit,
-                  ),
-                  const SizedBox(height: 12),
                   Expanded(
                     child: TextField(
-                      controller: _systemPrompt,
+                      controller: _json,
                       decoration: const InputDecoration(
-                        labelText: 'systemPrompt override (optional)',
-                        alignLabelWithHint: true,
-                      ),
-                      enabled: canEdit,
-                      maxLines: null,
-                      expands: true,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: _systemPromptAppend,
-                      decoration: const InputDecoration(
-                        labelText: 'systemPromptAppend override (optional)',
+                        labelText: 'ai_overrides/current.overrides (JSON)',
                         alignLabelWithHint: true,
                       ),
                       enabled: canEdit,

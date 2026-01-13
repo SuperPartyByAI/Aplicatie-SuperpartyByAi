@@ -822,6 +822,9 @@ exports.chatEventOps = require('./chatEventOps').chatEventOps;
 // AI Event Operations V2 (Enhanced with interactive flow, short codes, role detection)
 exports.chatEventOpsV2 = require('./chatEventOpsV2').chatEventOpsV2;
 
+// AI Event Gateway (single operational gateway)
+exports.aiEventGateway = require('./aiEventGateway').aiEventGateway;
+
 // Audit trigger for event changes
 exports.auditEventChanges = require('./auditEventChanges').auditEventChanges;
 

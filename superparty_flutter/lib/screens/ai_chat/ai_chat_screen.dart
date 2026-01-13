@@ -53,6 +53,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
   bool _loading = false;
   String? _sessionId;
   String? _eventContextId;
+  List<Map<String, dynamic>> _activeUiButtons = const [];
   String? _lastSentMessage;
   DateTime? _lastSentTime;
   String? _userName;
@@ -250,6 +251,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
         'role': 'user',
         'content': _describeUserMessage(text, hasImage, imageName)
       });
+      _activeUiButtons = const [];
     });
 
     // Save image to gallery at send time
@@ -381,11 +383,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
           commandText = text;
         }
 
-        // Production policy: all event operations via server-side gateway (chatEventOpsV2).
-        // No direct Firestore writes; no client-side preview/confirm buttons.
+        // Production policy: all event operations via server-side gateway (aiEventGateway).
         final eventCallable =
             FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
-          'chatEventOpsV2',
+          'aiEventGateway',
           options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
         );
 
@@ -396,13 +397,24 @@ class _AIChatScreenState extends State<AIChatScreen> {
         });
 
         final data = Map<String, dynamic>.from(result.data);
-        final ok = data['ok'] == true;
         final action = (data['action']?.toString() ?? '').toUpperCase();
         final message = data['message']?.toString() ?? 'Operație completată';
-        if (action == 'LIST' && data['items'] is List) {
-          aiResponse = _formatEventList(List<dynamic>.from(data['items'] as List));
-        } else {
-          aiResponse = ok ? message : '❌ $message';
+        aiResponse = message;
+
+        final ui = data['ui'];
+        final buttonsRaw = ui is Map ? ui['buttons'] : null;
+        if (buttonsRaw is List) {
+          final parsed = <Map<String, dynamic>>[];
+          for (final b in buttonsRaw) {
+            if (b is Map) {
+              parsed.add(Map<String, dynamic>.from(b.map((k, v) => MapEntry(k.toString(), v))));
+            }
+          }
+          if (mounted) {
+            setState(() {
+              _activeUiButtons = parsed;
+            });
+          }
         }
 
         // Super-admin debug payload (server-controlled)
@@ -688,52 +700,89 @@ class _AIChatScreenState extends State<AIChatScreen> {
         color: _bg.withOpacity(0.55),
         border: Border(top: BorderSide(color: Colors.white.withOpacity(0.10))),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            tooltip: 'Încarcă poză',
-            onPressed: _pickImage,
-            icon: const Text('📷', style: TextStyle(fontSize: 18)),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.22),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withOpacity(0.14)),
+          if (_activeUiButtons.isNotEmpty) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _activeUiButtons.map((b) {
+                  final label = (b['label'] ?? '').toString();
+                  final sendText = (b['sendText'] ?? '').toString();
+                  final style = (b['style'] ?? 'secondary').toString();
+                  final isPrimary = style == 'primary';
+                  return ElevatedButton(
+                    onPressed: _loading
+                        ? null
+                        : () {
+                            _inputController.text = sendText;
+                            _sendMessage();
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isPrimary ? _primary : _bg2,
+                      foregroundColor: _text,
+                      side: BorderSide(color: Colors.white.withOpacity(0.12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(label.isEmpty ? sendText : label),
+                  );
+                }).toList(),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              child: TextField(
-                controller: _inputController,
-                focusNode: _focusNode,
-                minLines: 1,
-                maxLines: 4,
-                style: const TextStyle(color: _text, fontSize: 14, height: 1.3),
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  hintText: 'Scrie un mesaj sau "Notează o petrecere..."',
-                  hintStyle: TextStyle(color: Color(0x8CEAF1FF)),
+            ),
+            const SizedBox(height: 10),
+          ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              IconButton(
+                tooltip: 'Încarcă poză',
+                onPressed: _pickImage,
+                icon: const Text('📷', style: TextStyle(fontSize: 18)),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.22),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white.withOpacity(0.14)),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  child: TextField(
+                    controller: _inputController,
+                    focusNode: _focusNode,
+                    minLines: 1,
+                    maxLines: 4,
+                    style: const TextStyle(color: _text, fontSize: 14, height: 1.3),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Scrie un mesaj sau "Notează o petrecere..."',
+                      hintStyle: TextStyle(color: Color(0x8CEAF1FF)),
+                    ),
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _sendMessage(),
+                  ),
                 ),
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _sendMessage(),
               ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          ElevatedButton(
-            onPressed: _loading ? null : _sendMessage,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primary.withOpacity(0.20),
-              foregroundColor: _text,
-              side: BorderSide(color: _primary.withOpacity(0.35)),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              textStyle: const TextStyle(fontWeight: FontWeight.w900),
-            ),
-            child: const Text('Trimite'),
+              const SizedBox(width: 10),
+              ElevatedButton(
+                onPressed: _loading ? null : _sendMessage,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primary.withOpacity(0.20),
+                  foregroundColor: _text,
+                  side: BorderSide(color: _primary.withOpacity(0.35)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                child: const Text('Trimite'),
+              ),
+            ],
           ),
         ],
       ),

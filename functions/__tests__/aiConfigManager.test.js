@@ -37,18 +37,22 @@ test('getEffectiveConfig falls back to defaults', async () => {
   const db = makeDb();
   const { effective, meta } = await getEffectiveConfig(db, {});
   expect(effective).toBeTruthy();
-  expect(Array.isArray(effective.requiredFields)).toBe(true);
+  expect(Array.isArray(effective.eventSchema.required)).toBe(true);
+  expect(effective.policies.requireConfirm).toBe(true);
   expect(meta).toHaveProperty('hash');
 });
 
 test('override wins over global', async () => {
   const db = makeDb({
-    globalDoc: { version: 1, systemPromptAppend: 'GLOBAL', requiredFields: ['date'] },
-    overrideDoc: { version: 2, systemPromptAppend: 'OVERRIDE', requiredFields: ['date', 'address'] },
+    globalDoc: { version: 1, policies: { requireConfirm: true }, eventSchema: { required: ['date'] } },
+    overrideDoc: {
+      version: 2,
+      overrides: { policies: { requireConfirm: false }, eventSchema: { required: ['date', 'address'] } },
+    },
   });
   const { effective, meta } = await getEffectiveConfig(db, { eventId: 'evt1' });
-  expect(effective.systemPromptAppend).toBe('OVERRIDE');
-  expect(effective.requiredFields).toEqual(['date', 'address']);
+  expect(effective.policies.requireConfirm).toBe(false);
+  expect(effective.eventSchema.required).toEqual(['date', 'address']);
   expect(meta.global.version).toBe(1);
   expect(meta.override.version).toBe(2);
 });

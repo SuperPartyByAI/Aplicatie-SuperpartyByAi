@@ -12,10 +12,19 @@
 const crypto = require('crypto');
 
 const DEFAULT_CONFIG = {
-  // If present in Firestore, these can override the prompt completely/partially.
+  // Minimal defaults (real values should come from /ai_config/global).
   systemPrompt: null,
   systemPromptAppend: null,
-  requiredFields: ['date', 'address', 'rolesDraft'],
+  eventSchema: {
+    required: ['date', 'address'],
+    fields: {},
+  },
+  rolesCatalog: {},
+  policies: {
+    requireConfirm: true,
+    askOneQuestion: true,
+  },
+  uiTemplates: {},
 };
 
 function _safeString(v) {
@@ -24,41 +33,62 @@ function _safeString(v) {
   return s.length ? s : null;
 }
 
+function _deepMerge(base, patch) {
+  if (patch === null || patch === undefined) return base;
+  if (Array.isArray(base) || Array.isArray(patch)) return patch;
+  if (typeof base !== 'object' || typeof patch !== 'object') return patch;
+
+  const out = { ...(base || {}) };
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) continue;
+    if (k in out) out[k] = _deepMerge(out[k], v);
+    else out[k] = v;
+  }
+  return out;
+}
+
 function _normalizeConfigDoc(data) {
   const d = data || {};
+  const cfg = (d.config && typeof d.config === 'object') ? d.config : d;
   return {
     version: typeof d.version === 'number' ? d.version : null,
     updatedAt: d.updatedAt || null,
     updatedBy: d.updatedBy || null,
-    systemPrompt: _safeString(d.systemPrompt),
-    systemPromptAppend: _safeString(d.systemPromptAppend),
-    requiredFields: Array.isArray(d.requiredFields) ? d.requiredFields.map(String) : null,
+    // NOTE: keep legacy fields for backward compatibility, but prefer config-based shape.
+    config: {
+      systemPrompt: _safeString(cfg.systemPrompt),
+      systemPromptAppend: _safeString(cfg.systemPromptAppend),
+      // Use undefined for "not set" so defaults are preserved.
+      eventSchema: (cfg.eventSchema && typeof cfg.eventSchema === 'object') ? cfg.eventSchema : undefined,
+      rolesCatalog: (cfg.rolesCatalog && typeof cfg.rolesCatalog === 'object') ? cfg.rolesCatalog : undefined,
+      policies: (cfg.policies && typeof cfg.policies === 'object') ? cfg.policies : undefined,
+      uiTemplates: (cfg.uiTemplates && typeof cfg.uiTemplates === 'object') ? cfg.uiTemplates : undefined,
+    },
   };
 }
 
-function _mergeConfig(globalCfg, overrideCfg) {
-  const out = { ...DEFAULT_CONFIG };
+function _normalizeOverrideDoc(data) {
+  const d = data || {};
+  const overrides = (d.overrides && typeof d.overrides === 'object') ? d.overrides : d;
+  const cfg = (overrides.config && typeof overrides.config === 'object') ? overrides.config : overrides;
 
-  const g = globalCfg || {};
-  const o = overrideCfg || {};
-
-  out.systemPrompt = o.systemPrompt ?? g.systemPrompt ?? DEFAULT_CONFIG.systemPrompt;
-  out.systemPromptAppend = o.systemPromptAppend ?? g.systemPromptAppend ?? DEFAULT_CONFIG.systemPromptAppend;
-  out.requiredFields = o.requiredFields ?? g.requiredFields ?? DEFAULT_CONFIG.requiredFields;
-
-  return out;
+  return {
+    version: typeof d.version === 'number' ? d.version : null,
+    updatedAt: d.updatedAt || null,
+    updatedBy: d.updatedBy || null,
+    overrides: {
+      systemPrompt: _safeString(cfg.systemPrompt),
+      systemPromptAppend: _safeString(cfg.systemPromptAppend),
+      eventSchema: (cfg.eventSchema && typeof cfg.eventSchema === 'object') ? cfg.eventSchema : undefined,
+      rolesCatalog: (cfg.rolesCatalog && typeof cfg.rolesCatalog === 'object') ? cfg.rolesCatalog : undefined,
+      policies: (cfg.policies && typeof cfg.policies === 'object') ? cfg.policies : undefined,
+      uiTemplates: (cfg.uiTemplates && typeof cfg.uiTemplates === 'object') ? cfg.uiTemplates : undefined,
+    },
+  };
 }
 
 function _hashConfig(config) {
-  const json = JSON.stringify(
-    {
-      systemPrompt: config.systemPrompt || null,
-      systemPromptAppend: config.systemPromptAppend || null,
-      requiredFields: config.requiredFields || [],
-    },
-    null,
-    0
-  );
+  const json = JSON.stringify(config || {}, null, 0);
   return crypto.createHash('sha256').update(json).digest('hex').slice(0, 16);
 }
 
@@ -66,7 +96,7 @@ async function getEffectiveConfig(db, { eventId } = {}) {
   const globalSnap = await db.collection('ai_config').doc('global').get();
   const globalCfg = globalSnap.exists ? _normalizeConfigDoc(globalSnap.data()) : _normalizeConfigDoc({});
 
-  let overrideCfg = _normalizeConfigDoc({});
+  let overrideCfg = _normalizeOverrideDoc({});
   if (eventId) {
     const overrideSnap = await db
       .collection('evenimente')
@@ -74,10 +104,13 @@ async function getEffectiveConfig(db, { eventId } = {}) {
       .collection('ai_overrides')
       .doc('current')
       .get();
-    overrideCfg = overrideSnap.exists ? _normalizeConfigDoc(overrideSnap.data()) : _normalizeConfigDoc({});
+    overrideCfg = overrideSnap.exists ? _normalizeOverrideDoc(overrideSnap.data()) : _normalizeOverrideDoc({});
   }
 
-  const effective = _mergeConfig(globalCfg, overrideCfg);
+  const effective = _deepMerge(
+    _deepMerge({ ...DEFAULT_CONFIG }, globalCfg.config || {}),
+    overrideCfg.overrides || {}
+  );
 
   const meta = {
     global: {

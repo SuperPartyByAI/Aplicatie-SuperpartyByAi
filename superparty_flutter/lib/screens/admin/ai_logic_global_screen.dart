@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'dart:convert';
 
 class AiLogicGlobalScreen extends StatefulWidget {
   const AiLogicGlobalScreen({super.key});
@@ -12,9 +13,7 @@ class AiLogicGlobalScreen extends StatefulWidget {
 class _AiLogicGlobalScreenState extends State<AiLogicGlobalScreen> {
   static const _superAdminEmail = 'ursache.andrei1995@gmail.com';
 
-  final _systemPrompt = TextEditingController();
-  final _systemPromptAppend = TextEditingController();
-  final _requiredFields = TextEditingController(text: 'date,address,rolesDraft');
+  final _json = TextEditingController();
 
   bool _loading = true;
   bool _saving = false;
@@ -29,6 +28,111 @@ class _AiLogicGlobalScreenState extends State<AiLogicGlobalScreen> {
     _load();
   }
 
+  static const _defaultGlobalConfig = {
+    "version": 1,
+    "eventSchema": {
+      "required": ["date", "address"],
+      "fields": {
+        "date": {"type": "string", "label": "Data (DD-MM-YYYY)"},
+        "address": {"type": "string", "label": "Adresă / Locație"},
+        "clientPhone": {"type": "string", "label": "Telefon client"},
+        "clientName": {"type": "string", "label": "Nume client"},
+      }
+    },
+    "rolesCatalog": {
+      "ANIMATOR": {
+        "defaultDurationMin": 120,
+        "requiredFields": ["characterName"],
+        "optionalFields": ["notes"],
+        "synonyms": ["animator", "mc", "host"],
+        "detailsSchema": {
+          "characterName": {"type": "string", "label": "Personaj"},
+          "notes": {"type": "string", "label": "Observații"}
+        }
+      },
+      "URSITOARE": {
+        "defaultDurationMin": 120,
+        "requiredFields": ["count"],
+        "optionalFields": ["rea", "notes"],
+        "synonyms": ["ursitoare", "ursitoare 3", "ursitoare 4", "ursitoare rea"],
+        "detailsSchema": {
+          "count": {"type": "number", "label": "Număr ursitoare (3/4)"},
+          "rea": {"type": "boolean", "label": "Include Ursitoarea Rea"},
+          "notes": {"type": "string", "label": "Observații"}
+        }
+      },
+      "COTTON_CANDY": {
+        "defaultDurationMin": 120,
+        "requiredFields": [],
+        "optionalFields": ["notes"],
+        "synonyms": ["vata", "vata de zahar", "cotton candy"],
+        "detailsSchema": {"notes": {"type": "string", "label": "Observații"}}
+      },
+      "POPCORN": {
+        "defaultDurationMin": 120,
+        "requiredFields": [],
+        "optionalFields": ["notes"],
+        "synonyms": ["popcorn"],
+        "detailsSchema": {"notes": {"type": "string", "label": "Observații"}}
+      },
+      "ARCADE": {
+        "defaultDurationMin": 180,
+        "requiredFields": [],
+        "optionalFields": ["notes"],
+        "synonyms": ["arcade", "jocuri", "console"],
+        "detailsSchema": {"notes": {"type": "string", "label": "Observații"}}
+      },
+      "DECORATIONS": {
+        "defaultDurationMin": 0,
+        "requiredFields": [],
+        "optionalFields": ["theme", "notes"],
+        "synonyms": ["decor", "decoratiuni", "decorations"],
+        "detailsSchema": {
+          "theme": {"type": "string", "label": "Temă"},
+          "notes": {"type": "string", "label": "Observații"}
+        }
+      },
+      "BALLOONS": {
+        "defaultDurationMin": 0,
+        "requiredFields": [],
+        "optionalFields": ["count", "notes"],
+        "synonyms": ["baloane", "balloons"],
+        "detailsSchema": {
+          "count": {"type": "number", "label": "Nr. baloane"},
+          "notes": {"type": "string", "label": "Observații"}
+        }
+      },
+      "HELIUM_BALLOONS": {
+        "defaultDurationMin": 0,
+        "requiredFields": [],
+        "optionalFields": ["count", "notes"],
+        "synonyms": ["baloane cu heliu", "helium balloons"],
+        "detailsSchema": {
+          "count": {"type": "number", "label": "Nr. baloane cu heliu"},
+          "notes": {"type": "string", "label": "Observații"}
+        }
+      },
+      "SANTA_CLAUS": {
+        "defaultDurationMin": 60,
+        "requiredFields": [],
+        "optionalFields": ["notes"],
+        "synonyms": ["mos craciun", "santa"],
+        "detailsSchema": {"notes": {"type": "string", "label": "Observații"}}
+      },
+      "DRY_ICE": {
+        "defaultDurationMin": 0,
+        "requiredFields": [],
+        "optionalFields": ["notes"],
+        "synonyms": ["gheata carbonica", "dry ice"],
+        "detailsSchema": {"notes": {"type": "string", "label": "Observații"}}
+      }
+    },
+    "policies": {"requireConfirm": true, "askOneQuestion": true},
+    "systemPrompt": null,
+    "systemPromptAppend": null,
+    "uiTemplates": {}
+  };
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -38,12 +142,8 @@ class _AiLogicGlobalScreenState extends State<AiLogicGlobalScreen> {
       final snap =
           await FirebaseFirestore.instance.collection('ai_config').doc('global').get();
       final data = snap.data() ?? <String, dynamic>{};
-      _systemPrompt.text = (data['systemPrompt'] ?? '').toString();
-      _systemPromptAppend.text = (data['systemPromptAppend'] ?? '').toString();
-      final rf = data['requiredFields'];
-      if (rf is List) {
-        _requiredFields.text = rf.map((e) => e.toString()).join(',');
-      }
+      final effective = data.isEmpty ? _defaultGlobalConfig : data;
+      _json.text = const JsonEncoder.withIndent('  ').convert(effective);
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -59,12 +159,6 @@ class _AiLogicGlobalScreenState extends State<AiLogicGlobalScreen> {
       _error = null;
     });
     try {
-      final fields = _requiredFields.text
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
-
       final ref =
           FirebaseFirestore.instance.collection('ai_config').doc('global');
       final snap = await ref.get();
@@ -72,15 +166,13 @@ class _AiLogicGlobalScreenState extends State<AiLogicGlobalScreen> {
           ? (snap.data()!['version'] as num).toInt()
           : 0;
 
+      final parsed = jsonDecode(_json.text) as Map<String, dynamic>;
+      parsed['version'] = currentVersion + 1;
+      parsed['updatedAt'] = FieldValue.serverTimestamp();
+      parsed['updatedBy'] = FirebaseAuth.instance.currentUser?.uid;
+
       await ref.set(
-        {
-          'systemPrompt': _systemPrompt.text.trim(),
-          'systemPromptAppend': _systemPromptAppend.text.trim(),
-          'requiredFields': fields,
-          'version': currentVersion + 1,
-          'updatedAt': FieldValue.serverTimestamp(),
-          'updatedBy': FirebaseAuth.instance.currentUser?.uid,
-        },
+        parsed,
         SetOptions(merge: true),
       );
 
@@ -99,9 +191,7 @@ class _AiLogicGlobalScreenState extends State<AiLogicGlobalScreen> {
 
   @override
   void dispose() {
-    _systemPrompt.dispose();
-    _systemPromptAppend.dispose();
-    _requiredFields.dispose();
+    _json.dispose();
     super.dispose();
   }
 
@@ -140,32 +230,11 @@ class _AiLogicGlobalScreenState extends State<AiLogicGlobalScreen> {
                       child: Text(_error!, style: const TextStyle(color: Colors.red)),
                     ),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: _requiredFields,
-                    decoration: const InputDecoration(
-                      labelText: 'requiredFields (comma-separated)',
-                    ),
-                    enabled: canEdit,
-                  ),
-                  const SizedBox(height: 12),
                   Expanded(
                     child: TextField(
-                      controller: _systemPrompt,
+                      controller: _json,
                       decoration: const InputDecoration(
-                        labelText: 'systemPrompt (optional override)',
-                        alignLabelWithHint: true,
-                      ),
-                      enabled: canEdit,
-                      maxLines: null,
-                      expands: true,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: _systemPromptAppend,
-                      decoration: const InputDecoration(
-                        labelText: 'systemPromptAppend (optional)',
+                        labelText: 'ai_config/global (JSON)',
                         alignLabelWithHint: true,
                       ),
                       enabled: canEdit,
