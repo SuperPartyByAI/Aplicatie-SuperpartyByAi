@@ -8,7 +8,7 @@ const admin = require('firebase-admin');
 const Groq = require('groq-sdk');
 
 // Normalizers for V3 EN schema
-const { normalizeEventFields, normalizeRoleFields, normalizeRoleType } = require('./normalizers');
+const { normalizeEventFields, normalizeRoleFields, normalizeRoleType, computeDateKey } = require('./normalizers');
 const { getNextEventShortId, getNextFreeSlot } = require('./shortCodeGenerator');
 
 // Define secret for GROQ API key
@@ -347,11 +347,21 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
       const limit = Math.max(1, Math.min(50, Number(cmd.limit || 10)));
       
       // LIST is read-only, execute even in dryRun
-      const snap = await db.collection('evenimente')
-        .where('isArchived', '==', false)
-        .orderBy('date', 'desc')
-        .limit(limit)
-        .get();
+      let snap;
+      try {
+        snap = await db.collection('evenimente')
+          .where('isArchived', '==', false)
+          .orderBy('dateKey', 'desc')
+          .limit(limit)
+          .get();
+      } catch (e) {
+        // Fallback for missing index or older docs without dateKey.
+        snap = await db.collection('evenimente')
+          .where('isArchived', '==', false)
+          .orderBy('date', 'desc')
+          .limit(limit)
+          .get();
+      }
 
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       return { ok: true, action: 'LIST', items, dryRun: false };
@@ -444,6 +454,10 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
         schemaVersion: 3,
         eventShortId,
         date: String(normalized.date || '').trim(),
+        dateKey: computeDateKey(normalized.date) || null,
+        dateTs: computeDateKey(normalized.date)
+          ? admin.firestore.Timestamp.fromDate(new Date(`${computeDateKey(normalized.date)}T12:00:00Z`))
+          : null,
         address: String(normalized.address || '').trim(),
         phoneE164: normalized.phoneE164 || null,
         phoneRaw: normalized.phoneRaw || null,

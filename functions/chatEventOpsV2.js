@@ -457,12 +457,22 @@ exports.chatEventOpsV2 = onCall(
     if (action === 'LIST') {
       const limit = Math.max(1, Math.min(50, Number(cmd.limit || 10)));
 
-      const snap = await db
-        .collection('evenimente')
-        .where('isArchived', '==', false)
-        .orderBy('date', 'desc')
-        .limit(limit)
-        .get();
+      let snap;
+      try {
+        snap = await db
+          .collection('evenimente')
+          .where('isArchived', '==', false)
+          .orderBy('dateKey', 'desc')
+          .limit(limit)
+          .get();
+      } catch (e) {
+        snap = await db
+          .collection('evenimente')
+          .where('isArchived', '==', false)
+          .orderBy('date', 'desc')
+          .limit(limit)
+          .get();
+      }
 
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
