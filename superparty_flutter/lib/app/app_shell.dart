@@ -42,11 +42,15 @@ class AppShell extends StatelessWidget {
         builder: (context, child) {
           final nav = child ?? const SizedBox.shrink();
 
-          // FirebaseInitGate must be OUTERMOST so nothing Firebase-related is built before init.
-          return FirebaseInitGate(
-            child: UpdateGate(
-              child: AuthGate(
-                child: nav,
+          // Keep a single, stable Overlay/Navigator in the tree.
+          // Gates render their UI inside this host (no swapping navigators per state).
+          return _GateHostNavigator(
+            child: FirebaseInitGate(
+              // FirebaseInitGate must be OUTERMOST so nothing Firebase-related is built before init.
+              child: UpdateGate(
+                child: AuthGate(
+                  child: nav,
+                ),
               ),
             ),
           );
@@ -110,37 +114,33 @@ class _FirebaseInitGateState extends State<FirebaseInitGate> {
     if (_ready) return widget.child;
 
     if (_error != null) {
-      // Keep an Overlay in the tree (EditableText requires it).
-      return _GateNavigator(
-        page: Scaffold(
-          body: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.cloud_off, size: 48),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Firebase nu a putut fi inițializat.',
-                      textAlign: TextAlign.center,
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Eroare: $_error',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _initializing ? null : _init,
-                      child: Text(_initializing ? 'Retry...' : 'Retry'),
-                    ),
-                  ],
-                ),
+      return Scaffold(
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.cloud_off, size: 48),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Firebase nu a putut fi inițializat.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Eroare: $_error',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _initializing ? null : _init,
+                    child: Text(_initializing ? 'Retry...' : 'Retry'),
+                  ),
+                ],
               ),
             ),
           ),
@@ -148,18 +148,15 @@ class _FirebaseInitGateState extends State<FirebaseInitGate> {
       );
     }
 
-    // Keep an Overlay in the tree (EditableText requires it).
-    return const _GateNavigator(
-      page: Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Initializing Firebase...'),
-            ],
-          ),
+    return const Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Initializing Firebase...'),
+          ],
         ),
       ),
     );
@@ -183,16 +180,13 @@ class AuthGate extends StatelessWidget {
         final user = snapshot.data;
 
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const _GateNavigator(
-            page: Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            ),
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
         if (user == null) {
-          // Keep an Overlay in the tree (Login has EditableText).
-          return const _GateNavigator(page: LoginScreen());
+          return const LoginScreen();
         }
 
         return UserScope(
@@ -257,10 +251,8 @@ class _UserScopeState extends State<UserScope> {
         stream: _userDocStream,
         builder: (context, userSnapshot) {
           if (userSnapshot.connectionState == ConnectionState.waiting) {
-            return const _GateNavigator(
-              page: Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              ),
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
             );
           }
 
@@ -268,8 +260,7 @@ class _UserScopeState extends State<UserScope> {
           final status = data?['status'] as String? ?? '';
 
           if (status == 'kyc_required') {
-            // Keep an Overlay in the tree (KYC has inputs).
-            return const _GateNavigator(page: KycScreen());
+            return const KycScreen();
           }
 
           // Passed all gates => reveal Navigator child (deep-link preserved).
@@ -280,12 +271,12 @@ class _UserScopeState extends State<UserScope> {
   }
 }
 
-/// Minimal navigator wrapper used by gates to ensure an [Overlay] exists.
-/// (EditableText requires it, and it is normally provided by [Navigator].)
-class _GateNavigator extends StatelessWidget {
-  final Widget page;
+/// Stable host that provides a single [Navigator]/[Overlay] for all gate UIs.
+/// The inner app [Navigator] (from [MaterialApp]) is passed as [child].
+class _GateHostNavigator extends StatelessWidget {
+  final Widget child;
 
-  const _GateNavigator({required this.page});
+  const _GateHostNavigator({required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -293,7 +284,7 @@ class _GateNavigator extends StatelessWidget {
       onGenerateRoute: (settings) {
         return MaterialPageRoute(
           settings: settings,
-          builder: (_) => page,
+          builder: (_) => child,
         );
       },
     );
