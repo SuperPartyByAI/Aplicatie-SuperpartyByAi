@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import '../models/event_model.dart';
 import '../models/event_filters.dart';
 import '../utils/code_validator.dart';
@@ -408,8 +407,4 @@ class EventService {
     });
   }
 
-  /// Helper: convert DateTime to DD-MM-YYYY string
-  String _dateToString(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
-  }
 }

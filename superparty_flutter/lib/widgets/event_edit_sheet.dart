@@ -39,7 +39,7 @@ class _EventEditSheetState extends State<EventEditSheet> {
     _addressController = TextEditingController(text: widget.event.address);
     _numeController = TextEditingController(text: widget.event.sarbatoritNume);
     _varstaController = TextEditingController(
-      text: widget.event.sarbatoritVarsta?.toString() ?? '',
+      text: widget.event.sarbatoritVarsta.toString(),
     );
 
     // Initialize incasare fields from IncasareModel

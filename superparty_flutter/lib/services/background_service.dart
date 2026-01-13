@@ -1,6 +1,5 @@
 import 'dart:isolate';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-import 'package:flutter/foundation.dart';
 
 class BackgroundService {
   static Future<void> initialize() async {

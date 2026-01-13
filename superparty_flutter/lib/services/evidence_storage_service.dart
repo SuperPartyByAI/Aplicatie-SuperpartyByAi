@@ -4,7 +4,6 @@ import '../models/evidence_model.dart';
 
 /// Service pentru storage local al dovezilor (shared_preferences)
 class EvidenceStorageService {
-  static const String _keyPrefix = 'evidence_v2_';
   static const String _stateKeyPrefix = 'evidence_state_v2_';
 
   /// Get evidence state for event

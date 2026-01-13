@@ -1,5 +1,4 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:convert';
 
 /// Aggressive caching for AI responses with predictive prefetching
@@ -8,7 +7,6 @@ class AICacheService {
   static const String _cachePrefix = 'ai_cache_';
   static const String _frequentQuestionsKey = 'frequent_questions';
   static const int _maxCacheEntries = 1000; // Max 1000 unique questions cached
-  static const Duration _cacheDuration = Duration(days: 365 * 100); // Permanent (100 years)
   
   // Common questions with pre-cached responses
   static const Map<String, String> _commonResponses = {

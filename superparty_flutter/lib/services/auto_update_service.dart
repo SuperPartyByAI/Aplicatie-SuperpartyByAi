@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'firebase_service.dart';
 
@@ -40,7 +38,7 @@ class AutoUpdateService {
       }
       
       final data = doc.data();
-      if (data == null || data is! Map<String, dynamic>) {
+      if (data == null) {
         print('[AutoUpdate] Invalid data');
         return false;
       }
@@ -116,7 +114,7 @@ class AutoUpdateService {
       }
       
       final data = doc.data();
-      if (data == null || data is! Map<String, dynamic>) {
+      if (data == null) {
         print('[AutoUpdate] Invalid data');
         return 'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.';
       }
@@ -141,7 +139,7 @@ class AutoUpdateService {
       }
       
       final data = doc.data();
-      if (data == null || data is! Map<String, dynamic>) {
+      if (data == null) {
         print('[AutoUpdate] Invalid data');
         return null;
       }

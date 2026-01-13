@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 /// Model pentru configurația de versiune din Firestore
 /// 
 /// Schema Firestore (snake_case):
