@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../providers/app_state_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/kyc/kyc_screen.dart';
+import '../screens/kyc/kyc_pending_screen.dart';
 import '../services/background_service.dart';
 import '../services/firebase_service.dart';
 import '../services/role_service.dart';
@@ -220,6 +221,7 @@ class UserScope extends StatefulWidget {
 class _UserScopeState extends State<UserScope> {
   late final Stream<DocumentSnapshot<Map<String, dynamic>>> _userDocStream;
   AppStateProvider? _appState;
+  bool _ensuredUserDoc = false;
 
   @override
   void initState() {
@@ -256,10 +258,46 @@ class _UserScopeState extends State<UserScope> {
             );
           }
 
-          final data = userSnapshot.data?.data();
-          final status = data?['status'] as String? ?? '';
+          final snap = userSnapshot.data;
+          final exists = snap?.exists == true;
+          final data = snap?.data();
+          final status = data?['status']?.toString() ?? '';
+
+          if (!exists && !_ensuredUserDoc) {
+            _ensuredUserDoc = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              try {
+                await FirebaseService.firestore
+                    .collection('users')
+                    .doc(widget.uid)
+                    .set(
+                  {
+                    'status': 'kyc_required',
+                    'createdAt': FieldValue.serverTimestamp(),
+                    'updatedAt': FieldValue.serverTimestamp(),
+                    'updatedBy': widget.uid,
+                  },
+                  SetOptions(merge: true),
+                );
+              } catch (e) {
+                debugPrint('[AUTH] Failed to ensure user doc: $e');
+              }
+            });
+          }
 
           if (status == 'kyc_required') {
+            return const KycScreen();
+          }
+          if (status == 'pending') {
+            return const KycPendingScreen();
+          }
+          if (status == 'rejected') {
+            return const KycScreen(
+              bannerMessage: 'Cererea KYC a fost respinsă. Te rog reîncearcă.',
+            );
+          }
+          if (!exists || status.isEmpty) {
+            // Default safe gate: require KYC if user doc missing/empty.
             return const KycScreen();
           }
 
