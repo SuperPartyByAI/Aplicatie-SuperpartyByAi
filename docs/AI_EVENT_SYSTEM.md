@@ -55,16 +55,15 @@ This is the **only** place where `/evenimente` is written (Admin SDK).
 `/ai_sessions/{sessionId}/steps/{stepId}`
 - `kind`, `op`, `requestId`, `status`, `createdAt`, plus debug fields
 
-### Config (public + private split)
-Public (employees can read):
-- `/ai_config/global` (schema, rolesCatalog, uiTemplates)
-- `/ai_config_overrides/{eventId}` (override patch)
+### Config (super-admin only)
+All AI config is **private to super-admin**. Clients (including employees) **never read** config documents.
 
-Private (super-admin only):
-- `/ai_config_private/global` (prompt/policies)
-- `/ai_config_overrides_private/{eventId}` (override patch)
+- `/ai_config/global`
+- `/ai_config_private/global`
+- `/ai_config_overrides/{eventId}`
+- `/ai_config_overrides_private/{eventId}`
 
-Functions merge them into an effective config.
+Cloud Functions read config via Admin SDK and return only derived `ui`/`draft` to employees.
 
 ## Seed config
 From `functions/`:
