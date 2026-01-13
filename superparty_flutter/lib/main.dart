@@ -162,6 +162,7 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
     // and the old notifier is properly disposed before new dependents are created
     return StreamBuilder<User?>(
       stream: FirebaseService.auth.authStateChanges(),
+      initialData: FirebaseService.auth.currentUser,
       builder: (context, snapshot) {
         final user = snapshot.data;
         final uid = user?.uid;
@@ -172,6 +173,7 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
           key: ValueKey<String?>(uid),
           create: (_) => AppStateProvider(),
           child: MaterialApp(
+            key: ValueKey<String?>(uid),
         title: 'SuperParty',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
