@@ -177,11 +177,11 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       children: [
         // Date preset dropdown
         _buildDatePresetDropdown(),
-        const SizedBox(width: -1),
+        const SizedBox(width: 0),
 
         // Sort button
         _buildSortButton(),
-        const SizedBox(width: -1),
+        const SizedBox(width: 0),
 
         // Driver button
         _buildDriverButton(),
