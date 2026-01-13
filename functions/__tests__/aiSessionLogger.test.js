@@ -41,12 +41,12 @@ test('startSession writes to temp when eventId missing', async () => {
     actionType: 'test',
     configMeta: { hash: 'x' },
   });
-  expect(db._calls.find((c) => c.op === 'set' && c.path === 'ai_temp_sessions/s1')).toBeTruthy();
+  expect(db._calls.find((c) => c.op === 'set' && c.path === 'ai_sessions/s1')).toBeTruthy();
 });
 
 test('appendMessage writes under messages subcollection', async () => {
   const db = makeDb();
-  await logger.appendMessage(db, { eventId: null, sessionId: 's1', role: 'user', text: 'hi' });
-  expect(db._calls.some((c) => c.op === 'set' && c.path.includes('ai_temp_sessions/s1/messages'))).toBe(true);
+  await logger.appendMessage(db, { sessionId: 's1', role: 'user', text: 'hi' });
+  expect(db._calls.some((c) => c.op === 'set' && c.path.includes('ai_sessions/s1/messages'))).toBe(true);
 });
 

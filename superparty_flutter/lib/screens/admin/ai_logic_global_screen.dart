@@ -139,10 +139,27 @@ class _AiLogicGlobalScreenState extends State<AiLogicGlobalScreen> {
       _error = null;
     });
     try {
-      final snap =
-          await FirebaseFirestore.instance.collection('ai_config').doc('global').get();
-      final data = snap.data() ?? <String, dynamic>{};
-      final effective = data.isEmpty ? _defaultGlobalConfig : data;
+      final publicSnap = await FirebaseFirestore.instance
+          .collection('ai_config')
+          .doc('global')
+          .get();
+      final privateSnap = await FirebaseFirestore.instance
+          .collection('ai_config_private')
+          .doc('global')
+          .get();
+      final publicData = publicSnap.data() ?? <String, dynamic>{};
+      final privateData = privateSnap.data() ?? <String, dynamic>{};
+
+      final merged = <String, dynamic>{}
+        ..addAll(_defaultGlobalConfig)
+        ..addAll(publicData)
+        ..addAll(privateData);
+      // keep max version as display-only convenience
+      final vPub = (publicData['version'] is num) ? (publicData['version'] as num).toInt() : 0;
+      final vPriv = (privateData['version'] is num) ? (privateData['version'] as num).toInt() : 0;
+      merged['version'] = (vPub > vPriv) ? vPub : vPriv;
+
+      final effective = (publicData.isEmpty && privateData.isEmpty) ? _defaultGlobalConfig : merged;
       _json.text = const JsonEncoder.withIndent('  ').convert(effective);
     } catch (e) {
       _error = e.toString();
@@ -152,6 +169,22 @@ class _AiLogicGlobalScreenState extends State<AiLogicGlobalScreen> {
     }
   }
 
+  Map<String, dynamic> _publicPart(Map<String, dynamic> cfg) {
+    return <String, dynamic>{
+      'eventSchema': cfg['eventSchema'],
+      'rolesCatalog': cfg['rolesCatalog'],
+      'uiTemplates': cfg['uiTemplates'] ?? <String, dynamic>{},
+    };
+  }
+
+  Map<String, dynamic> _privatePart(Map<String, dynamic> cfg) {
+    return <String, dynamic>{
+      'policies': cfg['policies'] ?? <String, dynamic>{},
+      'systemPrompt': cfg['systemPrompt'],
+      'systemPromptAppend': cfg['systemPromptAppend'],
+    };
+  }
+
   Future<void> _save() async {
     if (!_isSuperAdmin) return;
     setState(() {
@@ -159,22 +192,34 @@ class _AiLogicGlobalScreenState extends State<AiLogicGlobalScreen> {
       _error = null;
     });
     try {
-      final ref =
+      final parsed = jsonDecode(_json.text) as Map<String, dynamic>;
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+
+      final publicRef =
           FirebaseFirestore.instance.collection('ai_config').doc('global');
-      final snap = await ref.get();
-      final currentVersion = (snap.data()?['version'] is num)
-          ? (snap.data()!['version'] as num).toInt()
+      final privateRef =
+          FirebaseFirestore.instance.collection('ai_config_private').doc('global');
+
+      final publicSnap = await publicRef.get();
+      final privateSnap = await privateRef.get();
+      final vPub = (publicSnap.data()?['version'] is num)
+          ? (publicSnap.data()!['version'] as num).toInt()
+          : 0;
+      final vPriv = (privateSnap.data()?['version'] is num)
+          ? (privateSnap.data()!['version'] as num).toInt()
           : 0;
 
-      final parsed = jsonDecode(_json.text) as Map<String, dynamic>;
-      parsed['version'] = currentVersion + 1;
-      parsed['updatedAt'] = FieldValue.serverTimestamp();
-      parsed['updatedBy'] = FirebaseAuth.instance.currentUser?.uid;
+      final publicPart = _publicPart(parsed)
+        ..['version'] = vPub + 1
+        ..['updatedAt'] = FieldValue.serverTimestamp()
+        ..['updatedBy'] = uid;
+      final privatePart = _privatePart(parsed)
+        ..['version'] = vPriv + 1
+        ..['updatedAt'] = FieldValue.serverTimestamp()
+        ..['updatedBy'] = uid;
 
-      await ref.set(
-        parsed,
-        SetOptions(merge: true),
-      );
+      await publicRef.set(publicPart, SetOptions(merge: true));
+      await privateRef.set(privatePart, SetOptions(merge: true));
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

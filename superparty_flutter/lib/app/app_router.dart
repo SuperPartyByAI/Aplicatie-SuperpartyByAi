@@ -80,9 +80,7 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
     case '/admin/ai-sessions':
       final args = settings.arguments;
       final eventId = (args is Map) ? args['eventId']?.toString() : null;
-      page = eventId == null
-          ? const NotFoundScreen(routeName: '/admin/ai-sessions (missing eventId)')
-          : AiSessionsScreen(eventId: eventId);
+      page = AiSessionsScreen(eventId: eventId);
       break;
     case '/admin/ai-override':
       final args = settings.arguments;

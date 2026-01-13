@@ -156,8 +156,50 @@ service cloud.firestore {
 
     // Global AI config documents
     match /ai_config/{docId} {
+      // Public (employees can read). Write only by super-admin.
+      // NOTE: store sensitive prompt/private logic in /ai_config_private/*
+      allow read: if isEmployee();
+      allow write: if isSuperAdminEmail();
+      allow delete: if false;
+    }
+
+    // Private AI config (prompt/policies etc) - super-admin only
+    match /ai_config_private/{docId} {
       allow read, write: if isSuperAdminEmail();
       allow delete: if false;
+    }
+
+    // Per-event overrides (public) - employees can read; super-admin can write
+    match /ai_config_overrides/{eventId} {
+      allow read: if isEmployee();
+      allow write: if isSuperAdminEmail();
+      allow delete: if false;
+    }
+
+    // Per-event overrides (private) - super-admin only
+    match /ai_config_overrides_private/{eventId} {
+      allow read, write: if isSuperAdminEmail();
+      allow delete: if false;
+    }
+
+    // Top-level AI sessions (admin-only transcripts/steps/ops)
+    match /ai_sessions/{sessionId} {
+      allow read: if isSuperAdminEmail();
+      // Either backend-only (Admin SDK bypasses) or allow super-admin to annotate.
+      allow write: if isSuperAdminEmail();
+      allow delete: if false;
+
+      match /messages/{msgId} {
+        allow read: if isSuperAdminEmail();
+        allow write: if isSuperAdminEmail();
+        allow delete: if false;
+      }
+
+      match /steps/{stepId} {
+        allow read: if isSuperAdminEmail();
+        allow write: if isSuperAdminEmail();
+        allow delete: if false;
+      }
     }
 
     // Temporary AI sessions (CREATE before eventId exists) - super-admin read-only

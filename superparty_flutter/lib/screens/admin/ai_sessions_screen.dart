@@ -7,11 +7,11 @@ import 'ai_session_detail_screen.dart';
 class AiSessionsScreen extends StatelessWidget {
   static const _superAdminEmail = 'ursache.andrei1995@gmail.com';
 
-  final String eventId;
+  final String? eventId;
 
   const AiSessionsScreen({
     super.key,
-    required this.eventId,
+    this.eventId,
   });
 
   bool get _isSuperAdmin =>
@@ -25,16 +25,17 @@ class AiSessionsScreen extends StatelessWidget {
       );
     }
 
-    final query = FirebaseFirestore.instance
-        .collection('evenimente')
-        .doc(eventId)
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
         .collection('ai_sessions')
         .orderBy('startedAt', descending: true)
-        .limit(50);
+        .limit(100);
+    if (eventId != null && eventId!.isNotEmpty) {
+      query = query.where('eventId', isEqualTo: eventId);
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('AI Sessions ($eventId)'),
+        title: Text(eventId == null ? 'AI Sessions' : 'AI Sessions (${eventId!})'),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: query.snapshots(),
@@ -61,16 +62,16 @@ class AiSessionsScreen extends StatelessWidget {
               final actorEmail = (data['actorEmail'] ?? '').toString();
               final actionType = (data['actionType'] ?? '').toString();
               final startedAt = data['startedAt'];
+              final eid = (data['eventId'] ?? '').toString();
 
               return ListTile(
                 title: Text('${d.id} • $status'),
-                subtitle: Text('$actorEmail • $actionType • $startedAt'),
+                subtitle: Text('$actorEmail • $actionType • eventId=$eid • $startedAt'),
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => AiSessionDetailScreen(
-                        eventId: eventId,
                         sessionId: d.id,
                       ),
                     ),

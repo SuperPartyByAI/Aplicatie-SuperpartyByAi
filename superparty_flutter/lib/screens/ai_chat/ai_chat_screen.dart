@@ -383,14 +383,16 @@ class _AIChatScreenState extends State<AIChatScreen> {
           commandText = text;
         }
 
-        // Production policy: all event operations via server-side gateway (aiEventGateway).
-        final eventCallable =
+        // AI-first flow:
+        // 1) chatEventOpsV2 interprets + returns UI primitives + proposed ops (NO writes)
+        // 2) aiEventGateway executes ops (ONLY writer to /evenimente)
+        final chatCallable =
             FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
-          'aiEventGateway',
+          'chatEventOpsV2',
           options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
         );
 
-        final result = await eventCallable.call({
+        final result = await chatCallable.call({
           'text': commandText,
           'sessionId': _sessionId,
           'eventId': _eventContextId,
@@ -415,6 +417,51 @@ class _AIChatScreenState extends State<AIChatScreen> {
               _activeUiButtons = parsed;
             });
           }
+        }
+
+        // Draft preview (server-controlled). Show for everyone (operational), detailed debug only for super-admin.
+        final draft = data['draft'];
+        if (draft is Map) {
+          try {
+            aiResponse +=
+                '\n\n--- DRAFT PREVIEW ---\n${const JsonEncoder.withIndent('  ').convert(draft)}';
+          } catch (_) {}
+        }
+
+        // If server decided ops should execute now, call aiEventGateway (operational writer)
+        final autoExecute = data['autoExecute'] == true;
+        final opsRaw = data['ops'];
+        if (autoExecute && opsRaw is List && opsRaw.isNotEmpty) {
+          final gatewayCallable =
+              FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
+            'aiEventGateway',
+            options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+          );
+
+          for (final opEntry in opsRaw) {
+            if (opEntry is! Map) continue;
+            final op = opEntry['op']?.toString() ?? '';
+            final payload = opEntry['payload'];
+            final requestId = opEntry['requestId']?.toString() ??
+                '${_sessionId}_${DateTime.now().microsecondsSinceEpoch}_$op';
+
+            final gwRes = await gatewayCallable.call({
+              'sessionId': _sessionId,
+              'requestId': requestId,
+              'op': op,
+              'payload': payload,
+            });
+
+            final gwData = Map<String, dynamic>.from(gwRes.data);
+            if (gwData['eventId'] is String) {
+              _eventContextId = gwData['eventId'] as String;
+            } else if (gwData['result'] is Map) {
+              final r = Map<String, dynamic>.from(gwData['result'] as Map);
+              if (r['eventId'] is String) _eventContextId = r['eventId'] as String;
+            }
+          }
+
+          aiResponse += '\n\n✅ Salvat în Firebase (via aiEventGateway).';
         }
 
         // Super-admin debug payload (server-controlled)
@@ -711,7 +758,28 @@ class _AIChatScreenState extends State<AIChatScreen> {
                 runSpacing: 8,
                 children: _activeUiButtons.map((b) {
                   final label = (b['label'] ?? '').toString();
-                  final sendText = (b['sendText'] ?? '').toString();
+                  final legacySendText = (b['sendText'] ?? '').toString();
+                  final action = (b['action'] ?? '').toString().toUpperCase();
+                  final payload = b['payload'];
+                  String sendText;
+                  if (legacySendText.isNotEmpty) {
+                    sendText = legacySendText;
+                  } else if (action == 'CONFIRM') {
+                    sendText = 'da';
+                  } else if (action == 'CANCEL') {
+                    sendText = 'anulează';
+                  } else if (payload is Map && payload['text'] is String) {
+                    sendText = payload['text'] as String;
+                  } else if (payload != null) {
+                    // Send structured action back to AI as JSON string
+                    sendText = const JsonEncoder().convert({
+                      '_ui': true,
+                      'action': action,
+                      'payload': payload,
+                    });
+                  } else {
+                    sendText = action.isEmpty ? 'ok' : action.toLowerCase();
+                  }
                   final style = (b['style'] ?? 'secondary').toString();
                   final isPrimary = style == 'primary';
                   return ElevatedButton(

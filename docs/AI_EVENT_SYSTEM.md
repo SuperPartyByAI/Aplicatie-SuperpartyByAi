@@ -1,93 +1,88 @@
-# AI Event System (AI-only Operations + Admin-only Debug/Control)
+# AI Event System (AI-first + AI-only writes + admin-only sessions)
 
 ## Goal
 - **Employees (staff)** can **create / update / assign / archive** events **only via AI chat**.
-- **No client writes** to `/evenimente` (or operational substructures).
-- **Super-admin only** (`ursache.andrei1995@gmail.com`) can:
-  - read full **AI transcripts + steps** (`/evenimente/{eventId}/ai_sessions/...`)
-  - edit **global AI config** (`/ai_config/global`) and **per-event overrides** (`/evenimente/{eventId}/ai_overrides/current`) **without redeploy**
+- **Client never writes** operational fields in `/evenimente`.
+- **Super-admin only** (`ursache.andrei1995@gmail.com`) can see:
+  - AI config (prompt/policies) and edit it without redeploy
+  - full transcripts + steps + decided ops for each AI session
 
-## Data model
+## Single source of truth (Functions)
+There are **two callables** with strict responsibilities:
 
-### Public (employees can read)
-`/evenimente/{eventId}` contains **only operational fields**, for example:
-- `schemaVersion`
-- `shortCode` / `eventShortId`
-- `date` / `dateStart`
-- `address`
-- `clientPhone` / `clientName`
-- `roles` (and assignment fields like `assignedCode` / `pendingCode`)
+### `chatEventOpsV2` (AI interpreter, NO writes)
+Input:
+
+```json
+{ "text": "...", "sessionId": "s1", "eventId": "optional" }
+```
+
+Output (high level):
+- `message`: assistant text
+- `ui`: primitives (`buttons[]`, `cards[]`)
+- `draft`: preview (before confirm)
+- `ops[]`: proposed operations (only after confirm)
+- `autoExecute`: `true|false` (client should call `aiEventGateway` if true)
+
+### `aiEventGateway` (operational writer)
+Input:
+
+```json
+{ "sessionId": "s1", "requestId": "idempotency-key", "op": "createEvent", "payload": { ... } }
+```
+
+This is the **only** place where `/evenimente` is written (Admin SDK).
+
+## Data model (Firestore)
+
+### Operational events (employees can read, client cannot write)
+`/evenimente/{eventId}`
+- V3 canonical fields (examples): `schemaVersion`, `eventShortId`, `date`, `dateKey`, `address`, `phoneE164`, `phoneRaw`, `rolesBySlot`, `payment`, `isArchived`
 - minimal audit: `createdAt`, `createdByEmail`, `updatedAt`, `updatedByEmail`
 
-**Important**: event docs must NOT contain transcripts or AI logs.
+**Never** store transcripts/logs in the event doc.
 
-### Admin-only (super-admin can read)
-`/evenimente/{eventId}/ai_sessions/{sessionId}`
-- `actorUid`, `actorEmail`
-- `actionType`
-- `startedAt`, `endedAt`
-- `effectiveConfig` (global/override versions + hash)
-- optional `summary`
+### AI sessions (super-admin only)
+`/ai_sessions/{sessionId}`
+- `actorUid`, `actorEmail`, `actionType`, `startedAt`, `endedAt`
+- `eventId` (null until create is executed)
+- `configMeta` (versions + hash + validation errors)
+- `extractedDraft`, `decidedOps`, `validationErrors`
 
-`/evenimente/{eventId}/ai_sessions/{sessionId}/messages/{msgId}`
-- `role` = `user|assistant`, `text`, `ts`
+`/ai_sessions/{sessionId}/messages/{msgId}`
+- `role`: `user|assistant`, `text`, `createdAt`
 
-`/evenimente/{eventId}/ai_sessions/{sessionId}/steps/{stepId}`
-- `ts`, `action`, `draftSnapshot`, `missingFields`, `changes`, `modelOutput`
+`/ai_sessions/{sessionId}/steps/{stepId}`
+- `kind`, `op`, `requestId`, `status`, `createdAt`, plus debug fields
 
-### Super-admin only config
-`/ai_config/global`
-- `version` (int)
-- `eventSchema` (required fields + fields metadata)
-- `rolesCatalog` (10 canonical roles)
-- `policies` (`requireConfirm`, `askOneQuestion`)
-- optional `systemPrompt`, `systemPromptAppend`, `uiTemplates`
+### Config (public + private split)
+Public (employees can read):
+- `/ai_config/global` (schema, rolesCatalog, uiTemplates)
+- `/ai_config_overrides/{eventId}` (override patch)
 
-`/evenimente/{eventId}/ai_overrides/current`
-- `version` (int)
-- `overrides` (patch merged over global config)
+Private (super-admin only):
+- `/ai_config_private/global` (prompt/policies)
+- `/ai_config_overrides_private/{eventId}` (override patch)
 
-## Firestore rules (client)
-- `/evenimente/{eventId}`: `allow read: if isEmployee(); allow write: if false;`
-- `/evenimente/{eventId}/ai_sessions/**`: `allow read: if isSuperAdminEmail(); allow write: if false;`
-- `/ai_config/**`: `allow read, write: if isSuperAdminEmail();`
-- `/evenimente/{eventId}/ai_overrides/**`: `allow read, write: if isSuperAdminEmail();`
+Functions merge them into an effective config.
 
-Backend uses Admin SDK (rules do not apply to it).
-
-## Single gateway
-Client calls **only**:
-- `aiEventGateway` (callable) for event operations.
-
-Implementation notes:
-- The gateway delegates to the server-side event ops logic and returns a **strict client contract**:
-  - `action`, `message`, `eventId?`, `shortCode?`, `ui.buttons[]`
-  - super-admin also receives `debug` (draft/missing/diff + aiSessionPath).
-
-## Seed: /ai_config/global
-
-### Option A: run the seed script
+## Seed config
 From `functions/`:
 
 ```bash
 node seed_ai_config_global.js
 ```
 
-Requirements:
-- set `GOOGLE_APPLICATION_CREDENTIALS` to a service account JSON
-- set `FIREBASE_PROJECT_ID` (or ensure ADC resolves project)
-- (optional) set `FIRESTORE_EMULATOR_HOST` for local emulator
-
-### Option B: paste JSON in Firestore Console
-Create `/ai_config/global` using the JSON template printed by the seed script.
+This seeds:
+- `/ai_config/global`
+- `/ai_config_private/global`
 
 ## Manual acceptance test
 - **Non-employee** calls `aiEventGateway` → `permission-denied`
-- **Employee** notes an event in AI chat → a doc is created/updated in `/evenimente` and appears in Events page
-- **Client write** to `/evenimente` (direct) → denied by rules
-- **Employee** cannot read `/ai_config`, `/ai_overrides`, `/ai_sessions` → denied by rules
+- **Employee** notes an event through AI chat → `chatEventOpsV2` returns CONFIRM → confirm → `aiEventGateway` writes `/evenimente`
+- **Direct client write** to `/evenimente/*` → denied by rules
+- **Employee** cannot read `/ai_sessions/*` → denied by rules
 - **Super-admin** can:
-  - view `/evenimente/{eventId}/ai_sessions/*` (messages + steps)
-  - edit `/ai_config/global` and per-event override
-  - see Debug Panel in chat responses (server-controlled)
+  - view `/ai_sessions/*` transcript + steps + ops
+  - edit global config + per-event override JSON screens (takes effect next session)
 

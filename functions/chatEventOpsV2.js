@@ -17,6 +17,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const Groq = require('groq-sdk');
+const crypto = require('crypto');
 
 // Import helper modules
 const ConversationStateManager = require('./conversationStateManager');
@@ -26,6 +27,7 @@ const EventIdentifier = require('./eventIdentifier');
 const ShortCodeGenerator = require('./shortCodeGenerator');
 const { getEffectiveConfig } = require('./aiConfigManager');
 const aiSessionLogger = require('./aiSessionLogger');
+const { normalizeRoleType } = require('./normalizers');
 
 // Define secret for GROQ API key
 const groqApiKey = defineSecret('GROQ_API_KEY');
@@ -126,7 +128,6 @@ exports.chatEventOpsV2 = onCall(
 
     const logAssistant = async (message, extra = null) => {
       await aiSessionLogger.appendMessage(db, {
-        eventId: logEventId,
         sessionId,
         role: 'assistant',
         text: message,
@@ -136,7 +137,6 @@ exports.chatEventOpsV2 = onCall(
 
     const logUser = async (message, extra = null) => {
       await aiSessionLogger.appendMessage(db, {
-        eventId: logEventId,
         sessionId,
         role: 'user',
         text: message,
@@ -211,7 +211,7 @@ exports.chatEventOpsV2 = onCall(
       if (logEventId) return;
 
       logEventId = eid;
-      await aiSessionLogger.attachTempSessionToEvent(db, { sessionId, eventId: logEventId });
+      await aiSessionLogger.setEventId(db, { sessionId, eventId: logEventId });
       ({ effective: effectiveConfig, meta: effectiveConfigMeta } = await getEffectiveConfig(db, { eventId: logEventId }));
       await aiSessionLogger.startSession(db, {
         eventId: logEventId,
@@ -226,6 +226,29 @@ exports.chatEventOpsV2 = onCall(
     // Get current conversation state
     let conversationState = await stateManager.getState(sessionId);
 
+    // If we have pendingOps and the user confirms, return ops for execution (no Firestore writes here).
+    const confirmKeywords = ['da', 'ok', 'confirm', 'confirma', 'confirmă', 'yes'];
+    const normalizedConfirm = text.toLowerCase()
+      .replace(/ă/g, 'a')
+      .replace(/â/g, 'a')
+      .replace(/î/g, 'i')
+      .replace(/ș/g, 's')
+      .replace(/ț/g, 't')
+      .trim();
+    const pendingOps = conversationState?.pendingOps;
+    if (pendingOps && Array.isArray(pendingOps) && confirmKeywords.includes(normalizedConfirm)) {
+      await stateManager.db.collection(stateManager.statesCollection).doc(sessionId).set({ pendingOps: admin.firestore.FieldValue.delete() }, { merge: true });
+      await aiSessionLogger.setDecidedOps(db, { sessionId, decidedOps: pendingOps });
+      await logAssistant('✅ Confirmat. Execut operațiunea...', { action: 'CONFIRM_OPS' });
+      return {
+        ok: true,
+        action: 'CONFIRMED',
+        message: '✅ Confirmat. Execut operațiunea...',
+        ops: pendingOps,
+        autoExecute: true,
+      };
+    }
+
     // Check for cancel/exit commands
     const cancelKeywords = ['anuleaza', 'anulează', 'cancel', 'stop', 'iesi', 'ieși'];
     const normalizedText = text.toLowerCase()
@@ -239,13 +262,92 @@ exports.chatEventOpsV2 = onCall(
       if (conversationState && conversationState.notingMode) {
         await stateManager.cancelNotingMode(sessionId);
         await logAssistant('✅ Am anulat notarea evenimentului. Cu ce te pot ajuta?', { action: 'CANCELLED' });
-        await aiSessionLogger.endSession(db, { eventId: logEventId, sessionId, status: 'CANCELLED' });
+        await aiSessionLogger.endSession(db, { sessionId, status: 'CANCELLED' });
         return {
           ok: true,
           action: 'CANCELLED',
           message: '✅ Am anulat notarea evenimentului. Cu ce te pot ajuta?',
         };
       }
+    }
+
+    // If we're in noting mode, handle draft collection deterministically (no LLM needed).
+    if (conversationState && conversationState.notingMode) {
+      const updates = await extractUpdates(text, conversationState.draftEvent, roleDetector, dateTimeParser);
+      if (Object.keys(updates).length > 0) {
+        conversationState = await stateManager.updateDraft(sessionId, updates);
+      }
+
+      await aiSessionLogger.setExtractedDraft(db, { sessionId, extractedDraft: conversationState.draftEvent });
+
+      if (stateManager.isReadyForConfirmation(conversationState.draftEvent)) {
+        const summary = stateManager.generateConfirmationSummary(conversationState.draftEvent);
+
+        // Build createEvent op (V3 canonical write via aiEventGateway)
+        const rolesDraft = Array.isArray(conversationState.draftEvent.rolesDraft) ? conversationState.draftEvent.rolesDraft : [];
+        const roles = rolesDraft.map((r) => ({
+          roleType: normalizeRoleType(r.roleType || r.cheieRol || r.label) || (r.roleType || null),
+          label: r.label || null,
+          startTime: r.startTime || '14:00',
+          durationMin: Number(r.durationMinutes || r.durationMin || 120) || 120,
+          status: 'CONFIRMED',
+          details: r.details || {},
+        }));
+
+        const op = {
+          op: 'createEvent',
+          payload: {
+            event: {
+              date: conversationState.draftEvent.date,
+              address: conversationState.draftEvent.address,
+              phoneRaw: conversationState.draftEvent.client || null,
+              childName: conversationState.draftEvent.sarbatoritNume || null,
+              childAge: conversationState.draftEvent.sarbatoritVarsta || null,
+              childDob: conversationState.draftEvent.sarbatoritDob || null,
+            },
+            roles,
+          },
+        };
+
+        const requestId = crypto
+          .createHash('sha256')
+          .update(`${sessionId}:${JSON.stringify(op)}`)
+          .digest('hex')
+          .slice(0, 24);
+
+        await stateManager.db.collection(stateManager.statesCollection).doc(sessionId).set({ pendingOps: [{ ...op, requestId }] }, { merge: true });
+
+        await logAssistant(summary, { action: 'CONFIRM', requestId });
+        return {
+          ok: true,
+          action: 'CONFIRM',
+          message: summary,
+          draft: { event: conversationState.draftEvent, roles },
+          ui: {
+            buttons: [
+              { label: 'Confirmă', action: 'CONFIRM', payload: { requestId } },
+              { label: 'Anulează', action: 'CANCEL', payload: {} },
+            ],
+            cards: [{ title: 'Preview', sections: [{ title: 'Eveniment', fields: conversationState.draftEvent }] }],
+          },
+          debug: makeDebug({ effectiveConfigMeta }),
+        };
+      }
+
+      const nextQuestion = stateManager.getNextQuestion(conversationState);
+      const q = nextQuestion ? nextQuestion.question : 'Am actualizat informațiile. Mai ai ceva de adăugat?';
+      await logAssistant(q, { action: 'UPDATE_DRAFT' });
+      return {
+        ok: true,
+        action: 'UPDATE_DRAFT',
+        message: q,
+        draft: { event: conversationState.draftEvent, roles: conversationState.draftEvent.rolesDraft || [] },
+        ui: {
+          buttons: [{ label: 'Anulează', action: 'CANCEL', payload: {} }],
+          cards: [{ title: 'Draft', sections: [{ title: 'Eveniment', fields: conversationState.draftEvent }] }],
+        },
+        debug: makeDebug({ effectiveConfigMeta }),
+      };
     }
 
     // Access GROQ API key
@@ -274,7 +376,6 @@ exports.chatEventOpsV2 = onCall(
 
     if (!cmd || !cmd.action) {
       await aiSessionLogger.appendStep(db, {
-        eventId: logEventId,
         sessionId,
         step: {
           kind: 'ai_parse_failed',
@@ -297,7 +398,7 @@ exports.chatEventOpsV2 = onCall(
     const cmdEventId = cmd.eventId ? String(cmd.eventId).trim() : null;
     if (!logEventId && cmdEventId) {
       logEventId = cmdEventId;
-      await aiSessionLogger.attachTempSessionToEvent(db, { sessionId, eventId: logEventId });
+      await aiSessionLogger.setEventId(db, { sessionId, eventId: logEventId });
       ({ effective: effectiveConfig, meta: effectiveConfigMeta } = await getEffectiveConfig(db, { eventId: logEventId }));
       await aiSessionLogger.startSession(db, {
         eventId: logEventId,
@@ -310,7 +411,6 @@ exports.chatEventOpsV2 = onCall(
     }
 
     await aiSessionLogger.appendStep(db, {
-      eventId: logEventId,
       sessionId,
       step: {
         kind: 'ai_command',
@@ -466,81 +566,65 @@ exports.chatEventOpsV2 = onCall(
         };
       }
 
-      // Generate short code
-      const shortCode = await shortCodeGenerator.generateEventShortCode();
+      // Build op for aiEventGateway (V3 canonical write via eventOperations_v3)
+      const rolesDraft = Array.isArray(data.rolesDraft) ? data.rolesDraft : [];
+      const roles = rolesDraft.map((r) => ({
+        roleType: normalizeRoleType(r.roleType || r.cheieRol || r.label) || (r.roleType || null),
+        label: r.label || null,
+        startTime: r.startTime || '14:00',
+        durationMin: Number(r.durationMinutes || r.durationMin || 120) || 120,
+        status: 'CONFIRMED',
+        details: r.details || {},
+      }));
 
-      // Process roles
-      const roles = await processRoles(data.rolesDraft || [], shortCode, shortCodeGenerator);
-
-      // Create event document
-      const now = admin.firestore.FieldValue.serverTimestamp();
-
-      const eventDoc = {
-        schemaVersion: 2,
-        shortCode,
-        date: dateValidation.date,
-        address: data.address.trim(),
-        client: data.client || null,
-        sarbatoritNume: data.sarbatoritNume || '',
-        sarbatoritVarsta: data.sarbatoritVarsta || 0,
-        sarbatoritDob: data.sarbatoritDob || null,
-        incasare: data.incasare || { status: 'NEINCASAT' },
-        roles,
-        isArchived: false,
-        createdAt: now,
-        createdBy: uid,
-        createdByEmail: email,
-        updatedAt: now,
-        updatedBy: uid,
+      const op = {
+        op: 'createEvent',
+        payload: {
+          event: {
+            date: dateValidation.date,
+            address: data.address.trim(),
+            phoneRaw: data.client || null,
+            childName: data.sarbatoritNume || null,
+            childAge: data.sarbatoritVarsta || null,
+            childDob: data.sarbatoritDob || null,
+          },
+          roles,
+        },
       };
+
+      const requestId = crypto
+        .createHash('sha256')
+        .update(`${sessionId}:${JSON.stringify(op)}`)
+        .digest('hex')
+        .slice(0, 24);
 
       if (dryRun) {
         return {
           ok: true,
           action: 'CREATE',
-          ...(isSuperAdmin ? { data: eventDoc } : {}),
-          message: 'Preview: Evenimentul ar fi creat (dryRun).',
+          message: 'Preview: Evenimentul ar fi creat (via aiEventGateway).',
           dryRun: true,
+          ops: [{ ...op, requestId }],
+          autoExecute: false,
           debug: makeDebug({
             effectiveConfigMeta,
-            eventDoc,
+            op,
           }),
         };
       }
 
-      const ref = await db.collection('evenimente').add(eventDoc);
-      const createdEventId = ref.id;
-
-      // Attach temp session logs to the newly created event
-      if (!logEventId) {
-        await aiSessionLogger.attachTempSessionToEvent(db, { sessionId, eventId: createdEventId });
-        logEventId = createdEventId;
-      }
-
-      // Clear conversation state
-      if (conversationState && conversationState.notingMode) {
-        await stateManager.cancelNotingMode(sessionId);
-      }
-
-      await logAssistant(
-        `✅ Eveniment creat cu succes!\n📋 Cod: ${shortCode}\n📅 Data: ${dateValidation.date}\n📍 Adresa: ${data.address}`,
-        { action: 'CREATE', eventId: createdEventId, shortCode }
-      );
-      await aiSessionLogger.endSession(db, { eventId: logEventId, sessionId, status: 'DONE', createdEventId });
+      await aiSessionLogger.setExtractedDraft(db, { sessionId, extractedDraft: { ...data, date: dateValidation.date } });
+      await aiSessionLogger.setDecidedOps(db, { sessionId, decidedOps: [{ ...op, requestId }] });
+      await logAssistant('✅ Confirmat. Execut createEvent via aiEventGateway...', { action: 'CREATE', requestId });
 
       return {
         ok: true,
         action: 'CREATE',
-        eventId: createdEventId,
-        shortCode,
-        message: `✅ Eveniment creat cu succes!\n📋 Cod: ${shortCode}\n📅 Data: ${dateValidation.date}\n📍 Adresa: ${data.address}`,
+        message: '✅ Confirmat. Execut createEvent...',
+        ops: [{ ...op, requestId }],
+        autoExecute: true,
         dryRun: false,
-        debug: makeDebug({
-          effectiveConfigMeta,
-          createdEventId,
-          shortCode,
-          eventDocPreview: dryRun ? eventDoc : undefined,
-        }),
+        debug: makeDebug({ effectiveConfigMeta, requestId }),
       };
     }
 
@@ -555,8 +639,6 @@ exports.chatEventOpsV2 = onCall(
       await ensureEventContext(eventId);
 
       const patch = sanitizeUpdateFields(cmd.data || {});
-      patch.updatedAt = admin.firestore.FieldValue.serverTimestamp();
-      patch.updatedBy = uid;
 
       if (dryRun) {
         return {
@@ -564,31 +646,40 @@ exports.chatEventOpsV2 = onCall(
           action: 'UPDATE_EVENT_FIELDS',
           eventId,
           data: patch,
-          message: `Preview: Eveniment ${eventId} va fi actualizat`,
+          message: `Preview: Eveniment ${eventId} va fi actualizat (via aiEventGateway)`,
           dryRun: true,
+          ops: [{ op: 'updateEventPatch', payload: { eventId, patch } }],
+          autoExecute: false,
           debug: makeDebug({ effectiveConfigMeta, cmd }),
         };
       }
 
-      await db.collection('evenimente').doc(eventId).update(patch);
-      await db.collection('evenimente').doc(eventId).collection('audit').add({
-        action: 'UPDATE_EVENT_FIELDS',
-        actorUid: uid,
-        actorEmail: email,
-        patch,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      const op = { op: 'updateEventPatch', payload: { eventId, patch } };
+      const requestId = crypto
+        .createHash('sha256')
+        .update(`${sessionId}:${JSON.stringify(op)}`)
+        .digest('hex')
+        .slice(0, 24);
 
-      await logAssistant(`✅ Eveniment actualizat.`, { action: 'UPDATE_EVENT_FIELDS', eventId, patch });
-      await aiSessionLogger.endSession(db, { eventId: logEventId || eventId, sessionId, status: 'DONE' });
+      await stateManager.db.collection(stateManager.statesCollection).doc(sessionId).set({ pendingOps: [{ ...op, requestId }] }, { merge: true });
+      await aiSessionLogger.setEventId(db, { sessionId, eventId });
+      await aiSessionLogger.setDecidedOps(db, { sessionId, decidedOps: [{ ...op, requestId }] });
 
+      const msg = `Vrei să aplic această actualizare pe evenimentul ${eventId}?`;
+      await logAssistant(msg, { action: 'CONFIRM_UPDATE', eventId, requestId, patch });
       return {
         ok: true,
-        action: 'UPDATE_EVENT_FIELDS',
-        eventId,
-        message: `✅ Eveniment actualizat.`,
+        action: 'CONFIRM',
+        message: msg,
+        ui: {
+          buttons: [
+            { label: 'Confirmă', action: 'CONFIRM', payload: { requestId } },
+            { label: 'Anulează', action: 'CANCEL', payload: {} },
+          ],
+          cards: [{ title: 'Update patch', sections: [{ title: 'Patch', fields: patch }] }],
+        },
         dryRun: false,
-        debug: makeDebug({ effectiveConfigMeta }),
+        debug: makeDebug({ effectiveConfigMeta, requestId }),
       };
     }
 
@@ -628,84 +719,102 @@ exports.chatEventOpsV2 = onCall(
           eventId,
           message: `Preview: ${action} va fi aplicat.`,
           dryRun: true,
+          ops: [
+            {
+              op:
+                action === 'ADD_ROLE' || action === 'UPDATE_ROLE'
+                  ? 'upsertRole'
+                  : action === 'REMOVE_ROLE'
+                    ? 'archiveRole'
+                    : 'assignStaffToRole',
+              payload: { eventId },
+            },
+          ],
+          autoExecute: false,
           debug: makeDebug({ effectiveConfigMeta, cmd }),
         };
       }
 
-      await db.runTransaction(async (tx) => {
-        const ref = db.collection('evenimente').doc(eventId);
-        const snap = await tx.get(ref);
-        if (!snap.exists) throw new HttpsError('not-found', 'Evenimentul nu există.');
+      let op = null;
+      if (action === 'ADD_ROLE') {
+        const label = roleInput.label ? String(roleInput.label).trim() : null;
+        if (!label) throw new HttpsError('invalid-argument', 'ADD_ROLE necesită role.label.');
+        op = {
+          op: 'upsertRole',
+          payload: {
+            eventId,
+            role: {
+              roleType: normalizeRoleType(roleInput.roleType || roleInput.type || label),
+              label,
+              startTime: roleInput.startTime || '14:00',
+              durationMin: Number(roleInput.durationMinutes || roleInput.durationMin || 120) || 120,
+              status: 'NEEDED',
+              details: roleInput.details || {},
+            },
+          },
+        };
+      } else if (action === 'UPDATE_ROLE') {
+        op = {
+          op: 'upsertRole',
+          payload: {
+            eventId,
+            slot,
+            rolePatch: {
+              label: roleInput.label !== undefined ? roleInput.label : undefined,
+              startTime: roleInput.startTime !== undefined ? roleInput.startTime : undefined,
+              durationMin:
+                roleInput.durationMinutes !== undefined || roleInput.durationMin !== undefined
+                  ? Number(roleInput.durationMinutes || roleInput.durationMin)
+                  : undefined,
+              details: roleInput.details !== undefined ? roleInput.details : undefined,
+            },
+          },
+        };
+      } else if (action === 'REMOVE_ROLE') {
+        op = { op: 'archiveRole', payload: { eventId, slot } };
+      } else if (action === 'ASSIGN_ROLE_CODE') {
+        op = { op: 'assignStaffToRole', payload: { eventId, slot, action: 'PENDING', code: code.toUpperCase() } };
+      } else if (action === 'UNASSIGN_ROLE_CODE') {
+        op = { op: 'assignStaffToRole', payload: { eventId, slot, action: 'UNASSIGN' } };
+      } else if (action === 'ACCEPT_PENDING') {
+        op = { op: 'assignStaffToRole', payload: { eventId, slot, action: 'ACCEPT' } };
+      } else if (action === 'REJECT_PENDING') {
+        op = { op: 'assignStaffToRole', payload: { eventId, slot, action: 'REJECT' } };
+      }
 
-        const ev = snap.data() || {};
-        const roles = Array.isArray(ev.roles) ? [...ev.roles] : [];
+      const requestId = crypto
+        .createHash('sha256')
+        .update(`${sessionId}:${JSON.stringify(op)}`)
+        .digest('hex')
+        .slice(0, 24);
 
-        if (action === 'ADD_ROLE') {
-          const label = roleInput.label ? String(roleInput.label).trim() : null;
-          if (!label) throw new HttpsError('invalid-argument', 'ADD_ROLE necesită role.label.');
-          const eventShortCode = ev.shortCode || ev.eventShortCode;
-          if (!eventShortCode) throw new HttpsError('failed-precondition', 'Eveniment fără shortCode.');
+      await stateManager.db.collection(stateManager.statesCollection).doc(sessionId).set({ pendingOps: [{ ...op, requestId }] }, { merge: true });
+      await aiSessionLogger.setEventId(db, { sessionId, eventId });
+      await aiSessionLogger.setDecidedOps(db, { sessionId, decidedOps: [{ ...op, requestId }] });
 
-          const newSlot = shortCodeGenerator.generateRoleSlot(roles);
-          const roleCode = shortCodeGenerator.generateRoleCode(eventShortCode, newSlot);
-          roles.push({
-            slot: newSlot,
-            roleCode,
-            label,
-            startTime: roleInput.startTime || '14:00',
-            durationMinutes: roleInput.durationMinutes || 120,
-            details: roleInput.details || null,
-            assignedCode: null,
-            pendingCode: null,
-          });
-        } else {
-          const idx = roles.findIndex(r => String(r.slot || '').trim() === slot);
-          if (idx === -1) throw new HttpsError('not-found', `Rolul ${slot} nu există.`);
-
-          if (action === 'UPDATE_ROLE') {
-            const next = { ...roles[idx] };
-            if (roleInput.label !== null && roleInput.label !== undefined) next.label = String(roleInput.label);
-            if (roleInput.startTime !== null && roleInput.startTime !== undefined) next.startTime = String(roleInput.startTime);
-            if (roleInput.durationMinutes !== null && roleInput.durationMinutes !== undefined) {
-              next.durationMinutes = Number(roleInput.durationMinutes) || next.durationMinutes;
-            }
-            if (roleInput.details !== null && roleInput.details !== undefined) next.details = roleInput.details;
-            roles[idx] = next;
-          } else if (action === 'REMOVE_ROLE') {
-            roles.splice(idx, 1);
-          } else if (action === 'ASSIGN_ROLE_CODE') {
-            roles[idx] = { ...roles[idx], pendingCode: code.toUpperCase() };
-          } else if (action === 'UNASSIGN_ROLE_CODE') {
-            roles[idx] = { ...roles[idx], assignedCode: null, pendingCode: null };
-          } else if (action === 'ACCEPT_PENDING') {
-            const pending = roles[idx].pendingCode;
-            roles[idx] = { ...roles[idx], assignedCode: pending || roles[idx].assignedCode || null, pendingCode: null };
-          } else if (action === 'REJECT_PENDING') {
-            roles[idx] = { ...roles[idx], pendingCode: null };
-          }
-        }
-
-        tx.update(ref, {
-          roles,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedBy: uid,
-        });
-      });
-
-      await db.collection('evenimente').doc(eventId).collection('audit').add({
-        action,
-        actorUid: uid,
-        actorEmail: email,
-        slot: slot || null,
-        code: code || null,
-        role: action === 'ADD_ROLE' || action === 'UPDATE_ROLE' ? roleInput : null,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      await logAssistant(`✅ ${action} aplicat.`, { action, eventId, slot: slot || null });
-      await aiSessionLogger.endSession(db, { eventId: logEventId || eventId, sessionId, status: 'DONE' });
-
-      return { ok: true, action, eventId, message: `✅ ${action} aplicat.`, dryRun: false, debug: makeDebug({ effectiveConfigMeta }) };
+      const msg = `Confirmi ${action} pe evenimentul ${eventId}?`;
+      await logAssistant(msg, { action: 'CONFIRM_ROLE_OP', eventId, slot: slot || null, requestId });
+      return {
+        ok: true,
+        action: 'CONFIRM',
+        eventId,
+        message: msg,
+        ops: [{ ...op, requestId }],
+        autoExecute: false,
+        ui: {
+          buttons: [
+            { label: 'Confirmă', action: 'CONFIRM', payload: { requestId } },
+            { label: 'Anulează', action: 'CANCEL', payload: {} },
+          ],
+          cards: [
+            {
+              title: 'Operațiune rol',
+              sections: [{ title: action, fields: { slot: slot || null, code: code || null, role: roleInput || null } }],
+            },
+          ],
+        },
+        debug: makeDebug({ effectiveConfigMeta, requestId }),
+      };
     }
 
     // Handle ARCHIVE / UNARCHIVE
@@ -741,29 +850,43 @@ exports.chatEventOpsV2 = onCall(
           eventId,
           message: `Preview: ${action} va fi aplicat pe ${eventId}`,
           dryRun: true,
+          ops: [{ op: 'archiveEvent', payload: { eventId, isArchived: action !== 'UNARCHIVE_EVENT', reason: cmd.reason || null } }],
+          autoExecute: false,
           debug: makeDebug({ effectiveConfigMeta, cmd }),
         };
       }
 
-      await db.collection('evenimente').doc(eventId).update(update);
-      await db.collection('evenimente').doc(eventId).collection('audit').add({
-        action,
-        actorUid: uid,
-        actorEmail: email,
-        update,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      const op = {
+        op: 'archiveEvent',
+        payload: { eventId, isArchived: action !== 'UNARCHIVE_EVENT', reason: cmd.reason ? String(cmd.reason) : null },
+      };
+      const requestId = crypto
+        .createHash('sha256')
+        .update(`${sessionId}:${JSON.stringify(op)}`)
+        .digest('hex')
+        .slice(0, 24);
 
-      await logAssistant(`✅ ${action} aplicat.`, { action, eventId });
-      await aiSessionLogger.endSession(db, { eventId: logEventId || eventId, sessionId, status: 'DONE' });
+      await stateManager.db.collection(stateManager.statesCollection).doc(sessionId).set({ pendingOps: [{ ...op, requestId }] }, { merge: true });
+      await aiSessionLogger.setEventId(db, { sessionId, eventId });
+      await aiSessionLogger.setDecidedOps(db, { sessionId, decidedOps: [{ ...op, requestId }] });
 
+      const msg = `Confirmi ${action} pentru evenimentul ${eventId}?`;
+      await logAssistant(msg, { action: 'CONFIRM_ARCHIVE', eventId, requestId });
       return {
         ok: true,
-        action,
+        action: 'CONFIRM',
         eventId,
-        message: `✅ ${action} aplicat.`,
-        dryRun: false,
-        debug: makeDebug({ effectiveConfigMeta }),
+        message: msg,
+        ops: [{ ...op, requestId }],
+        autoExecute: false,
+        ui: {
+          buttons: [
+            { label: 'Confirmă', action: 'CONFIRM', payload: { requestId } },
+            { label: 'Anulează', action: 'CANCEL', payload: {} },
+          ],
+          cards: [{ title: 'Arhivare', sections: [{ title: action, fields: op.payload }] }],
+        },
+        debug: makeDebug({ effectiveConfigMeta, requestId }),
       };
     }
 

@@ -4,12 +4,7 @@
  * Server-only (Admin SDK) logger for AI event sessions.
  *
  * Storage:
- * - /evenimente/{eventId}/ai_sessions/{sessionId}
- *   - /messages/{msgId}
- *   - /steps/{stepId}
- *
- * For CREATE where eventId is not known yet:
- * - /ai_temp_sessions/{sessionId}
+ * - /ai_sessions/{sessionId}
  *   - /messages/{msgId}
  *   - /steps/{stepId}
  *
@@ -23,16 +18,12 @@ function _ts() {
   return admin.firestore.FieldValue.serverTimestamp();
 }
 
-function _sessionDocRef(db, eventId, sessionId) {
-  return db.collection('evenimente').doc(eventId).collection('ai_sessions').doc(sessionId);
-}
-
-function _tempSessionDocRef(db, sessionId) {
-  return db.collection('ai_temp_sessions').doc(sessionId);
+function _sessionDocRef(db, sessionId) {
+  return db.collection('ai_sessions').doc(sessionId);
 }
 
 async function startSession(db, { eventId = null, sessionId, actorUid, actorEmail, actionType, configMeta }) {
-  const ref = eventId ? _sessionDocRef(db, eventId, sessionId) : _tempSessionDocRef(db, sessionId);
+  const ref = _sessionDocRef(db, sessionId);
   await ref.set(
     {
       sessionId,
@@ -46,14 +37,17 @@ async function startSession(db, { eventId = null, sessionId, actorUid, actorEmai
       endedAt: null,
       createdEventId: null,
       error: null,
+      extractedDraft: null,
+      decidedOps: null,
+      validationErrors: null,
     },
     { merge: true }
   );
   return ref;
 }
 
-async function appendMessage(db, { eventId = null, sessionId, role, text, extra = null }) {
-  const baseRef = eventId ? _sessionDocRef(db, eventId, sessionId) : _tempSessionDocRef(db, sessionId);
+async function appendMessage(db, { sessionId, role, text, extra = null }) {
+  const baseRef = _sessionDocRef(db, sessionId);
   const msgRef = baseRef.collection('messages').doc();
   await msgRef.set({
     role: role || 'unknown',
@@ -63,8 +57,8 @@ async function appendMessage(db, { eventId = null, sessionId, role, text, extra 
   });
 }
 
-async function appendStep(db, { eventId = null, sessionId, step }) {
-  const baseRef = eventId ? _sessionDocRef(db, eventId, sessionId) : _tempSessionDocRef(db, sessionId);
+async function appendStep(db, { sessionId, step }) {
+  const baseRef = _sessionDocRef(db, sessionId);
   const stepRef = baseRef.collection('steps').doc();
   await stepRef.set({
     ...(step || {}),
@@ -72,8 +66,8 @@ async function appendStep(db, { eventId = null, sessionId, step }) {
   });
 }
 
-async function endSession(db, { eventId = null, sessionId, status, createdEventId = null, error = null }) {
-  const ref = eventId ? _sessionDocRef(db, eventId, sessionId) : _tempSessionDocRef(db, sessionId);
+async function endSession(db, { sessionId, status, createdEventId = null, error = null }) {
+  const ref = _sessionDocRef(db, sessionId);
   await ref.set(
     {
       status: status || 'DONE',
@@ -85,35 +79,25 @@ async function endSession(db, { eventId = null, sessionId, status, createdEventI
   );
 }
 
-async function attachTempSessionToEvent(db, { sessionId, eventId }) {
-  const tempRef = _tempSessionDocRef(db, sessionId);
-  const tempSnap = await tempRef.get();
-  if (!tempSnap.exists) return;
+async function setEventId(db, { sessionId, eventId }) {
+  const ref = _sessionDocRef(db, sessionId);
+  await ref.set({ eventId: eventId || null }, { merge: true });
+}
 
-  const dstRef = _sessionDocRef(db, eventId, sessionId);
+async function setExtractedDraft(db, { sessionId, extractedDraft }) {
+  const ref = _sessionDocRef(db, sessionId);
+  await ref.set({ extractedDraft: extractedDraft || null }, { merge: true });
+}
 
-  // Copy root doc
-  await dstRef.set(
+async function setDecidedOps(db, { sessionId, decidedOps, validationErrors = null }) {
+  const ref = _sessionDocRef(db, sessionId);
+  await ref.set(
     {
-      ...tempSnap.data(),
-      eventId,
+      decidedOps: decidedOps || null,
+      validationErrors: validationErrors || null,
     },
     { merge: true }
   );
-
-  // Copy subcollections (messages + steps)
-  const [msgsSnap, stepsSnap] = await Promise.all([tempRef.collection('messages').get(), tempRef.collection('steps').get()]);
-
-  const batch = db.batch();
-
-  msgsSnap.docs.forEach(d => batch.set(dstRef.collection('messages').doc(d.id), d.data(), { merge: true }));
-  stepsSnap.docs.forEach(d => batch.set(dstRef.collection('steps').doc(d.id), d.data(), { merge: true }));
-
-  await batch.commit();
-
-  // Best-effort cleanup (optional). Keep for forensic if delete fails.
-  // NOTE: subcollection deletes are not atomic; this is production-safe as "leak" is acceptable.
-  await tempRef.set({ migratedToEventId: eventId, migratedAt: _ts() }, { merge: true });
 }
 
 module.exports = {
@@ -121,6 +105,8 @@ module.exports = {
   appendMessage,
   appendStep,
   endSession,
-  attachTempSessionToEvent,
+  setEventId,
+  setExtractedDraft,
+  setDecidedOps,
 };
 

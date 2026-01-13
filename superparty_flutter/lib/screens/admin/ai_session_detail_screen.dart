@@ -7,12 +7,10 @@ import 'package:flutter/material.dart';
 class AiSessionDetailScreen extends StatelessWidget {
   static const _superAdminEmail = 'ursache.andrei1995@gmail.com';
 
-  final String eventId;
   final String sessionId;
 
   const AiSessionDetailScreen({
     super.key,
-    required this.eventId,
     required this.sessionId,
   });
 
@@ -28,8 +26,6 @@ class AiSessionDetailScreen extends StatelessWidget {
     }
 
     final sessionRef = FirebaseFirestore.instance
-        .collection('evenimente')
-        .doc(eventId)
         .collection('ai_sessions')
         .doc(sessionId);
 

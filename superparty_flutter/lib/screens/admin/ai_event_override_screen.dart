@@ -27,11 +27,13 @@ class _AiEventOverrideScreenState extends State<AiEventOverrideScreen> {
   bool get _isSuperAdmin =>
       (FirebaseAuth.instance.currentUser?.email ?? '') == _superAdminEmail;
 
-  DocumentReference<Map<String, dynamic>> get _ref => FirebaseFirestore.instance
-      .collection('evenimente')
-      .doc(widget.eventId)
-      .collection('ai_overrides')
-      .doc('current');
+  DocumentReference<Map<String, dynamic>> get _publicRef => FirebaseFirestore.instance
+      .collection('ai_config_overrides')
+      .doc(widget.eventId);
+
+  DocumentReference<Map<String, dynamic>> get _privateRef => FirebaseFirestore.instance
+      .collection('ai_config_overrides_private')
+      .doc(widget.eventId);
 
   @override
   void initState() {
@@ -45,12 +47,20 @@ class _AiEventOverrideScreenState extends State<AiEventOverrideScreen> {
       _error = null;
     });
     try {
-      final snap = await _ref.get();
-      final data = snap.data() ?? <String, dynamic>{};
-      final overrides = (data['overrides'] is Map)
-          ? Map<String, dynamic>.from(data['overrides'] as Map)
+      final pubSnap = await _publicRef.get();
+      final privSnap = await _privateRef.get();
+      final pubData = pubSnap.data() ?? <String, dynamic>{};
+      final privData = privSnap.data() ?? <String, dynamic>{};
+
+      final pubOverrides = (pubData['overrides'] is Map)
+          ? Map<String, dynamic>.from(pubData['overrides'] as Map)
           : <String, dynamic>{};
-      _json.text = const JsonEncoder.withIndent('  ').convert(overrides);
+      final privOverrides = (privData['overrides'] is Map)
+          ? Map<String, dynamic>.from(privData['overrides'] as Map)
+          : <String, dynamic>{};
+
+      final merged = <String, dynamic>{}..addAll(pubOverrides)..addAll(privOverrides);
+      _json.text = const JsonEncoder.withIndent('  ').convert(merged);
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -66,19 +76,44 @@ class _AiEventOverrideScreenState extends State<AiEventOverrideScreen> {
       _error = null;
     });
     try {
-      final snap = await _ref.get();
-      final currentVersion = (snap.data()?['version'] is num)
-          ? (snap.data()!['version'] as num).toInt()
+      final overrides = jsonDecode(_json.text) as Map<String, dynamic>;
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+
+      final pubSnap = await _publicRef.get();
+      final privSnap = await _privateRef.get();
+      final vPub = (pubSnap.data()?['version'] is num)
+          ? (pubSnap.data()!['version'] as num).toInt()
+          : 0;
+      final vPriv = (privSnap.data()?['version'] is num)
+          ? (privSnap.data()!['version'] as num).toInt()
           : 0;
 
-      final overrides = jsonDecode(_json.text) as Map<String, dynamic>;
+      final publicOverrides = <String, dynamic>{};
+      final privateOverrides = <String, dynamic>{};
+      for (final entry in overrides.entries) {
+        final k = entry.key;
+        if (k == 'eventSchema' || k == 'rolesCatalog' || k == 'uiTemplates') {
+          publicOverrides[k] = entry.value;
+        } else {
+          privateOverrides[k] = entry.value;
+        }
+      }
 
-      await _ref.set(
+      await _publicRef.set(
         {
-          'overrides': overrides,
-          'version': currentVersion + 1,
+          'overrides': publicOverrides,
+          'version': vPub + 1,
           'updatedAt': FieldValue.serverTimestamp(),
-          'updatedBy': FirebaseAuth.instance.currentUser?.uid,
+          'updatedBy': uid,
+        },
+        SetOptions(merge: true),
+      );
+      await _privateRef.set(
+        {
+          'overrides': privateOverrides,
+          'version': vPriv + 1,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedBy': uid,
         },
         SetOptions(merge: true),
       );

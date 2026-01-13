@@ -22,7 +22,7 @@ function getProjectId() {
   );
 }
 
-const GLOBAL_CONFIG = {
+const GLOBAL_PUBLIC = {
   eventSchema: {
     required: ['date', 'address'],
     fields: {
@@ -120,10 +120,13 @@ const GLOBAL_CONFIG = {
       detailsSchema: { notes: { type: 'string', label: 'Observații' } },
     },
   },
+  uiTemplates: {},
+};
+
+const GLOBAL_PRIVATE = {
   policies: { requireConfirm: true, askOneQuestion: true },
   systemPrompt: null,
   systemPromptAppend: null,
-  uiTemplates: {},
 };
 
 async function main() {
@@ -133,30 +136,45 @@ async function main() {
   }
 
   const db = admin.firestore();
-  const ref = db.collection('ai_config').doc('global');
-  const snap = await ref.get();
-  const currentVersion =
-    snap.exists && snap.data() && typeof snap.data().version === 'number'
-      ? snap.data().version
+  const publicRef = db.collection('ai_config').doc('global');
+  const privateRef = db.collection('ai_config_private').doc('global');
+
+  const [pubSnap, privSnap] = await Promise.all([publicRef.get(), privateRef.get()]);
+  const pubVer =
+    pubSnap.exists && pubSnap.data() && typeof pubSnap.data().version === 'number'
+      ? pubSnap.data().version
+      : 0;
+  const privVer =
+    privSnap.exists && privSnap.data() && typeof privSnap.data().version === 'number'
+      ? privSnap.data().version
       : 0;
 
-  const next = {
-    ...GLOBAL_CONFIG,
-    version: currentVersion + 1,
+  const publicNext = {
+    ...GLOBAL_PUBLIC,
+    version: pubVer + 1,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedBy: 'seed_script',
+  };
+  const privateNext = {
+    ...GLOBAL_PRIVATE,
+    version: privVer + 1,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedBy: 'seed_script',
   };
 
-  await ref.set(next, { merge: true });
+  await Promise.all([
+    publicRef.set(publicNext, { merge: true }),
+    privateRef.set(privateNext, { merge: true }),
+  ]);
 
   // eslint-disable-next-line no-console
-  console.log('Seeded /ai_config/global.');
+  console.log('Seeded /ai_config/global and /ai_config_private/global.');
   // eslint-disable-next-line no-console
-  console.log('Written version:', next.version);
+  console.log('Written versions:', { public: publicNext.version, private: privateNext.version });
   // eslint-disable-next-line no-console
   console.log('Template JSON (for console paste):');
   // eslint-disable-next-line no-console
-  console.log(JSON.stringify(next, null, 2));
+  console.log(JSON.stringify({ public: publicNext, private: privateNext }, null, 2));
 }
 
 main().catch((err) => {

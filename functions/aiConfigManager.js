@@ -10,11 +10,10 @@
 'use strict';
 
 const crypto = require('crypto');
+const Ajv = require('ajv');
 
 const DEFAULT_CONFIG = {
-  // Minimal defaults (real values should come from /ai_config/global).
-  systemPrompt: null,
-  systemPromptAppend: null,
+  // Minimal safe defaults. Real values should come from Firestore.
   eventSchema: {
     required: ['date', 'address'],
     fields: {},
@@ -25,7 +24,42 @@ const DEFAULT_CONFIG = {
     askOneQuestion: true,
   },
   uiTemplates: {},
+  // Private/system prompt fields (should be loaded from ai_config_private/*)
+  systemPrompt: null,
+  systemPromptAppend: null,
 };
+
+const CONFIG_SCHEMA = {
+  type: 'object',
+  additionalProperties: true,
+  required: ['eventSchema', 'rolesCatalog', 'policies'],
+  properties: {
+    eventSchema: {
+      type: 'object',
+      additionalProperties: true,
+      required: ['required', 'fields'],
+      properties: {
+        required: { type: 'array', items: { type: 'string' } },
+        fields: { type: 'object', additionalProperties: true },
+      },
+    },
+    rolesCatalog: { type: 'object', additionalProperties: true },
+    policies: {
+      type: 'object',
+      additionalProperties: true,
+      properties: {
+        requireConfirm: { type: 'boolean' },
+        askOneQuestion: { type: 'boolean' },
+      },
+    },
+    uiTemplates: { type: 'object', additionalProperties: true },
+    systemPrompt: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    systemPromptAppend: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+  },
+};
+
+const ajv = new Ajv({ allErrors: true, strict: false });
+const validateConfig = ajv.compile(CONFIG_SCHEMA);
 
 function _safeString(v) {
   if (typeof v !== 'string') return null;
@@ -93,39 +127,82 @@ function _hashConfig(config) {
 }
 
 async function getEffectiveConfig(db, { eventId } = {}) {
-  const globalSnap = await db.collection('ai_config').doc('global').get();
-  const globalCfg = globalSnap.exists ? _normalizeConfigDoc(globalSnap.data()) : _normalizeConfigDoc({});
+  // Global (public + private)
+  const [globalPublicSnap, globalPrivateSnap] = await Promise.all([
+    db.collection('ai_config').doc('global').get(),
+    db.collection('ai_config_private').doc('global').get(),
+  ]);
 
-  let overrideCfg = _normalizeOverrideDoc({});
+  const globalPublicCfg = globalPublicSnap.exists ? _normalizeConfigDoc(globalPublicSnap.data()) : _normalizeConfigDoc({});
+  const globalPrivateCfg = globalPrivateSnap.exists ? _normalizeConfigDoc(globalPrivateSnap.data()) : _normalizeConfigDoc({});
+
+  // Overrides (public + private), plus legacy per-event override (subcollection) for backward compatibility
+  let overridePublicCfg = _normalizeOverrideDoc({});
+  let overridePrivateCfg = _normalizeOverrideDoc({});
+  let legacyOverrideCfg = _normalizeOverrideDoc({});
+
   if (eventId) {
-    const overrideSnap = await db
-      .collection('evenimente')
-      .doc(eventId)
-      .collection('ai_overrides')
-      .doc('current')
-      .get();
-    overrideCfg = overrideSnap.exists ? _normalizeOverrideDoc(overrideSnap.data()) : _normalizeOverrideDoc({});
+    const [oPub, oPriv, legacy] = await Promise.all([
+      db.collection('ai_config_overrides').doc(eventId).get(),
+      db.collection('ai_config_overrides_private').doc(eventId).get(),
+      db.collection('evenimente').doc(eventId).collection('ai_overrides').doc('current').get(),
+    ]);
+
+    overridePublicCfg = oPub.exists ? _normalizeOverrideDoc(oPub.data()) : _normalizeOverrideDoc({});
+    overridePrivateCfg = oPriv.exists ? _normalizeOverrideDoc(oPriv.data()) : _normalizeOverrideDoc({});
+    legacyOverrideCfg = legacy.exists ? _normalizeOverrideDoc(legacy.data()) : _normalizeOverrideDoc({});
   }
 
-  const effective = _deepMerge(
-    _deepMerge({ ...DEFAULT_CONFIG }, globalCfg.config || {}),
-    overrideCfg.overrides || {}
+  const merged = _deepMerge(
+    _deepMerge(
+      _deepMerge(
+        _deepMerge({ ...DEFAULT_CONFIG }, globalPublicCfg.config || {}),
+        globalPrivateCfg.config || {}
+      ),
+      overridePublicCfg.overrides || {}
+    ),
+    _deepMerge(overridePrivateCfg.overrides || {}, legacyOverrideCfg.overrides || {})
   );
+
+  const ok = validateConfig(merged);
+  const effective = ok ? merged : { ...DEFAULT_CONFIG };
+  const validationErrors = ok ? null : (validateConfig.errors || null);
 
   const meta = {
     global: {
-      version: globalCfg.version,
-      updatedAt: globalCfg.updatedAt || null,
-      updatedBy: globalCfg.updatedBy || null,
+      public: {
+        version: globalPublicCfg.version,
+        updatedAt: globalPublicCfg.updatedAt || null,
+        updatedBy: globalPublicCfg.updatedBy || null,
+      },
+      private: {
+        version: globalPrivateCfg.version,
+        updatedAt: globalPrivateCfg.updatedAt || null,
+        updatedBy: globalPrivateCfg.updatedBy || null,
+      },
     },
     override: eventId
       ? {
-          version: overrideCfg.version,
-          updatedAt: overrideCfg.updatedAt || null,
-          updatedBy: overrideCfg.updatedBy || null,
+          public: {
+            version: overridePublicCfg.version,
+            updatedAt: overridePublicCfg.updatedAt || null,
+            updatedBy: overridePublicCfg.updatedBy || null,
+          },
+          private: {
+            version: overridePrivateCfg.version,
+            updatedAt: overridePrivateCfg.updatedAt || null,
+            updatedBy: overridePrivateCfg.updatedBy || null,
+          },
+          legacy: {
+            version: legacyOverrideCfg.version,
+            updatedAt: legacyOverrideCfg.updatedAt || null,
+            updatedBy: legacyOverrideCfg.updatedBy || null,
+          },
         }
       : null,
     hash: _hashConfig(effective),
+    isFallback: !ok,
+    validationErrors,
   };
 
   return { effective, meta };
