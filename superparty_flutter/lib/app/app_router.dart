@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../screens/admin/admin_screen.dart';
 import '../screens/admin/ai_conversations_screen.dart';
+import '../screens/admin/firestore_migration_screen.dart';
 import '../screens/admin/kyc_approvals_screen.dart';
 import '../screens/ai_chat/ai_chat_screen.dart';
 import '../screens/centrala/centrala_screen.dart';
@@ -65,6 +66,9 @@ Route<dynamic> onGenerateRoute(RouteSettings settings) {
       break;
     case '/admin/ai-conversations':
       page = const AiConversationsScreen();
+      break;
+    case '/admin/firestore-migration':
+      page = const FirestoreMigrationScreen();
       break;
     case '/gm/accounts':
       page = const AccountsScreen();
