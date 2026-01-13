@@ -1,132 +1,274 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state_provider.dart';
+import '../screens/auth/login_screen.dart';
+import '../screens/kyc/kyc_screen.dart';
 import '../services/background_service.dart';
 import '../services/firebase_service.dart';
 import '../services/role_service.dart';
-import '../screens/auth/login_screen.dart';
-import '../screens/home/home_screen.dart';
-import '../screens/kyc/kyc_screen.dart';
 import '../widgets/update_gate.dart';
-import '../routing/app_router.dart';
+import 'app_router.dart';
 
 /// Stable app shell - owns the single [MaterialApp] instance.
-/// This widget should not be recreated on auth/user state changes.
+/// Must not be recreated on auth/user changes.
 class AppShell extends StatelessWidget {
   const AppShell({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SuperParty',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFDC2626),
-          brightness: Brightness.light,
+    return ChangeNotifierProvider<AppStateProvider>(
+      create: (_) => AppStateProvider(),
+      child: MaterialApp(
+        title: 'SuperParty',
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFFDC2626),
+            brightness: Brightness.light,
+          ),
+          useMaterial3: true,
         ),
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFDC2626),
-          brightness: Brightness.dark,
+        darkTheme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFFDC2626),
+            brightness: Brightness.dark,
+          ),
+          useMaterial3: true,
         ),
-        useMaterial3: true,
+        // IMPORTANT: All gates are applied here, around the Navigator (child).
+        builder: (context, child) {
+          final nav = child ?? const SizedBox.shrink();
+
+          // FirebaseInitGate must be OUTERMOST so nothing Firebase-related is built before init.
+          return FirebaseInitGate(
+            child: UpdateGate(
+              child: AuthGate(
+                child: nav,
+              ),
+            ),
+          );
+        },
+        onGenerateRoute: onGenerateRoute,
+        onUnknownRoute: onUnknownRoute,
       ),
-      builder: (context, child) {
-        // UpdateGate as overlay - preserves Directionality from MaterialApp
-        return UpdateGate(child: child ?? const SizedBox.shrink());
-      },
-      home: const AuthGate(),
-      onGenerateRoute: onGenerateRoute,
+    );
+  }
+}
+
+/// Deterministic Firebase init gate.
+/// Never allows Firebase access (direct or via FirebaseService) before init.
+class FirebaseInitGate extends StatefulWidget {
+  final Widget child;
+
+  const FirebaseInitGate({super.key, required this.child});
+
+  @override
+  State<FirebaseInitGate> createState() => _FirebaseInitGateState();
+}
+
+class _FirebaseInitGateState extends State<FirebaseInitGate> {
+  bool _ready = FirebaseService.isInitialized;
+  Object? _error;
+  bool _initializing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_ready) {
+      _init();
+    }
+  }
+
+  Future<void> _init() async {
+    if (_initializing) return;
+    setState(() {
+      _initializing = true;
+      _error = null;
+    });
+
+    try {
+      await FirebaseService.initialize().timeout(const Duration(seconds: 10));
+      if (!mounted) return;
+      setState(() => _ready = true);
+    } catch (e, st) {
+      debugPrint('[BOOT] Firebase init failed: $e');
+      debugPrint('[BOOT] Stack: $st');
+      if (!mounted) return;
+      setState(() => _error = e);
+    } finally {
+      if (mounted) {
+        setState(() => _initializing = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_ready) return widget.child;
+
+    if (_error != null) {
+      return Scaffold(
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.cloud_off, size: 48),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Firebase nu a putut fi inițializat.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Eroare: $_error',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _initializing ? null : _init,
+                    child: Text(_initializing ? 'Retry...' : 'Retry'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return const Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Initializing Firebase...'),
+          ],
+        ),
+      ),
     );
   }
 }
 
 /// Auth gate - decides login vs authenticated flow.
-/// Uses [StreamBuilder] for auth state, does NOT own providers.
+/// Placed around navigator via MaterialApp.builder so deep-links can’t bypass auth.
 class AuthGate extends StatelessWidget {
-  const AuthGate({super.key});
+  final Widget child;
+
+  const AuthGate({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
+    // Safe because FirebaseInitGate guarantees init before building AuthGate.
     return StreamBuilder<User?>(
       stream: FirebaseService.auth.authStateChanges(),
       initialData: FirebaseService.auth.currentUser,
       builder: (context, snapshot) {
         final user = snapshot.data;
 
-        // Show login screen when no user
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
         if (user == null) {
+          // No Navigator needed for LoginScreen (it does not navigate).
           return const LoginScreen();
         }
 
-        // Wrap authenticated content in UserScope (providers keyed by uid)
         return UserScope(
           uid: user.uid,
           user: user,
+          child: child,
         );
       },
     );
   }
 }
 
-/// User-scoped subtree - providers recreated per uid.
-/// When uid changes (login/logout), entire subtree is recreated.
-class UserScope extends StatelessWidget {
+/// User-scoped subtree. Builds Firestore stream once in initState.
+/// Clears roles on dispose (logout) without post-frame hacks.
+class UserScope extends StatefulWidget {
   final String uid;
   final User user;
+  final Widget child;
 
   const UserScope({
     super.key,
     required this.uid,
     required this.user,
+    required this.child,
   });
 
   @override
+  State<UserScope> createState() => _UserScopeState();
+}
+
+class _UserScopeState extends State<UserScope> {
+  late final Stream<DocumentSnapshot<Map<String, dynamic>>> _userDocStream;
+  AppStateProvider? _appState;
+
+  @override
+  void initState() {
+    super.initState();
+    _userDocStream = FirebaseService.firestore
+        .collection('users')
+        .doc(widget.uid)
+        .snapshots();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _appState ??= context.read<AppStateProvider>();
+  }
+
+  @override
+  void dispose() {
+    // Logout path: user subtree removed => clear roles deterministically.
+    _appState?.clearRoles();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Recreate providers per uid - entire subtree replaced on uid change
-    return ChangeNotifierProvider<AppStateProvider>(
-      key: ValueKey<String>(uid),
-      create: (_) => AppStateProvider(),
-      child: RoleBootstrapper(
-        uid: uid,
-        child: StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseService.firestore
-              .collection('users')
-              .doc(user.uid)
-              .snapshots(),
-          builder: (context, userSnapshot) {
-            if (userSnapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
-            }
+    return RoleBootstrapper(
+      uid: widget.uid,
+      child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: _userDocStream,
+        builder: (context, userSnapshot) {
+          if (userSnapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
 
-            if (userSnapshot.hasData && userSnapshot.data!.exists) {
-              final userData =
-                  userSnapshot.data!.data() as Map<String, dynamic>;
-              final status = userData['status'] ?? '';
+          final data = userSnapshot.data?.data();
+          final status = data?['status'] as String? ?? '';
 
-              if (status == 'kyc_required') {
-                return const KycScreen();
-              }
-            }
+          if (status == 'kyc_required') {
+            return const KycScreen();
+          }
 
-            return const HomeScreen();
-          },
-        ),
+          // Passed all gates => reveal Navigator child (deep-link preserved).
+          return widget.child;
+        },
       ),
     );
   }
 }
 
-/// Widget that loads user role in initState (lifecycle-safe).
-/// Must be used only when user != null (uid is non-null).
+/// Loads user role + starts background service in initState (lifecycle-safe).
 class RoleBootstrapper extends StatefulWidget {
   final String uid;
   final Widget child;
@@ -154,11 +296,10 @@ class _RoleBootstrapperState extends State<RoleBootstrapper> {
   Future<void> _loadRoleAndStartServices() async {
     if (!mounted) return;
 
-    // Capture uid and appState before async gap
     final uidAtRequest = widget.uid;
     final appState = context.read<AppStateProvider>();
 
-    // Start background service (mobile only) - only once per widget instance
+    // Start background service (mobile only) once per widget instance.
     if (!kIsWeb && !_backgroundServiceStarted) {
       _backgroundServiceStarted = true;
       BackgroundService.startService().catchError((e) {
@@ -173,14 +314,12 @@ class _RoleBootstrapperState extends State<RoleBootstrapper> {
       final role = await _roleService.getUserRole();
       final isEmployee = role != null;
 
-      // Check mounted and uid still matches after async gap
       if (!mounted) return;
       if (FirebaseService.auth.currentUser?.uid != uidAtRequest) {
-        // User changed, skip update
+        // User changed during async gap.
         return;
       }
 
-      // Update app state with role
       appState.setEmployeeStatus(isEmployee, role);
     } catch (e) {
       if (kDebugMode) {
@@ -190,8 +329,7 @@ class _RoleBootstrapperState extends State<RoleBootstrapper> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return widget.child;
-  }
+  Widget build(BuildContext context) => widget.child;
 }
+
 
