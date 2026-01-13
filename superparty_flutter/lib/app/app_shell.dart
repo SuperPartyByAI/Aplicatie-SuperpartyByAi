@@ -110,33 +110,37 @@ class _FirebaseInitGateState extends State<FirebaseInitGate> {
     if (_ready) return widget.child;
 
     if (_error != null) {
-      return Scaffold(
-        body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.cloud_off, size: 48),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Firebase nu a putut fi inițializat.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Eroare: $_error',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _initializing ? null : _init,
-                    child: Text(_initializing ? 'Retry...' : 'Retry'),
-                  ),
-                ],
+      // Keep an Overlay in the tree (EditableText requires it).
+      return _GateNavigator(
+        page: Scaffold(
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.cloud_off, size: 48),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Firebase nu a putut fi inițializat.',
+                      textAlign: TextAlign.center,
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Eroare: $_error',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _initializing ? null : _init,
+                      child: Text(_initializing ? 'Retry...' : 'Retry'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -144,15 +148,18 @@ class _FirebaseInitGateState extends State<FirebaseInitGate> {
       );
     }
 
-    return const Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Initializing Firebase...'),
-          ],
+    // Keep an Overlay in the tree (EditableText requires it).
+    return const _GateNavigator(
+      page: Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Initializing Firebase...'),
+            ],
+          ),
         ),
       ),
     );
@@ -176,14 +183,16 @@ class AuthGate extends StatelessWidget {
         final user = snapshot.data;
 
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+          return const _GateNavigator(
+            page: Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            ),
           );
         }
 
         if (user == null) {
-          // No Navigator needed for LoginScreen (it does not navigate).
-          return const LoginScreen();
+          // Keep an Overlay in the tree (Login has EditableText).
+          return const _GateNavigator(page: LoginScreen());
         }
 
         return UserScope(
@@ -248,8 +257,10 @@ class _UserScopeState extends State<UserScope> {
         stream: _userDocStream,
         builder: (context, userSnapshot) {
           if (userSnapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
+            return const _GateNavigator(
+              page: Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              ),
             );
           }
 
@@ -257,13 +268,34 @@ class _UserScopeState extends State<UserScope> {
           final status = data?['status'] as String? ?? '';
 
           if (status == 'kyc_required') {
-            return const KycScreen();
+            // Keep an Overlay in the tree (KYC has inputs).
+            return const _GateNavigator(page: KycScreen());
           }
 
           // Passed all gates => reveal Navigator child (deep-link preserved).
           return widget.child;
         },
       ),
+    );
+  }
+}
+
+/// Minimal navigator wrapper used by gates to ensure an [Overlay] exists.
+/// (EditableText requires it, and it is normally provided by [Navigator].)
+class _GateNavigator extends StatelessWidget {
+  final Widget page;
+
+  const _GateNavigator({required this.page});
+
+  @override
+  Widget build(BuildContext context) {
+    return Navigator(
+      onGenerateRoute: (settings) {
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => page,
+        );
+      },
     );
   }
 }
