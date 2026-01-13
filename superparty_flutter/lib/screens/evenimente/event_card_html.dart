@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../models/event_model.dart';
 
 /// Event Card Widget - 100% identic cu HTML

@@ -1,15 +1,12 @@
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/event_model.dart';
-import '../../services/event_service.dart';
 import '../../widgets/modals/range_modal.dart';
 import '../../widgets/modals/code_modal.dart';
 import '../../widgets/modals/assign_modal.dart';
 import '../../widgets/modals/code_info_modal.dart';
 import 'event_card_html.dart';
-import 'dovezi_screen_html.dart';
 import '../evidence/evidence_screen.dart';
 
 /// Evenimente Screen - 100% identic cu HTML (4522 linii)
@@ -22,7 +19,6 @@ class EvenimenteScreen extends StatefulWidget {
 }
 
 class _EvenimenteScreenState extends State<EvenimenteScreen> {
-  final EventService _eventService = EventService();
   final FocusNode _codeInputFocus = FocusNode();
 
   // Filtre - exact ca în HTML
@@ -114,28 +110,34 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
           ),
           child: SafeArea(
             bottom: false,
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 920),
-              margin: const EdgeInsets.symmetric(horizontal: 0),
+            child: Padding(
+              // HTML: .appbar { padding: 14px 16px; }
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Evenimente',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.2,
-                      color: Color(0xFFEAF1FF),
-                    ),
+              child: Center(
+                // HTML: .appbar-inner { max-width: 920px; margin: 0 auto; }
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 920),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Evenimente',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.2,
+                          color: Color(0xFFEAF1FF),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      ConstrainedBox(
+                        // HTML: .filters-block { max-width: 640px; }
+                        constraints: const BoxConstraints(maxWidth: 640),
+                        child: _buildFiltersBlock(),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  Container(
-                    constraints: const BoxConstraints(maxWidth: 640),
-                    child: _buildFiltersBlock(),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -238,16 +240,12 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 value: 'custom', child: Text('Interval (aleg eu)')),
           ],
           onChanged: (value) {
-            if (value != null) {
-              setState(() {
-                _datePreset = value;
-              });
-              if (value == 'custom') {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted) return;
-                  _openRangeModal();
-                });
-              }
+            if (value == null) return;
+            setState(() {
+              _datePreset = value;
+            });
+            if (value == 'custom') {
+              _openRangeModal();
             }
           },
         ),
@@ -267,7 +265,13 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         height: 36,
         decoration: BoxDecoration(
           color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
-          border: Border.all(color: const Color(0x24FFFFFF)),
+          // HTML uses margin-left:-1px; simulate by removing left border.
+          border: const Border(
+            top: BorderSide(color: Color(0x24FFFFFF), width: 1),
+            right: BorderSide(color: Color(0x24FFFFFF), width: 1),
+            bottom: BorderSide(color: Color(0x24FFFFFF), width: 1),
+            left: BorderSide.none,
+          ),
           borderRadius: BorderRadius.zero,
         ),
         child: Row(
@@ -349,7 +353,13 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         height: 36,
         decoration: BoxDecoration(
           color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
-          border: Border.all(color: const Color(0x24FFFFFF)),
+          // HTML uses margin-left:-1px; simulate by removing left border.
+          border: const Border(
+            top: BorderSide(color: Color(0x24FFFFFF), width: 1),
+            right: BorderSide(color: Color(0x24FFFFFF), width: 1),
+            bottom: BorderSide(color: Color(0x24FFFFFF), width: 1),
+            left: BorderSide.none,
+          ),
           borderRadius: const BorderRadius.only(
             topRight: Radius.circular(12),
             bottomRight: Radius.circular(12),
@@ -360,9 +370,9 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             // Steering wheel icon
             Center(
               child: Icon(
-                Icons.local_shipping_outlined,
+                Icons.directions_car_outlined,
                 size: _driverFilter == 'all' ? 22 : 20,
-                color: const Color(0xF2EAF1FF), // rgba(234,241,255,0.95)
+                color: const Color(0xD1EAF1FF), // rgba(234,241,255,0.82)
               ),
             ),
             // Badge (top-right corner)
@@ -402,7 +412,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       children: [
         // Input "Ce cod am"
         _buildCodeFilterInput(),
-        const SizedBox(width: 8),
+        const SizedBox(width: 2),
 
         // Separator
         Text(
@@ -413,12 +423,12 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             color: const Color(0xFFEAF1FF).withOpacity(0.55),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 2),
 
         // Input "Cine noteaza"
         _buildNotedByFilterInput(),
 
-        // Spacer pentru aliniere cu sort button (HTML: .btnspacer)
+        // Gap + spacer pentru aliniere cu sort button (HTML: .filters gap 12px + .btnspacer)
         const Spacer(),
         SizedBox(
           width: 44,
@@ -535,43 +545,51 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         final filteredEvents = _applyFilters(events);
 
         if (filteredEvents.isEmpty) {
+          // HTML: inside .wrap { padding: 12px }, then .empty { margin-top: 14px; padding: 14px; }
           return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0x0DFFFFFF), // rgba(255,255,255,0.05)
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.10)
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 920),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Container(
+                  margin: const EdgeInsets.only(top: 14),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0x0DFFFFFF), // rgba(255,255,255,0.05)
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.10)
+                    ),
                   ),
-                ),
-                child: Text(
-                  'Nu există evenimente pentru filtrele selectate.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: const Color(0xFFEAF1FF).withOpacity(0.75),
+                  child: Text(
+                    'Nu există evenimente pentru filtrele selectate.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: const Color(0xFFEAF1FF).withOpacity(0.75),
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
                 ),
               ),
             ),
           );
         }
 
-        return Container(
-          constraints: const BoxConstraints(maxWidth: 920),
-          margin: const EdgeInsets.symmetric(horizontal: 0),
-          child: ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: filteredEvents.length,
-            itemBuilder: (context, index) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _buildEventCard(filteredEvents[index], events),
-              );
-            },
+        // HTML: .wrap { max-width: 920px; margin: 0 auto; padding: 12px; }
+        // HTML: .cards { gap: 10px; padding-bottom: 24px; }
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 920),
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+              itemCount: filteredEvents.length,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _buildEventCard(filteredEvents[index], events),
+                );
+              },
+            ),
           ),
         );
       },
@@ -837,20 +855,19 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       barrierColor: Colors.transparent,
       builder: (context) => CodeModal(
         onOptionSelected: (value) {
-          setState(() {
-            if (value == 'FOCUS_INPUT') {
-              // Clear and focus input
+          if (value == 'FOCUS_INPUT') {
+            setState(() {
               _codeFilter = '';
-              Future.delayed(const Duration(milliseconds: 100), () {
-                if (!mounted) return;
-                if (_codeInputFocus.canRequestFocus) {
-                  _codeInputFocus.requestFocus();
-                }
-              });
-            } else {
-              // Set filter value (NEREZOLVATE, REZOLVATE, or empty)
-              _codeFilter = value;
+            });
+            if (!mounted) return;
+            if (_codeInputFocus.canRequestFocus) {
+              _codeInputFocus.requestFocus();
             }
+            return;
+          }
+          setState(() {
+            // Set filter value (NEREZOLVATE, REZOLVATE, or empty)
+            _codeFilter = value;
           });
         },
       ),
