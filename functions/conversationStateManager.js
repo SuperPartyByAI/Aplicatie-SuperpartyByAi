@@ -11,6 +11,7 @@
  */
 
 const admin = require('firebase-admin');
+const { HttpsError } = require('firebase-functions/v2/https');
 
 class ConversationStateManager {
   constructor(db) {
@@ -21,7 +22,7 @@ class ConversationStateManager {
   /**
    * Get conversation state for a session
    */
-  async getState(sessionId) {
+  async getState(sessionId, ownerUid = null) {
     if (!sessionId) return null;
 
     const stateDoc = await this.db.collection(this.statesCollection).doc(sessionId).get();
@@ -30,10 +31,22 @@ class ConversationStateManager {
       return null;
     }
 
-    return {
+    const state = {
       id: stateDoc.id,
       ...stateDoc.data(),
     };
+
+    // SECURITY: Admin SDK bypasses Firestore rules, so enforce owner isolation here too.
+    if (ownerUid && state.ownerUid && String(state.ownerUid) !== String(ownerUid)) {
+      throw new HttpsError('permission-denied', 'Conversation state is owner-only.');
+    }
+
+    // If a state exists but ownerUid is missing, treat it as invalid and deny access.
+    if (ownerUid && !state.ownerUid) {
+      throw new HttpsError('permission-denied', 'Conversation state missing ownerUid.');
+    }
+
+    return state;
   }
 
   /**
@@ -79,8 +92,8 @@ class ConversationStateManager {
   /**
    * Update draft event with new information
    */
-  async updateDraft(sessionId, updates) {
-    const state = await this.getState(sessionId);
+  async updateDraft(sessionId, ownerUid, updates) {
+    const state = await this.getState(sessionId, ownerUid);
     
     if (!state || !state.notingMode) {
       throw new Error('Not in noting mode');
@@ -121,15 +134,17 @@ class ConversationStateManager {
   /**
    * Cancel noting mode and reset state
    */
-  async cancelNotingMode(sessionId) {
+  async cancelNotingMode(sessionId, ownerUid) {
+    // Ensure caller owns this state (even though Admin SDK bypasses rules).
+    await this.getState(sessionId, ownerUid);
     await this.db.collection(this.statesCollection).doc(sessionId).delete();
   }
 
   /**
    * Exit noting mode (same as cancel)
    */
-  async exitNotingMode(sessionId) {
-    return this.cancelNotingMode(sessionId);
+  async exitNotingMode(sessionId, ownerUid) {
+    return this.cancelNotingMode(sessionId, ownerUid);
   }
 
   /**

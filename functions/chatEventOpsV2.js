@@ -216,8 +216,8 @@ exports.chatEventOpsV2 = onCall(
       });
     };
 
-    // Get current conversation state
-    let conversationState = await stateManager.getState(sessionId);
+    // Get current conversation state (SECURITY: owner-only enforced in manager)
+    let conversationState = await stateManager.getState(sessionId, uid);
 
     // If we have pendingOps and the user confirms, return ops for execution (no Firestore writes here).
     const confirmKeywords = ['da', 'ok', 'confirm', 'confirma', 'confirmă', 'yes'];
@@ -230,7 +230,11 @@ exports.chatEventOpsV2 = onCall(
       .trim();
     const pendingOps = conversationState?.pendingOps;
     if (pendingOps && Array.isArray(pendingOps) && confirmKeywords.includes(normalizedConfirm)) {
-      await stateManager.db.collection(stateManager.statesCollection).doc(sessionId).set({ pendingOps: admin.firestore.FieldValue.delete() }, { merge: true });
+      // SECURITY: keep ownerUid stable
+      await stateManager.db
+        .collection(stateManager.statesCollection)
+        .doc(sessionId)
+        .set({ ownerUid: uid, pendingOps: admin.firestore.FieldValue.delete() }, { merge: true });
       await aiSessionLogger.setDecidedOps(db, { sessionId, decidedOps: pendingOps });
       await logAssistant('✅ Confirmat. Execut operațiunea...', { action: 'CONFIRM_OPS' });
       return {
@@ -253,7 +257,7 @@ exports.chatEventOpsV2 = onCall(
 
     if (cancelKeywords.some(kw => normalizedText.includes(kw))) {
       if (conversationState && conversationState.notingMode) {
-        await stateManager.cancelNotingMode(sessionId);
+        await stateManager.cancelNotingMode(sessionId, uid);
         await logAssistant('✅ Am anulat notarea evenimentului. Cu ce te pot ajuta?', { action: 'CANCELLED' });
         await aiSessionLogger.endSession(db, { sessionId, status: 'CANCELLED' });
         return {
@@ -268,7 +272,7 @@ exports.chatEventOpsV2 = onCall(
     if (conversationState && conversationState.notingMode) {
       const updates = await extractUpdates(text, conversationState.draftEvent, roleDetector, dateTimeParser);
       if (Object.keys(updates).length > 0) {
-        conversationState = await stateManager.updateDraft(sessionId, updates);
+        conversationState = await stateManager.updateDraft(sessionId, uid, updates);
       }
 
       await aiSessionLogger.setExtractedDraft(db, { sessionId, extractedDraft: conversationState.draftEvent });
@@ -308,7 +312,10 @@ exports.chatEventOpsV2 = onCall(
           .digest('hex')
           .slice(0, 24);
 
-        await stateManager.db.collection(stateManager.statesCollection).doc(sessionId).set({ pendingOps: [{ ...op, requestId }] }, { merge: true });
+        await stateManager.db
+          .collection(stateManager.statesCollection)
+          .doc(sessionId)
+          .set({ ownerUid: uid, pendingOps: [{ ...op, requestId }] }, { merge: true });
 
         await logAssistant(summary, { action: 'CONFIRM', requestId });
         return {
@@ -482,7 +489,7 @@ exports.chatEventOpsV2 = onCall(
       // Extract updates from user input
       const updates = await extractUpdates(text, conversationState.draftEvent, roleDetector, dateTimeParser);
 
-      conversationState = await stateManager.updateDraft(sessionId, updates);
+      conversationState = await stateManager.updateDraft(sessionId, uid, updates);
 
       // Check if ready for confirmation
       if (stateManager.isReadyForConfirmation(conversationState.draftEvent)) {
@@ -654,7 +661,10 @@ exports.chatEventOpsV2 = onCall(
         .digest('hex')
         .slice(0, 24);
 
-      await stateManager.db.collection(stateManager.statesCollection).doc(sessionId).set({ pendingOps: [{ ...op, requestId }] }, { merge: true });
+      await stateManager.db
+        .collection(stateManager.statesCollection)
+        .doc(sessionId)
+        .set({ ownerUid: uid, pendingOps: [{ ...op, requestId }] }, { merge: true });
       await aiSessionLogger.setEventId(db, { sessionId, eventId });
       await aiSessionLogger.setDecidedOps(db, { sessionId, decidedOps: [{ ...op, requestId }] });
 
@@ -781,7 +791,10 @@ exports.chatEventOpsV2 = onCall(
         .digest('hex')
         .slice(0, 24);
 
-      await stateManager.db.collection(stateManager.statesCollection).doc(sessionId).set({ pendingOps: [{ ...op, requestId }] }, { merge: true });
+      await stateManager.db
+        .collection(stateManager.statesCollection)
+        .doc(sessionId)
+        .set({ ownerUid: uid, pendingOps: [{ ...op, requestId }] }, { merge: true });
       await aiSessionLogger.setEventId(db, { sessionId, eventId });
       await aiSessionLogger.setDecidedOps(db, { sessionId, decidedOps: [{ ...op, requestId }] });
 
@@ -859,7 +872,10 @@ exports.chatEventOpsV2 = onCall(
         .digest('hex')
         .slice(0, 24);
 
-      await stateManager.db.collection(stateManager.statesCollection).doc(sessionId).set({ pendingOps: [{ ...op, requestId }] }, { merge: true });
+      await stateManager.db
+        .collection(stateManager.statesCollection)
+        .doc(sessionId)
+        .set({ ownerUid: uid, pendingOps: [{ ...op, requestId }] }, { merge: true });
       await aiSessionLogger.setEventId(db, { sessionId, eventId });
       await aiSessionLogger.setDecidedOps(db, { sessionId, decidedOps: [{ ...op, requestId }] });
 
