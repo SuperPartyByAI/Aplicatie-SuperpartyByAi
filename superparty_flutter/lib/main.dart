@@ -11,25 +11,8 @@ import 'services/push_notification_service.dart';
 import 'services/role_service.dart';
 import 'providers/app_state_provider.dart';
 import 'screens/auth/login_screen.dart';
-import 'screens/home/home_screen.dart';
-import 'screens/evenimente/evenimente_screen.dart';
-import 'screens/disponibilitate/disponibilitate_screen.dart';
-import 'screens/salarizare/salarizare_screen.dart';
-import 'screens/centrala/centrala_screen.dart';
-import 'screens/whatsapp/whatsapp_screen.dart';
-import 'screens/team/team_screen.dart';
-import 'screens/admin/admin_screen.dart';
-import 'screens/admin/kyc_approvals_screen.dart';
-import 'screens/admin/ai_conversations_screen.dart';
-import 'screens/admin/firestore_migration_screen.dart';
-import 'screens/gm/accounts_screen.dart';
-import 'screens/gm/metrics_screen.dart';
-import 'screens/gm/analytics_screen.dart';
-import 'screens/gm/staff_setup_screen.dart';
-import 'screens/ai_chat/ai_chat_screen.dart';
-import 'screens/kyc/kyc_screen.dart';
-import 'screens/error/not_found_screen.dart';
 import 'widgets/update_gate.dart';
+import 'routing/app_router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -195,74 +178,7 @@ class AppShell extends StatelessWidget {
         return UpdateGate(child: child ?? const SizedBox.shrink());
       },
       home: const AuthGate(),
-      onGenerateRoute: (settings) {
-        if (kDebugMode) {
-          debugPrint('[ROUTE] Raw: ${settings.name}');
-        }
-        
-        // Normalize route: handle /#/evenimente, query params, trailing slash
-        final raw = settings.name ?? '/';
-        final cleaned = raw.startsWith('/#') ? raw.substring(2) : raw; // "/#/x" -> "/x"
-        final uri = Uri.tryParse(cleaned) ?? Uri(path: cleaned);
-        final path = uri.path.isEmpty ? '/' : uri.path;
-        
-        if (kDebugMode) {
-          debugPrint('[ROUTE] Normalized: $path');
-        }
-        
-        // Handle all routes including deep-links
-        switch (path) {
-          case '/home':
-            return MaterialPageRoute(builder: (_) => const HomeScreen());
-          case '/kyc':
-            return MaterialPageRoute(builder: (_) => const KycScreen());
-          case '/evenimente':
-            return MaterialPageRoute(builder: (_) => const EvenimenteScreen());
-          case '/disponibilitate':
-            return MaterialPageRoute(builder: (_) => const DisponibilitateScreen());
-          case '/salarizare':
-            return MaterialPageRoute(builder: (_) => const SalarizareScreen());
-          case '/centrala':
-            return MaterialPageRoute(builder: (_) => const CentralaScreen());
-          case '/whatsapp':
-            return MaterialPageRoute(builder: (_) => const WhatsAppScreen());
-          case '/team':
-            return MaterialPageRoute(builder: (_) => const TeamScreen());
-          case '/admin':
-            return MaterialPageRoute(builder: (_) => const AdminScreen());
-          case '/admin/kyc':
-            return MaterialPageRoute(builder: (_) => const KycApprovalsScreen());
-          case '/admin/ai-conversations':
-            return MaterialPageRoute(builder: (_) => const AiConversationsScreen());
-          case '/admin/firestore-migration':
-            return MaterialPageRoute(builder: (_) => const FirestoreMigrationScreen());
-          case '/gm/accounts':
-            return MaterialPageRoute(builder: (_) => const AccountsScreen());
-          case '/gm/metrics':
-            return MaterialPageRoute(builder: (_) => const MetricsScreen());
-          case '/gm/analytics':
-            return MaterialPageRoute(builder: (_) => const AnalyticsScreen());
-          case '/gm/staff-setup':
-            return MaterialPageRoute(builder: (_) => const StaffSetupScreen());
-          case '/ai-chat':
-            return MaterialPageRoute(builder: (_) => const AIChatScreen());
-          default:
-            if (kDebugMode) {
-              debugPrint('[ROUTE] Unknown path: $path - showing NotFoundScreen');
-            }
-            return MaterialPageRoute(
-              builder: (_) => NotFoundScreen(routeName: path),
-            );
-        }
-      },
-      onUnknownRoute: (settings) {
-        if (kDebugMode) {
-          debugPrint('[ROUTE] onUnknownRoute called for: ${settings.name}');
-        }
-        return MaterialPageRoute(
-          builder: (_) => NotFoundScreen(routeName: settings.name ?? ''),
-        );
-      },
+      onGenerateRoute: onGenerateRoute,
     );
   }
 }
