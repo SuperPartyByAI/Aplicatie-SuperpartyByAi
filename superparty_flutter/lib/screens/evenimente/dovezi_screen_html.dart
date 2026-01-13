@@ -2,10 +2,9 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 import '../../models/event_model.dart';
 import 'photo_image.dart';
+import '../../services/dovezi_service.dart';
 
 /// Dovezi Screen - 100% identic cu HTML
 /// Referință: kyc-app/kyc-app/public/evenimente.html (#pageEvidence)
@@ -23,54 +22,28 @@ class DoveziScreenHtml extends StatefulWidget {
 
 class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
   final ImagePicker _picker = ImagePicker();
-  
-  // 4 categorii exact ca în HTML
-  final Map<String, List<String>> _photos = {
-    'onTime': [],
-    'luggage': [],
-    'accessories': [],
-    'laundry': [],
-  };
+  final DoveziService _service = DoveziService();
 
-  final Map<String, String> _verdict = {
-    'onTime': 'na',
-    'luggage': 'na',
-    'accessories': 'na',
-    'laundry': 'na',
+  // local UI state (uploading spinners), evidence itself is streamed from Firestore
+  final Map<String, bool> _uploading = {};
+
+  static const List<String> _categories = <String>[
+    'onTime',
+    'luggage',
+    'accessories',
+    'laundry',
+  ];
+
+  static const Map<String, String> _categoryLabels = <String, String>{
+    'onTime': 'Nu am intarziat',
+    'luggage': 'Am pus bagajul la loc',
+    'accessories': 'Am pus accesoriile la loc',
+    'laundry': 'Am pus hainele la spalat',
   };
 
   @override
   void initState() {
     super.initState();
-    _loadEvidence();
-  }
-
-  Future<void> _loadEvidence() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      for (final cat in _photos.keys) {
-        final key = 'evidence_${widget.event.id}_$cat';
-        final data = prefs.getString(key);
-        if (data != null) {
-          _photos[cat] = List<String>.from(jsonDecode(data));
-        }
-        
-        final verdictKey = 'verdict_${widget.event.id}_$cat';
-        _verdict[cat] = prefs.getString(verdictKey) ?? 'na';
-      }
-    });
-  }
-
-  Future<void> _saveEvidence(String category) async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = 'evidence_${widget.event.id}_$category';
-    await prefs.setString(key, jsonEncode(_photos[category]));
-  }
-
-  Future<void> _saveVerdictState(String category) async {
-    final prefs = await SharedPreferences.getInstance();
-    final verdictKey = 'verdict_${widget.event.id}_$category';
-    await prefs.setString(verdictKey, _verdict[category]!);
   }
 
   @override
@@ -92,15 +65,22 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
           children: [
             _buildAppBar(),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    _buildMeta(),
-                    const SizedBox(height: 16),
-                    _buildEvidenceCard(),
-                  ],
-                ),
+              child: StreamBuilder<Map<String, DoveziCategory>>(
+                stream: _service.streamEvidence(widget.event.id),
+                builder: (context, snapshot) {
+                  final evidence = snapshot.data ?? const <String, DoveziCategory>{};
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _buildMeta(),
+                        const SizedBox(height: 16),
+                        _buildEvidenceCard(evidence),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -182,7 +162,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
     );
   }
 
-  Widget _buildEvidenceCard() {
+  Widget _buildEvidenceCard(Map<String, DoveziCategory> evidence) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0x0DFFFFFF), // rgba(255,255,255,0.05)
@@ -216,13 +196,13 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
           ),
           const SizedBox(height: 16),
           // 4 categories
-          _buildProofBlock('onTime', 'Nu am intarziat'),
+          _buildProofBlock('onTime', evidence),
           const SizedBox(height: 10),
-          _buildProofBlock('luggage', 'Am pus bagajul la loc'),
+          _buildProofBlock('luggage', evidence),
           const SizedBox(height: 10),
-          _buildProofBlock('accessories', 'Am pus accesoriile la loc'),
+          _buildProofBlock('accessories', evidence),
           const SizedBox(height: 10),
-          _buildProofBlock('laundry', 'Am pus hainele la spalat'),
+          _buildProofBlock('laundry', evidence),
           const SizedBox(height: 16),
           // Actions
           _buildActions(),
@@ -231,11 +211,15 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
     );
   }
 
-  Widget _buildProofBlock(String category, String label) {
-    final count = _photos[category]!.length;
-    final verdict = _verdict[category]!;
-    final isLocked = verdict == 'ok';
-    final status = verdict == 'ok' ? 'OK' : (count > 0 ? 'Necompletat' : 'N/A');
+  Widget _buildProofBlock(String category, Map<String, DoveziCategory> evidence) {
+    final label = _categoryLabels[category] ?? category;
+    final model = evidence[category] ?? DoveziCategory.empty(category);
+    final count = model.photos.length;
+    final verdict = model.verdict;
+    final isLocked = model.locked;
+    final uploading = _uploading[category] == true;
+    final status =
+        verdict == 'ok' ? 'OK' : (count > 0 ? 'Necompletat' : 'N/A');
 
     return Container(
       decoration: BoxDecoration(
@@ -269,7 +253,8 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
           Row(
             children: [
               TextButton(
-                onPressed: isLocked ? null : () => _uploadPhotos(category),
+                onPressed:
+                    (isLocked || uploading) ? null : () => _uploadPhotos(category),
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   backgroundColor: isLocked 
@@ -281,7 +266,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
                   ),
                 ),
                 child: Text(
-                  'Incarca poze',
+                  uploading ? 'Incarc...' : 'Incarca poze',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -304,7 +289,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
           // Thumbnails
           if (count > 0) ...[
             const SizedBox(height: 8),
-            _buildThumbnails(category),
+            _buildThumbnails(category, model),
           ],
         ],
       ),
@@ -346,18 +331,17 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
     );
   }
 
-  Widget _buildThumbnails(String category) {
-    final isLocked = _verdict[category] == 'ok';
+  Widget _buildThumbnails(String category, DoveziCategory model) {
+    final isLocked = model.locked;
     
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: _photos[category]!.asMap().entries.map((entry) {
-        final index = entry.key;
-        final photoPath = entry.value;
+      children: model.photos.map((photo) {
+        final photoUrl = photo.url;
         
         return GestureDetector(
-          onTap: () => _previewPhoto(photoPath),
+          onTap: () => _previewPhoto(photoUrl),
           child: Stack(
             children: [
               Container(
@@ -368,7 +352,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: buildDoveziImage(photoPath, fit: BoxFit.cover),
+                child: buildDoveziImage(photoUrl, fit: BoxFit.cover),
               ),
               // Delete button (doar dacă nu e locked)
               if (!isLocked)
@@ -376,7 +360,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
                   top: 2,
                   right: 2,
                   child: GestureDetector(
-                    onTap: () => _deletePhoto(category, index),
+                    onTap: () => _deletePhoto(category, photo),
                     child: Container(
                       width: 20,
                       height: 20,
@@ -401,15 +385,31 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
             ],
           ),
         );
-      }).toList(),
+      }).toList(growable: false),
     );
   }
 
-  Future<void> _deletePhoto(String category, int index) async {
-    setState(() {
-      _photos[category]!.removeAt(index);
-    });
-    await _saveEvidence(category);
+  Future<void> _deletePhoto(String category, DoveziPhoto photo) async {
+    try {
+      setState(() {
+        _uploading[category] = true;
+      });
+      await _service.deletePhoto(widget.event.id, category, photo);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Eroare ștergere: $e'),
+          backgroundColor: const Color(0xFFFF7878),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _uploading.remove(category);
+        });
+      }
+    }
   }
 
   void _previewPhoto(String photoPath) {
@@ -450,7 +450,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Se salveaza local (demo). In aplicatie reala ar merge in backend.',
+          'Se salvează în Firebase (Storage + Firestore).',
           style: TextStyle(
             fontSize: 11,
             color: const Color(0xFFEAF1FF).withOpacity(0.6),
@@ -462,33 +462,55 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
 
   Future<void> _uploadPhotos(String category) async {
     final images = await _picker.pickMultiImage();
+    if (!mounted) return;
     if (images.isNotEmpty) {
       setState(() {
-        for (final image in images) {
-          _photos[category]!.add(image.path);
+        _uploading[category] = true;
+      });
+      try {
+        await _service.uploadPhotos(widget.event.id, category, images);
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Eroare upload: $e'),
+            backgroundColor: const Color(0xFFFF7878),
+          ),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _uploading.remove(category);
+          });
         }
-      });
-      await _saveEvidence(category);
-      await _checkVerdict(category);
-    }
-  }
-
-  Future<void> _checkVerdict(String category) async {
-    // Simulate verdict check (în HTML e random sau backend)
-    final count = _photos[category]!.length;
-    if (count >= 2) {
-      // Dacă are 2+ poze, verdict = ok (locked)
-      setState(() {
-        _verdict[category] = 'ok';
-      });
-      await _saveVerdictState(category);
+      }
     }
   }
 
   Future<void> _reverifyAll() async {
-    // Reverifica toate categoriile
-    for (final cat in _photos.keys) {
-      await _checkVerdict(cat);
+    try {
+      setState(() {
+        for (final cat in _categories) {
+          _uploading[cat] = true;
+        }
+      });
+      await _service.reverifyAll(widget.event.id, _categories);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Eroare reverificare: $e'),
+          backgroundColor: const Color(0xFFFF7878),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          for (final cat in _categories) {
+            _uploading.remove(cat);
+          }
+        });
+      }
     }
   }
 
