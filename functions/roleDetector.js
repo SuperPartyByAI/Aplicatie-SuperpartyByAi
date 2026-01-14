@@ -11,7 +11,9 @@ const admin = require('firebase-admin');
 
 class RoleDetector {
   constructor(db) {
-    this.db = db || admin.firestore();
+    // In unit tests we don't want to require Firebase initialization.
+    // Only use Firestore if an explicit db is provided OR firebase-admin is initialized.
+    this.db = db || (admin.apps && admin.apps.length ? admin.firestore() : null);
     this.overridesCollection = 'aiOverrides';
     
     // Base role definitions with synonyms

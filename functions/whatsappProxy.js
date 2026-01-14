@@ -671,4 +671,3 @@ async function regenerateQrHandler(req, res) {
       });
     }
   }
-);

@@ -46,8 +46,8 @@ class DateTimeParser {
       }
     }
 
-    // Match DD-MM-YYYY format
-    const dateRegex = /(\d{2})[-/.](\d{2})[-/.](\d{4})/;
+    // Match D-M-YYYY / DD-MM-YYYY (normalize to DD-MM-YYYY)
+    const dateRegex = /(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/;
     const match = normalized.match(dateRegex);
 
     if (!match) {
@@ -123,9 +123,29 @@ class DateTimeParser {
 
     const normalized = text.trim();
 
-    // Match HH:mm or HH.mm or HHmm format
-    const timeRegex = /(\d{1,2})[:.]?(\d{2})/;
-    const match = normalized.match(timeRegex);
+    // Match:
+    // - HH:mm / H:m / HH.mm / H.m  (normalize minutes to 2 digits)
+    // - HHmm / HMM / HMM? (3-4 digits)
+    let hoursStr = null;
+    let minutesStr = null;
+
+    let match = normalized.match(/^(\d{1,2})[:.](\d{1,2})$/);
+    if (match) {
+      hoursStr = match[1];
+      minutesStr = match[2];
+    } else {
+      match = normalized.match(/^(\d{3,4})$/);
+      if (match) {
+        hoursStr = match[1].slice(0, -2);
+        minutesStr = match[1].slice(-2);
+      } else {
+        match = normalized.match(/^(\d{1,2})[:.]?(\d{2})$/);
+        if (match) {
+          hoursStr = match[1];
+          minutesStr = match[2];
+        }
+      }
+    }
 
     if (!match) {
       return {
@@ -135,8 +155,8 @@ class DateTimeParser {
       };
     }
 
-    const hours = parseInt(match[1], 10);
-    const minutes = parseInt(match[2], 10);
+    const hours = parseInt(hoursStr, 10);
+    const minutes = parseInt(minutesStr, 10);
 
     // Validate ranges
     if (hours < 0 || hours > 23) {
@@ -194,10 +214,10 @@ class DateTimeParser {
       };
     }
 
-    // Hours patterns
+    // Hours patterns (check hours+minutes BEFORE hours-only)
     const hoursPatterns = [
-      /(\d+(?:[.,]\d+)?)\s*(?:ore|ora|hour|hours|h|hr|hrs)/i,
       /(\d+)\s*ore?\s*(?:si|și)?\s*(\d+)\s*(?:minute|min)/i,
+      /(\d+(?:[.,]\d+)?)\s*(?:ore|ora|hour|hours|h|hr|hrs)/i,
     ];
 
     for (const pattern of hoursPatterns) {
