@@ -45,6 +45,12 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isSuperAdminEmail());
       allow write: if isAuthenticated() && (request.auth.uid == userId || isSuperAdminEmail());
     }
+
+    // User-private WhatsApp thread preferences (owner-only)
+    match /users/{userId}/whatsapp_thread_prefs/{threadId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if false; // never delete (set flags instead)
+    }
     
     // Staff profiles - readable by all employees for display names/roles
     // SECURITY: Prevent privilege escalation - users cannot change their own role
@@ -361,6 +367,18 @@ service cloud.firestore {
 
     // WhatsApp outbox queue - server-only
     match /whatsapp_outbox/{commandId} {
+      allow read: if isSuperAdminEmail();
+      allow create, update, delete: if false;
+    }
+
+    // WhatsApp alerts (connector emits; super-admin can read)
+    match /whatsapp_alerts/{alertId} {
+      allow read: if isSuperAdminEmail();
+      allow create, update, delete: if false; // server-only
+    }
+
+    // Optional media registry (if used later) - server-only
+    match /whatsapp_media/{mediaId} {
       allow read: if isSuperAdminEmail();
       allow create, update, delete: if false;
     }
