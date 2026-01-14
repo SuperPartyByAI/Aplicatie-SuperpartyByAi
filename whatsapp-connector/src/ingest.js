@@ -3,6 +3,7 @@ const { getDb, getAdmin } = require('./firestore');
 const { uploadMediaToStorage } = require('./media');
 
 const COL_INGEST = 'whatsapp_ingest';
+const COL_DLQ = 'whatsapp_ingest_deadletter';
 const COL_THREADS = 'whatsapp_threads';
 const COL_MESSAGES = 'whatsapp_messages';
 const COL_ACCOUNTS = 'whatsapp_accounts';
@@ -45,6 +46,12 @@ function threadId({ accountId, chatId }) {
 
 function messageId({ threadId, waMessageKey }) {
   return `${threadId}_${waMessageKey}`;
+}
+
+function shouldUpdateLastMessage(existingMillis, nextMillis) {
+  if (!existingMillis) return true;
+  if (!nextMillis) return false;
+  return Number(nextMillis) >= Number(existingMillis);
 }
 
 function normalizePhoneE164FromJid(jid) {
@@ -152,26 +159,35 @@ async function processIngestDoc(docSnap) {
   }
 
   const threadRef = db.collection(COL_THREADS).doc(tId);
-  await threadRef.set(
-    {
+
+  // Monotonic thread lastMessageAt/preview (avoid regression from out-of-order processing)
+  await db.runTransaction(async (tx) => {
+    const cur = await tx.get(threadRef);
+    const curData = cur.exists ? cur.data() || {} : {};
+    const curLast = curData.lastMessageAt?.toMillis ? curData.lastMessageAt.toMillis() : 0;
+    const nextLast = ts?.toMillis ? ts.toMillis() : 0;
+
+    const update = {
       threadId: tId,
       accountId,
       chatId,
       clientPhoneE164: normalizePhoneE164FromJid(chatId),
       clientDisplayName: null,
-      ownerUid: null,
-      ownerEmail: null,
-      coWriterUids: [],
-      locked: false,
-      lockedReason: null,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      lastMessageAt: ts,
-      lastMessagePreview: (text || '').toString().substring(0, 200) || null,
-      unreadCountGlobal: dir === 'in' ? admin.firestore.FieldValue.increment(1) : 0,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    { merge: true },
-  );
+      ...(cur.exists ? {} : { createdAt: admin.firestore.FieldValue.serverTimestamp() }),
+    };
+
+    if (shouldUpdateLastMessage(curLast, nextLast)) {
+      update.lastMessageAt = ts;
+      update.lastMessagePreview = (text || '').toString().substring(0, 200) || null;
+    }
+
+    if (dir === 'in') {
+      update.unreadCountGlobal = admin.firestore.FieldValue.increment(1);
+    }
+
+    tx.set(threadRef, update, { merge: true });
+  });
 
   // Update account lastEventAt + lastSynced* cursor (best-effort)
   await db.collection(COL_ACCOUNTS).doc(accountId).set(
@@ -200,6 +216,7 @@ async function processIngestDoc(docSnap) {
 async function runIngestProcessorLoop({ stopSignal, pollMs = 1500, batch = 50, log }) {
   const db = getDb();
   const admin = getAdmin();
+  const maxAttempts = Number(process.env.INGEST_MAX_ATTEMPTS || 5);
 
   while (!stopSignal.stopped) {
     try {
@@ -215,15 +232,45 @@ async function runIngestProcessorLoop({ stopSignal, pollMs = 1500, batch = 50, l
         try {
           await processIngestDoc(doc);
         } catch (e) {
-          await doc.ref.set(
-            {
-              processed: false,
-              processedAt: null,
-              processAttempts: (doc.data().processAttempts || 0) + 1,
-              lastProcessError: String(e?.message || e),
-            },
-            { merge: true },
-          );
+          const attempts = (doc.data().processAttempts || 0) + 1;
+          const err = String(e?.message || e);
+
+          if (attempts >= maxAttempts) {
+            // DLQ: move a copy and mark as processed to unblock the pipeline.
+            try {
+              await db.collection(COL_DLQ).doc(doc.id).set(
+                {
+                  ...doc.data(),
+                  processed: true,
+                  processedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  processAttempts: attempts,
+                  lastProcessError: err,
+                  deadletteredAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true },
+              );
+            } catch (_) {}
+
+            await doc.ref.set(
+              {
+                processed: true,
+                processedAt: admin.firestore.FieldValue.serverTimestamp(),
+                processAttempts: attempts,
+                lastProcessError: err,
+              },
+              { merge: true },
+            );
+          } else {
+            await doc.ref.set(
+              {
+                processed: false,
+                processedAt: null,
+                processAttempts: attempts,
+                lastProcessError: err,
+              },
+              { merge: true },
+            );
+          }
           if (log) log('warn', 'ingest_process_error', { id: doc.id, err: String(e) });
         }
       }
@@ -240,6 +287,7 @@ module.exports = {
   ingestId,
   threadId,
   messageId,
+  shouldUpdateLastMessage,
   writeIngest,
   runIngestProcessorLoop,
 };

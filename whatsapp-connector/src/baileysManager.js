@@ -47,6 +47,10 @@ class BaileysManager {
   }
 
   async _setAccountPublic(accountId, patch) {
+    // HARD GUARD: QR/pairing must never be stored in public doc.
+    if (patch && (Object.prototype.hasOwnProperty.call(patch, 'qrCodeDataUrl') || Object.prototype.hasOwnProperty.call(patch, 'pairingCode'))) {
+      throw new Error('qrCodeDataUrl/pairingCode must not be written to whatsapp_accounts public doc');
+    }
     const db = getDb();
     const admin = getAdmin();
     await db

@@ -13,8 +13,35 @@ const { BaileysManager } = require('./baileysManager');
 const { runIngestProcessorLoop, threadId: makeThreadId } = require('./ingest');
 const { enqueueOutbox, runOutboxLoop } = require('./outboxWorker');
 const { emitAlert } = require('./alerts');
+const { failFastConfig } = require('./env');
+const pino = require('pino');
+const { writeAudit } = require('./audit');
+const {
+  SendRequestSchema,
+  AccountsCreateSchema,
+  RegenerateQrParamsSchema,
+  HealthResponseSchema,
+  parseOr400,
+} = require('./schemas');
 
 const SUPER_ADMIN_EMAIL = 'ursache.andrei1995@gmail.com';
+const CONNECTOR_VERSION = (() => {
+  try {
+    // eslint-disable-next-line global-require
+    return require('../package.json')?.version || '0.0.0';
+  } catch (_) {
+    return '0.0.0';
+  }
+})();
+
+function gitSha() {
+  return (
+    (process.env.GIT_SHA || '').toString().trim() ||
+    (process.env.RAILWAY_GIT_COMMIT_SHA || '').toString().trim() ||
+    (process.env.RAILWAY_GIT_COMMIT || '').toString().trim() ||
+    null
+  );
+}
 
 function isSuperAdminEmail(email) {
   return (email || '').toString().trim().toLowerCase() === SUPER_ADMIN_EMAIL;
@@ -32,15 +59,12 @@ async function isEmployee(decoded) {
   }
 }
 
+const logger = pino({
+  level: (process.env.LOG_LEVEL || 'info').toString(),
+});
+
 function log(level, msg, meta) {
-  const line = JSON.stringify({
-    ts: new Date().toISOString(),
-    level,
-    msg,
-    ...(meta || {}),
-  });
-  // eslint-disable-next-line no-console
-  console.log(line);
+  logger[level] ? logger[level]({ ...(meta || {}) }, msg) : logger.info({ ...(meta || {}) }, msg);
 }
 
 function envInt(name, def) {
@@ -67,6 +91,7 @@ async function verifyIdToken(req) {
 }
 
 async function main() {
+  const cfg = failFastConfig();
   initFirebase();
 
   const instanceId = getInstanceId();
@@ -79,7 +104,8 @@ async function main() {
   const maxMsgsPerMinPerUser = envInt('RATE_LIMIT_USER_PER_MIN', 20);
   const maxMsgsPerMinPerAccount = envInt('RATE_LIMIT_ACCOUNT_PER_MIN', 60);
 
-  const sessionsPath = (process.env.SESSIONS_PATH || '').trim() || path.join(__dirname, '..', '.sessions');
+  // SESSIONS_PATH must be provided in prod; dev can fallback.
+  const sessionsPath = (cfg.sessionsPath || '').trim() || path.join(__dirname, '..', '.sessions');
   fs.mkdirSync(sessionsPath, { recursive: true });
 
   log('info', 'boot', { instanceId, port, sessionsPath, maxAccounts, shardCount, shardIndex });
@@ -221,6 +247,12 @@ async function main() {
   const app = express();
   app.use(cors({ origin: true }));
   app.use(express.json({ limit: '2mb' }));
+  app.use((req, res, next) => {
+    const requestId = (req.headers['x-request-id'] || '').toString().trim() || crypto.randomUUID();
+    req.requestId = requestId;
+    res.setHeader('x-request-id', requestId);
+    next();
+  });
 
   app.get('/health', async (_req, res) => {
     try {
@@ -228,12 +260,16 @@ async function main() {
       const snap = await db.collection('whatsapp_accounts').limit(200).get();
       const accounts = snap.docs.map((d) => {
         const a = d.data() || {};
+        const lastSeenMs = a.lastSeenAt?.toMillis ? a.lastSeenAt.toMillis() : 0;
+        const heartbeatAgeSec = lastSeenMs ? Math.floor((Date.now() - lastSeenMs) / 1000) : null;
         return {
           accountId: d.id,
           status: a.status || null,
           lastSeenAt: a.lastSeenAt || null,
+          heartbeatAgeSec,
           degraded: a.degraded === true,
           assignedWorkerId: a.assignedWorkerId || null,
+          reconnectCount: Number(a.reconnectCount || 0) || 0,
         };
       });
 
@@ -253,15 +289,59 @@ async function main() {
         .limit(1)
         .get();
       const oldestIngest = oldestIngestSnap.docs[0]?.data()?.receivedAt || null;
+      const ingestLagSec =
+        oldestIngest?.toMillis && oldestIngest.toMillis()
+          ? Math.max(0, Math.floor((Date.now() - oldestIngest.toMillis()) / 1000))
+          : 0;
+
+      // Leases (bounded)
+      const leaseSnap = await db.collection('whatsapp_account_leases').limit(200).get();
+      const leases = leaseSnap.docs.map((d) => {
+        const l = d.data() || {};
+        return {
+          accountId: d.id,
+          ownerInstanceId: (l.ownerInstanceId || '').toString() || null,
+          leaseUntil: l.leaseUntil || null,
+        };
+      });
+
+      const statusCounts = accounts.reduce(
+        (acc, a) => {
+          const s = (a.status || 'unknown').toString();
+          acc[s] = (acc[s] || 0) + 1;
+          return acc;
+        },
+        { total: accounts.length },
+      );
+
+      // SLO/SLI thresholds (documented in docs/WHATSAPP_SLO.md)
+      const thresholds = {
+        heartbeatStaleSec: 60,
+        ingestLagWarnSec: 120,
+        outboxBacklogWarn: 100,
+      };
+
+      const anyHeartbeatBad = accounts.some(
+        (a) => a.status === 'connected' && a.heartbeatAgeSec != null && a.heartbeatAgeSec > thresholds.heartbeatStaleSec,
+      );
+      const healthy =
+        !anyHeartbeatBad && ingestLagSec <= thresholds.ingestLagWarnSec && outboxBacklog <= thresholds.outboxBacklogWarn;
 
       return res.json({
         ok: true,
+        version: CONNECTOR_VERSION,
+        gitSha: gitSha(),
         instanceId,
         uptimeSec: Math.floor(process.uptime()),
         runningAccounts: Array.from(manager._accounts.keys()),
+        statusCounts,
         accounts,
+        leases,
         outboxBacklog,
         oldestUnprocessedIngestAt: oldestIngest,
+        ingestLagSec,
+        healthy,
+        thresholds,
       });
     } catch (e) {
       return res.status(500).json({ ok: false, error: String(e?.message || e), instanceId });
@@ -275,7 +355,10 @@ async function main() {
     if (!decoded) return res.status(401).json({ ok: false, error: 'unauthorized' });
     if (!(await isEmployee(decoded))) return res.status(403).json({ ok: false, error: 'employee_only' });
 
-    const body = req.body || {};
+    const bodyRaw = req.body || {};
+    const parsed = parseOr400(SendRequestSchema, bodyRaw);
+    if (!parsed.ok) return res.status(400).json({ ok: false, error: parsed.error });
+    const body = parsed.data;
     const tId = (body.threadId || '').toString().trim();
     const to = (body.to || '').toString().trim();
     const text = (body.text || '').toString();
@@ -305,46 +388,69 @@ async function main() {
       const rAcc = _rateCheck(rateStateByAccount, accountId, maxMsgsPerMinPerAccount);
       if (!rAcc.ok) return res.status(429).json({ ok: false, error: 'rate_limited_account', retryAfterSec: rAcc.retryAfterSec });
 
-      // Ownership model (server-enforced):
+      // Cooldown mode (persisted)
       // - First outbound message sets ownerUid/ownerEmail.
       // - Subsequent sends allowed only for owner/co-writer/super-admin, and if not locked.
       const db = getDb();
       const admin = getAdmin();
-      const threadRef = db.collection('whatsapp_threads').doc(threadId);
-      const threadSnap = await threadRef.get();
-      if (threadSnap.exists) {
-        const t = threadSnap.data() || {};
-        const locked = Boolean(t.locked);
-        if (locked && !isSuperAdminEmail(decoded.email)) {
-          return res.status(403).json({ ok: false, error: 'thread_locked' });
-        }
-        const ownerUid = (t.ownerUid || '').toString();
-        const co = Array.isArray(t.coWriterUids) ? t.coWriterUids.map(String) : [];
-        const allowed = isSuperAdminEmail(decoded.email) || (ownerUid && ownerUid === decoded.uid) || co.includes(decoded.uid);
-        if (!allowed) return res.status(403).json({ ok: false, error: 'not_thread_writer' });
-      } else {
-        // Create thread scaffold (owner is first outbound sender)
-        await threadRef.set(
-          {
-            threadId,
-            accountId,
-            chatId: chatId || to,
-            clientPhoneE164: null,
-            clientDisplayName: null,
-            ownerUid: decoded.uid,
-            ownerEmail: decoded.email || null,
-            coWriterUids: [],
-            locked: false,
-            lockedReason: null,
-            lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-            lastMessagePreview: (text || '').toString().substring(0, 200) || null,
-            unreadCountGlobal: 0,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          },
-          { merge: true },
-        );
+      const accSnap = await db.collection('whatsapp_accounts').doc(accountId).get();
+      const acc = accSnap.data() || {};
+      const cooldownUntil = acc.cooldownUntil;
+      if (cooldownUntil?.toMillis && Date.now() < cooldownUntil.toMillis() && !isSuperAdminEmail(decoded.email)) {
+        const retryAfterSec = Math.ceil((cooldownUntil.toMillis() - Date.now()) / 1000);
+        return res.status(429).json({ ok: false, error: 'cooldown', retryAfterSec });
       }
+
+      const threadRef = db.collection('whatsapp_threads').doc(threadId);
+
+      // Transactional owner-claim (prevents race on first outbound send)
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(threadRef);
+        if (!snap.exists) {
+          tx.set(
+            threadRef,
+            {
+              threadId,
+              accountId,
+              chatId: chatId || to,
+              clientPhoneE164: null,
+              clientDisplayName: null,
+              ownerUid: decoded.uid,
+              ownerEmail: decoded.email || null,
+              coWriterUids: [],
+              locked: false,
+              lockedReason: null,
+              lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+              lastMessagePreview: (text || '').toString().substring(0, 200) || null,
+              unreadCountGlobal: 0,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+          return;
+        }
+
+        const t = snap.data() || {};
+        const locked = Boolean(t.locked);
+        if (locked && !isSuperAdminEmail(decoded.email)) throw new Error('thread_locked');
+
+        const existingOwnerUid = (t.ownerUid || '').toString();
+        const co = Array.isArray(t.coWriterUids) ? t.coWriterUids.map(String) : [];
+
+        if (!existingOwnerUid) {
+          // First outbound claims owner on an inbound-created thread.
+          tx.set(
+            threadRef,
+            { ownerUid: decoded.uid, ownerEmail: decoded.email || null, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+            { merge: true },
+          );
+          return;
+        }
+
+        const allowed = isSuperAdminEmail(decoded.email) || existingOwnerUid === decoded.uid || co.includes(decoded.uid);
+        if (!allowed) throw new Error('not_thread_writer');
+      });
 
       const { commandId } = await enqueueOutbox({
         threadId,
@@ -357,8 +463,30 @@ async function main() {
         createdByEmail: decoded.email || null,
         clientMessageId,
       });
+      await writeAudit({
+        actorUid: decoded.uid,
+        actorEmail: decoded.email || null,
+        action: 'send_enqueued',
+        accountId,
+        threadId,
+        requestId: req.requestId,
+        target: { to: to || chatId, clientMessageId, commandId },
+      });
       return res.json({ ok: true, commandId });
     } catch (e) {
+      const code = String(e?.message || e);
+      if (code === 'thread_locked' || code === 'not_thread_writer') {
+        await writeAudit({
+          actorUid: decoded.uid,
+          actorEmail: decoded.email || null,
+          action: 'send_denied',
+          accountId,
+          threadId,
+          requestId: req.requestId,
+          target: { reason: code, to: to || chatId, clientMessageId },
+        }).catch(() => {});
+        return res.status(403).json({ ok: false, error: code });
+      }
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
     }
   });
@@ -384,10 +512,10 @@ async function main() {
     if (!decoded) return res.status(401).json({ ok: false, error: 'unauthorized' });
     if (!isSuperAdminEmail(decoded.email)) return res.status(403).json({ ok: false, error: 'super_admin_only' });
 
-    const body = req.body || {};
-    const name = (body.name || '').toString().trim();
-    const phone = (body.phone || '').toString().trim();
-    if (!name) return res.status(400).json({ ok: false, error: 'missing_name' });
+    const parsed = parseOr400(AccountsCreateSchema, req.body || {});
+    if (!parsed.ok) return res.status(400).json({ ok: false, error: parsed.error });
+    const name = parsed.data.name.toString().trim();
+    const phone = parsed.data.phone.toString().trim();
 
     const accountId = `wa_${crypto.randomUUID()}`;
     const db = getDb();
@@ -396,10 +524,8 @@ async function main() {
     await db.collection('whatsapp_accounts').doc(accountId).set(
       {
         name,
-        phone: phone || '',
         status: 'disconnected',
-        qrCodeDataUrl: null, // DO NOT USE (kept null for compatibility; QR is in /private/state)
-        pairingCode: null, // DO NOT USE (kept null for compatibility; pairing is in /private/state)
+        phoneE164: phone || '',
         lastSeenAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         lastError: null,
@@ -423,6 +549,15 @@ async function main() {
         },
         { merge: true },
       );
+
+    await writeAudit({
+      actorUid: decoded.uid,
+      actorEmail: decoded.email || null,
+      action: 'account_create',
+      accountId,
+      requestId: req.requestId,
+      target: { name, phoneE164: phone || '' },
+    });
 
     return res.json({ ok: true, accountId });
   });
@@ -453,6 +588,14 @@ async function main() {
         { merge: true },
       );
     });
+    await writeAudit({
+      actorUid: decoded.uid,
+      actorEmail: decoded.email || null,
+      action: 'cowriter_add',
+      threadId,
+      requestId: req.requestId,
+      target: { uid },
+    }).catch(() => {});
     return res.json({ ok: true });
   });
 
@@ -481,6 +624,14 @@ async function main() {
         { merge: true },
       );
     });
+    await writeAudit({
+      actorUid: decoded.uid,
+      actorEmail: decoded.email || null,
+      action: 'cowriter_remove',
+      threadId,
+      requestId: req.requestId,
+      target: { uid },
+    }).catch(() => {});
     return res.json({ ok: true });
   });
 
@@ -509,6 +660,14 @@ async function main() {
         { merge: true },
       );
     });
+    await writeAudit({
+      actorUid: decoded.uid,
+      actorEmail: decoded.email || null,
+      action: locked ? 'thread_lock' : 'thread_unlock',
+      threadId,
+      requestId: req.requestId,
+      target: { locked, reason: reason || null },
+    }).catch(() => {});
     return res.json({ ok: true });
   });
 
@@ -533,6 +692,14 @@ async function main() {
       },
       { merge: true },
     );
+    await writeAudit({
+      actorUid: decoded.uid,
+      actorEmail: decoded.email || null,
+      action: 'transfer_owner',
+      threadId,
+      requestId: req.requestId,
+      target: { newOwnerUid, newOwnerEmail: newOwnerEmail || null },
+    }).catch(() => {});
     return res.json({ ok: true });
   });
 
@@ -548,11 +715,19 @@ async function main() {
     if (!decoded) return res.status(401).json({ ok: false, error: 'unauthorized' });
     if (!isSuperAdminEmail(decoded.email)) return res.status(403).json({ ok: false, error: 'super_admin_only' });
 
-    const accountId = (req.params.accountId || '').toString();
-    if (!accountId) return res.status(400).json({ ok: false, error: 'missing_accountId' });
+    const params = parseOr400(RegenerateQrParamsSchema, req.params || {});
+    if (!params.ok) return res.status(400).json({ ok: false, error: params.error });
+    const accountId = params.data.accountId;
 
     try {
       await manager.regenerateQr(accountId);
+      await writeAudit({
+        actorUid: decoded.uid,
+        actorEmail: decoded.email || null,
+        action: 'account_regenerate_qr',
+        accountId,
+        requestId: req.requestId,
+      });
       return res.json({ ok: true });
     } catch (e) {
       return res.status(500).json({ ok: false, error: String(e?.message || e) });
@@ -590,6 +765,13 @@ async function main() {
       },
       { merge: true },
     );
+    await writeAudit({
+      actorUid: decoded.uid,
+      actorEmail: decoded.email || null,
+      action: 'account_pause',
+      accountId,
+      requestId: req.requestId,
+    });
     await stopAccountFully(accountId);
     return res.json({ ok: true });
   });
