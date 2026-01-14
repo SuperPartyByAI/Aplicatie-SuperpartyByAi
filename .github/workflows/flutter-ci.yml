@@ -1,0 +1,42 @@
+name: Flutter CI
+
+on:
+  pull_request:
+    paths:
+      - 'superparty_flutter/**'
+      - '.github/workflows/flutter-ci.yml'
+  push:
+    branches:
+      - main
+      - whatsapp-production-stable
+    paths:
+      - 'superparty_flutter/**'
+      - '.github/workflows/flutter-ci.yml'
+
+jobs:
+  test-flutter:
+    name: Flutter Analyze & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: superparty_flutter
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze code
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test

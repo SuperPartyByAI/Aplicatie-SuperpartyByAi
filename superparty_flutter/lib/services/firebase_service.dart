@@ -1,6 +1,8 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 
 import '../firebase_options.dart';
 
@@ -16,6 +18,8 @@ class FirebaseService {
   /// 
   /// Must be called before accessing any Firebase services.
   /// Safe to call multiple times (idempotent).
+  /// 
+  /// Supports emulator mode via dart-define: USE_EMULATORS=true
   static Future<void> initialize() async {
     if (_initialized) {
       debugPrint('[FirebaseService] Already initialized, skipping');
@@ -27,6 +31,23 @@ class FirebaseService {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+
+    // Opt-in emulator support via dart-define: USE_EMULATORS=true
+    // Usage: flutter run --dart-define=USE_EMULATORS=true
+    const useEmulators = bool.fromEnvironment('USE_EMULATORS', defaultValue: false);
+    if (useEmulators && kDebugMode) {
+      debugPrint('[FirebaseService] 🔧 Using Firebase emulators (127.0.0.1)');
+      try {
+        FirebaseFirestore.instance.useFirestoreEmulator('127.0.0.1', 8080);
+        FirebaseAuth.instance.useAuthEmulator('127.0.0.1', 9099);
+        FirebaseFunctions.instanceFor(region: 'us-central1').useFunctionsEmulator('127.0.0.1', 5001);
+        debugPrint('[FirebaseService] ✅ Emulators configured: Firestore:8080, Auth:9099, Functions:5001');
+      } catch (e) {
+        debugPrint('[FirebaseService] ⚠️ Emulator setup error (continuing): $e');
+      }
+    } else if (useEmulators && !kDebugMode) {
+      debugPrint('[FirebaseService] ⚠️ USE_EMULATORS=true but not in debug mode, ignoring');
+    }
 
     _initialized = true;
     debugPrint('[FirebaseService] ✅ Firebase initialized successfully');
