@@ -20,15 +20,36 @@ const RegenerateQrParamsSchema = z.object({
 
 const HealthResponseSchema = z.object({
   ok: z.boolean(),
+  version: z.string().optional(),
+  gitSha: z.string().nullable().optional(),
   instanceId: z.string().min(1),
   uptimeSec: z.number().int().nonnegative(),
   outboxBacklog: z.number().int().nonnegative().optional(),
   oldestUnprocessedIngestAt: z.any().optional(),
+  ingestLagSec: z.number().int().nonnegative().optional(),
+  healthy: z.boolean().optional(),
+  thresholds: z
+    .object({
+      heartbeatStaleSec: z.number().int().positive().optional(),
+      ingestLagWarnSec: z.number().int().positive().optional(),
+      outboxBacklogWarn: z.number().int().positive().optional(),
+    })
+    .optional(),
+  leases: z
+    .array(
+      z.object({
+        accountId: z.string().min(1),
+        ownerInstanceId: z.any().optional(),
+        leaseUntil: z.any().optional(),
+      }),
+    )
+    .optional(),
   accounts: z.array(
     z.object({
       accountId: z.string().min(1),
       status: z.any().optional(),
       lastSeenAt: z.any().optional(),
+      heartbeatAgeSec: z.number().int().nonnegative().nullable().optional(),
       degraded: z.boolean().optional(),
       assignedWorkerId: z.any().optional(),
     }),

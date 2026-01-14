@@ -38,9 +38,14 @@ test('POST /api/accounts/:id/regenerate-qr params schema', () => {
 test('GET /health response schema: minimal shape', () => {
   const ok = HealthResponseSchema.safeParse({
     ok: true,
+    version: '1.0.0',
+    gitSha: null,
     instanceId: 'inst_1',
     uptimeSec: 1,
+    healthy: true,
+    thresholds: { heartbeatStaleSec: 60, ingestLagWarnSec: 120, outboxBacklogWarn: 100 },
     accounts: [{ accountId: 'wa_1', degraded: false }],
+    leases: [{ accountId: 'wa_1', ownerInstanceId: 'inst_1' }],
   });
   assert.equal(ok.success, true);
 });
