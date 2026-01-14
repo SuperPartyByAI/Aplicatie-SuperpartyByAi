@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
@@ -29,337 +30,155 @@ import 'screens/kyc/kyc_screen.dart';
 import 'screens/error/not_found_screen.dart';
 import 'widgets/update_gate.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Global error handlers for debugging
-  FlutterError.onError = (details) {
-    FlutterError.presentError(details);
-    debugPrint('[FlutterError] ${details.exceptionAsString()}');
-    debugPrint('[FlutterError] Stack: ${details.stack}');
-  };
-  
-  PlatformDispatcher.instance.onError = (error, stack) {
-    debugPrint('[UncaughtError] $error');
-    debugPrint('[UncaughtError] Stack: $stack');
-    return true;
-  };
-  
-  // FAIL-SAFE: Initialize Firebase with error handling and timeout
-  // App can run with limited functionality if Firebase fails
-  try {
-    debugPrint('[Main] Initializing Firebase...');
-    await FirebaseService.initialize()
-        .timeout(const Duration(seconds: 10));
-    debugPrint('[Main] ✅ Firebase initialized successfully');
-  } catch (e, stackTrace) {
-    debugPrint('[Main] ❌ Firebase initialization failed: $e');
-    debugPrint('[Main] Stack trace: $stackTrace');
-    debugPrint('[Main] ⚠️ App will continue with limited functionality');
-    debugPrint('[Main] ℹ️ Features requiring Firebase will be unavailable');
-  }
-  
-  // FAIL-SAFE: Background service is optional (mobile only)
-  if (!kIsWeb) {
-    try {
-      debugPrint('[Main] Initializing background service...');
-      await BackgroundService.initialize();
-      debugPrint('[Main] ✅ Background service initialized');
-    } catch (e) {
-      debugPrint('[Main] ⚠️ Background service init error (non-critical): $e');
-    }
-  } else {
-    debugPrint('[Main] ℹ️ Background service skipped (not supported on web)');
-  }
-  
-  // FAIL-SAFE: Push notifications are optional (mobile only)
-  if (!kIsWeb) {
-    try {
-      debugPrint('[Main] Initializing push notifications...');
-      await PushNotificationService.initialize();
-      debugPrint('[Main] ✅ Push notifications initialized');
-    } catch (e) {
-      debugPrint('[Main] ⚠️ Push notification init error (non-critical): $e');
-    }
-  } else {
-    debugPrint('[Main] ℹ️ Push notifications skipped (not supported on web)');
-  }
-  
-  debugPrint('[Main] Starting app...');
-  runApp(const SuperPartyApp());
-}
+import 'app/app_shell.dart';
 
-class SuperPartyApp extends StatefulWidget {
-  const SuperPartyApp({super.key});
+void main() {
+  // CRITICAL: Wrap entire app in error zone to catch all unhandled errors
+  runZonedGuarded<Future<void>>(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
 
-  @override
-  State<SuperPartyApp> createState() => _SuperPartyAppState();
-}
+      // Global error handlers - must be set before any Flutter operations
+      FlutterError.onError = (details) {
+        // Always call default handler first
+        FlutterError.presentError(details);
+        if (kDebugMode) {
+          debugPrint('[FlutterError] Exception: ${details.exceptionAsString()}');
+          debugPrint('[FlutterError] Library: ${details.library}');
+          debugPrint('[FlutterError] Context: ${details.context}');
+          debugPrint('[FlutterError] Stack: ${details.stack}');
+          debugPrint(
+            '[FlutterError] Information: ${details.informationCollector?.call()}',
+          );
+        }
+        // Forward to zone error handler
+        Zone.current.handleUncaughtError(
+          details.exception,
+          details.stack ?? StackTrace.current,
+        );
+      };
 
-class _SuperPartyAppState extends State<SuperPartyApp> {
-  @override
-  void initState() {
-    super.initState();
-    // Trigger rebuild when Firebase is initialized
-    _waitForFirebase();
-  }
-  
-  Future<void> _waitForFirebase() async {
-    // Wait for Firebase to be initialized
-    while (!FirebaseService.isInitialized) {
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
-    // Trigger rebuild
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // CRITICAL: Wait for Firebase initialization before building any widgets
-    // This prevents [core/no-app] error on web
-    if (!FirebaseService.isInitialized) {
-      return MaterialApp(
-        // Accept ANY route during initialization (including deep-links like /#/evenimente)
-        // Show loading screen for all routes until Firebase is ready
-        onGenerateRoute: (settings) {
-          return MaterialPageRoute(
-            settings: settings, // Preserve route settings for later navigation
-            builder: (context) => const Scaffold(
-              body: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Initializing Firebase...'),
-                  ],
+      // ErrorWidget builder - must NOT create MaterialApp (single MaterialApp rule)
+      ErrorWidget.builder = (FlutterErrorDetails details) {
+        if (kDebugMode) {
+          debugPrint(
+            '[ErrorWidget] Building error widget for: '
+            '${details.exceptionAsString()}',
+          );
+          debugPrint('[ErrorWidget] Stack: ${details.stack}');
+        }
+        // Return minimal error widget without MaterialApp
+        return Directionality(
+          textDirection: TextDirection.ltr,
+          child: Material(
+            child: Container(
+              color: Colors.red.shade50,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text(
+                        'A apărut o eroare',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red.shade900,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        details.exceptionAsString(),
+                        style: const TextStyle(fontSize: 14),
+                        textAlign: TextAlign.center,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          );
-        },
-      );
-    }
-    
-    return ChangeNotifierProvider(
-      create: (_) => AppStateProvider(),
-      child: MaterialApp(
-        title: 'SuperParty',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFFDC2626),
-            brightness: Brightness.light,
           ),
-          useMaterial3: true,
-        ),
-        darkTheme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFFDC2626),
-            brightness: Brightness.dark,
-          ),
-          useMaterial3: true,
-        ),
-        builder: (context, child) {
-          // UpdateGate as overlay - preserves Directionality from MaterialApp
-          return UpdateGate(child: child ?? const SizedBox.shrink());
-        },
-        onGenerateRoute: (settings) {
-            // Debug: log raw route
-            debugPrint('[ROUTE] Raw: ${settings.name}');
-            
-            // Normalize route: handle /#/evenimente, query params, trailing slash
-            final raw = settings.name ?? '/';
-            final cleaned = raw.startsWith('/#') ? raw.substring(2) : raw; // "/#/x" -> "/x"
-            final uri = Uri.tryParse(cleaned) ?? Uri(path: cleaned);
-            final path = uri.path.isEmpty ? '/' : uri.path;
-            
-            debugPrint('[ROUTE] Normalized: $path');
-            
-            // Handle all routes including deep-links
-            switch (path) {
-              case '/':
-                return MaterialPageRoute(builder: (_) => const AuthWrapper());
-              case '/home':
-                return MaterialPageRoute(builder: (_) => const HomeScreen());
-              case '/kyc':
-                return MaterialPageRoute(builder: (_) => const KycScreen());
-              case '/evenimente':
-                return MaterialPageRoute(builder: (_) => const EvenimenteScreen());
-              case '/disponibilitate':
-                return MaterialPageRoute(builder: (_) => const DisponibilitateScreen());
-              case '/salarizare':
-                return MaterialPageRoute(builder: (_) => const SalarizareScreen());
-              case '/centrala':
-                return MaterialPageRoute(builder: (_) => const CentralaScreen());
-              case '/whatsapp':
-                return MaterialPageRoute(builder: (_) => const WhatsAppScreen());
-              case '/team':
-                return MaterialPageRoute(builder: (_) => const TeamScreen());
-              case '/admin':
-                return MaterialPageRoute(builder: (_) => const AdminScreen());
-              case '/admin/kyc':
-                return MaterialPageRoute(builder: (_) => const KycApprovalsScreen());
-              case '/admin/ai-conversations':
-                return MaterialPageRoute(builder: (_) => const AiConversationsScreen());
-              case '/gm/accounts':
-                return MaterialPageRoute(builder: (_) => const AccountsScreen());
-              case '/gm/metrics':
-                return MaterialPageRoute(builder: (_) => const MetricsScreen());
-              case '/gm/analytics':
-                return MaterialPageRoute(builder: (_) => const AnalyticsScreen());
-              case '/gm/staff-setup':
-                return MaterialPageRoute(builder: (_) => const StaffSetupScreen());
-              case '/ai-chat':
-                return MaterialPageRoute(builder: (_) => const AIChatScreen());
-              default:
-                debugPrint('[ROUTE] Unknown path: $path - showing NotFoundScreen');
-                return MaterialPageRoute(
-                  builder: (_) => NotFoundScreen(routeName: path),
-                );
-            }
-          },
-          onUnknownRoute: (settings) {
-            debugPrint('[ROUTE] onUnknownRoute called for: ${settings.name}');
-            return MaterialPageRoute(
-              builder: (_) => NotFoundScreen(routeName: settings.name),
+        );
+      };
+
+      PlatformDispatcher.instance.onError = (error, stack) {
+        if (kDebugMode) {
+          debugPrint('[UncaughtError] $error');
+          debugPrint('[UncaughtError] Stack: $stack');
+        }
+        // Forward to zone error handler
+        Zone.current.handleUncaughtError(error, stack);
+        return true;
+      };
+
+      // FAIL-SAFE: Background service is optional (mobile only)
+      if (!kIsWeb) {
+        try {
+          if (kDebugMode) {
+            debugPrint('[Main] Initializing background service...');
+          }
+          await BackgroundService.initialize();
+          if (kDebugMode) {
+            debugPrint('[Main] ✅ Background service initialized');
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint(
+              '[Main] ⚠️ Background service init error (non-critical): $e',
             );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class AuthWrapper extends StatefulWidget {
-  const AuthWrapper({super.key});
-
-  @override
-  State<AuthWrapper> createState() => _AuthWrapperState();
-}
-
-class _AuthWrapperState extends State<AuthWrapper> {
-  final RoleService _roleService = RoleService();
-  
-  // Guards to prevent rebuild loops
-  bool _roleLoaded = false;
-  bool _backgroundServiceStarted = false;
-  String? _lastUid;
-
-  /// Load user role from staffProfiles and update AppState
-  Future<void> _loadUserRole(BuildContext context) async {
-    try {
-      final appState = Provider.of<AppStateProvider>(context, listen: false);
-      final role = await _roleService.getUserRole();
-      final isEmployee = role != null;
-      
-      appState.setEmployeeStatus(isEmployee, role);
-    } catch (e) {
-      debugPrint('Error loading user role: $e');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Note: Update check is now handled by UpdateGate
-    // This widget only handles auth routing
-    
-    // CRITICAL: Wait for Firebase to be initialized before accessing any Firebase services
-    // This prevents [core/no-app] error on web
-    if (!FirebaseService.isInitialized) {
-      return const Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Initializing Firebase...'),
-            ],
-          ),
-        ),
-      );
-    }
-    
-    return StreamBuilder<User?>(
-      stream: FirebaseService.auth.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+          }
+        }
+      } else {
+        if (kDebugMode) {
+          debugPrint(
+            '[Main] ℹ️ Background service skipped (not supported on web)',
           );
         }
-        
-        if (snapshot.hasData) {
-          final uid = snapshot.data!.uid;
-          
-          // Reset guards when user changes
-          if (_lastUid != uid) {
-            _lastUid = uid;
-            _roleLoaded = false;
-            _backgroundServiceStarted = false;
+      }
+
+      // FAIL-SAFE: Push notifications are optional (mobile only)
+      if (!kIsWeb) {
+        try {
+          if (kDebugMode) {
+            debugPrint('[Main] Initializing push notifications...');
           }
-          
-          // Start background service only once per user (mobile only)
-          if (!kIsWeb && !_backgroundServiceStarted) {
-            _backgroundServiceStarted = true;
-            BackgroundService.startService().catchError((e) {
-              debugPrint('Failed to start background service: $e');
-              return false; // IMPORTANT: catchError must return Future<bool>
-            });
+          await PushNotificationService.initialize();
+          if (kDebugMode) {
+            debugPrint('[Main] ✅ Push notifications initialized');
           }
-          
-          // Load user role only once per user (post-frame to avoid rebuild loop)
-          if (!_roleLoaded) {
-            _roleLoaded = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _loadUserRole(context);
-            });
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint(
+              '[Main] ⚠️ Push notification init error (non-critical): $e',
+            );
           }
-          
-          // Check user status in Firestore
-          return StreamBuilder<DocumentSnapshot>(
-            stream: FirebaseService.firestore
-                .collection('users')
-                .doc(snapshot.data!.uid)
-                .snapshots(),
-            builder: (context, userSnapshot) {
-              if (userSnapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              }
-              
-              if (userSnapshot.hasData && userSnapshot.data!.exists) {
-                final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                final status = userData['status'] ?? '';
-                
-                if (status == 'kyc_required') {
-                  return const KycScreen();
-                }
-              }
-              
-              return const HomeScreen();
-            },
+        }
+      } else {
+        if (kDebugMode) {
+          debugPrint(
+            '[Main] ℹ️ Push notifications skipped (not supported on web)',
           );
         }
-        
-        // On logout, reset role flags
-        if (_lastUid != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              final appState = Provider.of<AppStateProvider>(context, listen: false);
-              appState.clearRoles();
-            }
-          });
-          _lastUid = null;
-          _roleLoaded = false;
-          _backgroundServiceStarted = false;
-        }
-        
-        return const LoginScreen();
-      },
-    );
-  }
+      }
+
+      if (kDebugMode) debugPrint('[Main] Starting app...');
+      // NOTE: Firebase init is handled by FirebaseInitGate in AppShell
+      // This ensures UI appears immediately and init happens asynchronously
+      runApp(const AppShell());
+    },
+    (error, stack) {
+      // Global error handler for uncaught errors outside Flutter framework
+      if (kDebugMode) {
+        debugPrint('[ZONE_ERROR] Uncaught error: $error');
+        debugPrint('[ZONE_ERROR] Stack: $stack');
+      }
+      // In production, you might want to log to crash reporting service here
+    },
+  );
 }

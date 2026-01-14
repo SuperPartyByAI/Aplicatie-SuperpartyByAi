@@ -53,7 +53,8 @@ class UserDisplayName extends StatelessWidget {
           );
         }
 
-        final data = snapshot.data!.data() as Map<String, dynamic>?;
+        final raw = snapshot.data!.data();
+        final data = raw is Map<String, dynamic> ? raw : null;
         if (data == null) {
           return Text(
             fallback,
@@ -133,7 +134,8 @@ class UserBadge extends StatelessWidget {
           );
         }
 
-        final data = snapshot.data!.data() as Map<String, dynamic>?;
+        final raw = snapshot.data!.data();
+        final data = raw is Map<String, dynamic> ? raw : null;
         final staffCode = data?['staffCode'] as String? ?? '';
         final displayName = data?['displayName'] as String? ?? '?';
         final role = data?['role'] as String? ?? '';

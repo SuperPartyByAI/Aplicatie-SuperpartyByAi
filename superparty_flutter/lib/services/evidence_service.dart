@@ -122,7 +122,8 @@ class EvidenceService {
 
     return query.snapshots().map((snapshot) {
       return snapshot.docs
-          .map((doc) => EvidenceModel.fromFirestore(doc, eventId))
+          .map((doc) => EvidenceModel.tryFromFirestore(doc, eventId))
+          .whereType<EvidenceModel>()
           .toList();
     });
   }
@@ -147,7 +148,8 @@ class EvidenceService {
 
     return query.snapshots().map((snapshot) {
       return snapshot.docs
-          .map((doc) => EvidenceModel.fromFirestore(doc, eventId))
+          .map((doc) => EvidenceModel.tryFromFirestore(doc, eventId))
+          .whereType<EvidenceModel>()
           .toList();
     });
   }
@@ -174,7 +176,8 @@ class EvidenceService {
 
       final snapshot = await query.get();
       return snapshot.docs
-          .map((doc) => EvidenceModel.fromFirestore(doc, eventId))
+          .map((doc) => EvidenceModel.tryFromFirestore(doc, eventId))
+          .whereType<EvidenceModel>()
           .toList();
     } catch (e) {
       throw Exception('Eroare la încărcarea dovezilor: $e');
