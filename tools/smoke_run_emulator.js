@@ -207,14 +207,23 @@ async function main() {
   }
 
   const results = [];
+  const logs = [];
+  const startedAt = Date.now();
+
+  function log(...args) {
+    const line = args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+    logs.push(line);
+    console.log(...args);
+  }
+
   async function runItem(label, fn) {
     try {
       await fn();
       results.push({ label, ok: true });
-      console.log(`[${passFailLabel(true)}] ${label}`);
+      log(`[${passFailLabel(true)}] ${label}`);
     } catch (e) {
       results.push({ label, ok: false, error: formatErr(e) });
-      console.log(`[${passFailLabel(false)}] ${label} — ${formatErr(e)}`);
+      log(`[${passFailLabel(false)}] ${label} — ${formatErr(e)}`);
     }
   }
 
@@ -441,19 +450,42 @@ async function main() {
   });
 
   const failed = results.filter(r => !r.ok);
-  console.log('---');
-  console.log(`[smoke] Summary: ${results.length - failed.length}/${results.length} PASS`);
+  log('---');
+  log(`[smoke] Summary: ${results.length - failed.length}/${results.length} PASS`);
   if (failed.length) {
-    console.log('[smoke] Failures:');
-    for (const f of failed) console.log(`- ${f.label}: ${f.error}`);
+    log('[smoke] Failures:');
+    for (const f of failed) log(`- ${f.label}: ${f.error}`);
     process.exitCode = 1;
   } else {
-    console.log('[smoke] ✅ All smoke items passed');
+    log('[smoke] ✅ All smoke items passed');
   }
+
+  const finishedAt = Date.now();
+  return {
+    ok: failed.length === 0,
+    summary: {
+      passed: results.length - failed.length,
+      failed: failed.length,
+      total: results.length,
+      startedAt,
+      finishedAt,
+      durationMs: finishedAt - startedAt,
+    },
+    items: results,
+    logs,
+  };
 }
 
-main().catch(err => {
-  console.error('[smoke] ❌ Fatal:', formatErr(err));
-  process.exit(1);
-});
+async function runSmoke() {
+  return await main();
+}
+
+module.exports = { runSmoke };
+
+if (require.main === module) {
+  runSmoke().catch(err => {
+    console.error('[smoke] ❌ Fatal:', formatErr(err));
+    process.exit(1);
+  });
+}
 

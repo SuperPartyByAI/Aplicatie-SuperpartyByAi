@@ -11,6 +11,8 @@
     "start:ultimate": "node monitoring/ultimate-monitor.js",
     "start:extreme": "node monitoring/extreme-monitor.js",
     "start:normal": "node monitoring/ultra-fast-monitor.js",
+    "smoke:run": "node tools/smoke_run_emulator.js",
+    "smoke:server": "node tools/smoke_server.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
