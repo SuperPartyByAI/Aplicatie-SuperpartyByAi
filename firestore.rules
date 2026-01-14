@@ -134,18 +134,16 @@ service cloud.firestore {
       
       // Audit logs subcollection - only server can write, only GM/admin can read
       match /audit/{logId} {
-        allow read: if isGmOrAdmin();
+        allow read: if isAdminUser();
         allow write: if false; // Only server (Admin SDK) can write audit logs
       }
       
       // Dovezi subcollection
       match /dovezi/{evidenceId} {
         allow read: if isAuthenticated();
-        allow create: if isEmployee(); // Use isEmployee (includes super-admin)
+        allow create: if isEmployee();
         // Update doar dacă categoria nu e locked (check both new and old schema)
-        // Super-admin can always update
         allow update: if isEmployee() && (
-          isSuperAdminEmail() ||
           ((!exists(/databases/$(database)/documents/evenimente/$(eventId)/evidenceState/$(resource.data.category)) ||
             !get(/databases/$(database)/documents/evenimente/$(eventId)/evidenceState/$(resource.data.category)).data.locked) &&
            (!exists(/databases/$(database)/documents/evenimente/$(eventId)/dovezi_meta/$(resource.data.categorie)) ||
