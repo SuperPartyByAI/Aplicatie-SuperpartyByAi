@@ -144,6 +144,20 @@ Fallback: set `users/<uid>.role = "admin"` (requires an existing admin/GM per ru
 
 See `functions/test/STAFF_CALLABLES_EMULATOR.md`.
 
+### Quick smoke test (NO Flutter)
+
+This repo includes a Node-only harness that validates the Staff + Admin callables against the **Firestore emulator** and prints **PASS/FAIL**.
+
+```powershell
+# Terminal 1: start emulators
+firebase emulators:start --only firestore,functions
+
+# Terminal 2: run autorun harness (seeds + runs 9 checks)
+node tools/smoke_run_emulator.js
+```
+
+Docs: `docs/SMOKE_TEST_AUTORUN.md`.
+
 ### Flutter commands (exact)
 
 ```bash
