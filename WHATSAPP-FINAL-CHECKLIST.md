@@ -65,7 +65,7 @@ https://console.firebase.google.com
   "type": "service_account",
   "project_id": "superparty-whatsapp",
   "private_key_id": "...",
-  "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+  "private_key": "<PRIVATE_KEY_PEM>",
   "client_email": "firebase-adminsdk-xxxxx@superparty-whatsapp.iam.gserviceaccount.com",
   ...
 }

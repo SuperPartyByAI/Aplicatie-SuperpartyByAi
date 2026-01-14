@@ -53,7 +53,7 @@ Go to service → Variables → Add:
 ```bash
 # Firebase Admin SDK
 FIREBASE_PROJECT_ID=superparty-frontend
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+FIREBASE_PRIVATE_KEY="<PRIVATE_KEY_PEM>"
 FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@superparty-frontend.iam.gserviceaccount.com
 
 # Node environment
@@ -132,7 +132,7 @@ Select existing project or create new one.
 ```bash
 railway variables set FIREBASE_PROJECT_ID=superparty-frontend
 railway variables set FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@superparty-frontend.iam.gserviceaccount.com
-railway variables set FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+railway variables set FIREBASE_PRIVATE_KEY="<PRIVATE_KEY_PEM>"
 railway variables set NODE_ENV=production
 railway variables set PORT=8080
 ```

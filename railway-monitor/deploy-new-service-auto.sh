@@ -12,8 +12,8 @@ if ! command -v railway &> /dev/null; then
     npm install -g @railway/cli
 fi
 
-# Set token
-export RAILWAY_TOKEN=998d4e46-c67c-47e2-9eaa-ae4cc806aab1
+# Set token (do NOT hardcode; use env)
+export RAILWAY_TOKEN="${RAILWAY_TOKEN:-<RAILWAY_TOKEN>}"
 
 # Initialize new project
 echo "🆕 Creating new Railway project..."
@@ -21,9 +21,9 @@ railway init --name "SuperParty Voice AI" || true
 
 # Add variables
 echo "🔐 Adding variables..."
-railway variables set OPENAI_API_KEY="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"
+railway variables set OPENAI_API_KEY="<OPENAI_API_KEY>"
 railway variables set TWILIO_ACCOUNT_SID="AC17c88873d670aab4aa4a50fae230d2df"
-railway variables set TWILIO_AUTH_TOKEN="5c6670d39a1dbf46d47ecdaa244b91d9"
+railway variables set TWILIO_AUTH_TOKEN="<TWILIO_AUTH_TOKEN>"
 railway variables set TWILIO_PHONE_NUMBER="+12182204425"
 railway variables set COQUI_API_URL="https://web-production-00dca9.up.railway.app"
 railway variables set NODE_ENV="production"

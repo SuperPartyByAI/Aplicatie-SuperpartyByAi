@@ -23,3 +23,13 @@ npm-debug.log*
 # Environment
 .env
 .env.local
+
+# WhatsApp Baileys auth/session artifacts (never commit)
+.baileys_auth/
+whatsapp-backend/.baileys_auth/
+whatsapp-backend/.sessions/
+whatsapp-connector/.sessions/
+whatsapp-connector/.baileys_auth/
+whatsapp-connector/.sessions/
+whatsapp-connector/.sessions/**
+whatsapp-connector/.baileys_auth/**
