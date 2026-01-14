@@ -1,0 +1,23 @@
+{
+  "name": "superparty-whatsapp-connector",
+  "version": "1.0.0",
+  "description": "Long-running Baileys WhatsApp connector (leases + WAL ingest + outbox) for SuperParty",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "lint": "node -c src/server.js && node -c src/firestore.js && node -c src/lease.js && node -c src/baileysManager.js && node -c src/ingest.js && node -c src/outboxWorker.js && node -c src/reconnectPolicy.js"
+  },
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.18.2",
+    "firebase-admin": "^13.6.0",
+    "qrcode": "^1.5.3"
+  }
+}
+
