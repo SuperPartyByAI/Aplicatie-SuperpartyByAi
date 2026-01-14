@@ -24,8 +24,6 @@ import '../../../screens/gm/staff_setup_screen.dart';
 import '../../../screens/ai_chat/ai_chat_screen.dart';
 import '../../../screens/error/not_found_screen.dart';
 import '../../../main.dart'; // Import AuthWrapper pentru moment
-import '../../di/injector.dart';
-import '../../di/interfaces.dart';
 
 /// Creează router-ul aplicației
 /// 
