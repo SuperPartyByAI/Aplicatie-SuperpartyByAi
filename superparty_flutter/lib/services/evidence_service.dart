@@ -411,7 +411,7 @@ class EvidenceService {
         });
       }
     } catch (e) {
-      debugPrint('Warning: Could not update photo count: $e');
+      print('Warning: Could not update photo count: $e');
     }
   }
 

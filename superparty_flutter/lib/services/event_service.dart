@@ -1,18 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/event_model.dart';
 import '../models/event_filters.dart';
 import '../utils/code_validator.dart';
 
 class EventService {
   final FirebaseFirestore _firestore;
-  final FirebaseAuth _auth;
 
   EventService({
     FirebaseFirestore? firestore,
-    FirebaseAuth? auth,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _auth = auth ?? FirebaseAuth.instance;
+  }) : _firestore = firestore ?? FirebaseFirestore.instance;
 
   /// Stream evenimente ACTIVE (isArchived=false implicit)
   Stream<List<EventModel>> getEventsStream(EventFilters filters) {
@@ -26,7 +22,7 @@ class EventService {
             try {
               return EventModel.fromFirestore(doc);
             } catch (e) {
-              debugPrint('[EventService] ⚠️ Failed to parse event ${doc.id}: $e');
+              print('[EventService] ⚠️ Failed to parse event ${doc.id}: $e');
               return null;
             }
           })
@@ -50,7 +46,7 @@ class EventService {
               try {
                 return EventModel.fromFirestore(doc);
               } catch (e) {
-                debugPrint('[EventService] ⚠️ Failed to parse archived event ${doc.id}: $e');
+                print('[EventService] ⚠️ Failed to parse archived event ${doc.id}: $e');
                 return null;
               }
             })
@@ -108,77 +104,24 @@ class EventService {
 
   /// Arhivează eveniment (NEVER DELETE)
   Future<void> archiveEvent(String eventId, {String? reason}) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('Utilizator neautentificat');
-
-    await _firestore.collection('evenimente').doc(eventId).update({
-      'isArchived': true,
-      'archivedAt': FieldValue.serverTimestamp(),
-      'archivedBy': user.uid,
-      if (reason != null) 'archiveReason': reason,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'updatedBy': user.uid,
-    });
+    throw UnsupportedError(
+      'Direct writes to /evenimente are disabled. Use AI Chat (chatEventOpsV2) to archive.',
+    );
   }
 
   /// Dezarhivează eveniment
   Future<void> unarchiveEvent(String eventId) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('Utilizator neautentificat');
-
-    await _firestore.collection('evenimente').doc(eventId).update({
-      'isArchived': false,
-      'archivedAt': FieldValue.delete(),
-      'archivedBy': FieldValue.delete(),
-      'archiveReason': FieldValue.delete(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'updatedBy': user.uid,
-    });
+    throw UnsupportedError(
+      'Direct writes to /evenimente are disabled. Use AI Chat (chatEventOpsV2) to unarchive.',
+    );
   }
 
   /// Generic update method for event fields
   /// Validates allowed fields and adds audit metadata
   Future<void> updateEvent(String eventId, Map<String, dynamic> patch) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('Utilizator neautentificat');
-
-    // Allowed fields for update
-    const allowedFields = {
-      'date',
-      'address',
-      'sarbatoritNume',
-      'sarbatoritVarsta',
-      'sarbatoritDob',
-      'incasare',
-      'roles',
-      'cineNoteaza',
-      'sofer',
-      'soferPending',
-    };
-
-    // Filter to only allowed fields
-    final sanitized = <String, dynamic>{};
-    for (final entry in patch.entries) {
-      if (allowedFields.contains(entry.key)) {
-        sanitized[entry.key] = entry.value;
-      }
-    }
-
-    if (sanitized.isEmpty) {
-      throw Exception('Nu există câmpuri valide pentru actualizare');
-    }
-
-    // Add audit metadata
-    sanitized['updatedAt'] = FieldValue.serverTimestamp();
-    sanitized['updatedBy'] = user.uid;
-
-    // Prevent changing archive status through this method
-    sanitized.remove('isArchived');
-    sanitized.remove('archivedAt');
-    sanitized.remove('archivedBy');
-    sanitized.remove('archiveReason');
-
-    await _firestore.collection('evenimente').doc(eventId).update(sanitized);
+    throw UnsupportedError(
+      'Direct writes to /evenimente are disabled. Use AI Chat (chatEventOpsV2) to update events.',
+    );
   }
 
   /// Alocă rol (atomic update)
@@ -187,46 +130,9 @@ class EventService {
     required String slot,
     required String staffCode,
   }) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('Utilizator neautentificat');
-
-    if (!CodeValidator.isValidStaffCode(staffCode)) {
-      throw Exception('Cod staff invalid: $staffCode');
-    }
-
-    await _firestore.runTransaction((transaction) async {
-      final docRef = _firestore.collection('evenimente').doc(eventId);
-      final snapshot = await transaction.get(docRef);
-      
-      if (!snapshot.exists) {
-        throw Exception('Eveniment nu există');
-      }
-
-      final event = EventModel.fromFirestore(snapshot);
-      final roles = List<RoleModel>.from(event.roles);
-      
-      // Găsește slot-ul
-      final index = roles.indexWhere((r) => r.slot == slot);
-      if (index == -1) {
-        throw Exception('Slot $slot nu există');
-      }
-
-      // Update rol
-      roles[index] = RoleModel(
-        slot: roles[index].slot,
-        label: roles[index].label,
-        time: roles[index].time,
-        durationMin: roles[index].durationMin,
-        assignedCode: staffCode,
-        pendingCode: null, // Clear pending
-      );
-
-      transaction.update(docRef, {
-        'roles': roles.map((r) => r.toMap()).toList(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'updatedBy': user.uid,
-      });
-    });
+    throw UnsupportedError(
+      'Direct writes to /evenimente are disabled. Use AI Chat (chatEventOpsV2) to assign role codes.',
+    );
   }
 
   /// Setează rol ca pending (cerere de alocare)
@@ -235,45 +141,9 @@ class EventService {
     required String slot,
     required String staffCode,
   }) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('Utilizator neautentificat');
-
-    if (!CodeValidator.isValidStaffCode(staffCode)) {
-      throw Exception('Cod staff invalid: $staffCode');
-    }
-
-    await _firestore.runTransaction((transaction) async {
-      final docRef = _firestore.collection('evenimente').doc(eventId);
-      final snapshot = await transaction.get(docRef);
-      
-      if (!snapshot.exists) {
-        throw Exception('Eveniment nu există');
-      }
-
-      final event = EventModel.fromFirestore(snapshot);
-      final roles = List<RoleModel>.from(event.roles);
-      
-      final index = roles.indexWhere((r) => r.slot == slot);
-      if (index == -1) {
-        throw Exception('Slot $slot nu există');
-      }
-
-      // Update rol cu pending
-      roles[index] = RoleModel(
-        slot: roles[index].slot,
-        label: roles[index].label,
-        time: roles[index].time,
-        durationMin: roles[index].durationMin,
-        assignedCode: roles[index].assignedCode,
-        pendingCode: staffCode,
-      );
-
-      transaction.update(docRef, {
-        'roles': roles.map((r) => r.toMap()).toList(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'updatedBy': user.uid,
-      });
-    });
+    throw UnsupportedError(
+      'Direct writes to /evenimente are disabled. Use AI Chat (chatEventOpsV2) to request role codes.',
+    );
   }
 
   /// Acceptă cerere pending (promovează pending → assigned)
@@ -281,46 +151,9 @@ class EventService {
     required String eventId,
     required String slot,
   }) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('Utilizator neautentificat');
-
-    await _firestore.runTransaction((transaction) async {
-      final docRef = _firestore.collection('evenimente').doc(eventId);
-      final snapshot = await transaction.get(docRef);
-      
-      if (!snapshot.exists) {
-        throw Exception('Eveniment nu există');
-      }
-
-      final event = EventModel.fromFirestore(snapshot);
-      final roles = List<RoleModel>.from(event.roles);
-      
-      final index = roles.indexWhere((r) => r.slot == slot);
-      if (index == -1) {
-        throw Exception('Slot $slot nu există');
-      }
-
-      final pendingCode = roles[index].pendingCode;
-      if (pendingCode == null || pendingCode.isEmpty) {
-        throw Exception('Nu există cerere pending pentru slot $slot');
-      }
-
-      // Promovează pending → assigned
-      roles[index] = RoleModel(
-        slot: roles[index].slot,
-        label: roles[index].label,
-        time: roles[index].time,
-        durationMin: roles[index].durationMin,
-        assignedCode: pendingCode,
-        pendingCode: null,
-      );
-
-      transaction.update(docRef, {
-        'roles': roles.map((r) => r.toMap()).toList(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'updatedBy': user.uid,
-      });
-    });
+    throw UnsupportedError(
+      'Direct writes to /evenimente are disabled. Use AI Chat (chatEventOpsV2) to accept pending.',
+    );
   }
 
   /// Respinge cerere pending
@@ -328,41 +161,9 @@ class EventService {
     required String eventId,
     required String slot,
   }) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('Utilizator neautentificat');
-
-    await _firestore.runTransaction((transaction) async {
-      final docRef = _firestore.collection('evenimente').doc(eventId);
-      final snapshot = await transaction.get(docRef);
-      
-      if (!snapshot.exists) {
-        throw Exception('Eveniment nu există');
-      }
-
-      final event = EventModel.fromFirestore(snapshot);
-      final roles = List<RoleModel>.from(event.roles);
-      
-      final index = roles.indexWhere((r) => r.slot == slot);
-      if (index == -1) {
-        throw Exception('Slot $slot nu există');
-      }
-
-      // Clear pending
-      roles[index] = RoleModel(
-        slot: roles[index].slot,
-        label: roles[index].label,
-        time: roles[index].time,
-        durationMin: roles[index].durationMin,
-        assignedCode: roles[index].assignedCode,
-        pendingCode: null,
-      );
-
-      transaction.update(docRef, {
-        'roles': roles.map((r) => r.toMap()).toList(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'updatedBy': user.uid,
-      });
-    });
+    throw UnsupportedError(
+      'Direct writes to /evenimente are disabled. Use AI Chat (chatEventOpsV2) to reject pending.',
+    );
   }
 
   /// Dealocă rol
@@ -370,45 +171,9 @@ class EventService {
     required String eventId,
     required String slot,
   }) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('Utilizator neautentificat');
-
-    await _firestore.runTransaction((transaction) async {
-      final docRef = _firestore.collection('evenimente').doc(eventId);
-      final snapshot = await transaction.get(docRef);
-      
-      if (!snapshot.exists) {
-        throw Exception('Eveniment nu există');
-      }
-
-      final event = EventModel.fromFirestore(snapshot);
-      final roles = List<RoleModel>.from(event.roles);
-      
-      final index = roles.indexWhere((r) => r.slot == slot);
-      if (index == -1) {
-        throw Exception('Slot $slot nu există');
-      }
-
-      // Clear assigned
-      roles[index] = RoleModel(
-        slot: roles[index].slot,
-        label: roles[index].label,
-        time: roles[index].time,
-        durationMin: roles[index].durationMin,
-        assignedCode: null,
-        pendingCode: roles[index].pendingCode,
-      );
-
-      transaction.update(docRef, {
-        'roles': roles.map((r) => r.toMap()).toList(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'updatedBy': user.uid,
-      });
-    });
+    throw UnsupportedError(
+      'Direct writes to /evenimente are disabled. Use AI Chat (chatEventOpsV2) to unassign role codes.',
+    );
   }
 
-  /// Helper: convert DateTime to DD-MM-YYYY string
-  String _dateToString(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
-  }
 }

@@ -43,7 +43,7 @@ firebase deploy --only functions
 4. Runtime: Node.js 20
 5. Entry point: `chatWithAI`
 6. Source: Upload ZIP (functions folder)
-7. Environment: `OPENAI_API_KEY=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`
+7. Environment: `OPENAI_API_KEY=<OPENAI_API_KEY>`
 
 ## Verificare Logs
 

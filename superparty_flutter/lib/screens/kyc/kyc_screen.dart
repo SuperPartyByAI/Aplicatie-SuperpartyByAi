@@ -1,25 +1,25 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:image_picker/image_picker.dart';
+
+import '../../utils/picked_image.dart';
+import '../../utils/storage_upload.dart';
 
 class KycScreen extends StatefulWidget {
-  const KycScreen({super.key});
+  final String? bannerMessage;
+
+  const KycScreen({super.key, this.bannerMessage});
 
   @override
   State<KycScreen> createState() => _KycScreenState();
 }
 
 class _KycScreenState extends State<KycScreen> {
-  final _picker = ImagePicker();
-  
   // Files
-  File? _idFront;
-  File? _idBack;
-  File? _driverLicense;
+  PickedImage? _idFront;
+  PickedImage? _idBack;
+  PickedImage? _driverLicense;
   
   // User data
   final _fullNameController = TextEditingController();
@@ -44,18 +44,12 @@ class _KycScreenState extends State<KycScreen> {
   
   bool _isMinor = false;
   bool _wantsDriver = false;
-  bool _aiOk = false;
-  bool _pAiOk = false;
-  bool _contractOpen = false;
-  bool _contractScrolled = false;
   bool _contractRead = false;
   bool _contractUnderstood = false;
   bool _extractBusy = false;
-  bool _extractParentBusy = false;
   bool _busy = false;
   String _error = '';
   String _extractInfo = '';
-  String _extractParentInfo = '';
 
   @override
   void initState() {
@@ -91,22 +85,22 @@ class _KycScreenState extends State<KycScreen> {
   }
 
   Future<void> _pickImage(String type) async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      setState(() {
-        switch (type) {
-          case 'idFront':
-            _idFront = File(pickedFile.path);
-            break;
-          case 'idBack':
-            _idBack = File(pickedFile.path);
-            break;
-          case 'driverLicense':
-            _driverLicense = File(pickedFile.path);
-            break;
-        }
-      });
-    }
+    final img = await pickImage();
+    if (!mounted) return;
+    if (img == null) return;
+    setState(() {
+      switch (type) {
+        case 'idFront':
+          _idFront = img;
+          break;
+        case 'idBack':
+          _idBack = img;
+          break;
+        case 'driverLicense':
+          _driverLicense = img;
+          break;
+      }
+    });
   }
 
   Future<void> _handleExtract() async {
@@ -121,48 +115,56 @@ class _KycScreenState extends State<KycScreen> {
         throw Exception('Încarcă CI față și CI verso înainte de extragere.');
       }
 
-      setState(() => _extractInfo = 'Se încarcă imaginile...');
+      setState(() => _extractInfo = 'Se încarcă imaginea...');
 
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         throw Exception('Nu ești autentificat. Te rog să te loghezi din nou.');
       }
-      final frontRef = FirebaseStorage.instance
-          .ref()
-          .child('kyc/${user.uid}/id_front_${DateTime.now().millisecondsSinceEpoch}.jpg');
-      
-      await frontRef.putFile(_idFront!);
-      final frontUrl = await frontRef.getDownloadURL();
+      final frontUrl = await uploadKycImage(
+        path: 'kyc/${user.uid}/id_front_extract_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        image: _idFront!,
+      );
+      if (!mounted) return;
 
       setState(() => _extractInfo = 'Se trimite la AI pentru extragere...');
 
-      final callable = FirebaseFunctions.instance.httpsCallable('extractKYCData');
+      final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
+          .httpsCallable('extractKYCData');
       final result = await callable.call({'imageUrl': frontUrl});
+      if (!mounted) return;
 
-      if (result.data['success'] == true) {
-        final extracted = result.data['data'];
+      final raw = result.data;
+      final map = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+
+      if (map['success'] == true) {
+        final extractedRaw = map['data'];
+        final extracted = extractedRaw is Map
+            ? Map<String, dynamic>.from(extractedRaw)
+            : <String, dynamic>{};
         setState(() {
-          _fullNameController.text = extracted['fullName'] ?? '';
-          _cnpController.text = extracted['cnp'] ?? '';
-          _seriesController.text = extracted['series'] ?? '';
-          _numberController.text = extracted['number'] ?? '';
-          _addressController.text = extracted['address'] ?? '';
+          _fullNameController.text = extracted['fullName']?.toString() ?? '';
+          _cnpController.text = extracted['cnp']?.toString() ?? '';
+          _seriesController.text = extracted['series']?.toString() ?? '';
+          _numberController.text = extracted['number']?.toString() ?? '';
+          _addressController.text = extracted['address']?.toString() ?? '';
           _extractInfo = '✅ Date extrase cu succes din CI! Verifică și confirmă.';
-          _contractOpen = true;
-          _contractScrolled = false;
           _contractRead = false;
           _contractUnderstood = false;
         });
       } else {
-        throw Exception('Extragerea a eșuat');
+        throw Exception(map['error']?.toString() ?? 'Extragerea a eșuat');
       }
     } catch (err) {
+      if (!mounted) return;
       setState(() {
         _error = err.toString();
         _extractInfo = '';
       });
     } finally {
-      setState(() => _extractBusy = false);
+      if (mounted) {
+        setState(() => _extractBusy = false);
+      }
     }
   }
 
@@ -186,21 +188,24 @@ class _KycScreenState extends State<KycScreen> {
       String? idFrontUrl, idBackUrl, driverLicenseUrl;
       
       if (_idFront != null) {
-        final ref = FirebaseStorage.instance.ref().child('kyc/${user.uid}/id_front.jpg');
-        await ref.putFile(_idFront!);
-        idFrontUrl = await ref.getDownloadURL();
+        idFrontUrl = await uploadKycImage(
+          path: 'kyc/${user.uid}/id_front.jpg',
+          image: _idFront!,
+        );
       }
       
       if (_idBack != null) {
-        final ref = FirebaseStorage.instance.ref().child('kyc/${user.uid}/id_back.jpg');
-        await ref.putFile(_idBack!);
-        idBackUrl = await ref.getDownloadURL();
+        idBackUrl = await uploadKycImage(
+          path: 'kyc/${user.uid}/id_back.jpg',
+          image: _idBack!,
+        );
       }
       
       if (_driverLicense != null) {
-        final ref = FirebaseStorage.instance.ref().child('kyc/${user.uid}/driver_license.jpg');
-        await ref.putFile(_driverLicense!);
-        driverLicenseUrl = await ref.getDownloadURL();
+        driverLicenseUrl = await uploadKycImage(
+          path: 'kyc/${user.uid}/driver_license.jpg',
+          image: _driverLicense!,
+        );
       }
 
       // Prepare data
@@ -219,6 +224,7 @@ class _KycScreenState extends State<KycScreen> {
         'driverLicenseUrl': driverLicenseUrl,
         'wantsDriver': _wantsDriver,
         'isMinor': _isMinor,
+        'submittedAt': FieldValue.serverTimestamp(),
       };
 
       if (_isMinor) {
@@ -235,22 +241,25 @@ class _KycScreenState extends State<KycScreen> {
       }
 
       // Save to Firestore
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'kycData': data,
         'status': 'pending',
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+        'updatedBy': user.uid,
+      }, SetOptions(merge: true));
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('✅ KYC trimis cu succes! Așteaptă aprobarea.')),
         );
-        Navigator.pop(context);
       }
     } catch (err) {
+      if (!mounted) return;
       setState(() => _error = err.toString());
     } finally {
-      setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -266,6 +275,25 @@ class _KycScreenState extends State<KycScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if ((widget.bannerMessage ?? '').trim().isNotEmpty) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0x29FF7878),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0x50FF7878)),
+                ),
+                child: Text(
+                  widget.bannerMessage!,
+                  style: const TextStyle(
+                    color: Color(0xFFFF7878),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
             _buildSection('1. Încarcă CI (față și verso)'),
             _buildImagePicker('CI Față', _idFront, () => _pickImage('idFront')),
             _buildImagePicker('CI Verso', _idBack, () => _pickImage('idBack')),
@@ -380,7 +408,7 @@ class _KycScreenState extends State<KycScreen> {
     );
   }
 
-  Widget _buildImagePicker(String label, File? file, VoidCallback onTap) {
+  Widget _buildImagePicker(String label, PickedImage? file, VoidCallback onTap) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -399,7 +427,7 @@ class _KycScreenState extends State<KycScreen> {
                 border: Border.all(color: Colors.grey),
               ),
               child: file != null
-                  ? Image.file(file, fit: BoxFit.cover)
+                  ? buildPreview(file, fit: BoxFit.cover)
                   : const Center(child: Icon(Icons.add_a_photo, size: 48, color: Colors.grey)),
             ),
           ),

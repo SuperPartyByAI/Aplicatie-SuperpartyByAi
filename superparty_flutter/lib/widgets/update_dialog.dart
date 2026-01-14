@@ -10,12 +10,12 @@ class UpdateDialog extends StatelessWidget {
   final VoidCallback? onDismiss;
 
   const UpdateDialog({
-    Key? key,
+    super.key,
     required this.message,
     this.downloadUrl,
     this.forceUpdate = false,
     this.onDismiss,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -84,19 +84,10 @@ class UpdateDialog extends StatelessWidget {
                   await launchUrl(uri, mode: LaunchMode.externalApplication);
                 }
               }
-              
-              if (forceUpdate) {
-                // Deconectează userul
-                await AutoUpdateService.forceLogout();
-                
-                // Închide aplicația (sau navighează la login)
-                if (context.mounted) {
-                  Navigator.of(context).pushNamedAndRemoveUntil(
-                    '/login',
-                    (route) => false,
-                  );
-                }
-              } else {
+
+              if (!context.mounted) return;
+
+              if (!forceUpdate) {
                 Navigator.of(context).pop();
                 onDismiss?.call();
               }

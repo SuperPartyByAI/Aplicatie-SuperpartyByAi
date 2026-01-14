@@ -1,9 +1,10 @@
 import 'dart:ui' show ImageFilter;
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/event_model.dart';
-import '../../services/event_service.dart';
 import '../../widgets/modals/range_modal.dart';
 import '../../widgets/modals/code_modal.dart';
 import '../../widgets/modals/assign_modal.dart';
@@ -21,11 +22,14 @@ class EvenimenteScreen extends StatefulWidget {
 }
 
 class _EvenimenteScreenState extends State<EvenimenteScreen> {
-  final EventService _eventService = EventService();
   final FocusNode _codeInputFocus = FocusNode();
 
+  // Cache events list for modals and actions (kept in-memory, not persisted).
+  List<EventModel> _allEvents = const [];
+
   // Filtre - exact ca în HTML
-  String _datePreset = 'all'; // all, today, yesterday, last7, next7, next30, custom
+  String _datePreset =
+      'all'; // all, today, yesterday, last7, next7, next30, custom
   bool _sortAsc = false; // false = desc (↓), true = asc (↑)
   String _driverFilter = 'all'; // all, yes, open, no (conform HTML exact)
   String _codeFilter = '';
@@ -33,8 +37,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   DateTime? _customStart;
   DateTime? _customEnd;
 
-  // Cache events for CodeInfoModal
-  List<EventModel> _allEvents = [];
+  // Removed _allEvents cache - events are passed directly to modals
 
   @override
   void dispose() {
@@ -46,27 +49,272 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
+      floatingActionButton: _buildNoteazaAiFab(),
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+          gradient: RadialGradient(
+            center: Alignment(0.18, 0),
+            radius: 1.5,
             colors: [
-              Color(0xFF111C35), // --bg2
-              Color(0xFF0B1220), // --bg
+              Color(0x244ECDC4), // rgba(78,205,196,0.14) at 18% 0%
+              Colors.transparent,
             ],
+            stops: [0, 0.62],
           ),
         ),
-        child: Column(
-          children: [
-            _buildAppBar(),
-            Expanded(
-              child: _buildEventsList(),
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(0.86, 0.1),
+              radius: 1.3,
+              colors: [
+                Color(0x1960A5FA), // rgba(96,165,250,0.10) at 86% 10%
+                Colors.transparent,
+              ],
+              stops: [0, 0.58],
             ),
-          ],
+          ),
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF111C35), // --bg2
+                  Color(0xFF0B1220), // --bg
+                ],
+              ),
+            ),
+            child: Column(
+              children: [
+                _buildAppBar(),
+                Expanded(
+                  child: _buildEventsList(),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
+  }
+
+  Widget _buildNoteazaAiFab() {
+    return FloatingActionButton.extended(
+      onPressed: _openNoteazaAiModal,
+      backgroundColor: const Color(0xFF4ECDC4),
+      foregroundColor: const Color(0xFF0B1220),
+      label: const Text(
+        'Noteaza (AI)',
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.2,
+        ),
+      ),
+      icon: const Icon(Icons.auto_awesome),
+    );
+  }
+
+  void _openNoteazaAiModal() {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      barrierColor: const Color(0x8C000000),
+      builder: (dialogContext) {
+        var loading = false;
+        String? errorText;
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            Future<void> submit() async {
+              final text = controller.text.trim();
+              if (text.isEmpty) {
+                setModalState(() => errorText = 'Scrie descrierea evenimentului.');
+                return;
+              }
+
+              setModalState(() {
+                loading = true;
+                errorText = null;
+              });
+
+              try {
+                if (!mounted) return;
+                navigator.pop();
+                Navigator.pushNamed(
+                  context,
+                  '/ai-chat',
+                  arguments: {
+                    'initialText': text,
+                  },
+                );
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Deschis AI Chat pentru notare (server-only writes)'),
+                    backgroundColor: Color(0xFF4ECDC4),
+                  ),
+                );
+              } catch (e) {
+                setModalState(() {
+                  loading = false;
+                  errorText = 'Eroare: $e';
+                });
+              }
+            }
+
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  decoration: BoxDecoration(
+                    color: const Color(0xEB0B1220),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0x1AFFFFFF)),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x8C000000),
+                        blurRadius: 80,
+                        offset: Offset(0, 24),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Noteaza o petrecere (AI)',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                color:
+                                    const Color(0xFFEAF1FF).withOpacity(0.92),
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: loading ? null : () => navigator.pop(),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              backgroundColor: const Color(0x14FFFFFF),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              'Închide',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFFEAF1FF)
+                                    .withOpacity(0.9),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Ex: "Notează o petrecere pentru Maria pe 15-02-2026 la București, Str. Exemplu 10, 10 copii, animator + popcorn".',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: const Color(0xFFEAF1FF).withOpacity(0.6),
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: controller,
+                        enabled: !loading,
+                        minLines: 3,
+                        maxLines: 6,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFFEAF1FF),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Scrie aici...',
+                          hintStyle: TextStyle(
+                            color: const Color(0xFFEAF1FF).withOpacity(0.45),
+                          ),
+                          filled: true,
+                          fillColor: const Color(0x14FFFFFF),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: Color(0x24FFFFFF)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: Color(0x24FFFFFF)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                const BorderSide(color: Color(0x5EFFFFFF)),
+                          ),
+                        ),
+                        onSubmitted: (_) => submit(),
+                      ),
+                      if (errorText != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          errorText!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFFFF7878),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Spacer(),
+                          TextButton(
+                            onPressed: loading ? null : submit,
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 8),
+                              backgroundColor: const Color(0xFF4ECDC4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              loading ? 'Se procesează...' : 'Trimite',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF0B1220),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    ).then((_) {
+      controller.dispose();
+    });
   }
 
   /// AppBar sticky cu filtre - identic cu HTML
@@ -76,7 +324,8 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0B1220).withOpacity(0.72), // rgba(11,18,32,0.72)
+            color: const Color(0xFF0B1220)
+                .withOpacity(0.72), // rgba(11,18,32,0.72)
             border: const Border(
               bottom: BorderSide(
                 color: Color(0x14FFFFFF), // rgba(255,255,255,0.08)
@@ -87,25 +336,33 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
           child: SafeArea(
             bottom: false,
             child: Padding(
+              // HTML: .appbar { padding: 14px 16px; }
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Titlu
-                  const Text(
-                    'Evenimente',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.2,
-                      color: Color(0xFFEAF1FF), // --text
-                    ),
+              child: Center(
+                // HTML: .appbar-inner { max-width: 920px; margin: 0 auto; }
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 920),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Evenimente',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.2,
+                          color: Color(0xFFEAF1FF),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      ConstrainedBox(
+                        // HTML: .filters-block { max-width: 640px; }
+                        constraints: const BoxConstraints(maxWidth: 640),
+                        child: _buildFiltersBlock(),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-
-                  // Filters block
-                  _buildFiltersBlock(),
-                ],
+                ),
               ),
             ),
           ),
@@ -130,11 +387,11 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
           child: Text(
-            'Filtrele sunt exclusive (NU se combină)',
+            'Click pe card deschide pagina de dovezi. Click pe slot sau pe cod pastreaza alocarea/tab cod.',
             style: TextStyle(
               fontSize: 11,
-              color: const Color(0xFFEAF1FF).withOpacity(0.7), // --muted
-              height: 1.3,
+              color: const Color(0xFFEAF1FF).withOpacity(0.65), // --muted
+              height: 1.35,
             ),
           ),
         ),
@@ -145,56 +402,56 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   Widget _buildFiltersDate() {
     return Row(
       children: [
-        Expanded(
-          child: Row(
-            children: [
-              // Date preset dropdown
-              Expanded(
-                child: _buildDatePresetDropdown(),
-              ),
-              const SizedBox(width: 0),
+        // Date preset dropdown
+        _buildDatePresetDropdown(),
+        const SizedBox(width: 0),
 
-              // Sort button
-              _buildSortButton(),
-              const SizedBox(width: 0),
+        // Sort button
+        _buildSortButton(),
+        const SizedBox(width: 0),
 
-              // Driver button
-              _buildDriverButton(),
-            ],
-          ),
-        ),
+        // Driver button
+        _buildDriverButton(),
       ],
     );
   }
 
   Widget _buildDatePresetDropdown() {
     return Container(
+      width: 230,
       height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.only(left: 8, right: 28),
       decoration: BoxDecoration(
-        color: const Color(0x0FFFFFFF), // rgba(255,255,255,0.06)
+        color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
         border: Border.all(
-          color: const Color(0x24FFFFFF), // rgba(255,255,255,0.14)
+          color: const Color(0x2EFFFFFF), // rgba(255,255,255,0.18)
         ),
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(12),
           bottomLeft: Radius.circular(12),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.white.withOpacity(0.06),
+            offset: const Offset(0, 1),
+            blurRadius: 0,
+          ),
+        ],
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: _datePreset,
-          dropdownColor: const Color(0xFF111C35),
+          dropdownColor: const Color(0xFF0B1220),
           style: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w900,
             color: Color(0xFFEAF1FF),
-            letterSpacing: 0.15,
+            letterSpacing: 0.1,
           ),
           icon: const Icon(
             Icons.arrow_drop_down,
             color: Color(0xB3EAF1FF),
-            size: 20,
+            size: 18,
           ),
           items: const [
             DropdownMenuItem(value: 'all', child: Text('Toate')),
@@ -202,17 +459,18 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             DropdownMenuItem(value: 'yesterday', child: Text('Ieri')),
             DropdownMenuItem(value: 'last7', child: Text('Ultimele 7 zile')),
             DropdownMenuItem(value: 'next7', child: Text('Urmatoarele 7 zile')),
-            DropdownMenuItem(value: 'next30', child: Text('Urmatoarele 30 zile')),
-            DropdownMenuItem(value: 'custom', child: Text('Interval (aleg eu)')),
+            DropdownMenuItem(
+                value: 'next30', child: Text('Urmatoarele 30 zile')),
+            DropdownMenuItem(
+                value: 'custom', child: Text('Interval (aleg eu)')),
           ],
           onChanged: (value) {
-            if (value != null) {
-              setState(() {
-                _datePreset = value;
-                if (value == 'custom') {
-                  _openRangeModal();
-                }
-              });
+            if (value == null) return;
+            setState(() {
+              _datePreset = value;
+            });
+            if (value == 'custom') {
+              _openRangeModal();
             }
           },
         ),
@@ -228,11 +486,18 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         });
       },
       child: Container(
-        width: 52,
+        width: 44,
         height: 36,
         decoration: BoxDecoration(
-          color: const Color(0x0FFFFFFF),
-          border: Border.all(color: const Color(0x24FFFFFF)),
+          color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
+          // HTML uses margin-left:-1px; simulate by removing left border.
+          border: const Border(
+            top: BorderSide(color: Color(0x24FFFFFF), width: 1),
+            right: BorderSide(color: Color(0x24FFFFFF), width: 1),
+            bottom: BorderSide(color: Color(0x24FFFFFF), width: 1),
+            left: BorderSide.none,
+          ),
+          borderRadius: BorderRadius.zero,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -243,7 +508,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 fontSize: 14,
                 color: _sortAsc
                     ? const Color(0xFFEAF1FF)
-                    : const Color(0xFFEAF1FF).withOpacity(0.35),
+                    : const Color(0xFFEAF1FF).withOpacity(0.45),
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -254,7 +519,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 fontSize: 14,
                 color: !_sortAsc
                     ? const Color(0xFFEAF1FF)
-                    : const Color(0xFFEAF1FF).withOpacity(0.35),
+                    : const Color(0xFFEAF1FF).withOpacity(0.45),
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -312,8 +577,14 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         width: 44,
         height: 36,
         decoration: BoxDecoration(
-          color: const Color(0x0FFFFFFF),
-          border: Border.all(color: const Color(0x24FFFFFF)),
+          color: const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
+          // HTML uses margin-left:-1px; simulate by removing left border.
+          border: const Border(
+            top: BorderSide(color: Color(0x24FFFFFF), width: 1),
+            right: BorderSide(color: Color(0x24FFFFFF), width: 1),
+            bottom: BorderSide(color: Color(0x24FFFFFF), width: 1),
+            left: BorderSide.none,
+          ),
           borderRadius: const BorderRadius.only(
             topRight: Radius.circular(12),
             bottomRight: Radius.circular(12),
@@ -324,9 +595,9 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             // Steering wheel icon
             Center(
               child: Icon(
-                Icons.local_shipping_outlined,
+                Icons.directions_car_outlined,
                 size: _driverFilter == 'all' ? 22 : 20,
-                color: const Color(0xF2EAF1FF), // rgba(234,241,255,0.95)
+                color: const Color(0xD1EAF1FF), // rgba(234,241,255,0.82)
               ),
             ),
             // Badge (top-right corner)
@@ -338,7 +609,6 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 decoration: BoxDecoration(
                   color: badgeColors[_driverFilter],
                   borderRadius: BorderRadius.circular(999),
-
                   border: Border.all(
                     color: badgeBorderColors[_driverFilter]!,
                     width: 1,
@@ -365,52 +635,50 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   Widget _buildFiltersExtra() {
     return Row(
       children: [
-        Expanded(
-          child: Row(
-            children: [
-              // Input "Ce cod am"
-              Expanded(
-                child: _buildCodeFilterInput(),
-              ),
-              const SizedBox(width: 8),
+        // Input "Ce cod am"
+        _buildCodeFilterInput(),
+        const SizedBox(width: 2),
 
-              // Separator
-              Text(
-                '–',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: const Color(0xFFEAF1FF).withOpacity(0.5),
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              // Input "Cine noteaza"
-              Expanded(
-                child: _buildNotedByFilterInput(),
-              ),
-            ],
+        // Separator
+        Text(
+          '–',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            color: const Color(0xFFEAF1FF).withOpacity(0.55),
           ),
         ),
+        const SizedBox(width: 2),
 
-        // Spacer pentru aliniere cu sort button
-        const SizedBox(width: 52),
+        // Input "Cine noteaza"
+        _buildNotedByFilterInput(),
+
+        // Gap + spacer pentru aliniere cu sort button (HTML: .filters gap 12px + .btnspacer)
+        const Spacer(),
+        SizedBox(
+          width: 44,
+          child: Opacity(
+            opacity: 0,
+            child: _buildSortButton(),
+          ),
+        ),
       ],
     );
   }
 
   Widget _buildCodeFilterInput() {
     return GestureDetector(
-      onTap: () {
-        // Always open modal to show all filter options
+      onTapDown: (_) {
         _openCodeModal();
       },
       child: Container(
+        width: 150,
         height: 36,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: const Color(0x0FFFFFFF),
+          color: const Color(0x38000000), // rgba(0,0,0,0.22)
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0x24FFFFFF)),
+          border: Border.all(color: const Color(0x24FFFFFF)), // rgba(255,255,255,0.14)
         ),
         child: TextField(
           focusNode: _codeInputFocus,
@@ -422,7 +690,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
           style: const TextStyle(
             fontSize: 12,
             color: Color(0xFFEAF1FF),
-            fontWeight: FontWeight.w500,
+            letterSpacing: 0.1,
           ),
           decoration: InputDecoration(
             hintText: 'Ce cod am',
@@ -432,7 +700,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             ),
             border: InputBorder.none,
             isDense: true,
-            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+            contentPadding: EdgeInsets.zero,
           ),
         ),
       ),
@@ -441,12 +709,13 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
 
   Widget _buildNotedByFilterInput() {
     return Container(
+      width: 150,
       height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: const Color(0x0FFFFFFF),
+        color: const Color(0x38000000), // rgba(0,0,0,0.22)
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0x24FFFFFF)),
+        border: Border.all(color: const Color(0x24FFFFFF)), // rgba(255,255,255,0.14)
       ),
       child: TextField(
         onChanged: (value) {
@@ -457,7 +726,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         style: const TextStyle(
           fontSize: 12,
           color: Color(0xFFEAF1FF),
-          fontWeight: FontWeight.w500,
+          letterSpacing: 0.1,
         ),
         decoration: InputDecoration(
           hintText: 'Cine noteaza',
@@ -467,7 +736,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
           ),
           border: InputBorder.none,
           isDense: true,
-          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          contentPadding: EdgeInsets.zero,
         ),
       ),
     );
@@ -494,30 +763,70 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
           );
         }
 
-        final events = snapshot.data?.docs.map((doc) {
-          return EventModel.fromFirestore(doc);
-        }).toList() ?? [];
-        _allEvents = events; // Cache for CodeInfoModal
-        final filteredEvents = _applyFilters(events);
+        final docs = snapshot.data?.docs ?? const <QueryDocumentSnapshot>[];
+        final parsed = <EventModel>[];
+
+        for (final doc in docs) {
+          try {
+            parsed.add(EventModel.fromFirestore(doc));
+          } catch (e, st) {
+            debugPrint('[Evenimente] ⚠️ Skip doc ${doc.id}: $e');
+            debugPrint('$st');
+          }
+        }
+
+        // Keep a cache for modals/actions; avoid setState here.
+        _allEvents = parsed;
+
+        final filteredEvents = _applyFilters(parsed);
 
         if (filteredEvents.isEmpty) {
+          // HTML: inside .wrap { padding: 12px }, then .empty { margin-top: 14px; padding: 14px; }
           return Center(
-            child: Text(
-              'Nu există evenimente',
-              style: TextStyle(
-                fontSize: 14,
-                color: const Color(0xFFEAF1FF).withOpacity(0.7),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 920),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Container(
+                  margin: const EdgeInsets.only(top: 14),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0x0DFFFFFF), // rgba(255,255,255,0.05)
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.10)
+                    ),
+                  ),
+                  child: Text(
+                    'Nu există evenimente pentru filtrele selectate.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: const Color(0xFFEAF1FF).withOpacity(0.75),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ),
             ),
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: filteredEvents.length,
-          itemBuilder: (context, index) {
-            return _buildEventCard(filteredEvents[index]);
-          },
+        // HTML: .wrap { max-width: 920px; margin: 0 auto; padding: 12px; }
+        // HTML: .cards { gap: 10px; padding-bottom: 24px; }
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 920),
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+              itemCount: filteredEvents.length,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _buildEventCard(filteredEvents[index], _allEvents),
+                );
+              },
+            ),
+          ),
         );
       },
     );
@@ -546,10 +855,10 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       filtered = filtered.where((e) => _matchesCodeFilter(e)).toList();
     }
 
-    // Sort
+    // Sort (HTML lines 2611-2617: sortEvents function)
     filtered.sort((a, b) {
-      final dateA = _parseDate(a.date);
-      final dateB = _parseDate(b.date);
+      final dateA = _parseStart(a);
+      final dateB = _parseStart(b);
       if (dateA == null || dateB == null) return 0;
       final comparison = dateA.compareTo(dateB);
       return _sortAsc ? comparison : -comparison;
@@ -570,29 +879,35 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         return true;
 
       case 'today':
-        final eventDay = DateTime(eventDate.year, eventDate.month, eventDate.day);
+        final eventDay =
+            DateTime(eventDate.year, eventDate.month, eventDate.day);
         return eventDay == today;
 
       case 'yesterday':
         final yesterday = today.subtract(const Duration(days: 1));
-        final eventDay = DateTime(eventDate.year, eventDate.month, eventDate.day);
+        final eventDay =
+            DateTime(eventDate.year, eventDate.month, eventDate.day);
         return eventDay == yesterday;
 
       case 'last7':
         final last7 = today.subtract(const Duration(days: 7));
-        return eventDate.isAfter(last7) && eventDate.isBefore(today.add(const Duration(days: 1)));
+        return eventDate.isAfter(last7) &&
+            eventDate.isBefore(today.add(const Duration(days: 1)));
 
       case 'next7':
         final next7 = today.add(const Duration(days: 7));
-        return eventDate.isAfter(today.subtract(const Duration(days: 1))) && eventDate.isBefore(next7.add(const Duration(days: 1)));
+        return eventDate.isAfter(today.subtract(const Duration(days: 1))) &&
+            eventDate.isBefore(next7.add(const Duration(days: 1)));
 
       case 'next30':
         final next30 = today.add(const Duration(days: 30));
-        return eventDate.isAfter(today.subtract(const Duration(days: 1))) && eventDate.isBefore(next30.add(const Duration(days: 1)));
+        return eventDate.isAfter(today.subtract(const Duration(days: 1))) &&
+            eventDate.isBefore(next30.add(const Duration(days: 1)));
 
       case 'custom':
         if (_customStart != null && _customEnd != null) {
-          return eventDate.isAfter(_customStart!.subtract(const Duration(days: 1))) &&
+          return eventDate
+                  .isAfter(_customStart!.subtract(const Duration(days: 1))) &&
               eventDate.isBefore(_customEnd!.add(const Duration(days: 1)));
         }
         return true;
@@ -603,28 +918,19 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
   }
 
   bool _matchesDriverFilter(EventModel event) {
-    final needsDriver = event.roles.any((r) => r.slot.toUpperCase() == 'S');
-
     switch (_driverFilter) {
       case 'all':
         return true;
 
-      case 'yes': // necesită șofer (HTML: driverState === 'yes')
-        return needsDriver;
+      case 'yes':
+        return event.needsDriver;
 
-      case 'open': // necesită șofer nerezolvat (HTML: driverState === 'open')
-        if (!needsDriver) return false;
-        final driverRole = event.roles.firstWhere(
-          (r) => r.slot.toUpperCase() == 'S',
-          orElse: () => RoleModel(slot: 'S', label: '', time: '', durationMin: 0),
-        );
-        final hasAssigned = driverRole.assignedCode != null &&
-            driverRole.assignedCode!.isNotEmpty &&
-            _isValidStaffCode(driverRole.assignedCode!);
-        return !hasAssigned;
+      case 'open':
+        if (!event.needsDriver) return false;
+        return !event.hasDriverAssigned;
 
-      case 'no': // nu necesită șofer (HTML: driverState === 'no')
-        return !needsDriver;
+      case 'no':
+        return !event.needsDriver;
 
       default:
         return true;
@@ -674,25 +980,67 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
 
   DateTime? _parseDate(String dateStr) {
     try {
+      final isoMatch = RegExp(r'^([0-9]{4})-([0-9]{2})-([0-9]{2})$').firstMatch(dateStr);
+      if (isoMatch != null) {
+        final year = int.parse(isoMatch.group(1)!);
+        final month = int.parse(isoMatch.group(2)!);
+        final day = int.parse(isoMatch.group(3)!);
+        return DateTime(year, month, day);
+      }
       final parts = dateStr.split('-');
-      if (parts.length != 3) return null;
-      final day = int.tryParse(parts[0]);
-      final month = int.tryParse(parts[1]);
-      final year = int.tryParse(parts[2]);
-      if (day == null || month == null || year == null) return null;
-      return DateTime(year, month, day);
+      if (parts.length == 3) {
+        final day = int.tryParse(parts[0]);
+        final month = int.tryParse(parts[1]);
+        final year = int.tryParse(parts[2]);
+        if (day != null && month != null && year != null) {
+          return DateTime(year, month, day);
+        }
+      }
+      return null;
     } catch (e) {
       return null;
     }
   }
 
-  bool _isValidStaffCode(String code) {
-    final normalized = code.trim().toUpperCase();
-    if (normalized.isEmpty) return false;
-    return RegExp(r'^[A-Z][A-Z0-9]*$').hasMatch(normalized);
+  DateTime? _parseStart(EventModel event) {
+    // HTML lines 1930-1940: parseStart function
+    String time = '00:00';
+    if (event.roles.isNotEmpty && event.roles[0].time.isNotEmpty) {
+      time = event.roles[0].time;
+    }
+    final dateStr = event.date;
+    final isoMatch = RegExp(r'^([0-9]{4})-([0-9]{2})-([0-9]{2})$').firstMatch(dateStr);
+    if (isoMatch != null) {
+      final year = int.parse(isoMatch.group(1)!);
+      final month = int.parse(isoMatch.group(2)!);
+      final day = int.parse(isoMatch.group(3)!);
+      final timeParts = time.split(':');
+      final hour = int.tryParse(timeParts.first) ?? 0;
+      final minute =
+          timeParts.length >= 2 ? int.tryParse(timeParts[1]) ?? 0 : 0;
+      return DateTime(year, month, day, hour, minute);
+    }
+    final date = _parseDate(dateStr);
+    if (date != null) {
+      final timeParts = time.split(':');
+      final hour = int.tryParse(timeParts.first) ?? 0;
+      final minute =
+          timeParts.length >= 2 ? int.tryParse(timeParts[1]) ?? 0 : 0;
+      return DateTime(date.year, date.month, date.day, hour, minute);
+    }
+    return null;
   }
 
-  Widget _buildEventCard(EventModel event) {
+  bool _isValidStaffCode(String code) {
+    // HTML lines 1915-1920: isValidStaffCode function
+    final normalized = code.trim().toUpperCase();
+    if (normalized.isEmpty) return false;
+    final trainerPattern = RegExp(r'^[A-Z]TRAINER$');
+    final memberPattern = RegExp(r'^[A-Z]([1-9]|[1-4][0-9]|50)$');
+    return trainerPattern.hasMatch(normalized) || memberPattern.hasMatch(normalized);
+  }
+
+  Widget _buildEventCard(EventModel event, List<EventModel> allEvents) {
     return EventCardHtml(
       event: event,
       codeFilter: _codeFilter, // Pass filter for buildVisibleRoles
@@ -708,7 +1056,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       },
       onStatusTap: (slot, code) {
         if (code != null && code.isNotEmpty) {
-          _openCodeInfoModal(code);
+          _openCodeInfoModal(code, allEvents);
         } else {
           _openAssignModal(event, slot);
         }
@@ -745,17 +1093,19 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       barrierColor: Colors.transparent,
       builder: (context) => CodeModal(
         onOptionSelected: (value) {
-          setState(() {
-            if (value == 'FOCUS_INPUT') {
-              // Clear and focus input
+          if (value == 'FOCUS_INPUT') {
+            setState(() {
               _codeFilter = '';
-              Future.delayed(const Duration(milliseconds: 100), () {
-                _codeInputFocus.requestFocus();
-              });
-            } else {
-              // Set filter value (NEREZOLVATE, REZOLVATE, or empty)
-              _codeFilter = value;
+            });
+            if (!mounted) return;
+            if (_codeInputFocus.canRequestFocus) {
+              _codeInputFocus.requestFocus();
             }
+            return;
+          }
+          setState(() {
+            // Set filter value (NEREZOLVATE, REZOLVATE, or empty)
+            _codeFilter = value;
           });
         },
       ),
@@ -781,122 +1131,81 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
     );
   }
 
-  void _openCodeInfoModal(String code) {
+  void _openCodeInfoModal(String code, List<EventModel> events) {
     showDialog(
       context: context,
       barrierColor: Colors.transparent,
       builder: (context) => CodeInfoModal(
         code: code,
-        events: _allEvents,
+        events: events,
       ),
     );
   }
 
-  Future<void> _saveAssignment(String eventId, String slot, String code) async {
-    try {
-      final db = FirebaseFirestore.instance;
-      final eventRef = db.collection('evenimente').doc(eventId);
-
-      // Get current event data
-      final eventDoc = await eventRef.get();
-      if (!eventDoc.exists) {
-        throw Exception('Event not found');
-      }
-
-      final data = eventDoc.data();
-      if (data == null || data is! Map<String, dynamic>) {
-        debugPrint('[Evenimente] Event data is null');
-        throw Exception('Event data is null');
-      }
-      final roles = (data['roles'] as List<dynamic>?) ?? [];
-
-      // Find role by slot
-      final roleIndex = roles.indexWhere((r) => r['slot'] == slot);
-      if (roleIndex == -1) {
-        throw Exception('Role not found');
-      }
-
-      // Update role with pendingCode (not assignedCode - needs approval)
-      roles[roleIndex]['pendingCode'] = code;
-
-      // Save to Firestore
-      await eventRef.update({
-        'roles': roles,
-        'updatedAt': FieldValue.serverTimestamp(),
+  Map<String, dynamic> _coerceToRoleMap(dynamic value) {
+    if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
+    if (value is Map) {
+      final out = <String, dynamic>{};
+      value.forEach((k, v) {
+        if (k == null) return;
+        out[k.toString()] = v;
       });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Cerere trimisă pentru $slot: $code'),
-            backgroundColor: const Color(0xFF4ECDC4),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Eroare: $e'),
-            backgroundColor: const Color(0xFFFF7878),
-          ),
-        );
-      }
+      return out;
     }
+    return <String, dynamic>{};
+  }
+
+  Future<void> _saveAssignment(String eventId, String slot, String code) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final normalizedSlot = slot.trim();
+    final normalizedCode = code.trim().toUpperCase();
+
+    if (normalizedSlot.isEmpty || normalizedCode.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text('Slot/cod invalid')));
+      return;
+    }
+
+    // POLICY: /evenimente is read-only from client. All mutations must go via AI.
+    if (!mounted) return;
+    Navigator.pushNamed(
+      context,
+      '/ai-chat',
+      arguments: {
+        'eventId': eventId,
+        'initialText':
+            'Te rog execută: ASSIGN_ROLE_CODE. slot: $normalizedSlot. code: $normalizedCode.',
+      },
+    );
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Trimite comanda în AI Chat pentru $normalizedSlot → $normalizedCode'),
+        backgroundColor: const Color(0xFF4ECDC4),
+      ),
+    );
   }
 
   Future<void> _clearAssignment(String eventId, String slot) async {
-    try {
-      final db = FirebaseFirestore.instance;
-      final eventRef = db.collection('evenimente').doc(eventId);
-
-      // Get current event data
-      final eventDoc = await eventRef.get();
-      if (!eventDoc.exists) {
-        throw Exception('Event not found');
-      }
-
-      final data = eventDoc.data();
-      if (data == null || data is! Map<String, dynamic>) {
-        debugPrint('[Evenimente] Event data is null');
-        throw Exception('Event data is null');
-      }
-
-      final roles = (data['roles'] as List<dynamic>?) ?? [];
-
-      // Find role by slot
-      final roleIndex = roles.indexWhere((r) => r['slot'] == slot);
-      if (roleIndex == -1) {
-        throw Exception('Role not found');
-      }
-
-      // Clear both assignedCode and pendingCode
-      roles[roleIndex]['assignedCode'] = null;
-      roles[roleIndex]['pendingCode'] = null;
-
-      // Save to Firestore
-      await eventRef.update({
-        'roles': roles,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Alocare ștearsă pentru $slot'),
-            backgroundColor: const Color(0xFF4ECDC4),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Eroare: $e'),
-            backgroundColor: const Color(0xFFFF7878),
-          ),
-        );
-      }
+    final messenger = ScaffoldMessenger.of(context);
+    final normalizedSlot = slot.trim();
+    if (normalizedSlot.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text('Slot invalid')));
+      return;
     }
+
+    if (!mounted) return;
+    Navigator.pushNamed(
+      context,
+      '/ai-chat',
+      arguments: {
+        'eventId': eventId,
+        'initialText': 'Te rog execută: UNASSIGN_ROLE_CODE. slot: $normalizedSlot.',
+      },
+    );
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Trimite comanda în AI Chat pentru dealocare ($normalizedSlot)'),
+        backgroundColor: const Color(0xFF4ECDC4),
+      ),
+    );
   }
 }

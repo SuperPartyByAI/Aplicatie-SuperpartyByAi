@@ -46,8 +46,8 @@ class DateTimeParser {
       }
     }
 
-    // Match DD-MM-YYYY format
-    const dateRegex = /(\d{2})[-/.](\d{2})[-/.](\d{4})/;
+    // Match DD-MM-YYYY format (allow 1-2 digits and normalize)
+    const dateRegex = /(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/;
     const match = normalized.match(dateRegex);
 
     if (!match) {
@@ -123,20 +123,32 @@ class DateTimeParser {
 
     const normalized = text.trim();
 
-    // Match HH:mm or HH.mm or HHmm format
-    const timeRegex = /(\d{1,2})[:.]?(\d{2})/;
-    const match = normalized.match(timeRegex);
+    let hours;
+    let minutes;
 
-    if (!match) {
+    // HH:mm or HH.mm (minutes can be 1-2 digits, e.g. 14.5 -> 14:05)
+    if (normalized.includes(':') || normalized.includes('.')) {
+      const parts = normalized.split(/[:.]/).map(p => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        hours = parseInt(parts[0], 10);
+        minutes = parseInt(parts[1], 10);
+      }
+    } else {
+      // HHmm or Hmm (e.g. 930 -> 9:30)
+      const m = /^(\d{1,2})(\d{2})$/.exec(normalized);
+      if (m) {
+        hours = parseInt(m[1], 10);
+        minutes = parseInt(m[2], 10);
+      }
+    }
+
+    if (hours === undefined || minutes === undefined || Number.isNaN(hours) || Number.isNaN(minutes)) {
       return {
         valid: false,
         error: 'invalid_format',
         message: 'Ora trebuie să fie în format HH:mm (ex: 14:00, 09:30)',
       };
     }
-
-    const hours = parseInt(match[1], 10);
-    const minutes = parseInt(match[2], 10);
 
     // Validate ranges
     if (hours < 0 || hours > 23) {
@@ -196,8 +208,9 @@ class DateTimeParser {
 
     // Hours patterns
     const hoursPatterns = [
-      /(\d+(?:[.,]\d+)?)\s*(?:ore|ora|hour|hours|h|hr|hrs)/i,
-      /(\d+)\s*ore?\s*(?:si|și)?\s*(\d+)\s*(?:minute|min)/i,
+      // Hours + minutes must be checked before "hours only"
+      /(\d+)\s*(?:ora|ore)\s*(?:si|și)?\s*(\d+)\s*(?:minute|min)/i,
+      /(\d+(?:[.,]\d+)?)\s*(?:ora|ore|hour|hours|h|hr|hrs)/i,
     ];
 
     for (const pattern of hoursPatterns) {

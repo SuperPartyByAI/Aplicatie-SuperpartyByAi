@@ -26,6 +26,7 @@ function normalizeEventFields(input) {
 
   // date (EN) - priority: date > data
   normalized.date = input.date || input.data || null;
+  normalized.dateKey = computeDateKey(normalized.date);
 
   // address (EN) - priority: address > adresa
   normalized.address = input.address || input.adresa || null;
@@ -133,6 +134,19 @@ function normalizeEventFields(input) {
   normalized.schemaVersion = input.schemaVersion || input.versiuneSchema || 3;
 
   return normalized;
+}
+
+/**
+ * Compute dateKey in YYYY-MM-DD from either DD-MM-YYYY or YYYY-MM-DD input.
+ * Returns null if cannot parse.
+ */
+function computeDateKey(date) {
+  if (!date) return null;
+  const s = String(date).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(s);
+  if (!m) return null;
+  return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
 /**
@@ -417,6 +431,7 @@ function normalizeRolesBySlotKeys(rolesBySlot, eventShortId) {
 
 module.exports = {
   normalizeEventFields,
+  computeDateKey,
   normalizeRoleFields,
   normalizeRoleType,
   getRoleSynonyms,

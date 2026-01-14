@@ -24,6 +24,7 @@ class _DisponibilitateScreenState extends State<DisponibilitateScreen> {
       'timestamp': FieldValue.serverTimestamp(),
     });
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Disponibilitate salvată')));
   }
 

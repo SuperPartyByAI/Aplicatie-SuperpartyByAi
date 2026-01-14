@@ -16,7 +16,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Map<String, dynamic>> _dockItems = [
     {'title': 'Centrala', 'icon': Icons.phone, 'route': '/centrala'},
-    {'title': 'Chat', 'icon': Icons.chat, 'route': '/whatsapp'},
+    {'title': 'WhatsApp', 'icon': Icons.chat, 'route': '/whatsapp'},
     {'title': 'Echipă', 'icon': Icons.people, 'route': '/team'},
     {'title': 'AI Chat', 'icon': Icons.smart_toy, 'route': '/ai-chat'},
   ];

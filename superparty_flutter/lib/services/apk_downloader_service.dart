@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
@@ -16,12 +15,12 @@ class ApkDownloaderService {
     Function(double)? onProgress,
   }) async {
     try {
-      debugPrint('[ApkDownloader] Starting download from: $downloadUrl');
+      print('[ApkDownloader] Starting download from: $downloadUrl');
       
       // 1. Obține directorul app-specific (nu cere storage permission)
       final directory = await getExternalStorageDirectory();
       if (directory == null) {
-        debugPrint('[ApkDownloader] External storage not available');
+        print('[ApkDownloader] External storage not available');
         return null;
       }
       
@@ -32,7 +31,7 @@ class ApkDownloaderService {
       // 3. Șterge fișierul vechi dacă există
       if (await file.exists()) {
         await file.delete();
-        debugPrint('[ApkDownloader] Deleted old APK');
+        print('[ApkDownloader] Deleted old APK');
       }
       
       // 4. Inițiază request HTTP
@@ -41,12 +40,12 @@ class ApkDownloaderService {
       );
       
       if (request.statusCode != 200) {
-        debugPrint('[ApkDownloader] HTTP error: ${request.statusCode}');
+        print('[ApkDownloader] HTTP error: ${request.statusCode}');
         return null;
       }
       
       final contentLength = request.contentLength ?? 0;
-      debugPrint('[ApkDownloader] Content length: ${contentLength / 1024 / 1024} MB');
+      print('[ApkDownloader] Content length: ${contentLength / 1024 / 1024} MB');
       
       // 5. Stream direct la fișier (fără a încărca în RAM)
       final sink = file.openWrite();
@@ -63,7 +62,7 @@ class ApkDownloaderService {
             
             // Log la fiecare MB
             if (downloadedBytes % (1024 * 1024) == 0) {
-              debugPrint('[ApkDownloader] Downloaded: ${downloadedBytes / 1024 / 1024} MB');
+              print('[ApkDownloader] Downloaded: ${downloadedBytes / 1024 / 1024} MB');
             }
           }
         }
@@ -72,13 +71,13 @@ class ApkDownloaderService {
         await sink.close();
       }
       
-      debugPrint('[ApkDownloader] APK saved to: $filePath');
-      debugPrint('[ApkDownloader] Final size: ${downloadedBytes / 1024 / 1024} MB');
+      print('[ApkDownloader] APK saved to: $filePath');
+      print('[ApkDownloader] Final size: ${downloadedBytes / 1024 / 1024} MB');
       
       return filePath;
       
     } catch (e) {
-      debugPrint('[ApkDownloader] Error: $e');
+      print('[ApkDownloader] Error: $e');
       return null;
     }
   }

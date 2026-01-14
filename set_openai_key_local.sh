@@ -5,7 +5,7 @@
 
 PROJECT_ID="superparty-frontend"
 SECRET_NAME="OPENAI_API_KEY"
-KEY_VALUE="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"
+KEY_VALUE="${OPENAI_API_KEY:-<OPENAI_API_KEY>}"
 
 echo "🔧 Setting OPENAI_API_KEY in Google Cloud Secret Manager"
 echo "Project: $PROJECT_ID"

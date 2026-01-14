@@ -11,7 +11,7 @@
 const fetch = require('node-fetch');
 const { execSync } = require('child_process');
 
-const RAILWAY_TOKEN = process.env.RAILWAY_TOKEN || '998d4e46-c67c-47e2-9eaa-ae4cc806aab1';
+const RAILWAY_TOKEN = process.env.RAILWAY_TOKEN || '';
 
 console.log('');
 console.log('============================================================');
@@ -160,7 +160,7 @@ async function selfDeploy() {
     console.error('4. Root Directory: monitoring');
     console.error('5. Start Command: npm start');
     console.error('6. Variables:');
-    console.error('   - RAILWAY_TOKEN = 998d4e46-c67c-47e2-9eaa-ae4cc806aab1');
+    console.error('   - RAILWAY_TOKEN = <RAILWAY_TOKEN>');
     console.error('   - PORT = 3001');
     console.error('   - NODE_ENV = production');
     console.error('7. Generate Domain');

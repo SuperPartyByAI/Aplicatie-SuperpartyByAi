@@ -19,9 +19,9 @@ Serviciul `web-production-f0714.up.railway.app` rulează alt cod și nu pot schi
 Click Variables → Raw Editor → Paste:
 
 ```
-OPENAI_API_KEY=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
-TWILIO_ACCOUNT_SID=AC17c88873d670aab4aa4a50fae230d2df
-TWILIO_AUTH_TOKEN=5c6670d39a1dbf46d47ecdaa244b91d9
+OPENAI_API_KEY=<OPENAI_API_KEY>
+TWILIO_ACCOUNT_SID=<TWILIO_ACCOUNT_SID>
+TWILIO_AUTH_TOKEN=<TWILIO_AUTH_TOKEN>
 TWILIO_PHONE_NUMBER=+12182204425
 COQUI_API_URL=https://web-production-00dca9.up.railway.app
 NODE_ENV=production

@@ -5,13 +5,13 @@
 
 const https = require('https');
 
-const RAILWAY_TOKEN = 'b74c098c-1777-4601-b4c5-1f9298377cd9';
+const RAILWAY_TOKEN = process.env.RAILWAY_TOKEN || '<RAILWAY_TOKEN>';
 
 const VARIABLES = {
   OPENAI_API_KEY:
-    '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',
+    process.env.OPENAI_API_KEY || '<OPENAI_API_KEY>',
   TWILIO_ACCOUNT_SID: 'AC17c88873d670aab4aa4a50fae230d2df',
-  TWILIO_AUTH_TOKEN: '5c6670d39a1dbf46d47ecdaa244b91d9',
+  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN || '<TWILIO_AUTH_TOKEN>',
   TWILIO_PHONE_NUMBER: '+12182204425',
   BACKEND_URL: 'https://web-production-f0714.up.railway.app',
   COQUI_API_URL: 'https://web-production-00dca9.up.railway.app',

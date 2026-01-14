@@ -47,6 +47,94 @@
       ]
     },
     {
+      "collectionGroup": "whatsapp_messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "threadId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "whatsapp_outbox",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "whatsapp_outbox",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "accountId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "whatsapp_threads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "accountId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastMessageAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "whatsapp_outbox",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lastTriedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "whatsapp_ingest",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "processed",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "receivedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "evenimente",
       "queryScope": "COLLECTION",
       "fields": [

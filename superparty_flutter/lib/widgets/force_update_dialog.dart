@@ -37,7 +37,7 @@ class ForceUpdateDialog extends StatefulWidget {
     final downloadUrl = await checker.getDownloadUrl();
 
     if (downloadUrl == null) {
-      debugPrint('[ForceUpdateDialog] No download URL available');
+      print('[ForceUpdateDialog] No download URL available');
       return;
     }
 
@@ -83,7 +83,7 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
 
     try {
       // 1. Download APK cu progress
-      debugPrint('[ForceUpdateDialog] Starting download...');
+      print('[ForceUpdateDialog] Starting download...');
       final filePath = await ApkDownloaderService.downloadApk(
         widget.downloadUrl,
         onProgress: (progress) {
@@ -99,7 +99,7 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
         throw Exception('Download eșuat - verifică conexiunea la internet');
       }
 
-      debugPrint('[ForceUpdateDialog] Download complete: $filePath');
+      print('[ForceUpdateDialog] Download complete: $filePath');
       _downloadedFilePath = filePath;
 
       setState(() {
@@ -111,7 +111,7 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
       final canInstall = await ApkInstallerBridge.canInstallPackages();
       
       if (!canInstall) {
-        debugPrint('[ForceUpdateDialog] Install permission required');
+        print('[ForceUpdateDialog] Install permission required');
         setState(() {
           _state = _UpdateState.permissionRequired;
         });
@@ -122,14 +122,14 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
       await _installApk(filePath);
 
     } catch (e) {
-      debugPrint('[ForceUpdateDialog] Error: $e');
+      print('[ForceUpdateDialog] Error: $e');
       _showError(e.toString());
     }
   }
 
   Future<void> _installApk(String filePath) async {
     try {
-      debugPrint('[ForceUpdateDialog] Installing APK...');
+      print('[ForceUpdateDialog] Installing APK...');
       final success = await ApkInstallerBridge.installApk(filePath);
 
       if (!success) {
@@ -138,10 +138,10 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
 
       // Installerul Android s-a deschis
       // User-ul va instala manual și va redeschide app-ul
-      debugPrint('[ForceUpdateDialog] Installer opened successfully');
+      print('[ForceUpdateDialog] Installer opened successfully');
 
     } catch (e) {
-      debugPrint('[ForceUpdateDialog] Install error: $e');
+      print('[ForceUpdateDialog] Install error: $e');
       _showError(e.toString());
     }
   }
@@ -165,7 +165,7 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
         });
       }
     } catch (e) {
-      debugPrint('[ForceUpdateDialog] Error opening settings: $e');
+      print('[ForceUpdateDialog] Error opening settings: $e');
       _showError('Nu s-au putut deschide setările');
     }
   }

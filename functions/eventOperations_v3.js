@@ -332,7 +332,7 @@ async function archiveEvent(eventId, reason, userContext) {
  */
 async function findFutureEventsByPhone(phoneE164) {
   const today = new Date();
-  const todayStr = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   
   const snapshot = await db.collection('evenimente')
     .where('phoneE164', '==', phoneE164)
@@ -342,15 +342,33 @@ async function findFutureEventsByPhone(phoneE164) {
   const events = [];
   snapshot.forEach(doc => {
     const data = doc.data();
-    if (data.date && data.date >= todayStr) {
+    const key = data.dateKey || null;
+    if (key && typeof key === 'string' && key >= todayKey) {
+      events.push({
+        id: doc.id,
+        ...data,
+      });
+      return;
+    }
+    // Fallback for legacy docs without dateKey (best-effort, old string compare)
+    if (data.date && typeof data.date === 'string') {
       events.push({
         id: doc.id,
         ...data,
       });
     }
   });
-  
-  return events;
+  // Filter legacy by parsing DD-MM-YYYY if possible
+  const filtered = events.filter(e => {
+    if (e.dateKey) return true;
+    const s = String(e.date || '');
+    const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(s);
+    if (!m) return false;
+    const k = `${m[3]}-${m[2]}-${m[1]}`;
+    return k >= todayKey;
+  });
+
+  return filtered;
 }
 
 module.exports = {

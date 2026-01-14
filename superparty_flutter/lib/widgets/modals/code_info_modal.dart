@@ -1,6 +1,5 @@
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/event_model.dart';
 
 /// Code Info Modal - REAL implementation (non-demo)
@@ -59,108 +58,35 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
   }
 
   Future<void> _handleAccept(String eventId, String slot) async {
-    try {
-      final db = FirebaseFirestore.instance;
-      await db.runTransaction((transaction) async {
-        final eventRef = db.collection('evenimente').doc(eventId);
-        final eventDoc = await transaction.get(eventRef);
-
-        if (!eventDoc.exists) {
-          throw Exception('Event not found');
-        }
-
-        final data = eventDoc.data();
-        if (data == null || data is! Map<String, dynamic>) {
-          throw Exception('Invalid event data');
-        }
-        final roles = List<Map<String, dynamic>>.from(data['roles'] ?? []);
-
-        bool found = false;
-        for (var i = 0; i < roles.length; i++) {
-          if (roles[i]['slot'] == slot) {
-            // SAFETY: Verify pendingCode matches widget.code before accepting
-            final pendingCode = (roles[i]['pendingCode'] ?? '').toString().trim().toUpperCase();
-            final expectedCode = widget.code.trim().toUpperCase();
-            
-            if (pendingCode != expectedCode) {
-              throw Exception('Pending code mismatch: expected $expectedCode, got $pendingCode');
-            }
-
-            roles[i]['assignedCode'] = widget.code;
-            roles[i]['pendingCode'] = null;
-            found = true;
-            break;
-          }
-        }
-
-        if (!found) {
-          throw Exception('Role slot not found');
-        }
-
-        transaction.update(eventRef, {
-          'roles': roles,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cerere acceptată')),
-        );
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Eroare: $e')),
-        );
-      }
-    }
+    if (!mounted) return;
+    Navigator.pushNamed(
+      context,
+      '/ai-chat',
+      arguments: {
+        'eventId': eventId,
+        'initialText': 'Te rog execută: ACCEPT_PENDING. slot: $slot.',
+      },
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Deschis AI Chat pentru acceptare pending')),
+    );
+    Navigator.of(context).pop();
   }
 
   Future<void> _handleRefuz(String eventId, String slot) async {
-    try {
-      final db = FirebaseFirestore.instance;
-      await db.runTransaction((transaction) async {
-        final eventRef = db.collection('evenimente').doc(eventId);
-        final eventDoc = await transaction.get(eventRef);
-
-        if (!eventDoc.exists) {
-          throw Exception('Event not found');
-        }
-
-        final data = eventDoc.data();
-        if (data == null || data is! Map<String, dynamic>) {
-          throw Exception('Invalid event data');
-        }
-        final roles = List<Map<String, dynamic>>.from(data['roles'] ?? []);
-
-        for (var i = 0; i < roles.length; i++) {
-          if (roles[i]['slot'] == slot) {
-            roles[i]['pendingCode'] = null;
-            break;
-          }
-        }
-
-        transaction.update(eventRef, {
-          'roles': roles,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cerere refuzată')),
-        );
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Eroare: $e')),
-        );
-      }
-    }
+    if (!mounted) return;
+    Navigator.pushNamed(
+      context,
+      '/ai-chat',
+      arguments: {
+        'eventId': eventId,
+        'initialText': 'Te rog execută: REJECT_PENDING. slot: $slot.',
+      },
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Deschis AI Chat pentru refuz pending')),
+    );
+    Navigator.of(context).pop();
   }
 
   @override

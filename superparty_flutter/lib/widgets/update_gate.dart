@@ -36,28 +36,28 @@ class _UpdateGateState extends State<UpdateGate> {
 
   Future<void> _checkForUpdate() async {
     try {
-      debugPrint('[UpdateGate] ========================================');
-      debugPrint('[UpdateGate] Starting force update check...');
+      print('[UpdateGate] ========================================');
+      print('[UpdateGate] Starting force update check...');
       
       final checker = ForceUpdateCheckerService();
       
       // Get current build info
       final packageInfo = await PackageInfo.fromPlatform();
-      debugPrint('[UpdateGate] Current app version: ${packageInfo.version}');
-      debugPrint('[UpdateGate] Current build number: ${packageInfo.buildNumber}');
+      print('[UpdateGate] Current app version: ${packageInfo.version}');
+      print('[UpdateGate] Current build number: ${packageInfo.buildNumber}');
       
       final needsUpdate = await checker.needsForceUpdate();
       
-      debugPrint('[UpdateGate] Force update required: $needsUpdate');
-      debugPrint('[UpdateGate] ========================================');
+      print('[UpdateGate] Force update required: $needsUpdate');
+      print('[UpdateGate] ========================================');
       
       // If no update needed, check for data migration
       if (!needsUpdate) {
-        debugPrint('[UpdateGate] No force update needed, checking for data migration...');
+        print('[UpdateGate] No force update needed, checking for data migration...');
         try {
           await AppStateMigrationService.checkAndMigrate();
         } catch (e) {
-          debugPrint('[UpdateGate] ⚠️ Data migration failed (non-critical): $e');
+          print('[UpdateGate] ⚠️ Data migration failed (non-critical): $e');
           // Continue anyway - migration failure shouldn't block app
         }
       }
@@ -69,9 +69,9 @@ class _UpdateGateState extends State<UpdateGate> {
         });
       }
     } catch (e, stackTrace) {
-      debugPrint('[UpdateGate] ❌ Error checking for update: $e');
-      debugPrint('[UpdateGate] Stack trace: $stackTrace');
-      debugPrint('[UpdateGate] ℹ️ FAIL-SAFE: App will continue without blocking');
+      print('[UpdateGate] ❌ Error checking for update: $e');
+      print('[UpdateGate] Stack trace: $stackTrace');
+      print('[UpdateGate] ℹ️ FAIL-SAFE: App will continue without blocking');
       // Fail-safe: don't block app if check fails
       if (mounted) {
         setState(() {
@@ -119,7 +119,7 @@ class _UpdateGateState extends State<UpdateGate> {
                   // After update is installed and app restarts,
                   // this callback won't be called because app will restart.
                   // But we keep it for potential future use.
-                  debugPrint('[UpdateGate] Update complete callback (app should restart)');
+                  print('[UpdateGate] Update complete callback (app should restart)');
                 },
               ),
             ),

@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 /// Model pentru configurația de versiune din Firestore
 /// 
 /// Schema Firestore (snake_case):
@@ -73,7 +71,7 @@ class AppVersionConfig {
     String? minVersion;
     if (minVersionRaw != null) {
       minVersion = minVersionRaw.toString();
-      debugPrint('[AppVersionConfig] ✅ Found version field: $minVersion');
+      print('[AppVersionConfig] ✅ Found version field: $minVersion');
     }
 
     // Normalize minBuildNumber to int (handle String, double, int)
@@ -86,16 +84,16 @@ class AppVersionConfig {
       } else if (minBuildNumberRaw is String) {
         minBuildNumber = int.tryParse(minBuildNumberRaw);
       }
-      debugPrint('[AppVersionConfig] ✅ Found build number field: $minBuildNumber');
+      print('[AppVersionConfig] ✅ Found build number field: $minBuildNumber');
     }
 
     // FAIL-SAFE: If required fields are missing, return safe default
     if (minVersion == null || minBuildNumber == null) {
-      debugPrint('[AppVersionConfig] ⚠️ Missing required fields in Firestore config');
-      debugPrint('[AppVersionConfig] ⚠️ Using safe default: force_update=false, min_build_number=0');
-      debugPrint('[AppVersionConfig] 💡 Recommendation: Update Firestore app_config/version with:');
-      debugPrint('[AppVersionConfig]    - min_version: "1.0.0"');
-      debugPrint('[AppVersionConfig]    - min_build_number: 1');
+      print('[AppVersionConfig] ⚠️ Missing required fields in Firestore config');
+      print('[AppVersionConfig] ⚠️ Using safe default: force_update=false, min_build_number=0');
+      print('[AppVersionConfig] 💡 Recommendation: Update Firestore app_config/version with:');
+      print('[AppVersionConfig]    - min_version: "1.0.0"');
+      print('[AppVersionConfig]    - min_build_number: 1');
       
       return AppVersionConfig(
         minVersion: minVersion ?? '0.0.0',
@@ -114,8 +112,8 @@ class AppVersionConfig {
 
     // Log if using legacy field names
     if (data['latest_version'] != null || data['latest_build_number'] != null) {
-      debugPrint('[AppVersionConfig] ℹ️ Legacy schema detected: using latest_* fields');
-      debugPrint('[AppVersionConfig] 💡 Consider migrating to min_version and min_build_number');
+      print('[AppVersionConfig] ℹ️ Legacy schema detected: using latest_* fields');
+      print('[AppVersionConfig] 💡 Consider migrating to min_version and min_build_number');
     }
 
     return AppVersionConfig(

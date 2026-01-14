@@ -49,7 +49,7 @@ Value: {
   "type": "service_account",
   "project_id": "superparty-frontend",
   "private_key_id": "...",
-  "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+  "private_key": "<PRIVATE_KEY_PEM>",
   "client_email": "...",
   "client_id": "...",
   ...
