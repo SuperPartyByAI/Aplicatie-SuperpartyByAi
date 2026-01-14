@@ -62,6 +62,15 @@ app.use(express.urlencoded({ extended: true }));
 const WhatsAppManager = require('./whatsapp/manager');
 const whatsappManager = new WhatsAppManager(io);
 
+// SECURITY: Protect WhatsApp control-plane endpoints.
+// These endpoints can create accounts, generate QR, and send messages.
+// They must be super-admin only.
+const { makeRequireSuperAdminExpress } = require('./httpSuperAdminGuard');
+const requireSuperAdminExpress = makeRequireSuperAdminExpress({
+  verifyIdToken: (token) => admin.auth().verifyIdToken(token),
+});
+app.use(['/api/whatsapp', '/connect'], requireSuperAdminExpress);
+
 app.get('/', (req, res) => {
   res.json({
     status: 'online',
