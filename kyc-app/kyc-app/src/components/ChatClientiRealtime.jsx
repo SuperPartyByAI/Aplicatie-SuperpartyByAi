@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db } from '../firebase';
+import { db, auth, functions } from '../firebase';
 import {
   collection,
   query,
@@ -255,26 +255,41 @@ function ChatClientiRealtime({
         console.log(`✅ Thread assigned to ${userCode}`);
       }
 
-      // Create outbox document with requestId as docId (idempotent)
-      const outboxData = {
-        accountId: connectedAccount.id,
-        toJid: selectedThread.clientJid,
-        threadId: selectedThread.id,
-        payload: { text: newMessage },
-        body: newMessage,
-        status: 'queued',
-        createdAt: serverTimestamp(),
-        nextAttemptAt: serverTimestamp(),
-        attemptCount: 0,
-        requestId,
-      };
+      // Call Functions proxy to send message (server-only outbox writes)
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('Not authenticated');
+      }
 
-      // Use setDoc with requestId as docId to prevent duplicates
+      const token = await user.getIdToken();
+      const projectId = 'superparty-frontend'; // From firebase config
+      const functionsUrl = `https://us-central1-${projectId}.cloudfunctions.net`;
+
       const startTime = performance.now();
-      await setDoc(doc(db, 'outbox', requestId), outboxData);
+      const response = await fetch(`${functionsUrl}/whatsappProxySend`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          threadId: selectedThread.id,
+          accountId: connectedAccount.id,
+          toJid: selectedThread.clientJid,
+          text: newMessage,
+          clientMessageId: requestId,
+        }),
+      });
+
       const writeTime = performance.now() - startTime;
 
-      console.log(`✅ Message queued in outbox (Firestore write: ${writeTime.toFixed(0)}ms)`);
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(`Send failed: HTTP ${response.status} - ${errorBody.message || response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log(`✅ Message queued via proxy (${writeTime.toFixed(0)}ms, duplicate: ${result.duplicate || false})`);
 
       // Optimistic UI update with timestamp for latency tracking
       const sendTimestamp = Date.now();

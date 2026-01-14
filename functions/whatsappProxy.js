@@ -257,21 +257,213 @@ let forwardRequest = function(url, options, body = null) {
   });
 }
 
-// Export forwardRequest for testing
+// Export forwardRequest for testing (allows replacement)
 exports._forwardRequest = forwardRequest;
 
+// Internal helper to get forwardRequest (allows mocking in tests)
+function getForwardRequest() {
+  return exports._forwardRequest;
+}
+
+// Check if user is employee (for send endpoint)
+async function requireEmployee(req, res) {
+  const decoded = await requireAuth(req, res);
+  if (!decoded) return null; // Response already sent
+
+  const uid = decoded.uid;
+  const email = decoded.email || '';
+  const employeeInfo = await isEmployee(uid, email);
+
+  if (!employeeInfo.isEmployee) {
+    res.status(403).json({
+      success: false,
+      error: 'employee_only',
+      message: 'Only employees can send messages',
+    });
+    return null;
+  }
+
+  req.employeeInfo = employeeInfo;
+  return employeeInfo;
+}
+
 /**
- * GET /whatsappProxyGetAccounts
+ * POST /whatsappProxySend handler
  * 
- * Get list of WhatsApp accounts from Railway backend.
- * SECURITY: Super-admin only (QR codes are sensitive).
+ * Send WhatsApp message via proxy with owner/co-writer policy enforcement.
+ * Creates outbox entry server-side (server-only writes).
+ * 
+ * Body:
+ * {
+ *   "threadId": string,
+ *   "accountId": string,
+ *   "toJid": string,
+ *   "text": string,
+ *   "clientMessageId": string
+ * }
  */
-exports.getAccounts = onRequest(
+async function sendHandler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({
+      success: false,
+      error: 'method_not_allowed',
+      message: 'Only POST method is allowed',
+    });
+  }
+
+  try {
+    // Require employee auth
+    const employeeInfo = await requireEmployee(req, res);
+    if (!employeeInfo) return; // Response already sent (401/403)
+
+    const uid = req.user.uid;
+    const email = req.user.email || '';
+
+    // Validate request body
+    const { threadId, accountId, toJid, text, clientMessageId } = req.body;
+
+    if (!threadId || !accountId || !toJid || !text || !clientMessageId) {
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_request',
+        message: 'Missing required fields: threadId, accountId, toJid, text, clientMessageId',
+      });
+    }
+
+    const db = admin.firestore();
+
+    // Read thread document
+    const threadRef = db.collection('threads').doc(threadId);
+    const threadDoc = await threadRef.get();
+
+    if (!threadDoc.exists) {
+      return res.status(404).json({
+        success: false,
+        error: 'thread_not_found',
+        message: `Thread ${threadId} does not exist`,
+      });
+    }
+
+    const threadData = threadDoc.data();
+    
+    // SECURITY: Validate accountId matches thread accountId (prevent spoofing)
+    if (threadData?.accountId !== accountId) {
+      return res.status(403).json({
+        success: false,
+        error: 'account_mismatch',
+        message: 'Thread accountId does not match request accountId',
+      });
+    }
+
+    const ownerUid = threadData?.ownerUid;
+    const coWriterUids = threadData?.coWriterUids || [];
+
+    // Check owner/co-writer policy
+    let isOwner = false;
+    let shouldSetOwner = false;
+
+    if (!ownerUid) {
+      // First outbound send - set owner atomically
+      shouldSetOwner = true;
+      isOwner = true;
+    } else {
+      // Check if user is owner or co-writer
+      isOwner = uid === ownerUid;
+      const isCoWriter = coWriterUids.includes(uid);
+
+      if (!isOwner && !isCoWriter) {
+        return res.status(403).json({
+          success: false,
+          error: 'not_owner_or_cowriter',
+          message: 'Only thread owner or co-writers can send messages',
+        });
+      }
+    }
+
+    // Generate deterministic requestId for idempotency
+    const crypto = require('crypto');
+    const requestIdInput = `${threadId}|${uid}|${clientMessageId}`;
+    const requestId = crypto.createHash('sha256').update(requestIdInput).digest('hex');
+
+    // Use transaction to atomically:
+    // 1. Set ownerUid if needed
+    // 2. Create outbox doc (or detect duplicate)
+    let duplicate = false;
+    await db.runTransaction(async (transaction) => {
+      // Re-read thread to get latest state
+      const latestThreadDoc = await transaction.get(threadRef);
+      const latestThreadData = latestThreadDoc.data();
+
+      // Set ownerUid if needed (atomic)
+      if (shouldSetOwner && !latestThreadData?.ownerUid) {
+        transaction.update(threadRef, {
+          ownerUid: uid,
+          // Initialize coWriterUids as empty array if missing (don't use arrayUnion with no args)
+          coWriterUids: latestThreadData?.coWriterUids || [],
+        });
+      }
+
+      // Check if outbox doc already exists (idempotency)
+      const outboxRef = db.collection('outbox').doc(requestId);
+      const outboxDoc = await transaction.get(outboxRef);
+
+      if (outboxDoc.exists) {
+        duplicate = true;
+        return; // Don't create duplicate
+      }
+
+      // Create outbox document (server-only write via Admin SDK)
+      const outboxData = {
+        requestId,
+        threadId,
+        accountId,
+        toJid,
+        body: text,
+        payload: { text },
+        status: 'queued',
+        attemptCount: 0,
+        nextAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdByUid: uid,
+      };
+
+      transaction.set(outboxRef, outboxData);
+    });
+
+    // Return success response
+    return res.status(200).json({
+      success: true,
+      requestId,
+      duplicate,
+      message: duplicate
+        ? 'Message already queued (idempotent)'
+        : 'Message queued successfully',
+    });
+  } catch (error) {
+    console.error('[whatsappProxy/send] Error:', error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'internal_error',
+      message: 'Internal server error',
+    });
+  }
+}
+
+exports.send = onRequest(
   {
     region: 'us-central1',
     cors: true,
   },
-  async (req, res) => {
+  sendHandler
+);
+
+/**
+ * GET /whatsappProxyGetAccounts handler
+ * 
+ * Get list of WhatsApp accounts from Railway backend.
+ * SECURITY: Super-admin only (QR codes are sensitive).
+ */
+async function getAccountsHandler(req, res) {
     if (req.method !== 'GET') {
       return res.status(405).json({
         success: false,
@@ -315,20 +507,15 @@ exports.getAccounts = onRequest(
       });
     }
   }
-);
+}
 
 /**
- * POST /whatsappProxyAddAccount
+ * POST /whatsappProxyAddAccount handler
  * 
  * Add a new WhatsApp account via Railway backend.
  * Requires super-admin authentication.
  */
-exports.addAccount = onRequest(
-  {
-    region: 'us-central1',
-    cors: true,
-  },
-  async (req, res) => {
+async function addAccountHandler(req, res) {
     if (req.method !== 'POST') {
       return res.status(405).json({
         success: false,
@@ -367,7 +554,7 @@ exports.addAccount = onRequest(
 
       // Forward to Railway backend with normalized values
       const railwayUrl = `${RAILWAY_BASE_URL}/api/whatsapp/add-account`;
-      const response = await forwardRequest(railwayUrl, {
+      const response = await getForwardRequest()(railwayUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -397,20 +584,15 @@ exports.addAccount = onRequest(
       });
     }
   }
-);
+}
 
 /**
- * POST /whatsappProxyRegenerateQr
+ * POST /whatsappProxyRegenerateQr handler
  * 
  * Regenerate QR code for a WhatsApp account via Railway backend.
  * Requires super-admin authentication.
  */
-exports.regenerateQr = onRequest(
-  {
-    region: 'us-central1',
-    cors: true,
-  },
-  async (req, res) => {
+async function regenerateQrHandler(req, res) {
     if (req.method !== 'POST') {
       return res.status(405).json({
         success: false,

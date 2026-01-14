@@ -70,7 +70,7 @@ describe('WhatsApp Proxy /getAccounts', () => {
     req.headers.authorization = null;
     admin.auth().verifyIdToken.mockResolvedValue(null);
 
-    await whatsappProxy.getAccounts(req, res);
+    await whatsappProxy.getAccountsHandler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith(
@@ -87,7 +87,7 @@ describe('WhatsApp Proxy /getAccounts', () => {
       email: 'user@example.com', // Not super-admin
     });
 
-    await whatsappProxy.getAccounts(req, res);
+    await whatsappProxy.getAccountsHandler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith(
@@ -104,7 +104,7 @@ describe('WhatsApp Proxy /getAccounts', () => {
       body: { success: true, accounts: [{ id: 'acc1', name: 'Test', status: 'connected' }] },
     });
 
-    await whatsappProxy.getAccounts(req, res);
+    await whatsappProxy.getAccountsHandler(req, res);
 
     expect(mockForwardRequest).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(200);
@@ -270,7 +270,7 @@ describe('WhatsApp Proxy /regenerateQr', () => {
     req.headers.authorization = null;
     admin.auth().verifyIdToken.mockResolvedValue(null);
 
-    await whatsappProxy.regenerateQr(req, res);
+    await whatsappProxy.regenerateQrHandler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith(
@@ -287,7 +287,7 @@ describe('WhatsApp Proxy /regenerateQr', () => {
       email: 'user@example.com', // Not super-admin
     });
 
-    await whatsappProxy.regenerateQr(req, res);
+    await whatsappProxy.regenerateQrHandler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith(
@@ -302,7 +302,7 @@ describe('WhatsApp Proxy /regenerateQr', () => {
     req.query = {};
     req.body = {};
 
-    await whatsappProxy.regenerateQr(req, res);
+    await whatsappProxy.regenerateQrHandler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
@@ -319,7 +319,7 @@ describe('WhatsApp Proxy /regenerateQr', () => {
       body: { success: true, message: 'QR regeneration started' },
     });
 
-    await whatsappProxy.regenerateQr(req, res);
+    await whatsappProxy.regenerateQrHandler(req, res);
 
     expect(mockForwardRequest).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(200);
