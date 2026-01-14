@@ -8,26 +8,14 @@ service cloud.firestore {
       return request.auth != null;
     }
     
-    // Helper function: check if user is super admin by email
-    function isSuperAdminEmail() {
-      return request.auth != null && request.auth.token.email == 'ursache.andrei1995@gmail.com';
-    }
-    
     // Helper function: check if user has staff profile
     function hasStaffProfile() {
       return isAuthenticated() && exists(/databases/$(database)/documents/staffProfiles/$(request.auth.uid));
     }
     
-    // Helper function: check if user is employee (authenticated + has staff profile OR super admin)
+    // Helper function: check if user is employee (authenticated + has staff profile)
     function isEmployee() {
-      return isSuperAdminEmail() || (isAuthenticated() && hasStaffProfile());
-    }
-    
-    // Helper function: check if user is GM or Admin (based on role in staffProfiles OR super admin)
-    function isGmOrAdmin() {
-      return isSuperAdminEmail() || 
-             (hasStaffProfile() && 
-              get(/databases/$(database)/documents/staffProfiles/$(request.auth.uid)).data.role in ['gm', 'admin']);
+      return isAuthenticated() && hasStaffProfile();
     }
 
     // Admin check for new admin-only flows:
@@ -36,8 +24,7 @@ service cloud.firestore {
     function isAdminUser() {
       return isAuthenticated() && (
         request.auth.token.admin == true ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-        isSuperAdminEmail()
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
       );
     }
     
@@ -46,14 +33,14 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/staffProfiles/$(request.auth.uid)).data.code;
     }
     
-    // DEPRECATED: Use isGmOrAdmin() instead
+    // DEPRECATED: Prefer isAdminUser()
     function isAdmin() {
-      return isGmOrAdmin();
+      return isAdminUser();
     }
     
     // Users collection - restricted, prefer staffProfiles for employee data
     match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdminUser() || isGmOrAdmin());
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdminUser());
       
       // Production-safe: users can only update limited personal fields.
       // All staff/admin management fields (ex: role, status, staffSetupDone) are server/admin-only.
@@ -72,7 +59,7 @@ service cloud.firestore {
     
     // Staff profiles - user can only update phone; admin can manage all fields.
     match /staffProfiles/{profileId} {
-      allow read: if isAuthenticated() && (request.auth.uid == profileId || isAdminUser() || isGmOrAdmin());
+      allow read: if isAuthenticated() && (request.auth.uid == profileId || isAdminUser());
       
       // Create: admin only
       allow create: if isAdminUser();
@@ -96,19 +83,19 @@ service cloud.firestore {
 
     // Code pools are server-only writable (Cloud Functions using Admin SDK).
     match /teamCodePools/{teamId} {
-      allow read: if isAdminUser() || isGmOrAdmin();
+      allow read: if isAdminUser();
       allow write: if false;
     }
 
     // Assignments are server-only writable; readable by admin/GM.
     match /teamAssignments/{docId} {
-      allow read: if isAdminUser() || isGmOrAdmin();
+      allow read: if isAdminUser();
       allow write: if false;
     }
 
     // Assignment history is server-only; readable by admin/GM.
     match /teamAssignmentsHistory/{docId} {
-      allow read: if isAdminUser() || isGmOrAdmin();
+      allow read: if isAdminUser();
       allow write: if false;
     }
 
@@ -223,8 +210,8 @@ service cloud.firestore {
       // Users can read threads for allowed accounts only
       allow read: if isAuthenticated() && (isAdmin() || resource.data.accountId in getUserAllowedAccounts());
       
-      // Backend can create and update threads
-      allow create, update: if isAuthenticated();
+      // SECURITY: server-only writes (Admin SDK bypasses rules)
+      allow create, update: if false;
       
       // NEVER DELETE - use isArchived instead
       allow delete: if false;
@@ -234,8 +221,8 @@ service cloud.firestore {
         // Users can read messages for allowed accounts only
         allow read: if isAuthenticated() && (isAdmin() || get(/databases/$(database)/documents/threads/$(threadId)).data.accountId in getUserAllowedAccounts());
         
-        // Users can create messages for allowed accounts
-        allow create: if isAuthenticated() && (isAdmin() || get(/databases/$(database)/documents/threads/$(threadId)).data.accountId in getUserAllowedAccounts());
+        // SECURITY: server-only writes (Admin SDK bypasses rules)
+        allow create: if false;
         
         // Messages cannot be updated (immutable)
         allow update: if false;
@@ -264,33 +251,38 @@ service cloud.firestore {
     // WhatsApp Messages (flat collection) - ACTIVE - POLITICA: NEVER DELETE
     match /whatsapp_messages/{messageId} {
       allow read: if isAuthenticated();
-      allow create, update: if true; // Backend needs to write
+      // SECURITY: server-only writes (Admin SDK bypasses rules)
+      allow create, update: if false;
       allow delete: if false; // Never delete messages
     }
     
     // WhatsApp Threads (flat collection) - ACTIVE - POLITICA: NEVER DELETE
     match /whatsapp_threads/{threadId} {
       allow read: if isAuthenticated();
-      allow create, update: if true; // Backend needs to write
+      // SECURITY: server-only writes (Admin SDK bypasses rules)
+      allow create, update: if false;
       allow delete: if false; // Use isArchived instead
     }
     
     // WhatsApp Accounts - POLITICA: NEVER DELETE
     match /accounts/{accountId} {
       allow read: if isAuthenticated();
-      allow create, update: if true; // Backend needs to write
+      // SECURITY: server-only writes (Admin SDK bypasses rules)
+      allow create, update: if false;
       allow delete: if false; // Use isArchived instead
       
       // Chats subcollection
       match /chats/{chatId} {
         allow read: if isAuthenticated();
-        allow create, update: if true;
+        // SECURITY: server-only writes (Admin SDK bypasses rules)
+        allow create, update: if false;
         allow delete: if false; // Use isArchived instead
         
         // Messages subcollection
         match /messages/{messageId} {
           allow read: if isAuthenticated();
-          allow create, update: if true;
+          // SECURITY: server-only writes (Admin SDK bypasses rules)
+          allow create, update: if false;
           allow delete: if false; // Never delete messages
         }
       }
@@ -321,12 +313,12 @@ service cloud.firestore {
     // AI Global Rules (only super admin can write)
     match /ai_global_rules/{ruleId} {
       allow read: if isEmployee();
-      allow write: if request.auth.token.email == 'ursache.andrei1995@gmail.com';
+      allow write: if isAdminUser();
     }
     
     // Staff hours tracking (for salary calculation)
     match /staffHours/{entryId} {
-      allow read: if isGmOrAdmin() || 
+      allow read: if isAdminUser() || 
                      (isAuthenticated() && hasStaffProfile() && 
                       resource.data.staffUid == request.auth.uid);
       allow write: if false; // Only backend
@@ -337,7 +329,7 @@ service cloud.firestore {
       allow read: if isEmployee() && (
         resource.data.assigneeUid == request.auth.uid ||
         resource.data.status == 'OPEN' ||
-        isGmOrAdmin()
+        isAdminUser()
       );
       allow write: if false; // Only backend
     }
@@ -346,7 +338,7 @@ service cloud.firestore {
     match /notifications/{notificationId} {
       allow read: if isAuthenticated() && (
         resource.data.assigneeUid == request.auth.uid ||
-        isGmOrAdmin()
+        isAdminUser()
       );
       allow update: if isAuthenticated() && 
                        resource.data.assigneeUid == request.auth.uid &&
