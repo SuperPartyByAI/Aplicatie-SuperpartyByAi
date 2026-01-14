@@ -1,6 +1,45 @@
 {
   "version": "0.2",
   "language": "en,ro",
+  "useGitignore": true,
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/build/**",
+    "**/.dart_tool/**",
+    "**/ios/Pods/**",
+    "**/android/.gradle/**",
+    "**/.git/**",
+    "**/whatsapp-backend/.baileys_auth/**",
+    "**/.baileys_auth/**"
+  ],
+  "words": [
+    "Evenimente",
+    "evenimente",
+    "dovezi",
+    "Dovezi",
+    "disponibilitate",
+    "Salarizare",
+    "Centrala",
+    "notare",
+    "notează",
+    "petrecere",
+    "șofer",
+    "sofer",
+    "șoferi",
+    "soferi",
+    "asignare",
+    "asignează",
+    "ursache",
+    "SuperParty",
+    "Superparty",
+    "whatsapp",
+    "Firestore"
+  ]
+}
+
+{
+  "version": "0.2",
+  "language": "en,ro",
   "words": [
     "Aplicatie",
     "SuperpartyByAi",

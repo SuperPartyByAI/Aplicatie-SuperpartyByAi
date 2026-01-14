@@ -1,6 +1,12 @@
 {
   "cSpell.enabled": true,
   "cSpell.language": "en,ro",
+  "cSpell.configFile": "${workspaceFolder}/cspell.json"
+}
+
+{
+  "cSpell.enabled": true,
+  "cSpell.language": "en,ro",
   "cSpell.words": [
     "Aplicatie",
     "SuperpartyByAi",
