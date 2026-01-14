@@ -44,7 +44,18 @@ const shouldRun = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
 
       // Seed control plane
       await db.collection('accounts').doc('acc1').set({ id: 'acc1', name: 'acc' });
-      await db.collection('whatsapp_accounts').doc('wa_acc1').set({ id: 'wa_acc1', status: 'connected' });
+      await db.collection('whatsapp_accounts').doc('wa_acc1').set({ id: 'wa_acc1', status: 'connected', name: 'A' });
+      await db
+        .collection('whatsapp_accounts')
+        .doc('wa_acc1')
+        .collection('private')
+        .doc('state')
+        .set({ qrCodeDataUrl: 'data:image/png;base64,AAA', pairingCode: '123-456' });
+
+      // Seed WAL / leases / outbox
+      await db.collection('whatsapp_ingest').doc('wa_acc1_c1_k1').set({ accountId: 'wa_acc1', chatId: 'c1', eventType: 'message', waMessageKey: 'k1', payload: { x: 1 }, receivedAt: new Date(), processed: false, processedAt: null, processAttempts: 0, lastProcessError: null });
+      await db.collection('whatsapp_account_leases').doc('wa_acc1').set({ ownerInstanceId: 'i1', leaseUntil: new Date(Date.now() + 60_000), updatedAt: new Date() });
+      await db.collection('whatsapp_outbox').doc('cmd1').set({ threadId: 'wa_acc1_c1', accountId: 'wa_acc1', chatId: 'c1', to: 'c1', text: 'hi', createdAt: new Date(), createdByUid: 'u', status: 'queued', attempts: 0, lastError: null, dedupeKey: 'd', waMessageKey: null, lastTriedAt: null });
     });
   });
 
@@ -112,12 +123,32 @@ const shouldRun = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
     await assertSucceeds(superDb.collection('accounts').doc('acc1').get());
   });
 
-  test('WhatsApp control plane (whatsapp_accounts) is super-admin only', async () => {
+  test('whatsapp_accounts public doc is employee-readable; private QR is super-admin only', async () => {
     const empDb = ctxEmployee(uidEmp).firestore();
     const superDb = ctxSuperAdmin().firestore();
 
-    await assertFails(empDb.collection('whatsapp_accounts').doc('wa_acc1').get());
+    await assertSucceeds(empDb.collection('whatsapp_accounts').doc('wa_acc1').get());
+    await assertFails(empDb.collection('whatsapp_accounts').doc('wa_acc1').collection('private').doc('state').get());
+
     await assertSucceeds(superDb.collection('whatsapp_accounts').doc('wa_acc1').get());
+    await assertSucceeds(superDb.collection('whatsapp_accounts').doc('wa_acc1').collection('private').doc('state').get());
+  });
+
+  test('WAL / leases / outbox are server-only (super-admin read), no employee access', async () => {
+    const empDb = ctxEmployee(uidEmp).firestore();
+    const superDb = ctxSuperAdmin().firestore();
+
+    await assertFails(empDb.collection('whatsapp_ingest').doc('wa_acc1_c1_k1').get());
+    await assertFails(empDb.collection('whatsapp_account_leases').doc('wa_acc1').get());
+    await assertFails(empDb.collection('whatsapp_outbox').doc('cmd1').get());
+
+    await assertSucceeds(superDb.collection('whatsapp_ingest').doc('wa_acc1_c1_k1').get());
+    await assertSucceeds(superDb.collection('whatsapp_account_leases').doc('wa_acc1').get());
+    await assertSucceeds(superDb.collection('whatsapp_outbox').doc('cmd1').get());
+
+    await assertFails(empDb.collection('whatsapp_outbox').doc('x').set({ status: 'queued' }));
+    await assertFails(empDb.collection('whatsapp_ingest').doc('x').set({ processed: false }));
+    await assertFails(empDb.collection('whatsapp_account_leases').doc('wa_acc1').set({ ownerInstanceId: 'x' }));
   });
 });
 

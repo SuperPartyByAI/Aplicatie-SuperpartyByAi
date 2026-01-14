@@ -334,8 +334,35 @@ service cloud.firestore {
 
     // WhatsApp Accounts (new schema for internal app) - CONTROL PLANE
     match /whatsapp_accounts/{accountId} {
-      allow read: if isSuperAdminEmail();
+      // PUBLIC FIELDS ONLY (name/phone/status/lastSeenAt/etc).
+      // Employees can read status for the in-app inbox.
+      // IMPORTANT: QR + pairing must NOT be stored here (put in /private/ subcollection).
+      allow read: if isEmployee();
       allow create, update, delete: if false; // server-only
+
+      // Admin-only private state (QR, pairing)
+      match /private/{docId} {
+        allow read: if isSuperAdminEmail();
+        allow create, update, delete: if false; // server-only
+      }
+    }
+
+    // WhatsApp account leases - server-only
+    match /whatsapp_account_leases/{accountId} {
+      allow read: if isSuperAdminEmail();
+      allow create, update, delete: if false;
+    }
+
+    // WhatsApp ingest WAL (append-only) - server-only
+    match /whatsapp_ingest/{ingestId} {
+      allow read: if isSuperAdminEmail();
+      allow create, update, delete: if false;
+    }
+
+    // WhatsApp outbox queue - server-only
+    match /whatsapp_outbox/{commandId} {
+      allow read: if isSuperAdminEmail();
+      allow create, update, delete: if false;
     }
     
     // App configuration (version, force update, etc.)
