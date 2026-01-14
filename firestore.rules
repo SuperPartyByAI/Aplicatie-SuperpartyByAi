@@ -251,61 +251,6 @@ service cloud.firestore {
       allow delete: if false;
     }
     
-    // Outbox - WhatsApp message queue - POLITICA: NEVER DELETE
-    match /outbox/{messageId} {
-      // SECURITY: canonical send queue is server-only (Admin SDK bypasses rules).
-      // Clients MUST send via callable gateway, not by writing Firestore directly.
-      allow read: if isSuperAdminEmail();
-      allow create, update: if false;
-      
-      // NEVER DELETE - use status field instead
-      allow delete: if false;
-    }
-    
-    // Helper function: get user's allowed account IDs
-    function getUserAllowedAccounts() {
-      // For now, admin has access to all accounts
-      // TODO: Implement allowlist in app_users/{uid}.allowedAccountIds
-      return isAdmin() ? ['*'] : [];
-    }
-    
-    // Threads (WhatsApp Conversations) - USED BY BACKEND - POLITICA: NEVER DELETE
-    match /threads/{threadId} {
-      // SECURITY: backend-only model (legacy). Employees should use flat collections.
-      allow read: if isSuperAdminEmail();
-      allow create, update: if false;
-      
-      // NEVER DELETE - use isArchived instead
-      allow delete: if false;
-      
-      // Messages subcollection
-      match /messages/{messageId} {
-        allow read: if isSuperAdminEmail();
-        allow create: if false;
-        
-        // Messages cannot be updated (immutable)
-        allow update: if false;
-        
-        // NEVER DELETE - messages are immutable
-        allow delete: if false;
-      }
-    }
-    
-    // WhatsApp Conversations - NEW (not used yet) - POLITICA: NEVER DELETE
-    match /whatsappConversations/{conversationId} {
-      allow read: if isEmployee();
-      allow create, update: if false; // server-only
-      allow delete: if false; // Use isArchived instead
-    }
-    
-    // WhatsApp Messages - NEW (not used yet) - POLITICA: NEVER DELETE
-    match /whatsappMessages/{messageId} {
-      allow read: if isEmployee();
-      allow create: if false; // server-only
-      allow update: if false; // Messages are immutable
-      allow delete: if false; // Never delete messages
-    }
-    
     // WhatsApp Messages (flat collection) - ACTIVE - POLITICA: NEVER DELETE
     match /whatsapp_messages/{messageId} {
       // DATA PLANE: employees can READ all messages; canonical writes are server-only.
@@ -322,28 +267,6 @@ service cloud.firestore {
       allow delete: if false; // Use isArchived instead
     }
     
-    // WhatsApp Accounts - POLITICA: NEVER DELETE
-    match /accounts/{accountId} {
-      // CONTROL PLANE: accounts/session state is super-admin only; writes are server-only.
-      allow read: if isSuperAdminEmail();
-      allow create, update: if false;
-      allow delete: if false; // Use isArchived instead
-      
-      // Chats subcollection
-      match /chats/{chatId} {
-        allow read: if isSuperAdminEmail();
-        allow create, update: if false;
-        allow delete: if false; // Use isArchived instead
-        
-        // Messages subcollection
-        match /messages/{messageId} {
-          allow read: if isSuperAdminEmail();
-          allow create, update: if false;
-          allow delete: if false; // Never delete messages
-        }
-      }
-    }
-
     // WhatsApp Accounts (new schema for internal app) - CONTROL PLANE
     match /whatsapp_accounts/{accountId} {
       // PUBLIC FIELDS ONLY (name/phone/status/lastSeenAt/etc).
@@ -394,12 +317,6 @@ service cloud.firestore {
     match /whatsapp_alerts/{alertId} {
       allow read: if isSuperAdminEmail();
       allow create, update, delete: if false; // server-only
-    }
-
-    // Optional media registry (if used later) - server-only
-    match /whatsapp_media/{mediaId} {
-      allow read: if isSuperAdminEmail();
-      allow create, update, delete: if false;
     }
     
     // App configuration (version, force update, etc.)

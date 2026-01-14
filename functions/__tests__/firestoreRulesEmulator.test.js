@@ -43,7 +43,6 @@ const shouldRun = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
       await db.collection('whatsapp_messages').doc('m1').set({ id: 'm1', threadId: 'acc1_chat1', accountId: 'acc1', body: 'hi' });
 
       // Seed control plane
-      await db.collection('accounts').doc('acc1').set({ id: 'acc1', name: 'acc' });
       await db.collection('whatsapp_accounts').doc('wa_acc1').set({ id: 'wa_acc1', status: 'connected', name: 'A' });
       await db
         .collection('whatsapp_accounts')
@@ -118,14 +117,6 @@ const shouldRun = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
 
     await assertFails(empDb.collection('whatsapp_threads').doc('t2').set({ id: 't2' }));
     await assertFails(empDb.collection('whatsapp_messages').doc('m2').set({ id: 'm2' }));
-  });
-
-  test('WhatsApp control plane (accounts) is super-admin only', async () => {
-    const empDb = ctxEmployee(uidEmp).firestore();
-    const superDb = ctxSuperAdmin().firestore();
-
-    await assertFails(empDb.collection('accounts').doc('acc1').get());
-    await assertSucceeds(superDb.collection('accounts').doc('acc1').get());
   });
 
   test('whatsapp_accounts public doc is employee-readable; private QR is super-admin only', async () => {
