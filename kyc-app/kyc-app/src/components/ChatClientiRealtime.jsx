@@ -243,23 +243,53 @@ function ChatClientiRealtime({
     setSending(true);
 
     try {
+      // CRITICAL: Compute threadId as accountId__clientJid (matches backend)
+      const threadId = `${connectedAccount.id}__${selectedThread.clientJid}`;
+      
       // Generate deterministic requestId for idempotency
       const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // If thread is unassigned, assign it to current user (unless GM)
       if (!selectedThread.assignedTo && userCode && !isGMMode) {
-        await updateDoc(doc(db, 'threads', selectedThread.id), {
+        await updateDoc(doc(db, 'threads', threadId), {
           assignedTo: userCode,
           assignedAt: serverTimestamp(),
         });
         console.log(`✅ Thread assigned to ${userCode}`);
       }
 
-      // Create outbox document with requestId as docId (idempotent)
+      // STEP 1: Create/merge thread doc
+      await setDoc(
+        doc(db, 'threads', threadId),
+        {
+          accountId: connectedAccount.id,
+          clientJid: selectedThread.clientJid,
+          lastMessageAt: serverTimestamp(),
+          lastMessageText: newMessage.substring(0, 100),
+          lastMessageDirection: 'outbound',
+        },
+        { merge: true }
+      );
+
+      // STEP 2: Create message doc BEFORE sending (first-class in Firestore)
+      const messageData = {
+        accountId: connectedAccount.id,
+        clientJid: selectedThread.clientJid,
+        direction: 'outbound',
+        body: newMessage,
+        status: 'queued',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      await setDoc(doc(db, 'threads', threadId, 'messages', requestId), messageData);
+      console.log(`✅ Message doc created: threads/${threadId}/messages/${requestId}`);
+
+      // STEP 3: Create outbox doc with requestId as docId (idempotent)
       const outboxData = {
         accountId: connectedAccount.id,
         toJid: selectedThread.clientJid,
-        threadId: selectedThread.id,
+        threadId, // CRITICAL: Use computed threadId (accountId__clientJid)
         payload: { text: newMessage },
         body: newMessage,
         status: 'queued',
@@ -276,21 +306,7 @@ function ChatClientiRealtime({
 
       console.log(`✅ Message queued in outbox (Firestore write: ${writeTime.toFixed(0)}ms)`);
 
-      // Optimistic UI update with timestamp for latency tracking
-      const sendTimestamp = Date.now();
-      const optimisticMessage = {
-        id: `temp_${sendTimestamp}`,
-        accountId: connectedAccount.id,
-        clientJid: selectedThread.clientJid,
-        direction: 'outbound',
-        body: newMessage,
-        status: 'queued',
-        tsClient: new Date().toISOString(),
-        createdAt: { seconds: sendTimestamp / 1000 },
-        _sendTimestamp: sendTimestamp, // Track when user clicked send
-      };
-
-      setMessages(prev => [...prev, optimisticMessage]);
+      // Optimistic UI update - message will appear via real-time listener
       setNewMessage('');
     } catch (error) {
       console.error('❌ Failed to send message:', error);
