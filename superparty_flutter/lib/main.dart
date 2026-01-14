@@ -29,6 +29,7 @@ import 'screens/kyc/kyc_screen.dart';
 import 'screens/error/not_found_screen.dart';
 import 'widgets/update_gate.dart';
 import 'core/di/injector.dart';
+import 'core/routing/app_router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,16 +54,21 @@ void main() async {
     await FirebaseService.initialize()
         .timeout(const Duration(seconds: 10));
     debugPrint('[Main] ✅ Firebase initialized successfully');
-    
-    // Initialize Dependency Injection after Firebase
-    debugPrint('[Main] Setting up Dependency Injection...');
-    await setupDependencyInjection();
-    debugPrint('[Main] ✅ Dependency Injection initialized');
   } catch (e, stackTrace) {
     debugPrint('[Main] ❌ Firebase initialization failed: $e');
     debugPrint('[Main] Stack trace: $stackTrace');
     debugPrint('[Main] ⚠️ App will continue with limited functionality');
     debugPrint('[Main] ℹ️ Features requiring Firebase will be unavailable');
+  } finally {
+    // Initialize Dependency Injection regardless of Firebase status
+    // DI can work even if Firebase fails (wrappers will handle errors)
+    try {
+      debugPrint('[Main] Setting up Dependency Injection...');
+      await setupDependencyInjection();
+      debugPrint('[Main] ✅ Dependency Injection initialized');
+    } catch (e) {
+      debugPrint('[Main] ⚠️ DI init error (non-critical): $e');
+    }
   }
   
   // FAIL-SAFE: Background service is optional (mobile only)
@@ -149,9 +155,12 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
       );
     }
     
+    // Create router once (go_router handles all routing)
+    final router = createAppRouter();
+    
     return ChangeNotifierProvider(
       create: (_) => AppStateProvider(),
-      child: MaterialApp(
+      child: MaterialApp.router(
         title: 'SuperParty',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
@@ -167,72 +176,11 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
           ),
           useMaterial3: true,
         ),
+        routerConfig: router,
         builder: (context, child) {
           // UpdateGate as overlay - preserves Directionality from MaterialApp
           return UpdateGate(child: child ?? const SizedBox.shrink());
         },
-        onGenerateRoute: (settings) {
-            // Debug: log raw route
-            debugPrint('[ROUTE] Raw: ${settings.name}');
-            
-            // Normalize route: handle /#/evenimente, query params, trailing slash
-            final raw = settings.name ?? '/';
-            final cleaned = raw.startsWith('/#') ? raw.substring(2) : raw; // "/#/x" -> "/x"
-            final uri = Uri.tryParse(cleaned) ?? Uri(path: cleaned);
-            final path = uri.path.isEmpty ? '/' : uri.path;
-            
-            debugPrint('[ROUTE] Normalized: $path');
-            
-            // Handle all routes including deep-links
-            switch (path) {
-              case '/':
-                return MaterialPageRoute(builder: (_) => const AuthWrapper());
-              case '/home':
-                return MaterialPageRoute(builder: (_) => const HomeScreen());
-              case '/kyc':
-                return MaterialPageRoute(builder: (_) => const KycScreen());
-              case '/evenimente':
-                return MaterialPageRoute(builder: (_) => const EvenimenteScreen());
-              case '/disponibilitate':
-                return MaterialPageRoute(builder: (_) => const DisponibilitateScreen());
-              case '/salarizare':
-                return MaterialPageRoute(builder: (_) => const SalarizareScreen());
-              case '/centrala':
-                return MaterialPageRoute(builder: (_) => const CentralaScreen());
-              case '/whatsapp':
-                return MaterialPageRoute(builder: (_) => const WhatsAppScreen());
-              case '/team':
-                return MaterialPageRoute(builder: (_) => const TeamScreen());
-              case '/admin':
-                return MaterialPageRoute(builder: (_) => const AdminScreen());
-              case '/admin/kyc':
-                return MaterialPageRoute(builder: (_) => const KycApprovalsScreen());
-              case '/admin/ai-conversations':
-                return MaterialPageRoute(builder: (_) => const AiConversationsScreen());
-              case '/gm/accounts':
-                return MaterialPageRoute(builder: (_) => const AccountsScreen());
-              case '/gm/metrics':
-                return MaterialPageRoute(builder: (_) => const MetricsScreen());
-              case '/gm/analytics':
-                return MaterialPageRoute(builder: (_) => const AnalyticsScreen());
-              case '/gm/staff-setup':
-                return MaterialPageRoute(builder: (_) => const StaffSetupScreen());
-              case '/ai-chat':
-                return MaterialPageRoute(builder: (_) => const AIChatScreen());
-              default:
-                debugPrint('[ROUTE] Unknown path: $path - showing NotFoundScreen');
-                return MaterialPageRoute(
-                  builder: (_) => NotFoundScreen(routeName: path),
-                );
-            }
-          },
-          onUnknownRoute: (settings) {
-            debugPrint('[ROUTE] onUnknownRoute called for: ${settings.name}');
-            return MaterialPageRoute(
-              builder: (_) => NotFoundScreen(routeName: settings.name),
-            );
-          },
-        ),
       ),
     );
   }
