@@ -42,6 +42,10 @@ jobs:
           cache: npm
           cache-dependency-path: whatsapp-connector/package-lock.json
 
+      - name: WhatsApp schema guard (cutover regression)
+        run: node scripts/whatsapp_schema_guard.js
+        working-directory: .
+
       - name: Install
         run: npm ci
 
