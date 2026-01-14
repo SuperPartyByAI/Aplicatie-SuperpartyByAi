@@ -1,7 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/whatsapp_api_service.dart';
+import '../../core/auth/is_super_admin.dart';
+import 'whatsapp_permissions.dart';
 
 class WhatsAppChatScreen extends StatefulWidget {
   final String threadId;
@@ -26,10 +30,29 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   final _scroll = ScrollController();
 
   bool _sending = false;
+  bool _canSend = true;
+  String? _sendBlockedReason;
   DocumentSnapshot<Map<String, dynamic>>? _lastOlderDoc;
   final List<QueryDocumentSnapshot<Map<String, dynamic>>> _older = [];
   bool _loadingMore = false;
   bool _hasMore = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _markRead();
+  }
+
+  Future<void> _markRead() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('whatsapp_thread_prefs')
+        .doc(widget.threadId)
+        .set({'lastReadAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+  }
 
   @override
   void dispose() {
@@ -68,6 +91,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   Future<void> _send() async {
     final text = _input.text.trim();
     if (text.isEmpty) return;
+    if (!_canSend) return;
     setState(() => _sending = true);
     try {
       final clientMessageId = DateTime.now().microsecondsSinceEpoch.toString();
@@ -93,6 +117,10 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   @override
   Widget build(BuildContext context) {
     final stream = _baseQuery().limit(50).snapshots();
+    final threadStream = FirebaseFirestore.instance
+        .collection('whatsapp_threads')
+        .doc(widget.threadId)
+        .snapshots();
 
     return Scaffold(
       appBar: AppBar(
@@ -108,9 +136,50 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: stream,
-              builder: (context, snap) {
+            child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: threadStream,
+              builder: (context, threadSnap) {
+                final thread = threadSnap.data?.data();
+                final uid = FirebaseAuth.instance.currentUser?.uid;
+                final isSuper = isSuperAdmin(FirebaseAuth.instance.currentUser);
+                final ownerUid = (thread?['ownerUid'] ?? '').toString();
+                final locked = thread?['locked'] == true;
+                final coWriters = (thread?['coWriterUids'] as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
+                final canSend = canSendToThread(
+                  currentUid: uid,
+                  isSuperAdmin: isSuper,
+                  ownerUid: ownerUid.isEmpty ? null : ownerUid,
+                  coWriterUids: coWriters,
+                  locked: locked,
+                );
+
+                _canSend = canSend;
+                _sendBlockedReason = locked
+                    ? 'Thread locked'
+                    : (!isSuper && ownerUid.isNotEmpty && ownerUid != uid && !coWriters.contains(uid))
+                        ? 'Doar owner/co-writer poate trimite'
+                        : null;
+
+                return Column(
+                  children: [
+                    if (_sendBlockedReason != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange.shade200),
+                          ),
+                          child: Text(_sendBlockedReason!),
+                        ),
+                      ),
+                    Expanded(
+                      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        stream: stream,
+                        builder: (context, snap) {
                 if (snap.hasError) {
                   return Center(child: Text('Eroare: ${snap.error}'));
                 }
@@ -157,6 +226,8 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                     final isOut = direction == 'out';
                     final text = (m['text'] ?? '').toString();
                     final ts = m['timestamp'];
+                    final delivery = (m['delivery'] ?? '').toString();
+                    final media = m['media'] as Map<String, dynamic>?;
 
                     return Align(
                       alignment: isOut ? Alignment.centerRight : Alignment.centerLeft,
@@ -169,12 +240,24 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(text),
+                                if (media != null && (media['url'] ?? '').toString().isNotEmpty)
+                                  _mediaWidget(context, media)
+                                else if (text.isNotEmpty)
+                                  Text(text),
                                 const SizedBox(height: 6),
-                                Text(
-                                  _fmtTs(ts),
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _fmtTs(ts),
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                    if (isOut) ...[
+                                      const SizedBox(width: 6),
+                                      _deliveryIcon(delivery),
+                                    ],
+                                  ],
+                                )
                               ],
                             ),
                           ),
@@ -182,6 +265,11 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                       ),
                     );
                   },
+                );
+                        },
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
@@ -203,12 +291,12 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                       maxLines: 4,
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _send(),
-                      enabled: !_sending,
+                      enabled: !_sending && _canSend,
                     ),
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    onPressed: _sending ? null : _send,
+                    onPressed: (_sending || !_canSend) ? null : _send,
                     icon: _sending
                         ? const SizedBox(
                             width: 18,
@@ -221,6 +309,43 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _deliveryIcon(String delivery) {
+    // queued|sent|delivered|read|failed
+    if (delivery == 'failed') return const Icon(Icons.error_outline, size: 14, color: Colors.red);
+    if (delivery == 'read') return const Icon(Icons.done_all, size: 14, color: Colors.blue);
+    if (delivery == 'delivered') return const Icon(Icons.done_all, size: 14, color: Colors.black54);
+    if (delivery == 'sent') return const Icon(Icons.check, size: 14, color: Colors.black54);
+    return const SizedBox.shrink();
+  }
+
+  Widget _mediaWidget(BuildContext context, Map<String, dynamic> media) {
+    final type = (media['type'] ?? '').toString();
+    final url = (media['url'] ?? '').toString();
+    final fileName = (media['fileName'] ?? '').toString();
+
+    if (type == 'image') {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(url, width: 260, height: 260, fit: BoxFit.cover),
+      );
+    }
+
+    return InkWell(
+      onTap: () async {
+        final uri = Uri.tryParse(url);
+        if (uri == null) return;
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      },
+      child: Row(
+        children: [
+          const Icon(Icons.attach_file),
+          const SizedBox(width: 8),
+          Expanded(child: Text(fileName.isEmpty ? 'Attachment' : fileName)),
         ],
       ),
     );
