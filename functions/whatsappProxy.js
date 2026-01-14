@@ -509,7 +509,6 @@ async function getAccountsHandler(req, res) {
         message: 'Internal server error',
       });
     }
-  }
 }
 
 /**
