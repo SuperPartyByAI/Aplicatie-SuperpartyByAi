@@ -20,4 +20,8 @@ npm-debug.log*
 
 # Environment
 .env
+.env.*
 .env.local
+*.env
+RAILWAY-VARIABLES-*.env
+**/RAILWAY-VARIABLES-*.env
