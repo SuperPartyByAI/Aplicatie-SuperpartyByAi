@@ -262,7 +262,11 @@ function ChatClientiRealtime({
       }
 
       const token = await user.getIdToken();
-      const projectId = 'superparty-frontend'; // From firebase config
+      // Derive projectId from Firebase config (no hardcoding)
+      const projectId = auth.app.options.projectId || functions.app.options.projectId;
+      if (!projectId) {
+        throw new Error('Firebase projectId not found in app configuration');
+      }
       const functionsUrl = `https://us-central1-${projectId}.cloudfunctions.net`;
 
       const startTime = performance.now();

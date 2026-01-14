@@ -585,8 +585,32 @@ async function addAccountHandler(req, res) {
         message: 'Internal server error',
       });
     }
-  }
 }
+
+// Export handlers for use in index.js
+exports.getAccounts = onRequest(
+  {
+    region: 'us-central1',
+    cors: true,
+  },
+  getAccountsHandler
+);
+
+exports.addAccount = onRequest(
+  {
+    region: 'us-central1',
+    cors: true,
+  },
+  addAccountHandler
+);
+
+exports.regenerateQr = onRequest(
+  {
+    region: 'us-central1',
+    cors: true,
+  },
+  regenerateQrHandler
+);
 
 /**
  * POST /whatsappProxyRegenerateQr handler

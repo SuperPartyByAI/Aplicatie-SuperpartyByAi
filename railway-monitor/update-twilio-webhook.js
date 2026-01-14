@@ -5,14 +5,20 @@
 
 const https = require('https');
 
-const TWILIO_ACCOUNT_SID = 'AC17c88873d670aab4aa4a50fae230d2df';
-const TWILIO_AUTH_TOKEN = '5c6670d39a1dbf46d47ecdaa244b91d9';
-const TWILIO_PHONE_NUMBER = '+12182204425';
+// Secrets MUST come from environment variables; never hardcode.
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || '+12182204425';
 
 const newUrl = process.argv[2];
 
 if (!newUrl) {
   console.error('Usage: node update-twilio-webhook.js <new-url>');
+  process.exit(1);
+}
+
+if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
+  console.error('Missing TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN env vars');
   process.exit(1);
 }
 

@@ -4,10 +4,11 @@
 
 const https = require('https');
 
-const TWILIO_ACCOUNT_SID = 'AC17c88873d670aab4aa4a50fae230d2df';
-const TWILIO_AUTH_TOKEN = '5c6670d39a1dbf46d47ecdaa244b91d9';
-const TWILIO_PHONE_NUMBER = '+12182204425';
-const WEBHOOK_URL = 'https://web-production-f0714.up.railway.app/api/voice/incoming';
+// Secrets MUST come from environment variables; never hardcode.
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || '+12182204425';
+const WEBHOOK_URL = process.env.TWILIO_VOICE_WEBHOOK_URL || 'https://example.invalid/api/voice/incoming';
 
 async function configureTwilio() {
   console.log('');
@@ -15,6 +16,12 @@ async function configureTwilio() {
   console.log('');
 
   try {
+    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
+      throw new Error('Missing TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN env vars');
+    }
+    if (!WEBHOOK_URL || WEBHOOK_URL.includes('example.invalid')) {
+      throw new Error('Missing TWILIO_VOICE_WEBHOOK_URL env var');
+    }
     // Get phone number SID
     const auth = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64');
 

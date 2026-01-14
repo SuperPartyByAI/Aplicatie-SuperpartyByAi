@@ -822,9 +822,14 @@ const whatsappProxy = require('./whatsappProxy');
 exports.whatsappProxyGetAccounts = whatsappProxy.getAccounts;
 exports.whatsappProxyAddAccount = whatsappProxy.addAccount;
 exports.whatsappProxyRegenerateQr = whatsappProxy.regenerateQr;
+exports.whatsappProxySend = whatsappProxy.send;
 
-// WhatsApp Backend Proxy - QR Connect Routes Only
-const whatsappProxy = require('./whatsappProxy');
-exports.whatsappProxyGetAccounts = whatsappProxy.getAccounts;
-exports.whatsappProxyAddAccount = whatsappProxy.addAccount;
-exports.whatsappProxyRegenerateQr = whatsappProxy.regenerateQr;
+// --- Staff/Admin secure callables (TypeScript build) ---
+// Built from functions/src/*.ts into functions/dist/*.js during predeploy.
+try {
+  Object.assign(exports, require('./dist/index'));
+  console.log('✅ Loaded TypeScript callables from dist/index.js');
+} catch (e) {
+  console.warn('⚠️ TypeScript callables not loaded (dist missing). Run: npm --prefix functions run build');
+  console.warn(e?.message || e);
+}

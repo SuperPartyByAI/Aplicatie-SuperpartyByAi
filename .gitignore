@@ -20,4 +20,13 @@ npm-debug.log*
 
 # Environment
 .env
+.env.*
 .env.local
+*.env
+RAILWAY-VARIABLES-*.env
+**/RAILWAY-VARIABLES-*.env
+
+# Firebase Admin SDK / service accounts (never commit)
+**/*adminsdk*.json
+**/*service-account*.json
+**/*serviceAccount*.json

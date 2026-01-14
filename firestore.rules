@@ -29,6 +29,17 @@ service cloud.firestore {
              (hasStaffProfile() && 
               get(/databases/$(database)/documents/staffProfiles/$(request.auth.uid)).data.role in ['gm', 'admin']);
     }
+
+    // Admin check for new admin-only flows:
+    // - preferred: custom claim admin==true
+    // - fallback: users/{uid}.role == 'admin'
+    function isAdminUser() {
+      return isAuthenticated() && (
+        request.auth.token.admin == true ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        isSuperAdminEmail()
+      );
+    }
     
     // Helper function: get staff code
     function getStaffCode() {
@@ -42,30 +53,69 @@ service cloud.firestore {
     
     // Users collection - restricted, prefer staffProfiles for employee data
     match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isGmOrAdmin());
-      allow write: if isAuthenticated() && (request.auth.uid == userId || isGmOrAdmin());
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdminUser() || isGmOrAdmin());
+      
+      // Production-safe: users can only update limited personal fields.
+      // All staff/admin management fields (ex: role, status, staffSetupDone) are server/admin-only.
+      allow create: if isAdminUser();
+      allow update: if isAdminUser() || (isAuthenticated() && request.auth.uid == userId &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'displayName',
+          'phone',
+          'kycDone',
+          'kycData',
+          'updatedAt'
+        ])
+      );
+      allow delete: if false;
     }
     
-    // Staff profiles - readable by all employees for display names/roles
-    // SECURITY: Prevent privilege escalation - users cannot change their own role
+    // Staff profiles - user can only update phone; admin can manage all fields.
     match /staffProfiles/{profileId} {
-      allow read: if isEmployee(); // All employees can read staff profiles
+      allow read: if isAuthenticated() && (request.auth.uid == profileId || isAdminUser() || isGmOrAdmin());
       
-      // Create: Only GM/Admin can create staff profiles
-      allow create: if isGmOrAdmin();
+      // Create: admin only
+      allow create: if isAdminUser();
       
-      // Update: Users can update their own profile BUT cannot change role field
-      // GM/Admin can update any profile including role
-      allow update: if isAuthenticated() && (
-        // GM/Admin can update anything
-        isGmOrAdmin() ||
-        // User can update own profile but role must remain unchanged
-        (request.auth.uid == profileId && 
-         request.resource.data.role == resource.data.role)
+      // Update:
+      // - Admin can update anything
+      // - User can update ONLY their phone (+ updatedAt). All assignment/team fields are server-only.
+      allow update: if isAdminUser() || (isAuthenticated() && request.auth.uid == profileId &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['phone', 'updatedAt'])
       );
       
       // Delete: Never allow (use isArchived instead)
       allow delete: if false;
+    }
+
+    // Teams are readable by authenticated users; writable by admin/GM.
+    match /teams/{teamId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdminUser();
+    }
+
+    // Code pools are server-only writable (Cloud Functions using Admin SDK).
+    match /teamCodePools/{teamId} {
+      allow read: if isAdminUser() || isGmOrAdmin();
+      allow write: if false;
+    }
+
+    // Assignments are server-only writable; readable by admin/GM.
+    match /teamAssignments/{docId} {
+      allow read: if isAdminUser() || isGmOrAdmin();
+      allow write: if false;
+    }
+
+    // Assignment history is server-only; readable by admin/GM.
+    match /teamAssignmentsHistory/{docId} {
+      allow read: if isAdminUser() || isGmOrAdmin();
+      allow write: if false;
+    }
+
+    // Admin action logs are server-only; readable by admin/GM.
+    match /adminActions/{docId} {
+      allow read: if isAdminUser();
+      allow write: if false;
     }
     
     // KYC Submissions

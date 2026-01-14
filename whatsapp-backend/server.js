@@ -1273,7 +1273,21 @@ app.get('/healthz', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.get('/readyz', async (req, res) => {
+// Middleware to protect observability endpoints
+const requireObsToken = (req, res, next) => {
+  const obsToken = process.env.OBS_TOKEN;
+  if (!obsToken) {
+    // If OBS_TOKEN not set, allow access (dev mode)
+    return next();
+  }
+  const providedToken = req.headers['x-internal-token'];
+  if (providedToken !== obsToken) {
+    return res.status(401).json({ error: 'Unauthorized: Missing or invalid X-Internal-Token' });
+  }
+  next();
+};
+
+app.get('/readyz', requireObsToken, async (req, res) => {
   // Readiness check (dependencies available)
   const checks = {
     firestore: firestoreAvailable && !!db,
@@ -1288,7 +1302,7 @@ app.get('/readyz', async (req, res) => {
   });
 });
 
-app.get('/metrics-json', async (req, res) => {
+app.get('/metrics-json', requireObsToken, async (req, res) => {
   // Lightweight metrics endpoint (JSON format)
   if (!firestoreAvailable || !db) {
     return res.status(503).json({ error: 'Firestore not available' });
