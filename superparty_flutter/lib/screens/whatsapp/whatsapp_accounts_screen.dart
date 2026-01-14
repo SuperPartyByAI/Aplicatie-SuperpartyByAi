@@ -1,10 +1,8 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/is_super_admin.dart';
 import '../../services/whatsapp_api_service.dart';
@@ -70,8 +68,7 @@ class WhatsAppAccountsScreen extends StatelessWidget {
     final name = (data['name'] ?? '').toString();
     final phone = (data['phone'] ?? '').toString();
     final status = (data['status'] ?? '').toString();
-    final pairing = (data['pairingCode'] ?? '').toString();
-    final qr = (data['qrCodeDataUrl'] ?? '').toString();
+    final privateRef = d.reference.collection('private').doc('state');
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -97,11 +94,6 @@ class WhatsAppAccountsScreen extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                OutlinedButton.icon(
-                  onPressed: () => _openConnectPage(context, d.id),
-                  icon: const Icon(Icons.qr_code),
-                  label: const Text('Connect'),
-                ),
                 OutlinedButton.icon(
                   onPressed: () async {
                     try {
@@ -152,13 +144,26 @@ class WhatsAppAccountsScreen extends StatelessWidget {
                 ),
               ],
             ),
-            if (pairing.isNotEmpty) ...[
+            if (status == 'qr_ready') ...[
               const SizedBox(height: 10),
-              Text('Pairing code: $pairing', style: const TextStyle(fontFamily: 'monospace')),
-            ],
-            if (status == 'qr_ready' && qr.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              _qrWidget(qr),
+              StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: privateRef.snapshots(),
+                builder: (context, snap) {
+                  final qr = (snap.data?.data()?['qrCodeDataUrl'] ?? '').toString();
+                  final pairing = (snap.data?.data()?['pairingCode'] ?? '').toString();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (pairing.isNotEmpty)
+                        Text(
+                          'Pairing code: $pairing',
+                          style: const TextStyle(fontFamily: 'monospace'),
+                        ),
+                      if (qr.isNotEmpty) _qrWidget(qr) else const Text('QR nu este încă disponibil...'),
+                    ],
+                  );
+                },
+              ),
             ],
           ],
         ),
@@ -195,16 +200,6 @@ class WhatsAppAccountsScreen extends StatelessWidget {
       return Image.network(dataUrl, width: 260, height: 260);
     } catch (_) {
       return const Text('QR invalid.');
-    }
-  }
-
-  Future<void> _openConnectPage(BuildContext context, String accountId) async {
-    try {
-      final uri = await WhatsAppApiService.instance.buildConnectUri(accountId: accountId);
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Nu pot deschide connect: $e')));
     }
   }
 

@@ -6,12 +6,11 @@ import 'package:http/http.dart' as http;
 
 /// HTTP client for WhatsApp backend (Baileys).
 ///
-/// - Base URL is read from Firestore: `app_config/whatsapp_backend.baseUrl`
-/// - Fallbacks to Cloud Functions `whatsappV4` base URL.
-/// - Sends Firebase ID token when available (backend may ignore it).
+/// - Base URL is read from Firestore: `app_config/whatsapp_connector.baseUrl`
+/// - Sends Firebase ID token in `Authorization: Bearer`.
 class WhatsAppApiService {
   static const String _defaultBaseUrl =
-      'https://us-central1-superparty-frontend.cloudfunctions.net/whatsappV4';
+      'https://whats-upp-production.up.railway.app';
 
   static final WhatsAppApiService instance = WhatsAppApiService._();
   WhatsAppApiService._();
@@ -30,7 +29,7 @@ class WhatsAppApiService {
     try {
       final snap = await FirebaseFirestore.instance
           .collection('app_config')
-          .doc('whatsapp_backend')
+          .doc('whatsapp_connector')
           .get();
       final data = snap.data();
       final url = (data?['baseUrl'] ?? '').toString().trim();
@@ -72,19 +71,25 @@ class WhatsAppApiService {
     return Uri.parse('$b$p');
   }
 
-  Future<void> sendMessage({
+  Future<void> send({
+    required String threadId,
     required String accountId,
     required String to,
-    required String message,
+    required String text,
+    required String clientMessageId,
+    String? chatId,
   }) async {
     final base = await _getBaseUrl();
     final res = await http.post(
-      _u(base, '/api/whatsapp/send-message'),
+      _u(base, '/api/send'),
       headers: await _headers(),
       body: jsonEncode({
+        'threadId': threadId,
         'accountId': accountId,
+        if (chatId != null && chatId.trim().isNotEmpty) 'chatId': chatId.trim(),
         'to': to,
-        'message': message,
+        'text': text,
+        'clientMessageId': clientMessageId,
       }),
     );
     if (res.statusCode < 200 || res.statusCode >= 300) {
@@ -98,7 +103,7 @@ class WhatsAppApiService {
   }) async {
     final base = await _getBaseUrl();
     final res = await http.post(
-      _u(base, '/api/whatsapp/add-account'),
+      _u(base, '/api/accounts'),
       headers: await _headers(),
       body: jsonEncode({
         'name': name,
@@ -113,7 +118,7 @@ class WhatsAppApiService {
   Future<void> regenerateQr({required String accountId}) async {
     final base = await _getBaseUrl();
     final res = await http.post(
-      _u(base, '/api/whatsapp/accounts/$accountId/regenerate-qr'),
+      _u(base, '/api/accounts/$accountId/regenerate-qr'),
       headers: await _headers(),
     );
     if (res.statusCode < 200 || res.statusCode >= 300) {
@@ -124,27 +129,12 @@ class WhatsAppApiService {
   Future<void> deleteAccount({required String accountId}) async {
     final base = await _getBaseUrl();
     final res = await http.delete(
-      _u(base, '/api/whatsapp/accounts/$accountId'),
+      _u(base, '/api/accounts/$accountId'),
       headers: await _headers(),
     );
     if (res.statusCode < 200 || res.statusCode >= 300) {
       throw Exception('Delete account failed: HTTP ${res.statusCode} ${res.body}');
     }
-  }
-
-  Future<Uri> buildConnectUri({required String accountId}) async {
-    final base = await _getBaseUrl();
-    // The CF connect page supports token via query, but token might not exist (Railway).
-    String token = '';
-    try {
-      token = (await FirebaseAuth.instance.currentUser?.getIdToken()) ?? '';
-    } catch (_) {}
-    final uri = _u(base, '/connect/$accountId');
-    if (token.isEmpty) return uri;
-    return uri.replace(queryParameters: {
-      ...uri.queryParameters,
-      'token': token,
-    });
   }
 }
 

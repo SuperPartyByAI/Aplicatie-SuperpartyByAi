@@ -70,10 +70,14 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     if (text.isEmpty) return;
     setState(() => _sending = true);
     try {
-      await WhatsAppApiService.instance.sendMessage(
+      final clientMessageId = DateTime.now().microsecondsSinceEpoch.toString();
+      await WhatsAppApiService.instance.send(
+        threadId: widget.threadId,
         accountId: widget.accountId,
         to: widget.chatId,
-        message: text,
+        chatId: widget.chatId,
+        text: text,
+        clientMessageId: clientMessageId,
       );
       _input.clear();
     } catch (e) {
