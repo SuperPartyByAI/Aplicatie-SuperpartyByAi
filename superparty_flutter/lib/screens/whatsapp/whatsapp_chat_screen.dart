@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../services/whatsapp_api_service.dart';
 import '../../core/auth/is_super_admin.dart';
 import 'whatsapp_permissions.dart';
+import 'whatsapp_delivery.dart';
 
 class WhatsAppChatScreen extends StatefulWidget {
   final String threadId;
@@ -321,10 +322,10 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
   Widget _deliveryIcon(String delivery) {
     // queued|sent|delivered|read|failed
-    if (delivery == 'failed') return const Icon(Icons.error_outline, size: 14, color: Colors.red);
-    if (delivery == 'read') return const Icon(Icons.done_all, size: 14, color: Colors.blue);
-    if (delivery == 'delivered') return const Icon(Icons.done_all, size: 14, color: Colors.black54);
-    if (delivery == 'sent') return const Icon(Icons.check, size: 14, color: Colors.black54);
+    final icon = deliveryIconData(delivery);
+    final color = deliveryIconColor(delivery);
+    if (icon == null || color == null) return const SizedBox.shrink();
+    return Icon(icon, size: 14, color: color);
     return const SizedBox.shrink();
   }
 
