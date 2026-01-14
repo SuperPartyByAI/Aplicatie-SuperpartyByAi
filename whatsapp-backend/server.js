@@ -834,57 +834,9 @@ async function createConnection(accountId, name, phone) {
     // Creds update handler
     sock.ev.on('creds.update', saveCreds);
 
-    // Flush outbox on connect
-    sock.ev.on('connection.update', async update => {
-      if (update.connection === 'open') {
-        console.log(`🔄 [${accountId}] Connection open, flushing outbox...`);
-
-        if (!firestoreAvailable || !db) {
-          console.log(`⚠️  [${accountId}] Firestore not available, skipping outbox flush`);
-          return;
-        }
-
-        try {
-          const outboxSnapshot = await db
-            .collection('outbox')
-            .where('accountId', '==', accountId)
-            .where('status', '==', 'queued')
-            .get();
-
-          console.log(`📤 [${accountId}] Found ${outboxSnapshot.size} queued messages`);
-
-          for (const doc of outboxSnapshot.docs) {
-            const data = doc.data();
-
-            try {
-              const jid = data.toJid;
-              const result = await sock.sendMessage(jid, data.payload);
-
-              await db.collection('outbox').doc(doc.id).update({
-                status: 'sent',
-                sentAt: admin.firestore.FieldValue.serverTimestamp(),
-                providerMessageId: result.key.id,
-              });
-
-              console.log(`✅ [${accountId}] Flushed message ${doc.id}`);
-            } catch (error) {
-              console.error(`❌ [${accountId}] Failed to flush ${doc.id}:`, error.message);
-
-              await db
-                .collection('outbox')
-                .doc(doc.id)
-                .update({
-                  status: 'failed',
-                  error: error.message,
-                  attempts: (data.attempts || 0) + 1,
-                });
-            }
-          }
-        } catch (error) {
-          console.error(`❌ [${accountId}] Outbox flush error:`, error.message);
-        }
-      }
-    });
+    // REMOVED: Flush outbox on connect handler
+    // Single sending path: only outbox worker loop handles queued messages
+    // This prevents duplicate sends on reconnect
 
     // Messages handler
     sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
@@ -929,7 +881,8 @@ async function createConnection(accountId, name, phone) {
             // Save to Firestore
             if (firestoreAvailable && db) {
               try {
-                const threadId = from;
+                // CRITICAL: Use accountId__clientJid to prevent cross-account collisions
+                const threadId = `${accountId}__${from}`;
                 const messageData = {
                   accountId,
                   clientJid: from,
@@ -959,12 +912,14 @@ async function createConnection(accountId, name, phone) {
 
                 console.log(`✅ [${accountId}] Message saved successfully`);
 
-                // Update thread
+                // Update thread with merge to preserve existing fields
                 await db.collection('threads').doc(threadId).set(
                   {
                     accountId,
                     clientJid: from,
                     lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+                    lastMessageText: messageData.body.substring(0, 100),
+                    lastMessageDirection: messageData.direction,
                   },
                   { merge: true }
                 );
@@ -2354,7 +2309,9 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', accountLimiter, async (req, r
   }
 });
 
-// Send message
+// Send message (LEGACY endpoint - prefer using outbox directly)
+// NOTE: This endpoint does NOT create message doc in threads/{threadId}/messages
+// For first-class messages, use outbox collection directly (frontend creates message doc)
 app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
   try {
     const { accountId, to, message } = req.body;
@@ -2364,25 +2321,33 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Account not found' });
     }
 
+    // Normalize JID
+    const jid = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+    
+    // CRITICAL: Compute threadId as accountId__clientJid (matches backend)
+    const threadId = `${accountId}__${jid}`;
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
     if (account.status !== 'connected') {
-      // Queue message in Firestore
-      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      await db.collection('outbox').doc(messageId).set({
+      // Queue message in Firestore with threadId
+      await db.collection('outbox').doc(requestId).set({
         accountId,
-        toJid: to,
-        payload: { message },
+        toJid: jid,
+        threadId, // CRITICAL: Include threadId for worker to update message doc
+        payload: { text: message },
         body: message,
         status: 'queued',
         attemptCount: 0,
         nextAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        requestId,
       });
 
-      return res.json({ success: true, queued: true, messageId });
+      return res.json({ success: true, queued: true, messageId: requestId });
     }
 
-    const jid = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+    // Account is connected - send immediately
     const result = await account.sock.sendMessage(jid, { text: message });
 
     res.json({ success: true, messageId: result.key.id });
@@ -3303,57 +3268,9 @@ async function restoreAccount(accountId, data) {
 
     sock.ev.on('creds.update', saveCreds);
 
-    // Flush outbox on connect
-    sock.ev.on('connection.update', async update => {
-      if (update.connection === 'open') {
-        console.log(`🔄 [${accountId}] Connection open, flushing outbox...`);
-
-        if (!firestoreAvailable || !db) {
-          console.log(`⚠️  [${accountId}] Firestore not available, skipping outbox flush`);
-          return;
-        }
-
-        try {
-          const outboxSnapshot = await db
-            .collection('outbox')
-            .where('accountId', '==', accountId)
-            .where('status', '==', 'queued')
-            .get();
-
-          console.log(`📤 [${accountId}] Found ${outboxSnapshot.size} queued messages`);
-
-          for (const doc of outboxSnapshot.docs) {
-            const data = doc.data();
-
-            try {
-              const jid = data.toJid;
-              const result = await sock.sendMessage(jid, data.payload);
-
-              await db.collection('outbox').doc(doc.id).update({
-                status: 'sent',
-                sentAt: admin.firestore.FieldValue.serverTimestamp(),
-                providerMessageId: result.key.id,
-              });
-
-              console.log(`✅ [${accountId}] Flushed message ${doc.id}`);
-            } catch (error) {
-              console.error(`❌ [${accountId}] Failed to flush ${doc.id}:`, error.message);
-
-              await db
-                .collection('outbox')
-                .doc(doc.id)
-                .update({
-                  status: 'failed',
-                  error: error.message,
-                  attempts: (data.attempts || 0) + 1,
-                });
-            }
-          }
-        } catch (error) {
-          console.error(`❌ [${accountId}] Outbox flush error:`, error.message);
-        }
-      }
-    });
+    // REMOVED: Flush outbox on connect handler
+    // Single sending path: only outbox worker loop handles queued messages
+    // This prevents duplicate sends on reconnect
 
     // Messages handler - CRITICAL for receiving messages
     sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
@@ -3398,7 +3315,8 @@ async function restoreAccount(accountId, data) {
 
             if (firestoreAvailable && db) {
               try {
-                const threadId = from;
+                // CRITICAL: Use accountId__clientJid to prevent cross-account collisions
+                const threadId = `${accountId}__${from}`;
                 const messageData = {
                   accountId,
                   clientJid: from,
@@ -3433,6 +3351,8 @@ async function restoreAccount(accountId, data) {
                     accountId,
                     clientJid: from,
                     lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+                    lastMessageText: messageData.body.substring(0, 100),
+                    lastMessageDirection: messageData.direction,
                   },
                   { merge: true }
                 );

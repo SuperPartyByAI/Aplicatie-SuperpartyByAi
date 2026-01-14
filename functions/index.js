@@ -816,3 +816,10 @@ exports.setStaffCode = require('./staffCodeManager').setStaffCode;
 
 // V3 AI Event Handler
 exports.aiEventHandler = require('./aiEventHandler_v3').aiEventHandler;
+
+// WhatsApp Backend Proxy (secure gateway for Flutter)
+const whatsappProxy = require('./whatsappProxy');
+exports.whatsappProxySend = whatsappProxy.send;
+exports.whatsappProxyGetAccounts = whatsappProxy.getAccounts;
+exports.whatsappProxyAddAccount = whatsappProxy.addAccount;
+exports.whatsappProxyRegenerateQr = whatsappProxy.regenerateQr;

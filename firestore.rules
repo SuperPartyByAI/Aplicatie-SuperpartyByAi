@@ -152,18 +152,13 @@ service cloud.firestore {
     }
     
     // Outbox - WhatsApp message queue - POLITICA: NEVER DELETE
+    // SECURITY: Only server (via Admin SDK in Functions proxy) can write
     match /outbox/{messageId} {
-      // Users can read their own outbox messages
-      allow read: if isAuthenticated() && (isAdmin() || resource.data.accountId in getUserAllowedAccounts());
+      // Employees can read outbox messages (for status checking)
+      allow read: if isEmployee();
       
-      // Users can create outbox messages for allowed accounts
-      allow create: if isAuthenticated() && (isAdmin() || request.resource.data.accountId in getUserAllowedAccounts());
-      
-      // Backend can update status (authenticated service account or admin)
-      allow update: if isAuthenticated();
-      
-      // NEVER DELETE - use status field instead
-      allow delete: if false;
+      // Server-only writes (Functions proxy uses Admin SDK)
+      allow create, update, delete: if false;
     }
     
     // Helper function: get user's allowed account IDs

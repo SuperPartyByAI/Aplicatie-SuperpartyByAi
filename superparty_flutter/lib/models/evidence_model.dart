@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 
 /// Model pentru dovadă (schema v2)
 class EvidenceModel {
@@ -36,8 +37,41 @@ class EvidenceModel {
     required this.uploadedBy,
   });
 
+  /// Safe factory that returns null on invalid data (caller must handle null)
+  static EvidenceModel? tryFromFirestore(DocumentSnapshot doc, String eventId) {
+    try {
+      return fromFirestore(doc, eventId);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[EvidenceModel] Failed to parse doc ${doc.id}: $e');
+      }
+      return null;
+    }
+  }
+
   factory EvidenceModel.fromFirestore(DocumentSnapshot doc, String eventId) {
-    final data = doc.data() as Map<String, dynamic>;
+    final raw = doc.data();
+    if (raw is! Map<String, dynamic>) {
+      // Return safe fallback model instead of throwing
+      if (kDebugMode) {
+        debugPrint('[EvidenceModel] Invalid data for doc ${doc.id}, using fallback');
+      }
+      // Return minimal valid model with safe defaults
+      return EvidenceModel(
+        id: doc.id,
+        eventId: eventId,
+        category: EvidenceCategory.onTime,
+        downloadUrl: '',
+        storagePath: '',
+        fileName: 'invalid',
+        fileSize: 0,
+        mimeType: 'image/jpeg',
+        isArchived: false,
+        uploadedAt: DateTime.now(),
+        uploadedBy: '',
+      );
+    }
+    final data = raw;
     
     // Backward compatibility: read from 'category' or fallback to 'categorie'
     final categoryValue = (data['category'] as String?) ?? (data['categorie'] as String?) ?? 'onTime';
