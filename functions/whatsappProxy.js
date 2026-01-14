@@ -585,7 +585,6 @@ async function addAccountHandler(req, res) {
         message: 'Internal server error',
       });
     }
-  }
 }
 
 /**
