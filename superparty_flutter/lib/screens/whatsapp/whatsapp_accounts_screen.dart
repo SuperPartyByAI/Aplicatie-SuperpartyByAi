@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../services/whatsapp_api_service.dart';
 
 /// WhatsApp Accounts Management Screen
@@ -182,6 +183,69 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     }
   }
 
+  Future<void> _deleteAccount(String accountId, String accountName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Account?'),
+        content: Text('This will permanently delete "$accountName". This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _apiService.deleteAccount(accountId: accountId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await _loadAccounts();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Delete failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openQrPage(String accountId) async {
+    final url = _apiService.qrPageUrl(accountId);
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open QR page: $url'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildAccountCard(Map<String, dynamic> account) {
     final id = account['id'] as String? ?? 'unknown';
     final name = account['name'] as String? ?? 'Unnamed';
@@ -283,12 +347,32 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
             ],
             const SizedBox(height: 16),
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                TextButton.icon(
-                  onPressed: () => _regenerateQr(id),
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Regenerate QR'),
+                if (!showQr && status == 'qr_ready')
+                  TextButton.icon(
+                    onPressed: () => _openQrPage(id),
+                    icon: const Icon(Icons.qr_code, size: 18),
+                    label: const Text('Open QR Page'),
+                  )
+                else
+                  const SizedBox.shrink(),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => _regenerateQr(id),
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: const Text('Regenerate QR'),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () => _deleteAccount(id, name),
+                      icon: const Icon(Icons.delete_outline, size: 20),
+                      color: Colors.red,
+                      tooltip: 'Delete account',
+                    ),
+                  ],
                 ),
               ],
             ),

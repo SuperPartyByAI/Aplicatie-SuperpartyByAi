@@ -70,6 +70,22 @@ Only for `ursache.andrei1995@gmail.com`:
 
 All Firebase config is in `lib/services/firebase_service.dart`
 
+### WhatsApp Backend (Railway)
+
+Set the Railway backend URL at build/run time:
+
+```bash
+flutter run --dart-define=WHATSAPP_BACKEND_URL=https://whats-upp-production.up.railway.app
+```
+
+Or for release builds:
+
+```bash
+flutter build apk --dart-define=WHATSAPP_BACKEND_URL=https://whats-upp-production.up.railway.app
+```
+
+Default URL (if not specified): `https://whats-upp-production.up.railway.app`
+
 WebSocket URLs (update if needed):
 - Centrala: `lib/screens/centrala/centrala_screen.dart`
 - WhatsApp: `lib/screens/whatsapp/whatsapp_screen.dart`

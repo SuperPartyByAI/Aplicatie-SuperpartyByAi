@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../services/admin_service.dart';
 import '../../services/whatsapp_service.dart';
 
 class WhatsAppScreen extends StatefulWidget {
@@ -9,12 +12,15 @@ class WhatsAppScreen extends StatefulWidget {
 }
 
 class _WhatsAppScreenState extends State<WhatsAppScreen> {
+  final AdminService _adminService = AdminService();
+  Future<bool>? _isAdminFuture;
   bool _isLoading = false;
   bool? _isWhatsAppInstalled;
 
   @override
   void initState() {
     super.initState();
+    _isAdminFuture = _adminService.isCurrentUserAdmin();
     _checkWhatsAppInstallation();
   }
 
@@ -58,92 +64,73 @@ class _WhatsAppScreenState extends State<WhatsAppScreen> {
         title: const Text('WhatsApp'),
         backgroundColor: const Color(0xFF25D366),
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.chat,
-                size: 100,
-                color: const Color(0xFF25D366),
-              ),
-              const SizedBox(height: 32),
-              const Text(
-                'Deschide conversația WhatsApp',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Apasă butonul de mai jos pentru a deschide conversația WhatsApp configurată prin Baileys.',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 48),
-              if (_isWhatsAppInstalled == false)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.warning, color: Colors.orange),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'WhatsApp nu pare să fie instalat pe acest dispozitiv',
-                          style: TextStyle(color: Colors.orange.shade900),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _openWhatsApp,
-                  icon: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Icon(Icons.chat, color: Colors.white),
-                  label: Text(
-                    _isLoading ? 'Se deschide...' : 'Deschide WhatsApp',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF25D366),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.chat),
+              title: const Text('Deschide WhatsApp'),
+              subtitle: const Text('Deschide conversația WhatsApp externă (wa.me)'),
+              trailing: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.chevron_right),
+              onTap: _isLoading ? null : _openWhatsApp,
+            ),
           ),
-        ),
+          const SizedBox(height: 12),
+          FutureBuilder<bool>(
+            future: _isAdminFuture,
+            builder: (context, snap) {
+              final isAdmin = snap.data == true;
+              if (!isAdmin) {
+                return const Card(
+                  child: ListTile(
+                    leading: Icon(Icons.lock_outline),
+                    title: Text('Manage Accounts'),
+                    subtitle: Text('Doar admin poate gestiona conturi WhatsApp'),
+                  ),
+                );
+              }
+              return Card(
+                child: ListTile(
+                  leading: const Icon(Icons.account_tree),
+                  title: const Text('Manage Accounts'),
+                  subtitle: const Text('Conectare QR + management conturi (max 30)'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.go('/whatsapp/accounts'),
+                ),
+              );
+            },
+          ),
+          if (_isWhatsAppInstalled == false) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning, color: Colors.orange),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'WhatsApp nu pare să fie instalat pe acest dispozitiv',
+                      style: TextStyle(color: Colors.orange.shade900),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

@@ -16,6 +16,7 @@ import '../screens/disponibilitate/disponibilitate_screen.dart';
 import '../screens/salarizare/salarizare_screen.dart';
 import '../screens/centrala/centrala_screen.dart';
 import '../screens/whatsapp/whatsapp_screen.dart';
+import '../screens/whatsapp/whatsapp_accounts_screen.dart';
 import '../screens/team/team_screen.dart';
 import '../screens/admin/admin_screen.dart';
 import '../screens/admin/kyc_approvals_screen.dart';
@@ -53,7 +54,16 @@ class AppRouter {
       GoRoute(path: '/disponibilitate', builder: (_, __) => const DisponibilitateScreen()),
       GoRoute(path: '/salarizare', builder: (_, __) => const SalarizareScreen()),
       GoRoute(path: '/centrala', builder: (_, __) => const CentralaScreen()),
-      GoRoute(path: '/whatsapp', builder: (_, __) => const WhatsAppScreen()),
+      GoRoute(
+        path: '/whatsapp',
+        builder: (_, __) => const WhatsAppScreen(),
+        routes: [
+          GoRoute(
+            path: 'accounts',
+            builder: (_, __) => const WhatsAppAccountsScreen(),
+          ),
+        ],
+      ),
       GoRoute(path: '/team', builder: (_, __) => const TeamScreen()),
       GoRoute(path: '/ai-chat', builder: (_, __) => const AIChatScreen()),
 
