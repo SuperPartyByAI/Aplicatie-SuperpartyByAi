@@ -28,6 +28,7 @@ import 'screens/ai_chat/ai_chat_screen.dart';
 import 'screens/kyc/kyc_screen.dart';
 import 'screens/error/not_found_screen.dart';
 import 'widgets/update_gate.dart';
+import 'core/di/injector.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,6 +53,11 @@ void main() async {
     await FirebaseService.initialize()
         .timeout(const Duration(seconds: 10));
     debugPrint('[Main] ✅ Firebase initialized successfully');
+    
+    // Initialize Dependency Injection after Firebase
+    debugPrint('[Main] Setting up Dependency Injection...');
+    await setupDependencyInjection();
+    debugPrint('[Main] ✅ Dependency Injection initialized');
   } catch (e, stackTrace) {
     debugPrint('[Main] ❌ Firebase initialization failed: $e');
     debugPrint('[Main] Stack trace: $stackTrace');
