@@ -371,6 +371,13 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Internal notes per thread (employee-visible; not sent to WhatsApp)
+    match /whatsapp_thread_notes/{threadId}/notes/{noteId} {
+      allow read: if isEmployee();
+      allow create: if isEmployee();
+      allow update, delete: if false;
+    }
+
     // WhatsApp alerts (connector emits; super-admin can read)
     match /whatsapp_alerts/{alertId} {
       allow read: if isSuperAdminEmail();

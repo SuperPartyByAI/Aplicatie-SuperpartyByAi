@@ -162,5 +162,47 @@ const shouldRun = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
     await assertSucceeds(empDb.collection('users').doc(uidEmp).collection('whatsapp_thread_prefs').doc('t1').get());
     await assertFails(otherDb.collection('users').doc(uidEmp).collection('whatsapp_thread_prefs').doc('t1').get());
   });
+
+  test('whatsapp_thread_notes are employee-readable and employee-creatable (immutable)', async () => {
+    const empDb = ctxEmployee(uidEmp).firestore();
+    const superDb = ctxSuperAdmin().firestore();
+
+    await assertSucceeds(
+      empDb
+        .collection('whatsapp_thread_notes')
+        .doc('t1')
+        .collection('notes')
+        .doc('n1')
+        .set({ threadId: 't1', uid: uidEmp, text: 'note', createdAt: new Date() })
+    );
+    await assertSucceeds(
+      empDb
+        .collection('whatsapp_thread_notes')
+        .doc('t1')
+        .collection('notes')
+        .doc('n1')
+        .get()
+    );
+
+    // immutable
+    await assertFails(
+      empDb
+        .collection('whatsapp_thread_notes')
+        .doc('t1')
+        .collection('notes')
+        .doc('n1')
+        .update({ text: 'x' })
+    );
+
+    // super-admin can read too (as employee)
+    await assertSucceeds(
+      superDb
+        .collection('whatsapp_thread_notes')
+        .doc('t1')
+        .collection('notes')
+        .doc('n1')
+        .get()
+    );
+  });
 });
 
