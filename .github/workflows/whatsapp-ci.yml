@@ -1,0 +1,72 @@
+name: WhatsApp CI
+
+on:
+  pull_request:
+    paths:
+      - 'functions/**'
+      - 'whatsapp-backend/**'
+      - 'firestore.rules'
+      - 'kyc-app/**'
+      - '.github/workflows/whatsapp-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'functions/**'
+      - 'whatsapp-backend/**'
+      - 'firestore.rules'
+      - 'kyc-app/**'
+
+jobs:
+  test-functions:
+    name: Test Functions
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+        env:
+          NODE_ENV: test
+          WHATSAPP_RAILWAY_BASE_URL: https://test-railway.invalid
+
+  test-whatsapp-backend:
+    name: Test WhatsApp Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: whatsapp-backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: whatsapp-backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+        env:
+          NODE_ENV: test

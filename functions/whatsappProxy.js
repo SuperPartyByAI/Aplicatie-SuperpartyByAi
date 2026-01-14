@@ -457,6 +457,9 @@ exports.send = onRequest(
   sendHandler
 );
 
+// Export handler for testing
+exports.sendHandler = sendHandler;
+
 /**
  * GET /whatsappProxyGetAccounts handler
  * 
