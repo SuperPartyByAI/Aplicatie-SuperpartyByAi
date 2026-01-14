@@ -816,3 +816,15 @@ exports.setStaffCode = require('./staffCodeManager').setStaffCode;
 
 // V3 AI Event Handler
 exports.aiEventHandler = require('./aiEventHandler_v3').aiEventHandler;
+
+// WhatsApp Backend Proxy - QR Connect Routes Only
+const whatsappProxy = require('./whatsappProxy');
+exports.whatsappProxyGetAccounts = whatsappProxy.getAccounts;
+exports.whatsappProxyAddAccount = whatsappProxy.addAccount;
+exports.whatsappProxyRegenerateQr = whatsappProxy.regenerateQr;
+
+// WhatsApp Backend Proxy - QR Connect Routes Only
+const whatsappProxy = require('./whatsappProxy');
+exports.whatsappProxyGetAccounts = whatsappProxy.getAccounts;
+exports.whatsappProxyAddAccount = whatsappProxy.addAccount;
+exports.whatsappProxyRegenerateQr = whatsappProxy.regenerateQr;
