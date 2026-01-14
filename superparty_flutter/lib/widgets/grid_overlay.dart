@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../providers/app_state_provider.dart';
+import '../core/auth/is_super_admin.dart';
 
 class GridOverlay extends StatelessWidget {
   const GridOverlay({super.key});
@@ -46,8 +48,10 @@ class GridOverlay extends StatelessWidget {
                           childAspectRatio: 0.85, // Puțin mai înalt pentru text
                           children: [
                             ..._buildNormalButtons(context, appState),
-                            if (appState.isAdminMode) ..._buildAdminButtons(context, appState),
-                            if (appState.isGmMode) ..._buildGmButtons(context, appState),
+                            if (isSuperAdmin(FirebaseAuth.instance.currentUser))
+                              ..._buildAdminButtons(context, appState),
+                            if (isSuperAdmin(FirebaseAuth.instance.currentUser) && appState.isGmMode)
+                              ..._buildGmButtons(context, appState),
                           ],
                         ),
                       ),
@@ -77,10 +81,6 @@ class GridOverlay extends StatelessWidget {
     return [
       _buildAppIcon(context, appState, 'Aprobări KYC', Icons.check_circle, '/admin/kyc', color: const Color(0xFFEF4444)),
       _buildAppIcon(context, appState, 'Conversații AI', Icons.chat_bubble, '/admin/ai-conversations', color: const Color(0xFFEF4444)),
-      _buildAppIconAction(context, appState, 'Ieși Admin', Icons.exit_to_app, () {
-        appState.exitAdminMode();
-        appState.closeGrid();
-      }, color: const Color(0xFFEF4444)),
     ];
   }
 

@@ -93,10 +93,12 @@ class _AssignRoleSheetState extends State<AssignRoleSheet> {
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: _isLoading ? null : () async {
+                    final nav = Navigator.of(context);
                     setState(() => _isLoading = true);
                     await widget.onUnassign!();
+                    if (!mounted) return;
                     setState(() => _isLoading = false);
-                    if (mounted) Navigator.pop(context);
+                    nav.pop();
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFFFF7878),
@@ -122,10 +124,12 @@ class _AssignRoleSheetState extends State<AssignRoleSheet> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : () async {
+                        final nav = Navigator.of(context);
                         setState(() => _isLoading = true);
                         await widget.onAcceptPending!();
+                        if (!mounted) return;
                         setState(() => _isLoading = false);
-                        if (mounted) Navigator.pop(context);
+                        nav.pop();
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF10B981),
@@ -139,10 +143,12 @@ class _AssignRoleSheetState extends State<AssignRoleSheet> {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: _isLoading ? null : () async {
+                        final nav = Navigator.of(context);
                         setState(() => _isLoading = true);
                         await widget.onRejectPending!();
+                        if (!mounted) return;
                         setState(() => _isLoading = false);
-                        if (mounted) Navigator.pop(context);
+                        nav.pop();
                       },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFFFF7878),

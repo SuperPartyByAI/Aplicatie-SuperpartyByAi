@@ -11,6 +11,7 @@
  */
 
 const admin = require('firebase-admin');
+const { HttpsError } = require('firebase-functions/v2/https');
 
 class ConversationStateManager {
   constructor(db) {
@@ -21,7 +22,7 @@ class ConversationStateManager {
   /**
    * Get conversation state for a session
    */
-  async getState(sessionId) {
+  async getState(sessionId, ownerUid = null) {
     if (!sessionId) return null;
 
     const stateDoc = await this.db.collection(this.statesCollection).doc(sessionId).get();
@@ -30,10 +31,22 @@ class ConversationStateManager {
       return null;
     }
 
-    return {
+    const state = {
       id: stateDoc.id,
       ...stateDoc.data(),
     };
+
+    // SECURITY: Admin SDK bypasses Firestore rules, so enforce owner isolation here too.
+    if (ownerUid && state.ownerUid && String(state.ownerUid) !== String(ownerUid)) {
+      throw new HttpsError('permission-denied', 'Conversation state is owner-only.');
+    }
+
+    // If a state exists but ownerUid is missing, treat it as invalid and deny access.
+    if (ownerUid && !state.ownerUid) {
+      throw new HttpsError('permission-denied', 'Conversation state missing ownerUid.');
+    }
+
+    return state;
   }
 
   /**
@@ -44,7 +57,8 @@ class ConversationStateManager {
 
     const state = {
       sessionId,
-      userId,
+      // Firestore rules expect ownerUid for access control.
+      ownerUid: userId,
       notingMode: true,
       mode: 'collecting_event',
       conversationState: 'collecting_event',
@@ -57,9 +71,15 @@ class ConversationStateManager {
         sarbatoritDob: initialData.sarbatoritDob || null,
         rolesDraft: initialData.rolesDraft || [],
       },
-      pendingQuestions: this._generatePendingQuestions(initialData),
-      transcriptMessages: [],
-      aiInterpretationLog: [],
+      pendingQuestions: this._generatePendingQuestions({
+        date: initialData.date || null,
+        address: initialData.address || null,
+        client: initialData.client || null,
+        sarbatoritNume: initialData.sarbatoritNume || null,
+        sarbatoritVarsta: initialData.sarbatoritVarsta || null,
+        sarbatoritDob: initialData.sarbatoritDob || null,
+        rolesDraft: initialData.rolesDraft || [],
+      }),
       createdAt: now,
       updatedAt: now,
     };
@@ -72,8 +92,8 @@ class ConversationStateManager {
   /**
    * Update draft event with new information
    */
-  async updateDraft(sessionId, updates, userMessage = null, aiInterpretation = null) {
-    const state = await this.getState(sessionId);
+  async updateDraft(sessionId, ownerUid, updates) {
+    const state = await this.getState(sessionId, ownerUid);
     
     if (!state || !state.notingMode) {
       throw new Error('Not in noting mode');
@@ -93,26 +113,6 @@ class ConversationStateManager {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
-    // Add transcript message if provided
-    if (userMessage) {
-      updateData.transcriptMessages = admin.firestore.FieldValue.arrayUnion({
-        role: 'user',
-        content: userMessage,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // Add AI interpretation log if provided
-    if (aiInterpretation) {
-      updateData.aiInterpretationLog = admin.firestore.FieldValue.arrayUnion({
-        input: userMessage,
-        extracted: updates,
-        decision: aiInterpretation.decision || 'update_draft',
-        clarifications: aiInterpretation.clarifications || [],
-        timestamp: new Date().toISOString(),
-      });
-    }
-
     await this.db.collection(this.statesCollection).doc(sessionId).update(updateData);
 
     return {
@@ -125,28 +125,26 @@ class ConversationStateManager {
    * Add AI response to transcript
    */
   async addAIResponse(sessionId, aiMessage) {
-    await this.db.collection(this.statesCollection).doc(sessionId).update({
-      transcriptMessages: admin.firestore.FieldValue.arrayUnion({
-        role: 'assistant',
-        content: aiMessage,
-        timestamp: new Date().toISOString(),
-      }),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    // Transcript is stored server-side in /evenimente/{eventId}/ai_sessions/... for super-admin.
+    // Keep this as a no-op for backward compatibility with older call sites.
+    void sessionId;
+    void aiMessage;
   }
 
   /**
    * Cancel noting mode and reset state
    */
-  async cancelNotingMode(sessionId) {
+  async cancelNotingMode(sessionId, ownerUid) {
+    // Ensure caller owns this state (even though Admin SDK bypasses rules).
+    await this.getState(sessionId, ownerUid);
     await this.db.collection(this.statesCollection).doc(sessionId).delete();
   }
 
   /**
    * Exit noting mode (same as cancel)
    */
-  async exitNotingMode(sessionId) {
-    return this.cancelNotingMode(sessionId);
+  async exitNotingMode(sessionId, ownerUid) {
+    return this.cancelNotingMode(sessionId, ownerUid);
   }
 
   /**

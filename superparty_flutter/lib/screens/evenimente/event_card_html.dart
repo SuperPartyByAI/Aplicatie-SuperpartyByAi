@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../models/event_model.dart';
 
 /// Event Card Widget - 100% identic cu HTML
@@ -27,47 +26,37 @@ class EventCardHtml extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0x0FFFFFFF), // rgba(255,255,255,0.06) --card
+          color: const Color(0x0FFFFFFF),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color(0x1FFFFFFF), // rgba(255,255,255,0.12) --border
+            color: const Color(0x1FFFFFFF),
           ),
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // Mobile layout: 3 rows (gap: 10px vertical)
-            if (constraints.maxWidth < 600) {
+            if (constraints.maxWidth < 520) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Row 1: Badge + Main (gap: 12px horizontal)
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildBadge(),
-                      const SizedBox(width: 12), // gap horizontal
+                      const SizedBox(width: 12),
                       Expanded(child: _buildMain()),
                     ],
                   ),
-                  const SizedBox(height: 10), // gap vertical
-
-                  // Row 2: Rolelist
+                  const SizedBox(height: 10),
                   if (event.roles.isNotEmpty) ...[
                     _buildRoleList(),
-                    const SizedBox(height: 10), // gap vertical
+                    const SizedBox(height: 10),
                   ],
-
-                  // Row 3: Right
                   _buildRight(),
                 ],
               );
             }
-
-            // Desktop layout: CSS Grid (3 columns: 46px 1fr auto)
-            // HTML lines 856-866: grid-template-columns: 46px 1fr auto
             return _buildDesktopGrid();
           },
         ),
@@ -88,16 +77,16 @@ class EventCardHtml extends StatelessWidget {
             // Column 1: Badge (46px width)
             _buildBadge(),
             const SizedBox(width: 12), // gap horizontal
-            
+
             // Column 2: Main (flexible)
             Expanded(child: _buildMain()),
             const SizedBox(width: 12), // gap horizontal
-            
+
             // Column 3: Right (auto width)
             _buildRight(),
           ],
         ),
-        
+
         // Row 2: Rolelist (spans columns 1-2)
         if (event.roles.isNotEmpty) ...[
           const SizedBox(height: 10), // gap vertical
@@ -108,21 +97,8 @@ class EventCardHtml extends StatelessWidget {
   }
 
   Widget _buildBadge() {
-    // Parse date DD-MM-YYYY and format as "DD\nMMM"
-    String badgeText = '';
-    try {
-      final parts = event.date.split('-');
-      if (parts.length == 3) {
-        final day = parts[0];
-        final month = int.parse(parts[1]);
-        final monthNames = ['', 'Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun', 'Iul', 'Aug', 'Sep', 'Oct', 'Noi', 'Dec'];
-        badgeText = '$day\n${monthNames[month]}';
-      } else {
-        badgeText = event.id.substring(0, 4);
-      }
-    } catch (e) {
-      badgeText = event.id.substring(0, 4);
-    }
+    // HTML line 3936: badge.textContent = ev.id || '--';
+    final badgeText = event.id.isNotEmpty ? event.id : '--';
 
     return Container(
       width: 46,
@@ -151,22 +127,12 @@ class EventCardHtml extends StatelessWidget {
   }
 
   Widget _buildMain() {
-    // HTML lines 889-897: .main { gap: 6px }
+    // HTML lines 3938-3943: .main contains .meta (address)
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ID + Date + Name
-        Text(
-          '${event.id} • ${event.date} • ${event.sarbatoritNume}',
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFFEAF1FF),
-          ),
-        ),
-        const SizedBox(height: 6), // gap from .main
-        // Address
-        if (event.address.isNotEmpty) ...[
+        // Address (HTML: meta1.className = 'meta')
+        if (event.address.isNotEmpty)
           Text(
             event.address,
             style: const TextStyle(
@@ -174,47 +140,6 @@ class EventCardHtml extends StatelessWidget {
               color: Color(0xB3EAF1FF), // rgba(234,241,255,0.7) --muted
             ),
           ),
-          const SizedBox(height: 6), // gap from .main
-        ],
-        // Cine notează (ALWAYS show, even if null)
-        Text(
-          'Cine notează: ${event.cineNoteaza ?? '—'}',
-          style: const TextStyle(
-            fontSize: 12,
-            color: Color(0x94EAF1FF), // rgba(234,241,255,0.58) --muted2
-          ),
-        ),
-        // Șofer (ALWAYS show if needsDriver)
-        if (event.needsDriver) ...[
-          const SizedBox(height: 6), // gap from .main
-          GestureDetector(
-            onTap: () {
-              if (onDriverTap != null) onDriverTap!();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: event.hasDriverAssigned
-                    ? const Color(0x144ECDC4) // rgba(78,205,196,0.08)
-                    : const Color(0x14FFBE5C), // rgba(255,190,92,0.08)
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: event.hasDriverAssigned
-                      ? const Color(0x384ECDC4) // rgba(78,205,196,0.22)
-                      : const Color(0x47FFBE5C), // rgba(255,190,92,0.28)
-                ),
-              ),
-              child: Text(
-                'Șofer: ${event.driverStatusText}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xEBEAF1FF), // rgba(234,241,255,0.92)
-                ),
-              ),
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -222,7 +147,7 @@ class EventCardHtml extends StatelessWidget {
   Widget _buildRoleList() {
     // buildVisibleRoles - filter roles by codeFilter
     final visibleRoles = _buildVisibleRoles();
-    
+
     if (visibleRoles.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -262,7 +187,7 @@ class EventCardHtml extends StatelessWidget {
     // Filter by codeFilter (exact ca în HTML)
     if (codeFilter != null && codeFilter!.isNotEmpty) {
       final code = codeFilter!.trim().toUpperCase();
-      
+
       // Special values
       if (code == 'NEREZOLVATE') {
         roles = roles.where((r) {
@@ -350,7 +275,11 @@ class EventCardHtml extends StatelessWidget {
     return GestureDetector(
       onTap: () => onStatusTap(
         role.slot,
-        hasAssigned ? role.assignedCode : hasPending ? role.pendingCode : null,
+        hasAssigned
+            ? role.assignedCode
+            : hasPending
+                ? role.pendingCode
+                : null,
       ),
       child: Row(
         children: [
@@ -491,43 +420,43 @@ class EventCardHtml extends StatelessWidget {
   }
 
   Widget _buildRight() {
-    // HTML lines 985-993: .right { gap: 4px, padding-top: 2px }
+    // HTML lines 4013-4036: .right contains .dt (date), .subdt (cineNoteaza, driver)
     return Padding(
       padding: const EdgeInsets.only(top: 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // Date
+          // Date (HTML: dt.className = 'dt')
           Text(
             _formatDate(event.date),
             style: const TextStyle(
               fontSize: 12,
-              fontWeight: FontWeight.w900, // HTML: font-weight: 900
+              fontWeight: FontWeight.w900,
               color: Color(0xDBEAF1FF), // rgba(234,241,255,0.86)
             ),
           ),
 
-          // Cine noteaza
+          // Cine noteaza (HTML: cn.className = 'subdt')
           if (event.cineNoteaza != null && event.cineNoteaza!.isNotEmpty) ...[
-            const SizedBox(height: 4), // gap from .right
+            const SizedBox(height: 4),
             Text(
               'Cine noteaza: ${event.cineNoteaza}',
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 11,
-                color: const Color(0xFFEAF1FF).withOpacity(0.6),
+                color: Color(0x99EAF1FF), // rgba(234,241,255,0.6)
               ),
             ),
           ],
 
-          // Șofer
-          const SizedBox(height: 4), // gap from .right
+          // Șofer (HTML: dr.className = 'subdt')
+          const SizedBox(height: 4),
           GestureDetector(
             onTap: _needsDriver() ? onDriverTap : null,
             child: Text(
               _driverText(),
               style: TextStyle(
                 fontSize: 11,
-                color: const Color(0xFFEAF1FF).withOpacity(0.6),
+                color: const Color(0x99EAF1FF), // rgba(234,241,255,0.6)
                 decoration: _needsDriver() ? TextDecoration.underline : null,
               ),
             ),
@@ -538,28 +467,34 @@ class EventCardHtml extends StatelessWidget {
   }
 
   String _formatDate(String dateStr) {
-    // dateStr is DD-MM-YYYY
+    // HTML lines 2002-2016: formatDate function
+    // Supports YYYY-MM-DD format and converts to DD.MM.YYYY
     try {
+      // Try YYYY-MM-DD format first (from HTML)
+      final isoMatch = RegExp(r'^([0-9]{4})-([0-9]{2})-([0-9]{2})$').firstMatch(dateStr);
+      if (isoMatch != null) {
+        return '${isoMatch.group(3)}.${isoMatch.group(2)}.${isoMatch.group(1)}';
+      }
+      // Try DD-MM-YYYY format
       final parts = dateStr.split('-');
-      if (parts.length != 3) return dateStr;
-      final day = int.parse(parts[0]);
-      final month = int.parse(parts[1]);
-      final year = int.parse(parts[2]);
-      final date = DateTime(year, month, day);
-      return DateFormat('dd MMM yyyy', 'ro').format(date);
+      if (parts.length == 3) {
+        return '${parts[0]}.${parts[1]}.${parts[2]}';
+      }
+      return dateStr;
     } catch (e) {
       return dateStr;
     }
   }
 
   String _formatDuration(int minutes) {
-    if (minutes >= 60) {
-      final hours = minutes ~/ 60;
-      final mins = minutes % 60;
-      if (mins == 0) return '${hours}h';
-      return '${hours}h${mins}min';
-    }
-    return '${minutes}min';
+    // HTML lines 2423-2432: formatDurationMin function
+    final m = minutes;
+    if (m <= 0) return '';
+    final h = m ~/ 60;
+    final r = m % 60;
+    if (h <= 0) return '${r}m';
+    if (r == 0) return '${h}h';
+    return '${h}h$r';
   }
 
   bool _isValidStaffCode(String code) {
@@ -570,40 +505,23 @@ class EventCardHtml extends StatelessWidget {
   }
 
   bool _needsDriver() {
-    // Check if any role has slot 'S' (Șofer)
-    return event.roles.any((r) => r.slot.toUpperCase() == 'S');
+    // HTML lines 2232-2240: needsDriverRole function
+    // Check event.needsDriver property (from EventModel)
+    return event.needsDriver;
   }
 
   String _driverText() {
-    final driverRole = event.roles.firstWhere(
-      (r) => r.slot.toUpperCase() == 'S',
-      orElse: () => RoleModel(
-        slot: 'S',
-        label: '',
-        time: '',
-        durationMin: 0,
-      ),
-    );
-
-    if (driverRole.label.isEmpty) {
-      return 'Șofer: nu necesită';
+    // HTML lines 2242-2249: driverText function
+    if (!_needsDriver()) return 'Sofer: FARA';
+    
+    // Check event.sofer and event.soferPending (from EventModel)
+    if (event.sofer != null && event.sofer!.isNotEmpty) {
+      return 'Sofer: ${event.sofer}';
     }
-
-    final hasAssigned = driverRole.assignedCode != null &&
-        driverRole.assignedCode!.isNotEmpty &&
-        _isValidStaffCode(driverRole.assignedCode!);
-    final hasPending = !hasAssigned &&
-        driverRole.pendingCode != null &&
-        driverRole.pendingCode!.isNotEmpty &&
-        _isValidStaffCode(driverRole.pendingCode!);
-
-    if (hasAssigned) {
-      return 'Șofer: ${driverRole.assignedCode}';
-    } else if (hasPending) {
-      return 'Șofer: ${driverRole.pendingCode} (pending)';
-    } else {
-      return 'Șofer: nerezervat';
+    if (event.soferPending != null && event.soferPending!.isNotEmpty) {
+      return 'Sofer: ...';
     }
+    return 'Sofer: !';
   }
 }
 

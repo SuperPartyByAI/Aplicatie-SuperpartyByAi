@@ -1,38 +1,7 @@
 {
   "cSpell.enabled": true,
   "cSpell.language": "en,ro",
-  "cSpell.words": [
-    "Aplicatie",
-    "SuperpartyByAi",
-    "Logtail",
-    "Sentry",
-    "Firestore",
-    "Baileys",
-    "whatsapp",
-    "accountid",
-    "qrcode",
-    "twilio",
-    "openai",
-    "elevenlabs",
-    "pino",
-    "socketio",
-    "vite",
-    "eslint",
-    "prettierrc",
-    "gitpod",
-    "devcontainer",
-    "Railway",
-    "Firebase"
-  ],
-  "cSpell.ignorePaths": [
-    "node_modules",
-    "dist",
-    "build",
-    ".git",
-    "package-lock.json",
-    "*.min.js",
-    ".baileys_auth"
-  ],
+  "cSpell.configFile": "${workspaceFolder}/cspell.json",
 
   // ESLint
   "eslint.enable": true,

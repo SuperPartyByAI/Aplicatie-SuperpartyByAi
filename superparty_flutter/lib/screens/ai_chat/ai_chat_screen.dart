@@ -10,12 +10,20 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/auth/is_super_admin.dart';
 import '../../providers/app_state_provider.dart';
 import '../../services/ai_cache_service.dart';
 import '../../services/chat_cache_service.dart';
 
 class AIChatScreen extends StatefulWidget {
-  const AIChatScreen({super.key});
+  final String? eventId;
+  final String? initialText;
+
+  const AIChatScreen({
+    super.key,
+    this.eventId,
+    this.initialText,
+  });
 
   @override
   State<AIChatScreen> createState() => _AIChatScreenState();
@@ -45,6 +53,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
   bool _loading = false;
   String? _sessionId;
+  String? _eventContextId;
+  List<Map<String, dynamic>> _activeUiButtons = const [];
   String? _lastSentMessage;
   DateTime? _lastSentTime;
   String? _userName;
@@ -61,7 +71,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
   @override
   void initState() {
     super.initState();
-    _sessionId = 'session_${DateTime.now().millisecondsSinceEpoch}';
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? 'anon';
+    _sessionId = 'session_${uid}_${DateTime.now().millisecondsSinceEpoch}';
+    _eventContextId = widget.eventId;
     _bootstrap();
   }
 
@@ -78,6 +90,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
       setState(() {
         _messages.add({'role': 'assistant', 'content': _welcomeText()});
       });
+    }
+
+    if (widget.initialText != null && widget.initialText!.trim().isNotEmpty) {
+      _inputController.text = widget.initialText!.trim();
     }
 
     _scrollToBottomSoon();
@@ -129,7 +145,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
       }
     }).catchError((e) {
       // ignore
-      // debugPrint('Error loading cache: $e');
+      // print('Error loading cache: $e');
     });
   }
 
@@ -206,8 +222,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
   String _describeUserMessage(String text, bool hasImage, String? imageName) {
     final t = text.trim();
-    if (t.isNotEmpty && hasImage)
+    if (t.isNotEmpty && hasImage) {
       return '$t\n[Imagine atașată: ${imageName ?? "poză"}]';
+    }
     if (hasImage) return '[Imagine atașată: ${imageName ?? "poză"}]';
     return t;
   }
@@ -235,6 +252,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
         'role': 'user',
         'content': _describeUserMessage(text, hasImage, imageName)
       });
+      _activeUiButtons = const [];
     });
 
     // Save image to gallery at send time
@@ -299,22 +317,10 @@ class _AIChatScreenState extends State<AIChatScreen> {
       return;
     }
 
-    final isAdmin = user.email == 'ursache.andrei1995@gmail.com';
+    final isAdmin = isSuperAdmin(user);
     final appState = Provider.of<AppStateProvider>(context, listen: false);
 
-    // Secret commands for admin
-    if (isAdmin && text.toLowerCase() == 'admin') {
-      appState.setAdminMode(true);
-      Navigator.pop(context);
-      appState.openGrid();
-      return;
-    }
-    if (isAdmin && text.toLowerCase() == 'gm') {
-      appState.setGmMode(true);
-      Navigator.pop(context);
-      appState.openGrid();
-      return;
-    }
+    // SECURITY: no secret privilege escalation commands.
 
     // Check cache first (only for text without image)
     // Detect event intent early (before cache) to avoid cache hijacking event commands
@@ -365,40 +371,100 @@ class _AIChatScreenState extends State<AIChatScreen> {
           // Use full text for natural language
           commandText = text;
         }
-        
-        // Generate unique clientRequestId for idempotency
-        final clientRequestId = 'req_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
-        
-        // Call chatEventOps with dryRun=true for preview
-        final eventCallable =
+
+        // AI-first flow:
+        // 1) chatEventOpsV2 interprets + returns UI primitives + proposed ops (NO writes)
+        // 2) aiEventGateway executes ops (ONLY writer to /evenimente)
+        final chatCallable =
             FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
-          'chatEventOps',
-          options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+          'chatEventOpsV2',
+          options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
         );
 
-        final previewResult = await eventCallable.call({
+        final result = await chatCallable.call({
           'text': commandText,
-          'dryRun': true,
-          'clientRequestId': clientRequestId,
+          'sessionId': _sessionId,
+          'eventId': _eventContextId,
         });
-        
-        final previewData = Map<String, dynamic>.from(previewResult.data);
-        
-        // Remove placeholder and show preview
-        setState(() {
-          _messages.removeAt(placeholderIndex);
-          _loading = false;
-        });
-        
-        // Show preview card with confirmation buttons
-        _showEventPreview(
-          context: context,
-          previewData: previewData,
-          commandText: commandText,
-          clientRequestId: clientRequestId,
-        );
-        
-        return; // Don't add response message yet, wait for confirmation
+
+        final data = Map<String, dynamic>.from(result.data);
+        final action = (data['action']?.toString() ?? '').toUpperCase();
+        final message = data['message']?.toString() ?? 'Operație completată';
+        aiResponse = message;
+
+        final ui = data['ui'];
+        final buttonsRaw = ui is Map ? ui['buttons'] : null;
+        if (buttonsRaw is List) {
+          final parsed = <Map<String, dynamic>>[];
+          for (final b in buttonsRaw) {
+            if (b is Map) {
+              parsed.add(Map<String, dynamic>.from(b.map((k, v) => MapEntry(k.toString(), v))));
+            }
+          }
+          if (mounted) {
+            setState(() {
+              _activeUiButtons = parsed;
+            });
+          }
+        }
+
+        // Draft preview (server-controlled). Show for everyone (operational), detailed debug only for super-admin.
+        final draft = data['draft'];
+        if (draft is Map) {
+          try {
+            aiResponse +=
+                '\n\n--- DRAFT PREVIEW ---\n${const JsonEncoder.withIndent('  ').convert(draft)}';
+          } catch (_) {}
+        }
+
+        // If server decided ops should execute now, call aiEventGateway (operational writer)
+        final autoExecute = data['autoExecute'] == true;
+        final opsRaw = data['ops'];
+        if (autoExecute && opsRaw is List && opsRaw.isNotEmpty) {
+          final gatewayCallable =
+              FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
+            'aiEventGateway',
+            options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+          );
+
+          for (final opEntry in opsRaw) {
+            if (opEntry is! Map) continue;
+            final op = opEntry['op']?.toString() ?? '';
+            final payload = opEntry['payload'];
+            final requestId = opEntry['requestId']?.toString() ??
+                '${_sessionId}_${DateTime.now().microsecondsSinceEpoch}_$op';
+
+            final gwRes = await gatewayCallable.call({
+              'sessionId': _sessionId,
+              'requestId': requestId,
+              'op': op,
+              'payload': payload,
+            });
+
+            final gwData = Map<String, dynamic>.from(gwRes.data);
+            if (gwData['eventId'] is String) {
+              _eventContextId = gwData['eventId'] as String;
+            } else if (gwData['result'] is Map) {
+              final r = Map<String, dynamic>.from(gwData['result'] as Map);
+              if (r['eventId'] is String) _eventContextId = r['eventId'] as String;
+            }
+          }
+
+          aiResponse += '\n\n✅ Salvat în Firebase (via aiEventGateway).';
+        }
+
+        // Super-admin debug payload (server-controlled)
+        final debugPayload = data['debug'];
+        if (isAdmin && debugPayload is Map) {
+          try {
+            aiResponse +=
+                '\n\n--- DEBUG (super-admin) ---\n${const JsonEncoder.withIndent('  ').convert(debugPayload)}';
+          } catch (_) {
+            // ignore
+          }
+        }
+
+        // Cache only non-event responses; event commands should always hit server.
       } else {
         // Use regular chatWithAI for normal conversation
         final callable =
@@ -670,52 +736,110 @@ class _AIChatScreenState extends State<AIChatScreen> {
         color: _bg.withOpacity(0.55),
         border: Border(top: BorderSide(color: Colors.white.withOpacity(0.10))),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            tooltip: 'Încarcă poză',
-            onPressed: _pickImage,
-            icon: const Text('📷', style: TextStyle(fontSize: 18)),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.22),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withOpacity(0.14)),
+          if (_activeUiButtons.isNotEmpty) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _activeUiButtons.map((b) {
+                  final label = (b['label'] ?? '').toString();
+                  final legacySendText = (b['sendText'] ?? '').toString();
+                  final action = (b['action'] ?? '').toString().toUpperCase();
+                  final payload = b['payload'];
+                  String sendText;
+                  if (legacySendText.isNotEmpty) {
+                    sendText = legacySendText;
+                  } else if (action == 'CONFIRM') {
+                    sendText = 'da';
+                  } else if (action == 'CANCEL') {
+                    sendText = 'anulează';
+                  } else if (payload is Map && payload['text'] is String) {
+                    sendText = payload['text'] as String;
+                  } else if (payload != null) {
+                    // Send structured action back to AI as JSON string
+                    sendText = const JsonEncoder().convert({
+                      '_ui': true,
+                      'action': action,
+                      'payload': payload,
+                    });
+                  } else {
+                    sendText = action.isEmpty ? 'ok' : action.toLowerCase();
+                  }
+                  final style = (b['style'] ?? 'secondary').toString();
+                  final isPrimary = style == 'primary';
+                  return ElevatedButton(
+                    onPressed: _loading
+                        ? null
+                        : () {
+                            _inputController.text = sendText;
+                            _sendMessage();
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isPrimary ? _primary : _bg2,
+                      foregroundColor: _text,
+                      side: BorderSide(color: Colors.white.withOpacity(0.12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(label.isEmpty ? sendText : label),
+                  );
+                }).toList(),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              child: TextField(
-                controller: _inputController,
-                focusNode: _focusNode,
-                minLines: 1,
-                maxLines: 4,
-                style: const TextStyle(color: _text, fontSize: 14, height: 1.3),
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  hintText: 'Scrie un mesaj sau "Notează o petrecere..."',
-                  hintStyle: TextStyle(color: Color(0x8CEAF1FF)),
+            ),
+            const SizedBox(height: 10),
+          ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              IconButton(
+                tooltip: 'Încarcă poză',
+                onPressed: _pickImage,
+                icon: const Text('📷', style: TextStyle(fontSize: 18)),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.22),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white.withOpacity(0.14)),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  child: TextField(
+                    controller: _inputController,
+                    focusNode: _focusNode,
+                    minLines: 1,
+                    maxLines: 4,
+                    style: const TextStyle(color: _text, fontSize: 14, height: 1.3),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Scrie un mesaj sau "Notează o petrecere..."',
+                      hintStyle: TextStyle(color: Color(0x8CEAF1FF)),
+                    ),
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _sendMessage(),
+                  ),
                 ),
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _sendMessage(),
               ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          ElevatedButton(
-            onPressed: _loading ? null : _sendMessage,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primary.withOpacity(0.20),
-              foregroundColor: _text,
-              side: BorderSide(color: _primary.withOpacity(0.35)),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              textStyle: const TextStyle(fontWeight: FontWeight.w900),
-            ),
-            child: const Text('Trimite'),
+              const SizedBox(width: 10),
+              ElevatedButton(
+                onPressed: _loading ? null : _sendMessage,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primary.withOpacity(0.20),
+                  foregroundColor: _text,
+                  side: BorderSide(color: _primary.withOpacity(0.35)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                child: const Text('Trimite'),
+              ),
+            ],
           ),
         ],
       ),
@@ -802,10 +926,12 @@ class _AIChatScreenState extends State<AIChatScreen> {
   Widget _buildGalleryBody() {
     final filtered = _gallery.where((x) {
       if (_galleryFilter == _GalleryFilter.all) return true;
-      if (_galleryFilter == _GalleryFilter.active)
+      if (_galleryFilter == _GalleryFilter.active) {
         return x.status == _GalleryStatus.active;
-      if (_galleryFilter == _GalleryFilter.archived)
+      }
+      if (_galleryFilter == _GalleryFilter.archived) {
         return x.status == _GalleryStatus.archived;
+      }
       return x.status == _GalleryStatus.deleted;
     }).toList()
       ..sort((a, b) => (b.ts).compareTo(a.ts));
@@ -865,7 +991,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
               builder: (context, constraints) {
                 final w = constraints.maxWidth;
                 final cols = w < 420 ? 1 : 2;
-                final spacing = 10.0;
+                const spacing = 10.0;
                 final itemW = (w - (cols - 1) * spacing) / cols;
 
                 return Wrap(
@@ -1118,149 +1244,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
     return 'img_${DateTime.now().millisecondsSinceEpoch}_$r';
   }
 
-  // ===================== Event Command Preview =====================
-
-  void _showEventPreview({
-    required BuildContext context,
-    required Map<String, dynamic> previewData,
-    required String commandText,
-    required String clientRequestId,
-  }) {
-    final action = previewData['action']?.toString().toUpperCase() ?? 'NONE';
-    final ok = previewData['ok'] == true;
-    final message = previewData['message']?.toString() ?? '';
-
-    // ASK_INFO: AI needs more information (conversational mode)
-    if (action == 'ASK_INFO') {
-      setState(() {
-        _messages.add({
-          'role': 'assistant',
-          'content': message.isNotEmpty ? message : 'Am nevoie de mai multe informații pentru a continua.',
-        });
-      });
-      _scrollToBottomSoon();
-      return;
-    }
-
-    if (!ok || action == 'NONE') {
-      // Show error message
-      setState(() {
-        _messages.add({
-          'role': 'assistant',
-          'content': '❌ $message',
-        });
-      });
-      _scrollToBottomSoon();
-      return;
-    }
-
-    // For LIST action, show results directly (no confirmation needed)
-    if (action == 'LIST') {
-      final items = previewData['items'] as List<dynamic>? ?? [];
-      final listText = _formatEventList(items);
-      setState(() {
-        _messages.add({
-          'role': 'assistant',
-          'content': listText,
-        });
-      });
-      _scrollToBottomSoon();
-      return;
-    }
-
-    // Show preview card with confirmation buttons
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Preview: $action'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                message,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              if (previewData['data'] != null) ...[
-                const Text(
-                  'Date care vor fi scrise:',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _formatPreviewData(previewData['data']),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ),
-              ],
-              if (previewData['eventId'] != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Event ID: ${previewData['eventId']}',
-                  style: const TextStyle(fontSize: 12, color: Colors.blue),
-                ),
-              ],
-              if (previewData['reason'] != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Motiv: ${previewData['reason']}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              setState(() {
-                _messages.add({
-                  'role': 'assistant',
-                  'content': '❌ Operație anulată.',
-                });
-              });
-              _scrollToBottomSoon();
-            },
-            child: const Text('Anulează'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              _executeEventCommand(
-                commandText: commandText,
-                clientRequestId: clientRequestId,
-                action: action,
-              );
-            },
-            child: const Text('Confirmă'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatPreviewData(dynamic data) {
-    try {
-      if (data is Map) {
-        return const JsonEncoder.withIndent('  ').convert(data);
-      }
-      return data.toString();
-    } catch (e) {
-      return data.toString();
-    }
-  }
+  // ===================== Event helpers =====================
 
   String _formatEventList(List<dynamic> items) {
     if (items.isEmpty) {
@@ -1282,66 +1266,6 @@ class _AIChatScreenState extends State<AIChatScreen> {
     }
 
     return buffer.toString();
-  }
-
-  Future<void> _executeEventCommand({
-    required String commandText,
-    required String clientRequestId,
-    required String action,
-  }) async {
-    // Show loading
-    setState(() {
-      _messages.add({'role': 'assistant', 'content': '...'});
-      _loading = true;
-    });
-    _scrollToBottomSoon();
-
-    try {
-      final eventCallable =
-          FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
-        'chatEventOps',
-        options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
-      );
-
-      final result = await eventCallable.call({
-        'text': commandText,
-        'dryRun': false,
-        'clientRequestId': clientRequestId,
-      });
-
-      final data = Map<String, dynamic>.from(result.data);
-      final ok = data['ok'] == true;
-      final message = data['message']?.toString() ?? 'Operație completată';
-      final eventId = data['eventId'];
-
-      String response;
-      if (ok) {
-        response = '✅ $message';
-        if (eventId != null) {
-          response += '\n\n🆔 Event ID: $eventId';
-          response += '\n\n💡 Poți deschide evenimentul din secțiunea Evenimente.';
-        }
-      } else {
-        response = '❌ $message';
-      }
-
-      setState(() {
-        _messages.removeLast(); // Remove loading
-        _messages.add({'role': 'assistant', 'content': response});
-        _loading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _messages.removeLast(); // Remove loading
-        _messages.add({
-          'role': 'assistant',
-          'content': '❌ Eroare la executare: $e',
-        });
-        _loading = false;
-      });
-    }
-
-    _scrollToBottomSoon();
   }
 
   /// Normalize text: lowercase + strip diacritics

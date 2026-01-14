@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
 import '../../providers/app_state_provider.dart';
+import '../../core/auth/is_super_admin.dart';
 import '../dovezi/dovezi_screen.dart';
 import '../../widgets/user_selector_dialog.dart';
 import '../../widgets/user_display_name.dart';
@@ -29,6 +29,17 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
   EventModel? _event;
   bool _isLoading = true;
   String? _error;
+
+  void _openAiChat(String initialText) {
+    Navigator.pushNamed(
+      context,
+      '/ai-chat',
+      arguments: {
+        'eventId': widget.eventId,
+        'initialText': initialText,
+      },
+    );
+  }
 
   // Roluri disponibile (servicii reale oferite)
   final List<String> _roles = [
@@ -140,17 +151,42 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
               if (!appState.isEmployee) {
                 return const SizedBox.shrink();
               }
+              final superAdmin = isSuperAdmin(FirebaseAuth.instance.currentUser);
               
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // View AI Logic button (GM/Admin only)
-                  if (appState.isGmOrAdmin)
+                  if (superAdmin) ...[
                     IconButton(
                       icon: const Icon(Icons.psychology, color: Colors.amber),
-                      tooltip: 'Vezi Logica AI',
-                      onPressed: _showAILogic,
+                      tooltip: 'AI Logic (Global)',
+                      onPressed: () {
+                        Navigator.pushNamed(context, '/admin/ai-logic');
+                      },
                     ),
+                    IconButton(
+                      icon: const Icon(Icons.tune, color: Colors.amber),
+                      tooltip: 'AI Override (Event)',
+                      onPressed: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/admin/ai-override',
+                          arguments: {'eventId': widget.eventId},
+                        );
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.bug_report, color: Colors.amber),
+                      tooltip: 'AI Sessions (Event)',
+                      onPressed: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/admin/ai-sessions',
+                          arguments: {'eventId': widget.eventId},
+                        );
+                      },
+                    ),
+                  ],
                   // Edit button (all employees)
                   IconButton(
                     icon: const Icon(Icons.edit, color: Colors.white),
@@ -762,22 +798,21 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
 
     if (confirmed == true && mounted) {
       try {
-        await _eventService.archiveEvent(
-          widget.eventId,
-          reason: reasonController.text.trim().isEmpty
-              ? null
-              : reasonController.text.trim(),
+        final reason = reasonController.text.trim();
+        _openAiChat(
+          reason.isEmpty
+              ? 'Te rog execută: ARCHIVE_EVENT.'
+              : 'Te rog execută: ARCHIVE_EVENT. motiv: $reason',
         );
 
-        if (mounted) {
-          Navigator.pop(context); // Închide sheet-ul
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Eveniment arhivat cu succes'),
-              backgroundColor: Color(0xFF10B981),
-            ),
-          );
-        }
+        if (!mounted) return;
+        Navigator.pop(context); // Închide sheet-ul (AI Chat rămâne pe stack)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Deschis AI Chat pentru arhivare (server-only write)'),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -978,35 +1013,23 @@ Schema v2:
                   throw Exception('Toate câmpurile sunt obligatorii');
                 }
 
-                // Update event in Firestore
-                final user = FirebaseAuth.instance.currentUser;
-                if (user == null) throw Exception('Nu ești autentificat');
-
-                await FirebaseFirestore.instance
-                    .collection('evenimente')
-                    .doc(_event!.id)
-                    .update({
-                  'date': date,
-                  'address': address,
-                  'sarbatoritNume': nume,
-                  'sarbatoritVarsta': varsta,
-                  'incasare.total': total,
-                  'incasare.avans': avans,
-                  'incasare.restDePlata': total - avans,
-                  'updatedAt': FieldValue.serverTimestamp(),
-                  'updatedBy': user.uid,
-                });
-
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Eveniment actualizat cu succes!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                  _loadEvent(); // Reload event
-                }
+                // POLICY: no direct Firestore writes for /evenimente from client.
+                // Route update via AI gateway.
+                if (!mounted) return;
+                Navigator.pop(context);
+                _openAiChat(
+                  'Te rog execută: UPDATE_EVENT_FIELDS. '
+                  'Data: $date. '
+                  'Adresă: $address. '
+                  'Sărbătorit: $nume, $varsta ani. '
+                  'Încasare: total $total, avans $avans.',
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Deschis AI Chat pentru actualizare (server-only write)'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1069,29 +1092,18 @@ Schema v2:
             ),
             onPressed: () async {
               try {
-                final user = FirebaseAuth.instance.currentUser;
-                if (user == null) throw Exception('Nu ești autentificat');
-
                 final reason = reasonController.text.trim();
-
-                await FirebaseFirestore.instance
-                    .collection('evenimente')
-                    .doc(_event!.id)
-                    .update({
-                  'isArchived': true,
-                  'archivedAt': FieldValue.serverTimestamp(),
-                  'archivedBy': user.uid,
-                  if (reason.isNotEmpty) 'archiveReason': reason,
-                  'updatedAt': FieldValue.serverTimestamp(),
-                  'updatedBy': user.uid,
-                });
 
                 if (mounted) {
                   Navigator.pop(context); // Close dialog
-                  Navigator.pop(context); // Close details sheet
+                  _openAiChat(
+                    reason.isEmpty
+                        ? 'Te rog execută: ARCHIVE_EVENT.'
+                        : 'Te rog execută: ARCHIVE_EVENT. motiv: $reason',
+                  );
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('✅ Eveniment arhivat cu succes!'),
+                      content: Text('Deschis AI Chat pentru arhivare (server-only write)'),
                       backgroundColor: Colors.green,
                     ),
                   );

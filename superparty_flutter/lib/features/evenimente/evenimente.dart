@@ -1,0 +1,3 @@
+// Public API for Evenimente feature
+// Routes should import this entrypoint instead of screens directly
+export '../../screens/evenimente/evenimente_screen.dart' show EvenimenteScreen;

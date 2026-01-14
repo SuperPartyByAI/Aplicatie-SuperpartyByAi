@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'kyc_approvals_screen.dart';
+import '../../core/auth/is_super_admin.dart';
 
 class AdminScreen extends StatelessWidget {
   const AdminScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    if (!isSuperAdmin(FirebaseAuth.instance.currentUser)) {
+      return const Scaffold(
+        body: Center(child: Text('Nu ai acces (super-admin only).')),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Admin Panel'),
@@ -19,6 +27,9 @@ class AdminScreen extends StatelessWidget {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const KycApprovalsScreen()));
           }),
           _buildAdminCard(context, 'Conversații AI', Icons.chat, () {}),
+          _buildAdminCard(context, 'Firestore Migration', Icons.storage, () {
+            Navigator.pushNamed(context, '/admin/firestore-migration');
+          }),
           _buildAdminCard(context, 'Utilizatori', Icons.people, () {}),
           _buildAdminCard(context, 'Statistici', Icons.analytics, () {}),
         ],

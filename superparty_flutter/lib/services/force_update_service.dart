@@ -18,7 +18,7 @@ class ForceUpdateService {
         }
       }
     } catch (e) {
-      debugPrint('Force update check error: $e');
+      print('Force update check error: $e');
       // Don't block app if update check fails
     }
   }
@@ -77,7 +77,7 @@ class ForceUpdateService {
                   await InAppUpdate.performImmediateUpdate();
                   // App will restart after update
                 } catch (e) {
-                  debugPrint('Update error: $e');
+                  print('Update error: $e');
                   // Retry or open Play Store
                   await InAppUpdate.startFlexibleUpdate();
                 }

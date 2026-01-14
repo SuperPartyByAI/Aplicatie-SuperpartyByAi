@@ -5,15 +5,15 @@
 const https = require('https');
 const { execSync } = require('child_process');
 
-const RAILWAY_TOKEN = '998d4e46-c67c-47e2-9eaa-ae4cc806aab1';
+const RAILWAY_TOKEN = process.env.RAILWAY_TOKEN || '<RAILWAY_TOKEN>';
 const SERVICE_ID = '1931479e-da65-4d3a-8c5b-77c4b8fb3e31';
 const GITHUB_REPO = 'SuperPartyByAI/superparty-ai-backend';
 
 const CREDENTIALS = {
   OPENAI_API_KEY:
-    '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',
+    process.env.OPENAI_API_KEY || '<OPENAI_API_KEY>',
   TWILIO_ACCOUNT_SID: 'AC17c88873d670aab4aa4a50fae230d2df',
-  TWILIO_AUTH_TOKEN: '5c6670d39a1dbf46d47ecdaa244b91d9',
+  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN || '<TWILIO_AUTH_TOKEN>',
   TWILIO_PHONE_NUMBER: '+12182204425',
   BACKEND_URL: 'https://web-production-f0714.up.railway.app',
   COQUI_API_URL: 'https://web-production-00dca9.up.railway.app',

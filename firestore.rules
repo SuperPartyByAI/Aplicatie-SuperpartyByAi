@@ -23,11 +23,10 @@ service cloud.firestore {
       return isSuperAdminEmail() || (isAuthenticated() && hasStaffProfile());
     }
     
-    // Helper function: check if user is GM or Admin (based on role in staffProfiles OR super admin)
+    // Helper function: elevated permissions (historical "gm/admin") are SUPER-ADMIN ONLY.
+    // SECURITY: Do NOT rely on staffProfiles.role for elevated access.
     function isGmOrAdmin() {
-      return isSuperAdminEmail() || 
-             (hasStaffProfile() && 
-              get(/databases/$(database)/documents/staffProfiles/$(request.auth.uid)).data.role in ['gm', 'admin']);
+      return isSuperAdminEmail();
     }
     
     // Helper function: get staff code
@@ -37,13 +36,26 @@ service cloud.firestore {
     
     // DEPRECATED: Use isGmOrAdmin() instead
     function isAdmin() {
-      return isGmOrAdmin();
+      // SECURITY: Admin == super-admin only
+      return isSuperAdminEmail();
     }
     
     // Users collection - restricted, prefer staffProfiles for employee data
     match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isGmOrAdmin());
-      allow write: if isAuthenticated() && (request.auth.uid == userId || isGmOrAdmin());
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isSuperAdminEmail());
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isSuperAdminEmail());
+    }
+
+    // User-private WhatsApp thread preferences (owner-only)
+    match /users/{userId}/whatsapp_thread_prefs/{threadId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if false; // never delete (set flags instead)
+    }
+
+    // WhatsApp audit trail (server-only writes; super-admin read-only)
+    match /whatsapp_audit/{auditId} {
+      allow read: if isSuperAdminEmail();
+      allow create, update, delete: if false;
     }
     
     // Staff profiles - readable by all employees for display names/roles
@@ -52,13 +64,13 @@ service cloud.firestore {
       allow read: if isEmployee(); // All employees can read staff profiles
       
       // Create: Only GM/Admin can create staff profiles
-      allow create: if isGmOrAdmin();
+      allow create: if isSuperAdminEmail();
       
       // Update: Users can update their own profile BUT cannot change role field
       // GM/Admin can update any profile including role
       allow update: if isAuthenticated() && (
-        // GM/Admin can update anything
-        isGmOrAdmin() ||
+        // Super-admin can update anything
+        isSuperAdminEmail() ||
         // User can update own profile but role must remain unchanged
         (request.auth.uid == profileId && 
          request.resource.data.role == resource.data.role)
@@ -70,35 +82,50 @@ service cloud.firestore {
     
     // KYC Submissions
     match /kycSubmissions/{submissionId} {
-      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isSuperAdminEmail());
       allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if isAdmin();
+      allow update, delete: if isSuperAdminEmail();
     }
     
     // Events collection (alias for evenimente)
     match /events/{eventId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isEmployee() || (isAuthenticated() && resource.data.createdBy == request.auth.uid);
-      allow delete: if false;
+      // POLICY (Phase 1): employees can read, client never writes.
+      allow read: if isEmployee();
+      allow create, update, delete: if false;
     }
     
     // Evenimente - POLITICA: NEVER DELETE
-    // All authenticated users can read and create events
-    // Only employees or event owner can update/archive
+    // POLICY (Phase 1): employees can read, client never writes (all mutations via Cloud Functions).
     match /evenimente/{eventId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() 
-                    && request.resource.data.createdBy == request.auth.uid
-                    && request.resource.data.isArchived == false
-                    && request.resource.data.schemaVersion in [2, 3];
-      allow update: if isEmployee() || (isAuthenticated() && resource.data.createdBy == request.auth.uid);
-      allow delete: if false; // NEVER DELETE - use isArchived instead
+      allow read: if isEmployee();
+      allow create, update, delete: if false; // NEVER DELETE - use isArchived instead (server-only)
       
       // Audit logs subcollection - only server can write, only GM/admin can read
       match /audit/{logId} {
-        allow read: if isGmOrAdmin();
+        allow read: if isSuperAdminEmail();
         allow write: if false; // Only server (Admin SDK) can write audit logs
+      }
+
+      // AI debug sessions (super-admin read-only; server writes via Admin SDK)
+      match /ai_sessions/{sessionId} {
+        allow read: if isSuperAdminEmail();
+        allow write: if false;
+
+        match /messages/{msgId} {
+          allow read: if isSuperAdminEmail();
+          allow write: if false;
+        }
+
+        match /steps/{stepId} {
+          allow read: if isSuperAdminEmail();
+          allow write: if false;
+        }
+      }
+
+      // Per-event AI override config (super-admin can read/write)
+      match /ai_overrides/{docId} {
+        allow read, write: if isSuperAdminEmail();
+        allow delete: if false;
       }
       
       // Dovezi subcollection
@@ -120,47 +147,116 @@ service cloud.firestore {
       // Evidence state (new schema)
       match /evidenceState/{categoryId} {
         allow read: if isAuthenticated();
-        allow create, update: if isAdmin();
+        allow create, update: if isSuperAdminEmail();
         allow delete: if false; // NEVER DELETE
       }
       
       // Dovezi metadata (old schema - backward compatibility)
       match /dovezi_meta/{categorie} {
         allow read: if isAuthenticated();
-        allow create, update: if isAdmin();
+        allow create, update: if isSuperAdminEmail();
         allow delete: if false; // NEVER DELETE
       }
       
       // Alte subcolecții: comentarii, istoric
       match /{subcollection}/{docId} {
         allow read: if isAuthenticated();
-        allow create, update: if isAdmin();
+        allow create, update: if isSuperAdminEmail();
         allow delete: if false; // Nimeni nu poate șterge din subcolecții
+      }
+    }
+
+    // Global AI config documents
+    match /ai_config/{docId} {
+      // ADMIN-ONLY (hard block)
+      allow read, write: if isSuperAdminEmail();
+      allow delete: if false;
+    }
+
+    // Private AI config (prompt/policies etc) - super-admin only
+    match /ai_config_private/{docId} {
+      allow read, write: if isSuperAdminEmail();
+      allow delete: if false;
+    }
+
+    // Per-event overrides (public) - employees can read; super-admin can write
+    match /ai_config_overrides/{eventId} {
+      // ADMIN-ONLY (hard block)
+      allow read, write: if isSuperAdminEmail();
+      allow delete: if false;
+    }
+
+    // Per-event overrides (private) - super-admin only
+    match /ai_config_overrides_private/{eventId} {
+      allow read, write: if isSuperAdminEmail();
+      allow delete: if false;
+    }
+
+    // Top-level AI sessions (admin-only transcripts/steps/ops)
+    match /ai_sessions/{sessionId} {
+      allow read: if isSuperAdminEmail();
+      // Either backend-only (Admin SDK bypasses) or allow super-admin to annotate.
+      allow write: if isSuperAdminEmail();
+      allow delete: if false;
+
+      match /messages/{msgId} {
+        allow read: if isSuperAdminEmail();
+        allow write: if isSuperAdminEmail();
+        allow delete: if false;
+      }
+
+      match /steps/{stepId} {
+        allow read: if isSuperAdminEmail();
+        allow write: if isSuperAdminEmail();
+        allow delete: if false;
+      }
+    }
+
+    // Temporary AI sessions (CREATE before eventId exists) - super-admin read-only
+    match /ai_temp_sessions/{sessionId} {
+      allow read: if isSuperAdminEmail();
+      allow write: if false;
+
+      match /messages/{msgId} {
+        allow read: if isSuperAdminEmail();
+        allow write: if false;
+      }
+
+      match /steps/{stepId} {
+        allow read: if isSuperAdminEmail();
+        allow write: if false;
       }
     }
     
     // AI Conversations
     match /aiConversations/{conversationId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      // ADMIN-ONLY: conversational debug / internal tooling
+      allow read, write: if isSuperAdminEmail();
     }
     
     // AI Corrections
     match /aiCorrections/{correctionId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read, write: if isSuperAdminEmail();
+    }
+
+    // Admin settings (if present)
+    match /admin_settings/{docId} {
+      allow read, write: if isSuperAdminEmail();
+      allow delete: if false;
+    }
+
+    // Migrations (if present)
+    match /migrations/{docId} {
+      allow read, write: if isSuperAdminEmail();
+      allow delete: if false;
     }
     
     // Outbox - WhatsApp message queue - POLITICA: NEVER DELETE
     match /outbox/{messageId} {
-      // Users can read their own outbox messages
-      allow read: if isAuthenticated() && (isAdmin() || resource.data.accountId in getUserAllowedAccounts());
-      
-      // Users can create outbox messages for allowed accounts
-      allow create: if isAuthenticated() && (isAdmin() || request.resource.data.accountId in getUserAllowedAccounts());
-      
-      // Backend can update status (authenticated service account or admin)
-      allow update: if isAuthenticated();
+      // SECURITY: canonical send queue is server-only (Admin SDK bypasses rules).
+      // Clients MUST send via callable gateway, not by writing Firestore directly.
+      allow read: if isSuperAdminEmail();
+      allow create, update: if false;
       
       // NEVER DELETE - use status field instead
       allow delete: if false;
@@ -175,22 +271,17 @@ service cloud.firestore {
     
     // Threads (WhatsApp Conversations) - USED BY BACKEND - POLITICA: NEVER DELETE
     match /threads/{threadId} {
-      // Users can read threads for allowed accounts only
-      allow read: if isAuthenticated() && (isAdmin() || resource.data.accountId in getUserAllowedAccounts());
-      
-      // Backend can create and update threads
-      allow create, update: if isAuthenticated();
+      // SECURITY: backend-only model (legacy). Employees should use flat collections.
+      allow read: if isSuperAdminEmail();
+      allow create, update: if false;
       
       // NEVER DELETE - use isArchived instead
       allow delete: if false;
       
       // Messages subcollection
       match /messages/{messageId} {
-        // Users can read messages for allowed accounts only
-        allow read: if isAuthenticated() && (isAdmin() || get(/databases/$(database)/documents/threads/$(threadId)).data.accountId in getUserAllowedAccounts());
-        
-        // Users can create messages for allowed accounts
-        allow create: if isAuthenticated() && (isAdmin() || get(/databases/$(database)/documents/threads/$(threadId)).data.accountId in getUserAllowedAccounts());
+        allow read: if isSuperAdminEmail();
+        allow create: if false;
         
         // Messages cannot be updated (immutable)
         allow update: if false;
@@ -202,60 +293,120 @@ service cloud.firestore {
     
     // WhatsApp Conversations - NEW (not used yet) - POLITICA: NEVER DELETE
     match /whatsappConversations/{conversationId} {
-      allow read: if isAuthenticated() && hasStaffProfile();
-      allow create: if isAuthenticated() && hasStaffProfile();
-      allow update: if isAuthenticated() && hasStaffProfile();
+      allow read: if isEmployee();
+      allow create, update: if false; // server-only
       allow delete: if false; // Use isArchived instead
     }
     
     // WhatsApp Messages - NEW (not used yet) - POLITICA: NEVER DELETE
     match /whatsappMessages/{messageId} {
-      allow read: if isAuthenticated() && hasStaffProfile();
-      allow create: if isAuthenticated() && hasStaffProfile();
+      allow read: if isEmployee();
+      allow create: if false; // server-only
       allow update: if false; // Messages are immutable
       allow delete: if false; // Never delete messages
     }
     
     // WhatsApp Messages (flat collection) - ACTIVE - POLITICA: NEVER DELETE
     match /whatsapp_messages/{messageId} {
-      allow read: if isAuthenticated();
-      allow create, update: if true; // Backend needs to write
+      // DATA PLANE: employees can READ all messages; canonical writes are server-only.
+      allow read: if isEmployee();
+      allow create, update: if false;
       allow delete: if false; // Never delete messages
     }
     
     // WhatsApp Threads (flat collection) - ACTIVE - POLITICA: NEVER DELETE
     match /whatsapp_threads/{threadId} {
-      allow read: if isAuthenticated();
-      allow create, update: if true; // Backend needs to write
+      // DATA PLANE: employees can READ all threads; canonical writes are server-only.
+      allow read: if isEmployee();
+      allow create, update: if false;
       allow delete: if false; // Use isArchived instead
     }
     
     // WhatsApp Accounts - POLITICA: NEVER DELETE
     match /accounts/{accountId} {
-      allow read: if isAuthenticated();
-      allow create, update: if true; // Backend needs to write
+      // CONTROL PLANE: accounts/session state is super-admin only; writes are server-only.
+      allow read: if isSuperAdminEmail();
+      allow create, update: if false;
       allow delete: if false; // Use isArchived instead
       
       // Chats subcollection
       match /chats/{chatId} {
-        allow read: if isAuthenticated();
-        allow create, update: if true;
+        allow read: if isSuperAdminEmail();
+        allow create, update: if false;
         allow delete: if false; // Use isArchived instead
         
         // Messages subcollection
         match /messages/{messageId} {
-          allow read: if isAuthenticated();
-          allow create, update: if true;
+          allow read: if isSuperAdminEmail();
+          allow create, update: if false;
           allow delete: if false; // Never delete messages
         }
       }
+    }
+
+    // WhatsApp Accounts (new schema for internal app) - CONTROL PLANE
+    match /whatsapp_accounts/{accountId} {
+      // PUBLIC FIELDS ONLY (name/phone/status/lastSeenAt/etc).
+      // Employees can read status for the in-app inbox.
+      // IMPORTANT: QR + pairing must NOT be stored here (put in /private/ subcollection).
+      allow read: if isEmployee();
+      allow create, update, delete: if false; // server-only
+
+      // Admin-only private state (QR, pairing)
+      match /private/{docId} {
+        allow read: if isSuperAdminEmail();
+        allow create, update, delete: if false; // server-only
+      }
+    }
+
+    // WhatsApp account leases - server-only
+    match /whatsapp_account_leases/{accountId} {
+      allow read: if isSuperAdminEmail();
+      allow create, update, delete: if false;
+    }
+
+    // WhatsApp ingest WAL (append-only) - server-only
+    match /whatsapp_ingest/{ingestId} {
+      allow read: if isSuperAdminEmail();
+      allow create, update, delete: if false;
+    }
+
+    // WhatsApp ingest deadletter (projection failures) - server-only
+    match /whatsapp_ingest_deadletter/{ingestId} {
+      allow read: if isSuperAdminEmail();
+      allow create, update, delete: if false;
+    }
+
+    // WhatsApp outbox queue - server-only
+    match /whatsapp_outbox/{commandId} {
+      allow read: if isSuperAdminEmail();
+      allow create, update, delete: if false;
+    }
+
+    // Internal notes per thread (employee-visible; not sent to WhatsApp)
+    match /whatsapp_thread_notes/{threadId}/notes/{noteId} {
+      allow read: if isEmployee();
+      allow create: if isEmployee();
+      allow update, delete: if false;
+    }
+
+    // WhatsApp alerts (connector emits; super-admin can read)
+    match /whatsapp_alerts/{alertId} {
+      allow read: if isSuperAdminEmail();
+      allow create, update, delete: if false; // server-only
+    }
+
+    // Optional media registry (if used later) - server-only
+    match /whatsapp_media/{mediaId} {
+      allow read: if isSuperAdminEmail();
+      allow create, update, delete: if false;
     }
     
     // App configuration (version, force update, etc.)
     // Must be readable by all authenticated users for update checks
     match /app_config/{document} {
       allow read: if true;  // Public read for update checks
-      allow write: if isAdmin();
+      allow write: if isSuperAdminEmail();
     }
     
     // Conversation states for interactive event creation
@@ -267,7 +418,7 @@ service cloud.firestore {
     
     // User event quota for rate limiting
     match /userEventQuota/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isSuperAdminEmail());
       allow write: if false; // Only backend can write
     }
     
@@ -275,14 +426,15 @@ service cloud.firestore {
     
     // AI Global Rules (only super admin can write)
     match /ai_global_rules/{ruleId} {
-      allow read: if isEmployee();
-      allow write: if request.auth.token.email == 'ursache.andrei1995@gmail.com';
+      // ADMIN-ONLY (AI config)
+      allow read, write: if isSuperAdminEmail();
     }
     
     // Staff hours tracking (for salary calculation)
     match /staffHours/{entryId} {
-      allow read: if isGmOrAdmin() || 
-                     (isAuthenticated() && hasStaffProfile() && 
+      // Only super-admin can see everyone; staff can see only their own entries.
+      allow read: if isSuperAdminEmail() ||
+                     (isAuthenticated() && hasStaffProfile() &&
                       resource.data.staffUid == request.auth.uid);
       allow write: if false; // Only backend
     }
@@ -292,7 +444,7 @@ service cloud.firestore {
       allow read: if isEmployee() && (
         resource.data.assigneeUid == request.auth.uid ||
         resource.data.status == 'OPEN' ||
-        isGmOrAdmin()
+        isSuperAdminEmail()
       );
       allow write: if false; // Only backend
     }
@@ -301,7 +453,7 @@ service cloud.firestore {
     match /notifications/{notificationId} {
       allow read: if isAuthenticated() && (
         resource.data.assigneeUid == request.auth.uid ||
-        isGmOrAdmin()
+        isSuperAdminEmail()
       );
       allow update: if isAuthenticated() && 
                        resource.data.assigneeUid == request.auth.uid &&
@@ -323,8 +475,13 @@ service cloud.firestore {
     
     // Conversations (for AI chat)
     match /conversations/{conversationId} {
-      allow read, write: if isAuthenticated() && 
-                            resource.data.userId == request.auth.uid;
+      // Owner-only. IMPORTANT: create must use request.resource (resource doesn't exist yet).
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() &&
+                      resource.data.userId == request.auth.uid &&
+                      request.resource.data.userId == resource.data.userId;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
     
     // Default deny all other collections
