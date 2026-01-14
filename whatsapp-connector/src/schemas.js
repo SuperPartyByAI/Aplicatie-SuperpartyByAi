@@ -31,8 +31,11 @@ const HealthResponseSchema = z.object({
   thresholds: z
     .object({
       heartbeatStaleSec: z.number().int().positive().optional(),
+      eventStaleSec: z.number().int().positive().optional(),
       ingestLagWarnSec: z.number().int().positive().optional(),
       outboxBacklogWarn: z.number().int().positive().optional(),
+      reconnectsPerHourWarn: z.number().int().positive().optional(),
+      mediaFailureRateWarn: z.number().int().positive().optional(),
     })
     .optional(),
   leases: z
@@ -50,8 +53,15 @@ const HealthResponseSchema = z.object({
       status: z.any().optional(),
       lastSeenAt: z.any().optional(),
       heartbeatAgeSec: z.number().int().nonnegative().nullable().optional(),
+      lastEventAt: z.any().optional(),
+      eventAgeSec: z.number().int().nonnegative().nullable().optional(),
       degraded: z.boolean().optional(),
       assignedWorkerId: z.any().optional(),
+      reconnectCount: z.number().int().nonnegative().optional(),
+      reconnectsPerHour: z.number().int().nonnegative().optional(),
+      mediaFailureRate: z.number().int().nonnegative().optional(),
+      outboxBacklogCount: z.number().int().nonnegative().optional(),
+      ingestLagSec: z.number().int().nonnegative().nullable().optional(),
     }),
   ),
 });

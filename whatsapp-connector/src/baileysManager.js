@@ -88,6 +88,38 @@ class BaileysManager {
     await this._setAccountPrivate(accountId, { qrCodeDataUrl: null, pairingCode: null });
   }
 
+  async _bumpHourlyCounter(accountId, fieldBase) {
+    // Stores a rolling 1h window counter on the public account doc:
+    // - `${fieldBase}WindowStartAt`
+    // - `${fieldBase}WindowCount`
+    const db = getDb();
+    const admin = getAdmin();
+    const ref = db.collection('whatsapp_accounts').doc(accountId);
+    const now = admin.firestore.Timestamp.now();
+    const hourMs = 60 * 60 * 1000;
+    try {
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        const cur = snap.exists ? snap.data() || {} : {};
+        const start = cur[`${fieldBase}WindowStartAt`];
+        const startMs = start?.toMillis ? start.toMillis() : 0;
+        const expired = !startMs || Date.now() - startMs >= hourMs;
+        const nextCount = expired ? 1 : Number(cur[`${fieldBase}WindowCount`] || 0) + 1;
+        tx.set(
+          ref,
+          {
+            [`${fieldBase}WindowStartAt`]: now,
+            [`${fieldBase}WindowCount`]: nextCount,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+      });
+    } catch (_) {
+      // best effort
+    }
+  }
+
   async _catchUp({ accountId, sock }) {
     // Best-effort catch-up after downtime:
     // - Use Firestore account cursor + recent threads list
@@ -98,6 +130,7 @@ class BaileysManager {
       const acc = accSnap.data() || {};
       const gapStart = acc.syncGapStartAt;
       if (!gapStart) return;
+      const gapStartMs = gapStart?.toMillis ? gapStart.toMillis() : 0;
 
       const threads = await db
         .collection('whatsapp_threads')
@@ -111,8 +144,13 @@ class BaileysManager {
         if (!chatId) continue;
         // Baileys API: fetchMessagesFromWA(jid, count, cursor?)
         if (typeof sock.fetchMessagesFromWA !== 'function') continue;
-        const msgs = await sock.fetchMessagesFromWA(chatId, 50);
+        const msgs = await sock.fetchMessagesFromWA(chatId, 200);
         for (const m of msgs || []) {
+          // Best-effort window filter: only ingest messages that appear to be within the offline gap.
+          const rawTs = m?.messageTimestamp;
+          const n = Number(rawTs);
+          const tsMs = Number.isFinite(n) ? (n > 10_000_000_000 ? n : n * 1000) : 0;
+          if (gapStartMs && tsMs && tsMs + 60_000 < gapStartMs) continue;
           await writeIngest({ accountId, msg: m });
         }
       }
@@ -156,7 +194,7 @@ class BaileysManager {
     this._accounts.set(accountId, runtime);
 
     await this._setAccountPublic(accountId, {
-      status: 'disconnected',
+      status: 'connecting',
       lastError: null,
       disconnectReason: null,
     });
@@ -192,6 +230,7 @@ class BaileysManager {
 
     rt.reconnectAttempts += 1;
     rt.state = 'connecting';
+    await this._setAccountPublic(rt.accountId, { status: 'connecting' }).catch(() => {});
 
     const accountDir = path.join(this.sessionsPath, accountId);
     const { state, saveCreds } = await useMultiFileAuthState(accountDir);
@@ -249,6 +288,10 @@ class BaileysManager {
             },
             { merge: true },
           );
+          await db
+            .collection('whatsapp_accounts')
+            .doc(accountId)
+            .set({ lastEventAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         }
       } catch (e) {
         this.log('warn', 'receipt_update_error', { accountId, err: String(e) });
@@ -280,6 +323,10 @@ class BaileysManager {
             },
             { merge: true },
           );
+          await db
+            .collection('whatsapp_accounts')
+            .doc(accountId)
+            .set({ lastEventAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         }
       } catch (e) {
         this.log('warn', 'messages_update_error', { accountId, err: String(e) });
@@ -297,9 +344,14 @@ class BaileysManager {
             lastError: null,
             disconnectReason: null,
           });
+          const admin = getAdmin();
+          const now = admin.firestore.Timestamp.now();
+          const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + 120_000);
           await this._setAccountPrivate(accountId, {
             qrCodeDataUrl,
             pairingCode: null,
+            qrGeneratedAt: now,
+            qrExpiresAt: expiresAt,
           });
         }
 
@@ -311,6 +363,9 @@ class BaileysManager {
             lastError: null,
             disconnectReason: null,
             syncGapEndAt: getAdmin().firestore.FieldValue.serverTimestamp(),
+            connectedAt: getAdmin().firestore.FieldValue.serverTimestamp(),
+            degraded: false,
+            degradedReason: null,
           });
           await this._clearPrivateQr(accountId);
 
@@ -347,11 +402,16 @@ class BaileysManager {
                     ? 'timed_out'
                     : 'unknown';
 
+          if (reason !== 'logged_out') {
+            await this._bumpHourlyCounter(accountId, 'reconnect');
+          }
+
           await this._setAccountPublic(accountId, {
-            status: reason === 'logged_out' ? 'qr_ready' : 'disconnected',
+            status: reason === 'logged_out' ? 'needs_qr' : 'reconnecting',
             disconnectReason: reason,
             lastError: u?.lastDisconnect?.error ? String(u.lastDisconnect.error) : null,
             syncGapStartAt: getAdmin().firestore.FieldValue.serverTimestamp(),
+            reconnectCount: getAdmin().firestore.FieldValue.increment(reason === 'logged_out' ? 0 : 1),
           });
 
           if (reason === 'logged_out') {

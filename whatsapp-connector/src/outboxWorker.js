@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { getDb, getAdmin } = require('./firestore');
 const { messageId, threadId } = require('./ingest');
+const { emitAlert } = require('./alerts');
 
 const COL_OUTBOX = 'whatsapp_outbox';
 const COL_THREADS = 'whatsapp_threads';
@@ -150,6 +151,20 @@ async function markCommandFailed(docRef, err) {
     },
     { merge: true },
   );
+
+  // Propagate to the employee-visible placeholder message.
+  // UI expects `delivery: failed` for outbound failures.
+  try {
+    const db = getDb();
+    await db.collection(COL_MESSAGES).doc(docRef.id).set(
+      {
+        delivery: 'failed',
+        error: String(err?.message || err),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  } catch (_) {}
 }
 
 async function markCommandSent(docRef, waMessageKey) {
@@ -293,6 +308,7 @@ async function runOutboxLoop({ stopSignal, pollMs = 1200, batch = 25, instanceId
             {
               rateLimitState: { consecutiveFailures: 0 },
               cooldownUntil: null,
+              lastEventAt: admin.firestore.FieldValue.serverTimestamp(),
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             },
             { merge: true },
@@ -306,7 +322,7 @@ async function runOutboxLoop({ stopSignal, pollMs = 1200, batch = 25, instanceId
             const accountId = (data.accountId || '').toString();
             if (accountId) {
               const accRef = db.collection(COL_ACCOUNTS).doc(accountId);
-              await db.runTransaction(async (tx) => {
+              const r = await db.runTransaction(async (tx) => {
                 const snap = await tx.get(accRef);
                 const cur = snap.exists ? snap.data() || {} : {};
                 const curFailures = Number(cur.rateLimitState?.consecutiveFailures || 0);
@@ -315,11 +331,23 @@ async function runOutboxLoop({ stopSignal, pollMs = 1200, batch = 25, instanceId
                   rateLimitState: { ...(cur.rateLimitState || {}), consecutiveFailures: nextFailures },
                   updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 };
+                const cooldownTriggered = nextFailures >= cooldownFailures;
                 if (nextFailures >= cooldownFailures) {
                   patch.cooldownUntil = admin.firestore.Timestamp.fromMillis(Date.now() + cooldownMinutes * 60_000);
                 }
                 tx.set(accRef, patch, { merge: true });
+                return { cooldownTriggered, nextFailures };
               });
+
+              if (r?.cooldownTriggered) {
+                await emitAlert({
+                  type: 'cooldown',
+                  severity: 'error',
+                  accountId,
+                  message: `Cooldown triggered after ${cooldownFailures} consecutive outbox failures`,
+                  meta: { cooldownMinutes, commandId: doc.id, consecutiveFailures: r.nextFailures },
+                }).catch(() => {});
+              }
             }
           } catch (_) {}
         }

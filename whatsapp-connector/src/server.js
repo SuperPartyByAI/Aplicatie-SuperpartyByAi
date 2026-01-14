@@ -137,6 +137,7 @@ async function main() {
   const leaseTimers = new Map();
   const rateStateByUid = new Map(); // uid -> { windowStartMs, count }
   const rateStateByAccount = new Map(); // accountId -> { windowStartMs, count }
+  let lastGlobalSloCheckMs = 0;
 
   function _rateCheck(map, key, limit) {
     const now = Date.now();
@@ -196,6 +197,9 @@ async function main() {
     const snap = await db.collection('whatsapp_accounts').limit(200).get();
     const desired = new Set();
     const mirrorBehindSec = envInt('MIRROR_BEHIND_SEC', 600);
+    const eventStaleSec = envInt('EVENT_STALE_SEC', 600);
+    const ingestLagWarnSec = envInt('INGEST_LAG_WARN_SEC', 120);
+    const outboxBacklogWarn = envInt('OUTBOX_BACKLOG_WARN', 100);
 
     for (const doc of snap.docs) {
       const aId = doc.id;
@@ -229,6 +233,27 @@ async function main() {
           });
         }
 
+        // Degraded detector: connected but no WA events for too long
+        const lastEventAt = data.lastEventAt?.toMillis ? data.lastEventAt.toMillis() : 0;
+        const eventStale = status === 'connected' && lastEventAt > 0 && Date.now() - lastEventAt > eventStaleSec * 1000;
+        if (eventStale && data.degradedReason !== 'event_stale') {
+          await db.collection('whatsapp_accounts').doc(aId).set(
+            {
+              degraded: true,
+              degradedReason: 'event_stale',
+              updatedAt: getAdmin().firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+          await emitAlert({
+            type: 'degraded',
+            severity: 'warn',
+            accountId: aId,
+            message: `Connected but no WA events for >${eventStaleSec}s`,
+            meta: { lastEventAt: data.lastEventAt || null },
+          });
+        }
+
         // Backfill verifier: if we have a sync gap open for too long, alert "mirror behind"
         const gapStartMs = data.syncGapStartAt?.toMillis ? data.syncGapStartAt.toMillis() : 0;
         const alertedMs = data.mirrorBehindAlertedAt?.toMillis ? data.mirrorBehindAlertedAt.toMillis() : 0;
@@ -250,6 +275,47 @@ async function main() {
             accountId: aId,
             message: `Sync gap open >${mirrorBehindSec}s (catch-up pending)`,
             meta: { syncGapStartAt: data.syncGapStartAt || null },
+          });
+        }
+      } catch (_) {}
+    }
+
+    // Global SLO checks (throttled): ingest lag + outbox backlog
+    if (Date.now() - lastGlobalSloCheckMs > 60_000) {
+      lastGlobalSloCheckMs = Date.now();
+      try {
+        const oldestIngest = await db
+          .collection('whatsapp_ingest')
+          .where('processed', '==', false)
+          .orderBy('receivedAt', 'asc')
+          .limit(1)
+          .get();
+        const receivedAt = oldestIngest.docs[0]?.data()?.receivedAt;
+        const lagSec =
+          receivedAt?.toMillis && receivedAt.toMillis() ? Math.floor((Date.now() - receivedAt.toMillis()) / 1000) : 0;
+        if (lagSec > ingestLagWarnSec) {
+          await emitAlert({
+            type: 'ingest_lag',
+            severity: 'warn',
+            message: `WAL ingest lag ${lagSec}s > ${ingestLagWarnSec}s`,
+            meta: { lagSec },
+          });
+        }
+      } catch (_) {}
+
+      try {
+        const backlogSnap = await db
+          .collection('whatsapp_outbox')
+          .where('status', 'in', ['queued', 'failed'])
+          .orderBy('createdAt', 'asc')
+          .limit(outboxBacklogWarn + 1)
+          .get();
+        if (backlogSnap.size > outboxBacklogWarn) {
+          await emitAlert({
+            type: 'outbox_backlog',
+            severity: 'warn',
+            message: `Outbox backlog > ${outboxBacklogWarn} items`,
+            meta: { sampleSize: backlogSnap.size, threshold: outboxBacklogWarn },
           });
         }
       } catch (_) {}
@@ -283,41 +349,77 @@ async function main() {
     try {
       const db = getDb();
       const snap = await db.collection('whatsapp_accounts').limit(200).get();
-      const accounts = snap.docs.map((d) => {
+      function _windowCountPerHour(startAt, count) {
+        const startMs = startAt?.toMillis ? startAt.toMillis() : 0;
+        if (!startMs) return 0;
+        if (Date.now() - startMs >= 60 * 60 * 1000) return 0;
+        return Number(count || 0) || 0;
+      }
+
+      const accountsById = new Map();
+      for (const d of snap.docs) {
         const a = d.data() || {};
         const lastSeenMs = a.lastSeenAt?.toMillis ? a.lastSeenAt.toMillis() : 0;
         const heartbeatAgeSec = lastSeenMs ? Math.floor((Date.now() - lastSeenMs) / 1000) : null;
-        return {
+        const lastEventMs = a.lastEventAt?.toMillis ? a.lastEventAt.toMillis() : 0;
+        const eventAgeSec = lastEventMs ? Math.floor((Date.now() - lastEventMs) / 1000) : null;
+        accountsById.set(d.id, {
           accountId: d.id,
           status: a.status || null,
           lastSeenAt: a.lastSeenAt || null,
           heartbeatAgeSec,
+          lastEventAt: a.lastEventAt || null,
+          eventAgeSec,
           degraded: a.degraded === true,
           assignedWorkerId: a.assignedWorkerId || null,
           reconnectCount: Number(a.reconnectCount || 0) || 0,
-        };
-      });
+          reconnectsPerHour: _windowCountPerHour(a.reconnectWindowStartAt, a.reconnectWindowCount),
+          mediaFailureRate: _windowCountPerHour(a.mediaFailureWindowStartAt, a.mediaFailureWindowCount),
+          outboxBacklogCount: 0,
+          ingestLagSec: null,
+        });
+      }
 
       // Best-effort backlog metrics (avoid heavy scans)
       const outboxSnap = await db
         .collection('whatsapp_outbox')
         .where('status', 'in', ['queued', 'failed'])
         .orderBy('createdAt', 'asc')
-        .limit(50)
+        .limit(500)
         .get();
       const outboxBacklog = outboxSnap.size;
+      for (const d of outboxSnap.docs) {
+        const aId = (d.data()?.accountId || '').toString();
+        const cur = accountsById.get(aId);
+        if (cur) cur.outboxBacklogCount += 1;
+      }
 
       const oldestIngestSnap = await db
         .collection('whatsapp_ingest')
         .where('processed', '==', false)
         .orderBy('receivedAt', 'asc')
-        .limit(1)
+        .limit(500)
         .get();
       const oldestIngest = oldestIngestSnap.docs[0]?.data()?.receivedAt || null;
       const ingestLagSec =
         oldestIngest?.toMillis && oldestIngest.toMillis()
           ? Math.max(0, Math.floor((Date.now() - oldestIngest.toMillis()) / 1000))
           : 0;
+      for (const d of oldestIngestSnap.docs) {
+        const v = d.data() || {};
+        const aId = (v.accountId || '').toString();
+        const receivedAt = v.receivedAt;
+        const lag =
+          receivedAt?.toMillis && receivedAt.toMillis()
+            ? Math.max(0, Math.floor((Date.now() - receivedAt.toMillis()) / 1000))
+            : null;
+        if (!aId || lag == null) continue;
+        const cur = accountsById.get(aId);
+        if (!cur) continue;
+        if (cur.ingestLagSec == null || lag > cur.ingestLagSec) cur.ingestLagSec = lag;
+      }
+
+      const accounts = Array.from(accountsById.values());
 
       // Leases (bounded)
       const leaseSnap = await db.collection('whatsapp_account_leases').limit(200).get();
@@ -342,15 +444,28 @@ async function main() {
       // SLO/SLI thresholds (documented in docs/WHATSAPP_SLO.md)
       const thresholds = {
         heartbeatStaleSec: 60,
-        ingestLagWarnSec: 120,
-        outboxBacklogWarn: 100,
+        eventStaleSec: envInt('EVENT_STALE_SEC', 600),
+        ingestLagWarnSec: envInt('INGEST_LAG_WARN_SEC', 120),
+        outboxBacklogWarn: envInt('OUTBOX_BACKLOG_WARN', 100),
+        reconnectsPerHourWarn: envInt('RECONNECTS_PER_HOUR_WARN', 10),
+        mediaFailureRateWarn: envInt('MEDIA_FAILURES_PER_HOUR_WARN', 5),
       };
 
       const anyHeartbeatBad = accounts.some(
         (a) => a.status === 'connected' && a.heartbeatAgeSec != null && a.heartbeatAgeSec > thresholds.heartbeatStaleSec,
       );
+      const anyEventBad = accounts.some(
+        (a) => a.status === 'connected' && a.eventAgeSec != null && a.eventAgeSec > thresholds.eventStaleSec,
+      );
+      const anyReconnectBad = accounts.some((a) => Number(a.reconnectsPerHour || 0) > thresholds.reconnectsPerHourWarn);
+      const anyMediaBad = accounts.some((a) => Number(a.mediaFailureRate || 0) > thresholds.mediaFailureRateWarn);
       const healthy =
-        !anyHeartbeatBad && ingestLagSec <= thresholds.ingestLagWarnSec && outboxBacklog <= thresholds.outboxBacklogWarn;
+        !anyHeartbeatBad &&
+        !anyEventBad &&
+        !anyReconnectBad &&
+        !anyMediaBad &&
+        ingestLagSec <= thresholds.ingestLagWarnSec &&
+        outboxBacklog <= thresholds.outboxBacklogWarn;
 
       return res.json({
         ok: true,
@@ -360,7 +475,7 @@ async function main() {
         uptimeSec: Math.floor(process.uptime()),
         runningAccounts: Array.from(manager._accounts.keys()),
         statusCounts,
-        accounts,
+        accounts: Array.from(accountsById.values()),
         leases,
         outboxBacklog,
         oldestUnprocessedIngestAt: oldestIngest,
@@ -548,6 +663,7 @@ async function main() {
 
     await db.collection('whatsapp_accounts').doc(accountId).set(
       {
+        accountId,
         name,
         status: 'disconnected',
         phoneE164: phone || '',
@@ -570,6 +686,9 @@ async function main() {
         {
           qrCodeDataUrl: null,
           pairingCode: null,
+          qrGeneratedAt: null,
+          qrExpiresAt: null,
+          authMeta: {},
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         },
         { merge: true },

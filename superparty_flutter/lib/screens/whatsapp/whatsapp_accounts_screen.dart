@@ -66,7 +66,7 @@ class WhatsAppAccountsScreen extends StatelessWidget {
   Widget _accountCard(BuildContext context, QueryDocumentSnapshot<Map<String, dynamic>> d) {
     final data = d.data();
     final name = (data['name'] ?? '').toString();
-    final phone = (data['phone'] ?? '').toString();
+    final phone = (data['phoneE164'] ?? data['phone'] ?? '').toString();
     final status = (data['status'] ?? '').toString();
     final privateRef = d.reference.collection('private').doc('state');
 

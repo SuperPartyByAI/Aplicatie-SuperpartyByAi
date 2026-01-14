@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { getDb, getAdmin } = require('./firestore');
 const { uploadMediaToStorage } = require('./media');
+const { emitAlert } = require('./alerts');
 
 const COL_INGEST = 'whatsapp_ingest';
 const COL_DLQ = 'whatsapp_ingest_deadletter';
@@ -86,6 +87,11 @@ async function writeIngest({ accountId, msg }) {
       processAttempts: 0,
       lastProcessError: null,
     });
+    // Best-effort event timestamp for degraded detectors.
+    await db
+      .collection(COL_ACCOUNTS)
+      .doc(accountId)
+      .set({ lastEventAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
     return { ok: true, id, created: true };
   } catch (e) {
     // Already exists -> idempotent
@@ -131,6 +137,38 @@ async function processIngestDoc(docSnap) {
     media = await uploadMediaToStorage({ threadId: tId, waMessageKey, msg });
   } catch (_) {
     media = null;
+    // Track media failures (rolling 1h window) + alert.
+    try {
+      const accRef = db.collection(COL_ACCOUNTS).doc(accountId);
+      const now = admin.firestore.Timestamp.now();
+      const hourMs = 60 * 60 * 1000;
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(accRef);
+        const cur = snap.exists ? snap.data() || {} : {};
+        const start = cur.mediaFailureWindowStartAt;
+        const startMs = start?.toMillis ? start.toMillis() : 0;
+        const expired = !startMs || Date.now() - startMs >= hourMs;
+        const nextCount = expired ? 1 : Number(cur.mediaFailureWindowCount || 0) + 1;
+        tx.set(
+          accRef,
+          {
+            mediaFailureWindowStartAt: now,
+            mediaFailureWindowCount: nextCount,
+            lastMediaFailureAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+      });
+    } catch (_) {}
+    emitAlert({
+      type: 'media_failure',
+      severity: 'warn',
+      accountId,
+      threadId: tId,
+      message: 'Failed to download/upload media; stored message without media attachment',
+      meta: { waMessageKey },
+    }).catch(() => {});
   }
 
   // Messages are immutable. Create if not exists.
