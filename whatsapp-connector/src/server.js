@@ -195,6 +195,7 @@ async function main() {
     // NOTE: no "!=" query in Firestore rules; just fetch a bounded set.
     const snap = await db.collection('whatsapp_accounts').limit(200).get();
     const desired = new Set();
+    const mirrorBehindSec = envInt('MIRROR_BEHIND_SEC', 600);
 
     for (const doc of snap.docs) {
       const aId = doc.id;
@@ -225,6 +226,30 @@ async function main() {
             severity: 'error',
             accountId: aId,
             message: 'Connected but heartbeat stale >60s',
+          });
+        }
+
+        // Backfill verifier: if we have a sync gap open for too long, alert "mirror behind"
+        const gapStartMs = data.syncGapStartAt?.toMillis ? data.syncGapStartAt.toMillis() : 0;
+        const alertedMs = data.mirrorBehindAlertedAt?.toMillis ? data.mirrorBehindAlertedAt.toMillis() : 0;
+        const isMirrorBehind = gapStartMs > 0 && Date.now() - gapStartMs > mirrorBehindSec * 1000;
+        const shouldAlert = isMirrorBehind && (!alertedMs || Date.now() - alertedMs > mirrorBehindSec * 1000);
+        if (shouldAlert) {
+          await db.collection('whatsapp_accounts').doc(aId).set(
+            {
+              degraded: true,
+              degradedReason: 'mirror_behind',
+              mirrorBehindAlertedAt: getAdmin().firestore.FieldValue.serverTimestamp(),
+              updatedAt: getAdmin().firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+          await emitAlert({
+            type: 'mirror_behind',
+            severity: 'warn',
+            accountId: aId,
+            message: `Sync gap open >${mirrorBehindSec}s (catch-up pending)`,
+            meta: { syncGapStartAt: data.syncGapStartAt || null },
           });
         }
       } catch (_) {}

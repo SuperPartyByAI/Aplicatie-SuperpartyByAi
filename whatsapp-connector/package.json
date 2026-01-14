@@ -7,7 +7,9 @@
     "start": "node src/server.js",
     "dev": "node src/server.js",
     "lint": "node -c src/server.js && node -c src/firestore.js && node -c src/lease.js && node -c src/baileysManager.js && node -c src/ingest.js && node -c src/outboxWorker.js && node -c src/reconnectPolicy.js && node -c src/media.js && node -c src/alerts.js && node -c src/retention.js",
-    "test": "node --test test/index.test.js"
+    "test": "node --test test/index.test.js",
+    "retention": "node src/retention.js",
+    "wal:replay": "node scripts/wal_replay.js"
   },
   "engines": {
     "node": "20.x"

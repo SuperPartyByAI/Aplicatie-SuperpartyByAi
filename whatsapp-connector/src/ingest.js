@@ -289,6 +289,7 @@ module.exports = {
   messageId,
   shouldUpdateLastMessage,
   writeIngest,
+  processIngestDoc,
   runIngestProcessorLoop,
 };
 
