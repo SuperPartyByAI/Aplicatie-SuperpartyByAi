@@ -44,6 +44,7 @@ const shouldRun = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
 
       // Seed control plane
       await db.collection('accounts').doc('acc1').set({ id: 'acc1', name: 'acc' });
+      await db.collection('whatsapp_accounts').doc('wa_acc1').set({ id: 'wa_acc1', status: 'connected' });
     });
   });
 
@@ -109,6 +110,14 @@ const shouldRun = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
 
     await assertFails(empDb.collection('accounts').doc('acc1').get());
     await assertSucceeds(superDb.collection('accounts').doc('acc1').get());
+  });
+
+  test('WhatsApp control plane (whatsapp_accounts) is super-admin only', async () => {
+    const empDb = ctxEmployee(uidEmp).firestore();
+    const superDb = ctxSuperAdmin().firestore();
+
+    await assertFails(empDb.collection('whatsapp_accounts').doc('wa_acc1').get());
+    await assertSucceeds(superDb.collection('whatsapp_accounts').doc('wa_acc1').get());
   });
 });
 

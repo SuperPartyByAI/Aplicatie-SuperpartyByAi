@@ -331,6 +331,12 @@ service cloud.firestore {
         }
       }
     }
+
+    // WhatsApp Accounts (new schema for internal app) - CONTROL PLANE
+    match /whatsapp_accounts/{accountId} {
+      allow read: if isSuperAdminEmail();
+      allow create, update, delete: if false; // server-only
+    }
     
     // App configuration (version, force update, etc.)
     // Must be readable by all authenticated users for update checks
