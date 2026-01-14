@@ -1,506 +1,343 @@
-# SMOKE TEST - WhatsApp Baileys Stability
+# SMOKE TEST (Staff + Admin) — Flutter + Firebase Auth + Firestore + Cloud Functions
 
-**Purpose:** Manual verification of WhatsApp (Baileys) integration stability
-**Related Issue:** #3
-**Last Updated:** 2026-01-01
+Acest document îți dă un **checklist executabil** (pas-cu-pas) pentru a valida rapid flow-ul **Staff self-setup** și **Admin management**, inclusiv **verificări clare în Firestore** după fiecare pas.
 
----
+## Prerequisites
 
-## 🎯 Test Objectives
+- **Firebase CLI**: `firebase --version` + `firebase login`
+- **Node.js**: recomandat **v20** (Functions runtime este nodejs20)
+- **Flutter SDK**: `flutter --version`
+- Proiecte:
+  - Flutter: `superparty_flutter/`
+  - Functions: `functions/` (TypeScript build → `functions/dist/`)
 
-Verify that WhatsApp integration is stable and production-ready:
+## Colecții Firestore (schema)
 
-- ✅ Session persistence across restarts
-- ✅ Robust reconnection with backoff
-- ✅ Message deduplication
-- ✅ Outbox idempotency
-- ✅ Client data persistence
-- ✅ Observability and monitoring
+- `users/{uid}`
+- `staffProfiles/{uid}`
+- `teams/{teamId}`
+- `teamCodePools/{teamId}`
+- `teamAssignments/{teamId}_{uid}`
+- `teamAssignmentsHistory/{autoId}`
+- `adminActions/{autoId}`
 
----
+## Security (important)
 
-## 📋 Prerequisites
-
-### Environment
-
-- Railway deployment running
-- Redis connected
-- Firebase configured
-- WhatsApp account ready for testing
-
-### Tools Needed
-
-- Browser (for Railway logs)
-- WhatsApp mobile app
-- Terminal (for API calls)
-- Postman/curl (optional)
-
-### Test Data
-
-- Test phone number: `+40XXXXXXXXX` (your test number)
-- Admin token: Check Railway variables
+- Client NU poate scrie în: `teamCodePools`, `teamAssignments`, `teamAssignmentsHistory`, `adminActions`.
+- Admin = **custom claim** `admin:true` SAU `users/{uid}.role == "admin"`.
 
 ---
 
-## 🧪 Test Suite
+## 1) Build / analyze / tests
+
+### Functions
+
+```powershell
+cd functions
+npm i
+npm run build
+cd ..
+```
+
+Expected:
+- `functions/dist/index.js` există
+
+### Flutter
+
+```powershell
+cd superparty_flutter
+flutter pub get
+flutter analyze
+flutter test
+cd ..
+```
 
 ---
 
-## TEST 1: Session Persistence (Cold Restart x3)
+## 2) Emulator (recomandat pentru smoke rapid)
 
-**Objective:** Verify session persists across restarts without requiring QR scan
-
-### Steps:
-
-#### 1.1 Initial Setup
-
-```bash
-# Get current deployment status
-curl https://whats-upp-production.up.railway.app/health
-
-# Expected: status: "healthy"
+```powershell
+firebase emulators:start --only firestore,functions
 ```
-
-#### 1.2 Connect WhatsApp Account
-
-1. Navigate to Railway logs
-2. Look for QR code or pairing code
-3. Scan QR with WhatsApp mobile app
-4. Wait for "✅ Connected" in logs
-
-**Expected Result:**
-
-```
-✅ [account_XXX] Connected
-📱 WhatsApp account ready
-```
-
-#### 1.3 First Restart
-
-1. In Railway Dashboard → Deployments
-2. Click "Redeploy" on current deployment
-3. Wait for restart (~2 minutes)
-4. Check logs
-
-**Expected Result:**
-
-```
-🔄 Restoring accounts from Firestore...
-📦 Found 1 connected accounts in Firestore
-✅ [account_XXX] Session restored from disk
-✅ [account_XXX] Connected (no QR needed)
-```
-
-**❌ FAIL if:** QR code appears again
-
-#### 1.4 Second Restart
-
-1. Redeploy again
-2. Wait for restart
-3. Check logs
-
-**Expected Result:**
-
-```
-✅ [account_XXX] Session restored from disk
-✅ [account_XXX] Connected (no QR needed)
-```
-
-#### 1.5 Third Restart
-
-1. Redeploy again
-2. Wait for restart
-3. Check logs
-
-**Expected Result:**
-
-```
-✅ [account_XXX] Session restored from disk
-✅ [account_XXX] Connected (no QR needed)
-```
-
-### Pass Criteria:
-
-- ✅ All 3 restarts reconnect WITHOUT QR code
-- ✅ Session data persists in Railway Volume
-- ✅ Connection time < 30 seconds per restart
 
 ---
 
-## TEST 2: Reconnect Robustness
+## 3) Seed Firestore (teams + teamCodePools)
 
-**Objective:** Verify exponential backoff and reconnect logic
+### Emulator
 
-### Steps:
-
-#### 2.1 Simulate Network Disconnect
-
-1. Turn off WiFi on WhatsApp mobile device
-2. Wait 30 seconds
-3. Check Railway logs
-
-**Expected Result:**
-
-```
-⚠️ [account_XXX] Connection lost
-🔄 [account_XXX] Attempting reconnect (attempt 1/5)
-⏳ Backoff: 2 seconds
+```powershell
+node tools/seed_firestore.js --emulator
 ```
 
-#### 2.2 Verify Backoff
+### Production
+Necesită `GOOGLE_APPLICATION_CREDENTIALS` (service account json).
 
-1. Keep WiFi off
-2. Observe logs for multiple retry attempts
-
-**Expected Result:**
-
-```
-🔄 Attempt 1: backoff 2s
-🔄 Attempt 2: backoff 4s
-🔄 Attempt 3: backoff 8s
-🔄 Attempt 4: backoff 16s
-🔄 Attempt 5: backoff 32s
+```powershell
+node tools/seed_firestore.js --project <projectId>
 ```
 
-#### 2.3 Successful Reconnect
+### Verify seed (Firestore)
 
-1. Turn WiFi back on
-2. Wait for reconnection
-3. Check logs
-
-**Expected Result:**
-
-```
-✅ [account_XXX] Reconnected successfully
-📱 WhatsApp account ready
-```
-
-### Pass Criteria:
-
-- ✅ Exponential backoff observed (2s, 4s, 8s, 16s, 32s)
-- ✅ Reconnects automatically when network returns
-- ✅ No duplicate connections created
-- ✅ Logs show clear disconnect reason
+Verifică:
+- `teams/team_a`, `teams/team_b`, `teams/team_c` (cu `label`, `active:true`)
+- `teamCodePools/team_a` cu `prefix:"A"` și `freeCodes:[101..150]`
+- `teamCodePools/team_b` cu `prefix:"B"` și `freeCodes:[201..250]`
+- `teamCodePools/team_c` cu `prefix:"C"` și `freeCodes:[301..350]`
 
 ---
 
-## TEST 3: Inbox Deduplication
+## 4) Callable functions — quick checks (emulator)
 
-**Objective:** Verify same message creates only ONE Firestore document
+### 4.1 Deschide Functions shell
 
-### Steps:
-
-#### 3.1 Send Test Message
-
-1. From WhatsApp mobile, send message to test account
-2. Message: "TEST_DEDUP_001"
-3. Wait 5 seconds
-4. Check Firestore
-
-**Expected Result:**
-
-```
-Firestore: threads/{threadId}/messages/{messageId}
-- waMessageId: unique_id_from_baileys
-- content: "TEST_DEDUP_001"
-- timestamp: ...
+```powershell
+cd functions
+firebase functions:shell
 ```
 
-#### 3.2 Simulate Duplicate Delivery
+### 4.2 Context (auth) pentru callables
 
-1. Check Railway logs for message processing
-2. Look for messageId
+În shell, folosește al doilea argument ca “context” (auth):
 
-**Expected Result:**
-
-```
-📨 [account_XXX] PROCESSING: INBOUND message msg_abc123 from +40XXX
-💾 [account_XXX] Saving to Firestore: threads/thread_123/messages/msg_abc123
-✅ Message saved
+```js
+const staffCtx = { auth: { uid: "u_staff", token: { email: "staff@test.com" } } }
+const adminCtx = { auth: { uid: "u_admin", token: { email: "admin@test.com", admin: true } } }
 ```
 
-#### 3.3 Verify No Duplicates
+> Alternativ (fallback admin): setează `users/u_admin.role="admin"` în Firestore (emulator UI e OK).
 
-1. Query Firestore for messages with same content
-2. Count documents
+### 4.3 Exemple apeluri (toate)
 
-**Expected Result:**
+```js
+// Staff allocation
+allocateStaffCode({ teamId: "team_a" }, staffCtx)
+allocateStaffCode({ teamId: "team_b", prevTeamId: "team_a", prevCodeNumber: 150 }, staffCtx)
 
-- Only 1 document with content "TEST_DEDUP_001"
-- Document ID = messageId from Baileys
+// Staff finalize + phone update
+finalizeStaffSetup({ phone: "+40722123456", teamId: "team_b", assignedCode: "B250" }, staffCtx)
+updateStaffPhone({ phone: "+40722123457" }, staffCtx)
 
-### Pass Criteria:
+// Admin
+changeUserTeam({ uid: "u_staff", newTeamId: "team_c", forceReallocate: false }, adminCtx)
+changeUserTeam({ uid: "u_staff", newTeamId: "team_c", forceReallocate: true }, adminCtx) // same team, force
+setUserStatus({ uid: "u_staff", status: "blocked" }, adminCtx)
+```
 
-- ✅ Same message = 1 Firestore document
-- ✅ messageId is unique and deterministic
-- ✅ No duplicate documents created
+Expected (shape stabil pentru allocate/change team):
+- `allocateStaffCode` returnează:
+  - `{ assignedCode: string, prefix: string, number: number, teamId: string }`
+- `changeUserTeam` returnează:
+  - `{ teamId: string, prefix: string, number: number, assignedCode: string }`
 
 ---
 
-## TEST 4: Outbox Idempotency
+## 5) STAFF — checklist + Firestore diffs
 
-**Objective:** Verify retry logic and status transitions
+### STAFF-1: Non-KYC user → Staff Settings blocks (no form)
 
-### Steps:
+**Setup (Firestore):**
+- `users/u_staff_nokyc`:
+  - `kycDone: false` (sau absent)
+  - `kycData.fullName`: absent / empty
 
-#### 4.1 Queue Test Message
+**Expected (UI):**
+- blocant: **“KYC nu este complet. Completează KYC și revino.”**
+- form NU se afișează
 
-```bash
-# Create test message in wa_outbox
-curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/send \
-  -H "Content-Type: application/json" \
-  -d '{
-    "to": "+40XXXXXXXXX",
-    "message": "TEST_OUTBOX_001"
-  }'
-```
-
-**Expected Result:**
-
-```json
-{
-  "success": true,
-  "messageId": "msg_xyz789",
-  "status": "queued"
-}
-```
-
-#### 4.2 Verify Status Transition
-
-1. Check Firestore `wa_outbox` collection
-2. Find document with messageId
-3. Observe status changes
-
-**Expected Result:**
-
-```
-Initial: status = "queued"
-After processing: status = "sent"
-```
-
-#### 4.3 Simulate Retry
-
-1. Manually set status back to "queued" in Firestore
-2. Wait for worker to process
-3. Check status again
-
-**Expected Result:**
-
-```
-Status: "queued" → "sent"
-No duplicate messages sent
-```
-
-### Pass Criteria:
-
-- ✅ Status transitions: queued → sent
-- ✅ Retry doesn't create duplicate messages
-- ✅ Idempotent processing (same message ID = same result)
+**Expected (Firestore):**
+- NU se modifică:
+  - `teamCodePools/*`
+  - `teamAssignments/*`
+  - `teamAssignmentsHistory/*`
+  - `adminActions/*`
 
 ---
 
-## TEST 5: Client Data Persistence
+### STAFF-2: KYC user → select team → code appears
 
-**Objective:** Verify deterministic accountId and no duplicates
+**Setup (Firestore):**
+- `users/u_staff`:
+  - `kycDone:true` OR `kycData.fullName:"Nume Test"`
+- `staffProfiles/u_staff` absent sau `{ setupDone:false }`
 
-### Steps:
-
-#### 5.1 Check Account ID Generation
-
-1. Connect WhatsApp with phone: +40123456789
-2. Check logs for accountId
-
-**Expected Result:**
-
-```
-📱 Generated accountId: account_40123456789
+**Action (callable):**
+```js
+allocateStaffCode({ teamId: "team_a" }, staffCtx)
 ```
 
-#### 5.2 Restart and Verify Same ID
-
-1. Redeploy application
-2. Check logs for accountId
-
-**Expected Result:**
-
-```
-📱 Restored accountId: account_40123456789
-(Same ID as before)
-```
-
-#### 5.3 Check Firestore
-
-1. Query `wa_accounts` collection
-2. Count documents for this phone number
-
-**Expected Result:**
-
-- Only 1 document with accountId = account_40123456789
-- No duplicates
-
-### Pass Criteria:
-
-- ✅ accountId is deterministic (same phone = same ID)
-- ✅ No duplicate accounts in Firestore
-- ✅ Account data persists across restarts
+**Expected (Firestore diffs):**
+1) `teamCodePools/team_a.freeCodes`
+- se scoate **cel mai mare număr** (max)
+2) `teamAssignments/team_a_u_staff`
+- creat/actualizat cu `teamId, uid, code=max, prefix="A", createdAt/updatedAt`
 
 ---
 
-## TEST 6: Observability
+### STAFF-3: Change team before save → code changes without leaking/duplicating codes
 
-**Objective:** Verify logs and health endpoint
-
-### Steps:
-
-#### 6.1 Check Health Endpoint
-
-```bash
-curl https://whats-upp-production.up.railway.app/health
+**Action (callable):**
+```js
+// exemplu: dacă ai primit number=150 la team_a:
+allocateStaffCode({ teamId: "team_b", prevTeamId: "team_a", prevCodeNumber: 150 }, staffCtx)
 ```
 
-**Expected Result:**
-
-```json
-{
-  "status": "healthy",
-  "version": "2.0.0",
-  "commit": "fc48935c",
-  "uptime": 3600,
-  "accounts": {
-    "total": 1,
-    "connected": 1,
-    "connecting": 0,
-    "needs_qr": 0
-  },
-  "firestore": "connected"
-}
-```
-
-#### 6.2 Verify Structured Logs
-
-1. Open Railway logs
-2. Look for structured log format
-
-**Expected Result:**
-
-```
-✅ [account_XXX] Connected
-📨 [account_XXX] PROCESSING: INBOUND message
-💾 [account_XXX] Saved to Firestore
-⚠️ [account_XXX] Connection lost
-🔄 [account_XXX] Attempting reconnect
-```
-
-#### 6.3 Check Cache Stats
-
-```bash
-curl https://whats-upp-production.up.railway.app/api/cache/stats
-```
-
-**Expected Result:**
-
-```json
-{
-  "success": true,
-  "cache": {
-    "enabled": true,
-    "type": "redis",
-    "connected": true
-  }
-}
-```
-
-### Pass Criteria:
-
-- ✅ /health endpoint returns 200 OK
-- ✅ Logs are structured with [accountId] prefix
-- ✅ Cache stats endpoint works
-- ✅ All metrics are accurate
+**Expected (Firestore diffs):**
+1) `teamCodePools/team_a.freeCodes`
+- conține din nou `150` **o singură dată**
+2) `teamAssignments/team_a_u_staff`
+- șters
+3) `teamCodePools/team_b.freeCodes`
+- maxB scos
+4) `teamAssignments/team_b_u_staff`
+- creat cu `prefix:"B", code=maxB`
+5) `teamAssignmentsHistory/{autoId}`
+- creat cu `fromTeamId:"team_a"`, `toTeamId:"team_b"`, `releasedCode:150`, `newCode:maxB`, `actorRole:"staff"`
 
 ---
 
-## 📊 Test Results Template
+### STAFF-4: Save (setupDone=false) → staffProfiles filled, users.staffSetupDone=true
 
-### Test Execution Log
+**Action (callable):**
+```js
+finalizeStaffSetup({ phone: "+40722123456", teamId: "team_b", assignedCode: "B250" }, staffCtx)
+```
 
-**Date:** **\*\***\_**\*\***
-**Tester:** **\*\***\_**\*\***
-**Environment:** Production / Staging
-**Deployment ID:** **\*\***\_**\*\***
+**Expected (Firestore diffs):**
+1) `staffProfiles/u_staff`:
+- `setupDone:true`
+- `teamId:"team_b"`
+- `assignedCode:"B250"`
+- `codIdentificare/ceCodAi/cineNoteaza:"B250"`
+- `phone:"+40722123456"`
+- `email:"staff@test.com"` (din token)
+- `nume` din KYC
+2) `users/u_staff`:
+- `staffSetupDone:true`
+- `phone:"+40722123456"`
 
-| Test                        | Status          | Notes |
-| --------------------------- | --------------- | ----- |
-| 1. Session Persistence (x3) | ⬜ PASS ⬜ FAIL |       |
-| 2. Reconnect Robustness     | ⬜ PASS ⬜ FAIL |       |
-| 3. Inbox Deduplication      | ⬜ PASS ⬜ FAIL |       |
-| 4. Outbox Idempotency       | ⬜ PASS ⬜ FAIL |       |
-| 5. Client Data Persistence  | ⬜ PASS ⬜ FAIL |       |
-| 6. Observability            | ⬜ PASS ⬜ FAIL |       |
-
-**Overall Result:** ⬜ PASS ⬜ FAIL
-
-**Issues Found:**
-
-- **Recommendations:**
-
-- ***
-
-## 🚨 Failure Scenarios
-
-### If Session Persistence Fails:
-
-1. Check Railway Volume is mounted: `/app/sessions`
-2. Check SESSIONS_PATH environment variable
-3. Check disk space in Railway
-4. Review logs for "Session saved" messages
-
-### If Reconnect Fails:
-
-1. Check network connectivity
-2. Review backoff logic in code
-3. Check Firestore for retry count
-4. Verify no infinite loops
-
-### If Deduplication Fails:
-
-1. Check messageId generation
-2. Verify Firestore document IDs
-3. Review message processing logic
-4. Check for race conditions
-
-### If Outbox Fails:
-
-1. Check wa_outbox collection exists
-2. Verify status field updates
-3. Review worker processing logic
-4. Check for stuck messages
+**Server-side check (must):**
+- dacă `teamAssignments/team_b_u_staff` nu există sau `code/prefix` nu corespund → `failed-precondition`
 
 ---
 
-## 📞 Support
+### STAFF-5: Reopen (setupDone=true) → team locked, phone editable, save updates phone (no allocations)
 
-**Issues?**
+**Expected (UI):**
+- team dropdown disabled
+- phone editable
+- save nu face alocări
 
-- Check Railway logs first
-- Review Firestore data
-- Check environment variables
-- Contact: dev team
+**Action (callable):**
+```js
+updateStaffPhone({ phone: "+40722123457" }, staffCtx)
+```
 
-**Documentation:**
-
-- Issue #3: https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/issues/3
-- QA Report: QA_REPORT_ISSUE_3.md
-- Production Features: PRODUCTION_FEATURES.md
+**Expected (Firestore diffs):**
+1) `staffProfiles/u_staff.phone="+40722123457"`
+2) `users/u_staff.phone="+40722123457"`
+3) NU se modifică:
+- `teamCodePools/*`, `teamAssignments/*`, `teamAssignmentsHistory/*`, `adminActions/*`
 
 ---
 
-## ✅ Sign-off
+## 6) ADMIN — checklist + Firestore diffs
 
-**QA Approval:**
+### ADMIN-0: Set admin claim (preferred)
 
-- [ ] All tests passed
-- [ ] No critical issues found
-- [ ] Production ready
+```powershell
+node tools/set_admin_claim.js --project <projectId> --uid <uid>
+```
 
-**Signed:** **\*\***\_**\*\***
-**Date:** **\*\***\_**\*\***
+Important:
+- user trebuie să facă relogin / refresh token ca să primească claims
+
+---
+
+### ADMIN-1: /admin loads only for admin claim/role
+
+**Expected:**
+- admin vede dashboard
+- non-admin este redirectat la `/home`
+
+---
+
+### ADMIN-2: Search works (client-side filter)
+
+**Expected:**
+- search filtrează local în listă (nume/email/cod)
+- nu cere indexuri noi
+
+---
+
+### ADMIN-3: Change team → code reallocated, history + adminActions written
+
+**Action (callable):**
+```js
+changeUserTeam({ uid: "u_staff", newTeamId: "team_c", forceReallocate: false }, adminCtx)
+```
+
+**Expected (Firestore diffs):**
+1) `teamCodePools/<oldTeam>.freeCodes`:
+- include vechiul code number (o singură dată)
+2) `teamCodePools/team_c.freeCodes`:
+- maxC scos
+3) `teamAssignments/<oldTeam>_u_staff`: șters
+4) `teamAssignments/team_c_u_staff`: creat/actualizat
+5) `staffProfiles/u_staff`:
+- `teamId:"team_c"`, `assignedCode:"C<maxC>"`, și cele 3 câmpuri identice
+6) `teamAssignmentsHistory/{autoId}`:
+- `actorUid:"u_admin"`, `actorRole:"admin"`
+7) `adminActions/{autoId}`:
+- `action:"changeUserTeam"` + actor + target + from/to + codes
+
+---
+
+### ADMIN-4: Set status → users.status updated + adminActions written
+
+**Action (callable):**
+```js
+setUserStatus({ uid: "u_staff", status: "blocked" }, adminCtx)
+```
+
+**Expected (Firestore diffs):**
+1) `users/u_staff.status="blocked"`
+2) `adminActions/{autoId}`:
+- `action:"setUserStatus"`, `targetUid`, `status`, `actorUid`
+
+---
+
+## 7) Deploy (production)
+
+```powershell
+cd functions
+npm i
+npm run build
+cd ..
+
+firebase deploy --only firestore:rules,functions
+
+cd superparty_flutter
+flutter pub get
+flutter run
+```
+
+---
+
+## If something fails (common causes)
+
+- **Missing pool doc / empty freeCodes**
+  - Eroare: “Nu există pool…” / “Nu mai există coduri…”
+  - Fix: rulează seed (`node tools/seed_firestore.js --emulator`) și verifică `teamCodePools/{teamId}`
+
+- **Missing auth context**
+  - Eroare: `unauthenticated`
+  - Fix: în shell, pasează `staffCtx/adminCtx` cu `auth.uid`
+
+- **Missing admin claim/role**
+  - Eroare: `permission-denied`
+  - Fix: claim `admin:true` sau `users/{uid}.role="admin"` + relogin/refresh token
+
+- **Rules “block writes”**
+  - Este corect: client nu scrie în pools/assignments/history/adminActions
+  - Folosește Cloud Functions / Admin SDK
