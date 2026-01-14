@@ -54,9 +54,13 @@ const shouldRun = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
 
       // Seed WAL / leases / outbox
       await db.collection('whatsapp_ingest').doc('wa_acc1_c1_k1').set({ accountId: 'wa_acc1', chatId: 'c1', eventType: 'message', waMessageKey: 'k1', payload: { x: 1 }, receivedAt: new Date(), processed: false, processedAt: null, processAttempts: 0, lastProcessError: null });
+      await db.collection('whatsapp_ingest_deadletter').doc('wa_acc1_c1_k2').set({ accountId: 'wa_acc1', chatId: 'c1', eventType: 'message', waMessageKey: 'k2', payload: { x: 2 }, receivedAt: new Date(), processed: true, processedAt: new Date(), processAttempts: 5, lastProcessError: 'x' });
       await db.collection('whatsapp_account_leases').doc('wa_acc1').set({ ownerInstanceId: 'i1', leaseUntil: new Date(Date.now() + 60_000), updatedAt: new Date() });
       await db.collection('whatsapp_outbox').doc('cmd1').set({ threadId: 'wa_acc1_c1', accountId: 'wa_acc1', chatId: 'c1', to: 'c1', text: 'hi', createdAt: new Date(), createdByUid: 'u', status: 'queued', attempts: 0, lastError: null, dedupeKey: 'd', waMessageKey: null, lastTriedAt: null });
       await db.collection('whatsapp_alerts').doc('a1').set({ type: 'degraded', createdAt: new Date() });
+
+      // Audit trail (server-only write; super-admin read)
+      await db.collection('whatsapp_audit').doc('audit1').set({ action: 'x', createdAt: new Date() });
     });
   });
 
@@ -140,11 +144,13 @@ const shouldRun = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
     const superDb = ctxSuperAdmin().firestore();
 
     await assertFails(empDb.collection('whatsapp_ingest').doc('wa_acc1_c1_k1').get());
+    await assertFails(empDb.collection('whatsapp_ingest_deadletter').doc('wa_acc1_c1_k2').get());
     await assertFails(empDb.collection('whatsapp_account_leases').doc('wa_acc1').get());
     await assertFails(empDb.collection('whatsapp_outbox').doc('cmd1').get());
     await assertFails(empDb.collection('whatsapp_alerts').doc('a1').get());
 
     await assertSucceeds(superDb.collection('whatsapp_ingest').doc('wa_acc1_c1_k1').get());
+    await assertSucceeds(superDb.collection('whatsapp_ingest_deadletter').doc('wa_acc1_c1_k2').get());
     await assertSucceeds(superDb.collection('whatsapp_account_leases').doc('wa_acc1').get());
     await assertSucceeds(superDb.collection('whatsapp_outbox').doc('cmd1').get());
     await assertSucceeds(superDb.collection('whatsapp_alerts').doc('a1').get());
@@ -152,6 +158,16 @@ const shouldRun = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
     await assertFails(empDb.collection('whatsapp_outbox').doc('x').set({ status: 'queued' }));
     await assertFails(empDb.collection('whatsapp_ingest').doc('x').set({ processed: false }));
     await assertFails(empDb.collection('whatsapp_account_leases').doc('wa_acc1').set({ ownerInstanceId: 'x' }));
+  });
+
+  test('whatsapp_audit is super-admin read-only, no employee access', async () => {
+    const empDb = ctxEmployee(uidEmp).firestore();
+    const superDb = ctxSuperAdmin().firestore();
+
+    await assertFails(empDb.collection('whatsapp_audit').doc('audit1').get());
+    await assertSucceeds(superDb.collection('whatsapp_audit').doc('audit1').get());
+
+    await assertFails(empDb.collection('whatsapp_audit').doc('audit2').set({ action: 'y' }));
   });
 
   test('users/{uid}/whatsapp_thread_prefs is owner-only read/write', async () => {

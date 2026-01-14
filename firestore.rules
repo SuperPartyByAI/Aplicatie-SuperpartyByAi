@@ -51,6 +51,12 @@ service cloud.firestore {
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
       allow delete: if false; // never delete (set flags instead)
     }
+
+    // WhatsApp audit trail (server-only writes; super-admin read-only)
+    match /whatsapp_audit/{auditId} {
+      allow read: if isSuperAdminEmail();
+      allow create, update, delete: if false;
+    }
     
     // Staff profiles - readable by all employees for display names/roles
     // SECURITY: Prevent privilege escalation - users cannot change their own role
@@ -361,6 +367,12 @@ service cloud.firestore {
 
     // WhatsApp ingest WAL (append-only) - server-only
     match /whatsapp_ingest/{ingestId} {
+      allow read: if isSuperAdminEmail();
+      allow create, update, delete: if false;
+    }
+
+    // WhatsApp ingest deadletter (projection failures) - server-only
+    match /whatsapp_ingest_deadletter/{ingestId} {
       allow read: if isSuperAdminEmail();
       allow create, update, delete: if false;
     }
