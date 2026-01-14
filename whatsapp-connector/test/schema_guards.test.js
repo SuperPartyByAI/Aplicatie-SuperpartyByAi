@@ -52,7 +52,7 @@ test('QR leak guard: public whatsapp_accounts writes must not include QR fields'
       for (const needle of window) {
         if (snippet.includes(needle)) found.add(needle);
       }
-      const ok = [...window].every((needle) => found.has(needle));
+      const ok = [...window].every((needle) => window.has(needle) && found.has(needle));
       assert.equal(
         ok,
         true,
