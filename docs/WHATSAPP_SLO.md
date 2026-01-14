@@ -9,6 +9,7 @@ The connector exports measurable SLIs via `GET /health`, and computes an overall
 - **ingestLagSec**: seconds since the oldest unprocessed WAL event (`whatsapp_ingest where processed=false orderBy(receivedAt asc) limit 500`).
 - **outboxBacklog**: count of queued/failed outbox items in the oldest-first window (`whatsapp_outbox where status in ["queued","failed"] limit 500`).
 - **reconnectsPerHour** (per account): rolling 1h reconnect counter (`reconnectWindow*` fields).
+- **outboxFailureRate** (per account): rolling 1h outbox failure counter (`outboxFailureWindow*` fields).
 - **mediaFailureRate** (per account): rolling 1h media failure counter (`mediaFailureWindow*` fields).
 
 ### Thresholds (current)
@@ -17,6 +18,7 @@ The connector exports measurable SLIs via `GET /health`, and computes an overall
 - **ingestLagWarnSec**: 120
 - **outboxBacklogWarn**: 100
 - **reconnectsPerHourWarn**: 10
+- **outboxFailureRateWarn**: 20
 - **mediaFailureRateWarn**: 5
 
 ### “healthy” computation (current)
@@ -26,6 +28,7 @@ The connector exports measurable SLIs via `GET /health`, and computes an overall
 - `ingestLagSec <= ingestLagWarnSec`, AND
 - `outboxBacklog <= outboxBacklogWarn`, AND
 - no account exceeds `reconnectsPerHourWarn`, AND
+- no account exceeds `outboxFailureRateWarn`, AND
 - no account exceeds `mediaFailureRateWarn`
 
 ### Incident triggers (recommended)

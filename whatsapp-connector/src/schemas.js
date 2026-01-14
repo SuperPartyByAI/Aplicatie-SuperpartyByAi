@@ -35,6 +35,7 @@ const HealthResponseSchema = z.object({
       ingestLagWarnSec: z.number().int().positive().optional(),
       outboxBacklogWarn: z.number().int().positive().optional(),
       reconnectsPerHourWarn: z.number().int().positive().optional(),
+      outboxFailureRateWarn: z.number().int().positive().optional(),
       mediaFailureRateWarn: z.number().int().positive().optional(),
     })
     .optional(),
@@ -59,6 +60,7 @@ const HealthResponseSchema = z.object({
       assignedWorkerId: z.any().optional(),
       reconnectCount: z.number().int().nonnegative().optional(),
       reconnectsPerHour: z.number().int().nonnegative().optional(),
+      outboxFailureRate: z.number().int().nonnegative().optional(),
       mediaFailureRate: z.number().int().nonnegative().optional(),
       outboxBacklogCount: z.number().int().nonnegative().optional(),
       ingestLagSec: z.number().int().nonnegative().nullable().optional(),

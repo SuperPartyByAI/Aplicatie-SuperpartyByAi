@@ -135,8 +135,8 @@ async function main() {
 
   // Lease renew timers per account
   const leaseTimers = new Map();
-  const rateStateByUid = new Map(); // uid -> { windowStartMs, count }
-  const rateStateByAccount = new Map(); // accountId -> { windowStartMs, count }
+  const rateStateByUid = new Map(); // uid -> { windowStartMs, count } (best-effort local)
+  const rateStateByAccount = new Map(); // accountId -> { windowStartMs, count } (best-effort local)
   let lastGlobalSloCheckMs = 0;
 
   function _rateCheck(map, key, limit) {
@@ -149,6 +149,44 @@ async function main() {
     cur.count += 1;
     if (cur.count > limit) return { ok: false, retryAfterSec: Math.ceil((60_000 - (now - cur.windowStartMs)) / 1000) };
     return { ok: true };
+  }
+
+  async function _rateCheckFirestore({ scope, key, limit }) {
+    // Multi-instance safe rate limit (rolling 60s window) stored in Firestore.
+    const db = getDb();
+    const admin = getAdmin();
+    const id = `${scope}_${key}`.replace(/[^\w.-]/g, '_').slice(0, 180);
+    const ref = db.collection('whatsapp_rate_limits').doc(id);
+    const nowMs = Date.now();
+    const now = admin.firestore.Timestamp.fromMillis(nowMs);
+    const windowMs = 60_000;
+
+    return await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const cur = snap.exists ? snap.data() || {} : {};
+      const startMs = Number(cur.windowStartMs || 0) || 0;
+      const expired = !startMs || nowMs - startMs >= windowMs;
+      const nextStartMs = expired ? nowMs : startMs;
+      const nextCount = (expired ? 0 : Number(cur.count || 0) || 0) + 1;
+      const retryAfterSec = Math.ceil((windowMs - (nowMs - nextStartMs)) / 1000);
+
+      tx.set(
+        ref,
+        {
+          scope,
+          key,
+          windowStartMs: nextStartMs,
+          count: nextCount,
+          updatedAt: now,
+          // TTL-friendly marker (optional to configure in Firestore)
+          expiresAt: admin.firestore.Timestamp.fromMillis(nextStartMs + 2 * windowMs),
+        },
+        { merge: true },
+      );
+
+      if (nextCount > limit) return { ok: false, retryAfterSec };
+      return { ok: true };
+    });
   }
 
   async function ensureLeaseAndRun(accountId) {
@@ -200,6 +238,7 @@ async function main() {
     const eventStaleSec = envInt('EVENT_STALE_SEC', 600);
     const ingestLagWarnSec = envInt('INGEST_LAG_WARN_SEC', 120);
     const outboxBacklogWarn = envInt('OUTBOX_BACKLOG_WARN', 100);
+    const cooldownFailures = envInt('COOLDOWN_FAIL_THRESHOLD', 5);
 
     for (const doc of snap.docs) {
       const aId = doc.id;
@@ -251,6 +290,25 @@ async function main() {
             accountId: aId,
             message: `Connected but no WA events for >${eventStaleSec}s`,
             meta: { lastEventAt: data.lastEventAt || null },
+          });
+        }
+
+        const consecutiveFailures = Number(data.rateLimitState?.consecutiveFailures || 0) || 0;
+        const failingOutbox = consecutiveFailures >= cooldownFailures;
+        if (failingOutbox && data.degradedReason !== 'outbox_failures') {
+          await db.collection('whatsapp_accounts').doc(aId).set(
+            {
+              degraded: true,
+              degradedReason: 'outbox_failures',
+              updatedAt: getAdmin().firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+          await emitAlert({
+            type: 'degraded',
+            severity: 'error',
+            accountId: aId,
+            message: `Outbox failing repeatedly (consecutiveFailures=${consecutiveFailures})`,
           });
         }
 
@@ -374,6 +432,7 @@ async function main() {
           assignedWorkerId: a.assignedWorkerId || null,
           reconnectCount: Number(a.reconnectCount || 0) || 0,
           reconnectsPerHour: _windowCountPerHour(a.reconnectWindowStartAt, a.reconnectWindowCount),
+          outboxFailureRate: _windowCountPerHour(a.outboxFailureWindowStartAt, a.outboxFailureWindowCount),
           mediaFailureRate: _windowCountPerHour(a.mediaFailureWindowStartAt, a.mediaFailureWindowCount),
           outboxBacklogCount: 0,
           ingestLagSec: null,
@@ -448,6 +507,7 @@ async function main() {
         ingestLagWarnSec: envInt('INGEST_LAG_WARN_SEC', 120),
         outboxBacklogWarn: envInt('OUTBOX_BACKLOG_WARN', 100),
         reconnectsPerHourWarn: envInt('RECONNECTS_PER_HOUR_WARN', 10),
+        outboxFailureRateWarn: envInt('OUTBOX_FAILURES_PER_HOUR_WARN', 20),
         mediaFailureRateWarn: envInt('MEDIA_FAILURES_PER_HOUR_WARN', 5),
       };
 
@@ -458,11 +518,15 @@ async function main() {
         (a) => a.status === 'connected' && a.eventAgeSec != null && a.eventAgeSec > thresholds.eventStaleSec,
       );
       const anyReconnectBad = accounts.some((a) => Number(a.reconnectsPerHour || 0) > thresholds.reconnectsPerHourWarn);
+      const anyOutboxFailureBad = accounts.some(
+        (a) => Number(a.outboxFailureRate || 0) > thresholds.outboxFailureRateWarn,
+      );
       const anyMediaBad = accounts.some((a) => Number(a.mediaFailureRate || 0) > thresholds.mediaFailureRateWarn);
       const healthy =
         !anyHeartbeatBad &&
         !anyEventBad &&
         !anyReconnectBad &&
+        !anyOutboxFailureBad &&
         !anyMediaBad &&
         ingestLagSec <= thresholds.ingestLagWarnSec &&
         outboxBacklog <= thresholds.outboxBacklogWarn;
@@ -522,10 +586,20 @@ async function main() {
     }
 
     try {
-      // Rate limiting (in-memory best-effort)
-      const rUser = _rateCheck(rateStateByUid, decoded.uid, maxMsgsPerMinPerUser);
+      // Rate limiting:
+      // - local best-effort (fast)
+      // - Firestore transaction (multi-instance safe)
+      const rUserLocal = _rateCheck(rateStateByUid, decoded.uid, maxMsgsPerMinPerUser);
+      if (!rUserLocal.ok) {
+        return res.status(429).json({ ok: false, error: 'rate_limited_user', retryAfterSec: rUserLocal.retryAfterSec });
+      }
+      const rAccLocal = _rateCheck(rateStateByAccount, accountId, maxMsgsPerMinPerAccount);
+      if (!rAccLocal.ok) {
+        return res.status(429).json({ ok: false, error: 'rate_limited_account', retryAfterSec: rAccLocal.retryAfterSec });
+      }
+      const rUser = await _rateCheckFirestore({ scope: 'uid', key: decoded.uid, limit: maxMsgsPerMinPerUser });
       if (!rUser.ok) return res.status(429).json({ ok: false, error: 'rate_limited_user', retryAfterSec: rUser.retryAfterSec });
-      const rAcc = _rateCheck(rateStateByAccount, accountId, maxMsgsPerMinPerAccount);
+      const rAcc = await _rateCheckFirestore({ scope: 'account', key: accountId, limit: maxMsgsPerMinPerAccount });
       if (!rAcc.ok) return res.status(429).json({ ok: false, error: 'rate_limited_account', retryAfterSec: rAcc.retryAfterSec });
 
       // Cooldown mode (persisted)

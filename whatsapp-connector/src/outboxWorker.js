@@ -327,8 +327,16 @@ async function runOutboxLoop({ stopSignal, pollMs = 1200, batch = 25, instanceId
                 const cur = snap.exists ? snap.data() || {} : {};
                 const curFailures = Number(cur.rateLimitState?.consecutiveFailures || 0);
                 const nextFailures = curFailures + 1;
+                const now = admin.firestore.Timestamp.now();
+                const hourMs = 60 * 60 * 1000;
+                const start = cur.outboxFailureWindowStartAt;
+                const startMs = start?.toMillis ? start.toMillis() : 0;
+                const expired = !startMs || Date.now() - startMs >= hourMs;
+                const nextOutboxFailureCount = expired ? 1 : Number(cur.outboxFailureWindowCount || 0) + 1;
                 const patch = {
                   rateLimitState: { ...(cur.rateLimitState || {}), consecutiveFailures: nextFailures },
+                  outboxFailureWindowStartAt: now,
+                  outboxFailureWindowCount: nextOutboxFailureCount,
                   updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 };
                 const cooldownTriggered = nextFailures >= cooldownFailures;
@@ -336,7 +344,7 @@ async function runOutboxLoop({ stopSignal, pollMs = 1200, batch = 25, instanceId
                   patch.cooldownUntil = admin.firestore.Timestamp.fromMillis(Date.now() + cooldownMinutes * 60_000);
                 }
                 tx.set(accRef, patch, { merge: true });
-                return { cooldownTriggered, nextFailures };
+                return { cooldownTriggered, nextFailures, outboxFailuresPerHour: nextOutboxFailureCount };
               });
 
               if (r?.cooldownTriggered) {
