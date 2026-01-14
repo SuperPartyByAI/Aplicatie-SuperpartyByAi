@@ -383,12 +383,6 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
-    // WhatsApp rate limits (server-only; optionally readable by super-admin for diagnostics)
-    match /whatsapp_rate_limits/{docId} {
-      allow read: if isSuperAdminEmail();
-      allow create, update, delete: if false;
-    }
-
     // Internal notes per thread (employee-visible; not sent to WhatsApp)
     match /whatsapp_thread_notes/{threadId}/notes/{noteId} {
       allow read: if isEmployee();

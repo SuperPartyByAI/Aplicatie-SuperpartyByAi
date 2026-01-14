@@ -151,43 +151,8 @@ async function main() {
     return { ok: true };
   }
 
-  async function _rateCheckFirestore({ scope, key, limit }) {
-    // Multi-instance safe rate limit (rolling 60s window) stored in Firestore.
-    const db = getDb();
-    const admin = getAdmin();
-    const id = `${scope}_${key}`.replace(/[^\w.-]/g, '_').slice(0, 180);
-    const ref = db.collection('whatsapp_rate_limits').doc(id);
-    const nowMs = Date.now();
-    const now = admin.firestore.Timestamp.fromMillis(nowMs);
-    const windowMs = 60_000;
-
-    return await db.runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
-      const cur = snap.exists ? snap.data() || {} : {};
-      const startMs = Number(cur.windowStartMs || 0) || 0;
-      const expired = !startMs || nowMs - startMs >= windowMs;
-      const nextStartMs = expired ? nowMs : startMs;
-      const nextCount = (expired ? 0 : Number(cur.count || 0) || 0) + 1;
-      const retryAfterSec = Math.ceil((windowMs - (nowMs - nextStartMs)) / 1000);
-
-      tx.set(
-        ref,
-        {
-          scope,
-          key,
-          windowStartMs: nextStartMs,
-          count: nextCount,
-          updatedAt: now,
-          // TTL-friendly marker (optional to configure in Firestore)
-          expiresAt: admin.firestore.Timestamp.fromMillis(nextStartMs + 2 * windowMs),
-        },
-        { merge: true },
-      );
-
-      if (nextCount > limit) return { ok: false, retryAfterSec };
-      return { ok: true };
-    });
-  }
+  // NOTE: Rate limiting is implemented in-memory (best-effort) to avoid introducing
+  // additional top-level Firestore collections outside the canonical whatsapp_* schema.
 
   async function ensureLeaseAndRun(accountId) {
     if (!manager.isResponsible(accountId)) return;
@@ -597,11 +562,6 @@ async function main() {
       if (!rAccLocal.ok) {
         return res.status(429).json({ ok: false, error: 'rate_limited_account', retryAfterSec: rAccLocal.retryAfterSec });
       }
-      const rUser = await _rateCheckFirestore({ scope: 'uid', key: decoded.uid, limit: maxMsgsPerMinPerUser });
-      if (!rUser.ok) return res.status(429).json({ ok: false, error: 'rate_limited_user', retryAfterSec: rUser.retryAfterSec });
-      const rAcc = await _rateCheckFirestore({ scope: 'account', key: accountId, limit: maxMsgsPerMinPerAccount });
-      if (!rAcc.ok) return res.status(429).json({ ok: false, error: 'rate_limited_account', retryAfterSec: rAcc.retryAfterSec });
-
       // Cooldown mode (persisted)
       // - First outbound message sets ownerUid/ownerEmail.
       // - Subsequent sends allowed only for owner/co-writer/super-admin, and if not locked.
