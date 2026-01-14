@@ -48,13 +48,14 @@ function argValue(flag) {
 async function main() {
   const projectId = (argValue('--project') || readDefaultProjectId() || '').trim();
   const uid = (argValue('--uid') || '').trim();
+  const email = (argValue('--email') || '').trim();
 
   if (!projectId) {
     console.error('Missing projectId. Use --project <id> or ensure .firebaserc exists.');
     process.exit(1);
   }
-  if (!uid) {
-    console.error('Missing uid. Use --uid <uid>.');
+  if (!uid && !email) {
+    console.error('Missing uid or email. Use --uid <uid> OR --email <email>.');
     process.exit(1);
   }
 
@@ -63,8 +64,21 @@ async function main() {
     admin.initializeApp({ projectId });
   }
 
-  await admin.auth().setCustomUserClaims(uid, { admin: true });
-  console.log(`[admin-claim] ✅ Set admin:true for uid=${uid} (project=${projectId})`);
+  let targetUid = uid;
+  if (!targetUid && email) {
+    // Lookup user by email
+    try {
+      const user = await admin.auth().getUserByEmail(email);
+      targetUid = user.uid;
+      console.log(`[admin-claim] Found user: email=${email} -> uid=${targetUid}`);
+    } catch (e) {
+      console.error(`[admin-claim] ❌ User not found for email: ${email}`);
+      process.exit(1);
+    }
+  }
+
+  await admin.auth().setCustomUserClaims(targetUid, { admin: true });
+  console.log(`[admin-claim] ✅ Set admin:true for uid=${targetUid} (project=${projectId})`);
   console.log('[admin-claim] User must re-login / refresh token to receive claims.');
 }
 
