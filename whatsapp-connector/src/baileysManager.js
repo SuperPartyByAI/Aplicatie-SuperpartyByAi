@@ -10,7 +10,7 @@ const {
 } = require('@whiskeysockets/baileys');
 
 const { getDb, getAdmin } = require('./firestore');
-const { writeIngest } = require('./ingest');
+const { writeIngest, threadId: makeThreadId, messageId: makeMessageId } = require('./ingest');
 const { computeReconnectDelayMs } = require('./reconnectPolicy');
 
 function stableHash(str) {
@@ -82,6 +82,49 @@ class BaileysManager {
 
   async _clearPrivateQr(accountId) {
     await this._setAccountPrivate(accountId, { qrCodeDataUrl: null, pairingCode: null });
+  }
+
+  async _catchUp({ accountId, sock }) {
+    // Best-effort catch-up after downtime:
+    // - Use Firestore account cursor + recent threads list
+    // - Fetch recent messages from WA and write them into WAL (idempotent)
+    try {
+      const db = getDb();
+      const accSnap = await db.collection('whatsapp_accounts').doc(accountId).get();
+      const acc = accSnap.data() || {};
+      const gapStart = acc.syncGapStartAt;
+      if (!gapStart) return;
+
+      const threads = await db
+        .collection('whatsapp_threads')
+        .where('accountId', '==', accountId)
+        .orderBy('lastMessageAt', 'desc')
+        .limit(10)
+        .get();
+
+      for (const t of threads.docs) {
+        const chatId = (t.data()?.chatId || '').toString();
+        if (!chatId) continue;
+        // Baileys API: fetchMessagesFromWA(jid, count, cursor?)
+        if (typeof sock.fetchMessagesFromWA !== 'function') continue;
+        const msgs = await sock.fetchMessagesFromWA(chatId, 50);
+        for (const m of msgs || []) {
+          await writeIngest({ accountId, msg: m });
+        }
+      }
+
+      const admin = getAdmin();
+      await db.collection('whatsapp_accounts').doc(accountId).set(
+        {
+          syncGapEndAt: admin.firestore.FieldValue.serverTimestamp(),
+          syncGapStartAt: null,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    } catch (e) {
+      this.log('warn', 'catchup_failed', { accountId, err: String(e) });
+    }
   }
 
   async startAccount({ accountId }) {
@@ -176,6 +219,69 @@ class BaileysManager {
       }
     });
 
+    // Delivery receipts -> update whatsapp_messages.delivery (server-only)
+    sock.ev.on('message-receipt.update', async (receipts) => {
+      try {
+        const db = getDb();
+        const admin = getAdmin();
+        for (const r of receipts || []) {
+          const key = r?.key;
+          const waMessageKey = (key?.id || '').toString();
+          const chatId = (key?.remoteJid || '').toString();
+          if (!waMessageKey || !chatId) continue;
+
+          const tId = makeThreadId({ accountId, chatId });
+          const waMessageId = makeMessageId({ threadId: tId, waMessageKey });
+
+          const status = (r?.receipt?.status || '').toString(); // delivered|read|played
+          const delivery =
+            status === 'read' ? 'read' : status === 'delivered' ? 'delivered' : status === 'played' ? 'read' : null;
+          if (!delivery) continue;
+
+          await db.collection('whatsapp_messages').doc(waMessageId).set(
+            {
+              delivery,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+        }
+      } catch (e) {
+        this.log('warn', 'receipt_update_error', { accountId, err: String(e) });
+      }
+    });
+
+    // messages.update can contain status codes; map best-effort
+    sock.ev.on('messages.update', async (updates) => {
+      try {
+        const db = getDb();
+        const admin = getAdmin();
+        for (const u of updates || []) {
+          const key = u?.key;
+          const waMessageKey = (key?.id || '').toString();
+          const chatId = (key?.remoteJid || '').toString();
+          if (!waMessageKey || !chatId) continue;
+          const tId = makeThreadId({ accountId, chatId });
+          const waMessageId = makeMessageId({ threadId: tId, waMessageKey });
+
+          const st = u?.update?.status;
+          // Common Baileys statuses: 1 sent, 2 delivered, 3 read
+          const delivery = st === 3 ? 'read' : st === 2 ? 'delivered' : st === 1 ? 'sent' : null;
+          if (!delivery) continue;
+
+          await db.collection('whatsapp_messages').doc(waMessageId).set(
+            {
+              delivery,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+        }
+      } catch (e) {
+        this.log('warn', 'messages_update_error', { accountId, err: String(e) });
+      }
+    });
+
     sock.ev.on('connection.update', async (u) => {
       try {
         if (rt.stopSignal.stopped) return;
@@ -200,8 +306,12 @@ class BaileysManager {
             status: 'connected',
             lastError: null,
             disconnectReason: null,
+            syncGapEndAt: getAdmin().firestore.FieldValue.serverTimestamp(),
           });
           await this._clearPrivateQr(accountId);
+
+          // Catch-up on reconnect (best-effort)
+          this._catchUp({ accountId, sock }).catch(() => {});
 
           if (!rt.heartbeatTimer) {
             rt.heartbeatTimer = setInterval(() => {
@@ -237,6 +347,7 @@ class BaileysManager {
             status: reason === 'logged_out' ? 'qr_ready' : 'disconnected',
             disconnectReason: reason,
             lastError: u?.lastDisconnect?.error ? String(u.lastDisconnect.error) : null,
+            syncGapStartAt: getAdmin().firestore.FieldValue.serverTimestamp(),
           });
 
           if (reason === 'logged_out') {

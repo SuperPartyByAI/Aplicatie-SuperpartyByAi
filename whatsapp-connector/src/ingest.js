@@ -1,9 +1,11 @@
 const crypto = require('crypto');
 const { getDb, getAdmin } = require('./firestore');
+const { uploadMediaToStorage } = require('./media');
 
 const COL_INGEST = 'whatsapp_ingest';
 const COL_THREADS = 'whatsapp_threads';
 const COL_MESSAGES = 'whatsapp_messages';
+const COL_ACCOUNTS = 'whatsapp_accounts';
 
 function sha256Hex(s) {
   return crypto.createHash('sha256').update(String(s)).digest('hex');
@@ -43,6 +45,14 @@ function threadId({ accountId, chatId }) {
 
 function messageId({ threadId, waMessageKey }) {
   return `${threadId}_${waMessageKey}`;
+}
+
+function normalizePhoneE164FromJid(jid) {
+  const s = (jid || '').toString();
+  const raw = s.split('@')[0] || '';
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+  return digits.startsWith('0') ? `+40${digits.substring(1)}` : digits.startsWith('40') ? `+${digits}` : `+${digits}`;
 }
 
 async function writeIngest({ accountId, msg }) {
@@ -106,22 +116,35 @@ async function processIngestDoc(docSnap) {
 
   const ts = toTimestamp(admin, msg?.messageTimestamp);
   const text = extractText(msg);
+  const waMessageId = mId; // deterministic waMessageId
+
+  // Best-effort media pipeline (requires Storage bucket access)
+  let media = null;
+  try {
+    media = await uploadMediaToStorage({ threadId: tId, waMessageKey, msg });
+  } catch (_) {
+    media = null;
+  }
 
   // Messages are immutable. Create if not exists.
   const msgRef = db.collection(COL_MESSAGES).doc(mId);
   try {
     await msgRef.create({
+      waMessageId,
       threadId: tId,
       accountId,
       chatId,
       direction: dir,
-      from: dir === 'in' ? (msg?.key?.participant || null) : null,
-      to: dir === 'out' ? chatId : null,
+      from: dir === 'in' ? (msg?.key?.participant || chatId || null) : null,
+      to: dir === 'out' ? (chatId || null) : null,
       text: text || null,
       timestamp: ts,
       waMessageKey,
-      media: null,
-      status: dir === 'out' ? 'sent' : null,
+      senderUid: null,
+      senderEmail: null,
+      delivery: dir === 'out' ? 'sent' : null,
+      error: null,
+      media: media,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   } catch (_) {
@@ -134,10 +157,29 @@ async function processIngestDoc(docSnap) {
       threadId: tId,
       accountId,
       chatId,
-      title: null,
+      clientPhoneE164: normalizePhoneE164FromJid(chatId),
+      clientDisplayName: null,
+      ownerUid: null,
+      ownerEmail: null,
+      coWriterUids: [],
+      locked: false,
+      lockedReason: null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
       lastMessageAt: ts,
-      lastMessageText: text || null,
+      lastMessagePreview: (text || '').toString().substring(0, 200) || null,
+      unreadCountGlobal: dir === 'in' ? admin.firestore.FieldValue.increment(1) : 0,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  // Update account lastEventAt + lastSynced* cursor (best-effort)
+  await db.collection(COL_ACCOUNTS).doc(accountId).set(
+    {
+      lastEventAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastSyncedAt: ts,
+      lastSyncedKey: waMessageKey,
+      reconnectCount: admin.firestore.FieldValue.increment(0),
     },
     { merge: true },
   );

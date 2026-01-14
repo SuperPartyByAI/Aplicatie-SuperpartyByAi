@@ -12,11 +12,24 @@ const { claimLease, renewLease, releaseLease } = require('./lease');
 const { BaileysManager } = require('./baileysManager');
 const { runIngestProcessorLoop, threadId: makeThreadId } = require('./ingest');
 const { enqueueOutbox, runOutboxLoop } = require('./outboxWorker');
+const { emitAlert } = require('./alerts');
 
 const SUPER_ADMIN_EMAIL = 'ursache.andrei1995@gmail.com';
 
 function isSuperAdminEmail(email) {
   return (email || '').toString().trim().toLowerCase() === SUPER_ADMIN_EMAIL;
+}
+
+async function isEmployee(decoded) {
+  if (!decoded?.uid) return false;
+  if (isSuperAdminEmail(decoded.email)) return true;
+  try {
+    const db = getDb();
+    const doc = await db.collection('staffProfiles').doc(decoded.uid).get();
+    return doc.exists;
+  } catch (_) {
+    return false;
+  }
 }
 
 function log(level, msg, meta) {
@@ -63,6 +76,8 @@ async function main() {
   const renewEveryMs = envInt('LEASE_RENEW_EVERY_MS', 15_000);
   const shardCount = envInt('SHARD_COUNT', 1);
   const shardIndex = envInt('SHARD_INDEX', 0);
+  const maxMsgsPerMinPerUser = envInt('RATE_LIMIT_USER_PER_MIN', 20);
+  const maxMsgsPerMinPerAccount = envInt('RATE_LIMIT_ACCOUNT_PER_MIN', 60);
 
   const sessionsPath = (process.env.SESSIONS_PATH || '').trim() || path.join(__dirname, '..', '.sessions');
   fs.mkdirSync(sessionsPath, { recursive: true });
@@ -94,6 +109,20 @@ async function main() {
 
   // Lease renew timers per account
   const leaseTimers = new Map();
+  const rateStateByUid = new Map(); // uid -> { windowStartMs, count }
+  const rateStateByAccount = new Map(); // accountId -> { windowStartMs, count }
+
+  function _rateCheck(map, key, limit) {
+    const now = Date.now();
+    const cur = map.get(key);
+    if (!cur || now - cur.windowStartMs >= 60_000) {
+      map.set(key, { windowStartMs: now, count: 1 });
+      return { ok: true };
+    }
+    cur.count += 1;
+    if (cur.count > limit) return { ok: false, retryAfterSec: Math.ceil((60_000 - (now - cur.windowStartMs)) / 1000) };
+    return { ok: true };
+  }
 
   async function ensureLeaseAndRun(accountId) {
     if (!manager.isResponsible(accountId)) return;
@@ -150,6 +179,29 @@ async function main() {
       }
       desired.add(aId);
       await ensureLeaseAndRun(aId);
+
+      // Degraded detector: connected but stale heartbeat (>60s)
+      try {
+        const status = (data.status || '').toString();
+        const lastSeenAt = data.lastSeenAt?.toMillis ? data.lastSeenAt.toMillis() : 0;
+        const stale = status === 'connected' && lastSeenAt > 0 && Date.now() - lastSeenAt > 60_000;
+        if (stale && data.degraded !== true) {
+          await db.collection('whatsapp_accounts').doc(aId).set(
+            {
+              degraded: true,
+              degradedReason: 'heartbeat_stale',
+              updatedAt: getAdmin().firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+          await emitAlert({
+            type: 'degraded',
+            severity: 'error',
+            accountId: aId,
+            message: 'Connected but heartbeat stale >60s',
+          });
+        }
+      } catch (_) {}
     }
 
     // Stop accounts no longer desired
@@ -170,13 +222,38 @@ async function main() {
   app.use(cors({ origin: true }));
   app.use(express.json({ limit: '2mb' }));
 
-  app.get('/health', (_req, res) => res.json({ ok: true, instanceId }));
+  app.get('/health', async (_req, res) => {
+    try {
+      const db = getDb();
+      const snap = await db.collection('whatsapp_accounts').limit(200).get();
+      const accounts = snap.docs.map((d) => {
+        const a = d.data() || {};
+        return {
+          accountId: d.id,
+          status: a.status || null,
+          lastSeenAt: a.lastSeenAt || null,
+          degraded: a.degraded === true,
+          assignedWorkerId: a.assignedWorkerId || null,
+        };
+      });
+      return res.json({
+        ok: true,
+        instanceId,
+        uptimeSec: Math.floor(process.uptime()),
+        runningAccounts: Array.from(manager._accounts.keys()),
+        accounts,
+      });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: String(e?.message || e), instanceId });
+    }
+  });
 
   // POST /api/send
   // Body: { threadId, to, text, accountId?, chatId?, clientMessageId }
   app.post('/api/send', async (req, res) => {
     const decoded = await verifyIdToken(req);
     if (!decoded) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    if (!(await isEmployee(decoded))) return res.status(403).json({ ok: false, error: 'employee_only' });
 
     const body = req.body || {};
     const tId = (body.threadId || '').toString().trim();
@@ -202,6 +279,53 @@ async function main() {
     }
 
     try {
+      // Rate limiting (in-memory best-effort)
+      const rUser = _rateCheck(rateStateByUid, decoded.uid, maxMsgsPerMinPerUser);
+      if (!rUser.ok) return res.status(429).json({ ok: false, error: 'rate_limited_user', retryAfterSec: rUser.retryAfterSec });
+      const rAcc = _rateCheck(rateStateByAccount, accountId, maxMsgsPerMinPerAccount);
+      if (!rAcc.ok) return res.status(429).json({ ok: false, error: 'rate_limited_account', retryAfterSec: rAcc.retryAfterSec });
+
+      // Ownership model (server-enforced):
+      // - First outbound message sets ownerUid/ownerEmail.
+      // - Subsequent sends allowed only for owner/co-writer/super-admin, and if not locked.
+      const db = getDb();
+      const admin = getAdmin();
+      const threadRef = db.collection('whatsapp_threads').doc(threadId);
+      const threadSnap = await threadRef.get();
+      if (threadSnap.exists) {
+        const t = threadSnap.data() || {};
+        const locked = Boolean(t.locked);
+        if (locked && !isSuperAdminEmail(decoded.email)) {
+          return res.status(403).json({ ok: false, error: 'thread_locked' });
+        }
+        const ownerUid = (t.ownerUid || '').toString();
+        const co = Array.isArray(t.coWriterUids) ? t.coWriterUids.map(String) : [];
+        const allowed = isSuperAdminEmail(decoded.email) || (ownerUid && ownerUid === decoded.uid) || co.includes(decoded.uid);
+        if (!allowed) return res.status(403).json({ ok: false, error: 'not_thread_writer' });
+      } else {
+        // Create thread scaffold (owner is first outbound sender)
+        await threadRef.set(
+          {
+            threadId,
+            accountId,
+            chatId: chatId || to,
+            clientPhoneE164: null,
+            clientDisplayName: null,
+            ownerUid: decoded.uid,
+            ownerEmail: decoded.email || null,
+            coWriterUids: [],
+            locked: false,
+            lockedReason: null,
+            lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastMessagePreview: (text || '').toString().substring(0, 200) || null,
+            unreadCountGlobal: 0,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+      }
+
       const { commandId } = await enqueueOutbox({
         threadId,
         accountId,
@@ -210,6 +334,7 @@ async function main() {
         text,
         media: null,
         createdByUid: decoded.uid,
+        createdByEmail: decoded.email || null,
         clientMessageId,
       });
       return res.json({ ok: true, commandId });
@@ -280,6 +405,115 @@ async function main() {
       );
 
     return res.json({ ok: true, accountId });
+  });
+
+  // Handover workflows (owner or super-admin)
+  app.post('/api/threads/:threadId/cowriters/add', async (req, res) => {
+    const decoded = await verifyIdToken(req);
+    if (!decoded) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    if (!(await isEmployee(decoded))) return res.status(403).json({ ok: false, error: 'employee_only' });
+
+    const threadId = (req.params.threadId || '').toString();
+    const uid = (req.body?.uid || '').toString().trim();
+    if (!threadId || !uid) return res.status(400).json({ ok: false, error: 'missing_params' });
+
+    const db = getDb();
+    const admin = getAdmin();
+    await db.runTransaction(async (tx) => {
+      const ref = db.collection('whatsapp_threads').doc(threadId);
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new Error('thread_not_found');
+      const t = snap.data() || {};
+      const ownerUid = (t.ownerUid || '').toString();
+      const allowed = isSuperAdminEmail(decoded.email) || (ownerUid && ownerUid === decoded.uid);
+      if (!allowed) throw new Error('not_owner');
+      tx.set(
+        ref,
+        { coWriterUids: admin.firestore.FieldValue.arrayUnion(uid), updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+    });
+    return res.json({ ok: true });
+  });
+
+  app.post('/api/threads/:threadId/cowriters/remove', async (req, res) => {
+    const decoded = await verifyIdToken(req);
+    if (!decoded) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    if (!(await isEmployee(decoded))) return res.status(403).json({ ok: false, error: 'employee_only' });
+
+    const threadId = (req.params.threadId || '').toString();
+    const uid = (req.body?.uid || '').toString().trim();
+    if (!threadId || !uid) return res.status(400).json({ ok: false, error: 'missing_params' });
+
+    const db = getDb();
+    const admin = getAdmin();
+    await db.runTransaction(async (tx) => {
+      const ref = db.collection('whatsapp_threads').doc(threadId);
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new Error('thread_not_found');
+      const t = snap.data() || {};
+      const ownerUid = (t.ownerUid || '').toString();
+      const allowed = isSuperAdminEmail(decoded.email) || (ownerUid && ownerUid === decoded.uid);
+      if (!allowed) throw new Error('not_owner');
+      tx.set(
+        ref,
+        { coWriterUids: admin.firestore.FieldValue.arrayRemove(uid), updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+    });
+    return res.json({ ok: true });
+  });
+
+  app.post('/api/threads/:threadId/lock', async (req, res) => {
+    const decoded = await verifyIdToken(req);
+    if (!decoded) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    if (!(await isEmployee(decoded))) return res.status(403).json({ ok: false, error: 'employee_only' });
+
+    const threadId = (req.params.threadId || '').toString();
+    const locked = Boolean(req.body?.locked);
+    const reason = (req.body?.reason || '').toString();
+
+    const db = getDb();
+    const admin = getAdmin();
+    await db.runTransaction(async (tx) => {
+      const ref = db.collection('whatsapp_threads').doc(threadId);
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new Error('thread_not_found');
+      const t = snap.data() || {};
+      const ownerUid = (t.ownerUid || '').toString();
+      const allowed = isSuperAdminEmail(decoded.email) || (ownerUid && ownerUid === decoded.uid);
+      if (!allowed) throw new Error('not_owner');
+      tx.set(
+        ref,
+        { locked, lockedReason: reason || null, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+    });
+    return res.json({ ok: true });
+  });
+
+  // Transfer owner (super-admin only)
+  app.post('/api/threads/:threadId/transfer-owner', async (req, res) => {
+    const decoded = await verifyIdToken(req);
+    if (!decoded) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    if (!isSuperAdminEmail(decoded.email)) return res.status(403).json({ ok: false, error: 'super_admin_only' });
+
+    const threadId = (req.params.threadId || '').toString();
+    const newOwnerUid = (req.body?.newOwnerUid || '').toString().trim();
+    const newOwnerEmail = (req.body?.newOwnerEmail || '').toString().trim();
+    if (!threadId || !newOwnerUid) return res.status(400).json({ ok: false, error: 'missing_params' });
+
+    const db = getDb();
+    const admin = getAdmin();
+    await db.collection('whatsapp_threads').doc(threadId).set(
+      {
+        ownerUid: newOwnerUid,
+        ownerEmail: newOwnerEmail || null,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    return res.json({ ok: true });
   });
 
   // Legacy compatibility: POST /api/whatsapp/add-account

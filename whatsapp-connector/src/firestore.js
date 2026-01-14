@@ -44,9 +44,15 @@ function initFirebase() {
     credential = admin.credential.cert({ projectId, clientEmail, privateKey });
   }
 
+  const storageBucket =
+    (process.env.FIREBASE_STORAGE_BUCKET || '').trim() ||
+    (sa?.storage_bucket || '').trim() ||
+    `${projectId}.appspot.com`;
+
   _app = admin.initializeApp({
     credential,
     projectId,
+    storageBucket,
   });
 
   return _app;
@@ -65,9 +71,15 @@ function getDb() {
   return db;
 }
 
+function getBucket() {
+  if (!_app) initFirebase();
+  return admin.storage().bucket();
+}
+
 module.exports = {
   initFirebase,
   getAdmin,
   getDb,
+  getBucket,
 };
 

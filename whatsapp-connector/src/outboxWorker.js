@@ -31,6 +31,7 @@ async function enqueueOutbox({
   text,
   media = null,
   createdByUid,
+  createdByEmail,
   clientMessageId,
 }) {
   const db = getDb();
@@ -55,6 +56,7 @@ async function enqueueOutbox({
       media: media || null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       createdByUid: createdByUid || null,
+      createdByEmail: createdByEmail || null,
       status: 'queued',
       attempts: 0,
       lastError: null,
@@ -138,6 +140,8 @@ async function writeOutboundMessageAndThread({
   waMessageKey,
   text,
   timestamp,
+  senderUid,
+  senderEmail,
 }) {
   const db = getDb();
   const admin = getAdmin();
@@ -146,6 +150,7 @@ async function writeOutboundMessageAndThread({
   const msgRef = db.collection(COL_MESSAGES).doc(mId);
   try {
     await msgRef.create({
+      waMessageId: mId,
       threadId: tId,
       accountId,
       chatId,
@@ -156,7 +161,10 @@ async function writeOutboundMessageAndThread({
       timestamp: timestamp || admin.firestore.Timestamp.now(),
       waMessageKey,
       media: null,
-      status: 'sent',
+      senderUid: senderUid || null,
+      senderEmail: senderEmail || null,
+      delivery: 'sent',
+      error: null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   } catch (_) {}
@@ -167,8 +175,9 @@ async function writeOutboundMessageAndThread({
       accountId,
       chatId,
       lastMessageAt: timestamp || admin.firestore.Timestamp.now(),
-      lastMessageText: text || null,
+      lastMessagePreview: (text || '').toString().substring(0, 200) || null,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      unreadCountGlobal: 0, // staff replied -> clear global unread backlog
     },
     { merge: true },
   );
@@ -195,7 +204,7 @@ async function runOutboxLoop({ stopSignal, pollMs = 1200, batch = 25, instanceId
         if (!claim.ok) continue;
 
         try {
-          const { accountId, chatId, to, text } = data;
+          const { accountId, chatId, to, text, createdByUid, createdByEmail } = data;
           const sendRes = await sendFn({ accountId, chatId, to, text });
           const waMessageKey = (sendRes?.waMessageKey || sendRes?.keyId || '').toString();
 
@@ -207,6 +216,8 @@ async function runOutboxLoop({ stopSignal, pollMs = 1200, batch = 25, instanceId
               waMessageKey,
               text,
               timestamp: sendRes?.timestamp,
+              senderUid: createdByUid,
+              senderEmail: createdByEmail,
             });
           }
 
