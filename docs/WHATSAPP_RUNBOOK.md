@@ -135,3 +135,30 @@ This runbook uses the canonical `whatsapp_accounts/*` schema only.
 - Connector marks `whatsapp_accounts.degraded=true` if `lastSeenAt` stale > 60s.
 - Alerts are written to `whatsapp_alerts/*` (super-admin only).
 
+---
+
+## 9) Blue/green deploy + lease handover (zero downtime)
+
+Goal: deploy a new connector version without double-connecting accounts.
+
+### Preconditions
+- Leases are enabled: `whatsapp_account_leases/{accountId}` documents exist.
+- Connector instances stop accounts on lease loss (expected).
+
+### Procedure
+1) **Deploy new version** on Railway (new deployment / instance).
+2) Watch `GET /health` on both old + new until:
+   - new instance reports the expected `gitSha`/`version`
+   - leases gradually move to the new instance (ownerInstanceId changes)
+3) Confirm the **old** instance stops accounts on lease loss (logs: `lease_lost`).
+4) Verify:
+   - `accounts[].heartbeatAgeSec` stays below threshold
+   - `outboxBacklog` does not spike
+   - `healthy: true`
+
+### Quick checklist
+- [ ] New deployment is up and serving `/health`
+- [ ] `leases[]` show one owner per account (no duplicates)
+- [ ] Old instance logs show it stopped accounts after losing lease
+- [ ] No “needs_qr” regressions after restart (volume ok)
+
