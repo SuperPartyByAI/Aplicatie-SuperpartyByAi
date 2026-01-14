@@ -202,7 +202,12 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                 }
 
                 // Display oldest->newest
-                final msgs = dedup.reversed.toList();
+                final msgs = dedup.reversed.where((d) {
+                  final m = d.data();
+                  final replacedBy = (m['replacedBy'] ?? '').toString();
+                  // Hide placeholder message once replaced by canonical WA message.
+                  return replacedBy.isEmpty;
+                }).toList();
 
                 return ListView.builder(
                   controller: _scroll,
