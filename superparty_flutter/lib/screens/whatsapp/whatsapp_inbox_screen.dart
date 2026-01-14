@@ -38,6 +38,37 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
 
     return Column(
       children: [
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance.collection('whatsapp_accounts').limit(30).snapshots(),
+          builder: (context, snap) {
+            final docs = snap.data?.docs ?? const [];
+            final degraded = docs.where((d) => d.data()['degraded'] == true).toList();
+            final bad = docs.where((d) {
+              final s = (d.data()['status'] ?? '').toString();
+              return s.isNotEmpty && s != 'connected';
+            }).toList();
+
+            if (degraded.isEmpty && bad.isEmpty) return const SizedBox.shrink();
+
+            final msg = degraded.isNotEmpty
+                ? 'WhatsApp: conexiuni degradate (${degraded.length}).'
+                : 'WhatsApp: conturi neconectate (${bad.length}).';
+
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Text(msg),
+              ),
+            );
+          },
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
           child: TextField(

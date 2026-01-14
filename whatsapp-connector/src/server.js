@@ -236,12 +236,32 @@ async function main() {
           assignedWorkerId: a.assignedWorkerId || null,
         };
       });
+
+      // Best-effort backlog metrics (avoid heavy scans)
+      const outboxSnap = await db
+        .collection('whatsapp_outbox')
+        .where('status', 'in', ['queued', 'failed'])
+        .orderBy('createdAt', 'asc')
+        .limit(50)
+        .get();
+      const outboxBacklog = outboxSnap.size;
+
+      const oldestIngestSnap = await db
+        .collection('whatsapp_ingest')
+        .where('processed', '==', false)
+        .orderBy('receivedAt', 'asc')
+        .limit(1)
+        .get();
+      const oldestIngest = oldestIngestSnap.docs[0]?.data()?.receivedAt || null;
+
       return res.json({
         ok: true,
         instanceId,
         uptimeSec: Math.floor(process.uptime()),
         runningAccounts: Array.from(manager._accounts.keys()),
         accounts,
+        outboxBacklog,
+        oldestUnprocessedIngestAt: oldestIngest,
       });
     } catch (e) {
       return res.status(500).json({ ok: false, error: String(e?.message || e), instanceId });
