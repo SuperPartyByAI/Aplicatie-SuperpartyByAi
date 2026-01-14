@@ -200,11 +200,13 @@ class _AiLogicGlobalScreenState extends State<AiLogicGlobalScreen> {
 
       final publicSnap = await publicRef.get();
       final privateSnap = await privateRef.get();
-      final vPub = (publicSnap.data()?['version'] is num)
-          ? (publicSnap.data()!['version'] as num).toInt()
+      final publicData = publicSnap.data();
+      final privateData = privateSnap.data();
+      final vPub = (publicData?['version'] is num)
+          ? (publicData!['version'] as num).toInt()
           : 0;
-      final vPriv = (privateSnap.data()?['version'] is num)
-          ? (privateSnap.data()!['version'] as num).toInt()
+      final vPriv = (privateData?['version'] is num)
+          ? (privateData!['version'] as num).toInt()
           : 0;
 
       final publicPart = _publicPart(parsed)

@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../firebase_options.dart';
 
@@ -18,18 +19,18 @@ class FirebaseService {
   /// Safe to call multiple times (idempotent).
   static Future<void> initialize() async {
     if (_initialized) {
-      print('[FirebaseService] Already initialized, skipping');
+      debugPrint('[FirebaseService] Already initialized, skipping');
       return;
     }
 
-    print('[FirebaseService] Initializing Firebase...');
+    debugPrint('[FirebaseService] Initializing Firebase...');
     
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
     _initialized = true;
-    print('[FirebaseService] ✅ Firebase initialized successfully');
+    debugPrint('[FirebaseService] ✅ Firebase initialized successfully');
   }
 
   /// Lazy getter for FirebaseAuth

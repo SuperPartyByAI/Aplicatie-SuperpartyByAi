@@ -37,7 +37,11 @@ class EvidenceModel {
   });
 
   factory EvidenceModel.fromFirestore(DocumentSnapshot doc, String eventId) {
-    final data = doc.data() as Map<String, dynamic>;
+    final raw = doc.data();
+    if (raw is! Map<String, dynamic>) {
+      throw FormatException('Invalid Firestore document data for EvidenceModel');
+    }
+    final data = raw;
     
     // Backward compatibility: read from 'category' or fallback to 'categorie'
     final categoryValue = (data['category'] as String?) ?? (data['categorie'] as String?) ?? 'onTime';

@@ -79,11 +79,13 @@ class _AiEventOverrideScreenState extends State<AiEventOverrideScreen> {
 
       final pubSnap = await _publicRef.get();
       final privSnap = await _privateRef.get();
-      final vPub = (pubSnap.data()?['version'] is num)
-          ? (pubSnap.data()!['version'] as num).toInt()
+      final pubData = pubSnap.data();
+      final privData = privSnap.data();
+      final vPub = (pubData?['version'] is num)
+          ? (pubData!['version'] as num).toInt()
           : 0;
-      final vPriv = (privSnap.data()?['version'] is num)
-          ? (privSnap.data()!['version'] as num).toInt()
+      final vPriv = (privData?['version'] is num)
+          ? (privData!['version'] as num).toInt()
           : 0;
 
       final publicOverrides = <String, dynamic>{};

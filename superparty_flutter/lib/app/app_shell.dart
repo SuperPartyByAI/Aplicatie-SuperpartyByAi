@@ -78,6 +78,13 @@ class _FirebaseInitGateState extends State<FirebaseInitGate> {
   bool _ready = FirebaseService.isInitialized;
   Object? _error;
   bool _initializing = false;
+  int _retryCount = 0;
+  static const int _maxRetries = 3;
+  static const List<Duration> _backoffDelays = [
+    Duration(seconds: 10),
+    Duration(seconds: 20),
+    Duration(seconds: 40),
+  ];
 
   @override
   void initState() {
@@ -97,15 +104,34 @@ class _FirebaseInitGateState extends State<FirebaseInitGate> {
     try {
       await FirebaseService.initialize().timeout(const Duration(seconds: 10));
       if (!mounted) return;
-      setState(() => _ready = true);
+      setState(() {
+        _ready = true;
+        _retryCount = 0;
+        _error = null;
+      });
     } catch (e, st) {
-      debugPrint('[BOOT] Firebase init failed: $e');
+      debugPrint('[BOOT] Firebase init failed (attempt ${_retryCount + 1}/$_maxRetries): $e');
       debugPrint('[BOOT] Stack: $st');
       if (!mounted) return;
-      setState(() => _error = e);
-    } finally {
-      if (mounted) {
-        setState(() => _initializing = false);
+
+      if (_retryCount < _maxRetries) {
+        // Retry with exponential backoff
+        final delay = _backoffDelays[_retryCount];
+        debugPrint('[BOOT] Retrying in ${delay.inSeconds}s...');
+        await Future.delayed(delay);
+        if (!mounted) return;
+        setState(() {
+          _retryCount++;
+          _initializing = false;
+        });
+        // Recursively retry
+        _init();
+      } else {
+        // Max retries exhausted
+        setState(() {
+          _error = e;
+          _initializing = false;
+        });
       }
     }
   }
@@ -115,6 +141,7 @@ class _FirebaseInitGateState extends State<FirebaseInitGate> {
     if (_ready) return widget.child;
 
     if (_error != null) {
+      final isExhausted = _retryCount >= _maxRetries;
       return Scaffold(
         body: Center(
           child: ConstrainedBox(
@@ -124,23 +151,43 @@ class _FirebaseInitGateState extends State<FirebaseInitGate> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.cloud_off, size: 48),
+                  const Icon(Icons.cloud_off, size: 48, color: Colors.red),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Firebase nu a putut fi inițializat.',
+                  Text(
+                    isExhausted
+                        ? 'Firebase nu a putut fi inițializat după $_maxRetries încercări.'
+                        : 'Firebase nu a putut fi inițializat.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Eroare: $_error',
                     textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 14),
                   ),
+                  if (!isExhausted) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Încercare ${_retryCount + 1}/$_maxRetries',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
                   const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _initializing ? null : _init,
-                    child: Text(_initializing ? 'Retry...' : 'Retry'),
-                  ),
+                  if (isExhausted)
+                    const Text(
+                      'Te rog repornește aplicația.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 14, color: Colors.grey),
+                    )
+                  else
+                    ElevatedButton(
+                      onPressed: _initializing ? null : _init,
+                      child: Text(_initializing ? 'Retry...' : 'Retry'),
+                    ),
                 ],
               ),
             ),

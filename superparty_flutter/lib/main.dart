@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
@@ -7,110 +8,153 @@ import 'services/background_service.dart';
 import 'services/firebase_service.dart';
 import 'services/push_notification_service.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+void main() {
+  // CRITICAL: Wrap entire app in error zone to catch all unhandled errors
+  runZonedGuarded<Future<void>>(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
 
-  // Global error handlers for debugging
-  FlutterError.onError = (details) {
-    FlutterError.presentError(details);
-    if (kDebugMode) {
-      debugPrint('[FlutterError] Exception: ${details.exceptionAsString()}');
-      debugPrint('[FlutterError] Library: ${details.library}');
-      debugPrint('[FlutterError] Context: ${details.context}');
-      debugPrint('[FlutterError] Stack: ${details.stack}');
-      debugPrint(
-        '[FlutterError] Information: ${details.informationCollector?.call()}',
-      );
-    }
-  };
-
-  ErrorWidget.builder = (FlutterErrorDetails details) {
-    if (kDebugMode) {
-      debugPrint(
-        '[ErrorWidget] Building error widget for: '
-        '${details.exceptionAsString()}',
-      );
-      debugPrint('[ErrorWidget] Stack: ${details.stack}');
-    }
-    return ErrorWidget(details.exception);
-  };
-
-  PlatformDispatcher.instance.onError = (error, stack) {
-    if (kDebugMode) {
-      debugPrint('[UncaughtError] $error');
-      debugPrint('[UncaughtError] Stack: $stack');
-    }
-    return true;
-  };
-
-  // FAIL-SAFE: Initialize Firebase with error handling and timeout
-  try {
-    if (kDebugMode) debugPrint('[Main] Initializing Firebase...');
-    await FirebaseService.initialize().timeout(const Duration(seconds: 10));
-    if (kDebugMode) {
-      debugPrint('[Main] ✅ Firebase initialized successfully');
-    }
-  } catch (e, stackTrace) {
-    if (kDebugMode) {
-      debugPrint('[Main] ❌ Firebase initialization failed: $e');
-      debugPrint('[Main] Stack trace: $stackTrace');
-      debugPrint('[Main] ⚠️ App will continue with limited functionality');
-      debugPrint(
-        '[Main] ℹ️ Features requiring Firebase will be unavailable',
-      );
-    }
-  }
-
-  // FAIL-SAFE: Background service is optional (mobile only)
-  if (!kIsWeb) {
-    try {
-      if (kDebugMode) {
-        debugPrint('[Main] Initializing background service...');
-      }
-      await BackgroundService.initialize();
-      if (kDebugMode) {
-        debugPrint('[Main] ✅ Background service initialized');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint(
-          '[Main] ⚠️ Background service init error (non-critical): $e',
+      // Global error handlers - must be set before any Flutter operations
+      FlutterError.onError = (details) {
+        // Always call default handler first
+        FlutterError.presentError(details);
+        if (kDebugMode) {
+          debugPrint('[FlutterError] Exception: ${details.exceptionAsString()}');
+          debugPrint('[FlutterError] Library: ${details.library}');
+          debugPrint('[FlutterError] Context: ${details.context}');
+          debugPrint('[FlutterError] Stack: ${details.stack}');
+          debugPrint(
+            '[FlutterError] Information: ${details.informationCollector?.call()}',
+          );
+        }
+        // Forward to zone error handler
+        Zone.current.handleUncaughtError(
+          details.exception,
+          details.stack ?? StackTrace.current,
         );
-      }
-    }
-  } else {
-    if (kDebugMode) {
-      debugPrint(
-        '[Main] ℹ️ Background service skipped (not supported on web)',
-      );
-    }
-  }
+      };
 
-  // FAIL-SAFE: Push notifications are optional (mobile only)
-  if (!kIsWeb) {
-    try {
-      if (kDebugMode) {
-        debugPrint('[Main] Initializing push notifications...');
-      }
-      await PushNotificationService.initialize();
-      if (kDebugMode) {
-        debugPrint('[Main] ✅ Push notifications initialized');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint(
-          '[Main] ⚠️ Push notification init error (non-critical): $e',
+      // ErrorWidget builder - must NOT create MaterialApp (single MaterialApp rule)
+      ErrorWidget.builder = (FlutterErrorDetails details) {
+        if (kDebugMode) {
+          debugPrint(
+            '[ErrorWidget] Building error widget for: '
+            '${details.exceptionAsString()}',
+          );
+          debugPrint('[ErrorWidget] Stack: ${details.stack}');
+        }
+        // Return minimal error widget without MaterialApp
+        return Directionality(
+          textDirection: TextDirection.ltr,
+          child: Material(
+            child: Container(
+              color: Colors.red.shade50,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text(
+                        'A apărut o eroare',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red.shade900,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        details.exceptionAsString(),
+                        style: const TextStyle(fontSize: 14),
+                        textAlign: TextAlign.center,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         );
-      }
-    }
-  } else {
-    if (kDebugMode) {
-      debugPrint(
-        '[Main] ℹ️ Push notifications skipped (not supported on web)',
-      );
-    }
-  }
+      };
 
-  if (kDebugMode) debugPrint('[Main] Starting app...');
-  runApp(const AppShell());
+      PlatformDispatcher.instance.onError = (error, stack) {
+        if (kDebugMode) {
+          debugPrint('[UncaughtError] $error');
+          debugPrint('[UncaughtError] Stack: $stack');
+        }
+        // Forward to zone error handler
+        Zone.current.handleUncaughtError(error, stack);
+        return true;
+      };
+
+      // FAIL-SAFE: Background service is optional (mobile only)
+      if (!kIsWeb) {
+        try {
+          if (kDebugMode) {
+            debugPrint('[Main] Initializing background service...');
+          }
+          await BackgroundService.initialize();
+          if (kDebugMode) {
+            debugPrint('[Main] ✅ Background service initialized');
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint(
+              '[Main] ⚠️ Background service init error (non-critical): $e',
+            );
+          }
+        }
+      } else {
+        if (kDebugMode) {
+          debugPrint(
+            '[Main] ℹ️ Background service skipped (not supported on web)',
+          );
+        }
+      }
+
+      // FAIL-SAFE: Push notifications are optional (mobile only)
+      if (!kIsWeb) {
+        try {
+          if (kDebugMode) {
+            debugPrint('[Main] Initializing push notifications...');
+          }
+          await PushNotificationService.initialize();
+          if (kDebugMode) {
+            debugPrint('[Main] ✅ Push notifications initialized');
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint(
+              '[Main] ⚠️ Push notification init error (non-critical): $e',
+            );
+          }
+        }
+      } else {
+        if (kDebugMode) {
+          debugPrint(
+            '[Main] ℹ️ Push notifications skipped (not supported on web)',
+          );
+        }
+      }
+
+      if (kDebugMode) debugPrint('[Main] Starting app...');
+      // NOTE: Firebase init is handled by FirebaseInitGate in AppShell
+      // This ensures UI appears immediately and init happens asynchronously
+      runApp(const AppShell());
+    },
+    (error, stack) {
+      // Global error handler for uncaught errors outside Flutter framework
+      if (kDebugMode) {
+        debugPrint('[ZONE_ERROR] Uncaught error: $error');
+        debugPrint('[ZONE_ERROR] Stack: $stack');
+      }
+      // In production, you might want to log to crash reporting service here
+    },
+  );
 }

@@ -1,0 +1,110 @@
+name: Flutter CI
+
+on:
+  pull_request:
+    paths:
+      - 'superparty_flutter/**'
+      - '.github/workflows/flutter-ci.yml'
+  push:
+    branches: [main, 'feature/**', 'stability-hardening']
+    paths:
+      - 'superparty_flutter/**'
+      - '.github/workflows/flutter-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  format:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        working-directory: ./superparty_flutter
+        run: flutter pub get
+
+      - name: Check formatting
+        working-directory: ./superparty_flutter
+        run: dart format --set-exit-if-changed lib test
+
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        working-directory: ./superparty_flutter
+        run: flutter pub get
+
+      - name: Run Flutter Analyze
+        working-directory: ./superparty_flutter
+        run: flutter analyze --fatal-infos --fatal-warnings || (flutter analyze && exit 1)
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        working-directory: ./superparty_flutter
+        run: flutter pub get
+
+      - name: Run tests
+        working-directory: ./superparty_flutter
+        run: flutter test
+
+  guardrails:
+    name: Guardrails Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for unsafe .data()! usage
+        run: |
+          if grep -r "\.data()!" superparty_flutter/lib/ --include="*.dart" | grep -v "test"; then
+            echo "❌ Found unsafe .data()! usage in lib/ (use null-safe access)"
+            grep -rn "\.data()!" superparty_flutter/lib/ --include="*.dart" | grep -v "test"
+            exit 1
+          else
+            echo "✅ No unsafe .data()! usage found"
+          fi
+
+      - name: Check for MaterialApp outside main.dart
+        run: |
+          if grep -r "MaterialApp(" superparty_flutter/lib/ --include="*.dart" | grep -v "lib/main.dart" | grep -v "test"; then
+            echo "❌ Found MaterialApp outside lib/main.dart (single MaterialApp rule)"
+            grep -rn "MaterialApp(" superparty_flutter/lib/ --include="*.dart" | grep -v "lib/main.dart" | grep -v "test"
+            exit 1
+          else
+            echo "✅ MaterialApp only in main.dart"
+          fi
+
+      - name: Check for init polling loops
+        run: |
+          if grep -r "while.*isInitialized" superparty_flutter/lib/ --include="*.dart" | grep -v "test"; then
+            echo "❌ Found init polling loop (use async init with timeout/retry)"
+            grep -rn "while.*isInitialized" superparty_flutter/lib/ --include="*.dart" | grep -v "test"
+            exit 1
+          else
+            echo "✅ No init polling loops found"
+          fi
