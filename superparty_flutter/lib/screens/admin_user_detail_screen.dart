@@ -24,6 +24,8 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
   String _error = '';
 
   List<TeamItem> _teams = [];
+  String? _pendingTeamId;
+  String? _pendingStatus;
 
   @override
   void initState() {
@@ -57,6 +59,48 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
   String _prettyError(Object e) {
     final s = e.toString();
     return s.replaceFirst(RegExp(r'^(Exception|StateError):\s*'), '');
+  }
+
+  Future<void> _applyTeamChange({required String currentTeamId}) async {
+    final next = _pendingTeamId;
+    if (next == null || next.isEmpty) return;
+    if (next == currentTeamId) return;
+    if (_busy) return;
+
+    setState(() {
+      _busy = true;
+      _info = '';
+      _error = '';
+    });
+    try {
+      await _admin.changeUserTeam(uid: widget.uid, newTeamId: next);
+      _setInfo('Echipa a fost schimbată și codul a fost re-alocat.');
+    } catch (e) {
+      _setError(_prettyError(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _applyStatusChange({required String currentStatus}) async {
+    final next = (_pendingStatus ?? currentStatus).trim();
+    if (next.isEmpty) return;
+    if (next == currentStatus) return;
+    if (_busy) return;
+
+    setState(() {
+      _busy = true;
+      _info = '';
+      _error = '';
+    });
+    try {
+      await _admin.setUserStatus(uid: widget.uid, status: next);
+      _setInfo('Status actualizat: $next');
+    } catch (e) {
+      _setError(_prettyError(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -122,6 +166,8 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                           final assigned = (staffData['assignedCode'] as String?) ?? (staffData['codIdentificare'] as String?) ?? '';
                           final setupDone = (staffData['setupDone'] as bool?) ?? false;
                           final status = (userData['status'] as String?) ?? 'active';
+                          final selectedTeamId = _pendingTeamId ?? (teamId.isNotEmpty ? teamId : null);
+                          final selectedStatus = _pendingStatus ?? status;
 
                           return SingleChildScrollView(
                             child: Column(
@@ -149,7 +195,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                                       const _FieldLabel('Schimbă echipa (re-alocă cod)'),
                                       const SizedBox(height: 8),
                                       DropdownButtonFormField<String>(
-                                        value: teamId.isNotEmpty ? teamId : null,
+                                        value: selectedTeamId,
                                         items: _teams
                                             .map(
                                               (t) => DropdownMenuItem<String>(
@@ -160,22 +206,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                                             .toList(),
                                         onChanged: _busy
                                             ? null
-                                            : (newTeamId) async {
-                                                if (newTeamId == null || newTeamId.isEmpty) return;
-                                                setState(() {
-                                                  _busy = true;
-                                                  _info = '';
-                                                  _error = '';
-                                                });
-                                                try {
-                                                  await _admin.changeUserTeam(uid: widget.uid, newTeamId: newTeamId);
-                                                  _setInfo('Echipa a fost schimbată și codul a fost re-alocat.');
-                                                } catch (e) {
-                                                  _setError(_prettyError(e));
-                                                } finally {
-                                                  setState(() => _busy = false);
-                                                }
-                                              },
+                                            : (newTeamId) => setState(() => _pendingTeamId = newTeamId),
                                         decoration: _inputDecoration('Selectează echipa…'),
                                         dropdownColor: const Color(0xFF0B1220),
                                         style: const TextStyle(color: Color(0xFFEAF1FF)),
@@ -184,30 +215,18 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                                       SizedBox(
                                         width: double.infinity,
                                         height: 44,
-                                        child: OutlinedButton(
-                                          onPressed: (_busy || teamId.isEmpty)
+                                        child: ElevatedButton(
+                                          onPressed: (_busy || selectedTeamId == null || selectedTeamId.isEmpty || selectedTeamId == teamId)
                                               ? null
-                                              : () async {
-                                                  setState(() {
-                                                    _busy = true;
-                                                    _info = '';
-                                                    _error = '';
-                                                  });
-                                                  try {
-                                                    await _admin.changeUserTeam(uid: widget.uid, newTeamId: teamId, forceReallocate: true);
-                                                    _setInfo('Codul a fost re-alocat în aceeași echipă.');
-                                                  } catch (e) {
-                                                    _setError(_prettyError(e));
-                                                  } finally {
-                                                    setState(() => _busy = false);
-                                                  }
-                                                },
-                                          style: OutlinedButton.styleFrom(
+                                              : () => _applyTeamChange(currentTeamId: teamId),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: accent.withOpacity(0.18),
                                             foregroundColor: const Color(0xFFEAF1FF),
-                                            side: BorderSide(color: accent.withOpacity(0.35)),
+                                            elevation: 0,
                                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            side: BorderSide(color: accent.withOpacity(0.35)),
                                           ),
-                                          child: _busy ? const Text('Se procesează…') : const Text('Force reallocate (same team)'),
+                                          child: _busy ? const Text('Se procesează…') : const Text('Schimbă echipa'),
                                         ),
                                       ),
                                     ],
@@ -220,29 +239,33 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                                     children: [
                                       const _FieldLabel('Status utilizator'),
                                       const SizedBox(height: 8),
-                                      Wrap(
-                                        spacing: 10,
-                                        runSpacing: 10,
-                                        children: [
-                                          _StatusButton(
-                                            label: 'active',
-                                            selected: status == 'active',
-                                            busy: _busy,
-                                            onTap: () => _setStatus('active'),
-                                          ),
-                                          _StatusButton(
-                                            label: 'inactive',
-                                            selected: status == 'inactive',
-                                            busy: _busy,
-                                            onTap: () => _setStatus('inactive'),
-                                          ),
-                                          _StatusButton(
-                                            label: 'blocked',
-                                            selected: status == 'blocked',
-                                            busy: _busy,
-                                            onTap: () => _setStatus('blocked'),
-                                          ),
+                                      DropdownButtonFormField<String>(
+                                        value: selectedStatus,
+                                        items: const [
+                                          DropdownMenuItem(value: 'active', child: Text('active')),
+                                          DropdownMenuItem(value: 'inactive', child: Text('inactive')),
+                                          DropdownMenuItem(value: 'blocked', child: Text('blocked')),
                                         ],
+                                        onChanged: _busy ? null : (v) => setState(() => _pendingStatus = v),
+                                        decoration: _inputDecoration('Selectează status…'),
+                                        dropdownColor: const Color(0xFF0B1220),
+                                        style: const TextStyle(color: Color(0xFFEAF1FF)),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        height: 44,
+                                        child: ElevatedButton(
+                                          onPressed: (_busy || selectedStatus == status) ? null : () => _applyStatusChange(currentStatus: status),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: accent.withOpacity(0.18),
+                                            foregroundColor: const Color(0xFFEAF1FF),
+                                            elevation: 0,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            side: BorderSide(color: accent.withOpacity(0.35)),
+                                          ),
+                                          child: _busy ? const Text('Se procesează…') : const Text('Setează status'),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -271,22 +294,6 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
     );
   }
 
-  Future<void> _setStatus(String status) async {
-    setState(() {
-      _busy = true;
-      _info = '';
-      _error = '';
-    });
-    try {
-      await _admin.setUserStatus(uid: widget.uid, status: status);
-      _setInfo('Status actualizat: $status');
-    } catch (e) {
-      _setError(_prettyError(e));
-    } finally {
-      setState(() => _busy = false);
-    }
-  }
-
   InputDecoration _inputDecoration(String hint) {
     return InputDecoration(
       hintText: hint,
@@ -304,40 +311,6 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
       disabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: Colors.white.withOpacity(0.10)),
-      ),
-    );
-  }
-}
-
-class _StatusButton extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final bool busy;
-  final VoidCallback onTap;
-
-  const _StatusButton({
-    required this.label,
-    required this.selected,
-    required this.busy,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = const Color.fromRGBO(78, 205, 196, 1);
-    return InkWell(
-      onTap: busy ? null : onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? accent.withOpacity(0.18) : Colors.white.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: selected ? accent.withOpacity(0.40) : Colors.white.withOpacity(0.10)),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(color: Color(0xFFEAF1FF), fontWeight: FontWeight.w900),
-        ),
       ),
     );
   }

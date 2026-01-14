@@ -62,6 +62,24 @@ app.use(express.urlencoded({ extended: true }));
 const WhatsAppManager = require('./whatsapp/manager');
 const whatsappManager = new WhatsAppManager(io);
 
+// -----------------------------------------------------------------------------
+// Staff Settings + Admin callables (TypeScript build output)
+// -----------------------------------------------------------------------------
+// These functions are implemented in `functions/src/index.ts` and compiled to `functions/dist/index.js`.
+// We explicitly re-export them here so Firebase deploy picks them up from this entrypoint.
+try {
+  // eslint-disable-next-line global-require
+  const staffCallables = require('./dist/index.js');
+  exports.allocateStaffCode = staffCallables.allocateStaffCode;
+  exports.finalizeStaffSetup = staffCallables.finalizeStaffSetup;
+  exports.updateStaffPhone = staffCallables.updateStaffPhone;
+  exports.changeUserTeam = staffCallables.changeUserTeam;
+  exports.setUserStatus = staffCallables.setUserStatus;
+  console.log('✅ Staff/Admin callables exported');
+} catch (e) {
+  console.warn('⚠️ Staff/Admin callables not loaded (dist/index.js missing?)', e?.message || e);
+}
+
 app.get('/', (req, res) => {
   res.json({
     status: 'online',
