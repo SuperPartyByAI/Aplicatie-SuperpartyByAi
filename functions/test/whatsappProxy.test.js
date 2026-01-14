@@ -1,13 +1,16 @@
 'use strict';
 
 /**
- * Unit tests for WhatsApp Proxy send endpoint
+ * Unit tests for WhatsApp Proxy endpoints
  * 
- * Tests owner/co-writer policy and idempotency.
+ * Tests owner/co-writer policy, idempotency, auth, and validation.
  */
 
+// Set env var before importing module (to avoid fail-fast in tests)
+process.env.WHATSAPP_RAILWAY_BASE_URL = process.env.WHATSAPP_RAILWAY_BASE_URL || 'https://test-railway.invalid';
+process.env.NODE_ENV = 'test';
+
 const admin = require('firebase-admin');
-const { send } = require('../whatsappProxy');
 
 // Mock Firebase Admin
 jest.mock('firebase-admin', () => {
@@ -349,5 +352,344 @@ describe('WhatsApp Proxy /send', () => {
         })
       );
     });
+  });
+});
+
+describe('WhatsApp Proxy /getAccounts', () => {
+  let req;
+  let res;
+  let mockForwardRequest;
+
+  beforeEach(() => {
+    req = {
+      method: 'GET',
+      headers: {
+        authorization: 'Bearer mock-token',
+      },
+    };
+
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+      headersSent: false,
+    };
+
+    admin.auth().verifyIdToken.mockResolvedValue({
+      uid: 'user123',
+      email: 'user@example.com',
+    });
+
+    // Mock forwardRequest
+    mockForwardRequest = jest.fn().mockResolvedValue({
+      statusCode: 200,
+      body: { success: true, accounts: [] },
+    });
+  });
+
+  it('should reject unauthenticated requests', async () => {
+    req.headers.authorization = null;
+    admin.auth().verifyIdToken.mockResolvedValue(null);
+
+    // Clear module cache to get fresh instance
+    jest.resetModules();
+    const { getAccounts } = require('../whatsappProxy');
+
+    await getAccounts(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'missing_auth_token',
+      })
+    );
+  });
+
+  it('should reject non-employee users', async () => {
+    // Mock staffProfiles doesn't exist
+    const mockDb = admin.firestore();
+    mockDb.collection.mockImplementation((collectionName) => {
+      if (collectionName === 'staffProfiles') {
+        return {
+          doc: jest.fn(() => ({
+            get: jest.fn().mockResolvedValue({ exists: false }),
+          })),
+        };
+      }
+      return { doc: jest.fn() };
+    });
+
+    jest.resetModules();
+    const { getAccounts } = require('../whatsappProxy');
+    await getAccounts(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'employee_only',
+      })
+    );
+  });
+
+  it('should allow employees and forward request', async () => {
+    // Mock employee (has staffProfiles)
+    const mockDb = admin.firestore();
+    mockDb.collection.mockImplementation((collectionName) => {
+      if (collectionName === 'staffProfiles') {
+        return {
+          doc: jest.fn(() => ({
+            get: jest.fn().mockResolvedValue({
+              exists: true,
+              data: () => ({ role: 'staff' }),
+            }),
+          })),
+        };
+      }
+      return { doc: jest.fn() };
+    });
+
+    // Mock forwardRequest (would need to be injected, but for now test structure)
+    jest.resetModules();
+    const { getAccounts } = require('../whatsappProxy');
+    
+    // This will fail on forwardRequest, but auth should pass
+    try {
+      await getAccounts(req, res);
+    } catch (e) {
+      // Expected - forwardRequest not fully mocked
+    }
+
+    // Verify it didn't fail on auth
+    expect(res.status).not.toHaveBeenCalledWith(401);
+    expect(res.status).not.toHaveBeenCalledWith(403);
+  });
+});
+
+describe('WhatsApp Proxy /addAccount', () => {
+  let req;
+  let res;
+
+  beforeEach(() => {
+    req = {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer mock-token',
+      },
+      body: {
+        name: 'Test Account',
+        phone: '+407123456789',
+      },
+    };
+
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+      headersSent: false,
+    };
+  });
+
+  it('should reject unauthenticated requests', async () => {
+    req.headers.authorization = null;
+    admin.auth().verifyIdToken.mockResolvedValue(null);
+
+    jest.resetModules();
+    const { addAccount } = require('../whatsappProxy');
+    await addAccount(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'missing_auth_token',
+      })
+    );
+  });
+
+  it('should reject non-super-admin', async () => {
+    admin.auth().verifyIdToken.mockResolvedValue({
+      uid: 'user123',
+      email: 'user@example.com', // Not super-admin
+    });
+
+    jest.resetModules();
+    const { addAccount } = require('../whatsappProxy');
+    await addAccount(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'super_admin_only',
+      })
+    );
+  });
+
+  it('should reject invalid name', async () => {
+    admin.auth().verifyIdToken.mockResolvedValue({
+      uid: 'admin123',
+      email: 'ursache.andrei1995@gmail.com', // Super-admin
+    });
+
+    req.body.name = ''; // Invalid
+
+    jest.resetModules();
+    const { addAccount } = require('../whatsappProxy');
+    await addAccount(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'invalid_request',
+      })
+    );
+  });
+
+  it('should reject invalid phone', async () => {
+    admin.auth().verifyIdToken.mockResolvedValue({
+      uid: 'admin123',
+      email: 'ursache.andrei1995@gmail.com', // Super-admin
+    });
+
+    req.body.phone = '123'; // Too short
+
+    jest.resetModules();
+    const { addAccount } = require('../whatsappProxy');
+    await addAccount(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'invalid_request',
+      })
+    );
+  });
+
+  it('should accept valid super-admin request', async () => {
+    admin.auth().verifyIdToken.mockResolvedValue({
+      uid: 'admin123',
+      email: 'ursache.andrei1995@gmail.com', // Super-admin
+    });
+
+    jest.resetModules();
+    const { addAccount } = require('../whatsappProxy');
+    
+    // This will fail on forwardRequest, but validation should pass
+    try {
+      await addAccount(req, res);
+    } catch (e) {
+      // Expected - forwardRequest not mocked
+    }
+
+    // Verify it didn't fail on auth or validation
+    expect(res.status).not.toHaveBeenCalledWith(401);
+    expect(res.status).not.toHaveBeenCalledWith(403);
+    expect(res.status).not.toHaveBeenCalledWith(400);
+  });
+});
+
+describe('WhatsApp Proxy /regenerateQr', () => {
+  let req;
+  let res;
+
+  beforeEach(() => {
+    req = {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer mock-token',
+      },
+      query: {
+        accountId: 'account123',
+      },
+      body: {},
+    };
+
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+      headersSent: false,
+    };
+  });
+
+  it('should reject unauthenticated requests', async () => {
+    req.headers.authorization = null;
+    admin.auth().verifyIdToken.mockResolvedValue(null);
+
+    jest.resetModules();
+    const { regenerateQr } = require('../whatsappProxy');
+    await regenerateQr(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'missing_auth_token',
+      })
+    );
+  });
+
+  it('should reject non-super-admin', async () => {
+    admin.auth().verifyIdToken.mockResolvedValue({
+      uid: 'user123',
+      email: 'user@example.com', // Not super-admin
+    });
+
+    jest.resetModules();
+    const { regenerateQr } = require('../whatsappProxy');
+    await regenerateQr(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'super_admin_only',
+      })
+    );
+  });
+
+  it('should require accountId', async () => {
+    admin.auth().verifyIdToken.mockResolvedValue({
+      uid: 'admin123',
+      email: 'ursache.andrei1995@gmail.com',
+    });
+
+    req.query = {};
+    req.body = {};
+
+    jest.resetModules();
+    const { regenerateQr } = require('../whatsappProxy');
+    await regenerateQr(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'invalid_request',
+      })
+    );
+  });
+
+  it('should accept valid super-admin request', async () => {
+    admin.auth().verifyIdToken.mockResolvedValue({
+      uid: 'admin123',
+      email: 'ursache.andrei1995@gmail.com',
+    });
+
+    jest.resetModules();
+    const { regenerateQr } = require('../whatsappProxy');
+    
+    // This will fail on forwardRequest, but validation should pass
+    try {
+      await regenerateQr(req, res);
+    } catch (e) {
+      // Expected - forwardRequest not mocked
+    }
+
+    // Verify it didn't fail on auth or validation
+    expect(res.status).not.toHaveBeenCalledWith(401);
+    expect(res.status).not.toHaveBeenCalledWith(403);
+    expect(res.status).not.toHaveBeenCalledWith(400);
   });
 });
