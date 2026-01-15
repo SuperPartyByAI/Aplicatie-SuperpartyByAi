@@ -213,6 +213,9 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
   }
 
   Future<void> _onSave() async {
+    // Guard: prevent double-submit
+    if (_busy) return;
+    
     final user = _service.currentUser;
     if (user == null) {
       _setError('Nu ești autentificat.');
