@@ -49,24 +49,23 @@ npm run rules:deploy     # Deploy rules
 - ✅ `whatsapp-ci.yml` - Node 20, build step, tests
 - ✅ `flutter-ci.yml` - Flutter analyze + test
 
-## How to Run Locally
+## How to Run Locally (3-5 commands max)
 
-### 1. Start Emulators
+### 1. Start Emulators + Seed
 ```powershell
+# Terminal 1
 npm run emu
-```
 
-### 2. Seed Firestore
-```powershell
+# Terminal 2 (după ce emulators pornesc)
 npm run seed:emu
 ```
 
-### 3. Build Functions
+### 2. Build Functions (dacă ai modificat TS)
 ```powershell
 npm run functions:build
 ```
 
-### 4. Run Flutter (with emulators)
+### 3. Run Flutter (cu emulators)
 ```powershell
 cd superparty_flutter
 flutter run --dart-define=USE_EMULATORS=true
@@ -83,13 +82,17 @@ flutter run --dart-define=USE_EMULATORS=true
 - Error mapping (401/403/timeout)
 - Retry logic (doesn't retry 401/403)
 
-## Remaining Risks (Max 5)
+## Remaining Risks (Max 3)
 
-1. **MEDIUM**: Functions callables don't verify `requestToken` for idempotency (allocateStaffCode has token but doesn't check it server-side)
-2. **LOW**: Flutter features/ structure not fully implemented (only error handling + retry added, not full domain/data/presentation split)
-3. **LOW**: WhatsApp UI screens may still have double-tap issues (need state machine protection)
-4. **LOW**: Husky pre-commit hook fails on Windows (npx not in PATH) - needs fix or bypass
-5. **LOW**: Functions project ID hardcoded in WhatsAppApiService._getFunctionsUrl() - should use Firebase.app().options.projectId
+1. **LOW**: Flutter features/ structure not fully implemented (only error handling + retry added, not full domain/data/presentation split) - non-blocking
+2. **LOW**: Router redirects tests are placeholders (require full GoRouter mocks) - non-blocking
+3. **LOW**: Functions tests for idempotency/changeUserTeam need emulator setup - documented in test files
+
+**Resolved:**
+- ✅ Server-side idempotency implemented (requestToken checked in transaction)
+- ✅ Hardcoded projectId removed (derived from Firebase.app().options.projectId)
+- ✅ WhatsApp UI in-flight guards added (prevent double-tap)
+- ✅ Husky resilient on Windows (fallback if npx not in PATH)
 
 ## Next Actions
 

@@ -9,40 +9,40 @@ Quick reference for running the app locally on Windows PowerShell.
 - Java 17+ (for Firestore emulator): `winget install EclipseAdoptium.Temurin.17.JDK`
 - Flutter (optional, for Flutter app): Install from [flutter.dev](https://flutter.dev)
 
-## Quick Commands
+## Quick Commands (3-5 max)
 
-### Start Firebase Emulators
+### 1. Start Emulators + Seed
 
 ```powershell
-# From repo root
+# Terminal 1: Start emulators
 npm run emu
-# or
-npm run emulators
+
+# Terminal 2: Seed Firestore (wait for emulators to start)
+npm run seed:emu
 ```
 
-This starts:
-- Firestore: http://127.0.0.1:8080
+**URL-uri:**
+- Firestore: http://127.0.0.1:8081 (check firebase.json for current port)
 - Functions: http://127.0.0.1:5002
 - Auth: http://127.0.0.1:9098
 - UI: http://127.0.0.1:4001
 
-### Seed Firestore (after emulators start)
-
-```powershell
-npm run seed:emu
-```
-
-Creates:
-- `teams/team_a`, `team_b`, `team_c`
-- `teamCodePools/team_a`, `team_b`, `team_c` with free codes
-
-### Build Functions (TypeScript)
+### 2. Build Functions (if changed TypeScript)
 
 ```powershell
 npm run functions:build
 ```
 
-Compiles `functions/src/*.ts` → `functions/dist/*.js`
+### 3. Run Flutter (with emulators)
+
+```powershell
+cd superparty_flutter
+flutter run --dart-define=USE_EMULATORS=true
+```
+
+**Seed creates:**
+- `teams/team_a`, `team_b`, `team_c`
+- `teamCodePools/team_a`, `team_b`, `team_c` with free codes
 
 ### Deploy Functions
 
@@ -101,13 +101,17 @@ The app will automatically connect to emulators if `USE_EMULATORS=true` and `kDe
 
 ## Troubleshooting
 
-### Java not found
+### ExecutionPolicy blocks .ps1
+
+**Fix:** Folosește `.cmd` sau `npm` scripts:
+```powershell
+npm run emu  # nu .ps1 direct
+```
+
+### Java not found (Firestore emulator)
 
 ```powershell
-# Install Java 17
 winget install EclipseAdoptium.Temurin.17.JDK
-
-# Verify
 java -version
 ```
 
@@ -115,13 +119,26 @@ java -version
 
 ```powershell
 npm i -g firebase-tools
-# Or use npx
-npx.cmd -y firebase-tools emulators:start ...
+# Scripts folosesc deja firebase.cmd
 ```
 
 ### Port already in use
 
-Edit `firebase.json` to change emulator ports, or stop the process using the port.
+Verifică porturile în `firebase.json`:
+- Firestore: 8081
+- Functions: 5002
+- Auth: 9098
+
+Stop procesul care folosește portul sau schimbă portul în `firebase.json`.
+
+### USE_EMULATORS not working
+
+Verifică că rulezi cu `--dart-define`:
+```powershell
+flutter run --dart-define=USE_EMULATORS=true
+```
+
+Nu edita manual `firebase_service.dart` - este automat prin dart-define.
 
 ### Functions build fails
 
@@ -129,7 +146,7 @@ Edit `firebase.json` to change emulator ports, or stop the process using the por
 cd functions
 npm.cmd ci
 npm.cmd run build
-# Check functions/dist/index.js exists
+# Verifică: functions/dist/index.js există
 ```
 
 ## Notes
