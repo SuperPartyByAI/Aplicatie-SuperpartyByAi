@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:http/http.dart' as http;
 
 import '../core/config/env.dart';
@@ -25,17 +27,28 @@ class WhatsAppApiService {
 
   /// Get Functions URL (for proxy calls)
   String _getFunctionsUrl() {
-    // Use Firebase Functions instance region
     final region = 'us-central1';
-    // Get project ID from Firebase (runtime)
-    try {
-      // Import firebase_options at top if needed, or use Firebase.app().options.projectId
-      // For now, use default (should match your Firebase project)
-      final projectId = 'superparty-by-ai'; // TODO: Extract from Firebase.app().options.projectId
-      return 'https://$region-$projectId.cloudfunctions.net';
-    } catch (_) {
-      return 'https://$region-superparty-by-ai.cloudfunctions.net';
+    
+    // Check if using emulators
+    const useEmulators = bool.fromEnvironment('USE_EMULATORS', defaultValue: false);
+    if (useEmulators && kDebugMode) {
+      // Emulator Functions URL (from firebase.json: port 5002)
+      return 'http://127.0.0.1:5002';
     }
+    
+    // Production: derive project ID from Firebase
+    try {
+      final app = Firebase.app();
+      final projectId = app.options.projectId;
+      if (projectId != null && projectId.isNotEmpty) {
+        return 'https://$region-$projectId.cloudfunctions.net';
+      }
+    } catch (_) {
+      // Fallback if Firebase not initialized
+    }
+    
+    // Fallback: use default (should match your Firebase project)
+    return 'https://$region-superparty-frontend.cloudfunctions.net';
   }
 
   /// Generate request ID for idempotency
