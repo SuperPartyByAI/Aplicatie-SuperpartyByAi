@@ -360,6 +360,8 @@ const START_TIME = Date.now();
 console.log(`🚀 SuperParty WhatsApp Backend v${VERSION} (${COMMIT_HASH})`);
 console.log(`📍 PORT: ${PORT}`);
 console.log(`📁 Auth directory: ${authDir}`);
+const CONNECTING_TIMEOUT_MS = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
+console.log(`⏱️  WhatsApp connect timeout: ${Math.floor(CONNECTING_TIMEOUT_MS / 1000)}s`);
 console.log(`🔥 Firestore: ${admin.apps.length > 0 ? 'Connected' : 'Not connected'}`);
 console.log(`📊 Max accounts: ${MAX_ACCOUNTS}`);
 
@@ -492,8 +494,8 @@ async function createConnection(accountId, name, phone) {
     return;
   }
 
-  // Set timeout to prevent "connecting forever"
-  const CONNECTING_TIMEOUT = 60000; // 60 seconds
+  // Set timeout to prevent "connecting forever" (configurable via env)
+  const CONNECTING_TIMEOUT = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
 
   try {
     console.log(`\n🔌 [${accountId}] Creating connection...`);
@@ -578,9 +580,11 @@ async function createConnection(accountId, name, phone) {
 
     connections.set(accountId, account);
 
-    // Set timeout to prevent "connecting forever"
+    // Set timeout to prevent "connecting forever" (configurable via env)
+    const CONNECTING_TIMEOUT = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
     account.connectingTimeout = setTimeout(() => {
-      console.log(`⏰ [${accountId}] Connecting timeout (60s), transitioning to disconnected`);
+      const timeoutSeconds = Math.floor(CONNECTING_TIMEOUT / 1000);
+      console.log(`⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`);
       const acc = connections.get(accountId);
       if (acc && acc.status === 'connecting') {
         acc.status = 'disconnected';
@@ -3095,7 +3099,7 @@ async function restoreSingleAccount(accountId) {
 
 // Extract account restore logic
 async function restoreAccount(accountId, data) {
-  const CONNECTING_TIMEOUT = 60000; // 60 seconds - same as createConnection
+  const CONNECTING_TIMEOUT = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
 
   try {
     console.log(
@@ -3204,13 +3208,15 @@ async function restoreAccount(accountId, data) {
       lastUpdate: data.updatedAt || new Date().toISOString(),
     };
 
-    // Set timeout to prevent "connecting forever" - CRITICAL FIX
+    // Set timeout to prevent "connecting forever" - CRITICAL FIX (configurable via env)
+    const CONNECTING_TIMEOUT = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
     account.connectingTimeout = setTimeout(() => {
-      console.log(`⏰ [${accountId}] Connecting timeout (60s), transitioning to disconnected`);
+      const timeoutSeconds = Math.floor(CONNECTING_TIMEOUT / 1000);
+      console.log(`⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`);
       const acc = connections.get(accountId);
       if (acc && acc.status === 'connecting') {
         acc.status = 'disconnected';
-        acc.lastError = 'Connection timeout - no progress after 60s';
+        acc.lastError = `Connection timeout - no progress after ${timeoutSeconds}s`;
         saveAccountToFirestore(accountId, {
           status: 'disconnected',
           lastError: 'Connection timeout',
