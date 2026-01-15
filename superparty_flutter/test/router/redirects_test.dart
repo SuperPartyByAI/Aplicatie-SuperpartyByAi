@@ -51,5 +51,14 @@ void main() {
   // 2. Mocking FirebaseService.auth.currentUser
   // 3. Mocking AdminService.isCurrentUserAdmin()
   // 4. Using GoRouter test utilities
-  // This is a minimal placeholder for now
+  // 
+  // Expected redirect logic (from app_router.dart):
+  // - If !FirebaseService.isInitialized: return null (no redirect)
+  // - If user == null && path != '/': return '/' (redirect to login)
+  // - If user == null && path == '/': return null (allow public route)
+  // - If user != null && path.startsWith('/admin') && !isAdmin: return '/home'
+  // - Otherwise: return null (no redirect)
+  //
+  // This test file documents expected behavior. Full implementation requires
+  // GoRouter test utilities or extracting redirect logic to a testable function.
 })

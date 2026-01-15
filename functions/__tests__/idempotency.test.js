@@ -109,5 +109,42 @@ describe('Idempotency helpers', () => {
       const ageMinutes = (now - fourteenMinutesAgo) / (1000 * 60);
       expect(ageMinutes).toBeLessThan(15);
     });
+
+    it('should handle boundary case: exactly 15 minutes', () => {
+      const now = Date.now();
+      const exactlyFifteenMinutesAgo = now - 15 * 60 * 1000;
+      const ageMinutes = (now - exactlyFifteenMinutesAgo) / (1000 * 60);
+      expect(ageMinutes).toBe(15);
+    });
+
+    it('should handle very old tokens (cleanup)', () => {
+      const now = Date.now();
+      const oneHourAgo = now - 60 * 60 * 1000;
+      const ageMinutes = (now - oneHourAgo) / (1000 * 60);
+      expect(ageMinutes).toBeGreaterThan(15);
+      // Should be cleaned up
+    });
+  });
+
+  describe('Token format edge cases', () => {
+    it('should handle very long tokens', () => {
+      const longToken = 'a'.repeat(200);
+      const hash = hashToken(longToken);
+      expect(hash).toBeTruthy();
+      expect(hash.length).toBeGreaterThan(0);
+    });
+
+    it('should handle tokens with only special characters', () => {
+      const specialToken = '!@#$%^&*()';
+      const hash = hashToken(specialToken);
+      expect(hash).toBeTruthy();
+      // Hash should still be generated (alphanumeric chars extracted)
+    });
+
+    it('should handle unicode characters', () => {
+      const unicodeToken = 'token_测试_123';
+      const hash = hashToken(unicodeToken);
+      expect(hash).toBeTruthy();
+    });
   });
 });

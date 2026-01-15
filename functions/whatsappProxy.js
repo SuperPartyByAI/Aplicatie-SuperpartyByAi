@@ -15,8 +15,9 @@ const http = require('http');
 // Super admin email
 const SUPER_ADMIN_EMAIL = 'ursache.andrei1995@gmail.com';
 
-// Railway backend base URL - REQUIRED (fail fast if missing)
+// Railway backend base URL - LAZY EVALUATION (computed only when handler is called)
 // Supports both v1 functions.config() and v2 process.env/defineSecret
+// This avoids throwing at module import time (allows Firebase emulator to analyze code)
 function getRailwayBaseUrl() {
   // Try v2 process.env first (for v2 functions)
   if (process.env.WHATSAPP_RAILWAY_BASE_URL) {
@@ -34,18 +35,11 @@ function getRailwayBaseUrl() {
     // functions.config() not available (v2 functions or test environment)
   }
 
-  // Fail fast in production, but allow tests to mock
-  if (process.env.NODE_ENV === 'production' || process.env.FIREBASE_CONFIG) {
-    throw new Error(
-      'WHATSAPP_RAILWAY_BASE_URL must be set via environment variable or functions.config().whatsapp.railway_base_url'
-    );
-  }
-
-  // In test/dev, return a placeholder (tests will mock forwardRequest anyway)
-  return 'https://test-railway-url.invalid';
+  // Return null if missing (handler will return 500 error at runtime)
+  // This allows module to load without throwing during Firebase emulator analysis
+  return null;
 }
 
-const RAILWAY_BASE_URL = getRailwayBaseUrl();
 const REQUEST_TIMEOUT_MS = 30000; // 30 seconds
 
 // Get admin emails from environment
@@ -480,8 +474,18 @@ async function getAccountsHandler(req, res) {
       const isSuperAdmin = await requireSuperAdmin(req, res);
       if (!isSuperAdmin) return; // Response already sent (401/403)
 
+      // Lazy-load Railway base URL (computed at handler runtime, not module load time)
+      const railwayBaseUrl = getRailwayBaseUrl();
+      if (!railwayBaseUrl) {
+        return res.status(500).json({
+          success: false,
+          error: 'configuration_missing',
+          message: 'WHATSAPP_RAILWAY_BASE_URL must be set via environment variable or functions.config().whatsapp.railway_base_url',
+        });
+      }
+
       // Forward to Railway backend
-      const railwayUrl = `${RAILWAY_BASE_URL}/api/whatsapp/accounts`;
+      const railwayUrl = `${railwayBaseUrl}/api/whatsapp/accounts`;
       const response = await getForwardRequest()(railwayUrl, {
         method: 'GET',
         headers: {
@@ -531,6 +535,16 @@ async function addAccountHandler(req, res) {
       const isSuperAdmin = await requireSuperAdmin(req, res);
       if (!isSuperAdmin) return; // Response already sent (401/403)
 
+      // Lazy-load Railway base URL (computed at handler runtime, not module load time)
+      const railwayBaseUrl = getRailwayBaseUrl();
+      if (!railwayBaseUrl) {
+        return res.status(500).json({
+          success: false,
+          error: 'configuration_missing',
+          message: 'WHATSAPP_RAILWAY_BASE_URL must be set via environment variable or functions.config().whatsapp.railway_base_url',
+        });
+      }
+
       // Validate request body
       const { name, phone } = req.body;
 
@@ -555,7 +569,7 @@ async function addAccountHandler(req, res) {
       }
 
       // Forward to Railway backend with normalized values
-      const railwayUrl = `${RAILWAY_BASE_URL}/api/whatsapp/add-account`;
+      const railwayUrl = `${railwayBaseUrl}/api/whatsapp/add-account`;
       const response = await getForwardRequest()(railwayUrl, {
         method: 'POST',
         headers: {
@@ -632,6 +646,16 @@ async function regenerateQrHandler(req, res) {
       const isSuperAdmin = await requireSuperAdmin(req, res);
       if (!isSuperAdmin) return; // Response already sent (401/403)
 
+      // Lazy-load Railway base URL (computed at handler runtime, not module load time)
+      const railwayBaseUrl = getRailwayBaseUrl();
+      if (!railwayBaseUrl) {
+        return res.status(500).json({
+          success: false,
+          error: 'configuration_missing',
+          message: 'WHATSAPP_RAILWAY_BASE_URL must be set via environment variable or functions.config().whatsapp.railway_base_url',
+        });
+      }
+
       // Extract and validate accountId
       const accountId = req.query.accountId || req.body.accountId;
       if (!accountId || typeof accountId !== 'string' || accountId.trim().length === 0) {
@@ -643,7 +667,7 @@ async function regenerateQrHandler(req, res) {
       }
 
       // Forward to Railway backend
-      const railwayUrl = `${RAILWAY_BASE_URL}/api/whatsapp/regenerate-qr/${accountId.trim()}`;
+      const railwayUrl = `${railwayBaseUrl}/api/whatsapp/regenerate-qr/${accountId.trim()}`;
       const response = await getForwardRequest()(railwayUrl, {
         method: 'POST',
         headers: {

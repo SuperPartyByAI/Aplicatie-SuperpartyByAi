@@ -7,6 +7,7 @@
  */
 
 // Set env var before importing module (to avoid fail-fast in tests)
+// Note: For lazy-loading tests, we'll unset this to test missing config behavior
 process.env.WHATSAPP_RAILWAY_BASE_URL = process.env.WHATSAPP_RAILWAY_BASE_URL || 'https://test-railway.invalid';
 process.env.NODE_ENV = 'test';
 
@@ -704,5 +705,154 @@ describe('WhatsApp Proxy /send', () => {
         requestId: expectedRequestId,
       })
     );
+  });
+});
+
+describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
+  let originalEnv;
+
+  beforeEach(() => {
+    // Save original env
+    originalEnv = process.env.WHATSAPP_RAILWAY_BASE_URL;
+    originalEnv = originalEnv ? { WHATSAPP_RAILWAY_BASE_URL: originalEnv } : {};
+  });
+
+  afterEach(() => {
+    // Restore original env
+    if (originalEnv.WHATSAPP_RAILWAY_BASE_URL) {
+      process.env.WHATSAPP_RAILWAY_BASE_URL = originalEnv.WHATSAPP_RAILWAY_BASE_URL;
+    } else {
+      delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+    }
+    jest.resetModules();
+  });
+
+  it('should NOT throw when requiring index.js without WHATSAPP_RAILWAY_BASE_URL', () => {
+    // Unset env var
+    delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+    delete process.env.FIREBASE_CONFIG; // Also unset to avoid production check
+
+    // Should not throw during require
+    expect(() => {
+      require('../index');
+    }).not.toThrow();
+  });
+
+  it('should return 500 error when getAccountsHandler called without base URL', async () => {
+    // Unset env var
+    delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+    delete process.env.FIREBASE_CONFIG;
+
+    jest.resetModules();
+    const whatsappProxy = require('../whatsappProxy');
+
+    const req = {
+      method: 'GET',
+      headers: {
+        authorization: 'Bearer mock-token',
+      },
+    };
+
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+      headersSent: false,
+    };
+
+    admin.auth().verifyIdToken.mockResolvedValue({
+      uid: 'admin123',
+      email: 'ursache.andrei1995@gmail.com', // Super-admin
+    });
+
+    await whatsappProxy.getAccountsHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'configuration_missing',
+        message: expect.stringContaining('WHATSAPP_RAILWAY_BASE_URL'),
+      })
+    );
+  });
+
+  it('should return 500 error when addAccountHandler called without base URL', async () => {
+    delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+    delete process.env.FIREBASE_CONFIG;
+
+    jest.resetModules();
+    const whatsappProxy = require('../whatsappProxy');
+
+    const req = {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer mock-token',
+      },
+      body: {
+        name: 'Test Account',
+        phone: '+407123456789',
+      },
+    };
+
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+      headersSent: false,
+    };
+
+    admin.auth().verifyIdToken.mockResolvedValue({
+      uid: 'admin123',
+      email: 'ursache.andrei1995@gmail.com',
+    });
+
+    await whatsappProxy.addAccountHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'configuration_missing',
+        message: expect.stringContaining('WHATSAPP_RAILWAY_BASE_URL'),
+      })
+    );
+  });
+
+  it('should work correctly when base URL is set via process.env', async () => {
+    process.env.WHATSAPP_RAILWAY_BASE_URL = 'https://test-railway.example.com';
+
+    jest.resetModules();
+    const whatsappProxy = require('../whatsappProxy');
+
+    const mockForwardRequest = jest.fn().mockResolvedValue({
+      statusCode: 200,
+      body: { success: true, accounts: [] },
+    });
+    whatsappProxy._forwardRequest = mockForwardRequest;
+
+    const req = {
+      method: 'GET',
+      headers: {
+        authorization: 'Bearer mock-token',
+      },
+    };
+
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+      headersSent: false,
+    };
+
+    admin.auth().verifyIdToken.mockResolvedValue({
+      uid: 'admin123',
+      email: 'ursache.andrei1995@gmail.com',
+    });
+
+    await whatsappProxy.getAccountsHandler(req, res);
+
+    expect(mockForwardRequest).toHaveBeenCalledWith(
+      'https://test-railway.example.com/api/whatsapp/accounts',
+      expect.any(Object)
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
   });
 });
