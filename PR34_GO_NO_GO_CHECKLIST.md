@@ -1,135 +1,133 @@
 # PR #34 — Go/No-Go Checklist
 
-**PR**: https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/pull/34  
+## A. Metadata
+
+**PR Link**: https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/pull/34  
 **Branch**: `whatsapp-production-stable`  
-**HEAD**: `ca8157e94`  
-**Status**: Draft → Ready for Review
+**Current HEAD**: `fe59c9943`  
+**Final Deploy SHA**: _______________  
+**Date/Time**: _______________  
+**Owner(s)**: _______________
 
 ---
 
-## ✅ Pre-merge Checks (OBLIGATORIU)
+## B. Blocking Gates (MUST BE PASS BEFORE MERGE)
 
-### 1. CI Status (BLOCANT)
+### 1. CI Checks (Manual Verification Required)
 
-**Verificare**: PR #34 → tab **Checks**
+**Verification**: PR #34 → tab **Checks**
 
-- [ ] `test-functions`: ✅ **PASS** / ❌ **FAIL**
-- [ ] `test-flutter`: ✅ **PASS** / ❌ **FAIL**
+- [ ] `test-functions`: [PASS / FAIL]
+  - **Link to run**: _______________
+  - **Notes / error summary** (if FAIL): _______________
 
-**Dacă FAIL**: Copiază primele 30-50 linii relevante din log aici pentru fix.
+- [ ] `test-flutter`: [PASS / FAIL]
+  - **Link to run**: _______________
+  - **Notes / error summary** (if FAIL): _______________
 
-**Status curent**: ⏳ **AWAITING MANUAL VERIFICATION**
+**Status**: ⏳ **AWAITING VERIFICATION**
+
+**If FAIL**: Copy first 30-50 relevant lines from log above for fix.
 
 ---
 
-### 2. Branch Protection (BLOCANT)
+### 2. Branch Protection on `main` (Manual Verification Required)
 
-**Verificare**: Repo Settings → Branches → `main` branch protection rules
+**Verification**: Repo Settings → Branches → `main` branch protection rules
 
 - [ ] **Require a pull request before merging** (enabled)
 - [ ] **Require approvals**: 1 (enabled)
+- [ ] **Dismiss stale pull request approvals when new commits are pushed** (enabled)
 - [ ] **Require status checks to pass before merging** (enabled)
   - [ ] `test-functions` (required)
   - [ ] `test-flutter` (required)
 - [ ] **Require branches to be up to date before merging** (enabled)
 - [ ] **Do not allow bypassing the above settings** (enabled)
 
-**Dacă nu e configurat**: Vezi `BRANCH_PROTECTION_SETUP.md` pentru pași manuali.
+**Verified by**: _______________  
+**Screenshot saved**: [YES / NO]  
+**Setup guide**: See [BRANCH_PROTECTION_SETUP.md](./BRANCH_PROTECTION_SETUP.md)
 
-**Status curent**: ⏳ **AWAITING VERIFICATION**
-
----
-
-### 3. Security Verification (COMPLETAT ✅)
-
-- [x] `firebase-adminsdk.json` — DELETED din tracking
-- [x] `RAILWAY-VARIABLES-V7.env` — DELETED din tracking
-- [x] `functions/.runtimeconfig.json` — REMOVED din tracking (doar `.example` rămâne)
-- [x] `.gitignore` — blochează fișiere sensibile
-- [x] Flutter — nu scrie direct în colecții server-only (verificat)
-- [x] WhatsApp — folosește Functions proxy (corect)
+**Status**: ⏳ **AWAITING VERIFICATION**
 
 ---
 
-### 4. Smoke Test (OBLIGATORIU înainte de merge)
+## C. Security Verification (Already Completed, but Record It)
 
-**Rulează după CI verde, înainte de merge/deploy.**
+- [x] `firebase-adminsdk.json` — DELETED from tracking
+- [x] `RAILWAY-VARIABLES-V7.env` — DELETED from tracking
+- [x] `functions/.runtimeconfig.json` — REMOVED from tracking (only `.example` remains)
+- [x] `.gitignore` — blocks env/runtimeconfig/backups
+- [x] Flutter — does not write directly to server-only collections (verified)
+- [x] WhatsApp — uses Functions proxy (correct)
 
-#### A. Flutter App (10 minute)
-
-- [ ] **Cold start**: App pornește fără crash
-- [ ] **Navigație**: Navighează 2-3 ecrane principale (ex: Login → Home → Events)
-- [ ] **Read Firestore**: Citește date din Firestore (ex: events list) — nu erori `PERMISSION_DENIED`
-- [ ] **Write Firestore**: 1 acțiune care scrie (ex: update user profile, create event) și confirmă în Firestore UI că s-a salvat
-
-**Environment**: Staging sau Production (după deploy)
-
-#### B. Backend Functions (5 minute)
-
-- [ ] **Protected endpoint**: Invocă un endpoint protejat cu token valid
-  - Ex: `POST /whatsappProxyGetAccounts` cu `Authorization: Bearer <token>`
-  - Așteptat: `200` (success) sau `403` (permisiuni) sau `500` (config), dar **NU** `401` "missing token"
-- [ ] **Logs**: Nu apar spam-uri de erori repetate (ex: Logtail Unauthorized în loop)
-
-**Environment**: Staging sau Production
-
-**Status curent**: ⏳ **NOT RUN YET**
+**Verified on SHA**: `ca8157e94`
 
 ---
 
-## 🚦 Go/No-Go Decision
+## D. Smoke Test (Must Be Run After CI Green)
 
-### ✅ GO (Ready to Merge)
+**Link to detailed checklist**: [SMOKE_TEST_CHECKLIST.md](./SMOKE_TEST_CHECKLIST.md)
 
-**Toate condițiile sunt îndeplinite:**
-- [x] CI verde (`test-functions` ✅, `test-flutter` ✅)
-- [x] Branch protection activ pe `main`
-- [x] Smoke test trecut (Flutter + Functions)
-- [x] Security verification completat
+- **Environment**: [Staging / Production]
+- **Start time**: _______________
+- **End time**: _______________
+- **Result**: [PASS / FAIL]
+- **Summary of failures** (if any): _______________
 
-**Acțiune**: 
-1. Mark PR #34 as **Ready for Review** (remove Draft)
-2. Request review
-3. After approval → Merge
+**Status**: ⏳ **NOT RUN YET**
 
 ---
 
-### ❌ NO-GO (Blocked)
+## E. Go/No-Go Decision Matrix
 
-**Blocant identificat:**
-- [ ] CI FAIL → Fix necesar (vezi eroarea mai sus)
-- [ ] Branch protection lipsă → Setup necesar
-- [ ] Smoke test FAIL → Debug necesar
+### ✅ GO Requirements (ALL must be PASS)
 
-**Acțiune**: Rezolvă blocantul, apoi re-verifică.
+- [ ] CI checks: `test-functions` PASS + `test-flutter` PASS
+- [ ] Branch protection: VERIFIED and enabled on `main`
+- [ ] Smoke test: PASS (all critical paths)
+- [ ] Security verification: COMPLETED
+
+### ❌ NO-GO Conditions (ANY blocks merge)
+
+- [ ] CI checks: Any FAIL → Fix required
+- [ ] Branch protection: Not enabled → Setup required
+- [ ] Smoke test: Any critical path FAIL → Debug required
 
 ---
 
-## 📋 Post-Merge Recommendations
+## Final Decision
 
-**După merge, consideră:**
-1. **Split PR-ul mare** în PR-uri mai mici pentru viitor:
+**Decision**: [GO / NO-GO]  
+**Approved by**: _______________  
+**Final deploy SHA**: _______________  
+**Date/Time**: _______________
+
+---
+
+## Post-Merge Recommendations
+
+**After merge, consider:**
+1. **Split large PR** into smaller PRs for future:
    - CI/security cleanup
    - Firestore rules
    - Functions changes
    - Flutter changes
    - Docs
 
-2. **Monitor production** pentru:
-   - Logtail errors (ar trebui să fie zero spam)
-   - Firestore permission errors (ar trebui să fie zero pentru colecții server-only)
-   - WhatsApp connection timeouts (ajustă `WHATSAPP_CONNECT_TIMEOUT_MS` dacă e nevoie)
+2. **Monitor production** for:
+   - Logtail errors (should be zero spam)
+   - Firestore permission errors (should be zero for server-only collections)
+   - WhatsApp connection timeouts (adjust `WHATSAPP_CONNECT_TIMEOUT_MS` if needed)
 
 ---
 
-## 📝 Notes
+## Notes
 
-- **PR size**: 209 fișiere, 119 commits (foarte mare — review/rollback mai greu)
-- **Risk level**: LOW (după verificări) — toate fix-urile critice sunt aplicate
-- **Rollback plan**: Dacă apare problemă, reverte commit `ca8157e94` sau folosește `git revert`
+- **PR size**: 209 files, 119 commits (very large — review/rollback harder)
+- **Risk level**: LOW (after verifications) — all critical fixes applied
+- **Rollback plan**: If issue occurs, revert commit `fe59c9943` or use `git revert`
 
 ---
 
-**Last updated**: 2026-01-15  
-**Verified by**: [Nume]  
-**Status**: ⏳ **AWAITING CI VERIFICATION**
+**Last updated**: 2026-01-15

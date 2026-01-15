@@ -1,145 +1,158 @@
 # Smoke Test Checklist — PR #34
 
-**Rulează după CI verde, înainte de merge/deploy.**
+**Run after CI green, before merge/deploy.**
 
-**Timp estimat**: 15 minute  
-**Environment**: Staging sau Production (după deploy)
-
----
-
-## A. Flutter App Smoke Test (10 minute)
-
-### 1. Cold Start ✅
-- [ ] Deschide app-ul (cold start)
-- [ ] App pornește fără crash
-- [ ] Login screen apare (sau auto-login dacă token valid)
-
-**Expected**: App pornește normal, fără erori în console.
+**Estimated time**: 15-20 minutes  
+**Environment**: Staging or Production (after deploy)
 
 ---
 
-### 2. Navigation ✅
-- [ ] Navighează la **Home** (sau ecran principal după login)
-- [ ] Navighează la **Events** (`/evenimente`)
-- [ ] Navighează la **Staff Settings** (`/staff-settings`) — dacă ești staff
-- [ ] Navighează la **Admin** (`/admin`) — dacă ești admin
+## A. Preconditions
 
-**Expected**: Navigația funcționează, fără erori `404` sau `PERMISSION_DENIED`.
+**Verify before starting:**
 
----
-
-### 3. Read Firestore ✅
-- [ ] **Events list**: Deschide ecranul Events și confirmă că lista se încarcă
-- [ ] **Event details**: Deschide un event și confirmă că datele se încarcă
-- [ ] **Staff profile**: Dacă ești staff, verifică că profilul tău se încarcă
-
-**Expected**: 
-- Datele se încarcă din Firestore
-- **NU** apar erori `PERMISSION_DENIED` în console/logs
-- **NU** apar erori `Missing or insufficient permissions`
-
-**Verificare în Firestore Console**:
-- `evenimente/{eventId}` — readable
-- `staffProfiles/{uid}` — readable (dacă ești staff)
+- [ ] CI checks green (`test-functions` PASS, `test-flutter` PASS)
+- [ ] Branch protection verified (or explicitly note if not yet enabled): _______________
+- [ ] Correct environment selected: [Staging / Production]
+- [ ] No secrets printed in logs (verify console/logs are clean)
 
 ---
 
-### 4. Write Firestore ✅
-- [ ] **Update user profile**: 
-  - Ex: Schimbă `displayName` în Settings
-  - Confirmă în Firestore Console că `users/{uid}` s-a actualizat
-- [ ] **Create/update event** (dacă ai permisiuni):
-  - Ex: Creează un event nou sau actualizează unul existent
-  - Confirmă în Firestore Console că `evenimente/{eventId}` s-a creat/actualizat
+## B. Mobile App Smoke Test (10-15 min)
 
-**Expected**:
-- Write-ul reușește (fără erori în UI)
-- Datele apar în Firestore Console
-- **NU** apar erori `PERMISSION_DENIED` pentru colecții permise (ex: `users`, `evenimente`)
+### Checklist
 
-**Verificare în Firestore Console**:
-- `users/{uid}` — updated (doar câmpuri permise: `displayName`, `phone`, `kycData`, `updatedAt`)
-- `evenimente/{eventId}` — created/updated (dacă ai permisiuni)
+- [ ] **Cold start successful**: App launches without crash
+- [ ] **Navigation to key screens works**:
+  - [ ] Home (or main screen after login)
+  - [ ] Events (`/evenimente`)
+  - [ ] Staff Settings (`/staff-settings`) — if staff
+  - [ ] Admin (`/admin`) — if admin
+- [ ] **Read operation succeeds** (no permission errors):
+  - [ ] Events list loads
+  - [ ] Event details load
+  - [ ] Staff profile loads (if staff)
+- [ ] **One write operation succeeds and is visible in DB/UI**:
+  - [ ] Update user profile (ex: `displayName`)
+  - [ ] Verify in Firestore Console that `users/{uid}` updated
+- [ ] **App recovers from airplane mode / reconnect** (optional):
+  - [ ] Enable airplane mode, wait 5s, disable
+  - [ ] App reconnects and continues working
 
----
+### Record Fields
 
-## B. Backend Functions Smoke Test (5 minute)
-
-### 1. Protected Endpoint ✅
-- [ ] **Obține token**: Folosește script `scripts/get-auth-emulator-token.ps1` (local) sau obține token de producție
-- [ ] **Test endpoint**: 
-  ```powershell
-  # Exemple (ajustă URL-ul pentru environment)
-  curl.exe -i https://us-central1-superparty-frontend.cloudfunctions.net/whatsappProxyGetAccounts `
-    -H "Authorization: Bearer <TOKEN>"
-  ```
-
-**Expected**:
-- `200` (success) — dacă ai permisiuni
-- `403` (forbidden) — dacă nu ai permisiuni (normal pentru non-admin)
-- `500` (server error) — dacă e config issue (nu e blocant dacă e cunoscut)
-- **NU** `401` "missing token" sau "Unauthorized" când token-ul e valid
+- **Device / OS**: _______________
+- **App build type**: [debug / release]
+- **Any errors seen** (copy exact message): _______________
 
 ---
 
-### 2. Logs Check ✅
-- [ ] **Verifică logs** (Railway / Firebase Functions logs):
-  - [ ] **NU** apar spam-uri de erori repetate (ex: Logtail "Unauthorized" în loop)
-  - [ ] **NU** apar erori de tip "Cannot find module" sau "Missing dependencies"
-  - [ ] Logurile normale apar (ex: "QR code generated", "Connection created")
+## C. Backend Functions Smoke Test (5 min)
 
-**Expected**:
-- Logs curate, fără spam
-- Dacă Logtail e dezactivat (token lipsă), apare doar un mesaj informativ la startup
+### Checklist
+
+- [ ] **Protected endpoint reachable with valid token**:
+  - Returns `200` (success) if permissions OK
+  - Returns `403` (forbidden) if no permissions (normal for non-admin)
+  - Returns `500` (server error) if config issue (not blocking if known)
+  - **NOT** `401` "missing token" or "Unauthorized" when token is valid
+- [ ] **Logs show no repeated error spam**:
+  - No Logtail "Unauthorized" loops
+  - No "Cannot find module" errors
+  - No "Missing dependencies" errors
+- [ ] **Write path results visible in DB**:
+  - If endpoint performs write, verify in Firestore Console
+
+### Record Fields
+
+- **Endpoint tested**: _______________
+- **HTTP status**: _______________
+- **Time**: _______________
+
+**Example command**:
+```powershell
+curl.exe -i https://us-central1-superparty-frontend.cloudfunctions.net/whatsappProxyGetAccounts `
+  -H "Authorization: Bearer <TOKEN>"
+```
 
 ---
 
-## C. WhatsApp Backend (dacă e deploy-uit) ✅
+## D. Observability Quick Check
 
-- [ ] **Health check**: 
+### Checklist
+
+- [ ] **No repeating Unauthorized/permission errors**:
+  - Check logs for repeated error patterns
+  - Verify no spam loops
+- [ ] **No crash loops or restart storms**:
+  - App/backend stays stable
+  - No repeated crashes
+- [ ] **Error rate normal**:
+  - Only expected errors (if any)
+  - No unexpected spikes
+
+**Logs checked**: [Railway / Firebase Functions / App logs]  
+**Issues found**: _______________
+
+---
+
+## E. WhatsApp Backend (if deployed)
+
+- [ ] **Health check**:
   ```powershell
   curl.exe https://whats-upp-production.up.railway.app/health
   ```
   Expected: `200 OK`
 
-- [ ] **Logs**: Verifică Railway logs pentru:
-  - [ ] **NU** spam "Logtail Unauthorized"
-  - [ ] **NU** erori de conexiune repetate
-  - [ ] Heartbeat-uri normale (dacă e configurat)
+- [ ] **Logs check**:
+  - [ ] No spam "Logtail Unauthorized"
+  - [ ] No connection errors repeated
+  - [ ] Heartbeats normal (if configured)
 
 ---
 
-## ✅ Smoke Test Results
+## F. Results Template (Copy-Paste for PR Comments)
 
-**Date**: _______________  
-**Environment**: Staging / Production  
+```
+## Smoke Test Results — PR #34
+
+**Environment**: [Staging / Production]
+**Date/Time**: _______________
 **Tester**: _______________
 
 ### Flutter App
-- [ ] Cold start: ✅ PASS / ❌ FAIL
-- [ ] Navigation: ✅ PASS / ❌ FAIL
-- [ ] Read Firestore: ✅ PASS / ❌ FAIL
-- [ ] Write Firestore: ✅ PASS / ❌ FAIL
+- Cold start: ✅ PASS / ❌ FAIL
+- Navigation: ✅ PASS / ❌ FAIL
+- Read Firestore: ✅ PASS / ❌ FAIL
+- Write Firestore: ✅ PASS / ❌ FAIL
 
 ### Backend Functions
-- [ ] Protected endpoint: ✅ PASS / ❌ FAIL
-- [ ] Logs check: ✅ PASS / ❌ FAIL
+- Protected endpoint: ✅ PASS / ❌ FAIL
+- Logs check: ✅ PASS / ❌ FAIL
 
-### WhatsApp Backend (dacă aplicabil)
-- [ ] Health check: ✅ PASS / ❌ FAIL
-- [ ] Logs check: ✅ PASS / ❌ FAIL
+### Observability
+- No error spam: ✅ PASS / ❌ FAIL
+- No crash loops: ✅ PASS / ❌ FAIL
+- Error rate normal: ✅ PASS / ❌ FAIL
+
+### WhatsApp Backend (if applicable)
+- Health check: ✅ PASS / ❌ FAIL
+- Logs check: ✅ PASS / ❌ FAIL
+
+**Overall Result**: ✅ PASS / ❌ FAIL
+
+**Notes** (if FAIL):
+- Test that failed: _______________
+- Exact error: _______________
+- Debug steps: _______________
+```
 
 ---
 
 ## 🚦 Decision
 
-- ✅ **PASS** — Toate testele trec → **GO** pentru merge
-- ❌ **FAIL** — Cel puțin un test eșuează → **NO-GO**, debug necesar
-
-**Notes** (dacă FAIL):
-- Ce test a eșuat: _______________
-- Eroarea exactă: _______________
-- Pași de debug: _______________
+- ✅ **PASS** — All tests pass → **GO** for merge
+- ❌ **FAIL** — At least one test fails → **NO-GO**, debug required
 
 ---
 
