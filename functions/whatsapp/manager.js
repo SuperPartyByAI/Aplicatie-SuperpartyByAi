@@ -1,9 +1,43 @@
-const makeWASocket = require('@whiskeysockets/baileys').default;
-const {
-  useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestBaileysVersion,
-} = require('@whiskeysockets/baileys');
+// Dynamic import for ES Module @whiskeysockets/baileys (cannot use require())
+let baileysModule = null;
+let makeWASocket = null;
+let useMultiFileAuthState = null;
+let DisconnectReason = null;
+let fetchLatestBaileysVersion = null;
+
+/**
+ * Lazy-load Baileys ES Module (required because it's ESM-only)
+ */
+async function loadBaileys() {
+  if (baileysModule) {
+    return {
+      makeWASocket: makeWASocket || baileysModule.default,
+      useMultiFileAuthState,
+      DisconnectReason,
+      fetchLatestBaileysVersion,
+    };
+  }
+
+  try {
+    baileysModule = await import('@whiskeysockets/baileys');
+    makeWASocket = baileysModule.default;
+    useMultiFileAuthState = baileysModule.useMultiFileAuthState;
+    DisconnectReason = baileysModule.DisconnectReason;
+    fetchLatestBaileysVersion = baileysModule.fetchLatestBaileysVersion;
+
+    console.log('✅ Baileys ES Module loaded successfully');
+    return {
+      makeWASocket,
+      useMultiFileAuthState,
+      DisconnectReason,
+      fetchLatestBaileysVersion,
+    };
+  } catch (error) {
+    console.error('❌ Failed to load Baileys ES Module:', error);
+    throw new Error(`Failed to load Baileys: ${error.message}`);
+  }
+}
+
 const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
@@ -1052,6 +1086,9 @@ class WhatsAppManager {
   }
 
   async connectBaileys(accountId, phoneNumber = null) {
+    // Load Baileys ES Module (lazy load)
+    const baileys = await loadBaileys();
+
     const sessionPath = path.join(this.sessionsPath, accountId);
 
     // Track connection start time
@@ -1080,13 +1117,13 @@ class WhatsAppManager {
       console.log(`✅ [${accountId}] Session restored from Firestore`);
     }
 
-    const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
-    const { version } = await fetchLatestBaileysVersion();
+    const { state, saveCreds } = await baileys.useMultiFileAuthState(sessionPath);
+    const { version } = await baileys.fetchLatestBaileysVersion();
 
     // TIER ULTIMATE 2: Get proxy agent if configured
     const proxyAgent = proxyRotationManager.getProxyAgent(accountId);
 
-    const sock = makeWASocket({
+    const sock = baileys.makeWASocket({
       version,
       auth: state,
       printQRInTerminal: false,
@@ -1098,10 +1135,13 @@ class WhatsAppManager {
     this.clients.set(accountId, sock);
     this.chatsCache.set(accountId, new Map()); // Initialize chat cache for this account
     this.messagesCache.set(accountId, new Map()); // Initialize messages cache for this account
-    this.setupBaileysEvents(accountId, sock, saveCreds, phoneNumber);
+    this.setupBaileysEvents(accountId, sock, saveCreds, phoneNumber, baileys.DisconnectReason);
   }
 
-  setupBaileysEvents(accountId, sock, saveCreds, phoneNumber = null) {
+  setupBaileysEvents(accountId, sock, saveCreds, phoneNumber = null, DisconnectReasonRef = null) {
+    // Use provided DisconnectReason or get from loaded module
+    const DisconnectReasonToUse = DisconnectReasonRef || DisconnectReason;
+
     sock.ev.on('connection.update', async update => {
       const { connection, lastDisconnect, qr } = update;
 
@@ -1222,7 +1262,7 @@ class WhatsAppManager {
 
         // Detect INVALID sessions (loggedOut, badSession, unauthorized)
         const isInvalidSession =
-          statusCode === DisconnectReason.loggedOut ||
+          (DisconnectReasonToUse && statusCode === DisconnectReasonToUse.loggedOut) ||
           statusCode === 401 ||
           statusCode === 403 ||
           statusCode === 428; // Connection closed (bad session)

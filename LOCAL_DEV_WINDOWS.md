@@ -22,7 +22,7 @@ npm run seed:emu
 ```
 
 **URL-uri:**
-- Firestore: http://127.0.0.1:8080
+- Firestore: http://127.0.0.1:8082
 - Functions: http://127.0.0.1:5002
 - Auth: http://127.0.0.1:9098
 - UI: http://127.0.0.1:4001

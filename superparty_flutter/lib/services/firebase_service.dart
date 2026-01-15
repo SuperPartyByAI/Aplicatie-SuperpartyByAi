@@ -38,10 +38,10 @@ class FirebaseService {
     if (useEmulators && kDebugMode) {
       debugPrint('[FirebaseService] 🔧 Using Firebase emulators (127.0.0.1)');
       try {
-        FirebaseFirestore.instance.useFirestoreEmulator('127.0.0.1', 8080);
+        FirebaseFirestore.instance.useFirestoreEmulator('127.0.0.1', 8082);
         FirebaseAuth.instance.useAuthEmulator('127.0.0.1', 9099);
         FirebaseFunctions.instanceFor(region: 'us-central1').useFunctionsEmulator('127.0.0.1', 5002);
-        debugPrint('[FirebaseService] ✅ Emulators configured: Firestore:8080, Auth:9099, Functions:5002');
+        debugPrint('[FirebaseService] ✅ Emulators configured: Firestore:8082, Auth:9099, Functions:5002');
       } catch (e) {
         debugPrint('[FirebaseService] ⚠️ Emulator setup error (continuing): $e');
       }

@@ -25,6 +25,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   // In-flight guards (prevent double-tap / concurrent requests)
   bool _isAddingAccount = false;
   final Set<String> _regeneratingQr = {}; // accountId -> in-flight
+  final Set<String> _deletingAccount = {}; // accountId -> in-flight
   int _loadRequestToken = 0;
 
   @override
@@ -214,6 +215,9 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   }
 
   Future<void> _deleteAccount(String accountId, String accountName) async {
+    // Guard: prevent double-tap
+    if (_deletingAccount.contains(accountId) || _isAddingAccount) return;
+    
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -234,6 +238,8 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     );
 
     if (confirmed != true) return;
+
+    setState(() => _deletingAccount.add(accountId));
 
     try {
       await _apiService.deleteAccount(accountId: accountId);
@@ -399,7 +405,9 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                     ),
                     const SizedBox(width: 8),
                     IconButton(
-                      onPressed: () => _deleteAccount(id, name),
+                      onPressed: _deletingAccount.contains(id) || _isAddingAccount
+                          ? null
+                          : () => _deleteAccount(id, name),
                       icon: const Icon(Icons.delete_outline, size: 20),
                       color: Colors.red,
                       tooltip: 'Delete account',

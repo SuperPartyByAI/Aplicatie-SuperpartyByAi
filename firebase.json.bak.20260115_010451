@@ -1,0 +1,101 @@
+﻿{
+    "firestore":  {
+                      "rules":  "firestore.rules"
+                  },
+    "storage":  {
+                    "rules":  "storage.rules"
+                },
+    "emulators":  {
+                      "auth":  {
+                                   "port":  9099
+                               },
+                      "firestore":  {
+                                        "port":  8080
+                                    },
+                      "functions":  {
+                                        "port":  5001
+                                    },
+                      "ui":  {
+                                 "port":  4000,
+                                 "enabled":  true
+                             }
+                  },
+    "functions":  [
+                      {
+                          "source":  "functions",
+                          "codebase":  "default",
+                          "runtime":  "nodejs20",
+                          "predeploy":  [
+                                            "npm --prefix functions ci",
+                                            "npm --prefix functions run build"
+                                        ],
+                          "ignore":  [
+                                         "node_modules",
+                                         ".git",
+                                         "firebase-debug.log",
+                                         "firebase-debug.*.log"
+                                     ]
+                      }
+                  ],
+    "hosting":  {
+                    "public":  "superparty_flutter/build/web",
+                    "ignore":  [
+                                   "firebase.json",
+                                   "**/.*",
+                                   "**/node_modules/**"
+                               ],
+                    "headers":  [
+                                    {
+                                        "source":  "/index.html",
+                                        "headers":  [
+                                                        {
+                                                            "key":  "Cache-Control",
+                                                            "value":  "no-cache, no-store, must-revalidate"
+                                                        }
+                                                    ]
+                                    },
+                                    {
+                                        "source":  "/version.json",
+                                        "headers":  [
+                                                        {
+                                                            "key":  "Cache-Control",
+                                                            "value":  "no-cache, no-store, must-revalidate"
+                                                        }
+                                                    ]
+                                    },
+                                    {
+                                        "source":  "/sw.js",
+                                        "headers":  [
+                                                        {
+                                                            "key":  "Cache-Control",
+                                                            "value":  "no-cache, no-store, must-revalidate"
+                                                        }
+                                                    ]
+                                    },
+                                    {
+                                        "source":  "/service-worker.js",
+                                        "headers":  [
+                                                        {
+                                                            "key":  "Cache-Control",
+                                                            "value":  "no-cache, no-store, must-revalidate"
+                                                        }
+                                                    ]
+                                    },
+                                    {
+                                        "source":  "**/*.@(js|css|jpg|jpeg|gif|png|svg|webp|woff|woff2|ttf|eot|ico)",
+                                        "headers":  [
+                                                        {
+                                                            "key":  "Cache-Control",
+                                                            "value":  "public, max-age=31536000, immutable"
+                                                        }
+                                                    ]
+                                    }
+                                ],
+                    "rewrites":  [
+                                     {
+                                         "source":  "**",
+                                         "destination":  "/index.html"
+                                     }
+                                 ]
+                }
+}
