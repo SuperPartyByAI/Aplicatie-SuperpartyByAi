@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../core/errors/app_exception.dart';
 import '../models/staff_models.dart';
 import '../services/staff_settings_service.dart';
 
@@ -72,8 +73,11 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
   }
 
   String _prettyError(Object e) {
+    if (e is AppException) {
+      return e.message;
+    }
     final s = e.toString();
-    return s.replaceFirst(RegExp(r'^(Exception|StateError):\s*'), '');
+    return s.replaceFirst(RegExp(r'^(Exception|StateError|Error):\s*'), '');
   }
 
   void _applyAssignedCode(String code) {

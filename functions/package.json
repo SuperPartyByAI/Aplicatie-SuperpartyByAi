@@ -7,12 +7,12 @@
     "node": "20"
   },
   "scripts": {
-    "build": "npx --yes tsc -p tsconfig.json",
-    "serve": "firebase emulators:start --only functions",
-    "shell": "firebase functions:shell",
+    "build": "npx.cmd --yes tsc -p tsconfig.json",
+    "serve": "firebase.cmd emulators:start --only functions",
+    "shell": "firebase.cmd functions:shell",
     "start": "npm run shell",
-    "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log",
+    "deploy": "firebase.cmd deploy --only functions",
+    "logs": "firebase.cmd functions:log",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

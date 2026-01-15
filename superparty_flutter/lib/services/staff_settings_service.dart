@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../core/errors/app_exception.dart';
+import '../core/utils/retry.dart';
 import '../models/staff_models.dart';
 
 class StaffSettingsService {
@@ -161,21 +163,23 @@ class StaffSettingsService {
     String? prevTeamId,
     int? prevCodeNumber,
   }) async {
-    final callable = functions.httpsCallable('allocateStaffCode');
-    try {
-      final res = await callable.call(<String, dynamic>{
-        'teamId': teamId,
-        if (prevTeamId != null && prevTeamId.isNotEmpty) 'prevTeamId': prevTeamId,
-        if (prevCodeNumber != null) 'prevCodeNumber': prevCodeNumber,
-      });
-      final data = (res.data as Map).cast<String, dynamic>();
-      final prefix = (data['prefix'] as String?) ?? '';
-      final number = (data['number'] as num).toInt();
-      final tId = (data['teamId'] as String?) ?? teamId;
-      return StaffAllocationResult(teamId: tId, prefix: prefix, number: number);
-    } catch (e) {
-      throw StateError(mapFunctionsError(e));
-    }
+    return retryWithBackoff(() async {
+      final callable = functions.httpsCallable('allocateStaffCode');
+      try {
+        final res = await callable.call(<String, dynamic>{
+          'teamId': teamId,
+          if (prevTeamId != null && prevTeamId.isNotEmpty) 'prevTeamId': prevTeamId,
+          if (prevCodeNumber != null) 'prevCodeNumber': prevCodeNumber,
+        });
+        final data = (res.data as Map).cast<String, dynamic>();
+        final prefix = (data['prefix'] as String?) ?? '';
+        final number = (data['number'] as num).toInt();
+        final tId = (data['teamId'] as String?) ?? teamId;
+        return StaffAllocationResult(teamId: tId, prefix: prefix, number: number);
+      } catch (e) {
+        throw ErrorMapper.fromFirebaseFunctionsException(e);
+      }
+    });
   }
 
   Future<void> finalizeStaffSetup({
@@ -183,25 +187,29 @@ class StaffSettingsService {
     required String teamId,
     required String assignedCode,
   }) async {
-    final callable = functions.httpsCallable('finalizeStaffSetup');
-    try {
-      await callable.call(<String, dynamic>{
-        'phone': phone,
-        'teamId': teamId,
-        'assignedCode': assignedCode,
-      });
-    } catch (e) {
-      throw StateError(mapFunctionsError(e));
-    }
+    return retryWithBackoff(() async {
+      final callable = functions.httpsCallable('finalizeStaffSetup');
+      try {
+        await callable.call(<String, dynamic>{
+          'phone': phone,
+          'teamId': teamId,
+          'assignedCode': assignedCode,
+        });
+      } catch (e) {
+        throw ErrorMapper.fromFirebaseFunctionsException(e);
+      }
+    });
   }
 
   Future<void> updateStaffPhone({required String phone}) async {
-    final callable = functions.httpsCallable('updateStaffPhone');
-    try {
-      await callable.call(<String, dynamic>{'phone': phone});
-    } catch (e) {
-      throw StateError(mapFunctionsError(e));
-    }
+    return retryWithBackoff(() async {
+      final callable = functions.httpsCallable('updateStaffPhone');
+      try {
+        await callable.call(<String, dynamic>{'phone': phone});
+      } catch (e) {
+        throw ErrorMapper.fromFirebaseFunctionsException(e);
+      }
+    });
   }
 }
 
