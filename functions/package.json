@@ -7,7 +7,7 @@
     "node": "20"
   },
   "scripts": {
-    "build": "npx.cmd --yes tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
     "serve": "firebase.cmd emulators:start --only functions",
     "shell": "firebase.cmd functions:shell",
     "start": "npm run shell",
