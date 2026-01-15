@@ -15,7 +15,10 @@ Write-Host ""
 Write-Host "[1/3] Obtaining Auth Emulator token..." -ForegroundColor Yellow
 try {
     $tokenScript = Join-Path $PSScriptRoot "get-auth-emulator-token.ps1"
-    $token = & $tokenScript 2>&1 | Select-Object -First 1
+    # Capture only stdout (token), ignore stderr
+    $token = & $tokenScript 2>$null | Select-Object -First 1
+    # Trim whitespace/newlines
+    $token = $token.Trim()
     if ([string]::IsNullOrEmpty($token)) {
         Write-Error "Failed to obtain token" -ErrorAction Stop
     }
@@ -41,6 +44,8 @@ Write-Host "[3/3] Calling protected endpoint..." -ForegroundColor Yellow
 $url = "http://$FunctionsHost$EndpointPath"
 
 try {
+    # Ensure token is trimmed (no whitespace/newlines)
+    $token = $token.Trim()
     $response = Invoke-WebRequest -Uri $url -Method GET -Headers @{
         "Authorization" = "Bearer $token"
     } -ErrorAction Stop
