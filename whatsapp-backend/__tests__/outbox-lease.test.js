@@ -19,6 +19,7 @@ jest.mock('firebase-admin', () => {
       })),
       fromMillis: jest.fn((ms) => ({
         toMillis: () => ms,
+        toDate: () => new Date(ms),
       })),
       fromDate: jest.fn((date) => ({
         toMillis: () => date.getTime(),
@@ -29,8 +30,12 @@ jest.mock('firebase-admin', () => {
     },
   };
 
+  const firestoreFn = jest.fn(() => mockFirestore);
+  // Attach Timestamp to firestore function itself (for admin.firestore.Timestamp access)
+  firestoreFn.Timestamp = mockFirestore.Timestamp;
+
   return {
-    firestore: jest.fn(() => mockFirestore),
+    firestore: firestoreFn,
     initializeApp: jest.fn(),
     apps: [],
   };

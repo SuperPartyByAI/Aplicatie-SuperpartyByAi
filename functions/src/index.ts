@@ -307,7 +307,6 @@ export const finalizeStaffSetup = onCall(
     return db.runTransaction(async tx => {
       // Idempotency check inside transaction (atomic with setup)
       const tokenSnap = await tx.get(tokenRef);
-      const tokenSnap = await tx.get(tokenRef);
       if (tokenSnap.exists) {
         const tokenData = tokenSnap.data() ?? {};
         const createdAt = tokenData.createdAt?.toMillis?.() ?? 0;
