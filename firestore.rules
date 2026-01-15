@@ -104,6 +104,12 @@ service cloud.firestore {
       allow read: if isAdminUser();
       allow write: if false;
     }
+
+    // Request tokens for idempotency (server-only)
+    match /staffRequestTokens/{tokenId} {
+      allow read: if false; // No client reads needed
+      allow write: if false; // Only server (Functions) can write
+    }
     
     // KYC Submissions
     match /kycSubmissions/{submissionId} {

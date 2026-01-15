@@ -72,6 +72,56 @@ function pickHighestFreeCode(freeCodes: unknown): number {
   return nums[0];
 }
 
+// Simple hash for request token (for idempotency key)
+function hashToken(token: string): string {
+  // Simple hash: use last 16 chars + length (sufficient for idempotency)
+  // In production, consider crypto.createHash('sha256').update(token).digest('hex').substring(0, 16)
+  const clean = token.trim();
+  return `${clean.length}_${clean.slice(-16).replace(/[^a-zA-Z0-9]/g, '')}`;
+}
+
+// Validate and extract request token
+function validateRequestToken(tokenRaw: unknown): string {
+  if (!isNonEmptyString(tokenRaw)) {
+    throw new HttpsError('invalid-argument', 'requestToken este obligatoriu pentru idempotency.');
+  }
+  return tokenRaw.trim();
+}
+
+// Check if request token was already processed (idempotency check)
+async function checkRequestToken(uid: string, tokenHash: string, maxAgeMinutes = 15): Promise<any> {
+  const tokenRef = db.collection('staffRequestTokens').doc(`${uid}_${tokenHash}`);
+  const tokenSnap = await tokenRef.get();
+  
+  if (!tokenSnap.exists) {
+    return null; // New request
+  }
+
+  const tokenData = tokenSnap.data() ?? {};
+  const createdAt = tokenData.createdAt?.toMillis?.() ?? 0;
+  const ageMinutes = (Date.now() - createdAt) / (1000 * 60);
+
+  if (ageMinutes > maxAgeMinutes) {
+    // Token expired, allow new request
+    await tokenRef.delete().catch(() => {}); // Best-effort cleanup
+    return null;
+  }
+
+  // Token exists and is valid - return cached result
+  return tokenData.result || null;
+}
+
+// Store request token with result (for idempotency)
+async function storeRequestToken(uid: string, tokenHash: string, result: any): Promise<void> {
+  const tokenRef = db.collection('staffRequestTokens').doc(`${uid}_${tokenHash}`);
+  await tokenRef.set({
+    uid,
+    tokenHash,
+    result,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
 async function assertKycDone(uid: string, emailFallback: string) {
   const snap = await db.collection('users').doc(uid).get();
   const data = snap.data() ?? {};
@@ -100,6 +150,7 @@ export const allocateStaffCode = onCall(
   async request => {
     const { uid, email } = assertAuthed(request);
     const teamId = validateTeamId((request.data as any)?.teamId);
+    const requestToken = validateRequestToken((request.data as any)?.requestToken);
     const prevTeamIdRaw = (request.data as any)?.prevTeamId;
     const prevCodeNumberRaw = (request.data as any)?.prevCodeNumber;
 
@@ -118,14 +169,29 @@ export const allocateStaffCode = onCall(
       return { teamId, prefix, number: prevCodeNumber, assignedCode: `${prefix}${prevCodeNumber}` };
     }
 
+    const tokenHash = hashToken(requestToken);
     const newPoolRef = db.collection('teamCodePools').doc(teamId);
     const newAssignRef = db.collection('teamAssignments').doc(`${teamId}_${uid}`);
     const historyRef = db.collection('teamAssignmentsHistory').doc();
+    const tokenRef = db.collection('staffRequestTokens').doc(`${uid}_${tokenHash}`);
 
     const oldPoolRef = prevTeamId ? db.collection('teamCodePools').doc(prevTeamId) : null;
     const oldAssignRef = prevTeamId ? db.collection('teamAssignments').doc(`${prevTeamId}_${uid}`) : null;
 
     return db.runTransaction(async tx => {
+      // Idempotency check inside transaction
+      const tokenSnap = await tx.get(tokenRef);
+      if (tokenSnap.exists) {
+        const tokenData = tokenSnap.data() ?? {};
+        const createdAt = tokenData.createdAt?.toMillis?.() ?? 0;
+        const ageMinutes = (Date.now() - createdAt) / (1000 * 60);
+        if (ageMinutes <= 15 && tokenData.result) {
+          // Return cached result
+          return tokenData.result;
+        }
+        // Token expired, delete and continue
+        tx.delete(tokenRef);
+      }
       const newPoolSnap = await tx.get(newPoolRef);
       if (!newPoolSnap.exists) {
         throw new HttpsError('not-found', 'Nu există pool de coduri pentru echipa selectată.');
@@ -193,7 +259,21 @@ export const allocateStaffCode = onCall(
         });
       }
 
-      return { teamId, prefix, number: picked, assignedCode: `${prefix}${picked}` };
+      const result = { teamId, prefix, number: picked, assignedCode: `${prefix}${picked}` };
+      
+      // Store token with result for idempotency (inside transaction)
+      tx.set(
+        tokenRef,
+        {
+          uid,
+          tokenHash,
+          result,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      return result;
     });
   },
 );
@@ -203,6 +283,7 @@ export const finalizeStaffSetup = onCall(
   async request => {
     const { uid, email } = assertAuthed(request);
     const teamId = validateTeamId((request.data as any)?.teamId);
+    const requestToken = validateRequestToken((request.data as any)?.requestToken);
     const assignedCodeRaw = (request.data as any)?.assignedCode;
     const phone = validatePhone((request.data as any)?.phone);
 
@@ -211,60 +292,99 @@ export const finalizeStaffSetup = onCall(
       throw new HttpsError('invalid-argument', 'assignedCode este obligatoriu.');
     }
 
-    // KYC + setup enforcement
+    // KYC + setup enforcement (before transaction for performance)
     const { fullName } = await assertKycDone(uid, email);
     const staffExisting = await assertStaffNotSetup(uid);
 
     const parsed = parseAssignedCode(assignedCode);
-    const assignRef = db.collection('teamAssignments').doc(`${teamId}_${uid}`);
-    const assignSnap = await assignRef.get();
-    if (!assignSnap.exists) {
-      throw new HttpsError('failed-precondition', 'Nu există o alocare validă pentru această echipă.');
-    }
-
-    const assign = assignSnap.data() ?? {};
-    const code = assign.code;
-    const prefix = (assign.prefix as string | undefined)?.trim() ?? '';
-    if (Math.trunc(Number(code)) !== parsed.number) {
-      throw new HttpsError('failed-precondition', 'Codul alocat nu corespunde. Reîncearcă alocarea.');
-    }
-    if (prefix !== parsed.prefix) {
-      throw new HttpsError('failed-precondition', 'Prefixul codului nu corespunde. Reîncearcă alocarea.');
-    }
-
+    const tokenHash = hashToken(requestToken);
     const staffRef = db.collection('staffProfiles').doc(uid);
     const userRef = db.collection('users').doc(uid);
+    const assignRef = db.collection('teamAssignments').doc(`${teamId}_${uid}`);
+    const tokenRef = db.collection('staffRequestTokens').doc(`${uid}_${tokenHash}`);
 
-    const now = admin.firestore.FieldValue.serverTimestamp();
-    await staffRef.set(
-      {
-        uid,
-        email,
-        nume: fullName,
-        phone,
-        teamId,
-        assignedCode,
-        codIdentificare: assignedCode,
-        ceCodAi: assignedCode,
-        cineNoteaza: assignedCode,
-        setupDone: true,
-        source: 'flutter',
-        updatedAt: now,
-        createdAt: staffExisting.createdAt ?? now,
-      },
-      { merge: true },
-    );
+    // Use transaction for atomicity with idempotency check
+    return db.runTransaction(async tx => {
+      // Idempotency check inside transaction (atomic with setup)
+      const tokenSnap = await tx.get(tokenRef);
+      const tokenSnap = await tx.get(tokenRef);
+      if (tokenSnap.exists) {
+        const tokenData = tokenSnap.data() ?? {};
+        const createdAt = tokenData.createdAt?.toMillis?.() ?? 0;
+        const ageMinutes = (Date.now() - createdAt) / (1000 * 60);
+        if (ageMinutes <= 15) {
+          // Return cached result
+          return tokenData.result || provideOk();
+        }
+        // Token expired, delete and continue
+        tx.delete(tokenRef);
+      }
 
-    await userRef.set(
-      {
-        staffSetupDone: true,
-        phone,
-        updatedAt: now,
-      },
-      { merge: true },
-    );
+      const assignSnap = await tx.get(assignRef);
+      if (!assignSnap.exists) {
+        throw new HttpsError('failed-precondition', 'Nu există o alocare validă pentru această echipă.');
+      }
 
-    return provideOk();
+      const assign = assignSnap.data() ?? {};
+      const code = assign.code;
+      const prefix = (assign.prefix as string | undefined)?.trim() ?? '';
+      if (Math.trunc(Number(code)) !== parsed.number) {
+        throw new HttpsError('failed-precondition', 'Codul alocat nu corespunde. Reîncearcă alocarea.');
+      }
+      if (prefix !== parsed.prefix) {
+        throw new HttpsError('failed-precondition', 'Prefixul codului nu corespunde. Reîncearcă alocarea.');
+      }
+
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      
+      // Update staff profile
+      tx.set(
+        staffRef,
+        {
+          uid,
+          email,
+          nume: fullName,
+          phone,
+          teamId,
+          assignedCode,
+          codIdentificare: assignedCode,
+          ceCodAi: assignedCode,
+          cineNoteaza: assignedCode,
+          setupDone: true,
+          source: 'flutter',
+          updatedAt: now,
+          createdAt: staffExisting.createdAt ?? now,
+        },
+        { merge: true },
+      );
+
+      // Update user
+      tx.set(
+        userRef,
+        {
+          staffSetupDone: true,
+          phone,
+          updatedAt: now,
+        },
+        { merge: true },
+      );
+
+      const result = provideOk();
+      
+      // Store token with result for idempotency (inside transaction)
+      tx.set(
+        tokenRef,
+        {
+          uid,
+          tokenHash,
+          result,
+          createdAt: now,
+        },
+        { merge: true },
+      );
+
+      return result;
+    });
   },
 );
 

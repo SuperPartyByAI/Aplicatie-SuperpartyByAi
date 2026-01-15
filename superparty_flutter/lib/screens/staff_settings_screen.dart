@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
@@ -37,6 +38,11 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
   String? _tempAllocatedPrefix;
 
   int _allocRequestToken = 0;
+
+  /// Generate unique request token for idempotency
+  String _generateRequestToken() {
+    return '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(10000)}';
+  }
 
   final _phoneCtrl = TextEditingController();
   final _assignedCodeCtrl = TextEditingController();
@@ -175,6 +181,7 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
     }
 
     final myToken = ++_allocRequestToken;
+    final requestToken = _generateRequestToken();
     setState(() => _busy = true); // disable dropdown immediately
 
     try {
@@ -182,6 +189,7 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
         teamId: teamId,
         prevTeamId: _tempAllocatedTeamId,
         prevCodeNumber: _tempAllocatedNumber,
+        requestToken: requestToken,
       );
 
       if (myToken != _allocRequestToken) return;
@@ -237,11 +245,14 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
       if (_teamLocked) {
         await _service.updateStaffPhone(phone: phone);
       } else {
+        final requestToken = _generateRequestToken();
+        
         if (assigned.isEmpty) {
           final res = await _service.allocateStaffCode(
             teamId: teamId,
             prevTeamId: _tempAllocatedTeamId,
             prevCodeNumber: _tempAllocatedNumber,
+            requestToken: requestToken,
           );
           assigned = res.assignedCode;
           _applyAssignedCode(assigned);
@@ -259,6 +270,7 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
           phone: phone,
           teamId: teamId,
           assignedCode: assigned,
+          requestToken: requestToken,
         );
       }
 

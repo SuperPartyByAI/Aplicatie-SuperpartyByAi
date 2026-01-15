@@ -162,12 +162,14 @@ class StaffSettingsService {
     required String teamId,
     String? prevTeamId,
     int? prevCodeNumber,
+    required String requestToken,
   }) async {
     return retryWithBackoff(() async {
       final callable = functions.httpsCallable('allocateStaffCode');
       try {
         final res = await callable.call(<String, dynamic>{
           'teamId': teamId,
+          'requestToken': requestToken,
           if (prevTeamId != null && prevTeamId.isNotEmpty) 'prevTeamId': prevTeamId,
           if (prevCodeNumber != null) 'prevCodeNumber': prevCodeNumber,
         });
@@ -186,6 +188,7 @@ class StaffSettingsService {
     required String phone,
     required String teamId,
     required String assignedCode,
+    required String requestToken,
   }) async {
     return retryWithBackoff(() async {
       final callable = functions.httpsCallable('finalizeStaffSetup');
@@ -194,6 +197,7 @@ class StaffSettingsService {
           'phone': phone,
           'teamId': teamId,
           'assignedCode': assignedCode,
+          'requestToken': requestToken,
         });
       } catch (e) {
         throw ErrorMapper.fromFirebaseFunctionsException(e);
