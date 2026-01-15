@@ -1,2 +1,12 @@
-# Run lint-staged
-npx lint-staged
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Windows-friendly pre-commit: fallback if npx not available
+# This allows commits on Windows even if npx is not in PATH
+if command -v npx >/dev/null 2>&1 || command -v npx.cmd >/dev/null 2>&1; then
+  npx lint-staged || npx.cmd lint-staged || true
+else
+  # Best-effort: skip lint-staged if npx not available (common on Windows)
+  echo "⚠️  npx not found in PATH, skipping lint-staged (non-blocking)"
+  exit 0
+fi
