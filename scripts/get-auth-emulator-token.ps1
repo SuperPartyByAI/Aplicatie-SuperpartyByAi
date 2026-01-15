@@ -1,5 +1,6 @@
 # Get Firebase Auth Emulator ID Token
-# Usage: .\scripts\get-auth-emulator-token.ps1 [email] [password]
+# Usage: $token = .\scripts\get-auth-emulator-token.ps1
+#        OR: .\scripts\get-auth-emulator-token.ps1 [email] [password]
 
 param(
     [string]$Email = "test@example.com",
@@ -9,27 +10,20 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "=== Firebase Auth Emulator Token Generator ===" -ForegroundColor Cyan
-Write-Host ""
+# Suppress verbose output when capturing token
+$VerbosePreference = "SilentlyContinue"
 
 # 1) Check if Auth Emulator is running
-Write-Host "[1/4] Checking Auth Emulator..." -ForegroundColor Yellow
 try {
     $testConnection = Test-NetConnection -ComputerName 127.0.0.1 -Port 9098 -InformationLevel Quiet -WarningAction SilentlyContinue
     if (-not $testConnection) {
-        Write-Host "  ✗ Auth Emulator not running on port 9098" -ForegroundColor Red
-        Write-Host "  Start emulators first: firebase.cmd emulators:start --only auth" -ForegroundColor Yellow
-        exit 1
+        Write-Error "Auth Emulator not running on port 9098. Start emulators first: firebase.cmd emulators:start --only auth" -ErrorAction Stop
     }
-    Write-Host "  ✓ Auth Emulator is running" -ForegroundColor Green
 } catch {
-    Write-Host "  ✗ Cannot check Auth Emulator: $_" -ForegroundColor Red
-    exit 1
+    Write-Error "Cannot check Auth Emulator: $_" -ErrorAction Stop
 }
 
 # 2) Sign up or sign in
-Write-Host "[2/4] Authenticating user..." -ForegroundColor Yellow
-
 $authUrl = "http://$AuthEmulatorHost/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake-api-key"
 $signInUrl = "http://$AuthEmulatorHost/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-api-key"
 
@@ -41,19 +35,16 @@ $requestBody = @{
 } | ConvertTo-Json -Compress
 
 $idToken = $null
-$localId = $null
 $authSuccess = $false
 
 # Try sign up first
 try {
     $signUpResponse = Invoke-RestMethod -Uri $authUrl -Method Post -Body $requestBody -ContentType "application/json" -ErrorAction Stop
     $idToken = $signUpResponse.idToken
-    $localId = $signUpResponse.localId
     $authSuccess = $true
-    Write-Host "  ✓ User authenticated: $Email (ID: $localId)" -ForegroundColor Green
 } catch {
     # Sign up failed, will try sign in below
-    Write-Host "  ⚠ Sign up failed, trying sign in..." -ForegroundColor Yellow
+    $authSuccess = $false
 }
 
 # If sign up failed, try sign in
@@ -61,49 +52,16 @@ if (-not $authSuccess) {
     try {
         $signInResponse = Invoke-RestMethod -Uri $signInUrl -Method Post -Body $requestBody -ContentType "application/json" -ErrorAction Stop
         $idToken = $signInResponse.idToken
-        $localId = $signInResponse.localId
         $authSuccess = $true
-        Write-Host "  ✓ User signed in: $Email (ID: $localId)" -ForegroundColor Green
     } catch {
-        Write-Host "  ✗ Authentication failed: $_" -ForegroundColor Red
-        if ($_.Exception.Response) {
-            Write-Host "  Response: $($_.Exception.Response)" -ForegroundColor Red
-        }
-        if ($_.ErrorDetails.Message) {
-            Write-Host "  Details: $($_.ErrorDetails.Message)" -ForegroundColor Red
-        }
-        exit 1
+        Write-Error "Authentication failed: $_" -ErrorAction Stop
     }
 }
 
 # 3) Validate token
-Write-Host "[3/4] Validating token..." -ForegroundColor Yellow
-
 if ([string]::IsNullOrEmpty($idToken)) {
-    Write-Host "  ✗ No token received" -ForegroundColor Red
-    exit 1
+    Write-Error "No token received" -ErrorAction Stop
 }
 
-$tokenLength = $idToken.Length
-Write-Host "  ✓ Token received (length: $tokenLength)" -ForegroundColor Green
-
-# 4) Output token
-Write-Host "[4/4] Token ready" -ForegroundColor Yellow
-Write-Host ""
-
-# Return token on stdout (for easy capture: $token = .\scripts\get-auth-emulator-token.ps1)
-# Write to stdout first (before other output) so it can be captured
+# 4) Output token on stdout (for easy capture: $token = .\scripts\get-auth-emulator-token.ps1)
 Write-Output $idToken
-
-# Then show usage info
-Write-Host "=== ID Token ===" -ForegroundColor Cyan
-Write-Host $idToken -ForegroundColor White
-Write-Host ""
-Write-Host "=== Usage Example ===" -ForegroundColor Cyan
-$exampleCmd = "curl.exe -i http://127.0.0.1:5002/superparty-frontend/us-central1/whatsappProxyGetAccounts -H `"Authorization: Bearer $idToken`""
-Write-Host $exampleCmd -ForegroundColor White
-Write-Host ""
-Write-Host "=== PowerShell Variable ===" -ForegroundColor Cyan
-$envCmd = "`$env:AUTH_TOKEN = `"$idToken`""
-Write-Host $envCmd -ForegroundColor White
-Write-Host ""

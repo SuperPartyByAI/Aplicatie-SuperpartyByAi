@@ -11,7 +11,9 @@ const admin = require('firebase-admin');
 
 class ShortCodeGenerator {
   constructor(db) {
-    this.db = db || admin.firestore();
+    // In unit tests we don't want to require Firebase initialization.
+    // Only use Firestore if an explicit db is provided OR firebase-admin is initialized.
+    this.db = db || (admin.apps && admin.apps.length ? admin.firestore() : null);
     this.counterCollection = 'counters';
     this.counterDoc = 'eventShortCode';
   }
@@ -274,7 +276,13 @@ class ShortCodeGenerator {
 let defaultGenerator = null;
 function getDefaultGenerator() {
   if (!defaultGenerator) {
-    defaultGenerator = new ShortCodeGenerator();
+    // Only create if admin is initialized (for tests, db can be injected)
+    if (admin.apps && admin.apps.length) {
+      defaultGenerator = new ShortCodeGenerator();
+    } else {
+      // Return a generator with null db (will fail at runtime if used, but allows import)
+      defaultGenerator = new ShortCodeGenerator(null);
+    }
   }
   return defaultGenerator;
 }
