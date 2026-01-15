@@ -1,8 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:superparty_app/services/force_update_checker_service.dart';
+import '../test_setup.dart';
 
 void main() {
+  setUpAll(() {
+    muteDebugPrint();
+  });
+
+  tearDownAll(() {
+    restoreDebugPrint();
+  });
+
   group('ForceUpdateCheckerService', () {
     late FakeFirebaseFirestore fakeFirestore;
     late ForceUpdateCheckerService service;

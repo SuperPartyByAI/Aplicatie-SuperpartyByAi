@@ -2,8 +2,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:superparty_app/models/event_model.dart';
+import '../test_setup.dart';
 
 void main() {
+  setUpAll(() {
+    muteDebugPrint();
+  });
+
+  tearDownAll(() {
+    restoreDebugPrint();
+  });
+
   group('EventModel Dual-Read (v1/v2)', () {
     test('should parse v2 schema (date string)', () async {
       final doc = await _createMockDoc({
