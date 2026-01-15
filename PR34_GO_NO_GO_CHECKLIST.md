@@ -4,7 +4,7 @@
 
 **PR Link**: https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/pull/34  
 **Branch**: `whatsapp-production-stable`  
-**Current HEAD**: `fe59c9943`  
+**Current HEAD**: `b1785804b`  
 **Final Deploy SHA**: _______________  
 **Date/Time**: _______________  
 **Owner(s)**: _______________
@@ -28,6 +28,8 @@
 **Status**: ⏳ **AWAITING VERIFICATION**
 
 **If FAIL**: Copy first 30-50 relevant lines from log above for fix.
+
+**Verification Guide**: See [PR34_VERIFICATION_GUIDE.md](./PR34_VERIFICATION_GUIDE.md) for step-by-step instructions.
 
 ---
 
