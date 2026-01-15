@@ -21,7 +21,11 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   List<Map<String, dynamic>> _accounts = [];
   bool _isLoading = true;
   String? _error;
+  
+  // In-flight guards (prevent double-tap / concurrent requests)
   bool _isAddingAccount = false;
+  final Set<String> _regeneratingQr = {}; // accountId -> in-flight
+  int _loadRequestToken = 0;
 
   @override
   void initState() {
@@ -30,6 +34,8 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   }
 
   Future<void> _loadAccounts() async {
+    final myToken = ++_loadRequestToken;
+    
     setState(() {
       _isLoading = true;
       _error = null;
@@ -37,23 +43,36 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
 
     try {
       final response = await _apiService.getAccounts();
+      
+      // Ignore late responses (if another load started)
+      if (myToken != _loadRequestToken) return;
+      
       if (response['success'] == true) {
         final accounts = response['accounts'] as List<dynamic>? ?? [];
-        setState(() {
-          _accounts = accounts.cast<Map<String, dynamic>>();
-          _isLoading = false;
-        });
+        if (mounted && myToken == _loadRequestToken) {
+          setState(() {
+            _accounts = accounts.cast<Map<String, dynamic>>();
+            _isLoading = false;
+          });
+        }
       } else {
+        if (mounted && myToken == _loadRequestToken) {
+          setState(() {
+            _error = response['message'] ?? 'Failed to load accounts';
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      // Ignore late responses
+      if (myToken != _loadRequestToken) return;
+      
+      if (mounted) {
         setState(() {
-          _error = response['message'] ?? 'Failed to load accounts';
+          _error = 'Error: ${e.toString()}';
           _isLoading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _error = 'Error: ${e.toString()}';
-        _isLoading = false;
-      });
     }
   }
 
@@ -105,6 +124,8 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
 
     if (result != true) return;
 
+    // Guard: prevent double-tap
+    if (_isAddingAccount) return;
     setState(() => _isAddingAccount = true);
 
     try {
@@ -148,6 +169,11 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   }
 
   Future<void> _regenerateQr(String accountId) async {
+    // Guard: prevent double-tap
+    if (_regeneratingQr.contains(accountId)) return;
+    
+    setState(() => _regeneratingQr.add(accountId));
+
     try {
       final response = await _apiService.regenerateQr(accountId: accountId);
 
@@ -179,6 +205,10 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
             backgroundColor: Colors.red,
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _regeneratingQr.remove(accountId));
       }
     }
   }
@@ -361,7 +391,9 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     TextButton.icon(
-                      onPressed: () => _regenerateQr(id),
+                      onPressed: _regeneratingQr.contains(id) || _isAddingAccount
+                          ? null
+                          : () => _regenerateQr(id),
                       icon: const Icon(Icons.refresh, size: 18),
                       label: const Text('Regenerate QR'),
                     ),
