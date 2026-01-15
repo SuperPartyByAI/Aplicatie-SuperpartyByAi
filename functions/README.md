@@ -66,6 +66,38 @@ This script:
 6. Tests `/health` and WhatsApp endpoints
 7. Verifies no "Failed to load function definition" errors
 
+## Testing Protected Endpoints
+
+### Getting an Auth Token from Emulator
+
+Use the provided PowerShell script to get a valid ID token:
+
+```powershell
+# From repo root
+.\scripts\get-auth-emulator-token.ps1
+
+# Or with custom email/password
+.\scripts\get-auth-emulator-token.ps1 -Email "admin@example.com" -Password "password123"
+```
+
+The script will:
+1. Check if Auth Emulator is running
+2. Sign up or sign in the user
+3. Return the ID token
+
+### Using the Token
+
+```powershell
+# Get token
+$token = .\scripts\get-auth-emulator-token.ps1
+
+# Test endpoint
+curl.exe -i http://127.0.0.1:5002/superparty-frontend/us-central1/whatsappProxyGetAccounts `
+  -H "Authorization: Bearer $token"
+```
+
+**Note**: Firebase Admin SDK automatically detects `FIREBASE_AUTH_EMULATOR_HOST` when emulators are running, so tokens from the Auth Emulator will be validated correctly.
+
 ## Architecture Notes
 
 ### Lazy Loading

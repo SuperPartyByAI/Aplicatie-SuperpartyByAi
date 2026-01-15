@@ -45,6 +45,8 @@ const socketIo = require('socket.io');
 const admin = require('firebase-admin');
 
 // Initialize Firebase Admin at startup
+// Firebase CLI automatically sets FIREBASE_AUTH_EMULATOR_HOST when emulators run
+// This allows admin.auth().verifyIdToken() to work with emulator tokens
 if (!admin.apps.length) {
   admin.initializeApp();
 }
