@@ -125,7 +125,7 @@ npm i -g firebase-tools
 ### Port already in use
 
 Verifică porturile în `firebase.json`:
-- Firestore: 8081
+- Firestore: 8082
 - Functions: 5002
 - Auth: 9098
 

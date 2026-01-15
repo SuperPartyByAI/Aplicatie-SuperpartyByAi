@@ -11,18 +11,50 @@
 process.env.WHATSAPP_RAILWAY_BASE_URL = process.env.WHATSAPP_RAILWAY_BASE_URL || 'https://test-railway.invalid';
 process.env.NODE_ENV = 'test';
 
-const admin = require('firebase-admin');
+// Mock Firebase Admin BEFORE requiring it (Jest hoisting)
+const mockVerifyIdToken = jest.fn();
+const mockFirestoreDocGet = jest.fn();
+const mockFirestoreDoc = jest.fn(() => ({
+  get: mockFirestoreDocGet,
+}));
+const mockFirestoreCollection = jest.fn(() => ({
+  doc: mockFirestoreDoc,
+}));
+const mockFirestoreRunTransaction = jest.fn();
 
-// Mock Firebase Admin
+const mockFirestore = {
+  collection: jest.fn((name) => {
+    if (name === 'staffProfiles') {
+      return {
+        doc: jest.fn(() => ({
+          get: jest.fn(),
+        })),
+      };
+    }
+    if (name === 'threads') {
+      return {
+        doc: jest.fn(() => ({
+          get: jest.fn(),
+        })),
+      };
+    }
+    if (name === 'outbox') {
+      return {
+        doc: jest.fn(() => ({
+          get: jest.fn(),
+        })),
+      };
+    }
+    return mockFirestoreCollection;
+  }),
+  runTransaction: mockFirestoreRunTransaction,
+};
+
+const mockAuth = {
+  verifyIdToken: mockVerifyIdToken,
+};
+
 jest.mock('firebase-admin', () => {
-  const mockFirestore = {
-    collection: jest.fn(),
-  };
-
-  const mockAuth = {
-    verifyIdToken: jest.fn(),
-  };
-
   return {
     firestore: jest.fn(() => mockFirestore),
     auth: jest.fn(() => mockAuth),
@@ -30,6 +62,8 @@ jest.mock('firebase-admin', () => {
     apps: [],
   };
 });
+
+const admin = require('firebase-admin');
 
 describe('WhatsApp Proxy /getAccounts', () => {
   let req;
@@ -61,7 +95,7 @@ describe('WhatsApp Proxy /getAccounts', () => {
       headersSent: false,
     };
 
-    admin.auth().verifyIdToken.mockResolvedValue({
+    mockVerifyIdToken.mockResolvedValue({
       uid: 'admin123',
       email: 'ursache.andrei1995@gmail.com', // Super-admin
     });
@@ -69,7 +103,7 @@ describe('WhatsApp Proxy /getAccounts', () => {
 
   it('should reject unauthenticated requests', async () => {
     req.headers.authorization = null;
-    admin.auth().verifyIdToken.mockResolvedValue(null);
+    mockVerifyIdToken.mockResolvedValue(null);
 
     await whatsappProxy.getAccountsHandler(req, res);
 
@@ -83,7 +117,7 @@ describe('WhatsApp Proxy /getAccounts', () => {
   });
 
   it('should reject non-super-admin', async () => {
-    admin.auth().verifyIdToken.mockResolvedValue({
+    mockVerifyIdToken.mockResolvedValue({
       uid: 'user123',
       email: 'user@example.com', // Not super-admin
     });
@@ -147,7 +181,7 @@ describe('WhatsApp Proxy /addAccount', () => {
       headersSent: false,
     };
 
-    admin.auth().verifyIdToken.mockResolvedValue({
+    mockVerifyIdToken.mockResolvedValue({
       uid: 'admin123',
       email: 'ursache.andrei1995@gmail.com', // Super-admin
     });
@@ -155,7 +189,7 @@ describe('WhatsApp Proxy /addAccount', () => {
 
   it('should reject unauthenticated requests', async () => {
     req.headers.authorization = null;
-    admin.auth().verifyIdToken.mockResolvedValue(null);
+    mockVerifyIdToken.mockResolvedValue(null);
 
     await whatsappProxy.addAccount(req, res);
 
@@ -169,7 +203,7 @@ describe('WhatsApp Proxy /addAccount', () => {
   });
 
   it('should reject non-super-admin', async () => {
-    admin.auth().verifyIdToken.mockResolvedValue({
+    mockVerifyIdToken.mockResolvedValue({
       uid: 'user123',
       email: 'user@example.com', // Not super-admin
     });
@@ -261,7 +295,7 @@ describe('WhatsApp Proxy /regenerateQr', () => {
       headersSent: false,
     };
 
-    admin.auth().verifyIdToken.mockResolvedValue({
+    mockVerifyIdToken.mockResolvedValue({
       uid: 'admin123',
       email: 'ursache.andrei1995@gmail.com',
     });
@@ -269,7 +303,7 @@ describe('WhatsApp Proxy /regenerateQr', () => {
 
   it('should reject unauthenticated requests', async () => {
     req.headers.authorization = null;
-    admin.auth().verifyIdToken.mockResolvedValue(null);
+    mockVerifyIdToken.mockResolvedValue(null);
 
     await whatsappProxy.regenerateQrHandler(req, res);
 
@@ -283,7 +317,7 @@ describe('WhatsApp Proxy /regenerateQr', () => {
   });
 
   it('should reject non-super-admin', async () => {
-    admin.auth().verifyIdToken.mockResolvedValue({
+    mockVerifyIdToken.mockResolvedValue({
       uid: 'user123',
       email: 'user@example.com', // Not super-admin
     });
@@ -336,8 +370,11 @@ describe('WhatsApp Proxy /send', () => {
   let req;
   let res;
   let whatsappProxy;
-  let mockFirestore;
   let mockTransaction;
+  let mockThreadRef;
+  let mockOutboxRef;
+  let mockThreadCollection;
+  let mockOutboxCollection;
 
   beforeEach(() => {
     jest.resetModules();
@@ -350,41 +387,39 @@ describe('WhatsApp Proxy /send', () => {
       update: jest.fn(),
     };
 
-    const mockThreadRef = {
+    mockThreadRef = {
       get: jest.fn(),
     };
 
-    const mockOutboxRef = {
+    mockOutboxRef = {
       get: jest.fn(),
     };
 
-    const mockThreadCollection = {
+    mockThreadCollection = {
       doc: jest.fn(() => mockThreadRef),
     };
 
-    const mockOutboxCollection = {
+    mockOutboxCollection = {
       doc: jest.fn(() => mockOutboxRef),
     };
 
-    mockFirestore = {
-      collection: jest.fn((name) => {
-        if (name === 'threads') return mockThreadCollection;
-        if (name === 'outbox') return mockOutboxCollection;
-        if (name === 'staffProfiles') {
-          return {
-            doc: jest.fn(() => ({
-              get: jest.fn(),
-            })),
-          };
-        }
-        return { doc: jest.fn() };
-      }),
-      runTransaction: jest.fn((callback) => {
-        return callback(mockTransaction);
-      }),
-    };
+    // Override global mock for this test suite
+    mockFirestore.collection.mockImplementation((name) => {
+      if (name === 'threads') return mockThreadCollection;
+      if (name === 'outbox') return mockOutboxCollection;
+      if (name === 'staffProfiles') {
+        return {
+          doc: jest.fn(() => ({
+            get: jest.fn(),
+          })),
+        };
+      }
+      return { doc: jest.fn() };
+    });
 
-    admin.firestore.mockReturnValue(mockFirestore);
+    mockFirestoreRunTransaction.mockImplementation((callback) => {
+      return callback(mockTransaction);
+    });
 
     req = {
       method: 'POST',
@@ -415,7 +450,7 @@ describe('WhatsApp Proxy /send', () => {
     };
 
     // Mock auth
-    admin.auth().verifyIdToken.mockResolvedValue({
+    mockVerifyIdToken.mockResolvedValue({
       uid: 'user123',
       email: 'employee@example.com',
     });
@@ -425,12 +460,13 @@ describe('WhatsApp Proxy /send', () => {
       exists: true,
       data: () => ({ role: 'staff' }),
     };
-    mockFirestore.collection('staffProfiles').doc().get.mockResolvedValue(mockStaffDoc);
+    const mockStaffCollection = mockFirestore.collection('staffProfiles');
+    mockStaffCollection.doc().get.mockResolvedValue(mockStaffDoc);
   });
 
   it('should reject unauthenticated requests', async () => {
     req.headers.authorization = null;
-    admin.auth().verifyIdToken.mockResolvedValue(null);
+    mockVerifyIdToken.mockResolvedValue(null);
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -444,7 +480,7 @@ describe('WhatsApp Proxy /send', () => {
   });
 
   it('should reject non-employee', async () => {
-    admin.auth().verifyIdToken.mockResolvedValue({
+    mockVerifyIdToken.mockResolvedValue({
       uid: 'user123',
       email: 'user@example.com',
     });
@@ -453,7 +489,8 @@ describe('WhatsApp Proxy /send', () => {
     const mockStaffDoc = {
       exists: false,
     };
-    mockFirestore.collection('staffProfiles').doc().get.mockResolvedValue(mockStaffDoc);
+    const mockStaffCollection = mockFirestore.collection('staffProfiles');
+    mockStaffCollection.doc().get.mockResolvedValue(mockStaffDoc);
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -487,7 +524,7 @@ describe('WhatsApp Proxy /send', () => {
     const mockThreadDoc = {
       exists: false,
     };
-    mockFirestore.collection('threads').doc().get.mockResolvedValue(mockThreadDoc);
+    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -507,7 +544,7 @@ describe('WhatsApp Proxy /send', () => {
         accountId: 'different_account', // Mismatch
       }),
     };
-    mockFirestore.collection('threads').doc().get.mockResolvedValue(mockThreadDoc);
+    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -529,7 +566,7 @@ describe('WhatsApp Proxy /send', () => {
         coWriterUids: [], // Empty
       }),
     };
-    mockFirestore.collection('threads').doc().get.mockResolvedValue(mockThreadDoc);
+    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
 
     // Mock transaction
     mockTransaction.get.mockResolvedValue(mockThreadDoc);
@@ -554,7 +591,7 @@ describe('WhatsApp Proxy /send', () => {
         coWriterUids: [],
       }),
     };
-    mockFirestore.collection('threads').doc().get.mockResolvedValue(mockThreadDoc);
+    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
 
     // Mock transaction
     const mockOutboxDoc = {
@@ -566,7 +603,7 @@ describe('WhatsApp Proxy /send', () => {
 
     await whatsappProxy.sendHandler(req, res);
 
-    expect(mockFirestore.runTransaction).toHaveBeenCalled();
+    expect(mockFirestoreRunTransaction).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -585,7 +622,7 @@ describe('WhatsApp Proxy /send', () => {
         coWriterUids: ['user123'], // Co-writer
       }),
     };
-    mockFirestore.collection('threads').doc().get.mockResolvedValue(mockThreadDoc);
+    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
 
     // Mock transaction
     const mockOutboxDoc = {
@@ -613,7 +650,7 @@ describe('WhatsApp Proxy /send', () => {
         // No ownerUid (first send)
       }),
     };
-    mockFirestore.collection('threads').doc().get.mockResolvedValue(mockThreadDoc);
+    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
 
     // Mock transaction
     const mockThreadDocInTx = {
@@ -650,7 +687,7 @@ describe('WhatsApp Proxy /send', () => {
         coWriterUids: [],
       }),
     };
-    mockFirestore.collection('threads').doc().get.mockResolvedValue(mockThreadDoc);
+    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
 
     // Mock transaction - outbox doc exists (duplicate)
     const mockOutboxDoc = {
@@ -681,7 +718,7 @@ describe('WhatsApp Proxy /send', () => {
         coWriterUids: [],
       }),
     };
-    mockFirestore.collection('threads').doc().get.mockResolvedValue(mockThreadDoc);
+    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
 
     const mockOutboxDoc = {
       exists: false,
@@ -759,7 +796,7 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
       headersSent: false,
     };
 
-    admin.auth().verifyIdToken.mockResolvedValue({
+    mockVerifyIdToken.mockResolvedValue({
       uid: 'admin123',
       email: 'ursache.andrei1995@gmail.com', // Super-admin
     });
@@ -800,7 +837,7 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
       headersSent: false,
     };
 
-    admin.auth().verifyIdToken.mockResolvedValue({
+    mockVerifyIdToken.mockResolvedValue({
       uid: 'admin123',
       email: 'ursache.andrei1995@gmail.com',
     });
@@ -842,7 +879,7 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
       headersSent: false,
     };
 
-    admin.auth().verifyIdToken.mockResolvedValue({
+    mockVerifyIdToken.mockResolvedValue({
       uid: 'admin123',
       email: 'ursache.andrei1995@gmail.com',
     });
