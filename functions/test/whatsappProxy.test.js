@@ -191,7 +191,7 @@ describe('WhatsApp Proxy /addAccount', () => {
     req.headers.authorization = null;
     mockVerifyIdToken.mockResolvedValue(null);
 
-    await whatsappProxy.addAccount(req, res);
+    await whatsappProxy.addAccountHandler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith(
@@ -208,7 +208,7 @@ describe('WhatsApp Proxy /addAccount', () => {
       email: 'user@example.com', // Not super-admin
     });
 
-    await whatsappProxy.addAccount(req, res);
+    await whatsappProxy.addAccountHandler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith(
@@ -222,7 +222,7 @@ describe('WhatsApp Proxy /addAccount', () => {
   it('should reject invalid name', async () => {
     req.body.name = ''; // Invalid
 
-    await whatsappProxy.addAccount(req, res);
+    await whatsappProxy.addAccountHandler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
@@ -236,7 +236,7 @@ describe('WhatsApp Proxy /addAccount', () => {
   it('should reject invalid phone', async () => {
     req.body.phone = '123'; // Too short
 
-    await whatsappProxy.addAccount(req, res);
+    await whatsappProxy.addAccountHandler(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
@@ -253,7 +253,7 @@ describe('WhatsApp Proxy /addAccount', () => {
       body: { success: true, accountId: 'acc123' },
     });
 
-    await whatsappProxy.addAccount(req, res);
+    await whatsappProxy.addAccountHandler(req, res);
 
     expect(mockForwardRequest).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(200);
