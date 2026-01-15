@@ -30,3 +30,19 @@ RAILWAY-VARIABLES-*.env
 **/*adminsdk*.json
 **/*service-account*.json
 **/*serviceAccount*.json
+
+# Flutter generated outputs
+superparty_flutter/build/
+superparty_flutter/.dart_tool/
+superparty_flutter/.packages
+superparty_flutter/.flutter-plugins*
+superparty_flutter/.metadata
+**/Pods/
+**/.gradle/
+**/DerivedData/
+**/.idea/
+**/*.iml
+
+# Backup files
+*.bak.*
+*.bak

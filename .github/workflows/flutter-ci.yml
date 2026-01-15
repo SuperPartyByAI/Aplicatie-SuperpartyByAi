@@ -36,13 +36,7 @@ jobs:
         run: flutter pub get
 
       - name: Analyze code (strict)
-        run: |
-          flutter analyze
-          if flutter analyze 2>&1 | grep -q "error •"; then
-            echo "❌ Flutter analyze found errors"
-            exit 1
-          fi
-          echo "✅ Flutter analyze passed (0 errors)"
+        run: flutter analyze --fatal-infos --fatal-warnings
 
       - name: Run tests
         run: flutter test
