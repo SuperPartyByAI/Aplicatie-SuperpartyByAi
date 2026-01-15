@@ -24,12 +24,17 @@ Or use `functions/.runtimeconfig.json` (already configured with the correct valu
 From the **repo root** (not `functions/` directory):
 
 ```powershell
+# Optional: Kill processes on emulator ports if they're already running
+.\scripts\kill-emulators.ps1 --Force
+
 # Set environment variable
 $env:WHATSAPP_RAILWAY_BASE_URL = "https://whats-upp-production.up.railway.app"
 
 # Start emulators
 firebase.cmd emulators:start --config .\firebase.json --only firestore,functions,auth --project superparty-frontend
 ```
+
+**Note**: If you get port conflicts, run `.\scripts\kill-emulators.ps1` to free up ports 4001, 4401, 9098, 8082, and 5002.
 
 **Important**: The emulator will start successfully even if `WHATSAPP_RAILWAY_BASE_URL` is not set. WhatsApp endpoints will return `500` JSON errors with `{"error":"configuration_missing"}` when called without the URL, but the emulator itself will not crash.
 

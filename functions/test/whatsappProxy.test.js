@@ -418,8 +418,8 @@ describe('WhatsApp Proxy /send', () => {
       return { doc: jest.fn() };
     });
 
-    mockFirestoreRunTransaction.mockImplementation((callback) => {
-      return callback(mockTransaction);
+    mockFirestoreRunTransaction.mockImplementation(async (callback) => {
+      return await callback(mockTransaction);
     });
 
     req = {
@@ -434,14 +434,7 @@ describe('WhatsApp Proxy /send', () => {
         text: 'Test message',
         clientMessageId: 'client_msg_123',
       },
-      user: {
-        uid: 'user123',
-        email: 'employee@example.com',
-      },
-      employeeInfo: {
-        isEmployee: true,
-        role: 'staff',
-      },
+      // user and employeeInfo will be set by requireEmployee middleware
     };
 
     res = {
@@ -569,8 +562,7 @@ describe('WhatsApp Proxy /send', () => {
     };
     mockThreadRef.get.mockResolvedValue(mockThreadDoc);
 
-    // Mock transaction
-    mockTransaction.get.mockResolvedValue(mockThreadDoc);
+    // No transaction mock needed - handler returns 403 before transaction
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -581,6 +573,8 @@ describe('WhatsApp Proxy /send', () => {
         error: 'not_owner_or_cowriter',
       })
     );
+    // Transaction should not be called for this case
+    expect(mockFirestoreRunTransaction).not.toHaveBeenCalled();
   });
 
   it('should allow owner to send', async () => {
