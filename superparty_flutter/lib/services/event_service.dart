@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/event_model.dart';
@@ -407,8 +408,52 @@ class EventService {
     });
   }
 
-  /// Helper: convert DateTime to DD-MM-YYYY string
-  String _dateToString(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
+  /// Get single event by ID
+  Future<EventModel> getEvent(String eventId) async {
+    final doc = await _firestore.collection('evenimente').doc(eventId).get();
+    if (!doc.exists) {
+      throw Exception('Eveniment nu există');
+    }
+    return EventModel.fromFirestore(doc);
+  }
+
+  /// Update role assignment (compatibility wrapper)
+  Future<void> updateRoleAssignment({
+    required String eventId,
+    required String role,
+    String? userId,
+  }) async {
+    // Find role by slot (A-J) or label
+    final event = await getEvent(eventId);
+    final roleModel = event.roles.firstWhere(
+      (r) => r.slot == role.toUpperCase() || r.label.toLowerCase() == role.toLowerCase(),
+      orElse: () => throw Exception('Rol $role nu există'),
+    );
+
+    if (userId == null) {
+      // Unassign
+      await unassignRole(eventId: eventId, slot: roleModel.slot);
+    } else {
+      // Assign - need to get staff code from userId
+      // For now, use assignRole with a placeholder code
+      // This is a compatibility shim - proper implementation would look up staff code
+      throw Exception('updateRoleAssignment cu userId necesită implementare completă');
+    }
+  }
+
+  /// Update driver assignment (compatibility wrapper)
+  Future<void> updateDriverAssignment({
+    required String eventId,
+    String? userId,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Utilizator neautentificat');
+
+    await _firestore.collection('evenimente').doc(eventId).update({
+      'sofer': userId,
+      'soferPending': null, // Clear pending when assigning
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': user.uid,
+    });
   }
 }

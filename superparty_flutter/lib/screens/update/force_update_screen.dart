@@ -184,8 +184,8 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async => false, // Disable back button
+    return PopScope(
+      canPop: false, // Disable back button
       child: Scaffold(
         body: SafeArea(
           child: Padding(

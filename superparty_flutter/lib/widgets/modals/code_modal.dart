@@ -43,11 +43,11 @@ class CodeModal extends StatelessWidget {
             border: Border.all(
               color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1) - fixed from 9 to 8 hex digits
             ),
-            boxShadow: [
+            boxShadow: const [
               BoxShadow(
-                color: const Color(0x8C000000), // rgba(0,0,0,0.55)
+                color: Color(0x8C000000), // rgba(0,0,0,0.55)
                 blurRadius: 80,
-                offset: const Offset(0, 24),
+                offset: Offset(0, 24),
               ),
             ],
           ),
@@ -76,7 +76,7 @@ class CodeModal extends StatelessWidget {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFFEAF1FF).withOpacity(0.9),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.9),
             ),
           ),
         ),
@@ -96,7 +96,7 @@ class CodeModal extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFFEAF1FF).withOpacity(0.9),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.9),
             ),
           ),
         ),
@@ -111,7 +111,7 @@ class CodeModal extends StatelessWidget {
         'Alege: scrii un cod (A1, BTRAINER) sau filtrezi dupa status.',
         style: TextStyle(
           fontSize: 11,
-          color: const Color(0xFFEAF1FF).withOpacity(0.6),
+          color: const Color(0xFFEAF1FF).withValues(alpha: 0.6),
         ),
       ),
     );
@@ -178,7 +178,7 @@ class CodeModal extends StatelessWidget {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: const Color(0xFFEAF1FF).withOpacity(0.9),
+            color: const Color(0xFFEAF1FF).withValues(alpha: 0.9),
           ),
         ),
       ),

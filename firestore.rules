@@ -8,26 +8,25 @@ service cloud.firestore {
       return request.auth != null;
     }
     
-    // Helper function: check if user is super admin by email
-    function isSuperAdminEmail() {
-      return request.auth != null && request.auth.token.email == 'ursache.andrei1995@gmail.com';
-    }
-    
     // Helper function: check if user has staff profile
     function hasStaffProfile() {
       return isAuthenticated() && exists(/databases/$(database)/documents/staffProfiles/$(request.auth.uid));
     }
     
-    // Helper function: check if user is employee (authenticated + has staff profile OR super admin)
+    // Helper function: check if user is employee (authenticated + has staff profile)
     function isEmployee() {
-      return isSuperAdminEmail() || (isAuthenticated() && hasStaffProfile());
+      return isAuthenticated() && hasStaffProfile();
     }
-    
-    // Helper function: check if user is GM or Admin (based on role in staffProfiles OR super admin)
-    function isGmOrAdmin() {
-      return isSuperAdminEmail() || 
-             (hasStaffProfile() && 
-              get(/databases/$(database)/documents/staffProfiles/$(request.auth.uid)).data.role in ['gm', 'admin']);
+
+    // Admin check for new admin-only flows:
+    // - preferred: custom claim admin==true
+    // - fallback: users/{uid}.role == 'admin'
+    function isAdminUser() {
+      return isAuthenticated() && (
+        request.auth.token.admin == true ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
     
     // Helper function: get staff code
@@ -35,37 +34,82 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/staffProfiles/$(request.auth.uid)).data.code;
     }
     
-    // DEPRECATED: Use isGmOrAdmin() instead
+    // DEPRECATED: Prefer isAdminUser()
     function isAdmin() {
-      return isGmOrAdmin();
+      return isAdminUser();
     }
     
     // Users collection - restricted, prefer staffProfiles for employee data
     match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isGmOrAdmin());
-      allow write: if isAuthenticated() && (request.auth.uid == userId || isGmOrAdmin());
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdminUser());
+      
+      // Production-safe: users can only update limited personal fields.
+      // All staff/admin management fields (ex: role, status, staffSetupDone) are server/admin-only.
+      allow create: if isAdminUser();
+      allow update: if isAdminUser() || (isAuthenticated() && request.auth.uid == userId &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'displayName',
+          'phone',
+          'kycDone',
+          'kycData',
+          'updatedAt'
+        ])
+      );
+      allow delete: if false;
     }
     
-    // Staff profiles - readable by all employees for display names/roles
-    // SECURITY: Prevent privilege escalation - users cannot change their own role
+    // Staff profiles - user can only update phone; admin can manage all fields.
     match /staffProfiles/{profileId} {
-      allow read: if isEmployee(); // All employees can read staff profiles
+      allow read: if isAuthenticated() && (request.auth.uid == profileId || isAdminUser());
       
-      // Create: Only GM/Admin can create staff profiles
-      allow create: if isGmOrAdmin();
+      // Create: admin only
+      allow create: if isAdminUser();
       
-      // Update: Users can update their own profile BUT cannot change role field
-      // GM/Admin can update any profile including role
-      allow update: if isAuthenticated() && (
-        // GM/Admin can update anything
-        isGmOrAdmin() ||
-        // User can update own profile but role must remain unchanged
-        (request.auth.uid == profileId && 
-         request.resource.data.role == resource.data.role)
+      // Update:
+      // - Admin can update anything
+      // - User can update ONLY their phone (+ updatedAt). All assignment/team fields are server-only.
+      allow update: if isAdminUser() || (isAuthenticated() && request.auth.uid == profileId &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['phone', 'updatedAt'])
       );
       
       // Delete: Never allow (use isArchived instead)
       allow delete: if false;
+    }
+
+    // Teams are readable by authenticated users; writable by admin/GM.
+    match /teams/{teamId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdminUser();
+    }
+
+    // Code pools are server-only writable (Cloud Functions using Admin SDK).
+    match /teamCodePools/{teamId} {
+      allow read: if isAdminUser();
+      allow write: if false;
+    }
+
+    // Assignments are server-only writable; readable by admin/GM.
+    match /teamAssignments/{docId} {
+      allow read: if isAdminUser();
+      allow write: if false;
+    }
+
+    // Assignment history is server-only; readable by admin/GM.
+    match /teamAssignmentsHistory/{docId} {
+      allow read: if isAdminUser();
+      allow write: if false;
+    }
+
+    // Admin action logs are server-only; readable by admin/GM.
+    match /adminActions/{docId} {
+      allow read: if isAdminUser();
+      allow write: if false;
+    }
+
+    // Request tokens for idempotency (server-only)
+    match /staffRequestTokens/{tokenId} {
+      allow read: if false; // No client reads needed
+      allow write: if false; // Only server (Functions) can write
     }
     
     // KYC Submissions
@@ -97,18 +141,16 @@ service cloud.firestore {
       
       // Audit logs subcollection - only server can write, only GM/admin can read
       match /audit/{logId} {
-        allow read: if isGmOrAdmin();
+        allow read: if isAdminUser();
         allow write: if false; // Only server (Admin SDK) can write audit logs
       }
       
       // Dovezi subcollection
       match /dovezi/{evidenceId} {
         allow read: if isAuthenticated();
-        allow create: if isEmployee(); // Use isEmployee (includes super-admin)
+        allow create: if isEmployee();
         // Update doar dacă categoria nu e locked (check both new and old schema)
-        // Super-admin can always update
         allow update: if isEmployee() && (
-          isSuperAdminEmail() ||
           ((!exists(/databases/$(database)/documents/evenimente/$(eventId)/evidenceState/$(resource.data.category)) ||
             !get(/databases/$(database)/documents/evenimente/$(eventId)/evidenceState/$(resource.data.category)).data.locked) &&
            (!exists(/databases/$(database)/documents/evenimente/$(eventId)/dovezi_meta/$(resource.data.categorie)) ||
@@ -152,18 +194,13 @@ service cloud.firestore {
     }
     
     // Outbox - WhatsApp message queue - POLITICA: NEVER DELETE
+    // SECURITY: Server-only writes (Functions proxy uses Admin SDK)
     match /outbox/{messageId} {
-      // Users can read their own outbox messages
-      allow read: if isAuthenticated() && (isAdmin() || resource.data.accountId in getUserAllowedAccounts());
+      // Employees can read outbox messages (for status checking)
+      allow read: if isEmployee();
       
-      // Users can create outbox messages for allowed accounts
-      allow create: if isAuthenticated() && (isAdmin() || request.resource.data.accountId in getUserAllowedAccounts());
-      
-      // Backend can update status (authenticated service account or admin)
-      allow update: if isAuthenticated();
-      
-      // NEVER DELETE - use status field instead
-      allow delete: if false;
+      // Server-only writes (Functions proxy uses Admin SDK)
+      allow create, update, delete: if false;
     }
     
     // Helper function: get user's allowed account IDs
@@ -178,8 +215,8 @@ service cloud.firestore {
       // Users can read threads for allowed accounts only
       allow read: if isAuthenticated() && (isAdmin() || resource.data.accountId in getUserAllowedAccounts());
       
-      // Backend can create and update threads
-      allow create, update: if isAuthenticated();
+      // SECURITY: server-only writes (Admin SDK bypasses rules)
+      allow create, update: if false;
       
       // NEVER DELETE - use isArchived instead
       allow delete: if false;
@@ -189,8 +226,8 @@ service cloud.firestore {
         // Users can read messages for allowed accounts only
         allow read: if isAuthenticated() && (isAdmin() || get(/databases/$(database)/documents/threads/$(threadId)).data.accountId in getUserAllowedAccounts());
         
-        // Users can create messages for allowed accounts
-        allow create: if isAuthenticated() && (isAdmin() || get(/databases/$(database)/documents/threads/$(threadId)).data.accountId in getUserAllowedAccounts());
+        // SECURITY: server-only writes (Admin SDK bypasses rules)
+        allow create: if false;
         
         // Messages cannot be updated (immutable)
         allow update: if false;
@@ -219,33 +256,38 @@ service cloud.firestore {
     // WhatsApp Messages (flat collection) - ACTIVE - POLITICA: NEVER DELETE
     match /whatsapp_messages/{messageId} {
       allow read: if isAuthenticated();
-      allow create, update: if true; // Backend needs to write
+      // SECURITY: server-only writes (Admin SDK bypasses rules)
+      allow create, update: if false;
       allow delete: if false; // Never delete messages
     }
     
     // WhatsApp Threads (flat collection) - ACTIVE - POLITICA: NEVER DELETE
     match /whatsapp_threads/{threadId} {
       allow read: if isAuthenticated();
-      allow create, update: if true; // Backend needs to write
+      // SECURITY: server-only writes (Admin SDK bypasses rules)
+      allow create, update: if false;
       allow delete: if false; // Use isArchived instead
     }
     
     // WhatsApp Accounts - POLITICA: NEVER DELETE
     match /accounts/{accountId} {
       allow read: if isAuthenticated();
-      allow create, update: if true; // Backend needs to write
+      // SECURITY: server-only writes (Admin SDK bypasses rules)
+      allow create, update: if false;
       allow delete: if false; // Use isArchived instead
       
       // Chats subcollection
       match /chats/{chatId} {
         allow read: if isAuthenticated();
-        allow create, update: if true;
+        // SECURITY: server-only writes (Admin SDK bypasses rules)
+        allow create, update: if false;
         allow delete: if false; // Use isArchived instead
         
         // Messages subcollection
         match /messages/{messageId} {
           allow read: if isAuthenticated();
-          allow create, update: if true;
+          // SECURITY: server-only writes (Admin SDK bypasses rules)
+          allow create, update: if false;
           allow delete: if false; // Never delete messages
         }
       }
@@ -276,12 +318,12 @@ service cloud.firestore {
     // AI Global Rules (only super admin can write)
     match /ai_global_rules/{ruleId} {
       allow read: if isEmployee();
-      allow write: if request.auth.token.email == 'ursache.andrei1995@gmail.com';
+      allow write: if isAdminUser();
     }
     
     // Staff hours tracking (for salary calculation)
     match /staffHours/{entryId} {
-      allow read: if isGmOrAdmin() || 
+      allow read: if isAdminUser() || 
                      (isAuthenticated() && hasStaffProfile() && 
                       resource.data.staffUid == request.auth.uid);
       allow write: if false; // Only backend
@@ -292,7 +334,7 @@ service cloud.firestore {
       allow read: if isEmployee() && (
         resource.data.assigneeUid == request.auth.uid ||
         resource.data.status == 'OPEN' ||
-        isGmOrAdmin()
+        isAdminUser()
       );
       allow write: if false; // Only backend
     }
@@ -301,7 +343,7 @@ service cloud.firestore {
     match /notifications/{notificationId} {
       allow read: if isAuthenticated() && (
         resource.data.assigneeUid == request.auth.uid ||
-        isGmOrAdmin()
+        isAdminUser()
       );
       allow update: if isAuthenticated() && 
                        resource.data.assigneeUid == request.auth.uid &&
@@ -323,8 +365,11 @@ service cloud.firestore {
     
     // Conversations (for AI chat)
     match /conversations/{conversationId} {
-      allow read, write: if isAuthenticated() && 
-                            resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() &&
+                     request.resource.data.userId == request.auth.uid;
+      
+      allow read, update, delete: if isAuthenticated() &&
+                                   resource.data.userId == request.auth.uid;
     }
     
     // Default deny all other collections

@@ -11,7 +11,9 @@ const admin = require('firebase-admin');
 
 class ShortCodeGenerator {
   constructor(db) {
-    this.db = db || admin.firestore();
+    // In unit tests we don't want to require Firebase initialization.
+    // Only use Firestore if an explicit db is provided OR firebase-admin is initialized.
+    this.db = db || (admin.apps && admin.apps.length ? admin.firestore() : null);
     this.counterCollection = 'counters';
     this.counterDoc = 'eventShortCode';
   }
@@ -270,17 +272,31 @@ class ShortCodeGenerator {
 }
 
 // Helper functions for direct use
-const defaultGenerator = new ShortCodeGenerator();
+// Lazy initialization to avoid requiring admin.firestore() at module load time
+let defaultGenerator = null;
+function getDefaultGenerator() {
+  if (!defaultGenerator) {
+    // Only create if admin is initialized (for tests, db can be injected)
+    if (admin.apps && admin.apps.length) {
+      defaultGenerator = new ShortCodeGenerator();
+    } else {
+      // Return a generator with null db (will fail at runtime if used, but allows import)
+      defaultGenerator = new ShortCodeGenerator(null);
+    }
+  }
+  return defaultGenerator;
+}
 
 /**
  * Get next eventShortId (numeric)
  * @returns {Promise<number>} - Next numeric event ID
  */
 async function getNextEventShortId() {
-  const counterRef = defaultGenerator.db.collection(defaultGenerator.counterCollection).doc(defaultGenerator.counterDoc);
+  const gen = getDefaultGenerator();
+  const counterRef = gen.db.collection(gen.counterCollection).doc(gen.counterDoc);
 
   try {
-    const eventShortId = await defaultGenerator.db.runTransaction(async (transaction) => {
+    const eventShortId = await gen.db.runTransaction(async (transaction) => {
       const counterDoc = await transaction.get(counterRef);
 
       let currentValue = 0;
@@ -350,10 +366,10 @@ module.exports.getNextFreeSlot = getNextFreeSlot;
 
 // Legacy exports (deprecated)
 module.exports.findEventByShortId = async (id) => {
-  const gen = new ShortCodeGenerator();
+  const gen = getDefaultGenerator();
   return gen.findEventByShortId(id);
 };
 module.exports.findEventByLegacyShortCode = async (code) => {
-  const gen = new ShortCodeGenerator();
+  const gen = getDefaultGenerator();
   return gen.findEventByLegacyShortCode(code);
 };

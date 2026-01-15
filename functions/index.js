@@ -45,6 +45,8 @@ const socketIo = require('socket.io');
 const admin = require('firebase-admin');
 
 // Initialize Firebase Admin at startup
+// Firebase CLI automatically sets FIREBASE_AUTH_EMULATOR_HOST when emulators run
+// This allows admin.auth().verifyIdToken() to work with emulator tokens
 if (!admin.apps.length) {
   admin.initializeApp();
 }
@@ -59,16 +61,51 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const WhatsAppManager = require('./whatsapp/manager');
-const whatsappManager = new WhatsAppManager(io);
+// Lazy-load WhatsAppManager to avoid ESM analysis at module load time
+// This prevents Firebase emulator from trying to analyze Baileys (ESM) during startup
+let WhatsAppManagerClass = null;
+let whatsappManager = null;
+
+/**
+ * Lazy-load WhatsAppManager only when needed (on first request)
+ * This avoids ESM/CJS mismatch errors during Firebase emulator analysis
+ */
+function getWhatsAppManager() {
+  if (!whatsappManager) {
+    if (!WhatsAppManagerClass) {
+      WhatsAppManagerClass = require('./whatsapp/manager');
+    }
+    whatsappManager = new WhatsAppManagerClass(io);
+  }
+  return whatsappManager;
+}
+
+// -----------------------------------------------------------------------------
+// Staff Settings + Admin callables (TypeScript build output)
+// -----------------------------------------------------------------------------
+// These functions are implemented in `functions/src/index.ts` and compiled to `functions/dist/index.js`.
+// We explicitly re-export them here so Firebase deploy picks them up from this entrypoint.
+try {
+  // eslint-disable-next-line global-require
+  const staffCallables = require('./dist/index.js');
+  exports.allocateStaffCode = staffCallables.allocateStaffCode;
+  exports.finalizeStaffSetup = staffCallables.finalizeStaffSetup;
+  exports.updateStaffPhone = staffCallables.updateStaffPhone;
+  exports.changeUserTeam = staffCallables.changeUserTeam;
+  exports.setUserStatus = staffCallables.setUserStatus;
+  console.log('✅ Staff/Admin callables exported');
+} catch (e) {
+  console.warn('⚠️ Staff/Admin callables not loaded (dist/index.js missing?)', e?.message || e);
+}
 
 app.get('/', (req, res) => {
+  const manager = getWhatsAppManager();
   res.json({
     status: 'online',
     service: 'SuperParty WhatsApp on Firebase',
     version: '5.2.0',
     deployed: new Date().toISOString(),
-    accounts: whatsappManager.getAccounts().length,
+    accounts: manager.getAccounts().length,
     endpoints: [
       'GET /',
       'GET /api/whatsapp/accounts',
@@ -92,7 +129,8 @@ app.get('/api/whatsapp/accounts', (req, res) => {
     return res.json({ success: true, accounts: cached, cached: true });
   }
 
-  const accounts = whatsappManager.getAccounts();
+  const manager = getWhatsAppManager();
+  const accounts = manager.getAccounts();
   // Remove non-serializable fields (timers)
   const cleanAccounts = accounts.map(acc => {
     const { qrExpiryTimer: _qrExpiryTimer, ...rest } = acc;
@@ -108,7 +146,8 @@ app.get('/api/whatsapp/accounts', (req, res) => {
 app.post('/api/whatsapp/add-account', async (req, res) => {
   try {
     const { name, phone } = req.body;
-    const account = await whatsappManager.addAccount(name, phone);
+    const manager = getWhatsAppManager();
+    const account = await manager.addAccount(name, phone);
     logtail.info('WhatsApp account added', { accountId: account.id, name, phone });
     res.json({ success: true, account });
   } catch (error) {
@@ -125,7 +164,8 @@ app.post('/api/whatsapp/add-account', async (req, res) => {
 app.post('/api/whatsapp/accounts/:accountId/regenerate-qr', async (req, res) => {
   try {
     const { accountId } = req.params;
-    const result = await whatsappManager.regenerateQR(accountId);
+    const manager = getWhatsAppManager();
+    const result = await manager.regenerateQR(accountId);
     res.json(result);
   } catch (error) {
     Sentry.captureException(error, {
@@ -139,7 +179,8 @@ app.post('/api/whatsapp/accounts/:accountId/regenerate-qr', async (req, res) => 
 app.delete('/api/whatsapp/accounts/:accountId', async (req, res) => {
   try {
     const { accountId } = req.params;
-    await whatsappManager.removeAccount(accountId);
+    const manager = getWhatsAppManager();
+    await manager.removeAccount(accountId);
     res.json({ success: true, message: 'Account deleted' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -149,7 +190,8 @@ app.delete('/api/whatsapp/accounts/:accountId', async (req, res) => {
 app.post('/api/whatsapp/send', async (req, res) => {
   try {
     const { accountId, to, message } = req.body;
-    await whatsappManager.sendMessage(accountId, to, message);
+    const manager = getWhatsAppManager();
+    await manager.sendMessage(accountId, to, message);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -162,9 +204,10 @@ app.post('/api/whatsapp/send-message', async (req, res) => {
     const { accountId, to, message } = req.body;
 
     // Get first connected account if no accountId provided
+    const manager = getWhatsAppManager();
     let targetAccountId = accountId;
     if (!targetAccountId) {
-      const accounts = whatsappManager.getAccounts();
+      const accounts = manager.getAccounts();
       const connected = accounts.find(acc => acc.status === 'connected');
       if (!connected) {
         return res.status(400).json({ success: false, error: 'No connected account found' });
@@ -172,7 +215,7 @@ app.post('/api/whatsapp/send-message', async (req, res) => {
       targetAccountId = connected.id;
     }
 
-    await whatsappManager.sendMessage(targetAccountId, to, message);
+    await manager.sendMessage(targetAccountId, to, message);
     res.json({ success: true, message: 'Message sent' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -204,7 +247,8 @@ app.get('/api/clients', (req, res) => {
 app.get('/connect/:accountId', async (req, res) => {
   try {
     const { accountId } = req.params;
-    const qrData = await whatsappManager.getQRForWeb(accountId);
+    const manager = getWhatsAppManager();
+    const qrData = await manager.getQRForWeb(accountId);
 
     if (!qrData) {
       return res.send(
@@ -816,3 +860,20 @@ exports.setStaffCode = require('./staffCodeManager').setStaffCode;
 
 // V3 AI Event Handler
 exports.aiEventHandler = require('./aiEventHandler_v3').aiEventHandler;
+
+// WhatsApp Backend Proxy - QR Connect Routes Only
+const whatsappProxy = require('./whatsappProxy');
+exports.whatsappProxyGetAccounts = whatsappProxy.getAccounts;
+exports.whatsappProxyAddAccount = whatsappProxy.addAccount;
+exports.whatsappProxyRegenerateQr = whatsappProxy.regenerateQr;
+exports.whatsappProxySend = whatsappProxy.send;
+
+// --- Staff/Admin secure callables (TypeScript build) ---
+// Built from functions/src/*.ts into functions/dist/*.js during predeploy.
+try {
+  Object.assign(exports, require('./dist/index'));
+  console.log('✅ Loaded TypeScript callables from dist/index.js');
+} catch (e) {
+  console.warn('⚠️ TypeScript callables not loaded (dist missing). Run: npm --prefix functions run build');
+  console.warn(e?.message || e);
+}

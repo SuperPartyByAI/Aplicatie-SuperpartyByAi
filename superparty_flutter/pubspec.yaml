@@ -47,6 +47,12 @@ dependencies:
   # State Management
   provider: ^6.1.1
   
+  # Dependency Injection
+  get_it: ^7.7.0
+  
+  # Routing
+  go_router: ^14.2.0
+  
   # UI
   cupertino_icons: ^1.0.8
   flutter_svg: ^2.0.9
@@ -69,6 +75,7 @@ dependencies:
   http: ^1.2.0
   package_info_plus: ^5.0.1
   url_launcher: ^6.2.4
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

@@ -85,11 +85,11 @@ class _AssignModalState extends State<AssignModal> {
               border: Border.all(
                 color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
               ),
-              boxShadow: [
+              boxShadow: const [
                 BoxShadow(
-                  color: const Color(0x8C000000), // rgba(0,0,0,0.55)
+                  color: Color(0x8C000000), // rgba(0,0,0,0.55)
                   blurRadius: 80,
-                  offset: const Offset(0, 24),
+                  offset: Offset(0, 24),
                 ),
               ],
             ),
@@ -117,7 +117,7 @@ class _AssignModalState extends State<AssignModal> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFFEAF1FF).withOpacity(0.9),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.9),
             ),
           ),
         ),
@@ -140,7 +140,7 @@ class _AssignModalState extends State<AssignModal> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w900,
-              color: const Color(0xFFFF7878).withOpacity(0.9), // --bad
+              color: const Color(0xFFFF7878).withValues(alpha: 0.9), // --bad
             ),
           ),
         ),
@@ -166,7 +166,7 @@ class _AssignModalState extends State<AssignModal> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFFEAF1FF).withOpacity(0.9),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.9),
             ),
           ),
         ),
@@ -186,7 +186,7 @@ class _AssignModalState extends State<AssignModal> {
           '${_formatDate(widget.event.date)} • ${widget.event.address}${roleTime.isNotEmpty ? ' • $roleTime' : ''}',
           style: TextStyle(
             fontSize: 12,
-            color: const Color(0xFFEAF1FF).withOpacity(0.7),
+            color: const Color(0xFFEAF1FF).withValues(alpha: 0.7),
           ),
         ),
 
@@ -194,13 +194,10 @@ class _AssignModalState extends State<AssignModal> {
         if (hasAssigned || hasPending) ...[
           const SizedBox(height: 8),
           Text(
-            [
-              if (hasAssigned) 'Curent: $currentAssigned',
-              if (hasPending) 'In asteptare: $currentPending',
-            ].join(' • ') + ' • scrie codul ca sa trimiti o cerere noua',
+            '${hasAssigned ? 'Curent: $currentAssigned' : ''}${hasAssigned && hasPending ? ' • ' : ''}${hasPending ? 'In asteptare: $currentPending' : ''}${(hasAssigned || hasPending) ? ' • ' : ''}scrie codul ca sa trimiti o cerere noua',
             style: TextStyle(
               fontSize: 11,
-              color: const Color(0xFFEAF1FF).withOpacity(0.6),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.6),
             ),
           ),
         ],
@@ -221,7 +218,7 @@ class _AssignModalState extends State<AssignModal> {
             hintText: 'Cod (ex: A1, BTRAINER)',
             hintStyle: TextStyle(
               fontSize: 14,
-              color: const Color(0xFFEAF1FF).withOpacity(0.55),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.55),
             ),
             filled: true,
             fillColor: const Color(0x0FFFFFFF),
@@ -262,7 +259,7 @@ class _AssignModalState extends State<AssignModal> {
           'Se trimite cerere, apoi omul accepta sau refuza din tabul codului.',
           style: TextStyle(
             fontSize: 11,
-            color: const Color(0xFFEAF1FF).withOpacity(0.6),
+            color: const Color(0xFFEAF1FF).withValues(alpha: 0.6),
           ),
         ),
       ],

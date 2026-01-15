@@ -269,7 +269,7 @@ class _UserSelectorDialogState extends State<UserSelectorDialog> {
         height: 40,
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [badgeColor, badgeColor.withOpacity(0.7)],
+            colors: [badgeColor, badgeColor.withValues(alpha: 0.7)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -303,9 +303,9 @@ class _UserSelectorDialogState extends State<UserSelectorDialog> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: badgeColor.withOpacity(0.2),
+                color: badgeColor.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: badgeColor.withOpacity(0.5)),
+                border: Border.all(color: badgeColor.withValues(alpha: 0.5)),
               ),
               child: Text(
                 staffCode,

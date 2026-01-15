@@ -1,8 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:superparty_app/services/force_update_checker_service.dart';
+import '../test_setup.dart';
 
 void main() {
+  setUpAll(() {
+    muteDebugPrint();
+  });
+
+  tearDownAll(() {
+    restoreDebugPrint();
+  });
+
   group('ForceUpdateCheckerService', () {
     late FakeFirebaseFirestore fakeFirestore;
     late ForceUpdateCheckerService service;
@@ -16,7 +25,7 @@ void main() {
       test('returns default config when document does not exist', () async {
         final config = await service.getVersionConfig();
         expect(config, isNotNull); // Returns safe default
-        expect(config!.minVersion, '0.0.0'); // safeDefault()
+        expect(config.minVersion, '0.0.0'); // safeDefault()
         expect(config.minBuildNumber, 0); // safeDefault()
       });
 
@@ -31,7 +40,7 @@ void main() {
         final config = await service.getVersionConfig();
 
         expect(config, isNotNull);
-        expect(config!.minVersion, '1.0.1');
+        expect(config.minVersion, '1.0.1');
         expect(config.minBuildNumber, 2);
         expect(config.forceUpdate, true);
       });

@@ -2,7 +2,7 @@
 
 /**
  * Date and Time Parser
- * 
+ *
  * Parses dates and times from Romanian text input.
  * Enforces DD-MM-YYYY format for dates.
  */
@@ -20,16 +20,34 @@ class DateTimeParser {
 
     // Check for relative date keywords - REJECT these
     const relativeDateKeywords = [
-      'maine', 'mâine', 'mâine',
-      'azi', 'astazi', 'astăzi',
-      'poimaine', 'poimâine', 'poimâine',
-      'saptamana', 'săptămâna', 'săptămâna',
-      'luna', 'lună',
-      'vineri', 'sambata', 'sâmbătă', 'duminica', 'duminică',
-      'luni', 'marti', 'marți', 'miercuri', 'joi',
+      'maine',
+      'mâine',
+      'mâine',
+      'azi',
+      'astazi',
+      'astăzi',
+      'poimaine',
+      'poimâine',
+      'poimâine',
+      'saptamana',
+      'săptămâna',
+      'săptămâna',
+      'luna',
+      'lună',
+      'vineri',
+      'sambata',
+      'sâmbătă',
+      'duminica',
+      'duminică',
+      'luni',
+      'marti',
+      'marți',
+      'miercuri',
+      'joi',
     ];
 
-    const normalizedLower = normalized.toLowerCase()
+    const normalizedLower = normalized
+      .toLowerCase()
       .replace(/ă/g, 'a')
       .replace(/â/g, 'a')
       .replace(/î/g, 'i')
@@ -46,8 +64,8 @@ class DateTimeParser {
       }
     }
 
-    // Match DD-MM-YYYY format
-    const dateRegex = /(\d{2})[-/.](\d{2})[-/.](\d{4})/;
+    // Match D-M-YYYY / DD-MM-YYYY (normalize to DD-MM-YYYY)
+    const dateRegex = /(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/;
     const match = normalized.match(dateRegex);
 
     if (!match) {
@@ -123,9 +141,29 @@ class DateTimeParser {
 
     const normalized = text.trim();
 
-    // Match HH:mm or HH.mm or HHmm format
-    const timeRegex = /(\d{1,2})[:.]?(\d{2})/;
-    const match = normalized.match(timeRegex);
+    // Match:
+    // - HH:mm / H:m / HH.mm / H.m  (normalize minutes to 2 digits)
+    // - HHmm / HMM / HMM? (3-4 digits)
+    let hoursStr = null;
+    let minutesStr = null;
+
+    let match = normalized.match(/^(\d{1,2})[:.](\d{1,2})$/);
+    if (match) {
+      hoursStr = match[1];
+      minutesStr = match[2];
+    } else {
+      match = normalized.match(/^(\d{3,4})$/);
+      if (match) {
+        hoursStr = match[1].slice(0, -2);
+        minutesStr = match[1].slice(-2);
+      } else {
+        match = normalized.match(/^(\d{1,2})[:.]?(\d{2})$/);
+        if (match) {
+          hoursStr = match[1];
+          minutesStr = match[2];
+        }
+      }
+    }
 
     if (!match) {
       return {
@@ -135,8 +173,8 @@ class DateTimeParser {
       };
     }
 
-    const hours = parseInt(match[1], 10);
-    const minutes = parseInt(match[2], 10);
+    const hours = parseInt(hoursStr, 10);
+    const minutes = parseInt(minutesStr, 10);
 
     // Validate ranges
     if (hours < 0 || hours > 23) {
@@ -173,7 +211,9 @@ class DateTimeParser {
   parseDuration(text) {
     if (!text) return null;
 
-    const normalized = text.trim().toLowerCase()
+    const normalized = text
+      .trim()
+      .toLowerCase()
       .replace(/ă/g, 'a')
       .replace(/â/g, 'a')
       .replace(/î/g, 'i')
@@ -194,10 +234,10 @@ class DateTimeParser {
       };
     }
 
-    // Hours patterns
+    // Hours patterns (check hours+minutes BEFORE hours-only to avoid matching "1 ora" in "1 ora si 15 minute")
     const hoursPatterns = [
-      /(\d+(?:[.,]\d+)?)\s*(?:ore|ora|hour|hours|h|hr|hrs)/i,
-      /(\d+)\s*ore?\s*(?:si|și)?\s*(\d+)\s*(?:minute|min)/i,
+      /(\d+)\s*(?:ora?|ore?)\s*(?:si|și)?\s*(\d+)\s*(?:minute|min)/i, // Hours + minutes FIRST
+      /(\d+(?:[.,]\d+)?)\s*(?:ore|ora|oră|hour|hours|h|hr|hrs)/i, // Hours only SECOND
     ];
 
     for (const pattern of hoursPatterns) {
@@ -223,9 +263,7 @@ class DateTimeParser {
     }
 
     // Minutes patterns
-    const minutesPatterns = [
-      /(\d+)\s*(?:minute|min|m)/i,
-    ];
+    const minutesPatterns = [/(\d+)\s*(?:minute|min|m)/i];
 
     for (const pattern of minutesPatterns) {
       const match = normalized.match(pattern);
@@ -285,10 +323,10 @@ class DateTimeParser {
 
     // Romanian phone patterns
     const phonePatterns = [
-      /(\+?40\s?7\d{2}\s?\d{3}\s?\d{3})/,  // +40 7XX XXX XXX
-      /(07\d{2}\s?\d{3}\s?\d{3})/,         // 07XX XXX XXX
-      /(\+?40\s?7\d{8})/,                  // +407XXXXXXXX
-      /(07\d{8})/,                         // 07XXXXXXXX
+      /(\+?40\s?7\d{2}\s?\d{3}\s?\d{3})/, // +40 7XX XXX XXX
+      /(07\d{2}\s?\d{3}\s?\d{3})/, // 07XX XXX XXX
+      /(\+?40\s?7\d{8})/, // +407XXXXXXXX
+      /(07\d{8})/, // 07XXXXXXXX
     ];
 
     for (const pattern of phonePatterns) {
@@ -296,7 +334,7 @@ class DateTimeParser {
       if (match) {
         // Normalize phone number
         let phone = match[1].replace(/\s/g, '');
-        
+
         // Add +40 if missing
         if (!phone.startsWith('+')) {
           if (phone.startsWith('07')) {

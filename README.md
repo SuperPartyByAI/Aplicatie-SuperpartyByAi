@@ -44,6 +44,145 @@ This shows only the status of workflows for the latest commit on `main` branch.
 
 ---
 
+## 👥 Staff Settings (Flutter) + Admin (Firebase Auth/Firestore/Functions)
+
+This repo includes a production-safe **Staff self-setup** flow and an **Admin** panel implemented in Flutter, backed by **Cloud Functions** (server-side allocation) and hardened **Firestore rules**.
+
+### Flutter app (web/mobile)
+
+Project path: `superparty_flutter/`
+
+```bash
+cd superparty_flutter
+flutter pub get
+flutter run
+```
+
+### Firestore collections (required)
+
+- `users/{uid}`
+  - `kycDone` (bool)
+  - `kycData.fullName` (string)
+  - `displayName` (string, optional)
+  - `phone` (string, optional)
+  - `role` (string, optional, `"admin"` for fallback admin)
+  - `status` (string: `active|inactive|blocked`, optional)
+- `staffProfiles/{uid}`
+  - `setupDone` (bool)
+  - `teamId` (string)
+  - `assignedCode` (string)
+  - `codIdentificare`, `ceCodAi`, `cineNoteaza` (string)
+  - `phone`, `email`, `nume`
+- `teams/{teamId}`
+  - `label` (string)
+  - `active` (bool, optional; hide if false)
+- `teamCodePools/{teamId}`
+  - `prefix` (string, ex `"A"`)
+  - `freeCodes` (number[])
+- `teamAssignments/{teamId}_{uid}`
+  - `teamId`, `uid`, `code` (number), `prefix` (string), `createdAt`, `updatedAt`
+- `teamAssignmentsHistory/{autoId}` (server only)
+- `adminActions/{autoId}` (server only)
+
+### Deploy rules + functions
+
+```bash
+# Build & deploy Cloud Functions + Firestore rules
+cd functions
+npm i
+npm run build
+cd ..
+
+# Deploy Firestore rules
+firebase deploy --only firestore:rules
+
+# Deploy Cloud Functions
+firebase deploy --only functions
+```
+
+### Seed teams + pools (3 teams + code pools)
+
+```bash
+# Emulator
+node tools/seed_firestore.js --emulator
+
+# Production (requires GOOGLE_APPLICATION_CREDENTIALS)
+node tools/seed_firestore.js --project <projectId>
+```
+
+### Seed teams + pools
+
+Create docs in Firestore:
+
+- `teams/<teamId>` with `label`, `active:true`
+- `teamCodePools/<teamId>` with `prefix` and `freeCodes` populated (numbers)
+
+### Make a user admin
+
+Preferred: set a **custom claim** `admin: true` using Admin SDK (example via Functions shell):
+
+```bash
+cd functions
+firebase functions:shell
+```
+
+```js
+// In the shell:
+const admin = require('firebase-admin')
+admin.auth().setCustomUserClaims('<uid>', { admin: true })
+```
+
+Or use the provided script:
+
+```bash
+node tools/set_admin_claim.js --project <projectId> --uid <uid>
+```
+
+Fallback: set `users/<uid>.role = "admin"` (requires an existing admin/GM per rules).
+
+### Local testing (emulator)
+
+See `functions/test/STAFF_CALLABLES_EMULATOR.md`.
+
+### Quick smoke test (NO Flutter)
+
+This repo includes a Node-only harness that validates the Staff + Admin callables against the **Firestore emulator** and prints **PASS/FAIL**.
+
+```powershell
+# Terminal 1: start emulators
+firebase emulators:start --only firestore,functions
+
+# Terminal 2: run autorun harness (seeds + runs 9 checks)
+node tools/smoke_run_emulator.js
+```
+
+Docs: `docs/SMOKE_TEST_AUTORUN.md`.
+
+### Flutter commands (exact)
+
+```bash
+cd superparty_flutter
+flutter pub get
+flutter analyze
+flutter test
+flutter run
+```
+
+### Smoke test checklist
+
+- Staff:
+  - Login as non-KYC user → Staff Settings shows blocking error (no form)
+  - Login as KYC user → select team → code appears → switch team → code changes without consuming codes incorrectly
+  - Save (setupDone false) → staffProfiles populated + users.staffSetupDone true
+  - Reopen Staff Settings (setupDone true) → team locked, phone editable, save updates phone
+- Admin:
+  - Admin user opens `/admin` → list loads
+  - Search by email/name/code works (client-side filter)
+  - Open user → change team → assigned code updates + history/adminActions written
+  - Set status → users.status updated + adminActions written
+
+---
+
 ## 📊 System Overview
 
 ### Production-Ready Features

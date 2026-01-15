@@ -1,11 +1,21 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:superparty_app/models/event_model.dart';
+import '../test_setup.dart';
 
 void main() {
+  setUpAll(() {
+    muteDebugPrint();
+  });
+
+  tearDownAll(() {
+    restoreDebugPrint();
+  });
+
   group('EventModel Dual-Read (v1/v2)', () {
-    test('should parse v2 schema (date string)', () {
-      final doc = _createMockDoc({
+    test('should parse v2 schema (date string)', () async {
+      final doc = await _createMockDoc({
         'schemaVersion': 2,
         'date': '2026-01-15',
         'address': 'București, Str. Test 1',
@@ -27,9 +37,9 @@ void main() {
       expect(event.sarbatoritNume, 'Maria');
     });
 
-    test('should parse v1 schema (data Timestamp, locatie)', () {
+    test('should parse v1 schema (data Timestamp, locatie)', () async {
       final testDate = DateTime(2026, 1, 15);
-      final doc = _createMockDoc({
+      final doc = await _createMockDoc({
         'data': Timestamp.fromDate(testDate),
         'locatie': 'București, Str. Test 1',
         'nume': 'Maria',
@@ -56,8 +66,8 @@ void main() {
       expect(event.roles[0].assignedCode, 'A1');
     });
 
-    test('should handle missing optional fields', () {
-      final doc = _createMockDoc({
+    test('should handle missing optional fields', () async {
+      final doc = await _createMockDoc({
         'date': '2026-01-15',
         'address': 'Test',
         'sarbatoritNume': 'Test',
@@ -110,33 +120,9 @@ void main() {
   });
 }
 
-// Mock DocumentSnapshot
-_MockDocumentSnapshot _createMockDoc(Map<String, dynamic> data) {
-  return _MockDocumentSnapshot('test-id', data);
-}
-
-class _MockDocumentSnapshot implements DocumentSnapshot {
-  @override
-  final String id;
-  final Map<String, dynamic> _data;
-
-  _MockDocumentSnapshot(this.id, this._data);
-
-  @override
-  Map<String, dynamic>? data() => _data;
-
-  @override
-  dynamic get(Object field) => _data[field];
-
-  @override
-  dynamic operator [](Object field) => _data[field];
-
-  @override
-  bool get exists => true;
-
-  @override
-  DocumentReference get reference => throw UnimplementedError();
-
-  @override
-  SnapshotMetadata get metadata => throw UnimplementedError();
+// Create a real DocumentSnapshot using fake_cloud_firestore
+Future<DocumentSnapshot> _createMockDoc(Map<String, dynamic> data) async {
+  final fakeFirestore = FakeFirebaseFirestore();
+  await fakeFirestore.collection('evenimente').doc('test-id').set(data);
+  return await fakeFirestore.collection('evenimente').doc('test-id').get();
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
@@ -98,13 +97,13 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
           colors: [Color(0xFFDC2626), Color(0xFFF97316)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Row(
         children: [
@@ -113,7 +112,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _event?.nume ?? 'Detalii Eveniment',
+                  _event?.sarbatoritNume ?? 'Detalii Eveniment',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -123,7 +122,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
                 if (_event != null) ...[
                   const SizedBox(height: 4),
                   Text(
-                    DateFormat('dd MMM yyyy, HH:mm').format(_event!.data),
+                    _event!.date, // Use date string directly (DD-MM-YYYY)
                     style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 14,
@@ -214,7 +213,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
           _buildInfoSection(),
           const SizedBox(height: 24),
           _buildRolesSection(),
-          if (_event!.requiresSofer) ...[
+          if (_event!.needsDriver) ...[
             const SizedBox(height: 24),
             _buildDriverSection(),
           ],
@@ -239,11 +238,12 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildInfoRow(Icons.location_on, 'Locație', _event!.locatie),
+          _buildInfoRow(Icons.location_on, 'Locație', _event!.address),
           const SizedBox(height: 12),
-          _buildInfoRow(Icons.event, 'Tip Eveniment', _event!.tipEveniment),
-          const SizedBox(height: 12),
-          _buildInfoRow(Icons.place, 'Tip Locație', _event!.tipLocatie),
+          // Note: tipEveniment and tipLocatie not available in v2 schema
+          // _buildInfoRow(Icons.event, 'Tip Eveniment', _event!.tipEveniment),
+          // const SizedBox(height: 12),
+          // _buildInfoRow(Icons.place, 'Tip Locație', _event!.tipLocatie),
         ],
       ),
     );
@@ -299,9 +299,13 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
   }
 
   Widget _buildRoleCard(String role) {
-    final assignment = _event!.alocari[role];
-    final isAssigned = assignment?.status == AssignmentStatus.assigned;
-    final userId = assignment?.userId;
+    // Find role by label
+    final roleModel = _event!.roles.firstWhere(
+      (r) => r.label.toLowerCase() == role.toLowerCase(),
+      orElse: () => throw Exception('Rol $role nu există'),
+    );
+    final isAssigned = roleModel.status == RoleStatus.assigned;
+    final userId = roleModel.assignedCode;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -319,7 +323,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: isAssigned
-                  ? const Color(0xFFDC2626).withOpacity(0.2)
+                  ? const Color(0xFFDC2626).withValues(alpha: 0.2)
                   : const Color(0xFF2D3748),
               borderRadius: BorderRadius.circular(8),
             ),
@@ -388,8 +392,8 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
   }
 
   Widget _buildDriverSection() {
-    final isAssigned = _event!.sofer.status == DriverStatus.assigned;
-    final userId = _event!.sofer.userId;
+    final isAssigned = _event!.hasDriverAssigned;
+    final userId = _event!.sofer;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -418,7 +422,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: isAssigned
-                      ? const Color(0xFFDC2626).withOpacity(0.2)
+                      ? const Color(0xFFDC2626).withValues(alpha: 0.2)
                       : const Color(0xFF2D3748),
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -589,14 +593,21 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
           );
         }
       } else {
+        // Find role model for current userId
+        final roleModel = _event!.roles.firstWhere(
+          (r) => r.label.toLowerCase() == role.toLowerCase(),
+          orElse: () => throw Exception('Rol $role nu există'),
+        );
+        final currentUserId = roleModel.assignedCode;
+
         // Selector de useri
         final selectedUserId = await showUserSelectorDialog(
           context: context,
-          currentUserId: assignment.userId,
+          currentUserId: currentUserId,
           title: 'Alocă ${_getRoleLabel(role)}',
         );
 
-        if (selectedUserId == null && assignment.userId == null) {
+        if (selectedUserId == null && currentUserId == null) {
           // User a anulat sau a selectat "Nealocat" când era deja nealocat
           return;
         }
@@ -633,6 +644,8 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
 
   Future<void> _handleDriverAssignment(bool isAssigned, String? currentUserId) async {
     try {
+      final currentDriverId = _event!.sofer;
+      
       if (isAssigned) {
         // Unassign
         await _eventService.updateDriverAssignment(
@@ -649,11 +662,11 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
         // Selector de useri pentru șofer
         final selectedUserId = await showUserSelectorDialog(
           context: context,
-          currentUserId: currentUserId,
+          currentUserId: currentDriverId,
           title: 'Alocă Șofer',
         );
 
-        if (selectedUserId == null && currentUserId == null) {
+        if (selectedUserId == null && currentDriverId == null) {
           // User a anulat sau a selectat "Nealocat" când era deja nealocat
           return;
         }
@@ -894,8 +907,8 @@ Schema v2:
     final addressController = TextEditingController(text: _event!.address);
     final numeController = TextEditingController(text: _event!.sarbatoritNume);
     final varstaController = TextEditingController(text: _event!.sarbatoritVarsta.toString());
-    final totalController = TextEditingController(text: _event!.incasare.total.toString());
-    final avansController = TextEditingController(text: _event!.incasare.avans.toString());
+    final totalController = TextEditingController(text: (_event!.incasare.suma ?? 0.0).toString());
+    final avansController = TextEditingController(text: '0.0'); // avans not available in v2
 
     showDialog(
       context: context,
@@ -965,6 +978,11 @@ Schema v2:
           ),
           ElevatedButton(
             onPressed: () async {
+              // Save context-dependent objects before async operation
+              if (!mounted) return;
+              final navigator = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
+              
               try {
                 // Validate inputs
                 final date = dateController.text.trim();
@@ -972,7 +990,8 @@ Schema v2:
                 final nume = numeController.text.trim();
                 final varsta = int.tryParse(varstaController.text.trim()) ?? 0;
                 final total = double.tryParse(totalController.text.trim()) ?? 0;
-                final avans = double.tryParse(avansController.text.trim()) ?? 0;
+                // Note: avans not in v2 schema, but we can add it if needed
+                // final avans = double.tryParse(avansController.text.trim()) ?? 0;
 
                 if (date.isEmpty || address.isEmpty || nume.isEmpty) {
                   throw Exception('Toate câmpurile sunt obligatorii');
@@ -990,32 +1009,33 @@ Schema v2:
                   'address': address,
                   'sarbatoritNume': nume,
                   'sarbatoritVarsta': varsta,
-                  'incasare.total': total,
-                  'incasare.avans': avans,
-                  'incasare.restDePlata': total - avans,
+                  'incasare.suma': total,
+                  // Note: avans not in v2 schema, but we can add it if needed
+                  // 'incasare.avans': avans,
+                  // 'incasare.restDePlata': total - avans,
                   'updatedAt': FieldValue.serverTimestamp(),
                   'updatedBy': user.uid,
                 });
 
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Eveniment actualizat cu succes!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                  _loadEvent(); // Reload event
-                }
+                if (!mounted) return;
+                navigator.pop();
+                if (!mounted) return;
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('✅ Eveniment actualizat cu succes!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+                _loadEvent(); // Reload event
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('❌ Eroare: ${e.toString()}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
+                // Use messenger saved before async operation
+                if (!mounted) return;
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('❌ Eroare: ${e.toString()}'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
               }
             },
             child: const Text('Salvează'),
@@ -1025,93 +1045,5 @@ Schema v2:
     );
   }
 
-  /// Show archive confirmation dialog
-  void _showArchiveDialog() {
-    if (_event == null) return;
-
-    final reasonController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.archive, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Arhivează Eveniment'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Sigur vrei să arhivezi evenimentul "${_event!.sarbatoritNume}"?'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(
-                labelText: 'Motiv (opțional)',
-                hintText: 'Ex: Anulat, Amânat, etc.',
-                prefixIcon: Icon(Icons.note),
-              ),
-              maxLines: 2,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Anulează'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-            ),
-            onPressed: () async {
-              try {
-                final user = FirebaseAuth.instance.currentUser;
-                if (user == null) throw Exception('Nu ești autentificat');
-
-                final reason = reasonController.text.trim();
-
-                await FirebaseFirestore.instance
-                    .collection('evenimente')
-                    .doc(_event!.id)
-                    .update({
-                  'isArchived': true,
-                  'archivedAt': FieldValue.serverTimestamp(),
-                  'archivedBy': user.uid,
-                  if (reason.isNotEmpty) 'archiveReason': reason,
-                  'updatedAt': FieldValue.serverTimestamp(),
-                  'updatedBy': user.uid,
-                });
-
-                if (mounted) {
-                  Navigator.pop(context); // Close dialog
-                  Navigator.pop(context); // Close details sheet
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Eveniment arhivat cu succes!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('❌ Eroare: ${e.toString()}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text('Arhivează'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Removed duplicate _showArchiveDialog - keeping only the Future<void> version at line 710
 }

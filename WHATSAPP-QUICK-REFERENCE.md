@@ -62,6 +62,92 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 
 ---
 
+## 🤖 Automatizare Completă (PowerShell Script)
+
+Pentru a automatiza întregul flow (creare cont → QR → conectare → mesaj test), folosește scriptul PowerShell:
+
+### Rulare Script
+
+```powershell
+# Din repo root
+.\scripts\whatsapp-connect-qr.ps1 -Name "SuperParty Main" -ToPhone "40373805828" -Message "Test from SuperParty!"
+```
+
+### Ce Face Scriptul
+
+1. ✅ Verifică health-ul serviciului
+2. ✅ Creează contul WhatsApp (fără `phone`, doar `name`)
+3. ✅ Așteaptă QR code (polling la 3 secunde, max 60 secunde)
+4. ✅ Deschide QR code-ul automat în browser (HTML cu imagine)
+5. ✅ Așteaptă conectarea (polling la 5 secunde, max 3 minute)
+6. ✅ Trimite mesajul de test automat după conectare
+
+### Parametri
+
+| Parametru  | Obligatoriu | Descriere                      | Exemplu             |
+| ---------- | ----------- | ------------------------------ | ------------------- |
+| `-Name`    | ✅ Da       | Numele contului WhatsApp       | `"SuperParty Main"` |
+| `-ToPhone` | ✅ Da       | Număr telefon destinatar       | `"40373805828"`     |
+| `-Message` | ✅ Da       | Mesajul de test                | `"Test message"`    |
+| `-BaseUrl` | ❌ Nu       | URL base (default: production) | (opțional)          |
+
+### Exemplu Complet
+
+```powershell
+# Windows PowerShell (repo root)
+.\scripts\whatsapp-connect-qr.ps1 `
+  -Name "SuperParty Production" `
+  -ToPhone "40373805828" `
+  -Message "Hello from automated script!"
+```
+
+### Output Așteptat
+
+```
+=== WhatsApp QR Connect Automation ===
+
+[1/6] Checking service health...
+  ✓ Service is online (version: 5.2.0)
+[2/6] Creating account 'SuperParty Production'...
+  ✓ Account created: account_abc123
+[3/6] Waiting for QR code...
+  ✓ QR code received!
+[4/6] Opening QR code in browser...
+  ✓ QR code opened in browser
+  📱 Scan the QR code with WhatsApp now!
+[5/6] Waiting for connection...
+  ... status: qr_ready (5/180 seconds)
+  ... status: connecting (15/180 seconds)
+  ✓ Account connected!
+[6/6] Sending test message...
+  ✓ Message sent successfully!
+
+=== SUCCESS ===
+Account: SuperParty Production
+Account ID: account_abc123
+Status: connected
+Test message sent to: 40373805828
+```
+
+### Troubleshooting Script
+
+**Eroare: "QR code not received"**
+
+- Așteaptă mai mult (script-ul așteaptă max 60 secunde)
+- Verifică manual: `curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp/api/whatsapp/accounts`
+
+**Eroare: "Account did not connect"**
+
+- QR code-ul expiră în ~2 minute
+- Re-rulează scriptul pentru a genera un QR nou
+
+**QR code nu se deschide în browser**
+
+- Verifică că ai permisiuni pentru a deschide fișiere HTML
+- Deschide manual fișierul temporar din `%TEMP%`
+
+---
+
 ## 📡 API Endpoints
 
 ### Base URL

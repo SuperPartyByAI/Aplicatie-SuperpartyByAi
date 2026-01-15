@@ -33,6 +33,13 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// Suppress Java compiler warnings about obsolete source/target value 8
+subprojects {
+    tasks.withType(JavaCompile).configureEach {
+        options.compilerArgs += ["-Xlint:-options"]
+    }
+}
+
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }

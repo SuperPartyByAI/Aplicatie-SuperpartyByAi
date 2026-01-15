@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
@@ -7,7 +8,7 @@ class AICacheService {
   static const String _cachePrefix = 'ai_cache_';
   static const String _frequentQuestionsKey = 'frequent_questions';
   static const int _maxCacheEntries = 1000; // Max 1000 unique questions cached
-  static const Duration _cacheDuration = Duration(days: 365 * 100); // Permanent (100 years)
+  // Cache is permanent (no expiration needed)
   
   // Common questions with pre-cached responses
   static const Map<String, String> _commonResponses = {

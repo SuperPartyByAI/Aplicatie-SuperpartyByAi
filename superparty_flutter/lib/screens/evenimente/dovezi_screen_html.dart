@@ -116,7 +116,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0B1220).withOpacity(0.72),
+            color: const Color(0xFF0B1220).withValues(alpha: 0.72),
             border: const Border(
               bottom: BorderSide(
                 color: Color(0x14FFFFFF),
@@ -147,7 +147,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
-                        color: const Color(0xFFEAF1FF).withOpacity(0.9),
+                        color: const Color(0xFFEAF1FF).withValues(alpha: 0.9),
                       ),
                     ),
                   ),
@@ -177,7 +177,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
       '${_formatDate(widget.event.date)} • ${widget.event.address}',
       style: TextStyle(
         fontSize: 13,
-        color: const Color(0xFFEAF1FF).withOpacity(0.7),
+        color: const Color(0xFFEAF1FF).withValues(alpha: 0.7),
       ),
       textAlign: TextAlign.center,
     );
@@ -211,7 +211,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
             'Incarca poze pe categorii. Dupa fiecare incarcare, sistemul le verifica si iti arata status. Poti adauga poze in mai multe runde pana cand apar ca OK. Dupa ce o categorie devine OK, pozele din acea categorie se blocheaza si nu mai pot fi sterse.',
             style: TextStyle(
               fontSize: 12,
-              color: const Color(0xFFEAF1FF).withOpacity(0.7),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.7),
               height: 1.4,
             ),
           ),
@@ -287,8 +287,8 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     color: isLocked
-                        ? const Color(0xFFEAF1FF).withOpacity(0.4)
-                        : const Color(0xFFEAF1FF).withOpacity(0.9),
+                        ? const Color(0xFFEAF1FF).withValues(alpha: 0.4)
+                        : const Color(0xFFEAF1FF).withValues(alpha: 0.9),
                   ),
                 ),
               ),
@@ -297,7 +297,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
                 '$count salvate',
                 style: TextStyle(
                   fontSize: 12,
-                  color: const Color(0xFFEAF1FF).withOpacity(0.7),
+                  color: const Color(0xFFEAF1FF).withValues(alpha: 0.7),
                 ),
               ),
             ],
@@ -407,8 +407,8 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
                     child: Container(
                       width: 20,
                       height: 20,
-                      decoration: BoxDecoration(
-                        color: const Color(0xEBFF7878), // rgba(255,120,120,0.92)
+                      decoration: const BoxDecoration(
+                        color: Color(0xEBFF7878), // rgba(255,120,120,0.92)
                         shape: BoxShape.circle,
                       ),
                       child: const Center(
@@ -473,7 +473,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: const Color(0xFFEAF1FF).withOpacity(0.9),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.9),
             ),
           ),
         ),
@@ -482,7 +482,7 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
           'Se salveaza local (demo). In aplicatie reala ar merge in backend.',
           style: TextStyle(
             fontSize: 11,
-            color: const Color(0xFFEAF1FF).withOpacity(0.6),
+            color: const Color(0xFFEAF1FF).withValues(alpha: 0.6),
           ),
         ),
       ],

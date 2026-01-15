@@ -165,7 +165,7 @@ class UserBadge extends StatelessWidget {
           height: size,
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [badgeColor, badgeColor.withOpacity(0.7)],
+              colors: [badgeColor, badgeColor.withValues(alpha: 0.7)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),

@@ -360,6 +360,8 @@ const START_TIME = Date.now();
 console.log(`🚀 SuperParty WhatsApp Backend v${VERSION} (${COMMIT_HASH})`);
 console.log(`📍 PORT: ${PORT}`);
 console.log(`📁 Auth directory: ${authDir}`);
+const CONNECTING_TIMEOUT_MS = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
+console.log(`⏱️  WhatsApp connect timeout: ${Math.floor(CONNECTING_TIMEOUT_MS / 1000)}s`);
 console.log(`🔥 Firestore: ${admin.apps.length > 0 ? 'Connected' : 'Not connected'}`);
 console.log(`📊 Max accounts: ${MAX_ACCOUNTS}`);
 
@@ -492,8 +494,8 @@ async function createConnection(accountId, name, phone) {
     return;
   }
 
-  // Set timeout to prevent "connecting forever"
-  const CONNECTING_TIMEOUT = 60000; // 60 seconds
+  // Set timeout to prevent "connecting forever" (configurable via env)
+  const CONNECTING_TIMEOUT = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
 
   try {
     console.log(`\n🔌 [${accountId}] Creating connection...`);
@@ -578,9 +580,11 @@ async function createConnection(accountId, name, phone) {
 
     connections.set(accountId, account);
 
-    // Set timeout to prevent "connecting forever"
+    // Set timeout to prevent "connecting forever" (configurable via env)
+    const CONNECTING_TIMEOUT = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
     account.connectingTimeout = setTimeout(() => {
-      console.log(`⏰ [${accountId}] Connecting timeout (60s), transitioning to disconnected`);
+      const timeoutSeconds = Math.floor(CONNECTING_TIMEOUT / 1000);
+      console.log(`⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`);
       const acc = connections.get(accountId);
       if (acc && acc.status === 'connecting') {
         acc.status = 'disconnected';
@@ -834,57 +838,9 @@ async function createConnection(accountId, name, phone) {
     // Creds update handler
     sock.ev.on('creds.update', saveCreds);
 
-    // Flush outbox on connect
-    sock.ev.on('connection.update', async update => {
-      if (update.connection === 'open') {
-        console.log(`🔄 [${accountId}] Connection open, flushing outbox...`);
-
-        if (!firestoreAvailable || !db) {
-          console.log(`⚠️  [${accountId}] Firestore not available, skipping outbox flush`);
-          return;
-        }
-
-        try {
-          const outboxSnapshot = await db
-            .collection('outbox')
-            .where('accountId', '==', accountId)
-            .where('status', '==', 'queued')
-            .get();
-
-          console.log(`📤 [${accountId}] Found ${outboxSnapshot.size} queued messages`);
-
-          for (const doc of outboxSnapshot.docs) {
-            const data = doc.data();
-
-            try {
-              const jid = data.toJid;
-              const result = await sock.sendMessage(jid, data.payload);
-
-              await db.collection('outbox').doc(doc.id).update({
-                status: 'sent',
-                sentAt: admin.firestore.FieldValue.serverTimestamp(),
-                providerMessageId: result.key.id,
-              });
-
-              console.log(`✅ [${accountId}] Flushed message ${doc.id}`);
-            } catch (error) {
-              console.error(`❌ [${accountId}] Failed to flush ${doc.id}:`, error.message);
-
-              await db
-                .collection('outbox')
-                .doc(doc.id)
-                .update({
-                  status: 'failed',
-                  error: error.message,
-                  attempts: (data.attempts || 0) + 1,
-                });
-            }
-          }
-        } catch (error) {
-          console.error(`❌ [${accountId}] Outbox flush error:`, error.message);
-        }
-      }
-    });
+    // REMOVED: Flush outbox on connect handler
+    // Single sending path: only outbox worker loop handles queued messages
+    // This prevents duplicate sends on reconnect
 
     // Messages handler
     sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
@@ -926,10 +882,45 @@ async function createConnection(accountId, name, phone) {
               `📨 [${accountId}] PROCESSING: ${isFromMe ? 'OUTBOUND' : 'INBOUND'} message ${messageId} from ${from}`
             );
 
+            // INBOUND DEDUPE: Skip if already processed
+            let shouldSkip = false;
+            if (!isFromMe && firestoreAvailable && db) {
+              const dedupeKey = `${accountId}__${messageId}`;
+              const dedupeRef = db.collection('inboundDedupe').doc(dedupeKey);
+              
+              try {
+                await db.runTransaction(async (transaction) => {
+                  const dedupeDoc = await transaction.get(dedupeRef);
+                  if (dedupeDoc.exists) {
+                    console.log(`⏭️  [${accountId}] Message ${messageId} already processed (dedupe), skipping`);
+                    shouldSkip = true;
+                    return; // Skip duplicate
+                  }
+                  
+                  // Mark as processed (TTL: 7 days)
+                  const ttlTimestamp = admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000);
+                  transaction.set(dedupeRef, {
+                    accountId,
+                    providerMessageId: messageId,
+                    processedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    expiresAt: ttlTimestamp,
+                  });
+                });
+              } catch (dedupeError) {
+                // If transaction fails (e.g., already exists), skip processing
+                console.log(`⏭️  [${accountId}] Dedupe check failed for ${messageId}, skipping:`, dedupeError.message);
+                shouldSkip = true;
+              }
+            }
+            
+            if (shouldSkip) {
+              continue; // Skip duplicate message
+            }
+
             // Save to Firestore
             if (firestoreAvailable && db) {
               try {
-                const threadId = from;
+                const threadId = `${accountId}__${from}`; // Use accountId__clientJid format
                 const messageData = {
                   accountId,
                   clientJid: from,
@@ -1278,6 +1269,102 @@ app.get('/debug/listeners/:accountId', (req, res) => {
       lastUpdate: account.lastUpdate,
     },
   });
+});
+
+// Observability endpoints
+app.get('/healthz', (req, res) => {
+  // Simple liveness check (process is alive)
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Middleware to protect observability endpoints
+const requireObsToken = (req, res, next) => {
+  const obsToken = process.env.OBS_TOKEN;
+  if (!obsToken) {
+    // If OBS_TOKEN not set, allow access (dev mode)
+    return next();
+  }
+  const providedToken = req.headers['x-internal-token'];
+  if (providedToken !== obsToken) {
+    return res.status(401).json({ error: 'Unauthorized: Missing or invalid X-Internal-Token' });
+  }
+  next();
+};
+
+app.get('/readyz', requireObsToken, async (req, res) => {
+  // Readiness check (dependencies available)
+  const checks = {
+    firestore: firestoreAvailable && !!db,
+    worker: true, // Worker is always running (setInterval)
+    timestamp: new Date().toISOString(),
+  };
+  
+  const isReady = checks.firestore && checks.worker;
+  res.status(isReady ? 200 : 503).json({
+    status: isReady ? 'ready' : 'not_ready',
+    checks,
+  });
+});
+
+app.get('/metrics-json', requireObsToken, async (req, res) => {
+  // Lightweight metrics endpoint (JSON format)
+  if (!firestoreAvailable || !db) {
+    return res.status(503).json({ error: 'Firestore not available' });
+  }
+  
+  try {
+    const now = admin.firestore.Timestamp.now();
+    const fiveMinutesAgo = admin.firestore.Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
+    
+    // Active accounts
+    const activeAccounts = Array.from(connections.values()).filter(
+      conn => conn.status === 'connected'
+    ).length;
+    
+    // Outbox stats
+    const [queuedSnapshot, processingSnapshot, sentSnapshot, failedSnapshot] = await Promise.all([
+      db.collection('outbox').where('status', '==', 'queued').get(),
+      db.collection('outbox').where('status', '==', 'processing').get(),
+      db.collection('outbox')
+        .where('status', '==', 'sent')
+        .where('sentAt', '>=', fiveMinutesAgo)
+        .get(),
+      db.collection('outbox')
+        .where('status', '==', 'failed')
+        .where('failedAt', '>=', fiveMinutesAgo)
+        .get(),
+    ]);
+    
+    // Outbox lag (max createdAt for queued messages)
+    let outboxLagSeconds = 0;
+    if (!queuedSnapshot.empty) {
+      const oldestQueued = queuedSnapshot.docs
+        .map(doc => doc.data().createdAt)
+        .filter(ts => ts)
+        .sort((a, b) => a.toMillis() - b.toMillis())[0];
+      if (oldestQueued) {
+        outboxLagSeconds = Math.floor((now.toMillis() - oldestQueued.toMillis()) / 1000);
+      }
+    }
+    
+    // Reconnect count (from connections map - approximate)
+    const reconnectCount = Array.from(connections.values())
+      .filter(conn => conn.reconnectCount || 0)
+      .reduce((sum, conn) => sum + (conn.reconnectCount || 0), 0);
+    
+    res.json({
+      activeAccounts,
+      queuedCount: queuedSnapshot.size,
+      processingCount: processingSnapshot.size,
+      sentLast5m: sentSnapshot.size,
+      failedLast5m: failedSnapshot.size,
+      reconnectCount,
+      outboxLagSeconds,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.get('/health', async (req, res) => {
@@ -3012,7 +3099,7 @@ async function restoreSingleAccount(accountId) {
 
 // Extract account restore logic
 async function restoreAccount(accountId, data) {
-  const CONNECTING_TIMEOUT = 60000; // 60 seconds - same as createConnection
+  const CONNECTING_TIMEOUT = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
 
   try {
     console.log(
@@ -3121,13 +3208,15 @@ async function restoreAccount(accountId, data) {
       lastUpdate: data.updatedAt || new Date().toISOString(),
     };
 
-    // Set timeout to prevent "connecting forever" - CRITICAL FIX
+    // Set timeout to prevent "connecting forever" - CRITICAL FIX (configurable via env)
+    const CONNECTING_TIMEOUT = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
     account.connectingTimeout = setTimeout(() => {
-      console.log(`⏰ [${accountId}] Connecting timeout (60s), transitioning to disconnected`);
+      const timeoutSeconds = Math.floor(CONNECTING_TIMEOUT / 1000);
+      console.log(`⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`);
       const acc = connections.get(accountId);
       if (acc && acc.status === 'connecting') {
         acc.status = 'disconnected';
-        acc.lastError = 'Connection timeout - no progress after 60s';
+        acc.lastError = `Connection timeout - no progress after ${timeoutSeconds}s`;
         saveAccountToFirestore(accountId, {
           status: 'disconnected',
           lastError: 'Connection timeout',
@@ -3303,57 +3392,9 @@ async function restoreAccount(accountId, data) {
 
     sock.ev.on('creds.update', saveCreds);
 
-    // Flush outbox on connect
-    sock.ev.on('connection.update', async update => {
-      if (update.connection === 'open') {
-        console.log(`🔄 [${accountId}] Connection open, flushing outbox...`);
-
-        if (!firestoreAvailable || !db) {
-          console.log(`⚠️  [${accountId}] Firestore not available, skipping outbox flush`);
-          return;
-        }
-
-        try {
-          const outboxSnapshot = await db
-            .collection('outbox')
-            .where('accountId', '==', accountId)
-            .where('status', '==', 'queued')
-            .get();
-
-          console.log(`📤 [${accountId}] Found ${outboxSnapshot.size} queued messages`);
-
-          for (const doc of outboxSnapshot.docs) {
-            const data = doc.data();
-
-            try {
-              const jid = data.toJid;
-              const result = await sock.sendMessage(jid, data.payload);
-
-              await db.collection('outbox').doc(doc.id).update({
-                status: 'sent',
-                sentAt: admin.firestore.FieldValue.serverTimestamp(),
-                providerMessageId: result.key.id,
-              });
-
-              console.log(`✅ [${accountId}] Flushed message ${doc.id}`);
-            } catch (error) {
-              console.error(`❌ [${accountId}] Failed to flush ${doc.id}:`, error.message);
-
-              await db
-                .collection('outbox')
-                .doc(doc.id)
-                .update({
-                  status: 'failed',
-                  error: error.message,
-                  attempts: (data.attempts || 0) + 1,
-                });
-            }
-          }
-        } catch (error) {
-          console.error(`❌ [${accountId}] Outbox flush error:`, error.message);
-        }
-      }
-    });
+    // REMOVED: Flush outbox on connect handler
+    // Single sending path: only outbox worker loop handles queued messages
+    // This prevents duplicate sends on reconnect
 
     // Messages handler - CRITICAL for receiving messages
     sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
@@ -4014,6 +4055,10 @@ app.listen(PORT, '0.0.0.0', async () => {
   const OUTBOX_WORKER_INTERVAL = 500;
   const MAX_RETRY_ATTEMPTS = 5;
 
+  // Worker instance ID for distributed leasing
+  const WORKER_ID = process.env.RAILWAY_DEPLOYMENT_ID || process.env.HOSTNAME || `local-${Date.now()}`;
+  const LEASE_DURATION_MS = 60000; // 60 seconds lease
+
   setInterval(async () => {
     if (!firestoreAvailable || !db) return;
 
@@ -4030,12 +4075,60 @@ app.listen(PORT, '0.0.0.0', async () => {
       if (outboxSnapshot.empty) return;
 
       const workerStartTime = Date.now();
-      console.log(`📤 Outbox worker: processing ${outboxSnapshot.size} queued messages`);
+      console.log(`📤 Outbox worker [${WORKER_ID}]: processing ${outboxSnapshot.size} queued messages`);
 
       for (const doc of outboxSnapshot.docs) {
-        const data = doc.data();
         const requestId = doc.id;
         const messageStartTime = Date.now();
+
+        // DISTRIBUTED LEASING: Use transaction to atomically claim message
+        let claimed = false;
+        let data = null;
+        try {
+          await db.runTransaction(async (transaction) => {
+            const outboxRef = db.collection('outbox').doc(requestId);
+            const outboxDoc = await transaction.get(outboxRef);
+
+            if (!outboxDoc.exists) {
+              return; // Already deleted or doesn't exist
+            }
+
+            const currentData = outboxDoc.data();
+            const currentStatus = currentData.status;
+            const leaseUntil = currentData.leaseUntil;
+
+            // Skip if not queued or already claimed by another worker
+            if (currentStatus !== 'queued') {
+              return; // Already processed
+            }
+
+            // Check if lease is still valid (another worker claimed it)
+            if (leaseUntil && leaseUntil.toMillis() > Date.now()) {
+              return; // Already claimed by another worker
+            }
+
+            // Claim the message atomically
+            const leaseUntilTimestamp = admin.firestore.Timestamp.fromMillis(Date.now() + LEASE_DURATION_MS);
+            transaction.update(outboxRef, {
+              status: 'processing',
+              claimedBy: WORKER_ID,
+              leaseUntil: leaseUntilTimestamp,
+              attemptCount: (currentData.attemptCount || 0) + 1,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+            claimed = true;
+            data = currentData;
+          });
+        } catch (txError) {
+          console.error(`❌ [${WORKER_ID}] Transaction failed for ${requestId}:`, txError.message);
+          continue; // Skip this message, will retry in next cycle
+        }
+
+        if (!claimed || !data) {
+          continue; // Not claimed (already processed or claimed by another worker)
+        }
+
         const {
           accountId,
           toJid,
@@ -4054,6 +4147,7 @@ app.listen(PORT, '0.0.0.0', async () => {
           await db.collection('outbox').doc(requestId).update({
             status: 'sent',
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            leaseUntil: null, // Release lease
           });
           continue;
         }
@@ -4076,6 +4170,7 @@ app.listen(PORT, '0.0.0.0', async () => {
               lastError: 'Account not connected after max retries',
               failedAt: admin.firestore.FieldValue.serverTimestamp(),
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              leaseUntil: null, // Release lease
             });
 
             // Update message doc in thread
@@ -4112,10 +4207,12 @@ app.listen(PORT, '0.0.0.0', async () => {
             .collection('outbox')
             .doc(requestId)
             .update({
+              status: 'queued', // Reset to queued for retry
               attemptCount: newAttemptCount,
               nextAttemptAt: admin.firestore.Timestamp.fromDate(nextAttemptAt),
               lastError: 'Account not connected',
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              leaseUntil: null, // Release lease
             });
 
           console.log(
@@ -4125,15 +4222,17 @@ app.listen(PORT, '0.0.0.0', async () => {
         }
 
         try {
-          // Update status to sending
-          await db
-            .collection('outbox')
-            .doc(requestId)
-            .update({
-              status: 'sending',
-              attemptCount: attemptCount + 1,
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
+          // Refresh lease while sending (extend lease)
+          const leaseRefreshInterval = setInterval(async () => {
+            try {
+              await db.collection('outbox').doc(requestId).update({
+                leaseUntil: admin.firestore.Timestamp.fromMillis(Date.now() + LEASE_DURATION_MS),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            } catch (e) {
+              // Ignore refresh errors (message may have been completed)
+            }
+          }, 30000); // Refresh every 30s
 
           // Send message via Baileys
           const messagePayload = payload || { text: body };
@@ -4146,6 +4245,9 @@ app.listen(PORT, '0.0.0.0', async () => {
             `✅ [${accountId}] Sent outbox message ${requestId}, waMessageId: ${result.key.id} (WhatsApp: ${sendDuration}ms, total: ${totalDuration}ms)`
           );
 
+          // Clear lease refresh interval
+          clearInterval(leaseRefreshInterval);
+
           // Update outbox: status = sent
           await db.collection('outbox').doc(requestId).update({
             status: 'sent',
@@ -4153,6 +4255,7 @@ app.listen(PORT, '0.0.0.0', async () => {
             sentAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             lastError: null,
+            leaseUntil: null, // Release lease
           });
 
           // Update message doc in thread (if threadId provided)
@@ -4218,15 +4321,19 @@ app.listen(PORT, '0.0.0.0', async () => {
           // Mark as failed after MAX_RETRY_ATTEMPTS
           const newStatus = newAttemptCount >= MAX_RETRY_ATTEMPTS ? 'failed' : 'queued';
 
+          // Clear lease refresh interval
+          clearInterval(leaseRefreshInterval);
+
           await db
             .collection('outbox')
             .doc(requestId)
             .update({
-              status: newStatus,
+              status: newStatus === 'failed' ? 'failed' : 'queued', // Reset to queued for retry
               attemptCount: newAttemptCount,
               nextAttemptAt: admin.firestore.Timestamp.fromDate(nextAttemptAt),
               lastError: error.message,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              leaseUntil: null, // Release lease
               ...(newStatus === 'failed' && {
                 failedAt: admin.firestore.FieldValue.serverTimestamp(),
               }),

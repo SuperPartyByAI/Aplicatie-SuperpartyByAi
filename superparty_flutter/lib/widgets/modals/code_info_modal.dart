@@ -70,7 +70,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
         }
 
         final data = eventDoc.data();
-        if (data == null || data is! Map<String, dynamic>) {
+        if (data == null) {
           throw Exception('Invalid event data');
         }
         final roles = List<Map<String, dynamic>>.from(data['roles'] ?? []);
@@ -130,7 +130,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
         }
 
         final data = eventDoc.data();
-        if (data == null || data is! Map<String, dynamic>) {
+        if (data == null) {
           throw Exception('Invalid event data');
         }
         final roles = List<Map<String, dynamic>>.from(data['roles'] ?? []);
@@ -194,11 +194,11 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
               color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
             ),
             borderRadius: BorderRadius.circular(18),
-            boxShadow: [
+            boxShadow: const [
               BoxShadow(
-                color: const Color(0x8C000000), // rgba(0,0,0,0.55)
+                color: Color(0x8C000000), // rgba(0,0,0,0.55)
                 blurRadius: 80,
-                offset: const Offset(0, 24),
+                offset: Offset(0, 24),
               ),
             ],
           ),
@@ -225,7 +225,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFFEAF1FF).withOpacity(0.9),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.9),
             ),
           ),
         ),
@@ -245,7 +245,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFFEAF1FF).withOpacity(0.9),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.9),
             ),
           ),
         ),
@@ -268,7 +268,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
             'Codul ${widget.code} nu este folosit în niciun eveniment.',
             style: TextStyle(
               fontSize: 13,
-              color: const Color(0xFFEAF1FF).withOpacity(0.7),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.7),
             ),
             textAlign: TextAlign.center,
           ),
@@ -323,7 +323,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
             item['address'] ?? '',
             style: TextStyle(
               fontSize: 12,
-              color: const Color(0xFFEAF1FF).withOpacity(0.7),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.7),
             ),
           ),
           const SizedBox(height: 8),
@@ -333,7 +333,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: const Color(0xFFEAF1FF).withOpacity(0.85),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.85),
             ),
           ),
           const SizedBox(height: 8),
@@ -346,7 +346,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w900,
-                    color: const Color(0xFFFFBE5C).withOpacity(0.9),
+                    color: const Color(0xFFFFBE5C).withValues(alpha: 0.9),
                   ),
                 ),
                 const Spacer(),
@@ -399,7 +399,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w900,
-                color: const Color(0xFF4ECDC4).withOpacity(0.9),
+                color: const Color(0xFF4ECDC4).withValues(alpha: 0.9),
               ),
             ),
         ],

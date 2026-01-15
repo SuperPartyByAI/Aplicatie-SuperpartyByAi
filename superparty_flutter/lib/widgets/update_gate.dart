@@ -93,13 +93,13 @@ class _UpdateGateState extends State<UpdateGate> {
         
         // Overlay for checking state
         if (_checking)
-          Positioned.fill(
+          const Positioned.fill(
             child: Material(
               color: Colors.white,
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
+                  children: [
                     CircularProgressIndicator(),
                     SizedBox(height: 16),
                     Text('Verificare actualizări...'),
