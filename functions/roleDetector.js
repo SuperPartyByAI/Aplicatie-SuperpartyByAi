@@ -190,6 +190,11 @@ class RoleDetector {
    * Load AI overrides from Firestore
    */
   async loadOverrides() {
+    // Safe fallback if db is not initialized (e.g., in tests)
+    if (!this.db) {
+      return {};
+    }
+    
     try {
       const overridesSnap = await this.db
         .collection(this.overridesCollection)
@@ -412,37 +417,46 @@ class RoleDetector {
    * Parse duration from various formats
    */
   parseDuration(text) {
+    if (!text || typeof text !== 'string') {
+      return null;
+    }
+    
     const normalizedText = this.normalizeText(text);
 
-    // Direct number (assume minutes if < 10, otherwise minutes)
-    const directNumber = /^(\d+)$/.exec(normalizedText);
-    if (directNumber) {
-      const num = parseInt(directNumber[1], 10);
-      // If number is small (< 10), assume hours, otherwise minutes
-      return num < 10 ? num * 60 : num;
+    // Special cases first (before number patterns)
+    // "o oră jumătate" = 1.5 hours = 90 minutes
+    if (/o\s+ora\s+jumatate|o\s+ora\s+si\s+jumatate|o\s+ora\s+si\s+o\s+jumatate/.test(normalizedText)) {
+      return 90;
+    }
+    
+    // "jumătate de oră" = 0.5 hours = 30 minutes
+    if (/jumatate\s+de\s+ora|jumatate\s+ora/.test(normalizedText)) {
+      return 30;
     }
 
-    // Hours patterns
+    // Hours and minutes combined: "2 ore si 30 minute", "1 oră și 15 minute"
+    const hoursAndMinutesPattern = /(\d+)\s*(?:ora|ore|hour|hours|h)\s*(?:si|și|and)?\s*(\d+)\s*(?:minute|min|m)/i;
+    const hoursAndMinutesMatch = normalizedText.match(hoursAndMinutesPattern);
+    if (hoursAndMinutesMatch) {
+      const hours = parseInt(hoursAndMinutesMatch[1], 10);
+      const minutes = parseInt(hoursAndMinutesMatch[2], 10);
+      return hours * 60 + minutes;
+    }
+
+    // Hours patterns: "1 oră", "2 ore", "3h", "1.5 ore", "2,5 ore"
     const hoursPatterns = [
-      /(\d+(?:[.,]\d+)?)\s*(?:ore|hour|hours|h|hr|hrs)/i,
-      /(\d+)\s*ore\s*(?:si|și)?\s*(\d+)\s*(?:minute|min)/i,
+      /(\d+(?:[.,]\d+)?)\s*(?:ora|ore|hour|hours|h|hr|hrs)/i,
     ];
 
     for (const pattern of hoursPatterns) {
       const match = normalizedText.match(pattern);
       if (match) {
-        if (match[2]) {
-          // Hours and minutes
-          return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-        } else {
-          // Just hours (can be decimal)
-          const hours = parseFloat(match[1].replace(',', '.'));
-          return Math.round(hours * 60);
-        }
+        const hours = parseFloat(match[1].replace(',', '.'));
+        return Math.round(hours * 60);
       }
     }
 
-    // Minutes patterns
+    // Minutes patterns: "90 minute", "30 min", "45m"
     const minutesPatterns = [
       /(\d+)\s*(?:minute|min|m)/i,
     ];
@@ -454,11 +468,12 @@ class RoleDetector {
       }
     }
 
-    // Special cases
-    if (/jumatate|jumătate|1\/2|0\.5|0,5/.test(normalizedText)) {
-      if (/ora|ore|hour/.test(normalizedText)) {
-        return 30;
-      }
+    // Direct number (assume hours if < 10, otherwise minutes)
+    const directNumber = /^(\d+)$/.exec(normalizedText);
+    if (directNumber) {
+      const num = parseInt(directNumber[1], 10);
+      // If number is small (< 10), assume hours, otherwise minutes
+      return num < 10 ? num * 60 : num;
     }
 
     return null;

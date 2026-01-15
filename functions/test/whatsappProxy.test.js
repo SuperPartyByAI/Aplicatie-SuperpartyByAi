@@ -375,6 +375,7 @@ describe('WhatsApp Proxy /send', () => {
   let mockOutboxRef;
   let mockThreadCollection;
   let mockOutboxCollection;
+  let mockStaffCollection;
 
   beforeEach(() => {
     jest.resetModules();
@@ -403,17 +404,17 @@ describe('WhatsApp Proxy /send', () => {
       doc: jest.fn(() => mockOutboxRef),
     };
 
+    mockStaffCollection = {
+      doc: jest.fn(() => ({
+        get: jest.fn(),
+      })),
+    };
+
     // Override global mock for this test suite
     mockFirestore.collection.mockImplementation((name) => {
       if (name === 'threads') return mockThreadCollection;
       if (name === 'outbox') return mockOutboxCollection;
-      if (name === 'staffProfiles') {
-        return {
-          doc: jest.fn(() => ({
-            get: jest.fn(),
-          })),
-        };
-      }
+      if (name === 'staffProfiles') return mockStaffCollection;
       return { doc: jest.fn() };
     });
 
@@ -460,7 +461,7 @@ describe('WhatsApp Proxy /send', () => {
       exists: true,
       data: () => ({ role: 'staff' }),
     };
-    const mockStaffCollection = mockFirestore.collection('staffProfiles');
+    // Use the mock staff collection from beforeEach
     mockStaffCollection.doc().get.mockResolvedValue(mockStaffDoc);
   });
 
@@ -489,7 +490,7 @@ describe('WhatsApp Proxy /send', () => {
     const mockStaffDoc = {
       exists: false,
     };
-    const mockStaffCollection = mockFirestore.collection('staffProfiles');
+    // Use the mock staff collection from beforeEach
     mockStaffCollection.doc().get.mockResolvedValue(mockStaffDoc);
 
     await whatsappProxy.sendHandler(req, res);

@@ -83,6 +83,12 @@ Write-Host "  ✓ Token received (length: $tokenLength)" -ForegroundColor Green
 # 4) Output token
 Write-Host "[4/4] Token ready" -ForegroundColor Yellow
 Write-Host ""
+
+# Return token on stdout (for easy capture: $token = .\scripts\get-auth-emulator-token.ps1)
+# Write to stdout first (before other output) so it can be captured
+Write-Output $idToken
+
+# Then show usage info
 Write-Host "=== ID Token ===" -ForegroundColor Cyan
 Write-Host $idToken -ForegroundColor White
 Write-Host ""
@@ -92,6 +98,3 @@ Write-Host ""
 Write-Host "=== PowerShell Variable ===" -ForegroundColor Cyan
 Write-Host "`$env:AUTH_TOKEN = `"$idToken`"" -ForegroundColor White
 Write-Host ""
-
-# Return token (can be captured with: $token = .\scripts\get-auth-emulator-token.ps1)
-return $idToken
