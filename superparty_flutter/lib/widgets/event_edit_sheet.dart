@@ -39,7 +39,7 @@ class _EventEditSheetState extends State<EventEditSheet> {
     _addressController = TextEditingController(text: widget.event.address);
     _numeController = TextEditingController(text: widget.event.sarbatoritNume);
     _varstaController = TextEditingController(
-      text: widget.event.sarbatoritVarsta?.toString() ?? '',
+      text: widget.event.sarbatoritVarsta.toString(),
     );
 
     // Initialize incasare fields from IncasareModel
@@ -183,6 +183,7 @@ class _EventEditSheetState extends State<EventEditSheet> {
 
               // Incasare status
               DropdownButtonFormField<String>(
+                // ignore: deprecated_member_use
                 value: _incasareStatus,
                 decoration: const InputDecoration(
                   labelText: 'Status Încasare',
@@ -204,6 +205,7 @@ class _EventEditSheetState extends State<EventEditSheet> {
               // Incasare metoda (only if INCASAT)
               if (_incasareStatus == 'INCASAT') ...[
                 DropdownButtonFormField<String>(
+                  // ignore: deprecated_member_use
                   value: _incasareMetoda,
                   decoration: const InputDecoration(
                     labelText: 'Metodă Plată',

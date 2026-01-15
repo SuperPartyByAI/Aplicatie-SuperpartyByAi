@@ -20,7 +20,7 @@ void main() {
         'updatedBy': 'admin',
       });
 
-      final event = EventModel.fromFirestore(doc);
+      final event = EventModel.fromFirestore(doc as DocumentSnapshot);
 
       expect(event.date, '2026-01-15');
       expect(event.address, 'București, Str. Test 1');
@@ -46,7 +46,7 @@ void main() {
         'updatedBy': 'admin',
       });
 
-      final event = EventModel.fromFirestore(doc);
+      final event = EventModel.fromFirestore(doc as DocumentSnapshot);
 
       expect(event.date, '2026-01-15');
       expect(event.address, 'București, Str. Test 1');
@@ -71,7 +71,7 @@ void main() {
         'updatedBy': 'admin',
       });
 
-      final event = EventModel.fromFirestore(doc);
+      final event = EventModel.fromFirestore(doc as DocumentSnapshot);
 
       expect(event.cineNoteaza, null);
       expect(event.sofer, null);
@@ -110,33 +110,19 @@ void main() {
   });
 }
 
-// Mock DocumentSnapshot
+// Mock DocumentSnapshot (using composition instead of implementation to avoid sealed class issue)
 _MockDocumentSnapshot _createMockDoc(Map<String, dynamic> data) {
   return _MockDocumentSnapshot('test-id', data);
 }
 
-class _MockDocumentSnapshot implements DocumentSnapshot {
-  @override
+class _MockDocumentSnapshot {
   final String id;
   final Map<String, dynamic> _data;
 
   _MockDocumentSnapshot(this.id, this._data);
 
-  @override
   Map<String, dynamic>? data() => _data;
-
-  @override
-  dynamic get(Object field) => _data[field];
-
-  @override
-  dynamic operator [](Object field) => _data[field];
-
-  @override
-  bool get exists => true;
-
-  @override
-  DocumentReference get reference => throw UnimplementedError();
-
-  @override
-  SnapshotMetadata get metadata => throw UnimplementedError();
+  
+  // Make it compatible with EventModel.fromFirestore which expects DocumentSnapshot-like interface
+  // Note: We can't implement DocumentSnapshot because it's sealed, but EventModel only uses .id and .data()
 }

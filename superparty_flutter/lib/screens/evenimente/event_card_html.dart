@@ -462,9 +462,9 @@ class EventCardHtml extends StatelessWidget {
             right: 0,
             child: Container(
               height: 1,
-              decoration: BoxDecoration(
-                color: const Color(0x0FFFFFFF), // rgba(255,255,255,0.06)
-                borderRadius: const BorderRadius.only(
+              decoration: const BoxDecoration(
+                color: Color(0x0FFFFFFF), // rgba(255,255,255,0.06)
+                borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(999),
                   topRight: Radius.circular(999),
                 ),

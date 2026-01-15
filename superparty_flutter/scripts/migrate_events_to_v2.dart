@@ -1,3 +1,5 @@
+library migrate_events_to_v2;
+
 /// Script de migrare evenimente v1 → v2
 /// 
 /// Rulare:
@@ -18,6 +20,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 void main() async {
+  // ignore: avoid_print
   print('🚀 Starting migration: evenimente v1 → v2');
   
   // Initialize Firebase
@@ -28,6 +31,7 @@ void main() async {
   
   // Get all events
   final snapshot = await eventsCollection.get();
+  // ignore: avoid_print
   print('📊 Found ${snapshot.docs.length} events');
   
   int migrated = 0;
@@ -40,11 +44,13 @@ void main() async {
       final schemaVersion = data['schemaVersion'] as int? ?? 1;
       
       if (schemaVersion == 2) {
+        // ignore: avoid_print
         print('⏭️  ${doc.id}: Already v2, skipping');
         skipped++;
         continue;
       }
       
+      // ignore: avoid_print
       print('🔄 ${doc.id}: Migrating v1 → v2');
       
       // Build v2 document
@@ -130,6 +136,7 @@ void main() async {
           'assignedCode': data['sofer'],
           'pendingCode': data['soferPending'],
         });
+        // ignore: avoid_print
         print('  ✅ Added driver role (S)');
       }
       
@@ -164,18 +171,25 @@ void main() async {
       // Write back to Firestore
       await doc.reference.update(v2Data);
       
+      // ignore: avoid_print
       print('  ✅ Migrated successfully');
       migrated++;
       
     } catch (e, stack) {
+      // ignore: avoid_print
       print('  ❌ Error migrating ${doc.id}: $e');
+      // ignore: avoid_print
       print('  Stack: $stack');
       errors++;
     }
   }
   
+  // ignore: avoid_print
   print('\n📊 Migration complete:');
+  // ignore: avoid_print
   print('  ✅ Migrated: $migrated');
+  // ignore: avoid_print
   print('  ⏭️  Skipped (already v2): $skipped');
+  // ignore: avoid_print
   print('  ❌ Errors: $errors');
 }

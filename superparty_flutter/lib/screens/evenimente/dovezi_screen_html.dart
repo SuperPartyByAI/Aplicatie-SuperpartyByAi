@@ -407,8 +407,8 @@ class _DoveziScreenHtmlState extends State<DoveziScreenHtml> {
                     child: Container(
                       width: 20,
                       height: 20,
-                      decoration: BoxDecoration(
-                        color: const Color(0xEBFF7878), // rgba(255,120,120,0.92)
+                      decoration: const BoxDecoration(
+                        color: Color(0xEBFF7878), // rgba(255,120,120,0.92)
                         shape: BoxShape.circle,
                       ),
                       child: const Center(

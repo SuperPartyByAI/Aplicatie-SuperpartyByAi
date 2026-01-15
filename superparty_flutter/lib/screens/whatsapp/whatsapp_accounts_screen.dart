@@ -290,6 +290,8 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
 
     final statusColor = _getStatusColor(status);
     final showQr = status == 'qr_ready' && qrCode != null;
+    // When showQr is true, qrCode is guaranteed non-null
+    final qrCodeData = showQr ? qrCode! : '';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -353,7 +355,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                     border: Border.all(color: Colors.grey[300]!),
                   ),
                   child: QrImageView(
-                    data: qrCode!,
+                    data: qrCodeData,
                     version: QrVersions.auto,
                     size: 200,
                   ),

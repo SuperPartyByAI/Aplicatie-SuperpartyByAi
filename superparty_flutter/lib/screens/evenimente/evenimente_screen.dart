@@ -858,10 +858,6 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         debugPrint('[Evenimente] Event data is null');
         throw Exception('Event data is null');
       }
-      if (data is! Map<String, dynamic>) {
-        debugPrint('[Evenimente] Event data is not a map');
-        throw Exception('Event data is not a map');
-      }
 
       final roles = (data['roles'] as List<dynamic>?) ?? [];
 

@@ -456,9 +456,4 @@ class EventService {
       'updatedBy': user.uid,
     });
   }
-
-  /// Helper: convert DateTime to DD-MM-YYYY string
-  String _dateToString(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
-  }
 }

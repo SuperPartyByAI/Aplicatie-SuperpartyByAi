@@ -85,11 +85,11 @@ class _AssignModalState extends State<AssignModal> {
               border: Border.all(
                 color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
               ),
-              boxShadow: [
+              boxShadow: const [
                 BoxShadow(
-                  color: const Color(0x8C000000), // rgba(0,0,0,0.55)
+                  color: Color(0x8C000000), // rgba(0,0,0,0.55)
                   blurRadius: 80,
-                  offset: const Offset(0, 24),
+                  offset: Offset(0, 24),
                 ),
               ],
             ),
@@ -194,10 +194,7 @@ class _AssignModalState extends State<AssignModal> {
         if (hasAssigned || hasPending) ...[
           const SizedBox(height: 8),
           Text(
-            [
-              if (hasAssigned) 'Curent: $currentAssigned',
-              if (hasPending) 'In asteptare: $currentPending',
-            ].join(' • ') + ' • scrie codul ca sa trimiti o cerere noua',
+            '${hasAssigned ? 'Curent: $currentAssigned' : ''}${hasAssigned && hasPending ? ' • ' : ''}${hasPending ? 'In asteptare: $currentPending' : ''}${(hasAssigned || hasPending) ? ' • ' : ''}scrie codul ca sa trimiti o cerere noua',
             style: TextStyle(
               fontSize: 11,
               color: const Color(0xFFEAF1FF).withValues(alpha: 0.6),

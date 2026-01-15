@@ -70,7 +70,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
         }
 
         final data = eventDoc.data();
-        if (data == null || data is! Map<String, dynamic>) {
+        if (data == null) {
           throw Exception('Invalid event data');
         }
         final roles = List<Map<String, dynamic>>.from(data['roles'] ?? []);
@@ -130,7 +130,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
         }
 
         final data = eventDoc.data();
-        if (data == null || data is! Map<String, dynamic>) {
+        if (data == null) {
           throw Exception('Invalid event data');
         }
         final roles = List<Map<String, dynamic>>.from(data['roles'] ?? []);
@@ -194,11 +194,11 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
               color: const Color(0x1AFFFFFF), // rgba(255,255,255,0.1)
             ),
             borderRadius: BorderRadius.circular(18),
-            boxShadow: [
+            boxShadow: const [
               BoxShadow(
-                color: const Color(0x8C000000), // rgba(0,0,0,0.55)
+                color: Color(0x8C000000), // rgba(0,0,0,0.55)
                 blurRadius: 80,
-                offset: const Offset(0, 24),
+                offset: Offset(0, 24),
               ),
             ],
           ),

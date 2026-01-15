@@ -97,13 +97,13 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
           colors: [Color(0xFFDC2626), Color(0xFFF97316)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Row(
         children: [
@@ -112,7 +112,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _event?.nume ?? 'Detalii Eveniment',
+                  _event?.sarbatoritNume ?? 'Detalii Eveniment',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -213,7 +213,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
           _buildInfoSection(),
           const SizedBox(height: 24),
           _buildRolesSection(),
-          if (_event!.requiresSofer) ...[
+          if (_event!.needsDriver) ...[
             const SizedBox(height: 24),
             _buildDriverSection(),
           ],
@@ -238,11 +238,12 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildInfoRow(Icons.location_on, 'Locație', _event!.locatie),
+          _buildInfoRow(Icons.location_on, 'Locație', _event!.address),
           const SizedBox(height: 12),
-          _buildInfoRow(Icons.event, 'Tip Eveniment', _event!.tipEveniment),
-          const SizedBox(height: 12),
-          _buildInfoRow(Icons.place, 'Tip Locație', _event!.tipLocatie),
+          // Note: tipEveniment and tipLocatie not available in v2 schema
+          // _buildInfoRow(Icons.event, 'Tip Eveniment', _event!.tipEveniment),
+          // const SizedBox(height: 12),
+          // _buildInfoRow(Icons.place, 'Tip Locație', _event!.tipLocatie),
         ],
       ),
     );
@@ -303,9 +304,8 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
       (r) => r.label.toLowerCase() == role.toLowerCase(),
       orElse: () => throw Exception('Rol $role nu există'),
     );
-    final assignment = _event!.alocari[role];
     final isAssigned = roleModel.status == RoleStatus.assigned;
-    final userId = assignment?.userId ?? roleModel.assignedCode;
+    final userId = roleModel.assignedCode;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -598,8 +598,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
           (r) => r.label.toLowerCase() == role.toLowerCase(),
           orElse: () => throw Exception('Rol $role nu există'),
         );
-        final assignment = _event!.alocari[role];
-        final currentUserId = assignment?.userId ?? roleModel.assignedCode;
+        final currentUserId = roleModel.assignedCode;
 
         // Selector de useri
         final selectedUserId = await showUserSelectorDialog(
@@ -979,6 +978,11 @@ Schema v2:
           ),
           ElevatedButton(
             onPressed: () async {
+              // Save context-dependent objects before async operation
+              if (!mounted) return;
+              final navigator = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
+              
               try {
                 // Validate inputs
                 final date = dateController.text.trim();
@@ -1014,9 +1018,9 @@ Schema v2:
                 });
 
                 if (!mounted) return;
-                Navigator.pop(context);
+                navigator.pop();
                 if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
                     content: Text('✅ Eveniment actualizat cu succes!'),
                     backgroundColor: Colors.green,
@@ -1024,8 +1028,9 @@ Schema v2:
                 );
                 _loadEvent(); // Reload event
               } catch (e) {
+                // Use messenger saved before async operation
                 if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   SnackBar(
                     content: Text('❌ Eroare: ${e.toString()}'),
                     backgroundColor: Colors.red,

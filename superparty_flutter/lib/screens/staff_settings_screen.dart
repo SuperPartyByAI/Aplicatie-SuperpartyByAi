@@ -255,8 +255,8 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
           assigned = res.assignedCode;
           _applyAssignedCode(assigned);
           _tempAllocatedTeamId = res.teamId;
-          _tempAllocatedPrefix = res.prefix;
           _tempAllocatedNumber = res.number;
+          // Note: prefix is not used, only teamId and number are needed
         }
 
         if (assigned.isEmpty) {
@@ -277,7 +277,6 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
         _teamLocked = true;
         _tempAllocatedTeamId = null;
         _tempAllocatedNumber = null;
-        _tempAllocatedPrefix = null;
       });
     } catch (e) {
       _setError(_prettyError(e));

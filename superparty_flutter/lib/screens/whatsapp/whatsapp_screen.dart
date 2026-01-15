@@ -118,7 +118,7 @@ class _WhatsAppScreenState extends State<WhatsAppScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.warning, color: Colors.orange),
+                  const Icon(Icons.warning, color: Colors.orange),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(

@@ -27,8 +27,8 @@ class ForceUpdateService {
     showDialog(
       context: context,
       barrierDismissible: false, // Cannot dismiss
-      builder: (context) => WillPopScope(
-        onWillPop: () async => false, // Cannot go back
+      builder: (context) => PopScope(
+        canPop: false, // Cannot go back
         child: AlertDialog(
           title: const Row(
             children: [

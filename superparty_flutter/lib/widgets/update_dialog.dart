@@ -10,18 +10,18 @@ class UpdateDialog extends StatelessWidget {
   final VoidCallback? onDismiss;
 
   const UpdateDialog({
-    Key? key,
+    super.key,
     required this.message,
     this.downloadUrl,
     this.forceUpdate = false,
     this.onDismiss,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
+    return PopScope(
       // Previne închiderea dialog-ului dacă e force update
-      onWillPop: () async => !forceUpdate,
+      canPop: !forceUpdate,
       child: AlertDialog(
         title: Row(
           children: [
@@ -87,16 +87,17 @@ class UpdateDialog extends StatelessWidget {
               
               if (forceUpdate) {
                 // Deconectează userul
+                // ignore: deprecated_member_use_from_same_package
                 await AutoUpdateService.forceLogout();
                 
                 // Închide aplicația (sau navighează la login)
-                if (context.mounted) {
-                  Navigator.of(context).pushNamedAndRemoveUntil(
-                    '/login',
-                    (route) => false,
-                  );
-                }
+                if (!context.mounted) return;
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  '/login',
+                  (route) => false,
+                );
               } else {
+                if (!context.mounted) return;
                 Navigator.of(context).pop();
                 onDismiss?.call();
               }

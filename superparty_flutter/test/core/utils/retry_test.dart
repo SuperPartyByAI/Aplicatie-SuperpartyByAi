@@ -64,7 +64,7 @@ void main() {
 
     test('should honor maxAttempts config', () async {
       int attempts = 0;
-      final config = RetryConfig(maxAttempts: 2);
+      const config = RetryConfig(maxAttempts: 2);
       await expectLater(
         retryWithBackoff(
           () async {
@@ -81,9 +81,9 @@ void main() {
     test('should apply exponential backoff delays', () async {
       int attempts = 0;
       final delays = <Duration>[];
-      final config = RetryConfig(
+      const config = RetryConfig(
         maxAttempts: 3,
-        initialDelay: const Duration(milliseconds: 100),
+        initialDelay: Duration(milliseconds: 100),
         backoffMultiplier: 2.0,
       );
       
@@ -117,11 +117,11 @@ void main() {
 
     test('should cap delay at maxDelay', () async {
       int attempts = 0;
-      final config = RetryConfig(
+      const config = RetryConfig(
         maxAttempts: 3,
-        initialDelay: const Duration(milliseconds: 1000),
+        initialDelay: Duration(milliseconds: 1000),
         backoffMultiplier: 10.0, // Would exceed maxDelay
-        maxDelay: const Duration(milliseconds: 2000),
+        maxDelay: Duration(milliseconds: 2000),
       );
       
       await expectLater(

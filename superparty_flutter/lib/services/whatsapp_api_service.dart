@@ -27,7 +27,7 @@ class WhatsAppApiService {
 
   /// Get Functions URL (for proxy calls)
   String _getFunctionsUrl() {
-    final region = 'us-central1';
+    const region = 'us-central1';
     
     // Check if using emulators
     const useEmulators = bool.fromEnvironment('USE_EMULATORS', defaultValue: false);
@@ -40,7 +40,7 @@ class WhatsAppApiService {
     try {
       final app = Firebase.app();
       final projectId = app.options.projectId;
-      if (projectId != null && projectId.isNotEmpty) {
+      if (projectId.isNotEmpty) {
         return 'https://$region-$projectId.cloudfunctions.net';
       }
     } catch (_) {

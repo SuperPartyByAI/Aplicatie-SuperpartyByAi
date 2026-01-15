@@ -1,8 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:superparty_app/router/app_router.dart';
-import 'package:superparty_app/services/admin_service.dart';
-import 'package:superparty_app/services/firebase_service.dart';
 
 /// Test router redirect logic with mocked services
 /// 

@@ -4,7 +4,7 @@ import 'package:path_provider/path_provider.dart';
 
 class ChatCacheService {
   static Database? _database;
-  static const int MAX_CACHE_SIZE = 100000; // 100K messages
+  static const int maxCacheSize = 100000; // 100K messages
 
   static Future<Database> get database async {
     if (_database != null) return _database!;
@@ -106,14 +106,14 @@ class ChatCacheService {
       await db.rawQuery('SELECT COUNT(*) FROM messages'),
     );
 
-    if (count != null && count > MAX_CACHE_SIZE) {
-      // Keep only the most recent MAX_CACHE_SIZE messages
+    if (count != null && count > maxCacheSize) {
+      // Keep only the most recent maxCacheSize messages
       await db.execute('''
         DELETE FROM messages 
         WHERE id NOT IN (
           SELECT id FROM messages 
           ORDER BY timestamp DESC 
-          LIMIT $MAX_CACHE_SIZE
+          LIMIT $maxCacheSize
         )
       ''');
     }

@@ -189,8 +189,8 @@ class _ForceUpdateDialogState extends State<ForceUpdateDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async => false, // Blochează back button
+    return PopScope(
+      canPop: false, // Blochează back button
       child: AlertDialog(
         title: Row(
           children: [

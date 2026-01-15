@@ -70,7 +70,7 @@ void main() {
       // This prevents accidental changes after approval.
       
       const status = 'ok';
-      final isLocked = (status == 'ok');
+      const isLocked = (status == 'ok');
       
       expect(isLocked, isTrue);
     });
@@ -95,11 +95,11 @@ void main() {
       const isLocked = true;
       
       // Upload should be disabled
-      final canUpload = !isLocked;
+      const canUpload = !isLocked;
       expect(canUpload, isFalse);
       
       // Remove should be disabled
-      final canRemove = !isLocked;
+      const canRemove = !isLocked;
       expect(canRemove, isFalse);
     });
   });
@@ -134,7 +134,7 @@ void main() {
       // This hides archived items from normal views
       
       const isArchived = false;
-      final shouldInclude = !isArchived;
+      const shouldInclude = !isArchived;
       
       expect(shouldInclude, isTrue);
     });
@@ -147,7 +147,7 @@ void main() {
       // This allows viewing archived items if needed
       
       const isArchived = true;
-      final shouldInclude = isArchived;
+      const shouldInclude = isArchived;
       
       expect(shouldInclude, isTrue);
     });
