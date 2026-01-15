@@ -38,12 +38,24 @@ firebase.cmd emulators:start --config .\firebase.json --only firestore,functions
 
 **Important**: The emulator will start successfully even if `WHATSAPP_RAILWAY_BASE_URL` is not set. WhatsApp endpoints will return `500` JSON errors with `{"error":"configuration_missing"}` when called without the URL, but the emulator itself will not crash.
 
+### Building TypeScript
+
+The TypeScript source in `src/` is compiled to `dist/`:
+
+```powershell
+cd functions
+npm run build
+```
+
+**Note**: `functions/dist/` is generated output and is ignored in git. CI generates it during build. For local development, run `npm run build` before testing.
+
 ### Running Tests
 
 From the `functions/` directory:
 
 ```powershell
 cd functions
+npm run build  # Generate dist/ first
 npm test
 ```
 

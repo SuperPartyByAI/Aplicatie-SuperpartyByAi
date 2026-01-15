@@ -1,8 +1,0 @@
-{
-  "whatsapp": {
-    "railway_base_url": "https://whats-upp-production.up.railway.app"
-  },
-  "openai": {
-    "key": "YOUR_OPENAI_API_KEY"
-  }
-}
