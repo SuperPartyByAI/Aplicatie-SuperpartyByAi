@@ -7,8 +7,8 @@ class EventModel {
   final String date; // DD-MM-YYYY
   final String address;
   final String? cineNoteaza; // cod staff
-  final String? sofer; // cod șofer alocat
-  final String? soferPending; // cod șofer pending
+  final String? sofer; // cod È™ofer alocat
+  final String? soferPending; // cod È™ofer pending
   final String sarbatoritNume;
   final int sarbatoritVarsta;
   final String? sarbatoritDob; // DD-MM-YYYY
@@ -62,33 +62,31 @@ class EventModel {
     // v2: date (string DD-MM-YYYY), address, roles (array)
     // v1: data (Timestamp), locatie/adresa, alocari (map)
     
-    final schemaVersion = data['schemaVersion'] as int? ?? 1;
-    
     // Date field (v2: string, v1: Timestamp)
     // Support both 'date' (English) and 'data' (Romanian) field names
     String dateStr;
     if (data.containsKey('date') && data['date'] is String) {
       // v2: date as string DD-MM-YYYY (English field name)
       dateStr = data['date'] as String;
-      debugPrint('[EventModel] ✅ Using date as String: $dateStr');
+      debugPrint('[EventModel] âœ… Using date as String: $dateStr');
     } else if (data.containsKey('data') && data['data'] is String) {
       // v2: data as string DD-MM-YYYY (Romanian field name)
       dateStr = data['data'] as String;
-      debugPrint('[EventModel] ✅ Using data as String: $dateStr');
+      debugPrint('[EventModel] âœ… Using data as String: $dateStr');
     } else if (data.containsKey('date') && data['date'] is Timestamp) {
       // v1: date as Timestamp (old schema) - convert to DD-MM-YYYY
       final timestamp = (data['date'] as Timestamp).toDate();
-      dateStr = '${timestamp.day.toString().padLeft(2, '0')}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.year}';
-      debugPrint('[EventModel] ✅ Converted date Timestamp to String: $dateStr');
+      dateStr = timestamp.toIso8601String().substring(0, 10);
+      debugPrint('[EventModel] âœ… Converted date Timestamp to String: $dateStr');
     } else if (data.containsKey('data') && data['data'] is Timestamp) {
       // v1 alternative: data as Timestamp - convert to DD-MM-YYYY
       final timestamp = (data['data'] as Timestamp).toDate();
-      dateStr = '${timestamp.day.toString().padLeft(2, '0')}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.year}';
-      debugPrint('[EventModel] ✅ Converted data Timestamp to String: $dateStr');
+      dateStr = timestamp.toIso8601String().substring(0, 10);
+      debugPrint('[EventModel] âœ… Converted data Timestamp to String: $dateStr');
     } else {
       // Fallback: empty date
       dateStr = '';
-      debugPrint('[EventModel] ⚠️ No valid date field found, using empty string');
+      debugPrint('[EventModel] âš ï¸ No valid date field found, using empty string');
     }
     
     // Address field (v2: address, v1: locatie or adresa)
@@ -111,7 +109,7 @@ class EventModel {
       roles = [];
     }
     
-    // Nullable fields: explicitly allow null (UI will show "—" fallback)
+    // Nullable fields: explicitly allow null (UI will show "â€”" fallback)
     // These fields may be missing in Firestore after migration
     return EventModel(
       id: doc.id,
@@ -214,12 +212,12 @@ class EventModel {
     return s[0].toUpperCase() + s.substring(1);
   }
 
-  /// Verifică dacă evenimentul necesită șofer
+  /// VerificÄƒ dacÄƒ evenimentul necesitÄƒ È™ofer
   bool get needsDriver {
-    // Necesită șofer dacă:
+    // NecesitÄƒ È™ofer dacÄƒ:
     // 1. Are rol explicit cu label "SOFER"
     // 2. Are sofer sau soferPending setat
-    // 3. Policy: evenimente cu >50 participanți (placeholder)
+    // 3. Policy: evenimente cu >50 participanÈ›i (placeholder)
     
     if (sofer != null && sofer!.isNotEmpty) return true;
     if (soferPending != null && soferPending!.isNotEmpty) return true;
@@ -231,17 +229,17 @@ class EventModel {
     return false;
   }
 
-  /// Verifică dacă șoferul e alocat
+  /// VerificÄƒ dacÄƒ È™oferul e alocat
   bool get hasDriverAssigned {
     return sofer != null && sofer!.isNotEmpty;
   }
 
-  /// Verifică dacă șoferul e pending
+  /// VerificÄƒ dacÄƒ È™oferul e pending
   bool get hasDriverPending {
     return soferPending != null && soferPending!.isNotEmpty;
   }
 
-  /// Text pentru status șofer
+  /// Text pentru status È™ofer
   String get driverStatusText {
     if (!needsDriver) return 'FARA';
     if (hasDriverAssigned) return sofer!;
@@ -271,10 +269,10 @@ class EventModel {
   String get locatie => address;
 
   @Deprecated('Not available in v2 schema')
-  String get tipEveniment => '—';
+  String get tipEveniment => 'â€”';
 
   @Deprecated('Not available in v2 schema')
-  String get tipLocatie => '—';
+  String get tipLocatie => 'â€”';
 
   @Deprecated('Use roles instead')
   Map<String, AssignmentModel> get alocari {
@@ -377,7 +375,7 @@ enum RoleStatus {
   unassigned, // gri
 }
 
-/// Model pentru încasare
+/// Model pentru Ã®ncasare
 class IncasareModel {
   final String status; // INCASAT / NEINCASAT / ANULAT
   final String? metoda; // CASH / CARD / TRANSFER
@@ -394,7 +392,7 @@ class IncasareModel {
       return IncasareModel(status: 'NEINCASAT');
     }
     
-    // DUAL-READ: support RO field name 'stare' → EN 'status'
+    // DUAL-READ: support RO field name 'stare' â†’ EN 'status'
     String status = map['status'] as String? ?? 
                     map['stare'] as String? ?? 
                     'NEINCASAT';
@@ -421,3 +419,4 @@ class IncasareModel {
   @Deprecated('Not available in v2 schema')
   double get avans => 0.0;
 }
+

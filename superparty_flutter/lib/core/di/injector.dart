@@ -1,3 +1,5 @@
+library injector;
+
 /// Dependency Injection Container
 /// 
 /// Folosește get_it pentru gestionarea dependențelor.

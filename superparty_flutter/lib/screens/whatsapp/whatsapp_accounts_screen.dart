@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/whatsapp_api_service.dart';
@@ -16,7 +15,6 @@ class WhatsAppAccountsScreen extends StatefulWidget {
 
 class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   final WhatsAppApiService _apiService = WhatsAppApiService.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   List<Map<String, dynamic>> _accounts = [];
   bool _isLoading = true;
@@ -329,7 +327,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.2),
+                    color: statusColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: statusColor),
                   ),

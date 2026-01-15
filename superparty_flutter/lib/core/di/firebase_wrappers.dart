@@ -1,3 +1,5 @@
+library firebase_wrappers;
+
 /// Wrapper-uri pentru Firebase services
 /// 
 /// Implementează interfețele pentru a permite DI și mock-uri

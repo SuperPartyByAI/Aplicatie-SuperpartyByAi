@@ -225,7 +225,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFFEAF1FF).withOpacity(0.9),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.9),
             ),
           ),
         ),
@@ -245,7 +245,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFFEAF1FF).withOpacity(0.9),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.9),
             ),
           ),
         ),
@@ -268,7 +268,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
             'Codul ${widget.code} nu este folosit în niciun eveniment.',
             style: TextStyle(
               fontSize: 13,
-              color: const Color(0xFFEAF1FF).withOpacity(0.7),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.7),
             ),
             textAlign: TextAlign.center,
           ),
@@ -323,7 +323,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
             item['address'] ?? '',
             style: TextStyle(
               fontSize: 12,
-              color: const Color(0xFFEAF1FF).withOpacity(0.7),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.7),
             ),
           ),
           const SizedBox(height: 8),
@@ -333,7 +333,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: const Color(0xFFEAF1FF).withOpacity(0.85),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.85),
             ),
           ),
           const SizedBox(height: 8),
@@ -346,7 +346,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w900,
-                    color: const Color(0xFFFFBE5C).withOpacity(0.9),
+                    color: const Color(0xFFFFBE5C).withValues(alpha: 0.9),
                   ),
                 ),
                 const Spacer(),
@@ -399,7 +399,7 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w900,
-                color: const Color(0xFF4ECDC4).withOpacity(0.9),
+                color: const Color(0xFF4ECDC4).withValues(alpha: 0.9),
               ),
             ),
         ],

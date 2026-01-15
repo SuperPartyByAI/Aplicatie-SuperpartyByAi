@@ -44,18 +44,12 @@ class _KycScreenState extends State<KycScreen> {
   
   bool _isMinor = false;
   bool _wantsDriver = false;
-  bool _aiOk = false;
-  bool _pAiOk = false;
-  bool _contractOpen = false;
-  bool _contractScrolled = false;
   bool _contractRead = false;
   bool _contractUnderstood = false;
   bool _extractBusy = false;
-  bool _extractParentBusy = false;
   bool _busy = false;
   String _error = '';
   String _extractInfo = '';
-  String _extractParentInfo = '';
 
   @override
   void initState() {
@@ -148,8 +142,6 @@ class _KycScreenState extends State<KycScreen> {
           _numberController.text = extracted['number'] ?? '';
           _addressController.text = extracted['address'] ?? '';
           _extractInfo = '✅ Date extrase cu succes din CI! Verifică și confirmă.';
-          _contractOpen = true;
-          _contractScrolled = false;
           _contractRead = false;
           _contractUnderstood = false;
         });

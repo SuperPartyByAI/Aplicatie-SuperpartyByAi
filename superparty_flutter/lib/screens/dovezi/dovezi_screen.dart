@@ -53,7 +53,7 @@ class _DoveziScreenState extends State<DoveziScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0B1220).withOpacity(0.72),
+        color: const Color(0xFF0B1220).withValues(alpha: 0.72),
         border: const Border(
           bottom: BorderSide(color: Color(0x14FFFFFF)),
         ),

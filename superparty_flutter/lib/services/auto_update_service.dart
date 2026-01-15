@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
@@ -40,8 +39,8 @@ class AutoUpdateService {
       }
       
       final data = doc.data();
-      if (data == null || data is! Map<String, dynamic>) {
-        debugPrint('[AutoUpdate] Invalid data');
+      if (data == null) {
+        debugPrint('[AutoUpdate] Invalid data: null');
         return false;
       }
       final minVersion = data['min_version'] as String?;
@@ -116,8 +115,8 @@ class AutoUpdateService {
       }
       
       final data = doc.data();
-      if (data == null || data is! Map<String, dynamic>) {
-        debugPrint('[AutoUpdate] Invalid data');
+      if (data == null) {
+        debugPrint('[AutoUpdate] Invalid data: null');
         return 'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.';
       }
       return data['update_message'] as String? ??
@@ -141,8 +140,8 @@ class AutoUpdateService {
       }
       
       final data = doc.data();
-      if (data == null || data is! Map<String, dynamic>) {
-        debugPrint('[AutoUpdate] Invalid data');
+      if (data == null) {
+        debugPrint('[AutoUpdate] Invalid data: null');
         return null;
       }
       

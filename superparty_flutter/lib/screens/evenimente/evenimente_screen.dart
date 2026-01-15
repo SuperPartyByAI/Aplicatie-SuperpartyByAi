@@ -1,9 +1,7 @@
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/event_model.dart';
-import '../../services/event_service.dart';
 import '../../widgets/modals/range_modal.dart';
 import '../../widgets/modals/code_modal.dart';
 import '../../widgets/modals/assign_modal.dart';
@@ -21,7 +19,6 @@ class EvenimenteScreen extends StatefulWidget {
 }
 
 class _EvenimenteScreenState extends State<EvenimenteScreen> {
-  final EventService _eventService = EventService();
   final FocusNode _codeInputFocus = FocusNode();
 
   // Filtre - exact ca în HTML
@@ -76,7 +73,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0B1220).withOpacity(0.72), // rgba(11,18,32,0.72)
+            color: const Color(0xFF0B1220).withValues(alpha: 0.72), // rgba(11,18,32,0.72)
             border: const Border(
               bottom: BorderSide(
                 color: Color(0x14FFFFFF), // rgba(255,255,255,0.08)
@@ -133,7 +130,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             'Filtrele sunt exclusive (NU se combină)',
             style: TextStyle(
               fontSize: 11,
-              color: const Color(0xFFEAF1FF).withOpacity(0.7), // --muted
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.7), // --muted
               height: 1.3,
             ),
           ),
@@ -243,7 +240,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 fontSize: 14,
                 color: _sortAsc
                     ? const Color(0xFFEAF1FF)
-                    : const Color(0xFFEAF1FF).withOpacity(0.35),
+                    : const Color(0xFFEAF1FF).withValues(alpha: 0.35),
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -254,7 +251,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 fontSize: 14,
                 color: !_sortAsc
                     ? const Color(0xFFEAF1FF)
-                    : const Color(0xFFEAF1FF).withOpacity(0.35),
+                    : const Color(0xFFEAF1FF).withValues(alpha: 0.35),
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -379,7 +376,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
                 '–',
                 style: TextStyle(
                   fontSize: 14,
-                  color: const Color(0xFFEAF1FF).withOpacity(0.5),
+                  color: const Color(0xFFEAF1FF).withValues(alpha: 0.5),
                 ),
               ),
               const SizedBox(width: 8),
@@ -428,7 +425,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
             hintText: 'Ce cod am',
             hintStyle: TextStyle(
               fontSize: 12,
-              color: const Color(0xFFEAF1FF).withOpacity(0.55),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.55),
             ),
             border: InputBorder.none,
             isDense: true,
@@ -463,7 +460,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
           hintText: 'Cine noteaza',
           hintStyle: TextStyle(
             fontSize: 12,
-            color: const Color(0xFFEAF1FF).withOpacity(0.55),
+            color: const Color(0xFFEAF1FF).withValues(alpha: 0.55),
           ),
           border: InputBorder.none,
           isDense: true,
@@ -506,7 +503,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
               'Nu există evenimente',
               style: TextStyle(
                 fontSize: 14,
-                color: const Color(0xFFEAF1FF).withOpacity(0.7),
+                color: const Color(0xFFEAF1FF).withValues(alpha: 0.7),
               ),
             ),
           );
@@ -804,7 +801,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       }
 
       final data = eventDoc.data();
-      if (data == null || data is! Map<String, dynamic>) {
+      if (data == null) {
         debugPrint('[Evenimente] Event data is null');
         throw Exception('Event data is null');
       }
@@ -857,9 +854,13 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       }
 
       final data = eventDoc.data();
-      if (data == null || data is! Map<String, dynamic>) {
+      if (data == null) {
         debugPrint('[Evenimente] Event data is null');
         throw Exception('Event data is null');
+      }
+      if (data is! Map<String, dynamic>) {
+        debugPrint('[Evenimente] Event data is not a map');
+        throw Exception('Event data is not a map');
       }
 
       final roles = (data['roles'] as List<dynamic>?) ?? [];

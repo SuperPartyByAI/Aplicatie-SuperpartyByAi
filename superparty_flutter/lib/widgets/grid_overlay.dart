@@ -17,7 +17,7 @@ class GridOverlay extends StatelessWidget {
             opacity: appState.isGridOpen ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 300),
             child: Container(
-              color: Colors.black.withOpacity(0.7),
+              color: Colors.black.withValues(alpha: 0.7),
               child: SafeArea(
                 child: Column(
                   children: [
@@ -131,22 +131,22 @@ class GridOverlay extends StatelessWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Colors.white.withOpacity(0.18),
-                    Colors.white.withOpacity(0.06),
+                    Colors.white.withValues(alpha: 0.18),
+                    Colors.white.withValues(alpha: 0.06),
                   ],
                 ),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.14),
+                  color: Colors.white.withValues(alpha: 0.14),
                   width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.34),
+                    color: Colors.black.withValues(alpha: 0.34),
                     blurRadius: 22,
                     offset: const Offset(0, 12),
                   ),
                   BoxShadow(
-                    color: color.withOpacity(glowOpacity), // Glow variabil
+                    color: color.withValues(alpha: glowOpacity), // Glow variabil
                     blurRadius: 0,
                     spreadRadius: 8,
                   ),
@@ -158,7 +158,7 @@ class GridOverlay extends StatelessWidget {
                 color: const Color(0xFFEAF1FF),
                 shadows: [
                   Shadow(
-                    color: Colors.black.withOpacity(0.30),
+                    color: Colors.black.withValues(alpha: 0.30),
                     blurRadius: 14,
                     offset: const Offset(0, 8),
                   ),
@@ -217,22 +217,22 @@ class GridOverlay extends StatelessWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Colors.white.withOpacity(0.18),
-                    Colors.white.withOpacity(0.06),
+                    Colors.white.withValues(alpha: 0.18),
+                    Colors.white.withValues(alpha: 0.06),
                   ],
                 ),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.14),
+                  color: Colors.white.withValues(alpha: 0.14),
                   width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.34),
+                    color: Colors.black.withValues(alpha: 0.34),
                     blurRadius: 22,
                     offset: const Offset(0, 12),
                   ),
                   BoxShadow(
-                    color: color.withOpacity(glowOpacity), // Glow variabil
+                    color: color.withValues(alpha: glowOpacity), // Glow variabil
                     blurRadius: 0,
                     spreadRadius: 8,
                   ),
@@ -244,7 +244,7 @@ class GridOverlay extends StatelessWidget {
                 color: const Color(0xFFEAF1FF),
                 shadows: [
                   Shadow(
-                    color: Colors.black.withOpacity(0.30),
+                    color: Colors.black.withValues(alpha: 0.30),
                     blurRadius: 14,
                     offset: const Offset(0, 8),
                   ),

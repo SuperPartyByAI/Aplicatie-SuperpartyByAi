@@ -1,3 +1,5 @@
+library interfaces;
+
 /// Interfețe pentru abstracții Firebase
 /// 
 /// Scop: Permite mock-uri în teste și reduce cuplajul direct la Firebase

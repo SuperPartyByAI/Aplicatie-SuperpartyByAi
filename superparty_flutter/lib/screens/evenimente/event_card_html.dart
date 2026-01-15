@@ -428,7 +428,7 @@ class EventCardHtml extends StatelessWidget {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w900,
-            color: const Color(0xFFEAF1FF).withOpacity(0.6),
+            color: const Color(0xFFEAF1FF).withValues(alpha: 0.6),
           ),
         );
 
@@ -514,7 +514,7 @@ class EventCardHtml extends StatelessWidget {
               'Cine noteaza: ${event.cineNoteaza}',
               style: TextStyle(
                 fontSize: 11,
-                color: const Color(0xFFEAF1FF).withOpacity(0.6),
+                color: const Color(0xFFEAF1FF).withValues(alpha: 0.6),
               ),
             ),
           ],
@@ -527,7 +527,7 @@ class EventCardHtml extends StatelessWidget {
               _driverText(),
               style: TextStyle(
                 fontSize: 11,
-                color: const Color(0xFFEAF1FF).withOpacity(0.6),
+                color: const Color(0xFFEAF1FF).withValues(alpha: 0.6),
                 decoration: _needsDriver() ? TextDecoration.underline : null,
               ),
             ),

@@ -206,9 +206,12 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
   String _describeUserMessage(String text, bool hasImage, String? imageName) {
     final t = text.trim();
-    if (t.isNotEmpty && hasImage)
+    if (t.isNotEmpty && hasImage) {
       return '$t\n[Imagine atașată: ${imageName ?? "poză"}]';
-    if (hasImage) return '[Imagine atașată: ${imageName ?? "poză"}]';
+    }
+    if (hasImage) {
+      return '[Imagine atașată: ${imageName ?? "poză"}]';
+    }
     return t;
   }
 
@@ -385,12 +388,14 @@ class _AIChatScreenState extends State<AIChatScreen> {
         final previewData = Map<String, dynamic>.from(previewResult.data);
         
         // Remove placeholder and show preview
+        if (!mounted) return;
         setState(() {
           _messages.removeAt(placeholderIndex);
           _loading = false;
         });
         
         // Show preview card with confirmation buttons
+        if (!mounted) return;
         _showEventPreview(
           context: context,
           previewData: previewData,
@@ -537,7 +542,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: _bg.withOpacity(0.72),
+        color: _bg.withValues(alpha: 0.72),
         border: const Border(bottom: BorderSide(color: Color(0x14FFFFFF))),
       ),
       child: Row(
@@ -576,9 +581,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 10),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
+          color: Colors.white.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.white.withOpacity(0.14)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
         ),
         child: Text(
           label,
@@ -593,9 +598,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
     return Container(
       margin: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
         boxShadow: const [
           BoxShadow(
               color: Colors.black54, blurRadius: 40, offset: Offset(0, 18))
@@ -624,15 +629,15 @@ class _AIChatScreenState extends State<AIChatScreen> {
         final isAssistant = msg['role'] == 'assistant';
 
         final bg = isUser
-            ? _primary.withOpacity(0.22)
+            ? _primary.withValues(alpha: 0.22)
             : (isAssistant
-                ? Colors.white.withOpacity(0.07)
-                : _accent.withOpacity(0.12));
+                ? Colors.white.withValues(alpha: 0.07)
+                : _accent.withValues(alpha: 0.12));
         final border = isUser
-            ? _primary.withOpacity(0.32)
+            ? _primary.withValues(alpha: 0.32)
             : (isAssistant
-                ? Colors.white.withOpacity(0.12)
-                : _accent.withOpacity(0.22));
+                ? Colors.white.withValues(alpha: 0.12)
+                : _accent.withValues(alpha: 0.22));
 
         final align = isUser ? Alignment.centerRight : Alignment.centerLeft;
 
@@ -667,8 +672,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
       decoration: BoxDecoration(
-        color: _bg.withOpacity(0.55),
-        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.10))),
+        color: _bg.withValues(alpha: 0.55),
+        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.10))),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -682,9 +687,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.22),
+                color: Colors.black.withValues(alpha: 0.22),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withOpacity(0.14)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               child: TextField(
@@ -707,9 +712,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
           ElevatedButton(
             onPressed: _loading ? null : _sendMessage,
             style: ElevatedButton.styleFrom(
-              backgroundColor: _primary.withOpacity(0.20),
+              backgroundColor: _primary.withValues(alpha: 0.20),
               foregroundColor: _text,
-              side: BorderSide(color: _primary.withOpacity(0.35)),
+              side: BorderSide(color: _primary.withValues(alpha: 0.35)),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14)),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -728,7 +733,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.black.withOpacity(0.55),
+      backgroundColor: Colors.black.withValues(alpha: 0.55),
       builder: (ctx) {
         return Padding(
           padding: const EdgeInsets.all(12),
@@ -737,9 +742,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
               maxHeight: min(720, MediaQuery.of(ctx).size.height - 24),
             ),
             decoration: BoxDecoration(
-              color: _bg.withOpacity(0.92),
+              color: _bg.withValues(alpha: 0.92),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white.withOpacity(0.12)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
               boxShadow: const [
                 BoxShadow(
                     color: Colors.black54,
@@ -765,9 +770,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: Colors.white.withValues(alpha: 0.04),
         border:
-            Border(bottom: BorderSide(color: Colors.white.withOpacity(0.10))),
+            Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.10))),
       ),
       child: Row(
         children: [
@@ -801,11 +806,15 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
   Widget _buildGalleryBody() {
     final filtered = _gallery.where((x) {
-      if (_galleryFilter == _GalleryFilter.all) return true;
-      if (_galleryFilter == _GalleryFilter.active)
+      if (_galleryFilter == _GalleryFilter.all) {
+        return true;
+      }
+      if (_galleryFilter == _GalleryFilter.active) {
         return x.status == _GalleryStatus.active;
-      if (_galleryFilter == _GalleryFilter.archived)
+      }
+      if (_galleryFilter == _GalleryFilter.archived) {
         return x.status == _GalleryStatus.archived;
+      }
       return x.status == _GalleryStatus.deleted;
     }).toList()
       ..sort((a, b) => (b.ts).compareTo(a.ts));
@@ -865,7 +874,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
               builder: (context, constraints) {
                 final w = constraints.maxWidth;
                 final cols = w < 420 ? 1 : 2;
-                final spacing = 10.0;
+                const spacing = 10.0;
                 final itemW = (w - (cols - 1) * spacing) / cols;
 
                 return Wrap(
@@ -896,9 +905,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -907,7 +916,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
           AspectRatio(
             aspectRatio: 1,
             child: bytes.isEmpty
-                ? Container(color: Colors.black.withOpacity(0.18))
+                ? Container(color: Colors.black.withValues(alpha: 0.18))
                 : Image.memory(bytes, fit: BoxFit.cover),
           ),
           Padding(
@@ -928,16 +937,16 @@ class _AIChatScreenState extends State<AIChatScreen> {
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
                       color: it.status == _GalleryStatus.archived
-                          ? _accent.withOpacity(0.30)
+                          ? _accent.withValues(alpha: 0.30)
                           : (it.status == _GalleryStatus.deleted
-                              ? _danger.withOpacity(0.30)
+                              ? _danger.withValues(alpha: 0.30)
                               : _border),
                     ),
                     color: it.status == _GalleryStatus.archived
-                        ? _accent.withOpacity(0.12)
+                        ? _accent.withValues(alpha: 0.12)
                         : (it.status == _GalleryStatus.deleted
-                            ? _danger.withOpacity(0.10)
-                            : Colors.white.withOpacity(0.06)),
+                            ? _danger.withValues(alpha: 0.10)
+                            : Colors.white.withValues(alpha: 0.06)),
                   ),
                   child: Text(tag,
                       style: const TextStyle(
@@ -955,9 +964,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
                             _setGalleryStatus(it.id, _GalleryStatus.archived),
                         style: OutlinedButton.styleFrom(
                           side:
-                              BorderSide(color: Colors.white.withOpacity(0.14)),
+                              BorderSide(color: Colors.white.withValues(alpha: 0.14)),
                           foregroundColor: _text,
-                          backgroundColor: Colors.white.withOpacity(0.06),
+                          backgroundColor: Colors.white.withValues(alpha: 0.06),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                         ),
@@ -977,9 +986,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
                         },
                         style: OutlinedButton.styleFrom(
                           side:
-                              BorderSide(color: Colors.white.withOpacity(0.14)),
+                              BorderSide(color: Colors.white.withValues(alpha: 0.14)),
                           foregroundColor: _text,
-                          backgroundColor: Colors.white.withOpacity(0.06),
+                          backgroundColor: Colors.white.withValues(alpha: 0.06),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                         ),
@@ -1002,17 +1011,17 @@ class _AIChatScreenState extends State<AIChatScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
-        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.10))),
+        color: Colors.white.withValues(alpha: 0.04),
+        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.10))),
       ),
       child: Row(
         children: [
           ElevatedButton(
             onPressed: () => setState(() {}),
             style: ElevatedButton.styleFrom(
-              backgroundColor: _primary.withOpacity(0.20),
+              backgroundColor: _primary.withValues(alpha: 0.20),
               foregroundColor: _text,
-              side: BorderSide(color: _primary.withOpacity(0.35)),
+              side: BorderSide(color: _primary.withValues(alpha: 0.35)),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14)),
               textStyle: const TextStyle(fontWeight: FontWeight.w900),

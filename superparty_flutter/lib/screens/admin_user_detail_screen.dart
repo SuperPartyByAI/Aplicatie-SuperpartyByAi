@@ -105,8 +105,8 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bg = const Color(0xFF0B1220);
-    final accent = const Color.fromRGBO(78, 205, 196, 1);
+    const bg = Color(0xFF0B1220);
+    const accent = Color.fromRGBO(78, 205, 196, 1);
 
     return Scaffold(
       backgroundColor: bg,
@@ -127,8 +127,8 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
-                      color: bg.withOpacity(0.72),
-                      border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.08))),
+                      color: bg.withValues(alpha: 0.72),
+                      border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -139,7 +139,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                         ),
                         Text(
                           widget.uid,
-                          style: TextStyle(color: const Color(0xFFEAF1FF).withOpacity(0.6), fontSize: 12),
+                          style: TextStyle(color: const Color(0xFFEAF1FF).withValues(alpha: 0.6), fontSize: 12),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
@@ -195,6 +195,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                                       const _FieldLabel('Schimbă echipa (re-alocă cod)'),
                                       const SizedBox(height: 8),
                                       DropdownButtonFormField<String>(
+                                        // ignore: deprecated_member_use
                                         value: selectedTeamId,
                                         items: _teams
                                             .map(
@@ -220,11 +221,11 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                                               ? null
                                               : () => _applyTeamChange(currentTeamId: teamId),
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: accent.withOpacity(0.18),
+                                            backgroundColor: accent.withValues(alpha: 0.18),
                                             foregroundColor: const Color(0xFFEAF1FF),
                                             elevation: 0,
                                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                            side: BorderSide(color: accent.withOpacity(0.35)),
+                                            side: BorderSide(color: accent.withValues(alpha: 0.35)),
                                           ),
                                           child: _busy ? const Text('Se procesează…') : const Text('Schimbă echipa'),
                                         ),
@@ -240,6 +241,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                                       const _FieldLabel('Status utilizator'),
                                       const SizedBox(height: 8),
                                       DropdownButtonFormField<String>(
+                                        // ignore: deprecated_member_use
                                         value: selectedStatus,
                                         items: const [
                                           DropdownMenuItem(value: 'active', child: Text('active')),
@@ -258,11 +260,11 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                                         child: ElevatedButton(
                                           onPressed: (_busy || selectedStatus == status) ? null : () => _applyStatusChange(currentStatus: status),
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: accent.withOpacity(0.18),
+                                            backgroundColor: accent.withValues(alpha: 0.18),
                                             foregroundColor: const Color(0xFFEAF1FF),
                                             elevation: 0,
                                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                            side: BorderSide(color: accent.withOpacity(0.35)),
+                                            side: BorderSide(color: accent.withValues(alpha: 0.35)),
                                           ),
                                           child: _busy ? const Text('Se procesează…') : const Text('Setează status'),
                                         ),
@@ -297,20 +299,20 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
   InputDecoration _inputDecoration(String hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(color: const Color(0xFFEAF1FF).withOpacity(0.58)),
+      hintStyle: TextStyle(color: const Color(0xFFEAF1FF).withValues(alpha: 0.58)),
       filled: true,
-      fillColor: Colors.black.withOpacity(0.22),
+      fillColor: Colors.black.withValues(alpha: 0.22),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: const Color.fromRGBO(78, 205, 196, 1).withOpacity(0.45)),
+        borderSide: BorderSide(color: const Color.fromRGBO(78, 205, 196, 1).withValues(alpha: 0.45)),
       ),
       disabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.10)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.10)),
       ),
     );
   }
@@ -325,10 +327,10 @@ class _GlassCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
+        color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 50, offset: const Offset(0, 18))],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 50, offset: const Offset(0, 18))],
       ),
       child: child,
     );
@@ -356,7 +358,7 @@ class _MetaRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: RichText(
         text: TextSpan(
-          style: TextStyle(color: const Color(0xFFEAF1FF).withOpacity(0.70)),
+          style: TextStyle(color: const Color(0xFFEAF1FF).withValues(alpha: 0.70)),
           children: [
             TextSpan(text: label, style: const TextStyle(color: Color(0xFFEAF1FF), fontWeight: FontWeight.w800)),
             TextSpan(text: ' $value'),
@@ -373,12 +375,12 @@ class _NoticeBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final border = const Color.fromRGBO(78, 205, 196, 1).withOpacity(0.25);
+    final border = const Color.fromRGBO(78, 205, 196, 1).withValues(alpha: 0.25);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color.fromRGBO(78, 205, 196, 1).withOpacity(0.10),
+        color: const Color.fromRGBO(78, 205, 196, 1).withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: border),
       ),
@@ -393,12 +395,12 @@ class _ErrorBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final border = const Color.fromRGBO(255, 120, 120, 1).withOpacity(0.35);
+    final border = const Color.fromRGBO(255, 120, 120, 1).withValues(alpha: 0.35);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color.fromRGBO(255, 120, 120, 1).withOpacity(0.12),
+        color: const Color.fromRGBO(255, 120, 120, 1).withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: border),
       ),

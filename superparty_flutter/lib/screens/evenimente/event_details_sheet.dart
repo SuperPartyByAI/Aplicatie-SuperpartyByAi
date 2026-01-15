@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
@@ -324,7 +323,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: isAssigned
-                  ? const Color(0xFFDC2626).withOpacity(0.2)
+                  ? const Color(0xFFDC2626).withValues(alpha: 0.2)
                   : const Color(0xFF2D3748),
               borderRadius: BorderRadius.circular(8),
             ),
@@ -423,7 +422,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: isAssigned
-                      ? const Color(0xFFDC2626).withOpacity(0.2)
+                      ? const Color(0xFFDC2626).withValues(alpha: 0.2)
                       : const Color(0xFF2D3748),
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -987,7 +986,8 @@ Schema v2:
                 final nume = numeController.text.trim();
                 final varsta = int.tryParse(varstaController.text.trim()) ?? 0;
                 final total = double.tryParse(totalController.text.trim()) ?? 0;
-                final avans = double.tryParse(avansController.text.trim()) ?? 0;
+                // Note: avans not in v2 schema, but we can add it if needed
+                // final avans = double.tryParse(avansController.text.trim()) ?? 0;
 
                 if (date.isEmpty || address.isEmpty || nume.isEmpty) {
                   throw Exception('Toate câmpurile sunt obligatorii');
@@ -1013,25 +1013,24 @@ Schema v2:
                   'updatedBy': user.uid,
                 });
 
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Eveniment actualizat cu succes!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                  _loadEvent(); // Reload event
-                }
+                if (!mounted) return;
+                Navigator.pop(context);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('✅ Eveniment actualizat cu succes!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+                _loadEvent(); // Reload event
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('❌ Eroare: ${e.toString()}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('❌ Eroare: ${e.toString()}'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
               }
             },
             child: const Text('Salvează'),

@@ -102,7 +102,7 @@ class _RangeModalState extends State<RangeModal> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFFEAF1FF).withOpacity(0.9),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.9),
             ),
           ),
         ),
@@ -129,7 +129,7 @@ class _RangeModalState extends State<RangeModal> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFFEAF1FF).withOpacity(0.9),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.9),
             ),
           ),
         ),
@@ -152,7 +152,7 @@ class _RangeModalState extends State<RangeModal> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFFEAF1FF).withOpacity(0.9),
+              color: const Color(0xFFEAF1FF).withValues(alpha: 0.9),
             ),
           ),
         ),
@@ -183,7 +183,7 @@ class _RangeModalState extends State<RangeModal> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFFEAF1FF).withOpacity(0.9),
+                color: const Color(0xFFEAF1FF).withValues(alpha: 0.9),
               ),
             ),
           ),
@@ -216,7 +216,7 @@ class _RangeModalState extends State<RangeModal> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFFEAF1FF).withOpacity(0.6),
+                color: const Color(0xFFEAF1FF).withValues(alpha: 0.6),
               ),
             ),
           ),
@@ -308,7 +308,7 @@ class _RangeModalState extends State<RangeModal> {
               fontWeight: FontWeight.w500,
               color: (isStart || isEnd)
                   ? Colors.white
-                  : const Color(0xFFEAF1FF).withOpacity(0.9),
+                  : const Color(0xFFEAF1FF).withValues(alpha: 0.9),
             ),
           ),
         ),
@@ -321,7 +321,7 @@ class _RangeModalState extends State<RangeModal> {
       'Nu aplic nimic dupa primul tap. Cand alegi si finalul, se aplica intervalul.',
       style: TextStyle(
         fontSize: 11,
-        color: const Color(0xFFEAF1FF).withOpacity(0.6),
+        color: const Color(0xFFEAF1FF).withValues(alpha: 0.6),
       ),
       textAlign: TextAlign.center,
     );
