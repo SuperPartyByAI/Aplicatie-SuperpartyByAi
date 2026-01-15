@@ -5,6 +5,22 @@
  * This ensures Firebase emulator can analyze the codebase without crashing
  */
 
+// Mock Firebase Admin BEFORE any requires (Jest hoisting)
+jest.mock('firebase-admin', () => {
+  const mockFirestore = jest.fn(() => ({
+    collection: jest.fn(),
+  }));
+  const mockAuth = jest.fn(() => ({
+    verifyIdToken: jest.fn(),
+  }));
+  return {
+    initializeApp: jest.fn(),
+    apps: [],
+    firestore: mockFirestore,
+    auth: mockAuth,
+  };
+});
+
 describe('index.js Module Import', () => {
   let originalEnv;
 
@@ -35,15 +51,7 @@ describe('index.js Module Import', () => {
     delete process.env.FIREBASE_CONFIG;
     process.env.NODE_ENV = 'test';
 
-    // Mock Firebase Admin to avoid initialization errors
-    jest.mock('firebase-admin', () => ({
-      initializeApp: jest.fn(),
-      apps: [],
-      firestore: jest.fn(),
-      auth: jest.fn(),
-    }));
-
-    // Should not throw during require
+    // Should not throw during require (lazy loading prevents error)
     expect(() => {
       require('../index');
     }).not.toThrow();
@@ -55,16 +63,21 @@ describe('index.js Module Import', () => {
     process.env.FIREBASE_CONFIG = JSON.stringify({ projectId: 'test-project' });
     process.env.NODE_ENV = 'development';
 
-    jest.mock('firebase-admin', () => ({
-      initializeApp: jest.fn(),
-      apps: [],
-      firestore: jest.fn(),
-      auth: jest.fn(),
-    }));
-
     // Should not throw (lazy loading prevents error)
     expect(() => {
       require('../index');
+    }).not.toThrow();
+  });
+
+  it('should NOT throw when requiring whatsappProxy.js without WHATSAPP_RAILWAY_BASE_URL', () => {
+    // Unset env vars
+    delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+    delete process.env.FIREBASE_CONFIG;
+    process.env.NODE_ENV = 'test';
+
+    // whatsappProxy should not throw at import time
+    expect(() => {
+      require('../whatsappProxy');
     }).not.toThrow();
   });
 });

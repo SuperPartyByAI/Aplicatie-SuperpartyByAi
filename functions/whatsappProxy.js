@@ -610,6 +610,9 @@ exports.getAccounts = onRequest(
   getAccountsHandler
 );
 
+// Export handler for testing
+exports.getAccountsHandler = getAccountsHandler;
+
 exports.addAccount = onRequest(
   {
     region: 'us-central1',
@@ -618,6 +621,9 @@ exports.addAccount = onRequest(
   addAccountHandler
 );
 
+// Export handler for testing
+exports.addAccountHandler = addAccountHandler;
+
 exports.regenerateQr = onRequest(
   {
     region: 'us-central1',
@@ -625,6 +631,9 @@ exports.regenerateQr = onRequest(
   },
   regenerateQrHandler
 );
+
+// Export handler for testing
+exports.regenerateQrHandler = regenerateQrHandler;
 
 /**
  * POST /whatsappProxyRegenerateQr handler
