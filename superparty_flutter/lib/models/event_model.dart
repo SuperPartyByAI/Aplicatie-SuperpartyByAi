@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Model pentru eveniment (schema v2)
@@ -247,6 +248,75 @@ class EventModel {
     if (hasDriverPending) return '...';
     return '!';
   }
+
+  // Compatibility getters for event_details_sheet.dart
+  @Deprecated('Use sarbatoritNume instead')
+  String get nume => sarbatoritNume;
+
+  @Deprecated('Use date (string) instead, parse if needed')
+  DateTime get data {
+    // Parse DD-MM-YYYY to DateTime
+    final parts = date.split('-');
+    if (parts.length == 3) {
+      return DateTime(
+        int.parse(parts[2]),
+        int.parse(parts[1]),
+        int.parse(parts[0]),
+      );
+    }
+    return DateTime.now();
+  }
+
+  @Deprecated('Use address instead')
+  String get locatie => address;
+
+  @Deprecated('Not available in v2 schema')
+  String get tipEveniment => '—';
+
+  @Deprecated('Not available in v2 schema')
+  String get tipLocatie => '—';
+
+  @Deprecated('Use roles instead')
+  Map<String, AssignmentModel> get alocari {
+    // Convert roles array to map by role label
+    final map = <String, AssignmentModel>{};
+    for (var role in roles) {
+      map[role.label.toLowerCase()] = AssignmentModel(
+        userId: role.assignedCode, // Using code as userId placeholder
+        status: role.status == RoleStatus.assigned
+            ? AssignmentStatus.assigned
+            : role.status == RoleStatus.pending
+                ? AssignmentStatus.pending
+                : AssignmentStatus.unassigned,
+      );
+    }
+    return map;
+  }
+
+  @Deprecated('Use needsDriver instead')
+  bool get requiresSofer => needsDriver;
+}
+
+/// Compatibility model for assignment (used by event_details_sheet)
+class AssignmentModel {
+  final String? userId;
+  final AssignmentStatus status;
+
+  AssignmentModel({this.userId, required this.status});
+}
+
+/// Assignment status enum (compatibility)
+enum AssignmentStatus {
+  assigned,
+  pending,
+  unassigned,
+}
+
+/// Driver status enum (compatibility)
+enum DriverStatus {
+  assigned,
+  pending,
+  unassigned,
 }
 
 /// Model pentru rol (slot A-J)
@@ -343,4 +413,11 @@ class IncasareModel {
       if (suma != null) 'suma': suma,
     };
   }
+
+  // Compatibility getters for event_details_sheet.dart
+  @Deprecated('Use suma instead')
+  double get total => suma ?? 0.0;
+
+  @Deprecated('Not available in v2 schema')
+  double get avans => 0.0;
 }

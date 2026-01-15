@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -117,9 +118,9 @@ class AutoUpdateService {
       final data = doc.data();
       if (data == null || data is! Map<String, dynamic>) {
         debugPrint('[AutoUpdate] Invalid data');
-        return false;
+        return 'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.';
       }
-      return data['update_message'] as String? ?? 
+      return data['update_message'] as String? ??
           'O versiune nouă este disponibilă. Vă rugăm să actualizați aplicația.';
     } catch (e) {
       debugPrint('[AutoUpdate] Error getting update message: $e');
@@ -142,7 +143,7 @@ class AutoUpdateService {
       final data = doc.data();
       if (data == null || data is! Map<String, dynamic>) {
         debugPrint('[AutoUpdate] Invalid data');
-        return false;
+        return null;
       }
       
       // Returnează URL-ul în funcție de platformă
