@@ -1289,6 +1289,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
     required String clientRequestId,
     required String action,
   }) async {
+    // Guard: prevent double execution
+    if (_loading) return;
+    
     // Show loading
     setState(() {
       _messages.add({'role': 'assistant', 'content': '...'});

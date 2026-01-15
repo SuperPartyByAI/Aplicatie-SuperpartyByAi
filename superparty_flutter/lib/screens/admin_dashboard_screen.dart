@@ -20,6 +20,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   bool _checking = true;
   bool _isAdmin = false;
   String _error = '';
+  String? _navigatingToUid; // Guard for navigation
 
   @override
   void initState() {
@@ -164,9 +165,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                           final setupDone = (data['setupDone'] as bool?) ?? false;
 
                                           return InkWell(
-                                            onTap: () {
-                                              context.push('/admin/user/${doc.id}');
-                                            },
+                                            onTap: _navigatingToUid != null
+                                                ? null // Disable if already navigating
+                                                : () {
+                                                    final uid = doc.id;
+                                                    if (_navigatingToUid == uid) return; // Already navigating to this user
+                                                    setState(() => _navigatingToUid = uid);
+                                                    context.push('/admin/user/$uid').then((_) {
+                                                      if (mounted) setState(() => _navigatingToUid = null);
+                                                    });
+                                                  },
                                             child: Container(
                                               padding: const EdgeInsets.all(12),
                                               decoration: BoxDecoration(
