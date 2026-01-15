@@ -306,14 +306,7 @@ async function sendHandler(req, res) {
   }
 
   try {
-    // Require employee auth
-    const employeeInfo = await requireEmployee(req, res);
-    if (!employeeInfo) return; // Response already sent (401/403)
-
-    const uid = req.user.uid;
-    const email = req.user.email || '';
-
-    // Validate request body
+    // Validate request body EARLY (before any Firestore reads)
     const { threadId, accountId, toJid, text, clientMessageId } = req.body;
 
     if (!threadId || !accountId || !toJid || !text || !clientMessageId) {
@@ -324,9 +317,16 @@ async function sendHandler(req, res) {
       });
     }
 
+    // Require employee auth EARLY (before any Firestore reads)
+    const employeeInfo = await requireEmployee(req, res);
+    if (!employeeInfo) return; // Response already sent (401/403)
+
+    const uid = req.user.uid;
+    const email = req.user.email || '';
+
     const db = admin.firestore();
 
-    // Read thread document
+    // Read thread document (only after validations pass)
     const threadRef = db.collection('threads').doc(threadId);
     const threadDoc = await threadRef.get();
 

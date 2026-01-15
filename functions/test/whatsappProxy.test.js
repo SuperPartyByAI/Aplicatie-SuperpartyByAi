@@ -2,13 +2,14 @@
 
 /**
  * Unit tests for WhatsApp Proxy QR Connect endpoints
- * 
+ *
  * Tests authentication, authorization, input validation, and Railway forwarding.
  */
 
 // Set env var before importing module (to avoid fail-fast in tests)
 // Note: For lazy-loading tests, we'll unset this to test missing config behavior
-process.env.WHATSAPP_RAILWAY_BASE_URL = process.env.WHATSAPP_RAILWAY_BASE_URL || 'https://test-railway.invalid';
+process.env.WHATSAPP_RAILWAY_BASE_URL =
+  process.env.WHATSAPP_RAILWAY_BASE_URL || 'https://test-railway.invalid';
 process.env.NODE_ENV = 'test';
 
 // Mock Firebase Admin BEFORE requiring it (Jest hoisting)
@@ -23,7 +24,7 @@ const mockFirestoreCollection = jest.fn(() => ({
 const mockFirestoreRunTransaction = jest.fn();
 
 const mockFirestore = {
-  collection: jest.fn((name) => {
+  collection: jest.fn(name => {
     if (name === 'staffProfiles') {
       return {
         doc: jest.fn(() => ({
@@ -55,8 +56,18 @@ const mockAuth = {
 };
 
 jest.mock('firebase-admin', () => {
+  // Create firestore function that also has static properties (like Admin SDK)
+  const firestoreFn = jest.fn(() => mockFirestore);
+  // Attach static properties to match Admin SDK structure
+  firestoreFn.FieldValue = {
+    serverTimestamp: jest.fn(() => ({ _methodName: 'serverTimestamp' })),
+  };
+  firestoreFn.Timestamp = {
+    now: jest.fn(() => ({ seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 })),
+  };
+
   return {
-    firestore: jest.fn(() => mockFirestore),
+    firestore: firestoreFn,
     auth: jest.fn(() => mockAuth),
     initializeApp: jest.fn(),
     apps: [],
@@ -74,7 +85,7 @@ describe('WhatsApp Proxy /getAccounts', () => {
   beforeEach(() => {
     jest.resetModules();
     whatsappProxy = require('../whatsappProxy');
-    
+
     // Mock forwardRequest by replacing the exported function
     mockForwardRequest = jest.fn().mockResolvedValue({
       statusCode: 200,
@@ -377,6 +388,12 @@ describe('WhatsApp Proxy /send', () => {
   let mockOutboxCollection;
   let mockStaffCollection;
 
+  // Helper to create Firestore snapshot mocks
+  const snap = (exists, data = {}) => ({
+    exists,
+    data: () => data,
+  });
+
   beforeEach(() => {
     jest.resetModules();
     whatsappProxy = require('../whatsappProxy');
@@ -404,21 +421,23 @@ describe('WhatsApp Proxy /send', () => {
       doc: jest.fn(() => mockOutboxRef),
     };
 
+    // Create a single mock doc ref that will be reused
+    const mockStaffDocRef = {
+      get: jest.fn(),
+    };
     mockStaffCollection = {
-      doc: jest.fn(() => ({
-        get: jest.fn(),
-      })),
+      doc: jest.fn(() => mockStaffDocRef),
     };
 
     // Override global mock for this test suite
-    mockFirestore.collection.mockImplementation((name) => {
+    mockFirestore.collection.mockImplementation(name => {
       if (name === 'threads') return mockThreadCollection;
       if (name === 'outbox') return mockOutboxCollection;
       if (name === 'staffProfiles') return mockStaffCollection;
       return { doc: jest.fn() };
     });
 
-    mockFirestoreRunTransaction.mockImplementation(async (callback) => {
+    mockFirestoreRunTransaction.mockImplementation(async callback => {
       return await callback(mockTransaction);
     });
 
@@ -449,13 +468,19 @@ describe('WhatsApp Proxy /send', () => {
       email: 'employee@example.com',
     });
 
-    // Mock staffProfiles check (employee)
-    const mockStaffDoc = {
-      exists: true,
-      data: () => ({ role: 'staff' }),
-    };
-    // Use the mock staff collection from beforeEach
-    mockStaffCollection.doc().get.mockResolvedValue(mockStaffDoc);
+    // Mock staffProfiles check (employee) - use snap helper
+    // mockStaffCollection.doc() returns mockStaffDocRef (set up above)
+    mockStaffCollection.doc().get.mockResolvedValue(snap(true, { role: 'staff' }));
+
+    // Set default mock for threadRef.get() to avoid crashes
+    // Tests that need specific thread data will override this
+    mockThreadRef.get.mockResolvedValue(
+      snap(true, {
+        accountId: 'account123',
+        ownerUid: 'user123',
+        coWriterUids: [],
+      })
+    );
   });
 
   it('should reject unauthenticated requests', async () => {
@@ -476,15 +501,11 @@ describe('WhatsApp Proxy /send', () => {
   it('should reject non-employee', async () => {
     mockVerifyIdToken.mockResolvedValue({
       uid: 'user123',
-      email: 'user@example.com',
+      email: 'user@example.com', // Not super-admin and not in staffProfiles
     });
 
-    // Mock staffProfiles check (not employee)
-    const mockStaffDoc = {
-      exists: false,
-    };
-    // Use the mock staff collection from beforeEach
-    mockStaffCollection.doc().get.mockResolvedValue(mockStaffDoc);
+    // Mock staffProfiles check (not employee) - must return snap(false)
+    mockStaffCollection.doc().get.mockResolvedValue(snap(false));
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -503,7 +524,13 @@ describe('WhatsApp Proxy /send', () => {
       // Missing accountId, toJid, text, clientMessageId
     };
 
+    // Reset threadRef mock - validation should stop before reaching it
+    mockThreadRef.get.mockReset();
+
     await whatsappProxy.sendHandler(req, res);
+
+    // Verify transaction was not called
+    expect(mockFirestoreRunTransaction).not.toHaveBeenCalled();
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
@@ -515,10 +542,7 @@ describe('WhatsApp Proxy /send', () => {
   });
 
   it('should reject if thread does not exist', async () => {
-    const mockThreadDoc = {
-      exists: false,
-    };
-    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
+    mockThreadRef.get.mockResolvedValue(snap(false));
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -532,13 +556,11 @@ describe('WhatsApp Proxy /send', () => {
   });
 
   it('should reject if accountId mismatch', async () => {
-    const mockThreadDoc = {
-      exists: true,
-      data: () => ({
+    mockThreadRef.get.mockResolvedValue(
+      snap(true, {
         accountId: 'different_account', // Mismatch
-      }),
-    };
-    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
+      })
+    );
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -552,15 +574,13 @@ describe('WhatsApp Proxy /send', () => {
   });
 
   it('should reject if user is not owner or co-writer', async () => {
-    const mockThreadDoc = {
-      exists: true,
-      data: () => ({
+    mockThreadRef.get.mockResolvedValue(
+      snap(true, {
         accountId: 'account123',
         ownerUid: 'different_user', // Not the requester
         coWriterUids: [], // Empty
-      }),
-    };
-    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
+      })
+    );
 
     // No transaction mock needed - handler returns 403 before transaction
 
@@ -578,23 +598,19 @@ describe('WhatsApp Proxy /send', () => {
   });
 
   it('should allow owner to send', async () => {
-    const mockThreadDoc = {
-      exists: true,
-      data: () => ({
-        accountId: 'account123',
-        ownerUid: 'user123', // Owner
-        coWriterUids: [],
-      }),
-    };
-    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
+    const threadSnap = snap(true, {
+      accountId: 'account123',
+      ownerUid: 'user123', // Owner
+      coWriterUids: [],
+    });
+    mockThreadRef.get.mockResolvedValue(threadSnap);
 
-    // Mock transaction
-    const mockOutboxDoc = {
-      exists: false, // Not duplicate
-    };
+    // Reset transaction mocks
+    mockTransaction.get.mockReset();
+    // Mock transaction - thread first, then outbox
     mockTransaction.get
-      .mockResolvedValueOnce(mockThreadDoc) // Thread read
-      .mockResolvedValueOnce(mockOutboxDoc); // Outbox check
+      .mockResolvedValueOnce(threadSnap) // Thread read in transaction
+      .mockResolvedValueOnce(snap(false)); // Outbox check (not duplicate)
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -609,23 +625,19 @@ describe('WhatsApp Proxy /send', () => {
   });
 
   it('should allow co-writer to send', async () => {
-    const mockThreadDoc = {
-      exists: true,
-      data: () => ({
-        accountId: 'account123',
-        ownerUid: 'different_user',
-        coWriterUids: ['user123'], // Co-writer
-      }),
-    };
-    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
+    const threadSnap = snap(true, {
+      accountId: 'account123',
+      ownerUid: 'different_user',
+      coWriterUids: ['user123'], // Co-writer
+    });
+    mockThreadRef.get.mockResolvedValue(threadSnap);
 
-    // Mock transaction
-    const mockOutboxDoc = {
-      exists: false,
-    };
+    // Reset transaction mocks
+    mockTransaction.get.mockReset();
+    // Mock transaction - thread first, then outbox
     mockTransaction.get
-      .mockResolvedValueOnce(mockThreadDoc)
-      .mockResolvedValueOnce(mockOutboxDoc);
+      .mockResolvedValueOnce(threadSnap) // Thread read in transaction
+      .mockResolvedValueOnce(snap(false)); // Outbox check (not duplicate)
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -638,29 +650,22 @@ describe('WhatsApp Proxy /send', () => {
   });
 
   it('should set ownerUid on first send', async () => {
-    const mockThreadDoc = {
-      exists: true,
-      data: () => ({
-        accountId: 'account123',
-        // No ownerUid (first send)
-      }),
-    };
-    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
+    const threadSnap = snap(true, {
+      accountId: 'account123',
+      // No ownerUid (first send)
+    });
+    mockThreadRef.get.mockResolvedValue(threadSnap);
 
-    // Mock transaction
-    const mockThreadDocInTx = {
-      exists: true,
-      data: () => ({
-        accountId: 'account123',
-        // Still no ownerUid in transaction
-      }),
-    };
-    const mockOutboxDoc = {
-      exists: false,
-    };
+    // Mock transaction - thread first (still no ownerUid), then outbox
+    const threadSnapInTx = snap(true, {
+      accountId: 'account123',
+      // Still no ownerUid in transaction
+    });
+    // Reset transaction mocks
+    mockTransaction.get.mockReset();
     mockTransaction.get
-      .mockResolvedValueOnce(mockThreadDocInTx)
-      .mockResolvedValueOnce(mockOutboxDoc);
+      .mockResolvedValueOnce(threadSnapInTx) // Thread read in transaction
+      .mockResolvedValueOnce(snap(false)); // Outbox check (not duplicate)
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -674,23 +679,19 @@ describe('WhatsApp Proxy /send', () => {
   });
 
   it('should return duplicate=true if outbox doc already exists (idempotency)', async () => {
-    const mockThreadDoc = {
-      exists: true,
-      data: () => ({
-        accountId: 'account123',
-        ownerUid: 'user123',
-        coWriterUids: [],
-      }),
-    };
-    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
+    const threadSnap = snap(true, {
+      accountId: 'account123',
+      ownerUid: 'user123',
+      coWriterUids: [],
+    });
+    mockThreadRef.get.mockResolvedValue(threadSnap);
 
-    // Mock transaction - outbox doc exists (duplicate)
-    const mockOutboxDoc = {
-      exists: true, // Already exists
-    };
+    // Reset transaction mocks
+    mockTransaction.get.mockReset();
+    // Mock transaction - thread first, then outbox (exists = duplicate)
     mockTransaction.get
-      .mockResolvedValueOnce(mockThreadDoc)
-      .mockResolvedValueOnce(mockOutboxDoc);
+      .mockResolvedValueOnce(threadSnap) // Thread read in transaction
+      .mockResolvedValueOnce(snap(true)); // Outbox exists (duplicate)
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -705,22 +706,19 @@ describe('WhatsApp Proxy /send', () => {
   });
 
   it('should generate deterministic requestId', async () => {
-    const mockThreadDoc = {
-      exists: true,
-      data: () => ({
-        accountId: 'account123',
-        ownerUid: 'user123',
-        coWriterUids: [],
-      }),
-    };
-    mockThreadRef.get.mockResolvedValue(mockThreadDoc);
+    const threadSnap = snap(true, {
+      accountId: 'account123',
+      ownerUid: 'user123',
+      coWriterUids: [],
+    });
+    mockThreadRef.get.mockResolvedValue(threadSnap);
 
-    const mockOutboxDoc = {
-      exists: false,
-    };
+    // Reset transaction mocks
+    mockTransaction.get.mockReset();
+    // Mock transaction - thread first, then outbox
     mockTransaction.get
-      .mockResolvedValueOnce(mockThreadDoc)
-      .mockResolvedValueOnce(mockOutboxDoc);
+      .mockResolvedValueOnce(threadSnap) // Thread read in transaction
+      .mockResolvedValueOnce(snap(false)); // Outbox check (not duplicate)
 
     await whatsappProxy.sendHandler(req, res);
 
