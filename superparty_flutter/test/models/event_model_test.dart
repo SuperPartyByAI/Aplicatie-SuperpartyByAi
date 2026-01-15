@@ -1,11 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:superparty_app/models/event_model.dart';
 
 void main() {
   group('EventModel Dual-Read (v1/v2)', () {
-    test('should parse v2 schema (date string)', () {
-      final doc = _createMockDoc({
+    test('should parse v2 schema (date string)', () async {
+      final doc = await _createMockDoc({
         'schemaVersion': 2,
         'date': '2026-01-15',
         'address': 'București, Str. Test 1',
@@ -20,16 +21,16 @@ void main() {
         'updatedBy': 'admin',
       });
 
-      final event = EventModel.fromFirestore(doc as DocumentSnapshot);
+      final event = EventModel.fromFirestore(doc);
 
       expect(event.date, '2026-01-15');
       expect(event.address, 'București, Str. Test 1');
       expect(event.sarbatoritNume, 'Maria');
     });
 
-    test('should parse v1 schema (data Timestamp, locatie)', () {
+    test('should parse v1 schema (data Timestamp, locatie)', () async {
       final testDate = DateTime(2026, 1, 15);
-      final doc = _createMockDoc({
+      final doc = await _createMockDoc({
         'data': Timestamp.fromDate(testDate),
         'locatie': 'București, Str. Test 1',
         'nume': 'Maria',
@@ -46,7 +47,7 @@ void main() {
         'updatedBy': 'admin',
       });
 
-      final event = EventModel.fromFirestore(doc as DocumentSnapshot);
+      final event = EventModel.fromFirestore(doc);
 
       expect(event.date, '2026-01-15');
       expect(event.address, 'București, Str. Test 1');
@@ -56,8 +57,8 @@ void main() {
       expect(event.roles[0].assignedCode, 'A1');
     });
 
-    test('should handle missing optional fields', () {
-      final doc = _createMockDoc({
+    test('should handle missing optional fields', () async {
+      final doc = await _createMockDoc({
         'date': '2026-01-15',
         'address': 'Test',
         'sarbatoritNume': 'Test',
@@ -71,7 +72,7 @@ void main() {
         'updatedBy': 'admin',
       });
 
-      final event = EventModel.fromFirestore(doc as DocumentSnapshot);
+      final event = EventModel.fromFirestore(doc);
 
       expect(event.cineNoteaza, null);
       expect(event.sofer, null);
@@ -110,19 +111,9 @@ void main() {
   });
 }
 
-// Mock DocumentSnapshot (using composition instead of implementation to avoid sealed class issue)
-_MockDocumentSnapshot _createMockDoc(Map<String, dynamic> data) {
-  return _MockDocumentSnapshot('test-id', data);
-}
-
-class _MockDocumentSnapshot {
-  final String id;
-  final Map<String, dynamic> _data;
-
-  _MockDocumentSnapshot(this.id, this._data);
-
-  Map<String, dynamic>? data() => _data;
-  
-  // Make it compatible with EventModel.fromFirestore which expects DocumentSnapshot-like interface
-  // Note: We can't implement DocumentSnapshot because it's sealed, but EventModel only uses .id and .data()
+// Create a real DocumentSnapshot using fake_cloud_firestore
+Future<DocumentSnapshot> _createMockDoc(Map<String, dynamic> data) async {
+  final fakeFirestore = FakeFirebaseFirestore();
+  await fakeFirestore.collection('evenimente').doc('test-id').set(data);
+  return await fakeFirestore.collection('evenimente').doc('test-id').get();
 }

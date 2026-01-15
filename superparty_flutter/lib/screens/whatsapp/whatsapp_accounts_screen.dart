@@ -291,7 +291,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     final statusColor = _getStatusColor(status);
     final showQr = status == 'qr_ready' && qrCode != null;
     // When showQr is true, qrCode is guaranteed non-null
-    final qrCodeData = showQr ? qrCode! : '';
+    final qrCodeData = qrCode ?? '';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
