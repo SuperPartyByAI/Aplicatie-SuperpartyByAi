@@ -9,7 +9,6 @@ import 'services/push_notification_service.dart';
 import 'providers/app_state_provider.dart';
 import 'router/app_router.dart';
 import 'widgets/update_gate.dart';
-import 'widgets/emulator_unavailable_banner.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,7 +29,6 @@ void main() async {
   // CRITICAL: Initialize Firebase BEFORE runApp()
   // AppRouter/AdminService will crash if Firebase is not initialized
   // because they access FirebaseService.auth in constructors
-  String? firebaseInitError;
   try {
     debugPrint('[Main] Initializing Firebase...');
     await FirebaseService.initialize()
@@ -40,7 +38,6 @@ void main() async {
     });
     debugPrint('[Main] ✅ Firebase initialized successfully');
   } catch (e, stackTrace) {
-    firebaseInitError = e.toString();
     debugPrint('[Main] ❌ Firebase initialization failed: $e');
     if (e is! TimeoutException) {
       debugPrint('[Main] Stack trace: $stackTrace');

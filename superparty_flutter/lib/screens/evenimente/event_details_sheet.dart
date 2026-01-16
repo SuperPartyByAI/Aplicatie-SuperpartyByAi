@@ -302,8 +302,31 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
     // Find role by label
     final roleModel = _event!.roles.firstWhere(
       (r) => r.label.toLowerCase() == role.toLowerCase(),
-      orElse: () => throw Exception('Rol $role nu există'),
+      orElse: () => RoleModel(
+        slot: 'unknown',
+        label: role,
+        time: '',
+        durationMin: 0,
+      ),
     );
+    
+    // If role doesn't exist, show placeholder
+    if (roleModel.slot == 'unknown') {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A2332),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF2D3748)),
+        ),
+        child: Text(
+          'Rol "$role" nu este configurat',
+          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+        ),
+      );
+    }
+    
     final isAssigned = roleModel.status == RoleStatus.assigned;
     final userId = roleModel.assignedCode;
 
@@ -596,8 +619,27 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
         // Find role model for current userId
         final roleModel = _event!.roles.firstWhere(
           (r) => r.label.toLowerCase() == role.toLowerCase(),
-          orElse: () => throw Exception('Rol $role nu există'),
+          orElse: () => RoleModel(
+            slot: 'unknown',
+            label: role,
+            time: '',
+            durationMin: 0,
+          ),
         );
+        
+        // If role doesn't exist, show error and return
+        if (roleModel.slot == 'unknown') {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Rolul "$role" nu este configurat pentru acest eveniment'),
+                backgroundColor: const Color(0xFFDC2626),
+              ),
+            );
+          }
+          return;
+        }
+        
         final currentUserId = roleModel.assignedCode;
 
         // Selector de useri
@@ -994,12 +1036,24 @@ Schema v2:
                 // final avans = double.tryParse(avansController.text.trim()) ?? 0;
 
                 if (date.isEmpty || address.isEmpty || nume.isEmpty) {
-                  throw Exception('Toate câmpurile sunt obligatorii');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Toate câmpurile sunt obligatorii')),
+                    );
+                  }
+                  return;
                 }
 
                 // Update event in Firestore
                 final user = FirebaseAuth.instance.currentUser;
-                if (user == null) throw Exception('Nu ești autentificat');
+                if (user == null) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Nu ești autentificat')),
+                    );
+                  }
+                  return;
+                }
 
                 await FirebaseFirestore.instance
                     .collection('evenimente')

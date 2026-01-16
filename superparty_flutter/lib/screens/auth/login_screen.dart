@@ -58,16 +58,26 @@ class _LoginScreenState extends State<LoginScreen> {
       final password = _passwordController.text;
 
       if (email.isEmpty || password.isEmpty) {
-        throw Exception('Email și parola sunt obligatorii.');
+        setState(() => _error = 'Email și parola sunt obligatorii.');
+        return;
       }
 
       if (_isRegister) {
         final phone = _phoneController.text.trim();
         final password2 = _password2Controller.text;
 
-        if (phone.isEmpty) throw Exception('Telefonul este obligatoriu.');
-        if (password2.isEmpty) throw Exception('Confirmă parola.');
-        if (password != password2) throw Exception('Parolele nu coincid.');
+        if (phone.isEmpty) {
+          setState(() => _error = 'Telefonul este obligatoriu.');
+          return;
+        }
+        if (password2.isEmpty) {
+          setState(() => _error = 'Confirmă parola.');
+          return;
+        }
+        if (password != password2) {
+          setState(() => _error = 'Parolele nu coincid.');
+          return;
+        }
 
         // Create user in Firebase Auth
         final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(

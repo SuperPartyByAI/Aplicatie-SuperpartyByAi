@@ -797,20 +797,44 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       // Get current event data
       final eventDoc = await eventRef.get();
       if (!eventDoc.exists) {
-        throw Exception('Event not found');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Evenimentul nu a fost găsit'),
+              backgroundColor: Color(0xFFFF7878),
+            ),
+          );
+        }
+        return;
       }
 
       final data = eventDoc.data();
       if (data == null) {
-        debugPrint('[Evenimente] Event data is null');
-        throw Exception('Event data is null');
+        debugPrint('[Evenimente] Event data is null for eventId: $eventId');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Datele evenimentului sunt invalide. Te rog reîncarcă pagina.'),
+              backgroundColor: Color(0xFFFF7878),
+            ),
+          );
+        }
+        return;
       }
       final roles = (data['roles'] as List<dynamic>?) ?? [];
 
       // Find role by slot
       final roleIndex = roles.indexWhere((r) => r['slot'] == slot);
       if (roleIndex == -1) {
-        throw Exception('Role not found');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Rolul $slot nu a fost găsit'),
+              backgroundColor: const Color(0xFFFF7878),
+            ),
+          );
+        }
+        return;
       }
 
       // Update role with pendingCode (not assignedCode - needs approval)
@@ -850,13 +874,29 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       // Get current event data
       final eventDoc = await eventRef.get();
       if (!eventDoc.exists) {
-        throw Exception('Event not found');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Evenimentul nu a fost găsit'),
+              backgroundColor: Color(0xFFFF7878),
+            ),
+          );
+        }
+        return;
       }
 
       final data = eventDoc.data();
       if (data == null) {
-        debugPrint('[Evenimente] Event data is null');
-        throw Exception('Event data is null');
+        debugPrint('[Evenimente] Event data is null for eventId: $eventId');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Datele evenimentului sunt invalide. Te rog reîncarcă pagina.'),
+              backgroundColor: Color(0xFFFF7878),
+            ),
+          );
+        }
+        return;
       }
 
       final roles = (data['roles'] as List<dynamic>?) ?? [];
@@ -864,7 +904,15 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
       // Find role by slot
       final roleIndex = roles.indexWhere((r) => r['slot'] == slot);
       if (roleIndex == -1) {
-        throw Exception('Role not found');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Rolul $slot nu a fost găsit'),
+              backgroundColor: const Color(0xFFFF7878),
+            ),
+          );
+        }
+        return;
       }
 
       // Clear both assignedCode and pendingCode

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
 import '../services/firebase_service.dart';
 
 /// Banner widget shown when Firebase emulators are unavailable

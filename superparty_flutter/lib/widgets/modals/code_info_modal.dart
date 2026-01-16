@@ -66,12 +66,22 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
         final eventDoc = await transaction.get(eventRef);
 
         if (!eventDoc.exists) {
-          throw Exception('Event not found');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Evenimentul nu a fost găsit')),
+            );
+          }
+          return;
         }
 
         final data = eventDoc.data();
         if (data == null) {
-          throw Exception('Invalid event data');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Date eveniment invalide')),
+            );
+          }
+          return;
         }
         final roles = List<Map<String, dynamic>>.from(data['roles'] ?? []);
 
@@ -83,7 +93,12 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
             final expectedCode = widget.code.trim().toUpperCase();
             
             if (pendingCode != expectedCode) {
-              throw Exception('Pending code mismatch: expected $expectedCode, got $pendingCode');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Codul pending nu corespunde: așteptat $expectedCode, găsit $pendingCode')),
+                );
+              }
+              return;
             }
 
             roles[i]['assignedCode'] = widget.code;
@@ -94,7 +109,12 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
         }
 
         if (!found) {
-          throw Exception('Role slot not found');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Rolul nu a fost găsit')),
+            );
+          }
+          return;
         }
 
         transaction.update(eventRef, {
@@ -126,12 +146,22 @@ class _CodeInfoModalState extends State<CodeInfoModal> {
         final eventDoc = await transaction.get(eventRef);
 
         if (!eventDoc.exists) {
-          throw Exception('Event not found');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Evenimentul nu a fost găsit')),
+            );
+          }
+          return;
         }
 
         final data = eventDoc.data();
         if (data == null) {
-          throw Exception('Invalid event data');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Date eveniment invalide')),
+            );
+          }
+          return;
         }
         final roles = List<Map<String, dynamic>>.from(data['roles'] ?? []);
 

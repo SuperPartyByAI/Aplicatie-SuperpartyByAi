@@ -112,14 +112,30 @@ class _KycScreenState extends State<KycScreen> {
 
     try {
       if (_idFront == null || _idBack == null) {
-        throw Exception('Încarcă CI față și CI verso înainte de extragere.');
+        setState(() {
+          _error = 'Încarcă CI față și CI verso înainte de extragere.';
+          _extractInfo = '';
+        });
+        return;
       }
 
       setState(() => _extractInfo = 'Se încarcă imaginile...');
 
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        throw Exception('Nu ești autentificat. Te rog să te loghezi din nou.');
+        setState(() {
+          _error = 'Nu ești autentificat. Te rog să te loghezi din nou.';
+          _extractInfo = '';
+        });
+        if (mounted) {
+          // Redirect to login after showing error
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) {
+              Navigator.of(context).pushReplacementNamed('/login');
+            }
+          });
+        }
+        return;
       }
       final frontRef = FirebaseStorage.instance
           .ref()
@@ -146,7 +162,10 @@ class _KycScreenState extends State<KycScreen> {
           _contractUnderstood = false;
         });
       } else {
-        throw Exception('Extragerea a eșuat');
+        setState(() {
+          _error = 'Extragerea a eșuat. Te rog încearcă din nou.';
+          _extractInfo = '';
+        });
       }
     } catch (err) {
       setState(() {
@@ -166,12 +185,22 @@ class _KycScreenState extends State<KycScreen> {
 
     try {
       if (!_contractRead || !_contractUnderstood) {
-        throw Exception('Trebuie să citești și să înțelegi contractul.');
+        setState(() => _error = 'Trebuie să citești și să înțelegi contractul.');
+        return;
       }
 
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        throw Exception('Nu ești autentificat. Te rog să te loghezi din nou.');
+        setState(() => _error = 'Nu ești autentificat. Te rog să te loghezi din nou.');
+        if (mounted) {
+          // Redirect to login after showing error
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) {
+              Navigator.of(context).pushReplacementNamed('/login');
+            }
+          });
+        }
+        return;
       }
       
       // Upload all images

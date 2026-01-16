@@ -21,7 +21,7 @@ void main() {
       expect(uid == null || uid.isEmpty, isTrue);
       
       // Verify NotFoundScreen can be instantiated (regression: should not crash)
-      expect(() => NotFoundScreen(routeName: '/admin/user/'), returnsNormally);
+      expect(() => const NotFoundScreen(routeName: '/admin/user/'), returnsNormally);
     });
 
     test('should handle empty uid parameter gracefully', () {

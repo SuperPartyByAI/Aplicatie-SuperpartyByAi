@@ -1,4 +1,4 @@
-import 'dart:io' show Platform, Socket, SocketException;
+import 'dart:io' show Platform, Socket;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -175,8 +175,8 @@ class FirebaseService {
           .catchError((_) => false);
       
       final results = await Future.wait([authCheck, firestoreCheck], eagerError: false);
-      final authOpen = results[0] ?? false;
-      final firestoreOpen = results[1] ?? false;
+      final authOpen = results[0];
+      final firestoreOpen = results[1];
       
       if (!authOpen || !firestoreOpen) {
         final failedPorts = <String>[];
