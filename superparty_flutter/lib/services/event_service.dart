@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/event_model.dart';
 import '../models/event_filters.dart';
 import '../utils/code_validator.dart';
+import '../core/errors/result.dart';
 
 class EventService {
   final FirebaseFirestore _firestore;
@@ -417,42 +418,66 @@ class EventService {
     return EventModel.fromFirestore(doc);
   }
 
+  /// Get single event by ID (safe version returning Result)
+  Future<Result<EventModel>> getEventSafe(String eventId) async {
+    try {
+      final doc = await _firestore.collection('evenimente').doc(eventId).get();
+      if (!doc.exists) {
+        return Result.failure('Eveniment nu există');
+      }
+      return Result.success(EventModel.fromFirestore(doc));
+    } catch (e) {
+      return Result.failure('Eroare la încărcarea evenimentului: $e', error: e);
+    }
+  }
+
   /// Update role assignment (compatibility wrapper)
   Future<void> updateRoleAssignment({
     required String eventId,
     required String role,
     String? userId,
   }) async {
-    // Find role by slot (A-J) or label
-    final event = await getEvent(eventId);
-    final roleModel = event.roles.firstWhere(
-      (r) => r.slot == role.toUpperCase() || r.label.toLowerCase() == role.toLowerCase(),
-      orElse: () => RoleModel(
-        slot: 'unknown',
-        label: role,
-        time: '',
-        durationMin: 0,
-      ),
-    );
-    
-    // If role doesn't exist, return gracefully
-    if (roleModel.slot == 'unknown') {
-      debugPrint('[EventService] ⚠️ Rol "$role" nu există în eveniment $eventId - operație ignorată');
-      return;
-    }
+    try {
+      // Find role by slot (A-J) or label
+      final eventResult = await getEventSafe(eventId);
+      if (eventResult.isFailure) {
+        debugPrint('[EventService] ⚠️ ${eventResult.errorOrNull}');
+        return;
+      }
+      
+      final event = eventResult.value;
+      final roleModel = event.roles.firstWhere(
+        (r) => r.slot == role.toUpperCase() || r.label.toLowerCase() == role.toLowerCase(),
+        orElse: () => RoleModel(
+          slot: 'unknown',
+          label: role,
+          time: '',
+          durationMin: 0,
+        ),
+      );
+      
+      // If role doesn't exist, return gracefully
+      if (roleModel.slot == 'unknown') {
+        debugPrint('[EventService] ⚠️ Rol "$role" nu există în eveniment $eventId - operație ignorată');
+        return;
+      }
 
-    if (userId == null) {
-      // Unassign
-      await unassignRole(eventId: eventId, slot: roleModel.slot);
-    } else {
-      // This path is not used by current UI - userId would need to be looked up from staff collection
-      // For now, we gracefully skip this instead of throwing
-      debugPrint('[EventService] ⚠️ updateRoleAssignment cu userId necesită implementare completă - operație ignorată');
-      // If this becomes needed, implement:
-      // 1. Query staff collection to get staffCode from userId
-      // 2. Call assignRole with the staffCode
-      // For now, return gracefully instead of throwing
-      return;
+      if (userId == null) {
+        // Unassign
+        await unassignRole(eventId: eventId, slot: roleModel.slot);
+      } else {
+        // This path is not used by current UI - userId would need to be looked up from staff collection
+        // For now, we gracefully skip this instead of throwing
+        debugPrint('[EventService] ⚠️ updateRoleAssignment cu userId necesită implementare completă - operație ignorată');
+        // If this becomes needed, implement:
+        // 1. Query staff collection to get staffCode from userId
+        // 2. Call assignRole with the staffCode
+        // For now, return gracefully instead of throwing
+        return;
+      }
+    } catch (e) {
+      debugPrint('[EventService] ⚠️ Eroare la updateRoleAssignment: $e');
+      // Return gracefully instead of throwing
     }
   }
 
@@ -461,14 +486,29 @@ class EventService {
     required String eventId,
     String? userId,
   }) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('Utilizator neautentificat');
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        debugPrint('[EventService] ⚠️ Utilizator neautentificat la updateDriverAssignment');
+        return;
+      }
 
-    await _firestore.collection('evenimente').doc(eventId).update({
-      'sofer': userId,
-      'soferPending': null, // Clear pending when assigning
-      'updatedAt': FieldValue.serverTimestamp(),
-      'updatedBy': user.uid,
-    });
+      // Verify event exists before updating
+      final eventResult = await getEventSafe(eventId);
+      if (eventResult.isFailure) {
+        debugPrint('[EventService] ⚠️ ${eventResult.errorOrNull}');
+        return;
+      }
+
+      await _firestore.collection('evenimente').doc(eventId).update({
+        'sofer': userId,
+        'soferPending': null, // Clear pending when assigning
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': user.uid,
+      });
+    } catch (e) {
+      debugPrint('[EventService] ⚠️ Eroare la updateDriverAssignment: $e');
+      // Return gracefully instead of throwing
+    }
   }
 }

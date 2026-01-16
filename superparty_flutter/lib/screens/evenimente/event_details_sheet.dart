@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../models/event_model.dart';
 import '../../services/event_service.dart';
 import '../../providers/app_state_provider.dart';
+import '../../core/errors/result.dart';
 import '../dovezi/dovezi_screen.dart';
 import '../../widgets/user_selector_dialog.dart';
 import '../../widgets/user_display_name.dart';
@@ -51,24 +52,31 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
   }
 
   Future<void> _loadEvent() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
+    if (!mounted) return;
+    
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
 
-      final event = await _eventService.getEvent(widget.eventId);
-      
-      setState(() {
-        _event = event;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
-    }
+    final Result<EventModel> eventResult = await _eventService.getEventSafe(widget.eventId);
+    
+    if (!mounted) return;
+    
+    eventResult.when(
+      success: (event) {
+        setState(() {
+          _event = event;
+          _isLoading = false;
+        });
+      },
+      failure: (message, code, error) {
+        setState(() {
+          _error = message;
+          _isLoading = false;
+        });
+      },
+    );
   }
 
   @override
