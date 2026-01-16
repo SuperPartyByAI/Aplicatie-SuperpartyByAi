@@ -108,6 +108,28 @@ post_install do |installer|
     end
   end
   
+  # PASUL 3 FIX: Patch gRPC-Core basic_seq.h template syntax for Xcode 16.3+
+  # This fixes the "missing template argument list after template keyword" error
+  # by adding <> to template CallSeqFactory invocations
+  grpc_core_header = File.join(installer.sandbox.root, 'gRPC-Core/src/core/lib/promise/detail/basic_seq.h')
+  if File.exist?(grpc_core_header)
+    puts "🔧 Patching gRPC-Core basic_seq.h for Xcode 16.3+ compatibility..."
+    content = File.read(grpc_core_header)
+    original_content = content.dup
+    
+    # Replace "Traits::template CallSeqFactory(" with "Traits::template CallSeqFactory<>("
+    content.gsub!(/(\s+Traits::template\s+CallSeqFactory)(\()/, '\1<>\2')
+    
+    if content != original_content
+      File.write(grpc_core_header, content)
+      puts "✅ Patched #{content.scan(/CallSeqFactory<>/).length} occurrence(s) in basic_seq.h"
+    else
+      puts "ℹ️  No changes needed in basic_seq.h (already patched or no matches)"
+    end
+  else
+    puts "⚠️  gRPC-Core basic_seq.h not found - skipping patch"
+  end
+  
   # Save the modified Pods project
   installer.pods_project.save
 end
