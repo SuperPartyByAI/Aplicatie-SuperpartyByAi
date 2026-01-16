@@ -5,9 +5,11 @@
 *.swp
 .DS_Store
 .atom/
+.build/
 .buildlog/
 .history
 .svn/
+.swiftpm/
 migrate_working_dir/
 
 # IntelliJ related
@@ -41,3 +43,90 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# iOS/Xcode related
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.podspec
+ios/Flutter/Flutter.podspec.lock
+ios/.generated/
+ios/Flutter/flutter_export_environment.sh
+**/ios/**/GeneratedPluginRegistrant.*
+
+# CocoaPods
+# Note: Podfile.lock should be committed for reproducible builds, but if you want to ignore it:
+# ios/Podfile.lock
+# ios/Pods/
+
+# Xcode
+**/DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.xcuserstate
+*.xcscmblueprint
+ios/.sconsign.dblite
+ios/.dart_tool/
+ios/.packages
+ios/.pub-cache/
+ios/.pub/
+ios/build/
+*.p12
+*.mobileprovision
+*.certSigningRequest
+
+# Android/IntelliJ
+android/.gradle/
+android/captures/
+android/gradlew
+android/gradlew.bat
+android/local.properties
+android/.idea/workspace.xml
+android/.idea/tasks.xml
+android/.idea/gradle.xml
+android/.idea/assetWizardSettings.xml
+android/.idea/dictionaries
+android/.idea/libraries
+android/.idea/jarRepositories.xml
+android/.idea/caches
+android/.idea/modules.xml
+android/.idea/.name
+android/.idea/compiler.xml
+android/.idea/misc.xml
+android/.idea/runConfigurations.xml
+android/.idea/render.experimental.xml
+android/.idea/shelf
+android/app/release/
+android/key.properties
+*.jks
+*.keystore
+
+# macOS
+macos/Pods/
+macos/.symlinks/
+macos/Flutter/Flutter.podspec
+macos/Flutter/Flutter.podspec.lock
+macos/.generated/
+macos/Flutter/flutter_export_environment.sh
+**/macos/**/GeneratedPluginRegistrant.*
+
+# Firebase/Secrets (protect credentials)
+**/GoogleService-Info.plist
+**/google-services.json
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
