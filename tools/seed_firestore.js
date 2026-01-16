@@ -18,10 +18,9 @@ function loadAdminSdk() {
   try {
     // Prefer the Functions workspace dependencies (already installed for this repo)
     // so root does not need its own node_modules.
-    // eslint-disable-next-line import/no-dynamic-require, global-require
+
     return require(path.join(__dirname, '..', 'functions', 'node_modules', 'firebase-admin'));
-  } catch (e) {
-    // eslint-disable-next-line global-require
+  } catch {
     return require('firebase-admin');
   }
 }
@@ -37,7 +36,9 @@ function readDefaultProjectId() {
       const json = JSON.parse(raw);
       const projectId = json?.projects?.default;
       if (projectId) return projectId;
-    } catch (_) {}
+    } catch {
+      // Ignore errors reading .firebaserc files
+    }
   }
   return process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || '';
 }
@@ -69,7 +70,9 @@ async function main() {
   const projectId = (argValue('--project') || readDefaultProjectId() || '').trim();
 
   if (!projectId) {
-    console.error('Missing projectId. Use --project <id> or set FIREBASE_PROJECT_ID, or ensure .firebaserc exists.');
+    console.error(
+      'Missing projectId. Use --project <id> or set FIREBASE_PROJECT_ID, or ensure .firebaserc exists.'
+    );
     process.exit(1);
   }
 
@@ -110,7 +113,7 @@ async function main() {
         active: true,
         updatedAt: now,
       },
-      { merge: true },
+      { merge: true }
     );
 
     const codes = [];
@@ -124,7 +127,7 @@ async function main() {
         freeCodes: codes,
         updatedAt: now,
       },
-      { merge: true },
+      { merge: true }
     );
   }
 
@@ -137,4 +140,3 @@ main().catch(err => {
   console.error('[seed] ❌ Failed:', err);
   process.exit(1);
 });
-
