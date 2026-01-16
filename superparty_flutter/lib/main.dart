@@ -1,3 +1,4 @@
+import 'dart:async' show TimeoutException;
 import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
@@ -8,6 +9,7 @@ import 'services/push_notification_service.dart';
 import 'providers/app_state_provider.dart';
 import 'router/app_router.dart';
 import 'widgets/update_gate.dart';
+import 'widgets/emulator_unavailable_banner.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,18 +27,41 @@ void main() async {
     return true;
   };
   
-  // FAIL-SAFE: Initialize Firebase with error handling and timeout
-  // App can run with limited functionality if Firebase fails
+  // CRITICAL: Initialize Firebase BEFORE runApp()
+  // AppRouter/AdminService will crash if Firebase is not initialized
+  // because they access FirebaseService.auth in constructors
+  String? firebaseInitError;
   try {
     debugPrint('[Main] Initializing Firebase...');
     await FirebaseService.initialize()
-        .timeout(const Duration(seconds: 10));
+        .timeout(const Duration(seconds: 5), onTimeout: () {
+      debugPrint('[Main] ⚠️ Firebase init timeout (5s)');
+      throw TimeoutException('Firebase initialization timeout');
+    });
     debugPrint('[Main] ✅ Firebase initialized successfully');
   } catch (e, stackTrace) {
+    firebaseInitError = e.toString();
     debugPrint('[Main] ❌ Firebase initialization failed: $e');
-    debugPrint('[Main] Stack trace: $stackTrace');
-    debugPrint('[Main] ⚠️ App will continue with limited functionality');
-    debugPrint('[Main] ℹ️ Features requiring Firebase will be unavailable');
+    if (e is! TimeoutException) {
+      debugPrint('[Main] Stack trace: $stackTrace');
+    }
+    debugPrint('[Main] ⚠️ App will show error screen (Firebase required)');
+    debugPrint('[Main] 💡 If using emulators:');
+    debugPrint('[Main]   1. Start: npm run emu:android (or npm run emu + scripts/adb_reverse_emulators.ps1)');
+    debugPrint('[Main]   2. Verify: npm run emu:check');
+    debugPrint('[Main]   3. Run: flutter run --dart-define=USE_EMULATORS=true [--dart-define=USE_ADB_REVERSE=false]');
+    
+    // Check for common configuration issues
+    if (e.toString().contains('firebase_options') || e.toString().contains('google-services')) {
+      debugPrint('[Main] 💡 Possible missing config: Check firebase_options.dart or google-services.json');
+    }
+    
+    // Check for timeout (likely emulator connectivity issue)
+    if (e is TimeoutException) {
+      debugPrint('[Main] 💡 Timeout likely due to emulator connectivity:');
+      debugPrint('[Main]      - Android emulator: Use adb reverse OR USE_ADB_REVERSE=false (uses 10.0.2.2)');
+      debugPrint('[Main]      - Verify emulators running: npm run emu:check');
+    }
   }
   
   // FAIL-SAFE: Background service is optional (mobile only)
@@ -78,53 +103,50 @@ class SuperPartyApp extends StatefulWidget {
 
 class _SuperPartyAppState extends State<SuperPartyApp> {
   AppRouter? _appRouter;
+  String? _firebaseInitError;
+  bool _isInitializing = false;
 
   @override
   void initState() {
     super.initState();
-    // Trigger rebuild when Firebase is initialized
-    _waitForFirebase();
-  }
-  
-  Future<void> _waitForFirebase() async {
-    // Wait for Firebase to be initialized
-    while (!FirebaseService.isInitialized) {
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
-    // Trigger rebuild
-    if (mounted) {
-      setState(() {});
+    // Check if Firebase initialization failed in main()
+    if (!FirebaseService.isInitialized) {
+      _firebaseInitError = FirebaseService.initError ?? 
+          'Firebase initialization failed or timed out in main()';
+      debugPrint('[SuperPartyApp] ⚠️ Firebase not initialized in main()');
+      if (_firebaseInitError != null) {
+        debugPrint('[SuperPartyApp] Error: $_firebaseInitError');
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // CRITICAL: Wait for Firebase initialization before building any widgets
-    // This prevents [core/no-app] error on web
+    // CRITICAL: Do NOT create AppRouter/AdminService until Firebase is initialized
+    // AppRouter constructor creates AdminService, which accesses FirebaseService.auth
+    // This would crash if Firebase is not initialized
     if (!FirebaseService.isInitialized) {
       return MaterialApp(
-        // Accept ANY route during initialization (including deep-links like /#/evenimente)
-        // Show loading screen for all routes until Firebase is ready
-        onGenerateRoute: (settings) {
-          return MaterialPageRoute(
-            settings: settings, // Preserve route settings for later navigation
-            builder: (context) => const Scaffold(
-              body: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Initializing Firebase...'),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
+        title: 'SuperParty',
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFFDC2626),
+            brightness: Brightness.light,
+          ),
+          useMaterial3: true,
+        ),
+        darkTheme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFFDC2626),
+            brightness: Brightness.dark,
+          ),
+          useMaterial3: true,
+        ),
+        home: _buildFirebaseInitScreen(),
       );
     }
     
+    // Firebase is initialized - safe to create AppRouter
     return ChangeNotifierProvider(
       create: (_) => AppStateProvider(),
       child: MaterialApp.router(
@@ -144,10 +166,98 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
           useMaterial3: true,
         ),
         builder: (context, child) {
-          // UpdateGate as overlay - preserves Directionality from MaterialApp
-          return UpdateGate(child: child ?? const SizedBox.shrink());
+          final content = UpdateGate(child: child ?? const SizedBox.shrink());
+          return content;
         },
         routerConfig: (_appRouter ??= AppRouter()).router,
+      ),
+    );
+  }
+
+  Widget _buildFirebaseInitScreen() {
+    if (_isInitializing) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Initializing Firebase...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 64,
+                color: Colors.red.shade700,
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Firebase Initialization Failed',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red.shade700,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              if (_firebaseInitError != null)
+                Text(
+                  _firebaseInitError!,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+              const SizedBox(height: 8),
+              Text(
+                'The app cannot start without Firebase. Please check your configuration.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey.shade600,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _isInitializing = true;
+                    _firebaseInitError = null;
+                  });
+                  FirebaseService.initialize().then((_) {
+                    if (mounted) {
+                      setState(() {
+                        _isInitializing = false;
+                      });
+                    }
+                  }).catchError((e) {
+                    debugPrint('[SuperPartyApp] Retry failed: $e');
+                    if (mounted) {
+                      setState(() {
+                        _isInitializing = false;
+                        _firebaseInitError = 'Retry failed: ${e.toString()}';
+                      });
+                    }
+                  });
+                },
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry Firebase Initialization'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

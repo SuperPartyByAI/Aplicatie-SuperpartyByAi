@@ -42,6 +42,22 @@ function readDefaultProjectId() {
   return process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || '';
 }
 
+function readEmulatorPorts() {
+  // Read firebase.json as single source of truth for emulator ports
+  const firebaseJsonPath = path.join(__dirname, '..', 'firebase.json');
+  try {
+    const raw = fs.readFileSync(firebaseJsonPath, 'utf8');
+    const json = JSON.parse(raw);
+    const firestorePort = json?.emulators?.firestore?.port || 8082;
+    const firestoreHost = json?.emulators?.firestore?.host || '127.0.0.1';
+    return { host: firestoreHost, port: firestorePort };
+  } catch (e) {
+    // Fallback to firebase.json defaults if file not found or invalid
+    console.warn('[seed] ⚠️  Could not read firebase.json, using defaults:', e.message);
+    return { host: '127.0.0.1', port: 8082 };
+  }
+}
+
 function argValue(flag) {
   const i = process.argv.indexOf(flag);
   if (i === -1) return null;
@@ -58,7 +74,11 @@ async function main() {
   }
 
   if (useEmulator) {
-    process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080';
+    // Prefer env var if set, otherwise read from firebase.json
+    if (!process.env.FIRESTORE_EMULATOR_HOST) {
+      const emulatorConfig = readEmulatorPorts();
+      process.env.FIRESTORE_EMULATOR_HOST = `${emulatorConfig.host}:${emulatorConfig.port}`;
+    }
     console.log('[seed] Using Firestore emulator at', process.env.FIRESTORE_EMULATOR_HOST);
   }
 

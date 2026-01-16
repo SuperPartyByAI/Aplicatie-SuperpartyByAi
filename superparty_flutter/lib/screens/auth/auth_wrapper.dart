@@ -1,3 +1,4 @@
+import 'dart:async' show TimeoutException;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
@@ -94,14 +95,30 @@ class _AuthWrapperState extends State<AuthWrapper> {
             });
           }
 
-          // Check user status in Firestore
+          // Check user status in Firestore (with timeout to prevent hanging)
           return StreamBuilder<DocumentSnapshot>(
-            stream: FirebaseService.firestore.collection('users').doc(uid).snapshots(),
+            stream: FirebaseService.firestore
+                .collection('users')
+                .doc(uid)
+                .snapshots()
+                .timeout(
+                  const Duration(seconds: 5),
+                  onTimeout: (sink) {
+                    debugPrint('[AuthWrapper] ⚠️ Firestore stream timeout (5s) - emulator may be down');
+                    sink.addError(TimeoutException('Firestore connection timeout'));
+                  },
+                ),
             builder: (context, userSnapshot) {
               if (userSnapshot.connectionState == ConnectionState.waiting) {
                 return const Scaffold(
                   body: Center(child: CircularProgressIndicator()),
                 );
+              }
+
+              // Handle timeout/error - show home screen instead of blocking
+              if (userSnapshot.hasError) {
+                debugPrint('[AuthWrapper] ⚠️ Firestore error (showing home anyway): ${userSnapshot.error}');
+                return const HomeScreen();
               }
 
               if (userSnapshot.hasData && userSnapshot.data!.exists) {

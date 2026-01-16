@@ -40,7 +40,15 @@ class AppRouter {
 
   late final GoRouter router = GoRouter(
     debugLogDiagnostics: kDebugMode,
-    refreshListenable: GoRouterRefreshStream(FirebaseService.auth.authStateChanges()),
+    refreshListenable: GoRouterRefreshStream(
+      FirebaseService.auth.authStateChanges().timeout(
+        const Duration(seconds: 5),
+        onTimeout: (sink) {
+          debugPrint('[AppRouter] ⚠️ Auth stream timeout (5s) - emulator may be down');
+          // Don't add error - just let it complete naturally
+        },
+      ),
+    ),
     redirect: _redirect,
     routes: [
       GoRoute(
@@ -77,7 +85,11 @@ class AppRouter {
           GoRoute(
             path: 'user/:uid',
             builder: (context, state) {
-              final uid = state.pathParameters['uid']!;
+              final uid = state.pathParameters['uid'];
+              // Safe redirect: if uid is missing or empty, show NotFoundScreen
+              if (uid == null || uid.isEmpty) {
+                return NotFoundScreen(routeName: state.uri.toString());
+              }
               return AdminUserDetailScreen(uid: uid);
             },
           ),

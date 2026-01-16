@@ -70,6 +70,36 @@ Only for `ursache.andrei1995@gmail.com`:
 
 All Firebase config is in `lib/services/firebase_service.dart`
 
+### Local Development with Firebase Emulators
+
+**If Firebase init times out or fails:**
+
+1. **Start emulators and setup adb reverse (one command):**
+   ```powershell
+   # From repo root
+   npm run emu:android
+   ```
+
+2. **Verify ports are open:**
+   ```powershell
+   npm run emu:check
+   ```
+
+3. **Run Flutter app:**
+   ```powershell
+   cd superparty_flutter
+   flutter run --dart-define=USE_EMULATORS=true --dart-define=USE_ADB_REVERSE=true
+   ```
+
+**Alternative (without adb reverse):**
+```powershell
+cd superparty_flutter
+flutter run --dart-define=USE_EMULATORS=true --dart-define=USE_ADB_REVERSE=false
+```
+This uses `10.0.2.2` automatically (works without `adb reverse` setup).
+
+**See:** `RUN_LOCAL_ANDROID.md` for detailed setup instructions and validation tests.
+
 ### WhatsApp Backend (Railway)
 
 Set the Railway backend URL at build/run time:

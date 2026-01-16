@@ -20,17 +20,29 @@ cd Aplicatie-SuperpartyByAi
 
 # Install dependencies
 npm install
+cd functions && npm install && cd ..
+cd superparty_flutter && flutter pub get && cd ..
 
-# Configure environment
-cp .env.example .env
-# Add your RAILWAY_TOKEN
+# Configure secrets (REQUIRED - see Secrets Checklist below)
+# 1. Download google-services.json from Firebase Console
+# 2. Place at: superparty_flutter/android/app/google-services.json
+# 3. Run: cd superparty_flutter && flutterfire configure
+# 4. Create .env file from RAILWAY-VARIABLES.env.example
 
-# Start autonomous monitor
-npm start
-
-# Check CI status (HEAD only)
-npm run ci:status
+# Start development
+npm run emu:fix  # One-command setup (Windows)
+# Or manually: npm run emu (T1) + npm run seed:emu (T2) + flutter run (T3)
 ```
+
+### 🔐 Secrets Checklist (Required Before Running)
+
+Before running the app, you must configure:
+
+- [ ] **Firebase Android Config**: Download `google-services.json` from [Firebase Console](https://console.firebase.google.com/project/superparty-frontend/settings/general) → Android app → Download config file → Place at `superparty_flutter/android/app/google-services.json`
+- [ ] **Firebase Flutter Config**: Run `cd superparty_flutter && flutterfire configure` to generate `firebase_options.dart`
+- [ ] **Environment Variables**: Copy `RAILWAY-VARIABLES.env.example` to `.env` and fill in your API keys (OpenAI, Twilio, etc.)
+
+**⚠️ These files are NOT committed to Git for security. See `SETUP_NEW_LAPTOP.md` for detailed setup instructions.**
 
 ### 📊 CI Status
 
