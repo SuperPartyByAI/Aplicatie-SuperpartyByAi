@@ -100,7 +100,12 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
       );
 
       if (filePath == null) {
-        throw Exception('Download eșuat - verifică conexiunea la internet');
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = 'Download eșuat - verifică conexiunea la internet';
+          _state = _UpdateState.idle;
+        });
+        return;
       }
 
       debugPrint('[ForceUpdateScreen] Download complete: $filePath');
@@ -137,7 +142,9 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen> {
       final success = await ApkInstallerBridge.installApk(filePath);
 
       if (!success) {
-        throw Exception('Instalarea a eșuat - încearcă din nou');
+        if (!mounted) return;
+        _showError('Instalarea a eșuat - încearcă din nou');
+        return;
       }
 
       // Installerul Android s-a deschis
