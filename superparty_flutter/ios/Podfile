@@ -28,7 +28,7 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 flutter_ios_podfile_setup
 
 target 'Runner' do
-  use_frameworks!
+  use_frameworks! :linkage => :static
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
@@ -49,6 +49,7 @@ post_install do |installer|
         # Try both c++17 and gnu++17 - c++17 is stricter but sometimes works better
         config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
         config.build_settings['GCC_C_LANGUAGE_STANDARD'] = 'gnu11'
+        config.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
         # Also ensure C++17 flags are set explicitly
         existing_flags = config.build_settings['OTHER_CPLUSPLUSFLAGS'] || []
         existing_flags = existing_flags.is_a?(Array) ? existing_flags : [existing_flags] unless existing_flags.is_a?(Array)
