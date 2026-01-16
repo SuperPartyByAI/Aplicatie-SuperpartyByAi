@@ -50,7 +50,28 @@ class EventModel {
   });
 
   factory EventModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    // Defensive parsing: handle null or invalid doc.data()
+    final rawData = doc.data();
+    if (rawData == null || rawData is! Map<String, dynamic>) {
+      debugPrint('[EventModel] ⚠️ Document ${doc.id} has null or invalid data, using safe defaults');
+      // Return minimal safe EventModel with doc.id
+      return EventModel(
+        id: doc.id,
+        date: '',
+        address: '',
+        sarbatoritNume: '',
+        sarbatoritVarsta: 0,
+        incasare: IncasareModel(status: 'NEINCASAT'),
+        roles: [],
+        isArchived: false,
+        createdAt: DateTime.now(),
+        createdBy: '',
+        updatedAt: DateTime.now(),
+        updatedBy: '',
+      );
+    }
+    // After null/type check, we know rawData is Map<String, dynamic>
+    final data = rawData;
     
     // DEBUG: Log raw data to see what we're receiving
     debugPrint('[EventModel] Parsing event ${doc.id}');
@@ -71,7 +92,7 @@ class EventModel {
       debugPrint('[EventModel] âœ… Using date as String: $dateStr');
     } else if (data.containsKey('data') && data['data'] is String) {
       // v2: data as string DD-MM-YYYY (Romanian field name)
-      dateStr = data['data'] as String;
+      dateStr = data['data'] as String; // ignore: unnecessary_cast
       debugPrint('[EventModel] âœ… Using data as String: $dateStr');
     } else if (data.containsKey('date') && data['date'] is Timestamp) {
       // v1: date as Timestamp (old schema) - convert to DD-MM-YYYY
@@ -118,11 +139,13 @@ class EventModel {
       cineNoteaza: data['cineNoteaza'] as String?, // null OK
       sofer: data['sofer'] as String?, // null OK
       soferPending: data['soferPending'] as String?, // null OK
-      sarbatoritNume: data['sarbatoritNume'] as String? ?? 
-                      data['nume'] as String? ?? '', // v1 fallback
-      sarbatoritVarsta: data['sarbatoritVarsta'] as int? ?? 0,
+      sarbatoritNume: _safeString(data['sarbatoritNume']) ?? 
+                      _safeString(data['nume']) ?? '', // v1 fallback
+      sarbatoritVarsta: _safeInt(data['sarbatoritVarsta']) ?? 0,
       sarbatoritDob: data['sarbatoritDob'] as String?,
-      incasare: IncasareModel.fromMap(data['incasare'] as Map<String, dynamic>?),
+      incasare: (data['incasare'] is Map<String, dynamic>)
+          ? IncasareModel.fromMap(data['incasare'] as Map<String, dynamic>)
+          : IncasareModel(status: 'NEINCASAT'),
       roles: roles,
       isArchived: data['isArchived'] as bool? ?? 
                   data['este arhivat'] as bool? ?? 
@@ -161,10 +184,38 @@ class EventModel {
     };
   }
 
+  /// Safe string conversion: handles null, non-string types
+  static String? _safeString(dynamic value) {
+    if (value == null) return null;
+    if (value is String) return value.isEmpty ? null : value;
+    return value.toString().isEmpty ? null : value.toString();
+  }
+
+  /// Safe int conversion: handles null, string numbers, double
+  static int? _safeInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
+      final parsed = int.tryParse(value);
+      return parsed;
+    }
+    return null;
+  }
+
   static List<RoleModel> _parseRoles(List<dynamic>? data) {
     if (data == null) return [];
     return data
-        .map((item) => RoleModel.fromMap(item as Map<String, dynamic>))
+        .whereType<Map<String, dynamic>>() // Filter invalid items
+        .map((item) {
+          try {
+            return RoleModel.fromMap(item);
+          } catch (e) {
+            debugPrint('[EventModel] ⚠️ Failed to parse role: $e');
+            return null;
+          }
+        })
+        .whereType<RoleModel>() // Remove nulls
         .toList();
   }
 

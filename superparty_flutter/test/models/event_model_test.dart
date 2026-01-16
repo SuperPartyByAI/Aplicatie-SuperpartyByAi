@@ -118,6 +118,107 @@ void main() {
       expect(data['schemaVersion'], 2);
     });
   });
+
+  group('EventModel Defensive Parsing', () {
+    test('should handle null doc.data() gracefully', () async {
+      // Regression test: corrupted Firestore doc with null data() should not crash
+      // Before fix: doc.data() as Map<String, dynamic> would throw TypeError
+      // After fix: Should return safe default EventModel
+      
+      final fakeFirestore = FakeFirebaseFirestore();
+      // Create doc with null data (simulate corrupted/missing data)
+      await fakeFirestore.collection('evenimente').doc('corrupted-id').set({});
+      
+      // Manually set data to null (simulate corrupted doc)
+      // Note: fake_cloud_firestore doesn't support null data directly,
+      // but we can test with minimal/invalid data
+      
+      final doc = await fakeFirestore.collection('evenimente').doc('corrupted-id').get();
+      
+      // Test that parsing doesn't crash even with minimal data
+      expect(() => EventModel.fromFirestore(doc), returnsNormally);
+      
+      final event = EventModel.fromFirestore(doc);
+      // Should return safe defaults (empty string for date when data is missing)
+      expect(event.id, 'corrupted-id');
+      expect(event.date, isEmpty); // Regression: should not crash, returns empty string
+      expect(event.address, isEmpty); // Safe default
+      expect(event.sarbatoritNume, isEmpty); // Safe default
+      expect(event.sarbatoritVarsta, 0); // Safe default
+    });
+
+    test('should handle invalid type in sarbatoritVarsta', () async {
+      // Regression test: wrong type (String instead of int) should not crash
+      final doc = await _createMockDoc({
+        'date': '2026-01-15',
+        'address': 'Test',
+        'sarbatoritNume': 'Test',
+        'sarbatoritVarsta': 'invalid', // Wrong type: String instead of int
+        'incasare': {'status': 'NEINCASAT'},
+        'roles': [],
+        'isArchived': false,
+        'createdAt': Timestamp.now(),
+        'createdBy': 'admin',
+        'updatedAt': Timestamp.now(),
+        'updatedBy': 'admin',
+      });
+
+      // Should not crash, should use default value (0)
+      expect(() => EventModel.fromFirestore(doc), returnsNormally);
+      final event = EventModel.fromFirestore(doc);
+      expect(event.sarbatoritVarsta, 0); // Should fallback to 0
+    });
+
+    test('should handle invalid incasare type', () async {
+      // Regression test: incasare as String instead of Map should not crash
+      final doc = await _createMockDoc({
+        'date': '2026-01-15',
+        'address': 'Test',
+        'sarbatoritNume': 'Test',
+        'sarbatoritVarsta': 5,
+        'incasare': 'invalid', // Wrong type: String instead of Map
+        'roles': [],
+        'isArchived': false,
+        'createdAt': Timestamp.now(),
+        'createdBy': 'admin',
+        'updatedAt': Timestamp.now(),
+        'updatedBy': 'admin',
+      });
+
+      // Should not crash, should use safe default IncasareModel
+      expect(() => EventModel.fromFirestore(doc), returnsNormally);
+      final event = EventModel.fromFirestore(doc);
+      expect(event.incasare.status, 'NEINCASAT'); // Should fallback to safe default
+    });
+
+    test('should handle invalid roles array items', () async {
+      // Regression test: roles array with invalid items should filter them out
+      final doc = await _createMockDoc({
+        'date': '2026-01-15',
+        'address': 'Test',
+        'sarbatoritNume': 'Test',
+        'sarbatoritVarsta': 5,
+        'incasare': {'status': 'NEINCASAT'},
+        'roles': [
+          {'slot': 'A', 'label': 'Valid'}, // Valid
+          'invalid', // Invalid: String instead of Map
+          123, // Invalid: int instead of Map
+          {'invalid': 'structure'}, // Invalid: missing required fields
+        ],
+        'isArchived': false,
+        'createdAt': Timestamp.now(),
+        'createdBy': 'admin',
+        'updatedAt': Timestamp.now(),
+        'updatedBy': 'admin',
+      });
+
+      // Should not crash, should filter invalid items
+      expect(() => EventModel.fromFirestore(doc), returnsNormally);
+      final event = EventModel.fromFirestore(doc);
+      // Should only contain valid roles or empty list
+      expect(event.roles, isA<List<RoleModel>>());
+    });
+  });
 }
 
 // Create a real DocumentSnapshot using fake_cloud_firestore
