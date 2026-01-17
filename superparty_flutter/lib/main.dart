@@ -11,6 +11,7 @@ import 'services/push_notification_service.dart';
 import 'providers/app_state_provider.dart';
 import 'router/app_router.dart';
 import 'widgets/update_gate.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -156,20 +157,13 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
     if (!FirebaseService.isInitialized) {
       return MaterialApp(
         title: 'SuperParty',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFFDC2626),
-            brightness: Brightness.light,
-          ),
-          useMaterial3: true,
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark().copyWith(
+          extensions: <ThemeExtension<dynamic>>[
+            AppColors.dark,
+          ],
         ),
-        darkTheme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFFDC2626),
-            brightness: Brightness.dark,
-          ),
-          useMaterial3: true,
-        ),
+        themeMode: ThemeMode.dark,
         home: _buildFirebaseInitScreen(),
       );
     }
@@ -179,20 +173,13 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
       create: (_) => AppStateProvider(),
       child: MaterialApp.router(
         title: 'SuperParty',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFFDC2626),
-            brightness: Brightness.light,
-          ),
-          useMaterial3: true,
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark().copyWith(
+          extensions: <ThemeExtension<dynamic>>[
+            AppColors.dark,
+          ],
         ),
-        darkTheme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFFDC2626),
-            brightness: Brightness.dark,
-          ),
-          useMaterial3: true,
-        ),
+        themeMode: ThemeMode.dark,
         builder: (context, child) {
           final content = UpdateGate(child: child ?? const SizedBox.shrink());
           return content;
