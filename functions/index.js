@@ -316,8 +316,10 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: Date.now() });
 });
 
-// REMOVED: 1st Gen function - cannot upgrade to 2nd Gen
+// REMOVED: 1st Gen function - cannot upgrade to 2nd Gen automatically
 // Use whatsappV4 instead (2nd Gen)
+// MANUAL STEP REQUIRED: Delete this function via Firebase Console before deploying
+// See: MANUAL_STEP_DELETE_OLD_WHATSAPP.md
 // exports.whatsapp = functions.https.onRequest(app);
 
 // 2nd Gen version with all endpoints (deprecated - use whatsappV4)
