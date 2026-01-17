@@ -341,6 +341,16 @@ console.log(`📁 Auth directory: ${authDir}`);
 console.log(`📁 Sessions dir exists: ${fs.existsSync(authDir)}`);
 console.log(`📁 Sessions dir writable: ${isWritable}`);
 
+// CRITICAL: Verify SESSIONS_PATH is writable (fail fast if not)
+// This prevents silent failures where sessions are lost on redeploy
+if (!isWritable) {
+  console.error('❌ CRITICAL: Auth directory is not writable!');
+  console.error(`   Path: ${authDir}`);
+  console.error('   Check: SESSIONS_PATH env var and Railway volume mount');
+  console.error('   Fix: Create Railway volume and set SESSIONS_PATH=/data/sessions');
+  process.exit(1);
+}
+
 const VERSION = '2.0.0';
 let COMMIT_HASH = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || null;
 const BOOT_TIMESTAMP = new Date().toISOString();
@@ -1379,6 +1389,19 @@ app.get('/health', async (req, res) => {
     c => c.status === 'disconnected'
   ).length;
 
+  // Check sessions directory writability at runtime (critical for Railway stability)
+  let sessionsDirWritable = false;
+  try {
+    if (fs.existsSync(authDir)) {
+      const testFile = path.join(authDir, '.health-check-write-test');
+      fs.writeFileSync(testFile, 'test');
+      fs.unlinkSync(testFile);
+      sessionsDirWritable = true;
+    }
+  } catch (error) {
+    sessionsDirWritable = false;
+  }
+
   // Get commit from config if env var not set
   if (!COMMIT_HASH && firestoreAvailable) {
     try {
@@ -1431,14 +1454,22 @@ app.get('/health', async (req, res) => {
     }
   }
 
-  res.json({
-    status: 'healthy',
+  const accountsTotal = connections.size;
+  const ok = sessionsDirWritable && firestoreStatus === 'connected';
+
+  res.status(ok ? 200 : 503).json({
+    ok,
+    accounts_total: accountsTotal,
+    connected,
+    needs_qr: needsQr,
+    sessions_dir_writable: sessionsDirWritable,
+    status: ok ? 'healthy' : 'unhealthy',
     ...fingerprint,
     mode: 'single', // Single worker mode (no multi-worker coordination yet)
     uptime: Math.floor((Date.now() - START_TIME) / 1000),
     timestamp: new Date().toISOString(),
     accounts: {
-      total: connections.size,
+      total: accountsTotal,
       connected,
       connecting,
       disconnected,
@@ -3548,9 +3579,20 @@ async function restoreAccountsFromFirestore() {
       }
     }
 
-    for (const doc of snapshot.docs) {
+    // Sort accounts deterministically for predictable boot order
+    const sortedDocs = snapshot.docs.sort((a, b) => a.id.localeCompare(b.id));
+
+    for (let i = 0; i < sortedDocs.length; i++) {
+      const doc = sortedDocs[i];
       const data = doc.data();
       const accountId = doc.id;
+
+      // Add 2-5s jitter between account restores (staggered boot to avoid rate limiting)
+      if (i > 0) {
+        const jitter = Math.floor(Math.random() * 3000) + 2000; // 2-5 seconds
+        console.log(`⏳ Waiting ${jitter / 1000}s before restoring next account (staggered boot)...`);
+        await new Promise(resolve => setTimeout(resolve, jitter));
+      }
 
       console.log(`🔄 [${accountId}] Restoring connected account (${data.name || 'N/A'})`);
       await restoreAccount(accountId, data);
@@ -3558,18 +3600,35 @@ async function restoreAccountsFromFirestore() {
 
     console.log(`✅ Account restore complete: ${connections.size} accounts loaded`);
 
-    // Start connections for restored accounts (P1B fix)
-    console.log('🔌 Starting connections for restored accounts...');
+    // Start connections for restored accounts with staggered boot (2-5s jitter)
+    console.log('🔌 Starting connections for restored accounts (staggered boot)...');
+    
+    // Sort accounts deterministically for predictable boot order
+    const sortedConnections = Array.from(connections.entries())
+      .filter(([accountId, account]) => !account.sock && (account.status === 'connected' || account.status === 'connecting'))
+      .sort(([a], [b]) => a.localeCompare(b));
+
+    for (let i = 0; i < sortedConnections.length; i++) {
+      const [accountId, account] = sortedConnections[i];
+
+      // Add 2-5s jitter between connections (staggered boot to avoid rate limiting)
+      if (i > 0) {
+        const jitter = Math.floor(Math.random() * 3000) + 2000; // 2-5 seconds
+        console.log(`⏳ Waiting ${jitter / 1000}s before connecting next account (staggered boot)...`);
+        await new Promise(resolve => setTimeout(resolve, jitter));
+      }
+
+      console.log(`🔌 [${accountId}] Starting connection (no socket)...`);
+      try {
+        await createConnection(accountId, account.name, account.phone);
+      } catch (error) {
+        console.error(`❌ [${accountId}] Failed to start connection:`, error.message);
+      }
+    }
+
+    // Log any accounts that already have sockets
     for (const [accountId, account] of connections.entries()) {
-      // Only create connection if NOT already connected (no socket)
-      if (!account.sock && (account.status === 'connected' || account.status === 'connecting')) {
-        console.log(`🔌 [${accountId}] Starting connection (no socket)...`);
-        try {
-          await createConnection(accountId, account.name, account.phone);
-        } catch (error) {
-          console.error(`❌ [${accountId}] Failed to start connection:`, error.message);
-        }
-      } else if (account.sock) {
+      if (account.sock && (account.status === 'connected' || account.status === 'connecting')) {
         console.log(`✅ [${accountId}] Socket already exists, skipping createConnection`);
       }
     }
@@ -3582,6 +3641,74 @@ async function restoreAccountsFromFirestore() {
     });
     console.log('⚠️  Starting with 0 accounts. Service will continue running.');
     // Don't throw - allow service to start with empty state
+  }
+}
+
+// Restore accounts from disk (complements Firestore restore)
+// Scans authDir for session directories and restores any found accounts
+async function restoreAccountsFromDisk() {
+  console.log('🔄 Scanning disk for session directories...');
+
+  if (!fs.existsSync(authDir)) {
+    console.log('⚠️  Auth directory does not exist, skipping disk scan');
+    return;
+  }
+
+  try {
+    const sessionDirs = fs.readdirSync(authDir, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory())
+      .map(dirent => dirent.name);
+
+    console.log(`📁 Found ${sessionDirs.length} session directories on disk`);
+
+    let restoredCount = 0;
+    let skippedCount = 0;
+
+    // Sort accounts deterministically for predictable boot order
+    const sortedSessionDirs = sessionDirs.sort((a, b) => a.localeCompare(b));
+
+    for (let i = 0; i < sortedSessionDirs.length; i++) {
+      const accountId = sortedSessionDirs[i];
+      const sessionPath = path.join(authDir, accountId);
+      const credsPath = path.join(sessionPath, 'creds.json');
+
+      if (fs.existsSync(credsPath)) {
+        // Check if already in connections (from Firestore restore)
+        if (!connections.has(accountId)) {
+          // Add 2-5s jitter between account restores (staggered boot to avoid rate limiting)
+          if (i > 0) {
+            const jitter = Math.floor(Math.random() * 3000) + 2000; // 2-5 seconds
+            console.log(`⏳ Waiting ${jitter / 1000}s before restoring next account from disk (staggered boot)...`);
+            await new Promise(resolve => setTimeout(resolve, jitter));
+          }
+
+          console.log(`🔄 [${accountId}] Restoring from disk (not in Firestore)...`);
+          try {
+            await restoreAccount(accountId, {
+              status: 'connected',
+              name: accountId,
+              phone: null, // Will be loaded from session
+            });
+            restoredCount++;
+          } catch (error) {
+            console.error(`❌ [${accountId}] Disk restore failed:`, error.message);
+          }
+        } else {
+          skippedCount++;
+        }
+      }
+    }
+
+    console.log(
+      `✅ Disk scan complete: ${restoredCount} restored from disk, ${skippedCount} already in memory, ${connections.size} total accounts`
+    );
+  } catch (error) {
+    console.error('❌ Disk scan failed:', {
+      code: error.code,
+      message: error.message,
+      name: error.name,
+    });
+    console.log('⚠️  Continuing without disk restore...');
   }
 }
 
@@ -4017,15 +4144,91 @@ app.post('/api/admin/accounts/:id/reset-session', requireAdmin, async (req, res)
   }
 });
 
+// Status dashboard endpoint - returns per-account status for all 30 accounts
+app.get('/api/status/dashboard', async (req, res) => {
+  try {
+    const accounts = [];
+    let connectedCount = 0;
+    let disconnectedCount = 0;
+    let needsQRCount = 0;
+    let connectingCount = 0;
+
+    for (const [accountId, account] of connections.entries()) {
+      const status = account.status || 'unknown';
+
+      if (status === 'connected') connectedCount++;
+      else if (status === 'disconnected') disconnectedCount++;
+      else if (status === 'connecting') connectingCount++;
+      else if (status === 'needs_qr' || account.qr) needsQRCount++;
+
+      // Get reconnectAttempts from Map (current active reconnection attempts)
+      const reconnectAttemptsCount = reconnectAttempts.get(accountId) || 0;
+      
+      // Get lastSeen from lastEventAt or lastMessageAt (most recent activity)
+      const lastSeen = account.lastEventAt || account.lastMessageAt || null;
+
+      const accountData = {
+        accountId,
+        phone: account.phone ? maskPhone(account.phone) : null,
+        status,
+        lastEventAt: account.lastEventAt ? new Date(account.lastEventAt).toISOString() : null,
+        lastMessageAt: account.lastMessageAt ? new Date(account.lastMessageAt).toISOString() : null,
+        lastSeen: lastSeen ? new Date(lastSeen).toISOString() : null,
+        reconnectCount: account.reconnectCount || 0,
+        reconnectAttempts: reconnectAttemptsCount,
+        needsQR: !!account.qr,
+      };
+
+      // Include QR code only if needsQR is true
+      if (account.qr) {
+        try {
+          accountData.qrCode = await QRCode.toDataURL(account.qr);
+        } catch (err) {
+          console.error(`❌ [${accountId}] QR code generation failed:`, err.message);
+        }
+      }
+
+      accounts.push(accountData);
+    }
+
+    res.json({
+      timestamp: new Date().toISOString(),
+      service: {
+        status: 'healthy',
+        uptime: Math.floor((Date.now() - START_TIME) / 1000),
+        version: VERSION,
+      },
+      storage: {
+        path: authDir,
+        writable: isWritable,
+        totalAccounts: connections.size,
+      },
+      accounts: accounts.sort((a, b) => a.accountId.localeCompare(b.accountId)),
+      summary: {
+        connected: connectedCount,
+        connecting: connectingCount,
+        disconnected: disconnectedCount,
+        needs_qr: needsQRCount,
+        total: connections.size,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Start server
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n✅ Server running on port ${PORT}`);
   console.log(`🌐 Health: http://localhost:${PORT}/health`);
   console.log(`📱 Accounts: http://localhost:${PORT}/api/whatsapp/accounts`);
+  console.log(`📊 Status Dashboard: http://localhost:${PORT}/api/status/dashboard`);
   console.log(`🚀 Railway deployment ready!\n`);
 
   // Restore accounts after server starts
+  // First restore from Firestore (if available), then scan disk for any missed sessions
   await restoreAccountsFromFirestore();
+  await restoreAccountsFromDisk();
 
   // Start health monitoring watchdog AFTER accounts are restored
   setInterval(() => {
@@ -4457,78 +4660,68 @@ app.listen(PORT, '0.0.0.0', async () => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, closing connections...');
-
-  // Stop long-run jobs first
-  if (longrunJobsModule && longrunJobsModule.stopJobs) {
-    await longrunJobsModule.stopJobs();
-  }
-
-  connections.forEach((account, id) => {
-    if (account.sock) {
-      try {
-        account.sock.end();
-      } catch (e) {
-        // Ignore
-      }
-    }
-  });
-  process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-  console.log('SIGINT received, closing connections...');
+// Graceful shutdown handlers (SIGTERM and SIGINT)
+// Both use the same logic: flush sessions, close sockets, release leases
+async function gracefulShutdown(signal) {
+  console.log(`🛑 ${signal} received, starting graceful shutdown...`);
 
   // Stop lease refresh
   if (leaseRefreshTimer) {
     clearInterval(leaseRefreshTimer);
   }
-
-  // Release leases
-  await releaseLeases();
-
-  // Stop long-run jobs first
-  if (longrunJobsModule && longrunJobsModule.stopJobs) {
-    await longrunJobsModule.stopJobs();
-  }
-
-  connections.forEach((account, id) => {
-    if (account.sock) {
-      try {
-        account.sock.end();
-      } catch (e) {
-        // Ignore
-      }
-    }
-  });
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, closing connections...');
-
-  // Stop lease refresh
-  if (leaseRefreshTimer) {
-    clearInterval(leaseRefreshTimer);
-  }
-
-  // Release leases
-  await releaseLeases();
 
   // Stop long-run jobs
   if (longrunJobsModule && longrunJobsModule.stopJobs) {
     await longrunJobsModule.stopJobs();
   }
 
-  connections.forEach((account, id) => {
-    if (account.sock) {
-      try {
-        account.sock.end();
-      } catch (e) {
-        // Ignore
-      }
+  // Flush all sessions to disk (CRITICAL: ensures sessions persist across redeploys)
+  console.log('💾 Flushing all sessions to disk...');
+  const flushPromises = [];
+  for (const [accountId, account] of connections.entries()) {
+    if (account.saveCreds) {
+      flushPromises.push(
+        account.saveCreds().catch(err => {
+          console.error(`❌ [${accountId}] Save failed:`, err.message);
+        })
+      );
     }
-  });
+  }
+  await Promise.allSettled(flushPromises);
+  console.log('✅ All sessions flushed to disk');
+
+  // Release Firestore leases
+  await releaseLeases();
+
+  // Close all sockets
+  console.log('🔌 Closing all WhatsApp connections...');
+  const closePromises = [];
+  for (const [accountId, account] of connections.entries()) {
+    if (account.sock) {
+      closePromises.push(
+        new Promise(resolve => {
+          try {
+            account.sock.end();
+            resolve();
+          } catch (err) {
+            console.error(`❌ [${accountId}] Socket close error:`, err.message);
+            resolve(); // Continue even if close fails
+          }
+        })
+      );
+    }
+  }
+  await Promise.allSettled(closePromises);
+  console.log('✅ All sockets closed');
+
+  console.log('✅ Graceful shutdown complete');
   process.exit(0);
+}
+
+process.on('SIGTERM', async () => {
+  await gracefulShutdown('SIGTERM');
+});
+
+process.on('SIGINT', async () => {
+  await gracefulShutdown('SIGINT');
 });

@@ -1,0 +1,17 @@
+[Unit]
+Description=Firefox with WhatsApp Web containers
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+Environment="DISPLAY=:0"
+Environment="HOME=/home/wa"
+ExecStart=/usr/bin/firefox
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
