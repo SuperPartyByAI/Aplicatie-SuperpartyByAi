@@ -78,10 +78,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error sending message: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error sending message: $e')),
         );
       }
     } finally {
@@ -136,9 +133,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error extracting event: $e'), backgroundColor: Colors.red),
-        );
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error extracting event: $e')),
+          );
       }
     }
   }
@@ -171,7 +168,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Event saved successfully!'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Event saved successfully!')),
         );
         setState(() {
           _draftEvent = null;
@@ -181,7 +178,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving event: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Error saving event: $e')),
         );
       }
     }
@@ -424,17 +421,19 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                IconButton.filled(
+                FilledButton(
                   onPressed: _isSending ? null : _sendMessage,
-                  icon: _isSending
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF25D366),
+                    padding: const EdgeInsets.all(12),
+                  ),
+                  child: _isSending
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Icon(Icons.send),
-                  color: Colors.white,
-                  backgroundColor: const Color(0xFF25D366),
+                      : const Icon(Icons.send, color: Colors.white),
                 ),
               ],
             ),

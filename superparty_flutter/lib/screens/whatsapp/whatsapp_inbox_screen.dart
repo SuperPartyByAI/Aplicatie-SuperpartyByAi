@@ -194,7 +194,6 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                           final displayName = data['displayName'] as String? ?? clientJid;
                           final lastMessageText = data['lastMessageText'] as String? ?? '';
                           final lastMessageAt = data['lastMessageAt'] as Timestamp?;
-                          final lastMessageDirection = data['lastMessageDirection'] as String?;
 
                           final phone = _extractPhoneFromJid(clientJid);
 
