@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../widgets/grid_overlay.dart';
 import '../../providers/app_state_provider.dart';
+import '../../theme/app_theme.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,16 +26,17 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppStateProvider>(context);
+    final theme = Theme.of(context);
+    final colors = theme.extension<AppColors>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF4ECDC4),
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: colors?.overlayBackdrop ?? theme.colorScheme.surface.withValues(alpha: 0.72),
         elevation: 0,
-        title: const Text(
+        title: Text(
           'SuperParty',
-          style: TextStyle(
-            color: Colors.white,
+          style: theme.textTheme.titleLarge?.copyWith(
             fontSize: 24,
             fontWeight: FontWeight.bold,
           ),
@@ -42,7 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
         automaticallyImplyLeading: false, // Remove hamburger menu icon
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
+            icon: Icon(Icons.logout, color: theme.colorScheme.onSurface),
             onPressed: () => FirebaseAuth.instance.signOut(),
           ),
         ],
@@ -50,33 +52,35 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Stack(
         children: [
           Container(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0xFF4ECDC4), Color(0xFF44A08D)],
+                colors: [
+                  colors?.gradientStart ?? theme.colorScheme.surface,
+                  colors?.gradientEnd ?? theme.colorScheme.surface,
+                ],
               ),
             ),
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.celebration, size: 80, color: Colors.white),
+                  Icon(Icons.celebration, size: 80, color: theme.colorScheme.onSurface),
                   const SizedBox(height: 20),
-                  const Text(
+                  Text(
                     'Bine ai venit!',
-                    style: TextStyle(
+                    style: theme.textTheme.headlineMedium?.copyWith(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 10),
                   Text(
                     'Apasă ➕ pentru meniu',
-                    style: TextStyle(
+                    style: theme.textTheme.bodyLarge?.copyWith(
                       fontSize: 18,
-                      color: Colors.white.withValues(alpha: 0.9),
+                      color: colors?.textMuted ?? theme.colorScheme.onSurface.withValues(alpha: 0.9),
                     ),
                   ),
                 ],
@@ -88,10 +92,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surface,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
+              color: theme.colorScheme.shadow.withValues(alpha: 0.1),
               blurRadius: 10,
               offset: const Offset(0, -5),
             ),
@@ -108,8 +112,8 @@ class _HomeScreenState extends State<HomeScreen> {
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.transparent,
           elevation: 0,
-          selectedItemColor: const Color(0xFF20C997),
-          unselectedItemColor: const Color(0xFF718096),
+          selectedItemColor: theme.colorScheme.primary,
+          unselectedItemColor: colors?.textMuted ?? theme.colorScheme.onSurface.withValues(alpha: 0.6),
           selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
           items: _dockItems.map((item) {
             return BottomNavigationBarItem(
@@ -121,9 +125,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => appState.toggleGrid(),
-        backgroundColor: const Color(0xFF20C997),
+        backgroundColor: theme.colorScheme.primary,
         elevation: 8,
-        child: const Icon(Icons.add, color: Colors.white, size: 28),
+        child: Icon(Icons.add, color: theme.colorScheme.onPrimary, size: 28),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );

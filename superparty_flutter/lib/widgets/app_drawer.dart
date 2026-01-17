@@ -7,33 +7,41 @@ class AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFFDC2626), Color(0xFFEF4444)],
+                colors: [
+                  theme.colorScheme.primary,
+                  theme.colorScheme.primary.withValues(alpha: 0.8),
+                ],
               ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                const Icon(Icons.celebration, size: 48, color: Colors.white),
+                Icon(Icons.celebration, size: 48, color: theme.colorScheme.onPrimary),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'SuperParty',
-                  style: TextStyle(
-                    color: Colors.white,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: theme.colorScheme.onPrimary,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
                   FirebaseAuth.instance.currentUser?.email ?? '',
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onPrimary.withValues(alpha: 0.7),
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),
@@ -49,7 +57,7 @@ class AppDrawer extends StatelessWidget {
           _buildDrawerItem(context, Icons.smart_toy, 'AI Chat', '/ai-chat'),
           const Divider(),
           ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
+            leading: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
             title: const Text('Logout'),
             onTap: () => FirebaseAuth.instance.signOut(),
           ),
@@ -59,8 +67,9 @@ class AppDrawer extends StatelessWidget {
   }
 
   Widget _buildDrawerItem(BuildContext context, IconData icon, String title, String route) {
+    final theme = Theme.of(context);
     return ListTile(
-      leading: Icon(icon, color: const Color(0xFFDC2626)),
+      leading: Icon(icon, color: theme.colorScheme.primary),
       title: Text(title),
       onTap: () {
         Navigator.pop(context);
