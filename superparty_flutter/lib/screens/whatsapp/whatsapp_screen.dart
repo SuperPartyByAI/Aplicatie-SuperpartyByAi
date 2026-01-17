@@ -96,14 +96,28 @@ class _WhatsAppScreenState extends State<WhatsAppScreen> {
                   ),
                 );
               }
-              return Card(
-                child: ListTile(
-                  leading: const Icon(Icons.account_tree),
-                  title: const Text('Manage Accounts'),
-                  subtitle: const Text('Conectare QR + management conturi (max 30)'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.go('/whatsapp/accounts'),
-                ),
+              return Column(
+                children: [
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.account_tree),
+                      title: const Text('Manage Accounts'),
+                      subtitle: const Text('Conectare QR + management conturi (max 30)'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.go('/whatsapp/accounts'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.inbox),
+                      title: const Text('Inbox'),
+                      subtitle: const Text('Listă conversații WhatsApp'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.go('/whatsapp/inbox'),
+                    ),
+                  ),
+                ],
               );
             },
           ),

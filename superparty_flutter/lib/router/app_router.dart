@@ -18,6 +18,9 @@ import '../screens/salarizare/salarizare_screen.dart';
 import '../screens/centrala/centrala_screen.dart';
 import '../screens/whatsapp/whatsapp_screen.dart';
 import '../screens/whatsapp/whatsapp_accounts_screen.dart';
+import '../screens/whatsapp/whatsapp_inbox_screen.dart';
+import '../screens/whatsapp/whatsapp_chat_screen.dart';
+import '../screens/whatsapp/client_profile_screen.dart';
 import '../screens/team/team_screen.dart';
 import '../screens/admin/admin_screen.dart';
 import '../screens/admin/kyc_approvals_screen.dart';
@@ -113,6 +116,43 @@ class AppRouter {
               fromRoute: state.uri.toString(),
               child: const WhatsAppAccountsScreen(),
             ),
+          ),
+          GoRoute(
+            path: 'inbox',
+            builder: (context, state) => AuthGate(
+              fromRoute: state.uri.toString(),
+              child: const WhatsAppInboxScreen(),
+            ),
+          ),
+          GoRoute(
+            path: 'chat',
+            builder: (context, state) {
+              final accountId = state.uri.queryParameters['accountId'];
+              final threadId = state.uri.queryParameters['threadId'];
+              final clientJid = state.uri.queryParameters['clientJid'];
+              final phoneE164 = state.uri.queryParameters['phoneE164'];
+              return AuthGate(
+                fromRoute: state.uri.toString(),
+                child: WhatsAppChatScreen(
+                  accountId: accountId,
+                  threadId: threadId,
+                  clientJid: clientJid != null ? Uri.decodeComponent(clientJid) : null,
+                  phoneE164: phoneE164 != null ? Uri.decodeComponent(phoneE164) : null,
+                ),
+              );
+            },
+          ),
+          GoRoute(
+            path: 'client',
+            builder: (context, state) {
+              final phoneE164 = state.uri.queryParameters['phoneE164'];
+              return AuthGate(
+                fromRoute: state.uri.toString(),
+                child: ClientProfileScreen(
+                  phoneE164: phoneE164 != null ? Uri.decodeComponent(phoneE164) : null,
+                ),
+              );
+            },
           ),
         ],
       ),

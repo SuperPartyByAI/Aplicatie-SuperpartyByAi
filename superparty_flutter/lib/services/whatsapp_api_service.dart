@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_functions/firebase_functions.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:http/http.dart' as http;
 
@@ -255,5 +257,98 @@ class WhatsAppApiService {
   String qrPageUrl(String accountId) {
     final backendUrl = _getBackendUrl();
     return '$backendUrl/api/whatsapp/qr/$accountId';
+  }
+
+  /// Extract event booking from WhatsApp thread messages (AI extraction).
+  /// 
+  /// Calls Firebase callable: whatsappExtractEventFromThread
+  /// Input: { threadId, accountId, phoneE164?, lastNMessages?, dryRun? }
+  /// Output: { action: CREATE_EVENT|UPDATE_EVENT|NOOP, draftEvent, targetEventId?, confidence, reasons }
+  Future<Map<String, dynamic>> extractEventFromThread({
+    required String threadId,
+    required String accountId,
+    String? phoneE164,
+    int lastNMessages = 50,
+    bool dryRun = true,
+  }) async {
+    return retryWithBackoff(() async {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw UnauthorizedException();
+      }
+
+      final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+      final callable = functions.httpsCallable(
+        'whatsappExtractEventFromThread',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
+      );
+
+      final result = await callable.call({
+        'threadId': threadId,
+        'accountId': accountId,
+        if (phoneE164 != null) 'phoneE164': phoneE164,
+        'lastNMessages': lastNMessages,
+        'dryRun': dryRun,
+      });
+
+      final data = result.data as Map<String, dynamic>? ?? {};
+      return data;
+    });
+  }
+
+  /// Get client profile (CRM aggregates).
+  /// 
+  /// Queries Firestore: clients/{phoneE164}
+  /// Returns: { phoneE164, lifetimeSpendPaid, eventsCount, lastEventAt, ... } or null if not found
+  Future<Map<String, dynamic>?> getClientProfile(String phoneE164) async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final doc = await firestore.collection('clients').doc(phoneE164).get();
+      
+      if (!doc.exists) {
+        return null;
+      }
+
+      final data = doc.data();
+      if (data == null) return null;
+
+      return {
+        'phoneE164': phoneE164,
+        ...data,
+      };
+    } catch (e) {
+      throw Exception('Failed to get client profile: $e');
+    }
+  }
+
+  /// Ask AI about a client (CRM questions).
+  /// 
+  /// Calls Firebase callable: clientCrmAsk
+  /// Input: { phoneE164, question }
+  /// Output: { answer, sources: [{eventShortId, date, details}] }
+  Future<Map<String, dynamic>> askClientAI({
+    required String phoneE164,
+    required String question,
+  }) async {
+    return retryWithBackoff(() async {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw UnauthorizedException();
+      }
+
+      final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+      final callable = functions.httpsCallable(
+        'clientCrmAsk',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+      );
+
+      final result = await callable.call({
+        'phoneE164': phoneE164,
+        'question': question,
+      });
+
+      final data = result.data as Map<String, dynamic>? ?? {};
+      return data;
+    });
   }
 }
