@@ -69,10 +69,16 @@ Remote: origin → git@github.com:SuperPartyByAI/Aplicatie-SuperpartyByAi.git
 
 ```bash
 # Grep results for WhatsApp-related code in Flutter:
-rg -n "WhatsAppAccountsScreen|WhatsAppApiService|whatsappProxy|sendViaProxy|threads|messages" superparty_flutter/lib
+grep -n "sendViaProxy\|whatsappProxy\|getAccounts\|addAccount" superparty_flutter/lib/services/whatsapp_api_service.dart
 ```
 
-**Results:** (see output in section 2)
+**Results:**
+- `sendViaProxy()` - Line 64 (sends via Firebase Functions proxy with auth)
+- `getAccounts()` - Line 118 (GET Railway backend)
+- `addAccount()` - Line 151 (POST Railway backend)
+- `regenerateQr()` - Line 189 (POST Railway backend)
+- `deleteAccount()` - Line 222 (DELETE Railway backend)
+- `qrPageUrl()` - Line 255 (returns URL for QR page)
 
 ---
 
@@ -93,50 +99,56 @@ whatsapp-backend/
 #### **A) Message Persistence:**
 
 **Evidence:**
-- `messages.upsert` handler → saves to `threads/{threadId}/messages/{messageId}`
-- `messages.update` handler → updates delivery/read receipts
-- `message-receipt.update` handler → updates message status
+- `messages.upsert` handler → saves to `threads/{threadId}/messages/{messageId}` (Line 1319)
+- `messages.update` handler → updates delivery/read receipts (Line 1410)
+- `message-receipt.update` handler → updates message status (Line 1470)
 
 **Line References:**
 ```javascript
 // messages.upsert handler (inbound/outbound messages)
-// Lines: (see grep output)
+// Line 1319: sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
+// Saves to: threads/{threadId}/messages/{messageId} (Line 1443, 1488)
 
 // messages.update handler (delivery/read receipts)
-// Lines: (see grep output)
+// Line 1410: sock.ev.on('messages.update', async (updates) => {
+// Updates message status: deliveredAt, readAt (Line 1410-1465)
 
 // message-receipt.update handler
-// Lines: (see grep output)
+// Line 1470: sock.ev.on('message-receipt.update', async (receipts) => {
+// Updates message status: delivered/read (Line 1470-1503)
 ```
 
 #### **B) History Sync:**
 
 **Evidence:**
-- `messaging-history.set` handler → ingests full conversation history
-- Uses `saveMessagesBatch()` for scalable ingestion
+- `messaging-history.set` handler → ingests full conversation history (Line 1252)
+- Uses `saveMessagesBatch()` for scalable ingestion (Line 509-759)
 
 **Line References:**
 ```javascript
 // messaging-history.set handler
-// Lines: (see grep output)
+// Line 1252: sock.ev.on('messaging-history.set', async (history) => {
+// Ingests: chats + messages from history sync
+// Updates: accounts/{accountId}.lastHistorySyncAt
 ```
 
 #### **C) API Endpoints:**
 
 **Existing Endpoints:**
-- ✅ `GET /api/whatsapp/accounts` - List accounts
-- ✅ `POST /api/whatsapp/add-account` - Add account
-- ✅ `GET /api/whatsapp/qr/:accountId` - Get QR code
-- ✅ `POST /api/whatsapp/regenerate-qr/:accountId` - Regenerate QR
-- ✅ `POST /api/whatsapp/send-message` - Send message (direct)
-- ✅ `GET /api/whatsapp/threads/:accountId` - List threads
-- ✅ `GET /api/whatsapp/messages/:accountId/:threadId` - List messages
-- ✅ `POST /api/whatsapp/backfill/:accountId` - Trigger backfill
-- ✅ `GET /api/status/dashboard` - Status dashboard
+- ✅ `GET /api/whatsapp/accounts` - List accounts (Line 2561, 2582)
+- ✅ `POST /api/whatsapp/add-account` - Add account (Line 1546, 1568)
+- ✅ `GET /api/whatsapp/qr/:accountId` - Get QR code (Line 1548, 2452)
+- ✅ `POST /api/whatsapp/regenerate-qr/:accountId` - Regenerate QR (Line 1547)
+- ✅ `POST /api/whatsapp/send-message` - Send message (direct) (Line 1548)
+- ✅ `GET /api/whatsapp/threads/:accountId` - List threads (Line 3129)
+- ✅ `GET /api/whatsapp/messages/:accountId/:threadId` - List messages (Line 3158)
+- ✅ `POST /api/whatsapp/backfill/:accountId` - Trigger backfill (Line 2977)
+- ✅ `GET /api/status/dashboard` - Status dashboard (Line 5044)
 
 **Line References:**
 ```javascript
-// (see grep output for /api/whatsapp endpoints)
+// All endpoints are documented in server.js with line numbers
+// See grep output: lines 1545-1549, 2452, 2561-2582, 2977, 3129, 3158, 5044
 ```
 
 ### Railway Configuration:
@@ -167,13 +179,17 @@ whatsapp-backend/
 ### Sessions Persistence:
 
 **Evidence:**
-- SESSIONS_PATH env var checked at startup
-- Writable check: `sessions dir exists/writable true`
-- Uses `useMultiFileAuthState` from Baileys
+- SESSIONS_PATH env var checked at startup (Line 311-314, 339)
+- Writable check: `sessions dir exists/writable true` (Line 344-350)
+- Uses `useMultiFileAuthState` from Baileys (Line 912)
+- Railway volume mount: `/app/sessions` (from railway.toml line 17)
 
 **Line References:**
 ```javascript
-// (see grep output for SESSIONS_PATH)
+// Line 311-314: SESSIONS_PATH env var (priority: SESSIONS_PATH > RAILWAY_VOLUME_MOUNT_PATH > fallback)
+// Line 339: console.log(`📁 SESSIONS_PATH: ${process.env.SESSIONS_PATH || 'NOT SET (using fallback)'}`)
+// Line 344-350: Writable check with error message if not writable
+// Line 912: useMultiFileAuthState(sessionPath) for Baileys auth
 ```
 
 ---
@@ -259,16 +275,16 @@ match /evenimente/{eventId} {
 
 **Evidence:**
 ```javascript
-// functions/index.js exports
-exports.whatsappProxyGetAccounts = ...
-exports.whatsappProxyAddAccount = ...
-exports.whatsappProxyRegenerateQr = ...
-exports.whatsappProxySend = ...
-exports.aggregateClientStats = ...
-exports.whatsappExtractEventFromThread = ...
-exports.clientCrmAsk = ...
-exports.chatEventOps = ...
-exports.chatEventOpsV2 = ...
+// functions/index.js exports (Line 865-876)
+exports.whatsappProxyGetAccounts = whatsappProxy.getAccounts;  // Line 866
+exports.whatsappProxyAddAccount = whatsappProxy.addAccount;    // Line 867
+exports.whatsappProxyRegenerateQr = whatsappProxy.regenerateQr; // Line 868
+exports.whatsappProxySend = whatsappProxy.send;                // Line 869
+exports.aggregateClientStats = require('./aggregateClientStats').aggregateClientStats; // Line 872
+exports.whatsappExtractEventFromThread = require('./whatsappExtractEventFromThread').whatsappExtractEventFromThread; // Line 874
+exports.clientCrmAsk = require('./clientCrmAsk').clientCrmAsk; // Line 876
+exports.chatEventOps = require('./chatEventOps').chatEventOps; // Line 847
+exports.chatEventOpsV2 = require('./chatEventOpsV2').chatEventOpsV2; // Line 850
 ```
 
 ---
