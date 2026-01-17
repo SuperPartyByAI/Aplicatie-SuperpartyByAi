@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -63,7 +64,7 @@ class AppDrawer extends StatelessWidget {
       title: Text(title),
       onTap: () {
         Navigator.pop(context);
-        Navigator.pushNamed(context, route);
+        context.go(route);
       },
     );
   }

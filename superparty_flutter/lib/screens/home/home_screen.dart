@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../widgets/grid_overlay.dart';
 import '../../providers/app_state_provider.dart';
@@ -101,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onTap: (index) {
             setState(() => _selectedIndex = index);
             if (_dockItems[index]['route'] != null) {
-              Navigator.pushNamed(context, _dockItems[index]['route']);
+              context.go(_dockItems[index]['route']);
             }
           },
           type: BottomNavigationBarType.fixed,
