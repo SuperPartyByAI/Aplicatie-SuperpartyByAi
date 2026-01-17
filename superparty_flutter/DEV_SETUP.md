@@ -223,6 +223,34 @@ adb logcat *:E | grep -E "FirebaseService|Auth"
 
 ---
 
+## 🧭 Navigation Guard
+
+Aplicația folosește **GoRouter** (`MaterialApp.router`), nu `MaterialApp` cu named routes. **Navigator.pushNamed** va cauza crash-uri.
+
+### Verificare Regresii Navigation
+
+Rulează scriptul de guard înainte de commit pentru a preveni introducerea accidentale a `Navigator.pushNamed`:
+
+```bash
+cd /Users/universparty/Aplicatie-SuperpartyByAi
+./tool/forbid_named_navigator.sh
+```
+
+**Folosește GoRouter navigation:**
+- `context.go('/path')` - pentru navigare/tabs/drawer (înlocuiește ruta curentă)
+- `context.push('/path')` - pentru push details screens (adăugă pe stack)
+
+**NU folosi:**
+- ❌ `Navigator.pushNamed(context, '/path')`
+- ❌ `Navigator.pushReplacementNamed(...)`
+- ❌ `Navigator.pushNamedAndRemoveUntil(...)`
+
+### Rute Disponibile
+
+Vezi `lib/router/app_router.dart` pentru toate rutele disponibile (ex: `/home`, `/evenimente`, `/team`, etc.).
+
+---
+
 ## 📦 Build & Release
 
 ### Android
