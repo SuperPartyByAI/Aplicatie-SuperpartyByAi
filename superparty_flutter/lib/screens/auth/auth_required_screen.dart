@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../theme/app_theme.dart';
 
 /// Screen shown when user tries to access a protected route without authentication
 /// 
@@ -16,16 +17,19 @@ class AuthRequiredScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.extension<AppColors>();
+    
     return Scaffold(
-      backgroundColor: const Color(0xFF0B1220),
+      backgroundColor: theme.colorScheme.surface,
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF111C35),
-              Color(0xFF0B1220),
+              colors?.gradientStart ?? theme.colorScheme.surface,
+              colors?.gradientEnd ?? theme.colorScheme.surface,
             ],
           ),
         ),
@@ -39,24 +43,23 @@ class AuthRequiredScreen extends StatelessWidget {
                   Icon(
                     Icons.lock_outline,
                     size: 80,
-                    color: Colors.white.withValues(alpha: 0.8),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                   ),
                   const SizedBox(height: 24),
-                  const Text(
+                  Text(
                     'Autentificare necesară',
-                    style: TextStyle(
+                    style: theme.textTheme.headlineSmall?.copyWith(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
                   Text(
                     'Trebuie să fii logat ca să accesezi această pagină.',
-                    style: TextStyle(
+                    style: theme.textTheme.bodyLarge?.copyWith(
                       fontSize: 16,
-                      color: Colors.white.withValues(alpha: 0.7),
+                      color: colors?.textMuted ?? theme.colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -71,16 +74,16 @@ class AuthRequiredScreen extends StatelessWidget {
                         context.go('/?from=$from');
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF20C997),
+                        backgroundColor: theme.colorScheme.primary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Autentifică-te',
                         style: TextStyle(
                           fontSize: 16,
-                          color: Colors.white,
+                          color: theme.colorScheme.onPrimary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -96,11 +99,11 @@ class AuthRequiredScreen extends StatelessWidget {
                         context.go('/home');
                       }
                     },
-                    child: const Text(
+                    child: Text(
                       'Înapoi',
                       style: TextStyle(
                         fontSize: 16,
-                        color: Color(0xFF20C997),
+                        color: theme.colorScheme.primary,
                       ),
                     ),
                   ),
