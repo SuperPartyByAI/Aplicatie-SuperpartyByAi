@@ -866,6 +866,8 @@ const whatsappProxy = require('./whatsappProxy');
 exports.whatsappProxyGetAccounts = whatsappProxy.getAccounts;
 exports.whatsappProxyAddAccount = whatsappProxy.addAccount;
 exports.whatsappProxyRegenerateQr = whatsappProxy.regenerateQr;
+exports.whatsappProxyDeleteAccount = whatsappProxy.deleteAccount;
+exports.whatsappProxyBackfillAccount = whatsappProxy.backfillAccount;
 exports.whatsappProxySend = whatsappProxy.send;
 
 // Client CRM aggregation (triggers on evenimente create/update)

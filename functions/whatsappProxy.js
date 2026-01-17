@@ -601,6 +601,145 @@ async function addAccountHandler(req, res) {
     }
 }
 
+/**
+ * DELETE /whatsappProxyDeleteAccount handler
+ * 
+ * Delete a WhatsApp account via Railway backend.
+ * Requires super-admin authentication.
+ */
+async function deleteAccountHandler(req, res) {
+  if (req.method !== 'DELETE' && req.method !== 'POST') {
+    return res.status(405).json({
+      success: false,
+      error: 'method_not_allowed',
+      message: 'Only DELETE or POST method is allowed',
+    });
+  }
+
+  try {
+    // Require super-admin auth
+    const isSuperAdmin = await requireSuperAdmin(req, res);
+    if (!isSuperAdmin) return; // Response already sent (401/403)
+
+    // Lazy-load Railway base URL
+    const railwayBaseUrl = getRailwayBaseUrl();
+    if (!railwayBaseUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'configuration_missing',
+        message: 'WHATSAPP_RAILWAY_BASE_URL must be set via environment variable or functions.config().whatsapp.railway_base_url',
+      });
+    }
+
+    // Extract and validate accountId
+    const accountId = req.query.accountId || req.body.accountId;
+    if (!accountId || typeof accountId !== 'string' || accountId.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_request',
+        message: 'Missing or invalid accountId (query parameter or body)',
+      });
+    }
+
+    // Forward to Railway backend
+    const railwayUrl = `${railwayBaseUrl}/api/whatsapp/accounts/${accountId.trim()}`;
+    const response = await getForwardRequest()(railwayUrl, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    // Forward Railway response, but sanitize non-2xx errors
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return res.status(response.statusCode).json(response.body);
+    } else {
+      return res.status(500).json({
+        success: false,
+        error: 'backend_error',
+        message: 'Backend service returned an error',
+      });
+    }
+  } catch (error) {
+    console.error('[whatsappProxy/deleteAccount] Error:', error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'internal_error',
+      message: 'Internal server error',
+    });
+  }
+}
+
+/**
+ * POST /whatsappProxyBackfillAccount handler
+ * 
+ * Trigger backfill for a WhatsApp account via Railway backend.
+ * Requires super-admin authentication.
+ */
+async function backfillAccountHandler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({
+      success: false,
+      error: 'method_not_allowed',
+      message: 'Only POST method is allowed',
+    });
+  }
+
+  try {
+    // Require super-admin auth
+    const isSuperAdmin = await requireSuperAdmin(req, res);
+    if (!isSuperAdmin) return; // Response already sent (401/403)
+
+    // Lazy-load Railway base URL
+    const railwayBaseUrl = getRailwayBaseUrl();
+    if (!railwayBaseUrl) {
+      return res.status(500).json({
+        success: false,
+        error: 'configuration_missing',
+        message: 'WHATSAPP_RAILWAY_BASE_URL must be set via environment variable or functions.config().whatsapp.railway_base_url',
+      });
+    }
+
+    // Extract and validate accountId
+    const accountId = req.query.accountId || req.body.accountId;
+    if (!accountId || typeof accountId !== 'string' || accountId.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_request',
+        message: 'Missing or invalid accountId (query parameter or body)',
+      });
+    }
+
+    // Forward to Railway backend
+    const railwayUrl = `${railwayBaseUrl}/api/whatsapp/backfill/${accountId.trim()}`;
+    const response = await getForwardRequest()(railwayUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': req.headers['authorization'] ? `Bearer ${process.env.ADMIN_TOKEN || ''}` : undefined,
+      },
+    });
+
+    // Forward Railway response, but sanitize non-2xx errors
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return res.status(response.statusCode).json(response.body);
+    } else {
+      return res.status(500).json({
+        success: false,
+        error: 'backend_error',
+        message: 'Backend service returned an error',
+      });
+    }
+  } catch (error) {
+    console.error('[whatsappProxy/backfillAccount] Error:', error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'internal_error',
+      message: 'Internal server error',
+    });
+  }
+}
+
 // Export handlers for use in index.js
 exports.getAccounts = onRequest(
   {
@@ -634,6 +773,28 @@ exports.regenerateQr = onRequest(
 
 // Export handler for testing
 exports.regenerateQrHandler = regenerateQrHandler;
+
+exports.deleteAccount = onRequest(
+  {
+    region: 'us-central1',
+    cors: true,
+  },
+  deleteAccountHandler
+);
+
+// Export handler for testing
+exports.deleteAccountHandler = deleteAccountHandler;
+
+exports.backfillAccount = onRequest(
+  {
+    region: 'us-central1',
+    cors: true,
+  },
+  backfillAccountHandler
+);
+
+// Export handler for testing
+exports.backfillAccountHandler = backfillAccountHandler;
 
 /**
  * POST /whatsappProxyRegenerateQr handler

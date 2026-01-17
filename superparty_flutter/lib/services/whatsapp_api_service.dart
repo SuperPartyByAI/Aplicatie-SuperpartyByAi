@@ -218,23 +218,33 @@ class WhatsAppApiService {
     });
   }
 
-  /// Delete a WhatsApp account via Railway backend.
+  /// Delete a WhatsApp account via Functions proxy (super-admin only).
   /// 
+  /// Uses secure proxy to enforce super-admin authentication.
   /// Returns: { success: bool, ... }
   Future<Map<String, dynamic>> deleteAccount({
     required String accountId,
   }) async {
     return retryWithBackoff(() async {
-      final backendUrl = _getBackendUrl();
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw UnauthorizedException();
+      }
+
+      final token = await user.getIdToken();
+      final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
 
+      // Call Functions proxy with DELETE or POST
       final response = await http
-          .delete(
-            Uri.parse('$backendUrl/api/whatsapp/accounts/$accountId'),
+          .post(
+            Uri.parse('$functionsUrl/whatsappProxyDeleteAccount?accountId=$accountId'),
             headers: {
+              'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
               'X-Request-ID': requestId,
             },
+            body: jsonEncode({'accountId': accountId}),
           )
           .timeout(requestTimeout);
 
