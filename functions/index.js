@@ -868,6 +868,15 @@ exports.whatsappProxyAddAccount = whatsappProxy.addAccount;
 exports.whatsappProxyRegenerateQr = whatsappProxy.regenerateQr;
 exports.whatsappProxySend = whatsappProxy.send;
 
+// Client CRM aggregation (triggers on evenimente create/update)
+exports.aggregateClientStats = require('./aggregateClientStats').aggregateClientStats;
+
+// WhatsApp event extraction from threads
+exports.whatsappExtractEventFromThread = require('./whatsappExtractEventFromThread').whatsappExtractEventFromThread;
+
+// Client CRM AI questions
+exports.clientCrmAsk = require('./clientCrmAsk').clientCrmAsk;
+
 // --- Staff/Admin secure callables (TypeScript build) ---
 // Built from functions/src/*.ts into functions/dist/*.js during predeploy.
 try {

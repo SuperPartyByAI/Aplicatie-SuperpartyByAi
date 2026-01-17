@@ -420,6 +420,18 @@ service cloud.firestore {
       }
     }
     
+    // Clients collection (phone-based CRM profiles) - POLITICA: NEVER DELETE
+    match /clients/{phoneE164} {
+      // Employees can read client profiles
+      allow read: if isEmployee();
+      
+      // SECURITY: server-only writes (Admin SDK bypasses rules)
+      allow create, update: if false;
+      
+      // NEVER DELETE - client profiles must persist
+      allow delete: if false;
+    }
+    
     // Default deny all other collections
     match /{document=**} {
       allow read, write: if false;
