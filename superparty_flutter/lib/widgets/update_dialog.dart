@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/auto_update_service.dart';
 
@@ -92,10 +93,7 @@ class UpdateDialog extends StatelessWidget {
                 
                 // Închide aplicația (sau navighează la login)
                 if (!context.mounted) return;
-                Navigator.of(context).pushNamedAndRemoveUntil(
-                  '/login',
-                  (route) => false,
-                );
+                context.go('/');
               } else {
                 if (!context.mounted) return;
                 Navigator.of(context).pop();

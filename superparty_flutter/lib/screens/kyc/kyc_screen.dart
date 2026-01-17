@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -131,7 +132,7 @@ class _KycScreenState extends State<KycScreen> {
           // Redirect to login after showing error
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted) {
-              Navigator.of(context).pushReplacementNamed('/login');
+              context.go('/');
             }
           });
         }
@@ -196,7 +197,7 @@ class _KycScreenState extends State<KycScreen> {
           // Redirect to login after showing error
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted) {
-              Navigator.of(context).pushReplacementNamed('/login');
+              context.go('/');
             }
           });
         }

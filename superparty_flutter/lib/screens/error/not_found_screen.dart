@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 /// Screen shown when navigating to unknown route
 class NotFoundScreen extends StatelessWidget {
@@ -16,7 +17,7 @@ class NotFoundScreen extends StatelessWidget {
         title: const Text('Pagină Negăsită'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pushReplacementNamed('/'),
+          onPressed: () => context.go('/'),
         ),
       ),
       body: Center(
@@ -60,7 +61,7 @@ class NotFoundScreen extends StatelessWidget {
               ],
               const SizedBox(height: 32),
               ElevatedButton.icon(
-                onPressed: () => Navigator.of(context).pushReplacementNamed('/'),
+                onPressed: () => context.go('/'),
                 icon: const Icon(Icons.home),
                 label: const Text('Înapoi la Pagina Principală'),
                 style: ElevatedButton.styleFrom(
