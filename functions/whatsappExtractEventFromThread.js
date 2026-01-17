@@ -33,6 +33,7 @@ exports.whatsappExtractEventFromThread = onCall(
     region: 'us-central1',
     timeoutSeconds: 60,
     memory: '512MiB',
+    maxInstances: 1, // Reduce CPU quota pressure
     secrets: [groqApiKey],
   },
   async (request) => {
@@ -209,7 +210,7 @@ Extrage date pentru petrecere (dacă există). Răspunde JSON strict.`;
           const latestDate = latestEventData.date;
 
           // Compare dates (normalized to same format)
-          if (latestDate === normalizedEvent.date || latestDate === normalizedEvent.date?.split('-').reverse().join('-'))) {
+          if (latestDate === normalizedEvent.date || latestDate === normalizedEvent.date?.split('-').reverse().join('-')) {
             // Same date → UPDATE existing event
             targetEventId = latestEvent.id;
             action = 'UPDATE_EVENT';

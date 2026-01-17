@@ -30,9 +30,10 @@ function getGroqClient(apiKey) {
 }
 
 // Set global options for v2 functions
+// Reduced maxInstances from 10 to 2 to avoid CPU quota during deployments
 setGlobalOptions({
   region: 'us-central1',
-  maxInstances: 10,
+  maxInstances: 2,
 });
 
 // Deployment marker
@@ -85,17 +86,26 @@ function getWhatsAppManager() {
 // -----------------------------------------------------------------------------
 // These functions are implemented in `functions/src/index.ts` and compiled to `functions/dist/index.js`.
 // We explicitly re-export them here so Firebase deploy picks them up from this entrypoint.
-try {
-  // eslint-disable-next-line global-require
-  const staffCallables = require('./dist/index.js');
-  exports.allocateStaffCode = staffCallables.allocateStaffCode;
-  exports.finalizeStaffSetup = staffCallables.finalizeStaffSetup;
-  exports.updateStaffPhone = staffCallables.updateStaffPhone;
-  exports.changeUserTeam = staffCallables.changeUserTeam;
-  exports.setUserStatus = staffCallables.setUserStatus;
-  console.log('✅ Staff/Admin callables exported');
-} catch (e) {
-  console.warn('⚠️ Staff/Admin callables not loaded (dist/index.js missing?)', e?.message || e);
+// Silent load: only log in non-production or if explicitly enabled
+const fs = require('fs');
+const distPath = require('path').join(__dirname, 'dist/index.js');
+if (fs.existsSync(distPath)) {
+  try {
+    // eslint-disable-next-line global-require
+    const staffCallables = require('./dist/index.js');
+    exports.allocateStaffCode = staffCallables.allocateStaffCode;
+    exports.finalizeStaffSetup = staffCallables.finalizeStaffSetup;
+    exports.updateStaffPhone = staffCallables.updateStaffPhone;
+    exports.changeUserTeam = staffCallables.changeUserTeam;
+    exports.setUserStatus = staffCallables.setUserStatus;
+    if (process.env.NODE_ENV !== 'production' || process.env.DEBUG_DIST_LOAD === 'true') {
+      console.log('✅ Staff/Admin callables exported');
+    }
+  } catch (e) {
+    if (process.env.NODE_ENV !== 'production' || process.env.DEBUG_DIST_LOAD === 'true') {
+      console.warn('⚠️ Staff/Admin callables not loaded (dist/index.js missing?)', e?.message || e);
+    }
+  }
 }
 
 app.get('/', (req, res) => {
@@ -326,7 +336,7 @@ exports.whatsappV4 = onRequest(
   {
     timeoutSeconds: 540,
     memory: '512MiB',
-    maxInstances: 10,
+    maxInstances: 2, // Reduced from 10 to avoid CPU quota pressure
   },
   app
 );
@@ -338,6 +348,7 @@ exports.chatWithAI = onCall(
   {
     timeoutSeconds: 30, // Reduced from 60s
     memory: '512MiB', // Increased for faster processing
+    maxInstances: 1, // Reduce CPU quota pressure
     secrets: [groqApiKey],
   },
   async request => {
@@ -880,11 +891,19 @@ exports.whatsappExtractEventFromThread = require('./whatsappExtractEventFromThre
 exports.clientCrmAsk = require('./clientCrmAsk').clientCrmAsk;
 
 // --- Staff/Admin secure callables (TypeScript build) ---
-// Built from functions/src/*.ts into functions/dist/*.js during predeploy.
-try {
-  Object.assign(exports, require('./dist/index'));
-  console.log('✅ Loaded TypeScript callables from dist/index.js');
-} catch (e) {
-  console.warn('⚠️ TypeScript callables not loaded (dist missing). Run: npm --prefix functions run build');
-  console.warn(e?.message || e);
+// Built from functions/src/*.ts into functions/dist/index.js during predeploy.
+// Silent load: only log in non-production or if explicitly enabled
+const distIndexPath = require('path').join(__dirname, 'dist/index.js');
+if (fs.existsSync(distIndexPath)) {
+  try {
+    Object.assign(exports, require('./dist/index'));
+    if (process.env.NODE_ENV !== 'production' || process.env.DEBUG_DIST_LOAD === 'true') {
+      console.log('✅ Loaded TypeScript callables from dist/index.js');
+    }
+  } catch (e) {
+    if (process.env.NODE_ENV !== 'production' || process.env.DEBUG_DIST_LOAD === 'true') {
+      console.warn('⚠️ TypeScript callables not loaded (dist missing). Run: npm --prefix functions run build');
+      console.warn(e?.message || e);
+    }
+  }
 }

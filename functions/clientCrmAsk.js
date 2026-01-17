@@ -27,6 +27,7 @@ exports.clientCrmAsk = onCall(
     region: 'us-central1',
     timeoutSeconds: 30,
     memory: '512MiB',
+    maxInstances: 1, // Reduce CPU quota pressure
     secrets: [groqApiKey],
   },
   async (request) => {

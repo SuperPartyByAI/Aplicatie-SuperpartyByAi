@@ -447,6 +447,7 @@ exports.send = onRequest(
   {
     region: 'us-central1',
     cors: true,
+    maxInstances: 1, // Reduce CPU quota pressure
   },
   sendHandler
 );
@@ -745,6 +746,7 @@ exports.getAccounts = onRequest(
   {
     region: 'us-central1',
     cors: true,
+    maxInstances: 1, // Reduce CPU quota pressure
   },
   getAccountsHandler
 );
@@ -756,6 +758,7 @@ exports.addAccount = onRequest(
   {
     region: 'us-central1',
     cors: true,
+    maxInstances: 1, // Reduce CPU quota pressure
   },
   addAccountHandler
 );
@@ -767,6 +770,7 @@ exports.regenerateQr = onRequest(
   {
     region: 'us-central1',
     cors: true,
+    maxInstances: 1, // Reduce CPU quota pressure
   },
   regenerateQrHandler
 );
@@ -778,6 +782,7 @@ exports.deleteAccount = onRequest(
   {
     region: 'us-central1',
     cors: true,
+    maxInstances: 1, // Reduce CPU quota pressure
   },
   deleteAccountHandler
 );
@@ -789,6 +794,7 @@ exports.backfillAccount = onRequest(
   {
     region: 'us-central1',
     cors: true,
+    maxInstances: 1, // Reduce CPU quota pressure
   },
   backfillAccountHandler
 );

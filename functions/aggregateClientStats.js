@@ -18,6 +18,7 @@ exports.aggregateClientStats = onDocumentWritten(
   {
     document: 'evenimente/{eventId}',
     region: 'us-central1',
+    maxInstances: 1, // Event-driven trigger, single instance is sufficient
   },
   async (event) => {
     const eventData = event.data?.after?.data();
