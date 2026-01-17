@@ -242,10 +242,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF20C997),
-            ),
-            child: const Text('Corectează', style: TextStyle(color: Colors.white)),
+            child: const Text('Corectează'),
           ),
         ],
       ),
@@ -271,7 +268,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Navigator.of(context).pop();
               _handleResetPassword();
             },
-            child: const Text('Resetează parola', style: TextStyle(color: Color(0xFF20C997))),
+            child: const Text('Resetează parola'),
           ),
         ],
       ),
@@ -285,9 +282,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!EmailValidator.isValid(emailNormalized)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Te rog introdu un email valid pentru resetarea parolei.'),
-            backgroundColor: Colors.red,
+          SnackBar(
+            content: const Text('Te rog introdu un email valid pentru resetarea parolei.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -303,7 +300,6 @@ class _LoginScreenState extends State<LoginScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Email de resetare trimis! Verifică inbox-ul tău.'),
-            backgroundColor: Colors.green,
           ),
         );
       }
@@ -321,7 +317,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
-            backgroundColor: Colors.red,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -330,16 +326,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     // Show loading while checking for updates
     if (_checkingUpdate) {
-      return const Scaffold(
+      return Scaffold(
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(color: Color(0xFF20C997)),
-              SizedBox(height: 16),
-              Text('Verificare actualizări...'),
+              CircularProgressIndicator(color: theme.colorScheme.primary),
+              const SizedBox(height: 16),
+              const Text('Verificare actualizări...'),
             ],
           ),
         ),
@@ -358,7 +356,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.celebration, size: 80, color: Color(0xFF4ECDC4)),
+                    Icon(Icons.celebration, size: 80, color: theme.colorScheme.primary),
                     const SizedBox(height: 16),
                     Text(
                       _isRegister ? 'Create account' : 'Login',
@@ -421,13 +419,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.red.shade50,
+                          color: theme.colorScheme.errorContainer,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.shade200),
+                          border: Border.all(color: theme.colorScheme.error.withValues(alpha: 0.5)),
                         ),
                         child: Text(
                           _error,
-                          style: TextStyle(color: Colors.red.shade900),
+                          style: TextStyle(color: theme.colorScheme.onErrorContainer),
                         ),
                       ),
                     ],
@@ -437,14 +435,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       height: 50,
                       child: ElevatedButton(
                         onPressed: _loading ? null : _handleSubmit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF20C997),
-                        ),
                         child: _loading
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? CircularProgressIndicator(color: theme.colorScheme.onPrimary)
                             : Text(
                                 _isRegister ? 'Register' : 'Login',
-                                style: const TextStyle(fontSize: 16, color: Colors.white),
+                                style: const TextStyle(fontSize: 16),
                               ),
                       ),
                     ),
@@ -458,7 +453,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       },
                       child: Text(
                         _isRegister ? 'Already have an account? Login' : 'Don\'t have an account? Register',
-                        style: const TextStyle(color: Color(0xFF20C997)),
+                        style: TextStyle(color: theme.colorScheme.primary),
                       ),
                     ),
                   ],

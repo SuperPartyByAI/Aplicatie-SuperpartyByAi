@@ -6,16 +6,34 @@ class TeamScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Scaffold(
       appBar: AppBar(title: const Text('Echipă')),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('staffProfiles').snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.hasError) return Center(child: Text('Eroare: ${snapshot.error}'));
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Eroare: ${snapshot.error}',
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
+            );
+          }
+          if (!snapshot.hasData) {
+            return Center(child: CircularProgressIndicator(color: theme.colorScheme.primary));
+          }
 
           final staff = snapshot.data!.docs;
-          if (staff.isEmpty) return const Center(child: Text('Nu există membri în echipă'));
+          if (staff.isEmpty) {
+            return Center(
+              child: Text(
+                'Nu există membri în echipă',
+                style: theme.textTheme.bodyLarge,
+              ),
+            );
+          }
 
           return ListView.builder(
             itemCount: staff.length,
@@ -25,17 +43,19 @@ class TeamScreen extends StatelessWidget {
                 margin: const EdgeInsets.all(8),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: const Color(0xFFDC2626),
+                    backgroundColor: theme.colorScheme.primary,
                     child: Text(
                       (member['cineNoteaza'] ?? 'N')[0].toUpperCase(),
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: theme.colorScheme.onPrimary),
                     ),
                   ),
                   title: Text(member['cineNoteaza'] ?? 'N/A'),
                   subtitle: Text('Cod: ${member['code'] ?? 'N/A'}'),
                   trailing: Icon(
                     member['setupDone'] == true ? Icons.check_circle : Icons.pending,
-                    color: member['setupDone'] == true ? Colors.green : Colors.orange,
+                    color: member['setupDone'] == true 
+                        ? theme.colorScheme.primary 
+                        : theme.colorScheme.primary.withValues(alpha: 0.6),
                   ),
                 ),
               );
