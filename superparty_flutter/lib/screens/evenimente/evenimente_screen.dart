@@ -1,4 +1,6 @@
 import 'dart:ui' show ImageFilter;
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/event_model.dart';
@@ -6,6 +8,7 @@ import '../../widgets/modals/range_modal.dart';
 import '../../widgets/modals/code_modal.dart';
 import '../../widgets/modals/assign_modal.dart';
 import '../../widgets/modals/code_info_modal.dart';
+import '../../services/firebase_service.dart';
 import 'event_card_html.dart';
 import 'dovezi_screen_html.dart';
 
@@ -32,6 +35,32 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
 
   // Cache events for CodeInfoModal
   List<EventModel> _allEvents = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // #region agent log
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    try {
+      final user = FirebaseService.currentUser;
+      final logEntry = {
+        'id': 'ev_init_$timestamp',
+        'timestamp': timestamp,
+        'location': 'evenimente_screen.dart:initState',
+        'message': '[EV] Enter EvenimenteScreen',
+        'data': {
+          'userIsNull': user == null,
+          'userId': user?.uid,
+          'userEmail': user?.email != null ? '${user!.email!.substring(0, 2)}***' : null,
+        },
+        'sessionId': 'debug-session',
+        'runId': 'run1',
+        'hypothesisId': 'C',
+      };
+      File('/Users/universparty/.cursor/debug.log').writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
+    } catch (_) {}
+    // #endregion
+  }
 
   @override
   void dispose() {

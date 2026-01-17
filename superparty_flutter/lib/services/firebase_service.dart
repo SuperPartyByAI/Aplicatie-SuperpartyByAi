@@ -3,7 +3,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
+import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, kReleaseMode, debugPrint;
 
 import '../firebase_options.dart';
 
@@ -34,6 +35,9 @@ class FirebaseService {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
+
+      // Initialize App Check based on build mode
+      await _initializeAppCheck();
 
       // Opt-in emulator support via dart-define: USE_EMULATORS=true
       // Usage: flutter run --dart-define=USE_EMULATORS=true [--dart-define=USE_ADB_REVERSE=true]
@@ -154,6 +158,69 @@ class FirebaseService {
   
   /// Get initialization error (if any)
   static String? get initError => _initError;
+
+  /// Initialize Firebase App Check based on build mode
+  /// 
+  /// - Debug/Profile: Uses debug provider (requires debug token in Firebase Console)
+  /// - Release: Uses production providers (Play Integrity for Android, App Attest for iOS)
+  static Future<void> _initializeAppCheck() async {
+    try {
+      if (kReleaseMode) {
+        // Production mode: use production providers
+        debugPrint('[FirebaseService] Initializing App Check (RELEASE mode)...');
+        
+        if (Platform.isAndroid) {
+          await FirebaseAppCheck.instance.activate(
+            androidProvider: AndroidProvider.playIntegrity,
+          );
+          debugPrint('[FirebaseService] ✅ App Check activated: AndroidProvider.playIntegrity');
+        } else if (Platform.isIOS) {
+          await FirebaseAppCheck.instance.activate(
+            appleProvider: AppleProvider.appAttest,
+          );
+          debugPrint('[FirebaseService] ✅ App Check activated: AppleProvider.appAttest');
+        } else {
+          debugPrint('[FirebaseService] ⚠️ App Check: Unsupported platform in release mode');
+        }
+      } else {
+        // Debug/Profile mode: use debug provider
+        debugPrint('[FirebaseService] Initializing App Check (DEBUG mode)...');
+        
+        if (Platform.isAndroid) {
+          await FirebaseAppCheck.instance.activate(
+            androidProvider: AndroidProvider.debug,
+          );
+          
+          // Get debug token for Firebase Console
+          final token = await FirebaseAppCheck.instance.getToken(true);
+          if (token != null) {
+            debugPrint('[FirebaseService] 🔑 App Check DEBUG TOKEN (add this to Firebase Console):');
+            debugPrint('[FirebaseService] 🔑 $token');
+            debugPrint('[FirebaseService] 🔑 Steps:');
+            debugPrint('[FirebaseService] 🔑 1. Go to Firebase Console -> App Check');
+            debugPrint('[FirebaseService] 🔑 2. Click "Manage debug tokens"');
+            debugPrint('[FirebaseService] 🔑 3. Add token above to allow debug builds');
+          }
+        } else if (Platform.isIOS) {
+          await FirebaseAppCheck.instance.activate(
+            appleProvider: AppleProvider.debug,
+          );
+          debugPrint('[FirebaseService] ✅ App Check activated: AppleProvider.debug');
+          debugPrint('[FirebaseService] ℹ️ iOS debug tokens are managed automatically by Firebase SDK');
+        } else {
+          debugPrint('[FirebaseService] ⚠️ App Check: Unsupported platform in debug mode');
+        }
+        
+        debugPrint('[FirebaseService] ✅ App Check activated (DEBUG mode)');
+        debugPrint('[FirebaseService] ℹ️ NOTE: App Check enforcement must be enabled in Firebase Console after testing');
+      }
+    } catch (e) {
+      // App Check initialization failure should not block app startup
+      // Log error but continue (App Check will warn but not enforce until configured)
+      debugPrint('[FirebaseService] ⚠️ App Check initialization failed (non-blocking): $e');
+      debugPrint('[FirebaseService] ℹ️ App will continue without App Check enforcement');
+    }
+  }
   
   /// Preflight connectivity check for emulators (best-effort, non-blocking)
   /// Runs on Android for both 127.0.0.1 and 10.0.2.2 to detect firewall/port/emu issues

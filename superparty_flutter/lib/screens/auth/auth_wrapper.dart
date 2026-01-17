@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/app_state_provider.dart';
@@ -27,6 +28,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
   bool _roleLoaded = false;
   bool _backgroundServiceStarted = false;
   String? _lastUid;
+  bool _returnRouteHandled = false; // Track if we've handled return-after-login
 
   /// Load user role from staffProfiles and update AppState
   Future<void> _loadUserRole(BuildContext context) async {
@@ -59,6 +61,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
       );
     }
 
+    // Check for return route in query params
+    final returnRoute = GoRouterState.of(context).uri.queryParameters['from'];
+
     return StreamBuilder<User?>(
       stream: FirebaseService.auth.authStateChanges(),
       builder: (context, snapshot) {
@@ -76,6 +81,26 @@ class _AuthWrapperState extends State<AuthWrapper> {
             _lastUid = uid;
             _roleLoaded = false;
             _backgroundServiceStarted = false;
+            _returnRouteHandled = false;
+          }
+
+          // Handle return-after-login: navigate to the route specified in ?from= param
+          if (returnRoute != null && !_returnRouteHandled && mounted) {
+            _returnRouteHandled = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                try {
+                  final decodedRoute = Uri.decodeComponent(returnRoute);
+                  debugPrint('[AuthWrapper] Navigating to return route: $decodedRoute');
+                  context.go(decodedRoute);
+                } catch (e) {
+                  debugPrint('[AuthWrapper] Error parsing return route: $e');
+                  // Fallback to home if route is invalid
+                  if (mounted) context.go('/home');
+                }
+                return; // Exit early - navigation will rebuild
+              }
+            });
           }
 
           // Start background service only once per user (mobile only)
@@ -135,7 +160,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           );
         }
 
-        // On logout, reset role flags
+        // On logout, reset role flags and return route handling
         if (_lastUid != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
@@ -146,6 +171,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           _lastUid = null;
           _roleLoaded = false;
           _backgroundServiceStarted = false;
+          _returnRouteHandled = false;
         }
 
         return const LoginScreen();

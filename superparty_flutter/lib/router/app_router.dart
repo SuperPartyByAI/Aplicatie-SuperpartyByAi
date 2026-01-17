@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -32,6 +34,7 @@ import '../screens/auth/auth_wrapper.dart';
 import '../screens/staff_settings_screen.dart';
 import '../screens/admin_dashboard_screen.dart';
 import '../screens/admin_user_detail_screen.dart';
+import '../widgets/auth_gate.dart';
 
 class AppRouter {
   final AdminService _adminService;
@@ -55,32 +58,95 @@ class AppRouter {
         path: '/',
         builder: (context, state) => const AuthWrapper(),
       ),
-      GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
-      GoRoute(path: '/kyc', builder: (_, __) => const KycScreen()),
-      GoRoute(path: '/evenimente', builder: (_, __) => const EvenimenteScreen()),
-      GoRoute(path: '/disponibilitate', builder: (_, __) => const DisponibilitateScreen()),
-      GoRoute(path: '/salarizare', builder: (_, __) => const SalarizareScreen()),
-      GoRoute(path: '/centrala', builder: (_, __) => const CentralaScreen()),
+      GoRoute(
+        path: '/home',
+        builder: (context, state) => AuthGate(
+          fromRoute: state.uri.toString(),
+          child: const HomeScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/kyc',
+        builder: (context, state) => AuthGate(
+          fromRoute: state.uri.toString(),
+          child: const KycScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/evenimente',
+        builder: (context, state) => AuthGate(
+          fromRoute: state.uri.toString(),
+          child: const EvenimenteScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/disponibilitate',
+        builder: (context, state) => AuthGate(
+          fromRoute: state.uri.toString(),
+          child: const DisponibilitateScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/salarizare',
+        builder: (context, state) => AuthGate(
+          fromRoute: state.uri.toString(),
+          child: const SalarizareScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/centrala',
+        builder: (context, state) => AuthGate(
+          fromRoute: state.uri.toString(),
+          child: const CentralaScreen(),
+        ),
+      ),
       GoRoute(
         path: '/whatsapp',
-        builder: (_, __) => const WhatsAppScreen(),
+        builder: (context, state) => AuthGate(
+          fromRoute: state.uri.toString(),
+          child: const WhatsAppScreen(),
+        ),
         routes: [
           GoRoute(
             path: 'accounts',
-            builder: (_, __) => const WhatsAppAccountsScreen(),
+            builder: (context, state) => AuthGate(
+              fromRoute: state.uri.toString(),
+              child: const WhatsAppAccountsScreen(),
+            ),
           ),
         ],
       ),
-      GoRoute(path: '/team', builder: (_, __) => const TeamScreen()),
-      GoRoute(path: '/ai-chat', builder: (_, __) => const AIChatScreen()),
+      GoRoute(
+        path: '/team',
+        builder: (context, state) => AuthGate(
+          fromRoute: state.uri.toString(),
+          child: const TeamScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/ai-chat',
+        builder: (context, state) => AuthGate(
+          fromRoute: state.uri.toString(),
+          child: const AIChatScreen(),
+        ),
+      ),
 
       // Staff self-setup (new, secure via callables)
-      GoRoute(path: '/staff-settings', builder: (_, __) => const StaffSettingsScreen()),
+      GoRoute(
+        path: '/staff-settings',
+        builder: (context, state) => AuthGate(
+          fromRoute: state.uri.toString(),
+          child: const StaffSettingsScreen(),
+        ),
+      ),
 
-      // Admin (new)
+      // Admin (new) - protected by redirect logic + AuthGate
       GoRoute(
         path: '/admin',
-        builder: (_, __) => const AdminDashboardScreen(),
+        builder: (context, state) => AuthGate(
+          fromRoute: state.uri.toString(),
+          child: const AdminDashboardScreen(),
+        ),
         routes: [
           GoRoute(
             path: 'user/:uid',
@@ -90,43 +156,194 @@ class AppRouter {
               if (uid == null || uid.isEmpty) {
                 return NotFoundScreen(routeName: state.uri.toString());
               }
-              return AdminUserDetailScreen(uid: uid);
+              return AuthGate(
+                fromRoute: state.uri.toString(),
+                child: AdminUserDetailScreen(uid: uid),
+              );
             },
           ),
 
           // Legacy admin tools (existing screens)
-          GoRoute(path: 'legacy', builder: (_, __) => const AdminScreen()),
-          GoRoute(path: 'kyc', builder: (_, __) => const KycApprovalsScreen()),
-          GoRoute(path: 'ai-conversations', builder: (_, __) => const AiConversationsScreen()),
+          GoRoute(
+            path: 'legacy',
+            builder: (context, state) => AuthGate(
+              fromRoute: state.uri.toString(),
+              child: const AdminScreen(),
+            ),
+          ),
+          GoRoute(
+            path: 'kyc',
+            builder: (context, state) => AuthGate(
+              fromRoute: state.uri.toString(),
+              child: const KycApprovalsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: 'ai-conversations',
+            builder: (context, state) => AuthGate(
+              fromRoute: state.uri.toString(),
+              child: const AiConversationsScreen(),
+            ),
+          ),
         ],
       ),
 
       // GM screens (existing)
-      GoRoute(path: '/gm/accounts', builder: (_, __) => const AccountsScreen()),
-      GoRoute(path: '/gm/metrics', builder: (_, __) => const MetricsScreen()),
-      GoRoute(path: '/gm/analytics', builder: (_, __) => const AnalyticsScreen()),
-      GoRoute(path: '/gm/staff-setup', builder: (_, __) => const StaffSetupScreen()),
+      GoRoute(
+        path: '/gm/accounts',
+        builder: (context, state) => AuthGate(
+          fromRoute: state.uri.toString(),
+          child: const AccountsScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/gm/metrics',
+        builder: (context, state) => AuthGate(
+          fromRoute: state.uri.toString(),
+          child: const MetricsScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/gm/analytics',
+        builder: (context, state) => AuthGate(
+          fromRoute: state.uri.toString(),
+          child: const AnalyticsScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/gm/staff-setup',
+        builder: (context, state) => AuthGate(
+          fromRoute: state.uri.toString(),
+          child: const StaffSetupScreen(),
+        ),
+      ),
     ],
     errorBuilder: (context, state) => NotFoundScreen(routeName: state.uri.toString()),
   );
 
   FutureOr<String?> _redirect(BuildContext context, GoRouterState state) async {
+    // #region agent log
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    try {
+      final logEntry = {
+        'id': 'router_redirect_$timestamp',
+        'timestamp': timestamp,
+        'location': 'app_router.dart:113',
+        'message': '[ROUTER] redirect called',
+        'data': {
+          'from': state.uri.path,
+          'firebaseInitialized': FirebaseService.isInitialized,
+        },
+        'sessionId': 'debug-session',
+        'runId': 'run1',
+        'hypothesisId': 'A',
+      };
+      File('/Users/universparty/.cursor/debug.log').writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
+    } catch (_) {}
+    // #endregion
+
     // Wait for Firebase init (main shows a loading MaterialApp until then).
-    if (!FirebaseService.isInitialized) return null;
+    if (!FirebaseService.isInitialized) {
+      // #region agent log
+      try {
+        final logEntry = {
+          'id': 'router_redirect_firebase_not_init_$timestamp',
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'location': 'app_router.dart:115',
+          'message': '[ROUTER] redirect: Firebase not initialized, returning null',
+          'data': {'from': state.uri.path},
+          'sessionId': 'debug-session',
+          'runId': 'run1',
+          'hypothesisId': 'A',
+        };
+        File('/Users/universparty/.cursor/debug.log').writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
+      } catch (_) {}
+      // #endregion
+      return null;
+    }
 
     final user = FirebaseService.auth.currentUser;
     final loc = state.uri.path;
 
-    final isPublic = loc == '/';
-    if (user == null) {
-      return isPublic ? null : '/';
+    // #region agent log
+    try {
+      final logEntry = {
+        'id': 'router_redirect_auth_check_$timestamp',
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'location': 'app_router.dart:156',
+        'message': '[ROUTER] redirect: auth check',
+        'data': {
+          'from': loc,
+          'userIsNull': user == null,
+          'userId': user?.uid,
+          'userEmail': user?.email != null ? '${user!.email!.substring(0, 2)}***' : null,
+        },
+        'sessionId': 'debug-session',
+        'runId': 'run1',
+        'hypothesisId': 'A',
+      };
+      File('/Users/universparty/.cursor/debug.log').writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
+    } catch (_) {}
+    // #endregion
+
+    // Only redirect /admin routes for unauthenticated users
+    // Other routes use AuthGate widget to show AuthRequiredScreen in-place (no redirect bounce)
+    if (loc.startsWith('/admin')) {
+      if (user == null) {
+        // #region agent log
+        try {
+          final logEntry = {
+            'id': 'router_redirect_admin_unauth_$timestamp',
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+            'location': 'app_router.dart:171',
+            'message': '[ROUTER] redirect: admin route, user null -> /',
+            'data': {'from': loc, 'to': '/'},
+            'sessionId': 'debug-session',
+            'runId': 'run1',
+            'hypothesisId': 'A',
+          };
+          File('/Users/universparty/.cursor/debug.log').writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
+        } catch (_) {}
+        // #endregion
+        return '/';
+      }
+      final ok = await _adminService.isCurrentUserAdmin();
+      if (!ok) {
+        // #region agent log
+        try {
+          final logEntry = {
+            'id': 'router_redirect_admin_denied_$timestamp',
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+            'location': 'app_router.dart:318',
+            'message': '[ROUTER] redirect: admin access denied -> /home',
+            'data': {'from': loc, 'to': '/home'},
+            'sessionId': 'debug-session',
+            'runId': 'run1',
+            'hypothesisId': 'E',
+          };
+          File('/Users/universparty/.cursor/debug.log').writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
+        } catch (_) {}
+        // #endregion
+        return '/home';
+      }
     }
 
-    // Authenticated: keep '/' as-is (AuthWrapper decides), but gate admin routes.
-    if (loc.startsWith('/admin')) {
-      final ok = await _adminService.isCurrentUserAdmin();
-      if (!ok) return '/home';
-    }
+    // No redirect needed for other routes - AuthGate handles auth in-place
+    // #region agent log
+    try {
+      final logEntry = {
+        'id': 'router_redirect_no_redirect_$timestamp',
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'location': 'app_router.dart:197',
+        'message': '[ROUTER] redirect: no redirect needed (AuthGate handles auth)',
+        'data': {'from': loc, 'userId': user?.uid, 'isAdminRoute': loc.startsWith('/admin')},
+        'sessionId': 'debug-session',
+        'runId': 'run1',
+        'hypothesisId': 'A',
+      };
+      File('/Users/universparty/.cursor/debug.log').writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
+    } catch (_) {}
+    // #endregion
 
     return null;
   }

@@ -3,6 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/force_update_checker_service.dart';
 import '../../widgets/force_update_dialog.dart';
+import '../../core/utils/email_validator.dart';
+import '../../core/utils/auth_error_mapper.dart';
+import '../../services/firebase_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -54,13 +57,58 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final email = _emailController.text.trim();
-      final password = _passwordController.text;
+      // Normalize email: trim + lowercase
+      final emailRaw = _emailController.text;
+      final emailNormalized = EmailValidator.normalize(emailRaw);
+      final passwordRaw = _passwordController.text;
 
-      if (email.isEmpty || password.isEmpty) {
-        setState(() => _error = 'Email și parola sunt obligatorii.');
+      // Validate email format before proceeding
+      if (emailNormalized.isEmpty) {
+        setState(() => _error = 'Email este obligatoriu.');
+        setState(() => _loading = false);
         return;
       }
+
+      if (!EmailValidator.isValid(emailNormalized)) {
+        setState(() => _error = 'Format email invalid. Verifică că ai introdus corect adresa de email.');
+        setState(() => _loading = false);
+        return;
+      }
+
+      // Check for password spaces (warn but don't block)
+      if (passwordRaw != passwordRaw.trim()) {
+        debugPrint('[Auth] ⚠️ Password contains leading/trailing spaces');
+      }
+
+      if (passwordRaw.isEmpty) {
+        setState(() => _error = 'Parola este obligatorie.');
+        setState(() => _loading = false);
+        return;
+      }
+
+      // Check for domain typo and show confirmation dialog if found
+      String finalEmail = emailNormalized;
+      final suggestedEmail = EmailValidator.getSuggestedEmail(emailNormalized);
+      
+      if (suggestedEmail != null && suggestedEmail != emailNormalized) {
+        final shouldCorrect = await _showTypoConfirmationDialog(
+          original: emailNormalized,
+          suggested: suggestedEmail,
+        );
+        
+        if (!shouldCorrect) {
+          // User chose to continue with typo - use original normalized email
+          finalEmail = emailNormalized;
+        } else {
+          // User chose to correct - update email field and use suggested email
+          _emailController.text = suggestedEmail;
+          finalEmail = suggestedEmail;
+        }
+      }
+
+      // Log authentication attempt (without password)
+      final maskedEmail = EmailValidator.maskForLogging(finalEmail);
+      debugPrint('[Auth] Attempting ${_isRegister ? "registration" : "login"} email=$maskedEmail');
 
       if (_isRegister) {
         final phone = _phoneController.text.trim();
@@ -68,74 +116,216 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (phone.isEmpty) {
           setState(() => _error = 'Telefonul este obligatoriu.');
+          setState(() => _loading = false);
           return;
         }
         if (password2.isEmpty) {
           setState(() => _error = 'Confirmă parola.');
+          setState(() => _loading = false);
           return;
         }
-        if (password != password2) {
+        if (passwordRaw != password2) {
           setState(() => _error = 'Parolele nu coincid.');
+          setState(() => _loading = false);
           return;
         }
 
-        // Create user in Firebase Auth
-        final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
+        // Create user in Firebase Auth with normalized email
+        final userCredential = await FirebaseService.auth.createUserWithEmailAndPassword(
+          email: finalEmail,
+          password: passwordRaw,
         );
         final user = userCredential.user!;
 
         // Send email verification
         await user.sendEmailVerification();
 
-        // Create document in Firestore
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        // Create document in Firestore with normalized email
+        await FirebaseService.firestore.collection('users').doc(user.uid).set({
           'uid': user.uid,
-          'email': email,
+          'email': finalEmail,
           'phone': phone,
           'status': 'kyc_required',
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
+
+        debugPrint('[Auth] ✅ Registration successful email=$maskedEmail uid=${user.uid}');
       } else {
-        // Login with Firebase
-        await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: email,
-          password: password,
+        // Login with Firebase using normalized email
+        await FirebaseService.auth.signInWithEmailAndPassword(
+          email: finalEmail,
+          password: passwordRaw,
         );
+
+        debugPrint('[Auth] ✅ Login successful email=$maskedEmail');
       }
     } catch (e) {
-      setState(() {
-        _error = _translateError(e);
-      });
+      // Handle FirebaseAuthException with clear messages
+      if (e is FirebaseAuthException) {
+        final errorInfo = AuthErrorMapper.mapError(e);
+        final maskedEmail = EmailValidator.maskForLogging(
+          EmailValidator.normalize(_emailController.text),
+        );
+        
+        // Log error (without password)
+        debugPrint('[Auth] ❌ Authentication failed code=${AuthErrorMapper.getErrorCode(e)} email=$maskedEmail');
+
+        setState(() {
+          _error = errorInfo.message;
+        });
+
+        // Show reset password option if applicable
+        if (errorInfo.showResetPassword && mounted && !_isRegister) {
+          // Show reset password dialog after a short delay
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) {
+              _showResetPasswordOption(errorInfo.message);
+            }
+          });
+        }
+      } else {
+        // Fallback for non-Firebase errors
+        final maskedEmail = EmailValidator.maskForLogging(
+          EmailValidator.normalize(_emailController.text),
+        );
+        debugPrint('[Auth] ❌ Unexpected error email=$maskedEmail error=$e');
+        
+        setState(() {
+          _error = 'A apărut o eroare neașteptată. Te rog încearcă din nou.';
+        });
+      }
     } finally {
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
-  String _translateError(dynamic error) {
-    if (error is FirebaseAuthException) {
-      switch (error.code) {
-        case 'invalid-credential':
-          return '❌ Email sau parolă greșită. Verifică și încearcă din nou.';
-        case 'user-not-found':
-          return '❌ Nu există cont cu acest email. Înregistrează-te mai întâi.';
-        case 'wrong-password':
-          return '❌ Parolă greșită. Verifică și încearcă din nou.';
-        case 'invalid-email':
-          return '❌ Email invalid. Verifică formatul email-ului.';
-        case 'email-already-in-use':
-          return '❌ Email-ul este deja folosit. Încearcă să te loghezi sau folosește alt email.';
-        case 'weak-password':
-          return '❌ Parola este prea slabă. Folosește minim 6 caractere.';
-        case 'too-many-requests':
-          return '❌ Prea multe încercări. Așteaptă câteva minute și încearcă din nou.';
-        case 'network-request-failed':
-          return '❌ Eroare de conexiune. Verifică internetul și încearcă din nou.';
+  /// Shows confirmation dialog when domain typo is detected
+  Future<bool> _showTypoConfirmationDialog({
+    required String original,
+    required String suggested,
+  }) async {
+    final parts = original.split('@');
+    final originalDomain = parts.length == 2 ? parts[1] : 'unknown';
+    final suggestedParts = suggested.split('@');
+    final suggestedDomain = suggestedParts.length == 2 ? suggestedParts[1] : 'unknown';
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Posibilă eroare de scriere'),
+        content: RichText(
+          text: TextSpan(
+            style: DefaultTextStyle.of(context).style,
+            children: [
+              const TextSpan(text: 'Ai scris '),
+              TextSpan(
+                text: originalDomain,
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+              ),
+              const TextSpan(text: '.\n\nVrei să folosești '),
+              TextSpan(
+                text: suggestedDomain,
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+              ),
+              const TextSpan(text: ' în schimb?'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Continuă așa'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF20C997),
+            ),
+            child: const Text('Corectează', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    return result ?? false;
+  }
+
+  /// Shows reset password option dialog
+  void _showResetPasswordOption(String errorMessage) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ai uitat parola?'),
+        content: Text(errorMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Anulează'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _handleResetPassword();
+            },
+            child: const Text('Resetează parola', style: TextStyle(color: Color(0xFF20C997))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Handles password reset flow
+  Future<void> _handleResetPassword() async {
+    final emailNormalized = EmailValidator.normalize(_emailController.text);
+
+    if (!EmailValidator.isValid(emailNormalized)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Te rog introdu un email valid pentru resetarea parolei.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      await FirebaseService.auth.sendPasswordResetEmail(email: emailNormalized);
+      final maskedEmail = EmailValidator.maskForLogging(emailNormalized);
+      debugPrint('[Auth] ✅ Password reset email sent email=$maskedEmail');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Email de resetare trimis! Verifică inbox-ul tău.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      final maskedEmail = EmailValidator.maskForLogging(emailNormalized);
+      debugPrint('[Auth] ❌ Password reset failed email=$maskedEmail error=$e');
+
+      if (mounted) {
+        String message = 'Nu s-a putut trimite email-ul de resetare.';
+        if (e is FirebaseAuthException) {
+          final errorInfo = AuthErrorMapper.mapError(e);
+          message = errorInfo.message;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
-    return error.toString();
   }
 
   @override
@@ -181,8 +371,18 @@ class _LoginScreenState extends State<LoginScreen> {
                         labelText: 'Email',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.email),
+                        hintText: 'exemplu@email.com',
                       ),
                       keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      onChanged: (_) {
+                        // Clear error when user starts typing
+                        if (_error.isNotEmpty) {
+                          setState(() => _error = '');
+                        }
+                      },
                     ),
                     const SizedBox(height: 16),
                     TextField(

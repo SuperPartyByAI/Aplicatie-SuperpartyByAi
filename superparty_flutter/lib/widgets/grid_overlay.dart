@@ -1,6 +1,10 @@
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../providers/app_state_provider.dart';
+import '../services/firebase_service.dart';
 
 class GridOverlay extends StatelessWidget {
   const GridOverlay({super.key});
@@ -109,8 +113,33 @@ class GridOverlay extends StatelessWidget {
   }) {
     return GestureDetector(
       onTap: () {
+        // #region agent log
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        try {
+          final user = FirebaseService.currentUser;
+          final currentRoute = GoRouterState.of(context).uri.path;
+          final logEntry = {
+            'id': 'ui_button_tap_$timestamp',
+            'timestamp': timestamp,
+            'location': 'grid_overlay.dart:111',
+            'message': '[UI] Tap main button -> go to $route',
+            'data': {
+              'buttonTitle': title,
+              'targetRoute': route,
+              'currentRoute': currentRoute,
+              'userIsNull': user == null,
+              'userId': user?.uid,
+            },
+            'sessionId': 'debug-session',
+            'runId': 'run1',
+            'hypothesisId': 'B',
+          };
+          File('/Users/universparty/.cursor/debug.log').writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
+        } catch (_) {}
+        // #endregion
         appState.closeGrid();
-        Navigator.pushNamed(context, route);
+        // Use GoRouter's context.go instead of Navigator.pushNamed for consistency
+        context.go(route);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),

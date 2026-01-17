@@ -1,4 +1,6 @@
 import 'dart:async' show TimeoutException;
+import 'dart:io';
+import 'dart:convert';
 import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
@@ -87,6 +89,35 @@ void main() async {
     debugPrint('[Main] ℹ️ Push notifications skipped (not supported on web)');
   }
   
+  // Add auth state listener for diagnostics
+  if (FirebaseService.isInitialized) {
+    FirebaseService.auth.authStateChanges().listen((user) {
+      final msg = '[AUTH] state change: user=${user?.uid ?? "null"} email=${user?.email ?? "null"}';
+      debugPrint(msg);
+      // #region agent log
+      try {
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final logEntry = {
+          'id': 'auth_state_$timestamp',
+          'timestamp': timestamp,
+          'location': 'main.dart:92',
+          'message': msg,
+          'data': {
+            'userId': user?.uid,
+            'userEmail': user?.email != null ? '${user!.email!.substring(0, 2)}***' : null,
+            'isNull': user == null,
+          },
+          'sessionId': 'debug-session',
+          'runId': 'run1',
+          'hypothesisId': 'D',
+        };
+        final file = File('/Users/universparty/.cursor/debug.log');
+        file.writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
+      } catch (_) {}
+      // #endregion
+    });
+  }
+
   debugPrint('[Main] Starting app...');
   runApp(const SuperPartyApp());
 }
