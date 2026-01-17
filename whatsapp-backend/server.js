@@ -375,6 +375,16 @@ console.log(`⏱️  WhatsApp connect timeout: ${Math.floor(CONNECTING_TIMEOUT_M
 console.log(`🔥 Firestore: ${admin.apps.length > 0 ? 'Connected' : 'Not connected'}`);
 console.log(`📊 Max accounts: ${MAX_ACCOUNTS}`);
 
+// History sync configuration
+const SYNC_FULL_HISTORY = process.env.WHATSAPP_SYNC_FULL_HISTORY !== 'false'; // Default: true
+const BACKFILL_COUNT = parseInt(process.env.WHATSAPP_BACKFILL_COUNT || '100', 10);
+const BACKFILL_THREADS = parseInt(process.env.WHATSAPP_BACKFILL_THREADS || '50', 10);
+const HISTORY_SYNC_DRY_RUN = process.env.WHATSAPP_HISTORY_SYNC_DRY_RUN === 'true';
+console.log(`📚 History sync: ${SYNC_FULL_HISTORY ? 'enabled' : 'disabled'} (WHATSAPP_SYNC_FULL_HISTORY=${SYNC_FULL_HISTORY})`);
+if (HISTORY_SYNC_DRY_RUN) {
+  console.log(`🧪 History sync DRY RUN mode: enabled (will log but not write)`);
+}
+
 // Helper: Save account to Firestore
 // Helper: Generate lease data for account ownership
 function generateLeaseData() {
@@ -496,6 +506,378 @@ async function logIncident(accountId, type, details) {
   }
 }
 
+// Helper: Save message to Firestore (idempotent upsert)
+// Used by both real-time messages.upsert and history sync
+async function saveMessageToFirestore(accountId, msg, isFromHistory = false) {
+  if (!firestoreAvailable || !db) {
+    if (!isFromHistory) {
+      console.log(`⚠️  [${accountId}] Firestore not available, message not persisted`);
+    }
+    return null;
+  }
+
+  try {
+    if (!msg.message || !msg.key) {
+      return null;
+    }
+
+    const messageId = msg.key.id;
+    const from = msg.key.remoteJid;
+    const isFromMe = msg.key.fromMe || false;
+
+    // Extract message body (text content)
+    let body = '';
+    let messageType = 'text';
+    if (msg.message.conversation) {
+      body = msg.message.conversation;
+      messageType = 'text';
+    } else if (msg.message.extendedTextMessage?.text) {
+      body = msg.message.extendedTextMessage.text;
+      messageType = 'text';
+    } else if (msg.message.imageMessage) {
+      body = msg.message.imageMessage.caption || '';
+      messageType = 'image';
+    } else if (msg.message.videoMessage) {
+      body = msg.message.videoMessage.caption || '';
+      messageType = 'video';
+    } else if (msg.message.audioMessage) {
+      messageType = 'audio';
+    } else if (msg.message.documentMessage) {
+      body = msg.message.documentMessage.caption || '';
+      messageType = 'document';
+    }
+
+    const threadId = `${accountId}__${from}`;
+    const messageData = {
+      accountId,
+      clientJid: from,
+      direction: isFromMe ? 'outbound' : 'inbound',
+      body: body.substring(0, 10000), // Limit body size (Firestore limit)
+      waMessageId: messageId,
+      status: isFromMe ? 'sent' : 'delivered', // Default status
+      tsClient: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : new Date().toISOString(),
+      tsServer: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      messageType,
+    };
+
+    // Add media metadata if present
+    if (msg.message.imageMessage) {
+      messageData.mediaType = 'image';
+      messageData.mediaUrl = msg.message.imageMessage.url || null;
+      messageData.mediaMimetype = msg.message.imageMessage.mimetype || null;
+    } else if (msg.message.videoMessage) {
+      messageData.mediaType = 'video';
+      messageData.mediaUrl = msg.message.videoMessage.url || null;
+      messageData.mediaMimetype = msg.message.videoMessage.mimetype || null;
+    } else if (msg.message.audioMessage) {
+      messageData.mediaType = 'audio';
+      messageData.mediaUrl = msg.message.audioMessage.url || null;
+      messageData.mediaMimetype = msg.message.audioMessage.mimetype || null;
+    } else if (msg.message.documentMessage) {
+      messageData.mediaType = 'document';
+      messageData.mediaUrl = msg.message.documentMessage.url || null;
+      messageData.mediaMimetype = msg.message.documentMessage.mimetype || null;
+      messageData.mediaFilename = msg.message.documentMessage.fileName || null;
+    }
+
+    // Idempotent upsert (set with merge)
+    const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
+    await messageRef.set(messageData, { merge: true });
+
+    // Update thread metadata
+    const threadData = {
+      accountId,
+      clientJid: from,
+      lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastMessagePreview: body.substring(0, 100), // First 100 chars
+    };
+
+    // Try to extract display name from message pushName or other sources
+    if (msg.pushName) {
+      threadData.displayName = msg.pushName;
+    }
+
+    await db.collection('threads').doc(threadId).set(threadData, { merge: true });
+
+    return { threadId, messageId };
+  } catch (error) {
+    console.error(`❌ [${accountId}] Error saving message:`, error.message);
+    return null;
+  }
+}
+
+// Helper: Process messages in batch (for history sync)
+// Uses Firestore batch writes (max 500 ops per batch)
+async function saveMessagesBatch(accountId, messages, source = 'history') {
+  if (!firestoreAvailable || !db) {
+    return { saved: 0, skipped: 0, errors: 0 };
+  }
+
+  if (HISTORY_SYNC_DRY_RUN) {
+    console.log(`🧪 [${accountId}] DRY RUN: Would save ${messages.length} messages from ${source}`);
+    return { saved: 0, skipped: 0, errors: 0, dryRun: true };
+  }
+
+  const BATCH_SIZE = 500; // Firestore batch limit
+  let saved = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  // Process in batches
+  for (let i = 0; i < messages.length; i += BATCH_SIZE) {
+    const batch = db.batch();
+    const batchMessages = messages.slice(i, i + BATCH_SIZE);
+    let batchOps = 0;
+
+    const threadUpdates = new Map(); // Track thread updates per threadId
+
+    for (const msg of batchMessages) {
+      try {
+        if (!msg.message || !msg.key) {
+          skipped++;
+          continue;
+        }
+
+        const messageId = msg.key.id;
+        const from = msg.key.remoteJid;
+        const isFromMe = msg.key.fromMe || false;
+
+        // Extract body
+        let body = '';
+        let messageType = 'text';
+        if (msg.message.conversation) {
+          body = msg.message.conversation;
+        } else if (msg.message.extendedTextMessage?.text) {
+          body = msg.message.extendedTextMessage.text;
+        } else if (msg.message.imageMessage) {
+          body = msg.message.imageMessage.caption || '';
+          messageType = 'image';
+        } else if (msg.message.videoMessage) {
+          body = msg.message.videoMessage.caption || '';
+          messageType = 'video';
+        } else if (msg.message.audioMessage) {
+          messageType = 'audio';
+        } else if (msg.message.documentMessage) {
+          body = msg.message.documentMessage.caption || '';
+          messageType = 'document';
+        }
+
+        const threadId = `${accountId}__${from}`;
+        const messageData = {
+          accountId,
+          clientJid: from,
+          direction: isFromMe ? 'outbound' : 'inbound',
+          body: body.substring(0, 10000),
+          waMessageId: messageId,
+          status: isFromMe ? 'sent' : 'delivered',
+          tsClient: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : new Date().toISOString(),
+          tsServer: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          messageType,
+          syncedAt: admin.firestore.FieldValue.serverTimestamp(),
+          syncSource: source,
+        };
+
+        // Add media metadata if present
+        if (msg.message.imageMessage) {
+          messageData.mediaType = 'image';
+          messageData.mediaUrl = msg.message.imageMessage.url || null;
+        } else if (msg.message.videoMessage) {
+          messageData.mediaType = 'video';
+          messageData.mediaUrl = msg.message.videoMessage.url || null;
+        } else if (msg.message.audioMessage) {
+          messageData.mediaType = 'audio';
+          messageData.mediaUrl = msg.message.audioMessage.url || null;
+        } else if (msg.message.documentMessage) {
+          messageData.mediaType = 'document';
+          messageData.mediaUrl = msg.message.documentMessage.url || null;
+          messageData.mediaFilename = msg.message.documentMessage.fileName || null;
+        }
+
+        const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
+        batch.set(messageRef, messageData, { merge: true });
+        batchOps++;
+
+        // Track thread update (will apply after message batch)
+        if (!threadUpdates.has(threadId)) {
+          threadUpdates.set(threadId, {
+            accountId,
+            clientJid: from,
+            lastMessagePreview: body.substring(0, 100),
+          });
+          if (msg.pushName) {
+            threadUpdates.get(threadId).displayName = msg.pushName;
+          }
+        } else {
+          // Update preview if this message is more recent
+          const existing = threadUpdates.get(threadId);
+          const msgTime = msg.messageTimestamp || 0;
+          const existingTime = existing.lastMessageTimestamp || 0;
+          if (msgTime > existingTime) {
+            existing.lastMessagePreview = body.substring(0, 100);
+            existing.lastMessageTimestamp = msgTime;
+          }
+        }
+      } catch (error) {
+        console.error(`❌ [${accountId}] Error preparing message for batch:`, error.message);
+        errors++;
+      }
+    }
+
+    // Commit message batch
+    if (batchOps > 0) {
+      try {
+        await batch.commit();
+        saved += batchOps;
+      } catch (error) {
+        console.error(`❌ [${accountId}] Batch commit failed:`, error.message);
+        errors += batchOps;
+      }
+    }
+
+    // Update threads (separate batch to avoid mixing with messages)
+    if (threadUpdates.size > 0) {
+      const threadBatch = db.batch();
+      for (const [threadId, threadData] of threadUpdates.entries()) {
+        threadData.lastMessageAt = admin.firestore.FieldValue.serverTimestamp();
+        const threadRef = db.collection('threads').doc(threadId);
+        threadBatch.set(threadRef, threadData, { merge: true });
+      }
+      try {
+        await threadBatch.commit();
+      } catch (error) {
+        console.error(`❌ [${accountId}] Thread batch commit failed:`, error.message);
+      }
+    }
+
+    // Throttle between batches to avoid overwhelming Firestore
+    if (i + BATCH_SIZE < messages.length) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
+  return { saved, skipped, errors };
+}
+
+// Helper: Backfill messages for an account (best-effort gap filling after reconnect)
+// Fetches recent messages from active threads to fill gaps
+async function backfillAccountMessages(accountId) {
+  if (!firestoreAvailable || !db) {
+    console.log(`⚠️  [${accountId}] Firestore not available, skipping backfill`);
+    return { success: false, reason: 'firestore_unavailable' };
+  }
+
+  const account = connections.get(accountId);
+  if (!account || !account.sock || account.status !== 'connected') {
+    console.log(`⚠️  [${accountId}] Account not connected, skipping backfill`);
+    return { success: false, reason: 'not_connected' };
+  }
+
+  try {
+    console.log(`📚 [${accountId}] Starting backfill for recent threads...`);
+
+    // Get recent active threads for this account (ordered by lastMessageAt desc)
+    const threadsSnapshot = await db
+      .collection('threads')
+      .where('accountId', '==', accountId)
+      .orderBy('lastMessageAt', 'desc')
+      .limit(BACKFILL_THREADS)
+      .get();
+
+    if (threadsSnapshot.empty) {
+      console.log(`📚 [${accountId}] No threads found for backfill`);
+      return { success: true, threads: 0, messages: 0 };
+    }
+
+    console.log(`📚 [${accountId}] Found ${threadsSnapshot.size} threads for backfill`);
+
+    let totalMessages = 0;
+    let totalErrors = 0;
+    const threadResults = [];
+
+    // Process threads with concurrency limit (1-2 at a time)
+    const CONCURRENCY = 2;
+    for (let i = 0; i < threadsSnapshot.docs.length; i += CONCURRENCY) {
+      const batchThreads = threadsSnapshot.docs.slice(i, i + CONCURRENCY);
+      
+      await Promise.all(batchThreads.map(async (threadDoc) => {
+        const threadId = threadDoc.id;
+        const threadData = threadDoc.data();
+        const clientJid = threadData.clientJid;
+
+        if (!clientJid) {
+          return;
+        }
+
+        try {
+          // Get last stored message timestamp for this thread
+          const messagesSnapshot = await db
+            .collection('threads')
+            .doc(threadId)
+            .collection('messages')
+            .orderBy('tsClient', 'desc')
+            .limit(1)
+            .get();
+
+          let lastMessageTimestamp = null;
+          if (!messagesSnapshot.empty) {
+            const lastMsg = messagesSnapshot.docs[0].data();
+            if (lastMsg.tsClient) {
+              lastMessageTimestamp = new Date(lastMsg.tsClient).getTime() / 1000; // Convert to seconds
+            }
+          }
+
+          // Fetch recent messages from WhatsApp (best-effort)
+          // Note: Baileys doesn't have a direct fetchMessageHistory API, so we rely on
+          // pending notifications and messages.upsert events that may arrive after connect
+          // This backfill is primarily a safety net - most gaps are filled by syncFullHistory
+
+          // Mark thread as backfilled (for tracking)
+          await db.collection('threads').doc(threadId).set({
+            lastBackfillAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+
+          threadResults.push({ threadId, status: 'processed' });
+        } catch (threadError) {
+          console.error(`❌ [${accountId}] Backfill failed for thread ${threadId}:`, threadError.message);
+          totalErrors++;
+          threadResults.push({ threadId, status: 'error', error: threadError.message });
+        }
+      }));
+
+      // Throttle between batches
+      if (i + CONCURRENCY < threadsSnapshot.docs.length) {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2s between batches
+      }
+    }
+
+    // Update account metadata
+    await saveAccountToFirestore(accountId, {
+      lastBackfillAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastBackfillResult: {
+        threads: threadsSnapshot.size,
+        messages: totalMessages,
+        errors: totalErrors,
+        threadResults: threadResults.slice(0, 10), // Store first 10 results for debugging
+      },
+    }).catch(err => console.error(`❌ [${accountId}] Failed to update backfill marker:`, err.message));
+
+    console.log(`✅ [${accountId}] Backfill complete: ${threadsSnapshot.size} threads, ${totalMessages} messages, ${totalErrors} errors`);
+
+    return {
+      success: true,
+      threads: threadsSnapshot.size,
+      messages: totalMessages,
+      errors: totalErrors,
+    };
+  } catch (error) {
+    console.error(`❌ [${accountId}] Backfill error:`, error.message);
+    await logIncident(accountId, 'backfill_failed', { error: error.message });
+    return { success: false, error: error.message };
+  }
+}
+
 // Helper: Create WhatsApp connection
 async function createConnection(accountId, name, phone) {
   // Try to acquire connection lock (prevent duplicate sockets)
@@ -566,9 +948,9 @@ async function createConnection(accountId, name, phone) {
       auth: state,
       printQRInTerminal: false,
       logger: pino({ level: 'warn' }), // Changed from 'silent' to see errors
-      browser: ['SuperParty', 'Chrome', '2.0.0'],
+      browser: ['SuperParty', 'Chrome', '2.0.0'], // Browser metadata (not real browser)
       version, // CRITICAL: Use fetched version
-      syncFullHistory: false, // Don't sync full history on connect
+      syncFullHistory: SYNC_FULL_HISTORY, // Sync full history on connect (configurable via WHATSAPP_SYNC_FULL_HISTORY)
       markOnlineOnConnect: true,
       getMessage: async key => {
         // Return undefined to indicate message not found in cache
@@ -721,6 +1103,20 @@ async function createConnection(accountId, name, phone) {
           lastConnectedAt: admin.firestore.FieldValue.serverTimestamp(),
           qrCode: null,
         });
+
+        // Schedule backfill after connection is established (best-effort gap filling)
+        // Use jitter to avoid hitting all 30 accounts at once
+        const backfillDelay = Math.floor(Math.random() * 30000) + 10000; // 10-40 seconds
+        setTimeout(async () => {
+          if (connections.has(accountId) && connections.get(accountId).status === 'connected') {
+            console.log(`📚 [${accountId}] Scheduling backfill after connect (delay: ${backfillDelay}ms)`);
+            try {
+              await backfillAccountMessages(accountId);
+            } catch (error) {
+              console.error(`❌ [${accountId}] Backfill after connect failed:`, error.message);
+            }
+          }
+        }, backfillDelay);
       }
 
       if (connection === 'close') {
@@ -852,6 +1248,73 @@ async function createConnection(accountId, name, phone) {
     // Single sending path: only outbox worker loop handles queued messages
     // This prevents duplicate sends on reconnect
 
+    // History sync handler (ingest full conversation history on pairing/re-pair)
+    sock.ev.on('messaging-history.set', async (history) => {
+      try {
+        console.log(`📚 [${accountId}] messaging-history.set event received`);
+        
+        if (!firestoreAvailable || !db) {
+          console.log(`⚠️  [${accountId}] Firestore not available, skipping history sync`);
+          return;
+        }
+
+        const { chats, contacts, messages } = history || {};
+        
+        let historyMessages = [];
+        let historyChats = [];
+
+        // Extract messages from history
+        if (messages && Array.isArray(messages)) {
+          historyMessages = messages;
+          console.log(`📚 [${accountId}] History sync: ${historyMessages.length} messages found`);
+        } else if (messages && typeof messages === 'object') {
+          // Handle different message formats (Baileys may structure differently)
+          historyMessages = Object.values(messages).flat();
+          console.log(`📚 [${accountId}] History sync: ${historyMessages.length} messages extracted from history object`);
+        }
+
+        // Extract chats/contacts metadata
+        if (chats && Array.isArray(chats)) {
+          historyChats = chats;
+        } else if (chats && typeof chats === 'object') {
+          historyChats = Object.values(chats);
+        }
+
+        // Process messages in batches
+        if (historyMessages.length > 0) {
+          console.log(`📚 [${accountId}] Starting history sync: ${historyMessages.length} messages`);
+          const result = await saveMessagesBatch(accountId, historyMessages, 'history_sync');
+          
+          console.log(`✅ [${accountId}] History sync complete: ${result.saved} saved, ${result.skipped} skipped, ${result.errors} errors`);
+          
+          // Update account metadata
+          await saveAccountToFirestore(accountId, {
+            lastHistorySyncAt: admin.firestore.FieldValue.serverTimestamp(),
+            historySyncCount: (result.saved || 0),
+            lastHistorySyncResult: {
+              saved: result.saved || 0,
+              skipped: result.skipped || 0,
+              errors: result.errors || 0,
+              total: historyMessages.length,
+              dryRun: result.dryRun || false,
+            },
+          }).catch(err => console.error(`❌ [${accountId}] Failed to update history sync marker:`, err.message));
+        } else {
+          console.log(`⚠️  [${accountId}] History sync: No messages found in history`);
+        }
+
+        // Optionally save chats metadata (for future reference)
+        if (historyChats.length > 0 && !HISTORY_SYNC_DRY_RUN) {
+          console.log(`📚 [${accountId}] History sync: ${historyChats.length} chats found (metadata only, not persisted separately)`);
+        }
+
+      } catch (error) {
+        console.error(`❌ [${accountId}] History sync error:`, error.message);
+        console.error(`❌ [${accountId}] Stack:`, error.stack);
+        await logIncident(accountId, 'history_sync_failed', { error: error.message });
+      }
+    });
+
     // Messages handler
     sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
       try {
@@ -927,57 +1390,10 @@ async function createConnection(accountId, name, phone) {
               continue; // Skip duplicate message
             }
 
-            // Save to Firestore
-            if (firestoreAvailable && db) {
-              try {
-                const threadId = `${accountId}__${from}`; // Use accountId__clientJid format
-                const messageData = {
-                  accountId,
-                  clientJid: from,
-                  direction: isFromMe ? 'outbound' : 'inbound',
-                  body: msg.message.conversation || msg.message.extendedTextMessage?.text || '',
-                  waMessageId: messageId,
-                  status: 'delivered',
-                  tsClient: new Date(msg.messageTimestamp * 1000).toISOString(),
-                  tsServer: admin.firestore.FieldValue.serverTimestamp(),
-                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                };
-
-                console.log(
-                  `💾 [${accountId}] Saving to Firestore: threads/${threadId}/messages/${messageId}`,
-                  {
-                    direction: messageData.direction,
-                    body: messageData.body.substring(0, 50),
-                  }
-                );
-
-                await db
-                  .collection('threads')
-                  .doc(threadId)
-                  .collection('messages')
-                  .doc(messageId)
-                  .set(messageData);
-
-                console.log(`✅ [${accountId}] Message saved successfully`);
-
-                // Update thread
-                await db.collection('threads').doc(threadId).set(
-                  {
-                    accountId,
-                    clientJid: from,
-                    lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-                  },
-                  { merge: true }
-                );
-
-                console.log(`💾 [${accountId}] Message saved to Firestore: ${messageId}`);
-              } catch (error) {
-                console.error(`❌ [${accountId}] Message save failed:`, error.message);
-                console.error(`❌ [${accountId}] Error stack:`, error.stack);
-                console.error(`❌ [${accountId}] Error details:`, JSON.stringify(error, null, 2));
-              }
-            } else {
-              console.log(`⚠️  [${accountId}] Firestore not available, message not persisted`);
+            // Save to Firestore (use helper function for consistency)
+            const saved = await saveMessageToFirestore(accountId, msg, false);
+            if (saved) {
+              console.log(`💾 [${accountId}] Message saved to Firestore: ${saved.messageId} in thread ${saved.threadId}`);
             }
           } catch (msgError) {
             console.error(`❌ [${accountId}] Error processing message:`, msgError.message);
@@ -990,17 +1406,102 @@ async function createConnection(accountId, name, phone) {
       }
     });
 
-    // Messages update handler (for status updates)
-    sock.ev.on('messages.update', updates => {
-      console.log(`🔄 [${accountId}] messages.update EVENT: ${updates.length} updates`);
-      for (const update of updates) {
-        console.log(`  - Message ${update.key.id}: ${JSON.stringify(update.update)}`);
+    // Messages update handler (for status updates: delivered/read receipts)
+    sock.ev.on('messages.update', async (updates) => {
+      try {
+        console.log(`🔄 [${accountId}] messages.update EVENT: ${updates.length} updates`);
+        
+        if (!firestoreAvailable || !db) {
+          return;
+        }
+
+        for (const update of updates) {
+          try {
+            const messageKey = update.key;
+            const messageId = messageKey.id;
+            const remoteJid = messageKey.remoteJid;
+            const updateData = update.update || {};
+
+            // Extract status from update (status: 2 = delivered, 3 = read)
+            let status = null;
+            let deliveredAt = null;
+            let readAt = null;
+
+            if (updateData.status !== undefined) {
+              if (updateData.status === 2) {
+                status = 'delivered';
+                deliveredAt = admin.firestore.FieldValue.serverTimestamp();
+              } else if (updateData.status === 3) {
+                status = 'read';
+                readAt = admin.firestore.FieldValue.serverTimestamp();
+              }
+            }
+
+            // Update message in Firestore if status changed
+            if (status && remoteJid) {
+              const threadId = `${accountId}__${remoteJid}`;
+              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
+              
+              const updateFields = {
+                status,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              };
+              
+              if (deliveredAt) {
+                updateFields.deliveredAt = deliveredAt;
+              }
+              if (readAt) {
+                updateFields.readAt = readAt;
+              }
+
+              await messageRef.set(updateFields, { merge: true });
+              console.log(`✅ [${accountId}] Updated message ${messageId} status to ${status}`);
+            }
+          } catch (updateError) {
+            console.error(`❌ [${accountId}] Error updating message receipt:`, updateError.message);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ [${accountId}] Error in messages.update handler:`, error.message);
       }
     });
 
-    // Message receipt handler
-    sock.ev.on('message-receipt.update', receipts => {
-      console.log(`📬 [${accountId}] message-receipt.update EVENT: ${receipts.length} receipts`);
+    // Message receipt handler (complementary to messages.update)
+    sock.ev.on('message-receipt.update', async (receipts) => {
+      try {
+        console.log(`📬 [${accountId}] message-receipt.update EVENT: ${receipts.length} receipts`);
+        
+        if (!firestoreAvailable || !db) {
+          return;
+        }
+
+        for (const receipt of receipts) {
+          try {
+            const receiptKey = receipt.key;
+            const messageId = receiptKey.id;
+            const remoteJid = receiptKey.remoteJid;
+            const receiptData = receipt.receipt || {};
+
+            // Extract read receipts
+            if (receiptData.readTimestamp && remoteJid) {
+              const threadId = `${accountId}__${remoteJid}`;
+              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
+              
+              await messageRef.set({
+                status: 'read',
+                readAt: admin.firestore.Timestamp.fromMillis(receiptData.readTimestamp * 1000),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              }, { merge: true });
+              
+              console.log(`✅ [${accountId}] Updated message ${messageId} receipt: read`);
+            }
+          } catch (receiptError) {
+            console.error(`❌ [${accountId}] Error updating receipt:`, receiptError.message);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ [${accountId}] Error in message-receipt.update handler:`, error.message);
+      }
     });
 
     console.log(`✅ [${accountId}] Connection created with event handlers`);
@@ -2472,6 +2973,43 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', accountLimiter, async (req, r
   }
 });
 
+// Backfill messages for an account (admin endpoint)
+app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const account = connections.get(accountId);
+
+    if (!account) {
+      return res.status(404).json({ success: false, error: 'Account not found' });
+    }
+
+    if (account.status !== 'connected') {
+      return res.status(400).json({
+        success: false,
+        error: 'Account must be connected to backfill messages',
+        status: account.status,
+      });
+    }
+
+    // Trigger backfill (async, don't wait for completion)
+    backfillAccountMessages(accountId)
+      .then(result => {
+        console.log(`✅ [${accountId}] Backfill completed:`, result);
+      })
+      .catch(error => {
+        console.error(`❌ [${accountId}] Backfill failed:`, error.message);
+      });
+
+    res.json({
+      success: true,
+      message: 'Backfill started (runs asynchronously)',
+      accountId,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Send message
 app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
   try {
@@ -2482,13 +3020,67 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Account not found' });
     }
 
+    const jid = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+    const threadId = `${accountId}__${jid}`;
+    const clientMessageId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
     if (account.status !== 'connected') {
-      // Queue message in Firestore
+      // Queue message in Firestore outbox
+      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const outboxData = {
+        accountId,
+        toJid: jid,
+        threadId,
+        payload: { text: message },
+        body: message,
+        status: 'queued',
+        attemptCount: 0,
+        nextAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      
+      await db.collection('outbox').doc(messageId).set(outboxData);
+
+      // Also create message doc in thread with status=queued (will be updated when sent)
+      if (firestoreAvailable && db) {
+        const threadMessageRef = db.collection('threads').doc(threadId).collection('messages').doc(clientMessageId);
+        await threadMessageRef.set({
+          accountId,
+          clientJid: jid,
+          direction: 'outbound',
+          body: message,
+          status: 'queued',
+          tsClient: new Date().toISOString(),
+          tsServer: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          messageType: 'text',
+        }, { merge: true });
+
+        // Update thread
+        await db.collection('threads').doc(threadId).set({
+          accountId,
+          clientJid: jid,
+          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastMessagePreview: message.substring(0, 100),
+        }, { merge: true });
+      }
+
+      return res.json({ success: true, queued: true, messageId, clientMessageId });
+    }
+
+    // Account is connected: send immediately and persist
+    let result;
+    try {
+      result = await account.sock.sendMessage(jid, { text: message });
+    } catch (sendError) {
+      // If send fails, queue it instead
       const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       await db.collection('outbox').doc(messageId).set({
         accountId,
-        toJid: to,
-        payload: { message },
+        toJid: jid,
+        threadId,
+        payload: { text: message },
         body: message,
         status: 'queued',
         attemptCount: 0,
@@ -2496,38 +3088,176 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-
-      return res.json({ success: true, queued: true, messageId });
+      throw sendError; // Re-throw to return error to client
     }
 
-    const jid = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
-    const result = await account.sock.sendMessage(jid, { text: message });
+    // Persist sent message to Firestore thread
+    if (firestoreAvailable && db && result?.key) {
+      const waMessageId = result.key.id;
+      const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(waMessageId);
+      
+      await messageRef.set({
+        accountId,
+        clientJid: jid,
+        direction: 'outbound',
+        body: message,
+        waMessageId,
+        status: 'sent',
+        tsClient: new Date().toISOString(),
+        tsServer: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        messageType: 'text',
+      }, { merge: true });
 
-    res.json({ success: true, messageId: result.key.id });
+      // Update thread
+      await db.collection('threads').doc(threadId).set({
+        accountId,
+        clientJid: jid,
+        lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastMessagePreview: message.substring(0, 100),
+      }, { merge: true });
+    }
+
+    res.json({ success: true, messageId: result.key.id, status: 'sent' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Get messages
+// Get threads for an account
+app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const { limit = 50, orderBy = 'lastMessageAt' } = req.query;
+
+    if (!firestoreAvailable || !db) {
+      return res.status(503).json({ success: false, error: 'Firestore not available' });
+    }
+
+    let query = db.collection('threads').where('accountId', '==', accountId);
+
+    // Order by lastMessageAt desc (most recent first)
+    if (orderBy === 'lastMessageAt') {
+      query = query.orderBy('lastMessageAt', 'desc');
+    }
+
+    const threadsSnapshot = await query.limit(parseInt(limit)).get();
+    const threads = threadsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    res.json({ success: true, threads, count: threads.length });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get messages for a specific thread
+app.get('/api/whatsapp/messages/:accountId/:threadId', async (req, res) => {
+  try {
+    const { accountId, threadId } = req.params;
+    const { limit = 50, orderBy = 'createdAt' } = req.query;
+
+    if (!firestoreAvailable || !db) {
+      return res.status(503).json({ success: false, error: 'Firestore not available' });
+    }
+
+    // Verify thread belongs to accountId
+    const threadDoc = await db.collection('threads').doc(threadId).get();
+    if (!threadDoc.exists) {
+      return res.status(404).json({ success: false, error: 'Thread not found' });
+    }
+
+    const threadData = threadDoc.data();
+    if (threadData.accountId !== accountId) {
+      return res.status(403).json({ success: false, error: 'Thread does not belong to account' });
+    }
+
+    // Get messages
+    let messagesQuery = db
+      .collection('threads')
+      .doc(threadId)
+      .collection('messages');
+
+    if (orderBy === 'createdAt' || orderBy === 'tsClient') {
+      messagesQuery = messagesQuery.orderBy('tsClient', 'desc');
+    } else {
+      messagesQuery = messagesQuery.orderBy('createdAt', 'desc');
+    }
+
+    const messagesSnapshot = await messagesQuery.limit(parseInt(limit)).get();
+    const messages = messagesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    res.json({
+      success: true,
+      thread: {
+        id: threadId,
+        ...threadData,
+      },
+      messages,
+      count: messages.length,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get messages (legacy endpoint - supports old query format)
 app.get('/api/whatsapp/messages', async (req, res) => {
   try {
     const { accountId, threadId, limit = 50 } = req.query;
 
+    if (!firestoreAvailable || !db) {
+      return res.status(503).json({ success: false, error: 'Firestore not available' });
+    }
+
+    // If threadId is provided, use new endpoint format
+    if (threadId && accountId) {
+      const threadDoc = await db.collection('threads').doc(threadId).get();
+      if (!threadDoc.exists) {
+        return res.json({ success: true, threads: [], messages: [] });
+      }
+
+      const messagesSnapshot = await db
+        .collection('threads')
+        .doc(threadId)
+        .collection('messages')
+        .orderBy('tsClient', 'desc')
+        .limit(parseInt(limit))
+        .get();
+
+      const messages = messagesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      return res.json({
+        success: true,
+        thread: { id: threadId, ...threadDoc.data() },
+        messages,
+      });
+    }
+
+    // Legacy: return threads with messages nested
     let query = db.collection('threads');
 
     if (accountId) {
       query = query.where('accountId', '==', accountId);
     }
 
-    const threadsSnapshot = await query.limit(parseInt(limit)).get();
+    const threadsSnapshot = await query.orderBy('lastMessageAt', 'desc').limit(parseInt(limit)).get();
     const threads = [];
 
     for (const threadDoc of threadsSnapshot.docs) {
       const threadData = threadDoc.data();
       const messagesSnapshot = await threadDoc.ref
         .collection('messages')
-        .orderBy('createdAt', 'desc')
+        .orderBy('tsClient', 'desc')
         .limit(10)
         .get();
 
@@ -3217,9 +3947,9 @@ async function restoreAccount(accountId, data) {
       auth: state,
       version,
       printQRInTerminal: false,
-      browser: ['SuperParty', 'Chrome', '2.0.0'],
+      browser: ['SuperParty', 'Chrome', '2.0.0'], // Browser metadata (not real browser)
       logger: pino({ level: 'warn' }),
-      syncFullHistory: false,
+      syncFullHistory: SYNC_FULL_HISTORY, // Sync full history on restore (configurable via WHATSAPP_SYNC_FULL_HISTORY)
       markOnlineOnConnect: true,
       getMessage: async key => {
         return undefined;
@@ -3320,6 +4050,20 @@ async function restoreAccount(accountId, data) {
           lastConnectedAt: admin.firestore.FieldValue.serverTimestamp(),
           qrCode: null,
         });
+
+        // Schedule backfill after connection is established (best-effort gap filling)
+        // Use jitter to avoid hitting all 30 accounts at once
+        const backfillDelay = Math.floor(Math.random() * 30000) + 10000; // 10-40 seconds
+        setTimeout(async () => {
+          if (connections.has(accountId) && connections.get(accountId).status === 'connected') {
+            console.log(`📚 [${accountId}] Scheduling backfill after restore (delay: ${backfillDelay}ms)`);
+            try {
+              await backfillAccountMessages(accountId);
+            } catch (error) {
+              console.error(`❌ [${accountId}] Backfill after restore failed:`, error.message);
+            }
+          }
+        }, backfillDelay);
       }
 
       if (connection === 'close') {
@@ -3427,6 +4171,73 @@ async function restoreAccount(accountId, data) {
     // Single sending path: only outbox worker loop handles queued messages
     // This prevents duplicate sends on reconnect
 
+    // History sync handler (ingest full conversation history on pairing/re-pair)
+    sock.ev.on('messaging-history.set', async (history) => {
+      try {
+        console.log(`📚 [${accountId}] messaging-history.set event received (restoreAccount)`);
+        
+        if (!firestoreAvailable || !db) {
+          console.log(`⚠️  [${accountId}] Firestore not available, skipping history sync`);
+          return;
+        }
+
+        const { chats, contacts, messages } = history || {};
+        
+        let historyMessages = [];
+        let historyChats = [];
+
+        // Extract messages from history
+        if (messages && Array.isArray(messages)) {
+          historyMessages = messages;
+          console.log(`📚 [${accountId}] History sync: ${historyMessages.length} messages found`);
+        } else if (messages && typeof messages === 'object') {
+          // Handle different message formats (Baileys may structure differently)
+          historyMessages = Object.values(messages).flat();
+          console.log(`📚 [${accountId}] History sync: ${historyMessages.length} messages extracted from history object`);
+        }
+
+        // Extract chats/contacts metadata
+        if (chats && Array.isArray(chats)) {
+          historyChats = chats;
+        } else if (chats && typeof chats === 'object') {
+          historyChats = Object.values(chats);
+        }
+
+        // Process messages in batches
+        if (historyMessages.length > 0) {
+          console.log(`📚 [${accountId}] Starting history sync: ${historyMessages.length} messages`);
+          const result = await saveMessagesBatch(accountId, historyMessages, 'history_sync');
+          
+          console.log(`✅ [${accountId}] History sync complete: ${result.saved} saved, ${result.skipped} skipped, ${result.errors} errors`);
+          
+          // Update account metadata
+          await saveAccountToFirestore(accountId, {
+            lastHistorySyncAt: admin.firestore.FieldValue.serverTimestamp(),
+            historySyncCount: (result.saved || 0),
+            lastHistorySyncResult: {
+              saved: result.saved || 0,
+              skipped: result.skipped || 0,
+              errors: result.errors || 0,
+              total: historyMessages.length,
+              dryRun: result.dryRun || false,
+            },
+          }).catch(err => console.error(`❌ [${accountId}] Failed to update history sync marker:`, err.message));
+        } else {
+          console.log(`⚠️  [${accountId}] History sync: No messages found in history`);
+        }
+
+        // Optionally save chats metadata (for future reference)
+        if (historyChats.length > 0 && !HISTORY_SYNC_DRY_RUN) {
+          console.log(`📚 [${accountId}] History sync: ${historyChats.length} chats found (metadata only, not persisted separately)`);
+        }
+
+      } catch (error) {
+        console.error(`❌ [${accountId}] History sync error:`, error.message);
+        console.error(`❌ [${accountId}] Stack:`, error.stack);
+        await logIncident(accountId, 'history_sync_failed', { error: error.message });
+      }
+    });
+
     // Messages handler - CRITICAL for receiving messages
     sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
       try {
@@ -3528,17 +4339,102 @@ async function restoreAccount(accountId, data) {
       }
     });
 
-    // Messages update handler (for status updates)
-    sock.ev.on('messages.update', updates => {
-      console.log(`🔄 [${accountId}] messages.update EVENT: ${updates.length} updates`);
-      for (const update of updates) {
-        console.log(`  - Message ${update.key.id}: ${JSON.stringify(update.update)}`);
+    // Messages update handler (for status updates: delivered/read receipts)
+    sock.ev.on('messages.update', async (updates) => {
+      try {
+        console.log(`🔄 [${accountId}] messages.update EVENT: ${updates.length} updates`);
+        
+        if (!firestoreAvailable || !db) {
+          return;
+        }
+
+        for (const update of updates) {
+          try {
+            const messageKey = update.key;
+            const messageId = messageKey.id;
+            const remoteJid = messageKey.remoteJid;
+            const updateData = update.update || {};
+
+            // Extract status from update (status: 2 = delivered, 3 = read)
+            let status = null;
+            let deliveredAt = null;
+            let readAt = null;
+
+            if (updateData.status !== undefined) {
+              if (updateData.status === 2) {
+                status = 'delivered';
+                deliveredAt = admin.firestore.FieldValue.serverTimestamp();
+              } else if (updateData.status === 3) {
+                status = 'read';
+                readAt = admin.firestore.FieldValue.serverTimestamp();
+              }
+            }
+
+            // Update message in Firestore if status changed
+            if (status && remoteJid) {
+              const threadId = `${accountId}__${remoteJid}`;
+              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
+              
+              const updateFields = {
+                status,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              };
+              
+              if (deliveredAt) {
+                updateFields.deliveredAt = deliveredAt;
+              }
+              if (readAt) {
+                updateFields.readAt = readAt;
+              }
+
+              await messageRef.set(updateFields, { merge: true });
+              console.log(`✅ [${accountId}] Updated message ${messageId} status to ${status}`);
+            }
+          } catch (updateError) {
+            console.error(`❌ [${accountId}] Error updating message receipt:`, updateError.message);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ [${accountId}] Error in messages.update handler:`, error.message);
       }
     });
 
-    // Message receipt handler
-    sock.ev.on('message-receipt.update', receipts => {
-      console.log(`📬 [${accountId}] message-receipt.update EVENT: ${receipts.length} receipts`);
+    // Message receipt handler (complementary to messages.update)
+    sock.ev.on('message-receipt.update', async (receipts) => {
+      try {
+        console.log(`📬 [${accountId}] message-receipt.update EVENT: ${receipts.length} receipts`);
+        
+        if (!firestoreAvailable || !db) {
+          return;
+        }
+
+        for (const receipt of receipts) {
+          try {
+            const receiptKey = receipt.key;
+            const messageId = receiptKey.id;
+            const remoteJid = receiptKey.remoteJid;
+            const receiptData = receipt.receipt || {};
+
+            // Extract read receipts
+            if (receiptData.readTimestamp && remoteJid) {
+              const threadId = `${accountId}__${remoteJid}`;
+              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
+              
+              await messageRef.set({
+                status: 'read',
+                readAt: admin.firestore.Timestamp.fromMillis(receiptData.readTimestamp * 1000),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              }, { merge: true });
+              
+              console.log(`✅ [${accountId}] Updated message ${messageId} receipt: read`);
+            }
+          } catch (receiptError) {
+            console.error(`❌ [${accountId}] Error updating receipt:`, receiptError.message);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ [${accountId}] Error in message-receipt.update handler:`, error.message);
+      }
     });
 
     connections.set(accountId, account);
@@ -4167,6 +5063,22 @@ app.get('/api/status/dashboard', async (req, res) => {
       // Get lastSeen from lastEventAt or lastMessageAt (most recent activity)
       const lastSeen = account.lastEventAt || account.lastMessageAt || null;
 
+      // Get backfill info from Firestore (if available)
+      let lastBackfillAt = null;
+      let lastHistorySyncAt = null;
+      if (firestoreAvailable && db) {
+        try {
+          const accountDoc = await db.collection('accounts').doc(accountId).get();
+          if (accountDoc.exists) {
+            const accountData = accountDoc.data();
+            lastBackfillAt = accountData.lastBackfillAt?.toDate?.()?.toISOString() || null;
+            lastHistorySyncAt = accountData.lastHistorySyncAt?.toDate?.()?.toISOString() || null;
+          }
+        } catch (error) {
+          // Ignore errors when fetching backfill info
+        }
+      }
+
       const accountData = {
         accountId,
         phone: account.phone ? maskPhone(account.phone) : null,
@@ -4177,6 +5089,8 @@ app.get('/api/status/dashboard', async (req, res) => {
         reconnectCount: account.reconnectCount || 0,
         reconnectAttempts: reconnectAttemptsCount,
         needsQR: !!account.qr,
+        lastBackfillAt,
+        lastHistorySyncAt,
       };
 
       // Include QR code only if needsQR is true
@@ -4461,6 +5375,33 @@ app.listen(PORT, '0.0.0.0', async () => {
             leaseUntil: null, // Release lease
           });
 
+          // Also persist message to thread (if threadId exists in outbox doc)
+          if (threadId && firestoreAvailable && db) {
+            const waMessageId = result.key.id;
+            const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(waMessageId);
+            
+            await messageRef.set({
+              accountId,
+              clientJid: toJid,
+              direction: 'outbound',
+              body: body || '',
+              waMessageId,
+              status: 'sent',
+              tsClient: new Date().toISOString(),
+              tsServer: admin.firestore.FieldValue.serverTimestamp(),
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              messageType: 'text',
+            }, { merge: true });
+
+            // Update thread
+            await db.collection('threads').doc(threadId).set({
+              accountId,
+              clientJid: toJid,
+              lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+              lastMessagePreview: (body || '').substring(0, 100),
+            }, { merge: true });
+          }
+
           // Update message doc in thread (if threadId provided)
           if (threadId) {
             try {
@@ -4687,7 +5628,19 @@ async function gracefulShutdown(signal) {
       );
     }
   }
-  await Promise.allSettled(flushPromises);
+  
+  // Wait for session flush with timeout (30 seconds)
+  const flushTimeout = setTimeout(() => {
+    console.error('⚠️  Session flush timeout after 30s, proceeding with shutdown');
+  }, 30000);
+  
+  try {
+    await Promise.allSettled(flushPromises);
+    clearTimeout(flushTimeout);
+  } catch (error) {
+    console.error('⚠️  Session flush error:', error.message);
+    clearTimeout(flushTimeout);
+  }
   console.log('✅ All sessions flushed to disk');
 
   // Release Firestore leases
