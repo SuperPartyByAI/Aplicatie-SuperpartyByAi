@@ -235,6 +235,18 @@ service cloud.firestore {
         // NEVER DELETE - messages are immutable
         allow delete: if false;
       }
+      
+      // Extractions subcollection (AI audit trail)
+      match /extractions/{messageId} {
+        // Employees can read AI extractions for CRM insights
+        allow read: if isEmployee();
+        
+        // SECURITY: server-only writes (Admin SDK bypasses rules)
+        allow create, update: if false;
+        
+        // NEVER DELETE - audit trail must persist
+        allow delete: if false;
+      }
     }
     
     // WhatsApp Conversations - NEW (not used yet) - POLITICA: NEVER DELETE
@@ -370,6 +382,42 @@ service cloud.firestore {
       
       allow read, update, delete: if isAuthenticated() &&
                                    resource.data.userId == request.auth.uid;
+    }
+    
+    // Customers collection (CRM profiles) - POLITICA: NEVER DELETE
+    match /customers/{customerId} {
+      // Employees can read customer profiles
+      allow read: if isEmployee();
+      
+      // SECURITY: server-only writes (Admin SDK bypasses rules)
+      allow create, update: if false;
+      
+      // NEVER DELETE - customer profiles must persist
+      allow delete: if false;
+      
+      // Orders subcollection
+      match /orders/{orderId} {
+        // Employees can read orders
+        allow read: if isEmployee();
+        
+        // SECURITY: server-only writes (Admin SDK bypasses rules)
+        allow create, update: if false;
+        
+        // NEVER DELETE - order history must persist
+        allow delete: if false;
+      }
+      
+      // Events subcollection (optional: party history/feedback)
+      match /events/{eventId} {
+        // Employees can read events
+        allow read: if isEmployee();
+        
+        // SECURITY: server-only writes (Admin SDK bypasses rules)
+        allow create, update: if false;
+        
+        // NEVER DELETE - event history must persist
+        allow delete: if false;
+      }
     }
     
     // Default deny all other collections
