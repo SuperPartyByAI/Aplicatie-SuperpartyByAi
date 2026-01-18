@@ -478,31 +478,85 @@ async function getAccountsHandler(req, res) {
       // Lazy-load Railway base URL (computed at handler runtime, not module load time)
       const railwayBaseUrl = getRailwayBaseUrl();
       if (!railwayBaseUrl) {
+        console.error('[whatsappProxy/getAccounts] WHATSAPP_RAILWAY_BASE_URL missing');
+        console.error('[whatsappProxy/getAccounts] process.env.WHATSAPP_RAILWAY_BASE_URL:', process.env.WHATSAPP_RAILWAY_BASE_URL ? 'SET' : 'NOT SET');
         return res.status(500).json({
           success: false,
           error: 'configuration_missing',
           message: 'WHATSAPP_RAILWAY_BASE_URL must be set via environment variable or functions.config().whatsapp.railway_base_url',
         });
       }
+      
+      console.log('[whatsappProxy/getAccounts] Railway URL:', railwayBaseUrl.substring(0, 30) + '...');
 
       // Forward to Railway backend
       const railwayUrl = `${railwayBaseUrl}/api/whatsapp/accounts`;
+      const correlationId = req.headers['x-correlation-id'] || req.headers['x-request-id'] || `getAccounts_${Date.now()}`;
+      console.log(`[whatsappProxy/getAccounts] Calling Railway: ${railwayUrl}, correlationId=${correlationId}`);
       const response = await getForwardRequest()(railwayUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'X-Correlation-Id': correlationId, // Forward correlation ID for end-to-end tracing
         },
       });
 
-      // Forward Railway response, but sanitize non-2xx errors
+      // Forward Railway response, propagate status codes and body
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return res.status(response.statusCode).json(response.body);
       } else {
-        // Non-2xx: return safe error message (don't leak Railway internals)
+        // Special handling for specific status codes - propagate as-is
+        if (response.statusCode === 503) {
+          // PASSIVE mode - propagate full response
+          return res.status(503).json(response.body || {
+            success: false,
+            error: 'passive_mode',
+            message: 'Backend in PASSIVE mode',
+          });
+        } else if (response.statusCode === 404) {
+          // Not found - propagate
+          return res.status(404).json(response.body || {
+            success: false,
+            error: 'account_not_found',
+            message: 'Account not found',
+          });
+        } else if (response.statusCode === 409) {
+          // Conflict - propagate
+          return res.status(409).json(response.body || {
+            success: false,
+            error: 'invalid_state',
+            message: 'Invalid state',
+          });
+        } else if (response.statusCode === 429) {
+          // Rate limited - propagate
+          return res.status(429).json(response.body || {
+            success: false,
+            error: 'rate_limited',
+            message: 'Rate limit exceeded',
+          });
+        } else if (response.statusCode === 401) {
+          // Unauthorized - propagate (critical for 401 loop debugging)
+          return res.status(401).json(response.body || {
+            success: false,
+            error: 'unauthorized',
+            message: 'Unauthorized - authentication required or session expired',
+          });
+        } else if (response.statusCode === 403) {
+          // Forbidden - propagate
+          return res.status(403).json(response.body || {
+            success: false,
+            error: 'forbidden',
+            message: 'Forbidden - insufficient permissions',
+          });
+        }
+        
+        // For other errors, return 500 but include backend error details
         return res.status(500).json({
           success: false,
           error: 'backend_error',
-          message: 'Backend service returned an error',
+          message: `Backend service returned an error (status: ${response.statusCode})`,
+          upstreamStatusCode: response.statusCode,
+          ...(response.body && typeof response.body === 'object' ? response.body : {}),
         });
       }
     } catch (error) {
@@ -585,11 +639,51 @@ async function addAccountHandler(req, res) {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return res.status(response.statusCode).json(response.body);
       } else {
-        // Non-2xx: return safe error message
+        // Special handling for 503 (PASSIVE mode) - propagate error message with full details
+        if (response.statusCode === 503) {
+          return res.status(503).json({
+            success: false,
+            error: response.body?.error || 'passive_mode',
+            message: response.body?.message || response.body?.error || 'Backend in PASSIVE mode - lock not acquired',
+            mode: response.body?.mode || 'passive',
+            instanceId: response.body?.instanceId,
+            holderInstanceId: response.body?.holderInstanceId,
+            retryAfterSeconds: response.body?.retryAfterSeconds || 15,
+            waMode: response.body?.waMode || 'passive',
+            requestId: response.body?.requestId,
+          });
+        } else if (response.statusCode === 401) {
+          // Unauthorized - propagate (critical for 401 loop debugging)
+          return res.status(401).json({
+            success: false,
+            error: response.body?.error || 'unauthorized',
+            message: response.body?.message || 'Unauthorized - authentication required or session expired',
+            ...(response.body && typeof response.body === 'object' ? {
+              backendError: response.body.error,
+              backendMessage: response.body.message,
+              backendAccountId: response.body.accountId,
+            } : {}),
+          });
+        } else if (response.statusCode === 403) {
+          // Forbidden - propagate
+          return res.status(403).json({
+            success: false,
+            error: response.body?.error || 'forbidden',
+            message: response.body?.message || 'Forbidden - insufficient permissions',
+            ...(response.body && typeof response.body === 'object' ? response.body : {}),
+          });
+        }
+        
+        // For other errors, return safe message but include status code
         return res.status(500).json({
           success: false,
           error: 'backend_error',
-          message: 'Backend service returned an error',
+          message: `Backend service returned an error (status: ${response.statusCode})`,
+          upstreamStatusCode: response.statusCode,
+          ...(response.body && typeof response.body === 'object' && response.body.error ? {
+            backendError: response.body.error,
+            backendMessage: response.body.message || response.body.error,
+          } : {}),
         });
       }
     } catch (error) {
@@ -842,32 +936,137 @@ async function regenerateQrHandler(req, res) {
         });
       }
 
+      // Extract requestId and correlationId from headers for correlation
+      const requestId = req.headers['x-request-id'] || `proxy_${Date.now()}`;
+      const correlationId = req.headers['x-correlation-id'] || requestId;
+      
+      // DEBUG MODE: Check if super-admin requested debug info (X-Debug header + non-production)
+      const isDebugMode = req.headers['x-debug'] === 'true' && 
+                          process.env.GCLOUD_PROJECT !== 'superparty-frontend' &&
+                          process.env.FUNCTIONS_EMULATOR === 'true';
+      const userEmail = req.user?.email || '';
+      const isSuperAdminDebug = isDebugMode && userEmail === SUPER_ADMIN_EMAIL;
+      
       // Forward to Railway backend
       const railwayUrl = `${railwayBaseUrl}/api/whatsapp/regenerate-qr/${accountId.trim()}`;
+      console.log(`[whatsappProxy/regenerateQr] Calling Railway: ${railwayUrl}, requestId=${requestId}, correlationId=${correlationId}, debugMode=${isSuperAdminDebug}`);
+      
       const response = await getForwardRequest()(railwayUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Request-ID': requestId, // Forward requestId to Railway
+          'X-Correlation-Id': correlationId, // Forward correlation ID for end-to-end tracing
         },
       });
 
+      // Extract short error ID from Railway response for correlation
+      const errorId = response.body?.error || response.body?.errorCode || 'unknown';
+      const shortErrorId = typeof errorId === 'string' ? errorId.substring(0, 20) : 'unknown';
+      
+      console.log(`[whatsappProxy/regenerateQr] Railway response: status=${response.statusCode}, errorId=${shortErrorId}, requestId=${requestId}, debugMode=${isSuperAdminDebug}`);
+
       // Forward Railway response, but sanitize non-2xx errors
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return res.status(response.statusCode).json(response.body);
+        return res.status(response.statusCode).json({
+          ...response.body,
+          requestId: requestId, // Ensure requestId is in response
+        });
       } else {
-        // Non-2xx: return safe error message
-        return res.status(500).json({
+        // CRITICAL: Log full Railway response body for non-2xx to diagnose root cause
+        // This is essential because proxy masks Railway errors as generic 500
+        const railwayBody = response.body || {};
+        const railwayBodyStr = typeof railwayBody === 'string' 
+          ? railwayBody 
+          : JSON.stringify(railwayBody);
+        const railwayBodyPreview = railwayBodyStr.length > 500 
+          ? railwayBodyStr.substring(0, 500) + '...' 
+          : railwayBodyStr;
+        
+        console.error(`[whatsappProxy/regenerateQr] Railway error (non-2xx): status=${response.statusCode}, requestId=${requestId}`);
+        console.error(`[whatsappProxy/regenerateQr] Railway error body: ${railwayBodyPreview}`);
+        console.error(`[whatsappProxy/regenerateQr] Railway error details: error=${railwayBody.error || 'none'}, message=${railwayBody.message || 'none'}, status=${railwayBody.status || 'none'}, accountId=${railwayBody.accountId || 'none'}`);
+        
+        // Special handling for 503 (PASSIVE mode) - propagate error message with full details
+        if (response.statusCode === 503) {
+          return res.status(503).json({
+            success: false,
+            error: response.body?.error || 'passive_mode',
+            message: response.body?.message || response.body?.error || 'Backend in PASSIVE mode - lock not acquired',
+            mode: response.body?.mode || 'passive',
+            instanceId: response.body?.instanceId,
+            holderInstanceId: response.body?.holderInstanceId,
+            retryAfterSeconds: response.body?.retryAfterSeconds || 15,
+            waMode: response.body?.waMode || 'passive',
+            requestId: requestId,
+          });
+        } else if (response.statusCode === 401) {
+          // Unauthorized - propagate (critical for 401 loop debugging)
+          return res.status(401).json({
+            success: false,
+            error: response.body?.error || 'unauthorized',
+            message: response.body?.message || 'Unauthorized - authentication required or session expired',
+            requestId: requestId,
+            ...(response.body && typeof response.body === 'object' ? {
+              backendError: response.body.error,
+              backendMessage: response.body.message,
+              backendAccountId: response.body.accountId,
+            } : {}),
+          });
+        } else if (response.statusCode === 403) {
+          // Forbidden - propagate
+          return res.status(403).json({
+            success: false,
+            error: response.body?.error || 'forbidden',
+            message: response.body?.message || 'Forbidden - insufficient permissions',
+            requestId: requestId,
+            ...(response.body && typeof response.body === 'object' ? response.body : {}),
+          });
+        }
+        
+        // For other 4xx/5xx errors, return structured error with requestId
+        // Include Railway error details for debugging (not just generic message)
+        const httpStatus = response.statusCode;
+        const railwayBody = response.body || {};
+        
+        // DEBUG MODE: For super-admin in debug mode, include backendStatusCode and backendErrorSafe
+        const debugInfo = isSuperAdminDebug ? {
+          backendStatusCode: httpStatus,
+          backendErrorSafe: typeof railwayBody.error === 'string' 
+            ? railwayBody.error.substring(0, 50) 
+            : (railwayBody.errorCode || 'unknown_error'),
+          backendStatus: railwayBody.status,
+          backendAccountId: railwayBody.accountId,
+          backendRequestId: railwayBody.requestId,
+        } : {};
+        
+        return res.status(httpStatus >= 400 && httpStatus < 500 ? httpStatus : 500).json({
           success: false,
-          error: 'backend_error',
-          message: 'Backend service returned an error',
+          error: `UPSTREAM_HTTP_${httpStatus}`,
+          message: railwayBody.message || `Backend service returned an error (status: ${httpStatus})`,
+          requestId: requestId,
+          hint: `Check Railway logs for requestId: ${requestId}`,
+          upstreamStatusCode: httpStatus,
+          // Include Railway error code and status for debugging (always logged server-side)
+          // For debug mode, also include in response (only for super-admin in non-production)
+          ...(response.body && typeof response.body === 'object' ? {
+            backendError: response.body.error || response.body.errorCode,
+            backendStatus: response.body.status,
+            backendMessage: response.body.message,
+            backendAccountId: response.body.accountId,
+          } : {}),
+          ...debugInfo, // Only included for super-admin in debug mode
         });
       }
     } catch (error) {
-      console.error('[whatsappProxy/regenerateQr] Error:', error.message);
+      const requestId = req.headers['x-request-id'] || `proxy_${Date.now()}`;
+      console.error(`[whatsappProxy/regenerateQr] Error: ${error.message}, requestId=${requestId}, stack=${error.stack?.substring(0, 200)}`);
       return res.status(500).json({
         success: false,
         error: 'internal_error',
         message: 'Internal server error',
+        requestId: requestId,
+        hint: `Check Functions logs for requestId: ${requestId}`,
       });
     }
   }
