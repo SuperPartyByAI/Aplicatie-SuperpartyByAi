@@ -6723,6 +6723,17 @@ app.listen(PORT, '0.0.0.0', async () => {
   console.log(`📊 Status Dashboard: http://localhost:${PORT}/api/status/dashboard`);
   console.log(`🚀 Railway deployment ready!\n`);
 
+  // CRITICAL: Invalidate cache on server start to prevent stale data after deployments
+  // This ensures that any code changes (like filtering deleted accounts) take effect immediately
+  if (featureFlags.isEnabled('API_CACHING')) {
+    try {
+      await cache.delete('whatsapp:accounts');
+      console.log('🗑️  Cache invalidated on server start (prevents stale data after deployment)');
+    } catch (error) {
+      console.error('⚠️  Failed to invalidate cache on startup:', error.message);
+    }
+  }
+
   // Initialize long-run schema and evidence endpoints FIRST (before restore)
   if (firestoreAvailable) {
     const baseUrl = process.env.BAILEYS_BASE_URL || 'https://whats-upp-production.up.railway.app';
