@@ -1,0 +1,71 @@
+{
+  "timestamp": "2026-01-18T02:52:53.108Z",
+  "tests": [
+    {
+      "testName": "Railway Health",
+      "status": "PASS",
+      "details": {
+        "status": "healthy",
+        "version": "2.0.0",
+        "uptime": 30944,
+        "firestore": "connected"
+      },
+      "timestamp": "2026-01-18T02:52:53.848Z"
+    },
+    {
+      "testName": "All Functions Deployed",
+      "status": "PASS",
+      "details": {
+        "count": 5,
+        "functions": [
+          "bootstrapAdmin",
+          "clientCrmAsk",
+          "whatsappExtractEventFromThread",
+          "aggregateClientStats",
+          "whatsappProxySend"
+        ]
+      },
+      "timestamp": "2026-01-18T02:52:58.571Z"
+    },
+    {
+      "testName": "Functions Region Consistency",
+      "status": "PASS",
+      "details": {
+        "region": "us-central1",
+        "functionsInRegion": 26
+      },
+      "timestamp": "2026-01-18T02:52:58.572Z"
+    },
+    {
+      "testName": "Flutter Region Alignment",
+      "status": "SKIP",
+      "details": {
+        "reason": "whatsapp_api_service.dart not found"
+      },
+      "timestamp": "2026-01-18T02:52:58.572Z"
+    },
+    {
+      "testName": "setGlobalOptions Single Call",
+      "status": "SKIP",
+      "details": {
+        "reason": "No setGlobalOptions found"
+      },
+      "timestamp": "2026-01-18T02:52:58.573Z"
+    },
+    {
+      "testName": "Docs CLI Syntax",
+      "status": "PASS",
+      "details": {
+        "message": "All docs use correct --lines flag",
+        "docsChecked": 0
+      },
+      "timestamp": "2026-01-18T02:52:58.573Z"
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "passed": 4,
+    "failed": 0,
+    "skipped": 2
+  }
+}
