@@ -108,17 +108,22 @@
 
 ## 💡 Proposed Changes
 
-### Option A: Move ONLY Critical Functions to EU (Recommended)
+### Option A: Move ONLY Critical Functions to EU (✅ APPLIED)
 
-**Change region for Firestore-heavy functions:**
-- `aggregateClientStats` → `europe-west1`
-- `whatsappExtractEventFromThread` → `europe-west1`
-- `clientCrmAsk` → `europe-west1`
+**Changed region for Firestore-heavy functions:**
+- `aggregateClientStats` → `europe-west1` ✅
+- `whatsappExtractEventFromThread` → `europe-west1` ✅
+- `clientCrmAsk` → `europe-west1` ✅
 
-**Keep US for others:**
+**Kept in US:**
 - `whatsappV4` (HTTPS app, latency less critical)
 - `whatsappProxy*` (HTTPS, lightweight Firestore ops)
 - Old AI functions (rarely used)
+
+**✅ Flutter Changes Required (APPLIED):**
+- `extractEventFromThread()` now calls `europe-west1` region
+- `askClientAI()` now calls `europe-west1` region
+- File: `superparty_flutter/lib/services/whatsapp_api_service.dart`
 
 **Pros:**
 - Optimizes latency for CRM features (AI extraction, aggregation)
@@ -129,8 +134,8 @@
 - Mixed regions (some functions in US, some in EU)
 - Slightly more complex deployment
 
-**Code changes:** 3 files
-**Deployment:** No breaking changes
+**Code changes:** 5 files (3 functions + 1 Flutter + docs)
+**Deployment:** Targeted deploy, no breaking changes
 
 ---
 

@@ -24,7 +24,7 @@ const db = admin.firestore();
  */
 exports.clientCrmAsk = onCall(
   {
-    region: 'us-central1',
+    region: 'europe-west1', // Co-located with Firestore (eur3) for low latency
     timeoutSeconds: 30,
     memory: '512MiB',
     maxInstances: 1, // Reduce CPU quota pressure
