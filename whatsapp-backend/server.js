@@ -1137,15 +1137,20 @@ async function createConnection(accountId, name, phone) {
         // CRITICAL: Clear connecting timeout when QR is generated
         // QR pairing should not be limited by 60s connecting timeout
         // Use QR_SCAN_TIMEOUT instead (10 minutes for user to scan)
-        if (account.connectingTimeout) {
-          clearTimeout(account.connectingTimeout);
-          account.connectingTimeout = null;
+        // IMPORTANT: Get account from connections map (not closure variable) to ensure latest state
+        const currentAccount = connections.get(accountId);
+        if (currentAccount && currentAccount.connectingTimeout) {
+          clearTimeout(currentAccount.connectingTimeout);
+          currentAccount.connectingTimeout = null;
           console.log(`⏰ [${accountId}] Connecting timeout cleared (QR generated, pairing phase)`);
         }
 
         // Set QR scan timeout (10 minutes) - regenerate if user doesn't scan
         const QR_SCAN_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
-        account.qrScanTimeout = setTimeout(() => {
+        // IMPORTANT: Get account from connections map (not closure variable) to ensure latest state
+        const currentAccountForQR = connections.get(accountId);
+        if (currentAccountForQR) {
+          currentAccountForQR.qrScanTimeout = setTimeout(() => {
           console.log(`⏰ [${accountId}] QR scan timeout (${QR_SCAN_TIMEOUT_MS / 1000}s) - QR expired`);
           const acc = connections.get(accountId);
           if (acc && acc.status === 'qr_ready') {
@@ -1163,9 +1168,13 @@ async function createConnection(accountId, name, phone) {
             { op: 'whatsapp.qr.generate', name: 'Generate QR Code' },
             () => QRCode.toDataURL(qr)
           );
-          account.qrCode = qrDataURL;
-          account.status = 'qr_ready';
-          account.lastUpdate = new Date().toISOString();
+          // IMPORTANT: Get account from connections map to ensure latest state
+          const currentAccountForSave = connections.get(accountId);
+          if (currentAccountForSave) {
+            currentAccountForSave.qrCode = qrDataURL;
+            currentAccountForSave.status = 'qr_ready';
+            currentAccountForSave.lastUpdate = new Date().toISOString();
+          }
 
           // Save QR to Firestore
           await saveAccountToFirestore(accountId, {
@@ -4289,15 +4298,18 @@ async function restoreAccount(accountId, data) {
         console.log(`📱 [${accountId}] QR Code generated (length: ${qr.length})`);
 
         // CRITICAL: Clear connecting timeout when QR is generated (same as createConnection)
-        if (account.connectingTimeout) {
-          clearTimeout(account.connectingTimeout);
-          account.connectingTimeout = null;
+        // IMPORTANT: Get account from connections map (not closure variable) to ensure latest state
+        const currentAccountRestore = connections.get(accountId);
+        if (currentAccountRestore && currentAccountRestore.connectingTimeout) {
+          clearTimeout(currentAccountRestore.connectingTimeout);
+          currentAccountRestore.connectingTimeout = null;
           console.log(`⏰ [${accountId}] Connecting timeout cleared (QR generated, pairing phase)`);
         }
 
         // Set QR scan timeout (10 minutes) - same as createConnection
         const QR_SCAN_TIMEOUT_MS = 10 * 60 * 1000;
-        account.qrScanTimeout = setTimeout(() => {
+        if (currentAccountRestore) {
+          currentAccountRestore.qrScanTimeout = setTimeout(() => {
           console.log(`⏰ [${accountId}] QR scan timeout (${QR_SCAN_TIMEOUT_MS / 1000}s) - QR expired`);
           const acc = connections.get(accountId);
           if (acc && acc.status === 'qr_ready') {
@@ -4309,12 +4321,16 @@ async function restoreAccount(accountId, data) {
             }).catch(err => console.error(`❌ [${accountId}] QR timeout save failed:`, err));
           }
         }, QR_SCAN_TIMEOUT_MS);
+        }
 
         try {
           const qrDataURL = await QRCode.toDataURL(qr);
-          account.qrCode = qrDataURL;
-          account.status = 'qr_ready';
-          account.lastUpdate = new Date().toISOString();
+          // IMPORTANT: Get account from connections map to ensure latest state
+          const currentAccountRestoreSave = connections.get(accountId);
+          if (currentAccountRestoreSave) {
+            currentAccountRestoreSave.qrCode = qrDataURL;
+            currentAccountRestoreSave.status = 'qr_ready';
+            currentAccountRestoreSave.lastUpdate = new Date().toISOString();
 
           await saveAccountToFirestore(accountId, {
             qrCode: qrDataURL,
