@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/whatsapp_api_service.dart';
@@ -26,7 +29,14 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   bool _isAddingAccount = false;
   final Set<String> _regeneratingQr = {}; // accountId -> in-flight
   final Set<String> _deletingAccount = {}; // accountId -> in-flight
+  final Set<String> _openingFirefox = {}; // accountId -> in-flight
   int _loadRequestToken = 0;
+  
+  // Path to firefox-container script
+  // NOTE: This path should be configured per environment. For macOS development,
+  // ensure wa-web-launcher is installed at this location or adjust the path.
+  static const String _firefoxContainerScript = '/Users/universparty/wa-web-launcher/bin/firefox-container';
+  static const String _waUrl = 'https://web.whatsapp.com';
 
   @override
   void initState() {
@@ -43,7 +53,13 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     });
 
     try {
-      final response = await _apiService.getAccounts();
+      // Add timeout to prevent infinite loading
+      final response = await _apiService.getAccounts().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('Request timed out after 10 seconds');
+        },
+      );
       
       // Ignore late responses (if another load started)
       if (myToken != _loadRequestToken) return;
@@ -54,6 +70,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           setState(() {
             _accounts = accounts.cast<Map<String, dynamic>>();
             _isLoading = false;
+            _error = null;
           });
         }
       } else {
@@ -62,17 +79,41 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
             _error = response['message'] ?? 'Failed to load accounts';
             _isLoading = false;
           });
+          if (kDebugMode) {
+            debugPrint('[WhatsAppAccountsScreen] _loadAccounts: set error state - $_error');
+          }
         }
       }
     } catch (e) {
       // Ignore late responses
-      if (myToken != _loadRequestToken) return;
+      if (myToken != _loadRequestToken) {
+        if (kDebugMode) {
+          debugPrint('[WhatsAppAccountsScreen] _loadAccounts: ignoring late response (token mismatch)');
+        }
+        return;
+      }
       
       if (mounted) {
+        final errorMessage = e is AppException
+            ? e.message
+            : 'Error: ${e.toString()}';
+        
+        if (kDebugMode) {
+          debugPrint('[WhatsAppAccountsScreen] _loadAccounts: caught exception - $errorMessage');
+        }
+        
         setState(() {
-          _error = 'Error: ${e.toString()}';
+          _error = '$errorMessage\n\nBackend may be down. Please check Firebase Functions or try again later.';
           _isLoading = false;
         });
+        
+        if (kDebugMode) {
+          debugPrint('[WhatsAppAccountsScreen] _loadAccounts: setState called - _isLoading=false, _error=$_error');
+        }
+      } else {
+        if (kDebugMode) {
+          debugPrint('[WhatsAppAccountsScreen] _loadAccounts: widget not mounted, cannot setState');
+        }
       }
     }
   }
@@ -205,7 +246,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           final retryAfterSeconds = (e.originalError as Map<String, dynamic>?)?['retryAfterSeconds'] as int? ?? 10;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(e.message ?? 'Please wait ${retryAfterSeconds}s before regenerating QR again'),
+              content: Text('${e.message}\nPlease wait ${retryAfterSeconds}s before regenerating QR again'),
               backgroundColor: Colors.orange,
               duration: Duration(seconds: retryAfterSeconds),
             ),
@@ -290,6 +331,179 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
             backgroundColor: Colors.orange,
           ),
         );
+      }
+    }
+  }
+
+  /// Open WhatsApp Web in Firefox with a container
+  /// Uses the firefox-container script to open WhatsApp Web in a named container
+  Future<void> _openInFirefoxContainer(
+    String accountId,
+    String accountName,
+  ) async {
+    // Guard: prevent double-tap
+    if (_openingFirefox.contains(accountId)) return;
+    
+    setState(() => _openingFirefox.add(accountId));
+
+    try {
+      // Check if script exists
+      final scriptFile = File(_firefoxContainerScript);
+      if (!await scriptFile.exists()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Firefox container script not found at:\n$_firefoxContainerScript\n\nPlease install wa-web-launcher project first.',
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Check if script is executable
+      final stat = await scriptFile.stat();
+      if (stat.mode & 0x111 == 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Script is not executable. Run: chmod +x $_firefoxContainerScript',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Get signing key from process environment only
+      // Set via VSCode launch.json env, Terminal export, or IDE run configuration
+      final signingKey = Platform.environment['OPEN_URL_IN_CONTAINER_SIGNING_KEY'];
+      
+      if (kDebugMode) {
+        if (signingKey != null && signingKey.isNotEmpty) {
+          debugPrint('[WhatsAppAccountsScreen] Signing key present (${signingKey.length} chars)');
+        } else {
+          debugPrint('[WhatsAppAccountsScreen] Signing key not set - Firefox may show confirmation dialogs');
+        }
+      }
+      
+      // Signing key is optional - show warning but don't block execution
+      if (signingKey == null || signingKey.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Warning: OPEN_URL_IN_CONTAINER_SIGNING_KEY not set.\n'
+                'Firefox will show confirmation dialogs. Set it in VSCode launch.json or export in terminal.',
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+
+      // Generate container name from account name (sanitize for container names)
+      final containerName = accountName
+          .replaceAll(' ', '-')
+          .replaceAll(RegExp(r'[^a-zA-Z0-9\-]'), '')
+          .toLowerCase();
+      
+      // Use account name to determine color (cycling through colors)
+      final colors = ['blue', 'orange', 'green', 'red', 'purple', 'pink', 'yellow', 'turquoise'];
+      final colorIndex = accountName.hashCode.abs() % colors.length;
+      final color = colors[colorIndex];
+      
+      // Use account name to determine icon (cycling through icons)
+      final icons = ['circle', 'fruit', 'square', 'triangle'];
+      final iconIndex = accountName.hashCode.abs() % icons.length;
+      final icon = icons[iconIndex];
+
+      // Build command arguments
+      final args = [
+        '--name', containerName,
+        '--color', color,
+        '--icon', icon,
+        _waUrl,
+      ];
+
+      // Execute script with environment
+      final env = Map<String, String>.from(Platform.environment);
+      if (signingKey != null && signingKey.isNotEmpty) {
+        env['OPEN_URL_IN_CONTAINER_SIGNING_KEY'] = signingKey;
+      }
+      
+      if (kDebugMode) {
+        debugPrint('[WhatsAppAccountsScreen] Executing: $_firefoxContainerScript ${args.join(" ")}');
+        debugPrint('[WhatsAppAccountsScreen] Container: $containerName, Color: $color, Icon: $icon');
+      }
+      
+      final result = await Process.run(
+        _firefoxContainerScript,
+        args,
+        environment: env,
+        runInShell: false,
+      );
+      
+      if (kDebugMode) {
+        debugPrint('[WhatsAppAccountsScreen] Script exit code: ${result.exitCode}');
+        if (result.stdout.toString().isNotEmpty) {
+          debugPrint('[WhatsAppAccountsScreen] Script stdout: ${result.stdout}');
+        }
+        if (result.stderr.toString().isNotEmpty) {
+          debugPrint('[WhatsAppAccountsScreen] Script stderr: ${result.stderr}');
+        }
+      }
+
+      if (mounted) {
+        if (result.exitCode == 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Opening WhatsApp Web in Firefox container: $containerName\n'
+                'Please scan the QR code with your WhatsApp app.',
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        } else {
+          final errorMsg = result.stderr.toString().trim();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Failed to open Firefox:\n${errorMsg.isNotEmpty ? errorMsg : result.stdout.toString()}',
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error opening Firefox: ${e.toString()}\n\n'
+              'Make sure:\n'
+              '1. Firefox is installed\n'
+              '2. Script exists at: $_firefoxContainerScript\n'
+              '3. OPEN_URL_IN_CONTAINER_SIGNING_KEY is set',
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _openingFirefox.remove(accountId));
       }
     }
   }
@@ -401,6 +615,31 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                     icon: const Icon(Icons.qr_code, size: 18),
                     label: const Text('Open QR Page'),
                   )
+                else if (Platform.isMacOS && status != 'connected')
+                  TextButton.icon(
+                    onPressed: _openingFirefox.contains(id) || _isAddingAccount
+                        ? null
+                        : () => _openInFirefoxContainer(id, name),
+                    icon: _openingFirefox.contains(id)
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.open_in_browser, size: 18),
+                    label: Text(_openingFirefox.contains(id) ? 'Opening...' : 'Open in Firefox'),
+                  )
+                else if (Platform.isMacOS && status == 'connected')
+                  Tooltip(
+                    message: 'Open WhatsApp Web in Firefox container',
+                    child: TextButton.icon(
+                      onPressed: _openingFirefox.contains(id) || _isAddingAccount
+                          ? null
+                          : () => _openInFirefoxContainer(id, name),
+                      icon: const Icon(Icons.open_in_browser, size: 18),
+                      label: const Text('Open in Firefox'),
+                    ),
+                  )
                 else
                   const SizedBox.shrink(),
                 Row(
@@ -483,6 +722,11 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Debug: Force check loading state
+    if (kDebugMode && _isLoading) {
+      debugPrint('[WhatsAppAccountsScreen] build: _isLoading=true, _error=$_error, _accounts.length=${_accounts.length}');
+    }
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('WhatsApp Accounts'),
@@ -497,7 +741,38 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  const Text('Loading WhatsApp accounts...'),
+                  const SizedBox(height: 8),
+                  Text(
+                    'This may take a few seconds',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                  if (kDebugMode && Platform.isMacOS) ...[
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () => _openInFirefoxContainer('test', 'Test Container'),
+                      icon: const Icon(Icons.open_in_browser),
+                      label: const Text('Test Firefox (Debug)'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Test button - opens Firefox directly',
+                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
+                  ],
+                ],
+              ),
+            )
           : _error != null
               ? Center(
                   child: Padding(
@@ -517,41 +792,106 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: _loadAccounts,
-                          child: const Text('Retry'),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ElevatedButton(
+                              onPressed: _loadAccounts,
+                              child: const Text('Retry'),
+                            ),
+                            if (Platform.isMacOS) ...[
+                              const SizedBox(width: 12),
+                              ElevatedButton.icon(
+                                onPressed: () => _openInFirefoxContainer('test', 'Test Container'),
+                                icon: const Icon(Icons.open_in_browser),
+                                label: const Text('Test Firefox'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
+                        if (Platform.isMacOS) ...[
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Tip: You can test Firefox integration directly even if backend is down',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ],
                     ),
                   ),
                 )
               : _accounts.isEmpty
                   ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.account_circle_outlined,
-                            size: 64,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No accounts found',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.grey[600],
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.account_circle_outlined,
+                              size: 64,
+                              color: Colors.grey[400],
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Add your first WhatsApp account',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[500],
+                            const SizedBox(height: 16),
+                            Text(
+                              'No accounts found',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.grey[600],
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 8),
+                            Text(
+                              'Add your first WhatsApp account',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                            if (Platform.isMacOS) ...[
+                              const SizedBox(height: 32),
+                              const Divider(),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Firefox Integration Available',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'You can use Firefox containers directly from terminal:',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: () => _openInFirefoxContainer('test', 'Test Container'),
+                                icon: const Icon(Icons.open_in_browser),
+                                label: const Text('Test Firefox Now'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'This will open WhatsApp Web in Firefox container',
+                                style: TextStyle(fontSize: 10, color: Colors.grey),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                     )
                   : RefreshIndicator(
