@@ -22,11 +22,53 @@ void main() async {
     FlutterError.presentError(details);
     debugPrint('[FlutterError] ${details.exceptionAsString()}');
     debugPrint('[FlutterError] Stack: ${details.stack}');
+    // #region agent log
+    try {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final logEntry = {
+        'id': 'flutter_error_$timestamp',
+        'timestamp': timestamp,
+        'location': 'main.dart:FlutterError.onError',
+        'message': 'FlutterError caught',
+        'data': {
+          'exception': details.exceptionAsString(),
+          'library': details.library,
+          'context': details.context?.toString(),
+          'stack': details.stack.toString().substring(0, 500),
+        },
+        'sessionId': 'debug-session',
+        'runId': 'run1',
+        'hypothesisId': 'A',
+      };
+      final file = File('/Users/universparty/.cursor/debug.log');
+      file.writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
+    } catch (_) {}
+    // #endregion
   };
   
   PlatformDispatcher.instance.onError = (error, stack) {
     debugPrint('[UncaughtError] $error');
     debugPrint('[UncaughtError] Stack: $stack');
+    // #region agent log
+    try {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final logEntry = {
+        'id': 'uncaught_error_$timestamp',
+        'timestamp': timestamp,
+        'location': 'main.dart:PlatformDispatcher.onError',
+        'message': 'Uncaught error',
+        'data': {
+          'error': error.toString(),
+          'stack': stack.toString().substring(0, 500),
+        },
+        'sessionId': 'debug-session',
+        'runId': 'run1',
+        'hypothesisId': 'A',
+      };
+      final file = File('/Users/universparty/.cursor/debug.log');
+      file.writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
+    } catch (_) {}
+    // #endregion
     return true;
   };
   
@@ -167,6 +209,25 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
     // AppRouter constructor creates AdminService, which accesses FirebaseService.auth
     // This would crash if Firebase is not initialized
     if (!FirebaseService.isInitialized) {
+      // #region agent log
+      try {
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final logEntry = {
+          'id': 'firebase_not_init_$timestamp',
+          'timestamp': timestamp,
+          'location': 'main.dart:build:firebase_not_init',
+          'message': 'Firebase not initialized - showing error screen',
+          'data': {
+            'firebaseInitError': _firebaseInitError != null ? _firebaseInitError!.substring(0, 100) : null,
+          },
+          'sessionId': 'debug-session',
+          'runId': 'run1',
+          'hypothesisId': 'B',
+        };
+        final file = File('/Users/universparty/.cursor/debug.log');
+        file.writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
+      } catch (_) {}
+      // #endregion
       return MaterialApp(
         title: 'SuperParty',
         theme: AppTheme.light(),
@@ -192,16 +253,57 @@ class _SuperPartyAppState extends State<SuperPartyApp> {
           ],
         ),
         themeMode: ThemeMode.dark,
+        // #region agent log
         builder: (context, child) {
+          try {
+            final timestamp = DateTime.now().millisecondsSinceEpoch;
+            final logEntry = {
+              'id': 'material_app_builder_$timestamp',
+              'timestamp': timestamp,
+              'location': 'main.dart:MaterialApp.router:builder',
+              'message': 'MaterialApp builder called',
+              'data': {
+                'childIsNull': child == null,
+                'routerConfig': 'AppRouter',
+              },
+              'sessionId': 'debug-session',
+              'runId': 'run1',
+              'hypothesisId': 'C',
+            };
+            final file = File('/Users/universparty/.cursor/debug.log');
+            file.writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
+          } catch (_) {}
           final content = UpdateGate(child: child ?? const SizedBox.shrink());
           return content;
         },
+        // #endregion
         routerConfig: (_appRouter ??= AppRouter()).router,
       ),
     );
   }
 
   Widget _buildFirebaseInitScreen() {
+    // #region agent log
+    try {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final logEntry = {
+        'id': 'firebase_init_screen_$timestamp',
+        'timestamp': timestamp,
+        'location': 'main.dart:_buildFirebaseInitScreen:entry',
+        'message': 'Firebase init screen displayed',
+        'data': {
+          'isInitializing': _isInitializing,
+          'firebaseInitError': _firebaseInitError != null ? _firebaseInitError!.substring(0, 100) : null,
+          'firebaseServiceInitialized': FirebaseService.isInitialized,
+        },
+        'sessionId': 'debug-session',
+        'runId': 'run1',
+        'hypothesisId': 'B',
+      };
+      final file = File('/Users/universparty/.cursor/debug.log');
+      file.writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
+    } catch (_) {}
+    // #endregion
     if (_isInitializing) {
       return const Scaffold(
         body: Center(

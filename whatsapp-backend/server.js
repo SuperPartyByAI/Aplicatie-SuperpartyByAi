@@ -1767,7 +1767,9 @@ async function createConnection(accountId, name, phone) {
           // Clear any reconnect timers
           reconnectAttempts.delete(accountId);
           
-          account.status = 'needs_qr';
+          // CRITICAL: Set status to 'logged_out' (not 'needs_qr') to indicate session expired and re-link required
+          // 'needs_qr' is for expired QR during pairing, 'logged_out' is for invalid session credentials
+          account.status = 'logged_out';
 
           // Clear session (disk + Firestore) to ensure fresh pairing
           // #region agent log
@@ -1791,8 +1793,8 @@ async function createConnection(accountId, name, phone) {
           }
 
           await saveAccountToFirestore(accountId, {
-            status: 'needs_qr',
-            lastError: `logged_out (${reason}) - requires QR re-pair`,
+            status: 'logged_out',
+            lastError: `logged_out (${reason}) - requires re-link`,
             requiresQR: true,
             lastDisconnectReason: reason,
             lastDisconnectCode: reason,
@@ -1819,7 +1821,7 @@ async function createConnection(accountId, name, phone) {
           connectionRegistry.release(accountId);
 
           // #region agent log
-          console.log(`📋 [${accountId}] 401 handler complete: status=needs_qr, nextRetryAt=null, retryCount=0, reconnectScheduled=false, timestamp=${logTimestamp}`);
+          console.log(`📋 [${accountId}] 401 handler complete: status=logged_out, nextRetryAt=null, retryCount=0, reconnectScheduled=false, timestamp=${logTimestamp}`);
           // #endregion
 
           // CRITICAL: DO NOT schedule createConnection() for terminal logout
@@ -3502,6 +3504,78 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
     const canonicalPhoneNum = canonicalPhone(phone);
     const accountId = generateAccountId(canonicalPhoneNum);
 
+    // IDEMPOTENCY: Check if account already exists and is in pairing phase
+    // If account exists with same accountId and is in pairing phase (qr_ready/connecting), return existing account
+    // This prevents duplicate accounts and multiple session dirs for same phone due to repeated UI calls
+    let existingAccount = connections.get(accountId);
+    if (!existingAccount && firestoreAvailable && db) {
+      try {
+        const accountDoc = await db.collection('accounts').doc(accountId).get();
+        if (accountDoc.exists) {
+          const data = accountDoc.data();
+          existingAccount = { id: accountId, ...data };
+        }
+      } catch (error) {
+        console.error(`⚠️  [${accountId}] Failed to check Firestore for existing account:`, error.message);
+      }
+    }
+    
+    if (existingAccount) {
+      const existingStatus = existingAccount.status || (existingAccount.data && existingAccount.data.status);
+      const isPairingPhase = ['qr_ready', 'awaiting_scan', 'connecting', 'waiting_qr'].includes(existingStatus);
+      
+      if (isPairingPhase) {
+        // Account exists and is in pairing phase - return existing account (idempotent)
+        console.log(`ℹ️  [${accountId}] Account already exists in pairing phase (status: ${existingStatus}), returning existing account (idempotent)`);
+        const status = await waBootstrap.getWAStatus();
+        const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+        const isActive = waBootstrap.isActiveMode();
+        const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+        
+        return res.json({
+          success: true,
+          account: {
+            id: accountId,
+            name: existingAccount.name || name,
+            phone: existingAccount.phone || phone,
+            status: existingStatus,
+            qrCode: existingAccount.qrCode || null,
+            pairingCode: existingAccount.pairingCode || null,
+            createdAt: existingAccount.createdAt || new Date().toISOString(),
+          },
+          instanceId: instanceId,
+          waMode: isActive ? 'active' : 'passive',
+          requestId: requestId,
+          idempotent: true,
+        });
+      } else if (existingStatus === 'connected') {
+        // Account exists and is connected - still return it but log
+        console.log(`ℹ️  [${accountId}] Account already exists and connected (status: ${existingStatus}), returning existing account`);
+        const status = await waBootstrap.getWAStatus();
+        const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+        const isActive = waBootstrap.isActiveMode();
+        const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+        
+        return res.json({
+          success: true,
+          account: {
+            id: accountId,
+            name: existingAccount.name || name,
+            phone: existingAccount.phone || phone,
+            status: existingStatus,
+            qrCode: null,
+            pairingCode: null,
+            createdAt: existingAccount.createdAt || new Date().toISOString(),
+          },
+          instanceId: instanceId,
+          waMode: isActive ? 'active' : 'passive',
+          requestId: requestId,
+          idempotent: true,
+        });
+      }
+      // If existing status is 'logged_out' or 'needs_qr', continue to create new connection below
+    }
+
     // Check for duplicate phone number and disconnect old session
     if (phone) {
       const normalizedPhone = phone.replace(/\D/g, ''); // Remove non-digits
@@ -3571,21 +3645,8 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
       await cache.delete('whatsapp:accounts');
     }
 
-    // HARD GATE: PASSIVE mode - do NOT create connection (requires Baileys)
-    if (!waBootstrap.canStartBaileys()) {
-      const status = await waBootstrap.getWAStatus();
-      const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
-      console.log(`⏸️  [${accountId}] Add account blocked: PASSIVE mode (instanceId: ${instanceId})`);
-      return res.status(503).json({
-        success: false,
-        error: 'PASSIVE mode: another instance holds lock; retry shortly',
-        message: `Backend in PASSIVE mode: ${status.reason || 'lock not acquired'}`,
-        mode: 'passive',
-        instanceId: instanceId,
-        waMode: 'passive',
-        requestId: req.headers['x-request-id'] || `req_${Date.now()}`,
-      });
-    }
+    // NOTE: PASSIVE mode guard already checked at line 3485 via checkPassiveModeGuard()
+    // No need for duplicate check here - if we reach this point, instance is ACTIVE
 
     // Get instance info for response
     const status = await waBootstrap.getWAStatus();
@@ -3832,30 +3893,52 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
       });
     }
 
-    // IDEMPOTENCY: Check if regenerate is already in progress
+    // IDEMPOTENCY + THROTTLE: Check if regenerate is already in progress
     // Check both in-memory and Firestore for regenerating flag
     let isRegenerating = false;
+    let isConnecting = false;
     if (account && connections.has(accountId)) {
-      isRegenerating = account.regeneratingQr === true || account.status === 'connecting';
+      isRegenerating = account.regeneratingQr === true;
+      isConnecting = account.status === 'connecting' || account.status === 'qr_ready';
     } else if (firestoreAvailable && db) {
       // Check Firestore if not in memory
       try {
         const accountDoc = await db.collection('accounts').doc(accountId).get();
         if (accountDoc.exists) {
           const data = accountDoc.data();
-          isRegenerating = data.regeneratingQr === true || data.status === 'connecting';
+          isRegenerating = data.regeneratingQr === true;
+          isConnecting = data.status === 'connecting' || data.status === 'qr_ready';
         }
       } catch (error) {
         console.error(`⚠️  [${accountId}/${requestId}] Failed to check regenerating flag in Firestore:`, error.message);
       }
     }
     
-    if (isRegenerating) {
-      console.log(`ℹ️  [${accountId}/${requestId}] Regenerate already in progress (status=${account?.status || 'unknown'}), returning 202 Accepted`);
+    // THROTTLE: Per-account throttle to prevent UI loops (ignore regen requests within N seconds)
+    const REGENERATE_THROTTLE_MS = 10 * 1000; // 10 seconds
+    const lastRegenerateKey = `lastRegenerate_${accountId}`;
+    if (!global[lastRegenerateKey]) global[lastRegenerateKey] = {};
+    const lastRegenerate = global[lastRegenerateKey][accountId];
+    if (lastRegenerate && (Date.now() - lastRegenerate < REGENERATE_THROTTLE_MS)) {
+      const secondsRemaining = Math.ceil((REGENERATE_THROTTLE_MS - (Date.now() - lastRegenerate)) / 1000);
+      console.log(`ℹ️  [${accountId}/${requestId}] Regenerate throttled (${secondsRemaining}s remaining)`);
+      return res.status(429).json({
+        success: false,
+        error: 'rate_limited',
+        message: `Please wait ${secondsRemaining}s before regenerating QR again`,
+        retryAfterSeconds: secondsRemaining,
+        accountId: accountId,
+        requestId: requestId,
+      });
+    }
+    
+    // IDEMPOTENCY: Return 202 if already regenerating or connecting
+    if (isRegenerating || isConnecting) {
+      console.log(`ℹ️  [${accountId}/${requestId}] Regenerate already in progress (regenerating=${isRegenerating}, connecting=${isConnecting}), returning 202 Accepted`);
       return res.status(202).json({ 
         success: true, 
         message: 'QR regeneration already in progress',
-        status: 'already_in_progress',
+        status: isConnecting ? 'connecting' : 'already_in_progress',
         accountId: accountId,
         requestId: requestId,
       });
@@ -4029,6 +4112,12 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
     }
 
     console.log(`✅ [${accountId}/${requestId}] QR regeneration started (connection creation in progress)`);
+
+    // Mark throttle timestamp AFTER successful regeneration start (not before throttle check)
+    // This ensures throttle works correctly - only mark on actual regeneration, not on 202/429 responses
+    const lastRegenerateKey = `lastRegenerate_${accountId}`;
+    if (!global[lastRegenerateKey]) global[lastRegenerateKey] = {};
+    global[lastRegenerateKey][accountId] = Date.now();
 
     res.json({ 
       success: true, 
@@ -4426,6 +4515,10 @@ app.get('/api/whatsapp/messages', async (req, res) => {
 
 // Delete account
 app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
+  // HARD GATE: PASSIVE mode - do NOT mutate account state
+  const passiveGuard = await checkPassiveModeGuard(req, res);
+  if (passiveGuard) return; // Response already sent
+  
   try {
     const { id } = req.params;
     const account = connections.get(id);

@@ -372,6 +372,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
         // Generate unique clientRequestId for idempotency
         final clientRequestId = 'req_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
         
+        debugPrint('[AIChat] Calling chatEventOps (preview): requestId=$clientRequestId, textLength=${commandText.length}, dryRun=true');
+        
         // Call chatEventOps with dryRun=true for preview
         final eventCallable =
             FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
@@ -384,6 +386,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
           'dryRun': true,
           'clientRequestId': clientRequestId,
         });
+        
+        debugPrint('[AIChat] chatEventOps preview result: requestId=$clientRequestId, ok=${previewResult.data['ok']}, action=${previewResult.data['action']}');
         
         final previewData = Map<String, dynamic>.from(previewResult.data);
         
@@ -1308,6 +1312,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
     });
     _scrollToBottomSoon();
 
+    debugPrint('[AIChat] Calling chatEventOps (create): requestId=$clientRequestId, textLength=${commandText.length}, dryRun=false');
+    
     try {
       final eventCallable =
           FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
@@ -1320,6 +1326,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
         'dryRun': false,
         'clientRequestId': clientRequestId,
       });
+      
+      debugPrint('[AIChat] chatEventOps create result: requestId=$clientRequestId, ok=${result.data['ok']}, action=${result.data['action']}, eventId=${result.data['eventId']}');
 
       final data = Map<String, dynamic>.from(result.data);
       final ok = data['ok'] == true;

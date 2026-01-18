@@ -546,22 +546,38 @@ Scrie "da" pentru a confirma și crea evenimentul, sau "anulează" pentru a renu
 
         if (step === 'confirm') {
           if (userText === 'da' || userText === 'confirm' || userText === 'confirma') {
-            // Call chatEventOps to create event
-            const chatEventOps = require('./chatEventOps');
-            
+            // Call chatEventOps via exported callable (proper way)
             const eventText = `Notează eveniment pentru ${eventData.sarbatoritNume}, ${eventData.sarbatoritVarsta} ani, pe ${eventData.date} la ${eventData.address}`;
+            const clientRequestId = `interactive_${currentSessionId}_${Date.now()}`;
+            
+            console.log(`[${requestId}] Creating event via chatEventOps`, {
+              clientRequestId,
+              sessionId: currentSessionId,
+              eventData: {
+                name: eventData.sarbatoritNume,
+                age: eventData.sarbatoritVarsta,
+                date: eventData.date,
+                address: eventData.address,
+              },
+            });
             
             try {
-              const eventResult = await chatEventOps({
+              // Use the exported handler function directly (not the onCall wrapper)
+              const { chatEventOpsHandler } = require('./chatEventOps');
+              
+              // Call handler directly with request-like object
+              const eventResult = await chatEventOpsHandler({
                 data: {
                   text: eventText,
                   dryRun: false,
-                  clientRequestId: `interactive_${currentSessionId}_${Date.now()}`
+                  clientRequestId,
                 },
-                auth: request.auth
-              }, {
-                status: () => ({ json: () => {} }),
-                json: (data) => data
+                auth: request.auth,
+              });
+              
+              console.log(`[${requestId}] Event created successfully`, {
+                eventId: eventResult.eventId,
+                clientRequestId,
               });
               
               // Clear conversation state
@@ -575,7 +591,11 @@ Scrie "da" pentru a confirma și crea evenimentul, sau "anulează" pentru a renu
                 eventId: eventResult.eventId
               };
             } catch (error) {
-              console.error(`[${requestId}] Error creating event:`, error);
+              console.error(`[${requestId}] Error creating event:`, {
+                error: error.message,
+                stack: error.stack,
+                clientRequestId,
+              });
               await stateRef.delete();
               
               return {

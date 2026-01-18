@@ -2,6 +2,8 @@ import 'dart:math';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../errors/app_exception.dart';
 
+// Import ServiceUnavailableException for type check
+
 /// Retry configuration
 class RetryConfig {
   final int maxAttempts;
@@ -28,6 +30,12 @@ class RetryConfig {
     // Handle AppException
     if (e is UnauthorizedException || e is ForbiddenException) {
       return false; // Never retry auth/permission errors
+    }
+    
+    // Handle ServiceUnavailableException (503) - retry with longer backoff
+    // PASSIVE mode is transient - backend will retry lock acquisition
+    if (e is ServiceUnavailableException) {
+      return true; // Retry 503 (PASSIVE mode is transient)
     }
     
     // Other errors: retry
@@ -104,10 +112,31 @@ Future<T> retryWithBackoff<T>(
       }
 
       // Calculate delay with exponential backoff + jitter
-      final exponentialDelay = cfg.initialDelay.inMilliseconds * pow(cfg.backoffMultiplier, attempt - 1);
+      // CRITICAL: For 503 (ServiceUnavailableException), use retryAfterSeconds from response if available
+      // PASSIVE mode requires time for lock acquisition retry
+      final isServiceUnavailable = lastError is ServiceUnavailableException;
+      int baseDelayMs;
+      int maxDelayMs;
+      
+      if (isServiceUnavailable) {
+        // Use retryAfterSeconds from ServiceUnavailableException if available, otherwise default to 15s
+        final serviceUnavailable = lastError as ServiceUnavailableException;
+        final retryAfterSeconds = serviceUnavailable.retryAfterSeconds;
+        baseDelayMs = (retryAfterSeconds ?? 15) * 1000; // Use retryAfterSeconds or default 15s
+        maxDelayMs = 60 * 1000; // Max 60s for PASSIVE mode retries
+      } else {
+        baseDelayMs = cfg.initialDelay.inMilliseconds;
+        maxDelayMs = cfg.maxDelay.inMilliseconds;
+      }
+      
+      final baseDelay = Duration(milliseconds: baseDelayMs);
+      final maxDelayForError = Duration(milliseconds: maxDelayMs);
+      
+      final exponentialDelay = baseDelayMs * pow(cfg.backoffMultiplier, attempt - 1);
+      
       final cappedDelayMs = exponentialDelay.clamp(
-        cfg.initialDelay.inMilliseconds.toDouble(),
-        cfg.maxDelay.inMilliseconds.toDouble(),
+        baseDelay.inMilliseconds.toDouble(),
+        maxDelayForError.inMilliseconds.toDouble(),
       ).toInt();
       
       final jitter = Random().nextInt(cappedDelayMs ~/ 4); // +/- 25% jitter

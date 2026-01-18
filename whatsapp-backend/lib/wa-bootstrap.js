@@ -132,26 +132,48 @@ function stopPassiveRetryLoop() {
  */
 function setupLockLostHandler() {
   // Check lock status every 30s
-  setInterval(async () => {
-    if (!waIntegration || !isActive) return;
+  const lockCheckInterval = setInterval(async () => {
+    if (!waIntegration || !isActive) {
+      // If not active, stop checking (will be restarted when active)
+      clearInterval(lockCheckInterval);
+      return;
+    }
 
-    const lockStatus = await waIntegration.stability.lock.getStatus();
+    try {
+      const lockStatus = await waIntegration.stability.lock.getStatus();
 
-    if (!lockStatus.isHolder) {
-      console.error('[WABootstrap] 🚨 LOCK LOST - entering PASSIVE mode');
-      console.error(
-        `[WABootstrap] lock_lost_entering_passive instanceId=${instanceId} leaseEpoch=${lockStatus.leaseEpoch || 'unknown'}`
-      );
+      if (!lockStatus.isHolder) {
+        console.error('[WABootstrap] 🚨 LOCK LOST - entering PASSIVE mode');
+        console.error(
+          `[WABootstrap] lock_lost_entering_passive instanceId=${instanceId} leaseEpoch=${lockStatus.leaseEpoch || 'unknown'} holderInstanceId=${lockStatus.holderInstanceId || 'unknown'}`
+        );
 
-      isActive = false;
+        isActive = false;
+        clearInterval(lockCheckInterval); // Stop checking when passive
 
-      // TODO: Close all Baileys sockets immediately
-      // This will be implemented when integrating with actual socket management
+        // TODO: Close all Baileys sockets immediately
+        // This will be implemented when integrating with actual socket management
 
-      console.log('[WABootstrap] All Baileys connections closed');
-      console.log('[WABootstrap] Now in PASSIVE mode');
+        console.log('[WABootstrap] All Baileys connections closed');
+        console.log('[WABootstrap] Now in PASSIVE mode - will retry lock acquisition');
+        
+        // Restart passive retry loop to re-acquire lock
+        if (waIntegration && db) {
+          startPassiveRetryLoop(db);
+        }
+      } else {
+        // Lock still held - log periodically for debugging
+        if (Date.now() % 300000 < 30000) { // Log every ~5 minutes
+          console.log(`[WABootstrap] Lock check: still holder (leaseEpoch: ${lockStatus.leaseEpoch || 'unknown'})`);
+        }
+      }
+    } catch (error) {
+      console.error('[WABootstrap] Lock status check failed:', error.message);
+      // Continue checking on next interval
     }
   }, 30000);
+  
+  console.log('[WABootstrap] Lock lost handler started (checks every 30s)');
 }
 
 /**

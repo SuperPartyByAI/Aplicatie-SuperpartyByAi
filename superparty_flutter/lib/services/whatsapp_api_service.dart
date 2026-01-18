@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -34,8 +35,19 @@ class WhatsAppApiService {
     // Check if using emulators
     const useEmulators = bool.fromEnvironment('USE_EMULATORS', defaultValue: false);
     if (useEmulators && kDebugMode) {
-      // Emulator Functions URL (from firebase.json: port 5002)
-      return 'http://127.0.0.1:5002';
+      // CRITICAL FIX: Use 10.0.2.2 for Android emulator when USE_ADB_REVERSE=false
+      // This matches Firebase emulator host selection logic in firebase_service.dart
+      const useAdbReverse = bool.fromEnvironment('USE_ADB_REVERSE', defaultValue: true);
+      if (Platform.isAndroid && !useAdbReverse) {
+        // Android emulator: use 10.0.2.2 (maps to host's 127.0.0.1)
+        // Works without adb reverse setup
+        debugPrint('[WhatsAppApiService] Using Android emulator Functions URL: http://10.0.2.2:5002 (no adb reverse)');
+        return 'http://10.0.2.2:5002';
+      } else {
+        // Use 127.0.0.1 when adb reverse is configured OR non-Android platform
+        debugPrint('[WhatsAppApiService] Using Functions URL: http://127.0.0.1:5002 (adb reverse: $useAdbReverse, platform: ${Platform.isAndroid ? "Android" : "Other"})');
+        return 'http://127.0.0.1:5002';
+      }
     }
     
     // Production: derive project ID from Firebase
@@ -81,10 +93,21 @@ class WhatsAppApiService {
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
 
+      final endpointUrl = '$functionsUrl/whatsappProxySend';
+      final hasToken = (token?.isNotEmpty ?? false);
+      
+      debugPrint('[WhatsAppApiService] sendViaProxy: calling proxy');
+      debugPrint('  endpoint: $endpointUrl');
+      debugPrint('  uid: ${user.uid.substring(0, 8)}...');
+      debugPrint('  tokenPresent: $hasToken');
+      debugPrint('  requestId: $requestId');
+      debugPrint('  threadId: $threadId, accountId: $accountId, toJid: $toJid');
+      debugPrint('  textLength: ${text.length}');
+
       // Call Functions proxy with timeout
       final response = await http
           .post(
-            Uri.parse('$functionsUrl/whatsappProxySend'),
+            Uri.parse(endpointUrl),
             headers: {
               'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
@@ -100,8 +123,13 @@ class WhatsAppApiService {
           )
           .timeout(requestTimeout);
 
+      debugPrint('[WhatsAppApiService] sendViaProxy: response');
+      debugPrint('  statusCode: ${response.statusCode}');
+      debugPrint('  bodyLength: ${response.body.length}');
+
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+        debugPrint('[WhatsAppApiService] sendViaProxy: error=${errorBody?['error']}, message=${errorBody?['message']}');
         throw ErrorMapper.fromHttpException(
           response.statusCode,
           errorBody?['message'] as String?,
@@ -109,6 +137,7 @@ class WhatsAppApiService {
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
+      debugPrint('[WhatsAppApiService] sendViaProxy: success (requestId=${data['requestId']}, duplicate=${data['duplicate']})');
       return data;
     });
   }
@@ -132,28 +161,42 @@ class WhatsAppApiService {
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
 
-      debugPrint('[WhatsAppApiService] getAccounts: calling proxy (uid=${user.uid.substring(0, 8)}...)');
+      final endpointUrl = '$functionsUrl/whatsappProxyGetAccounts';
+      final hasToken = (token?.isNotEmpty ?? false);
+      
+      debugPrint('[WhatsAppApiService] getAccounts: calling proxy');
+      debugPrint('  endpoint: $endpointUrl');
+      debugPrint('  uid: ${user.uid.substring(0, 8)}...');
+      debugPrint('  tokenPresent: $hasToken');
+      debugPrint('  requestId: $requestId');
 
       // Call Functions proxy with Authorization header
+      // #region agent log
+      final correlationId = 'getAccounts_${DateTime.now().millisecondsSinceEpoch}';
+      // #endregion
       final response = await http
           .get(
-            Uri.parse('$functionsUrl/whatsappProxyGetAccounts'),
+            Uri.parse(endpointUrl),
             headers: {
               'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
               'X-Request-ID': requestId,
+              'X-Correlation-Id': correlationId, // For end-to-end tracing
             },
           )
           .timeout(requestTimeout);
 
-      debugPrint('[WhatsAppApiService] getAccounts: status=${response.statusCode}, bodyLength=${response.body.length}');
+      debugPrint('[WhatsAppApiService] getAccounts: response');
+      debugPrint('  statusCode: ${response.statusCode}');
+      debugPrint('  bodyLength: ${response.body.length}');
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
-        debugPrint('[WhatsAppApiService] getAccounts: error=${errorBody?['error']}, message=${errorBody?['message']}');
+        debugPrint('[WhatsAppApiService] getAccounts: error=${errorBody?['error']}, message=${errorBody?['message']}, mode=${errorBody?['mode']}, instanceId=${errorBody?['instanceId']}');
         throw ErrorMapper.fromHttpException(
           response.statusCode,
           errorBody?['message'] as String?,
+          responseBody: errorBody,
         );
       }
 
@@ -186,16 +229,28 @@ class WhatsAppApiService {
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
 
-      debugPrint('[WhatsAppApiService] addAccount: calling proxy (uid=${user.uid.substring(0, 8)}..., name=$name, phone=$phone)');
+      final endpointUrl = '$functionsUrl/whatsappProxyAddAccount';
+      final hasToken = (token?.isNotEmpty ?? false);
+      
+      debugPrint('[WhatsAppApiService] addAccount: calling proxy');
+      debugPrint('  endpoint: $endpointUrl');
+      debugPrint('  uid: ${user.uid.substring(0, 8)}...');
+      debugPrint('  tokenPresent: $hasToken');
+      debugPrint('  requestId: $requestId');
+      debugPrint('  name: $name, phone: $phone');
 
       // Call Functions proxy with Authorization header
+      // #region agent log
+      final correlationId = 'addAccount_${DateTime.now().millisecondsSinceEpoch}';
+      // #endregion
       final response = await http
           .post(
-            Uri.parse('$functionsUrl/whatsappProxyAddAccount'),
+            Uri.parse(endpointUrl),
             headers: {
               'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
               'X-Request-ID': requestId,
+              'X-Correlation-Id': correlationId, // For end-to-end tracing
             },
             body: jsonEncode({
               'name': name,
@@ -204,14 +259,17 @@ class WhatsAppApiService {
           )
           .timeout(requestTimeout);
 
-      debugPrint('[WhatsAppApiService] addAccount: status=${response.statusCode}, bodyLength=${response.body.length}');
+      debugPrint('[WhatsAppApiService] addAccount: response');
+      debugPrint('  statusCode: ${response.statusCode}');
+      debugPrint('  bodyLength: ${response.body.length}');
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
-        debugPrint('[WhatsAppApiService] addAccount: error=${errorBody?['error']}, message=${errorBody?['message']}');
+        debugPrint('[WhatsAppApiService] addAccount: error=${errorBody?['error']}, message=${errorBody?['message']}, mode=${errorBody?['mode']}, instanceId=${errorBody?['instanceId']}');
         throw ErrorMapper.fromHttpException(
           response.statusCode,
           errorBody?['message'] as String?,
+          responseBody: errorBody,
         );
       }
 
@@ -221,55 +279,156 @@ class WhatsAppApiService {
     });
   }
 
+  // In-flight guard for regenerate QR (prevents concurrent calls)
+  static final Set<String> _regenerateInFlight = {};
+  
+  // Cooldown map: accountId -> last failure timestamp
+  static final Map<String, DateTime> _regenerateCooldown = {};
+  static const _regenerateCooldownSeconds = 30; // 30s cooldown after failure
+
   /// Regenerate QR code for a WhatsApp account via Functions proxy.
   /// 
   /// CRITICAL FIX: Uses proxy with Authorization header (Firebase ID token).
   /// Previously called Railway directly without auth, causing 401 errors.
   /// 
+  /// GUARD: Prevents concurrent calls and enforces cooldown after failures.
+  /// BLOCKS: If account status is connecting/qr_ready/connected (no regenerate needed).
+  /// 
   /// Returns: { success: bool, message?: string, ... }
   Future<Map<String, dynamic>> regenerateQr({
     required String accountId,
+    String? currentStatus, // Optional: check status before regenerating
   }) async {
-    return retryWithBackoff(() async {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw UnauthorizedException();
+    // GUARD: Check if already in flight
+    if (_regenerateInFlight.contains(accountId)) {
+      debugPrint('[WhatsAppApiService] regenerateQr: already in flight for $accountId, skipping');
+      throw Exception('QR regeneration already in progress for this account');
+    }
+
+    // CRITICAL FIX: Block regenerate if status is connecting/qr_ready/connected
+    // These states mean account is already pairing/paired, regenerate is not needed
+    if (currentStatus != null) {
+      final blockingStatuses = ['connecting', 'qr_ready', 'awaiting_scan', 'connected'];
+      if (blockingStatuses.contains(currentStatus)) {
+        debugPrint('[WhatsAppApiService] regenerateQr: blocked - account status is $currentStatus (regenerate not needed)');
+        throw Exception('Cannot regenerate QR: account status is $currentStatus. QR already available or account is connected.');
       }
+    }
 
-      // Get Firebase ID token
-      final token = await user.getIdToken();
-      final functionsUrl = _getFunctionsUrl();
-      final requestId = _generateRequestId();
-
-      debugPrint('[WhatsAppApiService] regenerateQr: calling proxy (uid=${user.uid.substring(0, 8)}..., accountId=$accountId)');
-
-      // Call Functions proxy with Authorization header (query param for accountId)
-      final response = await http
-          .post(
-            Uri.parse('$functionsUrl/whatsappProxyRegenerateQr?accountId=$accountId'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-              'X-Request-ID': requestId,
-            },
-          )
-          .timeout(requestTimeout);
-
-      debugPrint('[WhatsAppApiService] regenerateQr: status=${response.statusCode}, bodyLength=${response.body.length}');
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
-        debugPrint('[WhatsAppApiService] regenerateQr: error=${errorBody?['error']}, message=${errorBody?['message']}');
-        throw ErrorMapper.fromHttpException(
-          response.statusCode,
-          errorBody?['message'] as String?,
-        );
+    // GUARD: Check cooldown after failure
+    final lastFailure = _regenerateCooldown[accountId];
+    if (lastFailure != null) {
+      final secondsSinceFailure = DateTime.now().difference(lastFailure).inSeconds;
+      if (secondsSinceFailure < _regenerateCooldownSeconds) {
+        final remaining = _regenerateCooldownSeconds - secondsSinceFailure;
+        debugPrint('[WhatsAppApiService] regenerateQr: cooldown active (${remaining}s remaining)');
+        throw Exception('Please wait ${remaining}s before regenerating QR again (cooldown after failure)');
       }
+      // Cooldown expired, clear it
+      _regenerateCooldown.remove(accountId);
+    }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      debugPrint('[WhatsAppApiService] regenerateQr: success, message=${data['message']}');
-      return data;
-    });
+    // Mark as in-flight
+    _regenerateInFlight.add(accountId);
+
+    try {
+      return await retryWithBackoff(() async {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user == null) {
+          throw UnauthorizedException();
+        }
+
+        // Get Firebase ID token
+        final token = await user.getIdToken();
+        final functionsUrl = _getFunctionsUrl();
+        final requestId = _generateRequestId();
+
+        final endpointUrl = '$functionsUrl/whatsappProxyRegenerateQr?accountId=$accountId';
+        final hasToken = (token?.isNotEmpty ?? false);
+        
+        debugPrint('[WhatsAppApiService] regenerateQr: calling proxy');
+        debugPrint('  endpoint: $endpointUrl');
+        debugPrint('  uid: ${user.uid.substring(0, 8)}...');
+        debugPrint('  tokenPresent: $hasToken');
+        debugPrint('  requestId: $requestId');
+        debugPrint('  accountId: $accountId');
+
+        // Call Functions proxy with Authorization header (query param for accountId)
+        // #region agent log
+        final correlationId = 'regenerateQr_${DateTime.now().millisecondsSinceEpoch}';
+        // #endregion
+        final response = await http
+            .post(
+              Uri.parse(endpointUrl),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+                'X-Request-ID': requestId,
+                'X-Correlation-Id': correlationId, // For end-to-end tracing
+              },
+            )
+            .timeout(requestTimeout);
+
+        debugPrint('[WhatsAppApiService] regenerateQr: response');
+        debugPrint('  statusCode: ${response.statusCode}');
+        debugPrint('  bodyLength: ${response.body.length}');
+
+        // CRITICAL FIX: Handle 202 (already in progress) and 429 (rate limited) as non-fatal
+        // 202 = already connecting/regenerating - return success with status
+        // 429 = rate limited - return error but don't set cooldown (throttle already applied)
+        if (response.statusCode == 202) {
+          final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+          debugPrint('[WhatsAppApiService] regenerateQr: 202 already_in_progress - returning success');
+          return {
+            'success': true,
+            'message': errorBody?['message'] ?? 'QR regeneration already in progress',
+            'status': errorBody?['status'] ?? 'already_in_progress',
+            'requestId': errorBody?['requestId'],
+          };
+        }
+        
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+          final errorCode = errorBody?['error'] as String?;
+          final status = errorBody?['status'] as String?;
+          debugPrint('[WhatsAppApiService] regenerateQr: error=$errorCode, status=$status, message=${errorBody?['message']}, mode=${errorBody?['mode']}, instanceId=${errorBody?['instanceId']}, requestId=${errorBody?['requestId']}');
+          
+          // CRITICAL FIX: Handle 429 (rate_limited) gracefully - show message but don't set cooldown (throttle already applied)
+          if (response.statusCode == 429 || errorCode == 'rate_limited') {
+            final retryAfterSeconds = errorBody?['retryAfterSeconds'] as int? ?? 10;
+            debugPrint('[WhatsAppApiService] regenerateQr: 429 rate_limited - throttle applied, retryAfter=${retryAfterSeconds}s');
+            throw ServiceUnavailableException(
+              errorBody?['message'] ?? 'Please wait before regenerating QR again',
+              retryAfterSeconds: retryAfterSeconds,
+              originalError: errorBody,
+            );
+          }
+          
+          // Set cooldown on failure (except for 202/429 which are handled above)
+          if (status != 'already_in_progress') {
+            _regenerateCooldown[accountId] = DateTime.now();
+            debugPrint('[WhatsAppApiService] regenerateQr: cooldown set for $accountId (30s)');
+          }
+          
+          throw ErrorMapper.fromHttpException(
+            response.statusCode,
+            errorBody?['message'] as String?,
+            responseBody: errorBody,
+          );
+        }
+
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        debugPrint('[WhatsAppApiService] regenerateQr: success, message=${data['message']}, requestId=${data['requestId']}');
+        
+        // Clear cooldown on success
+        _regenerateCooldown.remove(accountId);
+        
+        return data;
+      });
+    } finally {
+      // Always remove from in-flight set
+      _regenerateInFlight.remove(accountId);
+    }
   }
 
   /// Delete a WhatsApp account via Functions proxy (super-admin only).

@@ -1,7 +1,9 @@
 import 'dart:ui' show ImageFilter;
 import 'dart:io';
+import 'dart:async'; // For TimeoutException
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/event_model.dart';
 import '../../widgets/modals/range_modal.dart';
@@ -501,7 +503,13 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
 
   Widget _buildEventsList() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('evenimente').snapshots(),
+      stream: FirebaseFirestore.instance.collection('evenimente').snapshots().timeout(
+        const Duration(seconds: 30),
+        onTimeout: (sink) {
+          debugPrint('[EvenimenteScreen] ⚠️ Firestore stream timeout (30s) - showing error');
+          sink.addError(TimeoutException('Firestore query timeout', const Duration(seconds: 30)));
+        },
+      ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -512,10 +520,32 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         }
 
         if (snapshot.hasError) {
+          debugPrint('[EvenimenteScreen] Firestore error: ${snapshot.error}');
+          debugPrint('[EvenimenteScreen] Error stack: ${snapshot.error is Exception ? (snapshot.error as Exception).toString() : snapshot.error}');
           return Center(
-            child: Text(
-              'Eroare: ${snapshot.error}',
-              style: const TextStyle(color: Color(0xFFFF7878)), // --bad
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: const Color(0xFFFF7878), // --bad
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Eroare: ${snapshot.error}',
+                    style: const TextStyle(color: Color(0xFFFF7878)), // --bad
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => setState(() {}), // Retry
+                    child: const Text('Reîncearcă'),
+                  ),
+                ],
+              ),
             ),
           );
         }
@@ -523,17 +553,63 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
         final events = snapshot.data?.docs.map((doc) {
           return EventModel.fromFirestore(doc);
         }).toList() ?? [];
+        
+        // Log query params for debugging (with correlation ID)
+        final correlationId = 'evt_${DateTime.now().millisecondsSinceEpoch}';
+        debugPrint('[EvenimenteScreen/$correlationId] Query params: datePreset=${_datePreset}, driverFilter=${_driverFilter}, codeFilter=${_codeFilter}, notedByFilter=${_notedByFilter}');
+        debugPrint('[EvenimenteScreen/$correlationId] Loaded ${events.length} events from Firestore');
+        debugPrint('[EvenimenteScreen/$correlationId] Events breakdown: total=${events.length}, isArchived=false=${events.where((e) => !e.isArchived).length}, isArchived=true=${events.where((e) => e.isArchived).length}');
+        
         _allEvents = events; // Cache for CodeInfoModal
         final filteredEvents = _applyFilters(events);
+        
+        debugPrint('[EvenimenteScreen/$correlationId] Filtered events count: ${filteredEvents.length}');
+        
+        // Log filter breakdown for debugging
+        if (filteredEvents.length < events.where((e) => !e.isArchived).length) {
+          final excluded = events.where((e) => !e.isArchived).length - filteredEvents.length;
+          debugPrint('[EvenimenteScreen/$correlationId] Filtered out $excluded events (date/driver/code/notedBy filters)');
+        }
 
         if (filteredEvents.isEmpty) {
           return Center(
-            child: Text(
-              'Nu există evenimente',
-              style: TextStyle(
-                fontSize: 14,
-                color: const Color(0xFFEAF1FF).withValues(alpha: 0.7),
-              ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.event_busy,
+                  size: 64,
+                  color: const Color(0xFFEAF1FF).withValues(alpha: 0.5),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Nu există evenimente',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: const Color(0xFFEAF1FF).withValues(alpha: 0.7),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Total în Firestore: ${events.length} (arhivate: ${events.where((e) => e.isArchived).length})',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: const Color(0xFFEAF1FF).withValues(alpha: 0.5),
+                  ),
+                ),
+                if (events.isEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    '💡 Creează evenimente din AI Chat sau folosește seed_evenimente.js',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: const Color(0xFFEAF1FF).withValues(alpha: 0.5),
+                      fontStyle: FontStyle.italic,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ],
             ),
           );
         }

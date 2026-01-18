@@ -79,6 +79,20 @@ class _AuthWrapperState extends State<AuthWrapper> {
     return StreamBuilder<User?>(
       stream: authStream,
       builder: (context, snapshot) {
+        // CRITICAL FIX: Check for error/timeout BEFORE waiting state
+        // Prevents black screen when auth stream times out or errors
+        if (snapshot.hasError) {
+          debugPrint('[AuthWrapper] ⚠️ Auth stream error: ${snapshot.error}');
+          return _buildAuthErrorScreen(context, snapshot.error.toString());
+        }
+        
+        // CRITICAL FIX: If snapshot has no data and no error after timeout, show timeout screen
+        // This prevents black screen when timeout occurs (onTimeout emits currentUser but snapshot might be empty)
+        if (snapshot.connectionState == ConnectionState.done && !snapshot.hasData && !snapshot.hasError) {
+          debugPrint('[AuthWrapper] ⚠️ Auth stream completed with no data (timeout likely occurred)');
+          return _buildAuthTimeoutScreen(context);
+        }
+        
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
@@ -191,6 +205,112 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
         return const LoginScreen();
       },
+    );
+  }
+
+  /// Build error screen for auth stream errors
+  Widget _buildAuthErrorScreen(BuildContext context, String error) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0B1220),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                size: 64,
+                color: Color(0xFFFF7878), // --bad
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Authentication Error',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFEAF1FF), // --text
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                error.length > 200 ? '${error.substring(0, 200)}...' : error,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFFFF7878), // --bad
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  // Retry by rebuilding widget
+                  setState(() {});
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4ECDC4), // --accent
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                ),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build timeout screen for auth stream timeouts
+  Widget _buildAuthTimeoutScreen(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0B1220),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.wifi_off,
+                size: 64,
+                color: Color(0xFFFFA726), // Orange for timeout
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Connection Timeout',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFEAF1FF), // --text
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Firebase emulator may be down or unreachable.\n\nIf using emulators:\n1. Verify: npm run emu:check\n2. Use: --dart-define=USE_EMULATORS=true',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFFEAF1FF), // --text
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  // Retry by rebuilding widget
+                  setState(() {});
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4ECDC4), // --accent
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                ),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

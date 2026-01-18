@@ -38,6 +38,23 @@ class TimeoutException extends AppException {
       : super(message ?? 'Timeout: cererea a durat prea mult.', code: 'timeout');
 }
 
+/// Service unavailable errors (503 - PASSIVE mode, backend down, etc.)
+class ServiceUnavailableException extends AppException {
+  final String? mode; // 'passive' | 'active' | null
+  final String? instanceId;
+  final String? holderInstanceId;
+  final int? retryAfterSeconds;
+  
+  ServiceUnavailableException(
+    super.message, {
+    this.mode,
+    this.instanceId,
+    this.holderInstanceId,
+    this.retryAfterSeconds,
+    super.originalError,
+  }) : super(code: 'service_unavailable');
+}
+
 /// Unknown/unexpected errors
 class UnknownException extends AppException {
   UnknownException(super.message, {super.originalError}) : super(code: 'unknown');
@@ -64,12 +81,33 @@ class ErrorMapper {
     return UnknownException(message, originalError: e);
   }
 
-  static AppException fromHttpException(int statusCode, String? message) {
+  static AppException fromHttpException(
+    int statusCode, 
+    String? message, {
+    Map<String, dynamic>? responseBody,
+  }) {
     switch (statusCode) {
       case 401:
         return UnauthorizedException(message);
       case 403:
         return ForbiddenException(message);
+      case 503:
+        // Service unavailable - could be PASSIVE mode
+        final mode = responseBody?['mode'] as String?;
+        final instanceId = responseBody?['instanceId'] as String?;
+        final holderInstanceId = responseBody?['holderInstanceId'] as String?;
+        final retryAfterSeconds = responseBody?['retryAfterSeconds'] as int?;
+        final errorMsg = message ?? 
+                        responseBody?['message'] as String? ?? 
+                        'Serviciul nu este disponibil momentan.';
+        return ServiceUnavailableException(
+          errorMsg,
+          mode: mode,
+          instanceId: instanceId,
+          holderInstanceId: holderInstanceId,
+          retryAfterSeconds: retryAfterSeconds,
+          originalError: responseBody,
+        );
       case 408:
       case 504:
         return TimeoutException(message);

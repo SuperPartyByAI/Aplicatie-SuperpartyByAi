@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -17,6 +17,7 @@ import '../screens/disponibilitate/disponibilitate_screen.dart';
 import '../screens/salarizare/salarizare_screen.dart';
 import '../screens/centrala/centrala_screen.dart';
 import '../screens/whatsapp/whatsapp_screen.dart';
+import '../screens/debug/whatsapp_diagnostics_screen.dart';
 import '../screens/whatsapp/whatsapp_accounts_screen.dart';
 import '../screens/whatsapp/whatsapp_inbox_screen.dart';
 import '../screens/whatsapp/whatsapp_chat_screen.dart';
@@ -53,6 +54,22 @@ class AppRouter {
         kDebugMode ? const Duration(seconds: 30) : const Duration(seconds: 5),
         onTimeout: (sink) {
           debugPrint('[AppRouter] ⚠️ Auth stream timeout (${kDebugMode ? 30 : 5}s) - emulator may be down');
+          // #region agent log
+          try {
+            final timestamp = DateTime.now().millisecondsSinceEpoch;
+            final logEntry = jsonEncode({
+              'id': 'auth_timeout_$timestamp',
+              'timestamp': timestamp,
+              'location': 'app_router.dart:authStateChanges:timeout',
+              'message': 'Auth stream timeout',
+              'data': {'timeoutSeconds': kDebugMode ? 30 : 5},
+              'sessionId': 'debug-session',
+              'runId': 'run1',
+              'hypothesisId': 'D',
+            });
+            File('/Users/universparty/.cursor/debug.log').writeAsStringSync('$logEntry\n', mode: FileMode.append);
+          } catch (_) {}
+          // #endregion
           // CRITICAL FIX: Emit current user (or null) to prevent GoRouter from being stuck
           // Without this, GoRouter has no valid configuration → black screen
           final currentUser = FirebaseService.auth.currentUser;
@@ -116,6 +133,12 @@ class AppRouter {
           child: const WhatsAppScreen(),
         ),
         routes: [
+          // Debug diagnostics (only in debug mode)
+          if (kDebugMode)
+            GoRoute(
+              path: 'diagnostics',
+              builder: (context, state) => const WhatsAppDiagnosticsScreen(),
+            ),
           GoRoute(
             path: 'accounts',
             builder: (context, state) => AuthGate(

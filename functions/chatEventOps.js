@@ -186,13 +186,19 @@ function sanitizeUpdateFields(data) {
   return out;
 }
 
-exports.chatEventOps = onCall(
-  { 
-    region: 'us-central1', 
-    timeoutSeconds: 30,
-    secrets: [groqApiKey]  // Attach GROQ_API_KEY secret
-  },
-  async (request) => {
+// Internal handler function (can be called directly or via onCall)
+async function chatEventOpsHandler(request) {
+  const requestId = request.data?.clientRequestId || `chatEventOps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const startTime = Date.now();
+  
+  try {
+    console.log(`[${requestId}] chatEventOps called`, {
+      uid: request.auth?.uid,
+      email: request.auth?.token?.email,
+      textLength: (request.data?.text || '').length,
+      dryRun: request.data?.dryRun === true,
+    });
+
     // Require authentication (all authenticated users can use this)
     const auth = requireAuth(request);
     const { uid, email } = auth;
@@ -201,7 +207,10 @@ exports.chatEventOps = onCall(
     const employeeInfo = await isEmployee(uid, email);
 
     const text = (request.data?.text || '').toString().trim();
-    if (!text) throw new HttpsError('invalid-argument', 'Lipsește "text".');
+    if (!text) {
+      console.error(`[${requestId}] Missing text parameter`);
+      throw new HttpsError('invalid-argument', 'Lipsește "text".');
+    }
 
     // DryRun mode: parse command but don't execute (for preview)
     const dryRun = request.data?.dryRun === true;
@@ -209,7 +218,7 @@ exports.chatEventOps = onCall(
     // Access GROQ API key from secret
     const groqKey = groqApiKey.value();
     if (!groqKey) {
-      console.error('[chatEventOps] GROQ_API_KEY not available');
+      console.error(`[${requestId}] GROQ_API_KEY not available`);
       throw new HttpsError('failed-precondition', 'Lipsește GROQ_API_KEY.');
     }
 
@@ -481,7 +490,14 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
       }
 
       const ref = await db.collection('evenimente').add(doc);
-      return { ok: true, action: 'CREATE', eventId: ref.id, message: `Eveniment creat și adăugat în Evenimente.`, dryRun: false };
+      const result = { ok: true, action: 'CREATE', eventId: ref.id, message: `Eveniment creat și adăugat în Evenimente.`, dryRun: false };
+      console.log(`[${requestId}] Event created`, {
+        eventId: ref.id,
+        eventShortId: doc.eventShortId,
+        date: doc.date,
+        address: doc.address,
+      });
+      return result;
     }
 
     if (action === 'UPDATE') {
@@ -627,8 +643,36 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
       return { ok: true, action: 'UNARCHIVE', eventId, message: `Eveniment dezarhivat: ${eventId}`, dryRun: false };
     }
 
-    return { ok: false, action: 'NONE', message: `Acțiune necunoscută: ${action}`, raw };
+    const result = { ok: false, action: 'NONE', message: `Acțiune necunoscută: ${action}`, raw };
+    const duration = Date.now() - startTime;
+    console.log(`[${requestId}] chatEventOps completed`, {
+      action: result.action,
+      ok: result.ok,
+      durationMs: duration,
+    });
+    return result;
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error(`[${requestId}] chatEventOps error`, {
+      error: error.message,
+      stack: error.stack,
+      durationMs: duration,
+    });
+    throw error;
   }
+}
+
+// Export as onCall handler
+exports.chatEventOps = onCall(
+  { 
+    region: 'us-central1', 
+    timeoutSeconds: 30,
+    secrets: [groqApiKey]  // Attach GROQ_API_KEY secret
+  },
+  chatEventOpsHandler
 );
+
+// Export handler function for direct calls (e.g., from chatWithAI)
+exports.chatEventOpsHandler = chatEventOpsHandler;
 
 // Force redeploy Fri Jan  9 14:06:54 UTC 2026

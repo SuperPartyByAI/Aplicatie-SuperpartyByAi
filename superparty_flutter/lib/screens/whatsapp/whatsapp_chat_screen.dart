@@ -1,6 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
@@ -53,9 +56,12 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty || _isSending || _accountId == null || _threadId == null || _clientJid == null) {
+      debugPrint('[WhatsAppChatScreen] _sendMessage: validation failed (isEmpty=${text.isEmpty}, isSending=$_isSending, accountId=$_accountId, threadId=$_threadId, clientJid=$_clientJid)');
       return;
     }
 
+    debugPrint('[WhatsAppChatScreen] _sendMessage: starting (accountId=$_accountId, threadId=$_threadId, textLength=${text.length})');
+    
     setState(() {
       _isSending = true;
     });
@@ -63,7 +69,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     try {
       final clientMessageId = 'client_${DateTime.now().millisecondsSinceEpoch}';
       
-      await _apiService.sendViaProxy(
+      debugPrint('[WhatsAppChatScreen] _sendMessage: calling sendViaProxy (clientMessageId=$clientMessageId)');
+      
+      final result = await _apiService.sendViaProxy(
         threadId: _threadId!,
         accountId: _accountId!,
         toJid: _clientJid!,
@@ -71,11 +79,14 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         clientMessageId: clientMessageId,
       );
 
+      debugPrint('[WhatsAppChatScreen] _sendMessage: success (requestId=${result['requestId']}, duplicate=${result['duplicate']})');
+
       if (mounted) {
         _messageController.clear();
         _scrollToBottom();
       }
     } catch (e) {
+      debugPrint('[WhatsAppChatScreen] _sendMessage: exception - $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error sending message: $e')),
@@ -345,7 +356,49 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                     final direction = data['direction'] as String? ?? 'inbound';
                     final body = data['body'] as String? ?? '';
                     final status = data['status'] as String?;
-                    final tsClient = data['tsClient'] as Timestamp?;
+                    // #region agent log
+                    try {
+                      final timestamp = DateTime.now().millisecondsSinceEpoch;
+                      final tsClientRaw = data['tsClient'];
+                      final tsClientType = tsClientRaw != null ? tsClientRaw.runtimeType.toString() : 'null';
+                      final tsClientValue = tsClientRaw?.toString();
+                      final logEntry = {
+                        'id': 'tsclient_cast_$timestamp',
+                        'timestamp': timestamp,
+                        'location': 'whatsapp_chat_screen.dart:357:tsClient_cast',
+                        'message': 'tsClient type check',
+                        'data': {
+                          'tsClientType': tsClientType,
+                          'tsClientValue': tsClientValue != null && tsClientValue.length > 50 ? tsClientValue.substring(0, 50) : tsClientValue,
+                        },
+                        'sessionId': 'debug-session',
+                        'runId': 'run1',
+                        'hypothesisId': 'A',
+                      };
+                      final file = File('/Users/universparty/.cursor/debug.log');
+                      file.writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
+                    } catch (_) {}
+                    // #endregion
+                    // FIX: tsClient can be String (ISO) from backend or Timestamp from Firestore
+                    Timestamp? tsClient;
+                    final tsClientRaw = data['tsClient'];
+                    if (tsClientRaw == null) {
+                      tsClient = null;
+                    } else if (tsClientRaw is Timestamp) {
+                      tsClient = tsClientRaw;
+                    } else if (tsClientRaw is String) {
+                      // Backend sends ISO string, convert to DateTime then Timestamp
+                      try {
+                        final dateTime = DateTime.parse(tsClientRaw);
+                        tsClient = Timestamp.fromDate(dateTime);
+                      } catch (e) {
+                        debugPrint('[WhatsAppChatScreen] Failed to parse tsClient String: $tsClientRaw, error: $e');
+                        tsClient = null;
+                      }
+                    } else {
+                      debugPrint('[WhatsAppChatScreen] Unexpected tsClient type: ${tsClientRaw.runtimeType}, value: $tsClientRaw');
+                      tsClient = null;
+                    }
 
                     final isOutbound = direction == 'outbound';
 

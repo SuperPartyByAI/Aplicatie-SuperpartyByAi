@@ -1,218 +1,204 @@
-# Verification Checklist - Evenimente 100% Funcțional
+# End-to-End Flow Verification Checklist
 
-## ✅ Cod Verificat
-
-### Sintaxă Dart
-
-- ✅ Toate clasele definite corect
-- ✅ Import-uri corecte (user_selector_dialog, user_display_name)
-- ✅ Widget-uri StatefulWidget/StatelessWidget valide
-- ✅ Parametri constructor corecți
-
-### Fișiere Create
-
-- ✅ `scripts/seed_evenimente.js` (6475 bytes)
-- ✅ `superparty_flutter/lib/widgets/user_selector_dialog.dart`
-- ✅ `superparty_flutter/lib/widgets/user_display_name.dart`
-- ✅ `SETUP_EVENIMENTE.md`
-- ✅ `TEST_EVENIMENTE_E2E.md`
-- ✅ `DEPLOY_EVENIMENTE.md`
-
-### Fișiere Modificate
-
-- ✅ `firestore.indexes.json` - adăugate indexuri compuse
-- ✅ `EVENIMENTE_DOCUMENTATION.md` - scos admin-check hardcodat
-- ✅ `evenimente_screen.dart` - reparat filtru + scroll controller
-- ✅ `event_details_sheet.dart` - selector useri + nume în loc de UID
-- ✅ `event_service.dart` - ștergere completă evenimente
-
-## ✅ Indexuri Firestore
-
-### Indexuri Simple
-
-- ✅ `evenimente` → `data` ASC
-- ✅ `evenimente` → `data` DESC
-
-### Indexuri Compuse (pentru range + sortare)
-
-- ✅ `evenimente` → `data` ASC + `nume` ASC
-- ✅ `evenimente` → `data` ASC + `locatie` ASC
-- ✅ `evenimente` → `data` DESC + `nume` DESC
-- ✅ `evenimente` → `data` DESC + `locatie` DESC
-
-**Verificare:**
+## Prerequisites
 
 ```bash
-firebase firestore:indexes
+# 1. Pull repo and install deps
+cd Aplicatie-SuperpartyByAi
+git pull
+cd superparty_flutter && flutter pub get
+cd ../functions && npm install
+cd ../whatsapp-backend && npm install
+
+# 2. Set environment variables
+export WHATSAPP_RAILWAY_BASE_URL=https://whats-upp-production.up.railway.app
+# OR for emulator:
+export WHATSAPP_RAILWAY_BASE_URL=http://127.0.0.1:3000
+
+# 3. Start Firebase emulators (optional, for local testing)
+cd functions
+firebase emulators:start --only auth,firestore,functions
 ```
 
-## ✅ Admin Check
+## Phase 1: WhatsApp Connect Flow
 
-### Înainte (Hardcodat)
+### Test 1.1: Login
+- [ ] Open Flutter app in emulator
+- [ ] Login with valid credentials
+- [ ] Verify: Home screen loads (not black screen)
 
-```javascript
-const isAdmin = currentUser?.email === 'ursache.andrei1995@gmail.com';
-```
+### Test 1.2: Add Account
+- [ ] Navigate to "Manage Accounts" (WhatsApp section)
+- [ ] Tap "Add Account"
+- [ ] Enter name and phone
+- [ ] Verify: Status 200, account appears in list
+- [ ] Check logs: `addAccount: success, accountId=...`
 
-### După (Roluri)
+### Test 1.3: Get Accounts
+- [ ] Refresh accounts list
+- [ ] Verify: Status 200, accounts displayed
+- [ ] Check logs: `getAccounts: success, accountsCount=...`
 
-```javascript
-const isAdmin = async userId => {
-  const userDoc = await firestore.collection('users').doc(userId).get();
-  return userDoc.data()?.role === 'admin';
-};
-```
+### Test 1.4: Regenerate QR (Blocked Test)
+- [ ] If account status is `qr_ready` or `connected`
+- [ ] Tap "Regenerate QR"
+- [ ] Verify: Error message "Cannot regenerate QR: account status is ..."
+- [ ] Verify: No HTTP request sent (blocked client-side)
 
-**Locație:** `EVENIMENTE_DOCUMENTATION.md` linia 578
+### Test 1.5: Regenerate QR (Success Test)
+- [ ] If account status is `needs_qr`
+- [ ] Tap "Regenerate QR"
+- [ ] Verify: Status 200 or 202, QR code displayed
+- [ ] Check logs: `regenerateQr: success`
 
-## ✅ Seed Script
+### Test 1.6: QR Scan → Connected
+- [ ] Scan QR code with WhatsApp
+- [ ] Verify: Backend logs show `connection.update: open`
+- [ ] Verify: Account status becomes `connected` in Flutter
+- [ ] Verify: No 401 errors in logs
 
-**Locație:** `scripts/seed_evenimente.js`
+### Test 1.7: 401 Recovery
+- [ ] Simulate 401 (or use account with invalid session)
+- [ ] Verify: Backend logs show:
+  - `Explicit cleanup (401), terminal logout`
+  - `Cleared connectingTimeout on terminal logout`
+  - `nextRetryAt=null, retryCount=0`
+  - `reconnectScheduled=false`
+- [ ] Verify: Account status becomes `needs_qr`
+- [ ] Verify: No reconnect loop (no repeated `createConnection` calls)
 
-**Comenzi:**
+## Phase 2: Error Handling
 
+### Test 2.1: Functions Proxy 401 Propagation
 ```bash
-# Instalare dependențe
-npm install firebase-admin
-
-# Rulare seed
-node scripts/seed_evenimente.js
+# Test with invalid token or expired session
+curl -X POST \
+  https://us-central1-superparty-frontend.cloudfunctions.net/whatsappProxyRegenerateQr?accountId=TEST_ID \
+  -H "Authorization: Bearer INVALID_TOKEN" \
+  -H "X-Request-ID: test_401"
 ```
+- [ ] Verify: Response status is 401 (not 500)
+- [ ] Verify: Response body includes `error: 'unauthorized'` or `backendError`
 
-**Output așteptat:**
+### Test 2.2: Functions Proxy 4xx Propagation
+- [ ] Test 403, 404, 409, 429 status codes
+- [ ] Verify: Each propagates correctly (not masked as 500)
 
-```
-🌱 Începem seed-ul pentru evenimente...
-✅ Pregătit eveniment: Petrecere Maria - 5 ani
-...
-🎉 Seed complet! 7 evenimente adăugate în Firestore.
-```
+### Test 2.3: Flutter Error Handling
+- [ ] Trigger 401 error in Flutter
+- [ ] Verify: Shows error message (not black screen)
+- [ ] Verify: Retry loop stops (no infinite retries)
 
-## ✅ DraggableScrollableSheet Fix
+## Phase 3: Black Screen Fix
 
-### Înainte
+### Test 3.1: Firebase Init Timeout
+- [ ] Stop Firebase emulators (if using)
+- [ ] Restart Flutter app
+- [ ] Verify: Shows Firebase error screen (not black screen)
+- [ ] Verify: Error logged to `/Users/universparty/.cursor/debug.log`
 
-```dart
-builder: (context, scrollController) => EventDetailsSheet(eventId: eventId),
-```
+### Test 3.2: Auth State Listener Error
+- [ ] Check Flutter logs for auth errors
+- [ ] Verify: Errors logged, app continues (not black screen)
 
-### După
+### Test 3.3: Navigation Guard Failure
+- [ ] Try accessing protected route without auth
+- [ ] Verify: Shows auth screen (not black screen)
 
-```dart
-builder: (context, scrollController) => EventDetailsSheet(
-  eventId: eventId,
-  scrollController: scrollController,
-),
-```
+### Test 3.4: StreamBuilder Error States
+- [ ] Navigate to Events screen
+- [ ] Stop Firestore emulator (if using)
+- [ ] Verify: Shows error widget with retry button (not black screen)
 
-**Locație:** `evenimente_screen.dart` linia 373
+## Phase 4: Events Page
 
-## ✅ Git Commit
+### Test 4.1: Events Load
+- [ ] Navigate to Events screen
+- [ ] Verify: Events load or shows "Nu există evenimente" (not black screen)
+- [ ] Check logs: `[EvenimenteScreen] Loaded X events from Firestore`
 
-**Branch:** `feature/evenimente-100-functional`
+### Test 4.2: Events Filtering
+- [ ] Apply date filter (e.g., "Azi")
+- [ ] Verify: Events filtered correctly
+- [ ] Apply driver filter
+- [ ] Verify: Events filtered correctly
 
-**Commit Hash:** `4280bf988a82f0950fe9a500811132d171e8525a`
+### Test 4.3: Empty State
+- [ ] Apply filters that result in no events
+- [ ] Verify: Shows "Nu există evenimente" with icon (not black screen)
 
-**Commit Message:**
+### Test 4.4: Firestore Index Error
+- [ ] If index missing error occurs
+- [ ] Verify: Shows clear error message (not black screen)
 
-```
-feat(evenimente): implementare 100% funcțională cu Firebase real
+## Phase 5: AI Scoring (TBD)
 
-- Adăugate indexuri Firestore compuse pentru query-uri cu range + sortare
-- Seed script pentru 7 evenimente demo în Firestore
-- Reparat filtru 'Evenimentele mele' (disabled când user nelogat)
-- Selector useri pentru alocări (cu nume + staffCode, nu UID)
-- Widget UserDisplayName pentru afișare nume în loc de UID
-- Ștergere completă evenimente (Storage + subcolecții)
-- Fix DraggableScrollableSheet scroll controller
-- Scos admin-check hardcodat pe email (trecut pe roluri)
-- Documentație: SETUP_EVENIMENTE.md, TEST_EVENIMENTE_E2E.md, DEPLOY_EVENIMENTE.md
+### Test 5.1: Locate Scoring Trigger
+- [ ] Identify where AI scoring is computed
+- [ ] Verify: Trigger works (client-side or backend)
 
-Toate query-urile folosesc Firestore stream real, fără date mock.
-Testabil end-to-end cu 12 test cases.
-```
+### Test 5.2: Scoring Persistence
+- [ ] Trigger scoring generation
+- [ ] Verify: Firestore write succeeds
+- [ ] Check Firestore: Scoring doc exists with correct schema
 
-## ✅ PR Link
+### Test 5.3: Scoring Display
+- [ ] Navigate to UI that shows scoring
+- [ ] Verify: Scoring data displayed correctly
 
-**Create PR:**
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/pull/new/feature/evenimente-100-functional
+## Commands for Quick Testing
 
-**Branch Comparison:**
-https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/compare/main...feature/evenimente-100-functional
-
-## 📋 Pași Testare
-
-### 1. Deploy Indexuri
-
+### Test Reset Endpoint
 ```bash
-firebase deploy --only firestore:indexes
+curl -X POST \
+  https://whats-upp-production.up.railway.app/api/whatsapp/accounts/ACCOUNT_ID/reset \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json"
 ```
 
-### 2. Seed Date
-
+### Test Backend Health
 ```bash
-node scripts/seed_evenimente.js
+curl https://whats-upp-production.up.railway.app/health
 ```
 
-### 3. Flutter Analyze (local)
+### Test Functions Proxy (with correlation ID)
+```bash
+curl -X GET \
+  https://us-central1-superparty-frontend.cloudfunctions.net/whatsappProxyGetAccounts \
+  -H "Authorization: Bearer FIREBASE_ID_TOKEN" \
+  -H "X-Request-ID: test_$(date +%s)" \
+  -H "X-Correlation-Id: test_corr_$(date +%s)"
+```
 
+### Flutter Run with Logs
 ```bash
 cd superparty_flutter
-flutter analyze
+flutter run -d emulator-5554 \
+  --dart-define=WHATSAPP_BACKEND_URL=https://whats-upp-production.up.railway.app \
+  2>&1 | tee /tmp/flutter_run_$(date +%s).log
 ```
 
-### 4. Flutter Test (local)
+## Expected Log Patterns
 
-```bash
-cd superparty_flutter
-flutter test
+### Success Flow
+```
+[WhatsAppApiService] addAccount: success, accountId=...
+[WhatsAppApiService] getAccounts: success, accountsCount=1
+[WhatsAppApiService] regenerateQr: success, message=...
+[Backend] connection.update: open
+[Backend] Connected! Session persisted
 ```
 
-### 5. Test E2E
+### 401 Recovery
+```
+[Backend] Explicit cleanup (401), terminal logout
+[Backend] Cleared connectingTimeout on terminal logout
+[Backend] 401 handler complete: status=needs_qr, nextRetryAt=null, retryCount=0, reconnectScheduled=false
+[Backend] createConnection blocked: firestore status=needs_qr
+```
 
-Urmează checklist-ul din `TEST_EVENIMENTE_E2E.md` (12 test cases)
-
-## 🔍 Verificări Manuale
-
-### Firestore Console
-
-- [ ] Colecția `evenimente` conține 7 documente
-- [ ] Indexurile sunt create și active
-- [ ] Documentele au structura corectă
-
-### Firebase Console
-
-- [ ] Rules permit citire/scriere evenimente
-- [ ] Storage rules permit upload dovezi
-- [ ] Authentication funcționează
-
-### Aplicație Flutter
-
-- [ ] Lista evenimente se încarcă din Firestore
-- [ ] Filtrele funcționează (data, cod, cine notează)
-- [ ] Sortarea funcționează (ASC/DESC)
-- [ ] "Evenimentele mele" e disabled când nelogat
-- [ ] Selector useri afișează nume (nu UID)
-- [ ] Scroll funcționează în EventDetailsSheet
-- [ ] Ștergerea evenimentelor funcționează
-
-## ⚠️ Note
-
-- **Flutter CLI:** Nu e instalat în Gitpod, testare locală necesară
-- **Firebase Admin SDK:** Necesită `firebase-adminsdk.json` în root
-- **Useri:** Pentru selector, trebuie useri în colecția `users`
-
-## ✅ Status Final
-
-- [x] Cod complet și funcțional
-- [x] Indexuri Firestore adăugate
-- [x] Admin-check scos (trecut pe roluri)
-- [x] Seed script funcțional
-- [x] Scroll controller fix
-- [x] Branch creat și pushed
-- [x] Commit hash disponibil
-- [x] Documentație completă
-- [ ] Flutter analyze (necesită Flutter local)
-- [ ] Test E2E (necesită Firebase real + Flutter app)
-
-**Ready for testing!** 🚀
+### Error Propagation
+```
+[Functions] Railway response: status=401, errorId=unauthorized
+[Flutter] regenerateQr: error=unauthorized, status=401 (not 500)
+```
