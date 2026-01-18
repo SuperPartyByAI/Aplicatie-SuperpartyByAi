@@ -17,23 +17,42 @@ ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 
 # 1. Check backend mode
 echo "1️⃣  Backend Mode:"
+READY_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${BACKEND_URL}/ready" 2>/dev/null)
 READY_RESPONSE=$(curl -s "${BACKEND_URL}/ready" 2>/dev/null)
-if [ $? -eq 0 ]; then
-  MODE=$(echo "$READY_RESPONSE" | jq -r '.mode // "unknown"')
-  READY=$(echo "$READY_RESPONSE" | jq -r '.ready // false')
-  INSTANCE_ID=$(echo "$READY_RESPONSE" | jq -r '.instanceId // "unknown"')
+
+if [ "$READY_HTTP_CODE" = "200" ] && [ -n "$READY_RESPONSE" ]; then
+  # Extract JSON (remove HTML/headers if present)
+  JSON_BODY=$(echo "$READY_RESPONSE" | grep -o '{.*}' | head -1 || echo "$READY_RESPONSE")
   
-  if [ "$MODE" = "active" ] && [ "$READY" = "true" ]; then
-    echo -e "   ${GREEN}✅ Mode: $MODE, Ready: $READY${NC}"
-    echo "   Instance: $INSTANCE_ID"
-  elif [ "$MODE" = "passive" ]; then
-    echo -e "   ${YELLOW}⚠️  Mode: $MODE (lock held by another instance)${NC}"
-    echo "   Instance: $INSTANCE_ID"
+  # Check if it's valid JSON
+  if echo "$JSON_BODY" | jq empty 2>/dev/null; then
+    MODE=$(echo "$JSON_BODY" | jq -r '.mode // "unknown"')
+    READY=$(echo "$JSON_BODY" | jq -r '.ready // false')
+    INSTANCE_ID=$(echo "$JSON_BODY" | jq -r '.instanceId // "unknown"')
+    
+    if [ "$MODE" = "active" ] && [ "$READY" = "true" ]; then
+      echo -e "   ${GREEN}✅ Mode: $MODE, Ready: $READY${NC}"
+      echo "   Instance: $INSTANCE_ID"
+    elif [ "$MODE" = "passive" ]; then
+      echo -e "   ${YELLOW}⚠️  Mode: $MODE (lock held by another instance)${NC}"
+      echo "   Instance: $INSTANCE_ID"
+    else
+      echo -e "   ${YELLOW}⚠️  Mode: $MODE, Ready: $READY${NC}"
+      echo "   Instance: $INSTANCE_ID"
+    fi
   else
-    echo -e "   ${RED}❌ Mode: $MODE, Ready: $READY${NC}"
+    echo -e "   ${YELLOW}⚠️  /ready endpoint returned non-JSON (HTTP $READY_HTTP_CODE)${NC}"
+    echo "   Response: $(echo "$READY_RESPONSE" | head -c 100)"
+    echo "   (Backend might be old version or endpoint not available)"
   fi
+elif [ "$READY_HTTP_CODE" = "404" ]; then
+  echo -e "   ${YELLOW}⚠️  /ready endpoint not found (404)${NC}"
+  echo "   Backend might be old version - check /health instead"
+elif [ "$READY_HTTP_CODE" = "502" ] || [ "$READY_HTTP_CODE" = "503" ]; then
+  echo -e "   ${RED}❌ Backend unhealthy (HTTP $READY_HTTP_CODE)${NC}"
+  echo "   Check Railway service status"
 else
-  echo -e "   ${RED}❌ Cannot reach backend${NC}"
+  echo -e "   ${RED}❌ Cannot reach backend (HTTP $READY_HTTP_CODE)${NC}"
 fi
 echo ""
 
@@ -94,10 +113,15 @@ echo ""
 
 # 4. Instructions
 echo "📋 Next Steps:"
-echo "   - Monitor logs: railway logs --service whatsapp-backend --follow"
-echo "   - Check for restores: grep 'restore.*Firestore' in logs"
+echo "   - Monitor logs: railway logs --service whatsapp-backend | grep -E 'restore|health|stale|connected'"
+echo "   - Check for restores: railway logs --service whatsapp-backend | grep 'restore.*Firestore'"
 echo "   - Verify Railway Volume: SESSIONS_PATH=/data/sessions"
 echo "   - Test message: curl -X POST .../api/whatsapp/send-message"
+echo ""
+echo "💡 Session Stability Checks:"
+echo "   1. Status should be 'connected' (not 'qr_ready' frequent)"
+echo "   2. Health should be 'healthy' (not 'unhealthy')"
+echo "   3. Restore count should be low (< 5/day = normal)"
 echo ""
 echo "📖 Full test guide: whatsapp-backend/TEST_SESSION_STABILITY.md"
 echo ""
