@@ -1,4 +1,4 @@
-platform :osx, '10.15'
+platform :osx, '13.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -38,5 +38,52 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_macos_build_settings(target)
+    # Fix deployment target warnings
+    target.build_configurations.each do |config|
+      if config.build_settings['MACOSX_DEPLOYMENT_TARGET'].to_f < 13.0
+        config.build_settings['MACOSX_DEPLOYMENT_TARGET'] = '13.0'
+      end
+      
+      # Remove problematic -G flag if present (not supported on arm64 macOS)
+      # Check ALL build settings keys, not just common ones
+      config.build_settings.each do |key, value|
+        next unless value
+        
+        if value.is_a?(Array)
+          # Remove all occurrences of -G flag from array
+          filtered = value.reject { |flag| flag.to_s.strip == '-G' }
+          config.build_settings[key] = filtered if filtered != value
+        elsif value.is_a?(String)
+          # Remove -G flag from string (handle with space or without)
+          # Also handle cases like "-G " or " -G" or " -G " or "-Gsomething"
+          filtered = value.gsub(/\s*-G\b\s*/, ' ').strip
+          # Also remove if it's part of a combined flag like "-O2 -G" or "-G -O2"
+          filtered = filtered.gsub(/\s+/, ' ').strip
+          config.build_settings[key] = filtered if filtered != value
+        end
+      end
+    end
+  end
+  
+  # Also remove -G from generated .xcconfig files
+  Dir.glob("#{installer.sandbox.root}/Target Support Files/**/*.xcconfig").each do |config_file|
+    begin
+      content = File.read(config_file)
+      original_content = content.dup
+      # Remove lines containing -G flag
+      content.gsub!(/^[^=]*OTHER_CFLAGS[^=]*=.*-G[^\n]*$/, '')
+      content.gsub!(/^[^=]*OTHER_CPLUSPLUSFLAGS[^=]*=.*-G[^\n]*$/, '')
+      content.gsub!(/^[^=]*OTHER_LDFLAGS[^=]*=.*-G[^\n]*$/, '')
+      # Also remove -G from inline values (more aggressive)
+      content.gsub!(/\s+-G\b/, '')
+      content.gsub!(/\b-G\s+/, '')
+      
+      if content != original_content
+        File.write(config_file, content)
+        puts "Fixed -G flag in #{config_file}"
+      end
+    rescue => e
+      puts "Warning: Could not fix #{config_file}: #{e.message}"
+    end
   end
 end
