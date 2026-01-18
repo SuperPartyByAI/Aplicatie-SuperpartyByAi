@@ -876,9 +876,58 @@ exports.aiEventHandler = require('./aiEventHandler_v3').aiEventHandler;
 
 // WhatsApp Backend Proxy - QR Connect Routes Only
 const whatsappProxy = require('./whatsappProxy');
-exports.whatsappProxyGetAccounts = whatsappProxy.getAccounts;
-exports.whatsappProxyAddAccount = whatsappProxy.addAccount;
-exports.whatsappProxyRegenerateQr = whatsappProxy.regenerateQr;
+// Define secret for Railway URL (v2 functions)
+const whatsappRailwayUrl = defineSecret('WHATSAPP_RAILWAY_BASE_URL');
+
+// Wrap handlers to inject secret into process.env for lazy-loading compatibility
+// This allows getRailwayBaseUrl() in whatsappProxy.js to find the value
+const wrapWithSecret = (handler, secret) => {
+  return async (req, res) => {
+    // Inject secret value into process.env for getRailwayBaseUrl() to find it
+    if (secret && !process.env.WHATSAPP_RAILWAY_BASE_URL) {
+      try {
+        process.env.WHATSAPP_RAILWAY_BASE_URL = secret.value();
+      } catch (e) {
+        // Secret not available (emulator/local dev) - will use .runtimeconfig.json or env var
+        // This is OK - getRailwayBaseUrl() will fallback to functions.config()
+      }
+    }
+    return handler(req, res);
+  };
+};
+
+// Redeclare functions with secrets (override exports from whatsappProxy.js)
+exports.whatsappProxyGetAccounts = onRequest(
+  {
+    region: 'us-central1',
+    cors: true,
+    maxInstances: 1,
+    secrets: [whatsappRailwayUrl],
+  },
+  wrapWithSecret(whatsappProxy.getAccountsHandler, whatsappRailwayUrl)
+);
+
+exports.whatsappProxyAddAccount = onRequest(
+  {
+    region: 'us-central1',
+    cors: true,
+    maxInstances: 1,
+    secrets: [whatsappRailwayUrl],
+  },
+  wrapWithSecret(whatsappProxy.addAccountHandler, whatsappRailwayUrl)
+);
+
+exports.whatsappProxyRegenerateQr = onRequest(
+  {
+    region: 'us-central1',
+    cors: true,
+    maxInstances: 1,
+    secrets: [whatsappRailwayUrl],
+  },
+  wrapWithSecret(whatsappProxy.regenerateQrHandler, whatsappRailwayUrl)
+);
+
+// Keep other functions as-is (they may not need secrets or use different config)
 exports.whatsappProxyDeleteAccount = whatsappProxy.deleteAccount;
 exports.whatsappProxyBackfillAccount = whatsappProxy.backfillAccount;
 exports.whatsappProxySend = whatsappProxy.send;
