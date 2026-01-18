@@ -3145,8 +3145,13 @@ app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req, 
 
 // Regenerate QR
 app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (req, res) => {
+  // DEBUG: Log incoming request
+  const accountId = req.params.accountId;
+  console.log(`🔍 [DEBUG] Regenerate QR request: accountId=${accountId}, method=${req.method}, path=${req.path}`);
+  
   // HARD GATE: PASSIVE mode - do NOT regenerate QR (requires Baileys connection)
   if (!waBootstrap.canStartBaileys()) {
+    console.log(`⏸️  [${accountId}] Regenerate QR blocked: PASSIVE mode`);
     return res.status(503).json({
       success: false,
       error: 'PASSIVE mode: another instance holds lock; retry shortly',
@@ -3155,7 +3160,6 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
   }
 
   try {
-    const { accountId } = req.params;
     let account = connections.get(accountId);
     
     // If not in memory, try to load from Firestore
