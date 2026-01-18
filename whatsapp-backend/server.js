@@ -6630,7 +6630,104 @@ app.listen(PORT, '0.0.0.0', async () => {
   console.log(`📊 Status Dashboard: http://localhost:${PORT}/api/status/dashboard`);
   console.log(`🚀 Railway deployment ready!\n`);
 
-  // Restore accounts after server starts
+  // Initialize long-run schema and evidence endpoints FIRST (before restore)
+  if (firestoreAvailable) {
+    const baseUrl = process.env.BAILEYS_BASE_URL || 'https://whats-upp-production.up.railway.app';
+
+    // Initialize schema
+    const longrunSchema = new LongRunSchemaComplete(db);
+
+    // Initialize config
+    const commitHash = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'ed61e9f4';
+    const serviceVersion = '2.0.0';
+    const instanceId = process.env.RAILWAY_DEPLOYMENT_ID || `local-${Date.now()}`;
+
+    await longrunSchema.initConfig(baseUrl, commitHash, serviceVersion, instanceId);
+    console.log('✅ Long-run config initialized');
+
+    // Create baileys-like interface for LongRunJobs
+    const baileysInterface = {
+      getAccounts: () => {
+        const accounts = [];
+        connections.forEach((conn, accountId) => {
+          accounts.push({
+            accountId,
+            status: conn.status || 'unknown',
+            phoneNumber: conn.phoneNumber || null,
+            role: conn.role || 'operator',
+          });
+        });
+        return accounts;
+      },
+      sendMessage: async (accountId, to, message) => {
+        const conn = connections.get(accountId);
+        if (!conn || !conn.sock) {
+          throw new Error(`Account ${accountId} not connected`);
+        }
+
+        const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
+        return await conn.sock.sendMessage(jid, { text: message });
+      },
+      getQueueStats: async () => {
+        // TODO: Implement queue stats if available
+        return { pending: 0 };
+      },
+      on: (event, handler) => {
+        // TODO: Implement event emitter if needed
+      },
+      removeListener: (event, handler) => {
+        // TODO: Implement event emitter if needed
+      },
+      bootTimestamp: START_TIME,
+    };
+
+    // CRITICAL: Initialize WA system with lock acquisition BEFORE restoring accounts
+    // This ensures PASSIVE mode gates work correctly during restore
+    console.log('🔒 Initializing WA system with lock acquisition...');
+    const waInitResult = await waBootstrap.initializeWASystem(db);
+    
+    // Get lock status for startup log
+    let lockInfo = 'unknown';
+    try {
+      const status = await waBootstrap.getWAStatus();
+      const lock = status.lock || {};
+      if (lock.exists && lock.holder) {
+        const expiresIn = lock.remainingMs ? Math.ceil(lock.remainingMs / 1000) : 'unknown';
+        lockInfo = `holder=${lock.holder}, expiresIn=${expiresIn}s`;
+      } else if (!lock.exists) {
+        lockInfo = 'no_lock';
+      } else {
+        lockInfo = 'lock_status_unknown';
+      }
+    } catch (error) {
+      lockInfo = `error: ${error.message}`;
+    }
+    
+    console.log(`🔒 WA system initialized: mode=${waInitResult.mode}, instanceId=${waInitResult.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown'}, lock=${lockInfo}`);
+    console.log(`📋 Startup info: commit=${COMMIT_HASH || 'unknown'}, instanceId=${process.env.RAILWAY_DEPLOYMENT_ID || 'unknown'}, mode=${waInitResult.mode}, lockInfo=${lockInfo}`);
+
+    // Initialize evidence endpoints (after baileys interface + wa-bootstrap)
+    new EvidenceEndpoints(
+      app,
+      db,
+      longrunSchema,
+      LONGRUN_ADMIN_TOKEN,
+      baileysInterface,
+      waBootstrap
+    );
+    console.log('✅ Evidence endpoints initialized');
+
+    // Initialize long-run jobs v2 (uses initJobs function, not class)
+    await longrunJobsModule.initJobs(db, baseUrl);
+    console.log('✅ Long-run jobs v2 started');
+
+    // Start deploy guard
+    const deployGuard = new DeployGuard(db, longrunSchema, baseUrl, commitHash);
+    deployGuard.start();
+    console.log('✅ Deploy guard started');
+  }
+
+  // Restore accounts AFTER WA system is initialized (so PASSIVE mode gates work)
   // First restore from Firestore (if available), then scan disk for any missed sessions
   await restoreAccountsFromFirestore();
   await restoreAccountsFromDisk();
@@ -7018,101 +7115,7 @@ app.listen(PORT, '0.0.0.0', async () => {
     `📤 Outbox worker started (interval: ${OUTBOX_WORKER_INTERVAL / 1000}s, max retries: ${MAX_RETRY_ATTEMPTS})`
   );
 
-  // Initialize long-run schema and evidence endpoints
-  if (firestoreAvailable) {
-    const baseUrl = process.env.BAILEYS_BASE_URL || 'https://whats-upp-production.up.railway.app';
-
-    // Initialize schema
-    const longrunSchema = new LongRunSchemaComplete(db);
-
-    // Initialize config
-    const commitHash = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'ed61e9f4';
-    const serviceVersion = '2.0.0';
-    const instanceId = process.env.RAILWAY_DEPLOYMENT_ID || `local-${Date.now()}`;
-
-    await longrunSchema.initConfig(baseUrl, commitHash, serviceVersion, instanceId);
-    console.log('✅ Long-run config initialized');
-
-    // Create baileys-like interface for LongRunJobs
-    const baileysInterface = {
-      getAccounts: () => {
-        const accounts = [];
-        connections.forEach((conn, accountId) => {
-          accounts.push({
-            accountId,
-            status: conn.status || 'unknown',
-            phoneNumber: conn.phoneNumber || null,
-            role: conn.role || 'operator',
-          });
-        });
-        return accounts;
-      },
-      sendMessage: async (accountId, to, message) => {
-        const conn = connections.get(accountId);
-        if (!conn || !conn.sock) {
-          throw new Error(`Account ${accountId} not connected`);
-        }
-
-        const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
-        return await conn.sock.sendMessage(jid, { text: message });
-      },
-      getQueueStats: async () => {
-        // TODO: Implement queue stats if available
-        return { pending: 0 };
-      },
-      on: (event, handler) => {
-        // TODO: Implement event emitter if needed
-      },
-      removeListener: (event, handler) => {
-        // TODO: Implement event emitter if needed
-      },
-      bootTimestamp: START_TIME,
-    };
-
-    // Initialize WA system with lock acquisition (BEFORE any Baileys init)
-    console.log('🔒 Initializing WA system with lock acquisition...');
-    const waInitResult = await waBootstrap.initializeWASystem(db);
-    
-    // Get lock status for startup log
-    let lockInfo = 'unknown';
-    try {
-      const status = await waBootstrap.getWAStatus();
-      const lock = status.lock || {};
-      if (lock.exists && lock.holder) {
-        const expiresIn = lock.remainingMs ? Math.ceil(lock.remainingMs / 1000) : 'unknown';
-        lockInfo = `holder=${lock.holder}, expiresIn=${expiresIn}s`;
-      } else if (!lock.exists) {
-        lockInfo = 'no_lock';
-      } else {
-        lockInfo = 'lock_status_unknown';
-      }
-    } catch (error) {
-      lockInfo = `error: ${error.message}`;
-    }
-    
-    console.log(`🔒 WA system initialized: mode=${waInitResult.mode}, instanceId=${waInitResult.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown'}, lock=${lockInfo}`);
-    console.log(`📋 Startup info: commit=${COMMIT_HASH || 'unknown'}, instanceId=${process.env.RAILWAY_DEPLOYMENT_ID || 'unknown'}, mode=${waInitResult.mode}, lockInfo=${lockInfo}`);
-
-    // Initialize evidence endpoints (after baileys interface + wa-bootstrap)
-    new EvidenceEndpoints(
-      app,
-      db,
-      longrunSchema,
-      LONGRUN_ADMIN_TOKEN,
-      baileysInterface,
-      waBootstrap
-    );
-    console.log('✅ Evidence endpoints initialized');
-
-    // Initialize long-run jobs v2 (uses initJobs function, not class)
-    await longrunJobsModule.initJobs(db, baseUrl);
-    console.log('✅ Long-run jobs v2 started');
-
-    // Start deploy guard
-    const deployGuard = new DeployGuard(db, longrunSchema, baseUrl, commitHash);
-    deployGuard.start();
-    console.log('✅ Deploy guard started');
-  }
+  // Deploy guard was already started above (with WA system initialization)
 });
 
 // Graceful shutdown
