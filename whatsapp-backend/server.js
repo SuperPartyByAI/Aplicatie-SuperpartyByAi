@@ -3434,6 +3434,11 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
     // First, add accounts from memory (active connections)
     // NOTE: In PASSIVE mode, connections Map is empty (no Baileys connections)
     connections.forEach((conn, id) => {
+      // CRITICAL: Filter out deleted accounts from memory too
+      if (conn.status === 'deleted') {
+        return; // Skip deleted accounts
+      }
+      
       accountIdsInMemory.add(id);
       accounts.push({
         id,
@@ -3466,14 +3471,22 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
           }
           
           const data = doc.data();
+          const accountStatus = data.status || 'unknown';
           
-          // Include all accounts (including needs_qr, logged_out, disconnected, etc.)
+          // CRITICAL: Filter out deleted accounts (they should not appear in the list)
+          // Deleted accounts are marked but not removed from Firestore for audit purposes
+          // However, they should not clutter the UI
+          if (accountStatus === 'deleted') {
+            continue; // Skip deleted accounts
+          }
+          
+          // Include all non-deleted accounts (including needs_qr, logged_out, disconnected, etc.)
           // This ensures accounts don't "disappear" from UI after 401 or in PASSIVE mode
           accounts.push({
             id: accountId,
             name: data.name || accountId,
             phone: data.phoneE164 || data.phone || null,
-            status: data.status || 'unknown',
+            status: accountStatus,
             qrCode: data.qrCode || null,
             pairingCode: data.pairingCode || null,
             createdAt: data.createdAt || null,
