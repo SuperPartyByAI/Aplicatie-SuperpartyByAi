@@ -247,6 +247,18 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     }
   }
 
+  // Get display name from thread or clientJid
+  String get displayName {
+    // Try to get from phoneE164 if available, otherwise use clientJid
+    if (_phoneE164 != null) {
+      return _phoneE164!;
+    }
+    if (_clientJid != null) {
+      return _clientJid!.split('@')[0];
+    }
+    return 'Unknown';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_threadId == null) {
@@ -256,11 +268,37 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       );
     }
 
-    final displayName = _clientJid?.split('@')[0] ?? 'Unknown';
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(displayName),
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: Colors.white.withOpacity(0.3),
+              child: Text(
+                displayName[0].toUpperCase(),
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayName,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  if (_phoneE164 != null || _extractPhoneFromJid(_clientJid) != null)
+                    Text(
+                      _phoneE164 ?? _extractPhoneFromJid(_clientJid) ?? '',
+                      style: const TextStyle(fontSize: 12, color: Colors.white70),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
         backgroundColor: const Color(0xFF25D366),
         actions: [
           IconButton(
@@ -332,7 +370,16 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                   return const Center(child: Text('No messages yet'));
                 }
 
-                WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+                // Auto-scroll to bottom when new messages arrive
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      _scrollController.position.maxExtent,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                });
 
                 return ListView.builder(
                   controller: _scrollController,
@@ -349,48 +396,113 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
                     final isOutbound = direction == 'outbound';
 
+                    // Format timestamp
+                    String timeText = '';
+                    if (tsClient != null) {
+                      final now = DateTime.now();
+                      final msgTime = tsClient.toDate();
+                      final diff = now.difference(msgTime);
+                      
+                      if (diff.inDays == 0) {
+                        // Today - show only time
+                        timeText = DateFormat('HH:mm').format(msgTime);
+                      } else if (diff.inDays == 1) {
+                        // Yesterday
+                        timeText = 'Ieri ${DateFormat('HH:mm').format(msgTime)}';
+                      } else if (diff.inDays < 7) {
+                        // This week - show day name
+                        timeText = DateFormat('EEE HH:mm').format(msgTime);
+                      } else {
+                        // Older - show date
+                        timeText = DateFormat('dd/MM/yyyy HH:mm').format(msgTime);
+                      }
+                    }
+                    
                     return Align(
                       alignment: isOutbound ? Alignment.centerRight : Alignment.centerLeft,
                       child: Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isOutbound ? const Color(0xFF25D366) : Colors.grey[200],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        margin: const EdgeInsets.only(bottom: 4, left: 48, right: 48),
+                        child: Row(
+                          mainAxisAlignment: isOutbound ? MainAxisAlignment.end : MainAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text(
-                              body,
-                              style: TextStyle(
-                                color: isOutbound ? Colors.white : Colors.black87,
+                            // Avatar for inbound messages (left side)
+                            if (!isOutbound) ...[
+                              CircleAvatar(
+                                radius: 16,
+                                backgroundColor: Colors.grey[300],
+                                child: Text(
+                                  displayName[0].toUpperCase(),
+                                  style: const TextStyle(fontSize: 12, color: Colors.black87),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            
+                            // Message bubble
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                constraints: BoxConstraints(
+                                  maxWidth: MediaQuery.of(context).size.width * 0.65,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isOutbound ? const Color(0xFF25D366) : Colors.white,
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: const Radius.circular(8),
+                                    topRight: const Radius.circular(8),
+                                    bottomLeft: Radius.circular(isOutbound ? 8 : 0),
+                                    bottomRight: Radius.circular(isOutbound ? 0 : 8),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 1,
+                                      offset: const Offset(0, 1),
+                                    ),
+                                  ],
+                                  border: isOutbound ? null : Border.all(color: Colors.grey[200]!),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      body,
+                                      style: TextStyle(
+                                        color: isOutbound ? Colors.white : Colors.black87,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (timeText.isNotEmpty)
+                                          Text(
+                                            timeText,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: isOutbound ? Colors.white70 : Colors.grey[600],
+                                            ),
+                                          ),
+                                        if (isOutbound && status != null) ...[
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            _getStatusIcon(status),
+                                            style: const TextStyle(fontSize: 12),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (tsClient != null)
-                                  Text(
-                                    DateFormat('HH:mm').format(tsClient.toDate()),
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: isOutbound ? Colors.white70 : Colors.grey[600],
-                                    ),
-                                  ),
-                                if (isOutbound && status != null) ...[
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    _getStatusIcon(status),
-                                    style: const TextStyle(fontSize: 10),
-                                  ),
-                                ],
-                              ],
-                            ),
+                            
+                            // Spacing for outbound messages (before avatar area)
+                            if (isOutbound) ...[
+                              const SizedBox(width: 48), // Match avatar width for alignment
+                            ],
                           ],
                         ),
                       ),
