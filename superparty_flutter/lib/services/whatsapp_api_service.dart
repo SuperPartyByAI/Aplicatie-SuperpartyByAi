@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:http/http.dart' as http;
 
 import '../core/config/env.dart';
@@ -113,27 +113,44 @@ class WhatsAppApiService {
     });
   }
 
-  /// Get list of WhatsApp accounts from Railway backend.
+  /// Get list of WhatsApp accounts via Functions proxy.
+  /// 
+  /// CRITICAL FIX: Uses proxy with Authorization header (Firebase ID token).
+  /// Previously called Railway directly without auth, causing 401 errors.
   /// 
   /// Returns: { success: bool, accounts: List<Account> }
   /// Account: { id, name, phone, status, qrCode?, pairingCode?, ... }
   Future<Map<String, dynamic>> getAccounts() async {
     return retryWithBackoff(() async {
-      final backendUrl = _getBackendUrl();
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw UnauthorizedException();
+      }
+
+      // Get Firebase ID token
+      final token = await user.getIdToken();
+      final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
 
+      debugPrint('[WhatsAppApiService] getAccounts: calling proxy (uid=${user.uid.substring(0, 8)}...)');
+
+      // Call Functions proxy with Authorization header
       final response = await http
           .get(
-            Uri.parse('$backendUrl/api/whatsapp/accounts'),
+            Uri.parse('$functionsUrl/whatsappProxyGetAccounts'),
             headers: {
+              'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
               'X-Request-ID': requestId,
             },
           )
           .timeout(requestTimeout);
 
+      debugPrint('[WhatsAppApiService] getAccounts: status=${response.statusCode}, bodyLength=${response.body.length}');
+
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+        debugPrint('[WhatsAppApiService] getAccounts: error=${errorBody?['error']}, message=${errorBody?['message']}');
         throw ErrorMapper.fromHttpException(
           response.statusCode,
           errorBody?['message'] as String?,
@@ -141,11 +158,15 @@ class WhatsAppApiService {
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
+      debugPrint('[WhatsAppApiService] getAccounts: success, accountsCount=${(data['accounts'] as List?)?.length ?? 0}');
       return data;
     });
   }
 
-  /// Add a new WhatsApp account via Railway backend.
+  /// Add a new WhatsApp account via Functions proxy.
+  /// 
+  /// CRITICAL FIX: Uses proxy with Authorization header (Firebase ID token).
+  /// Previously called Railway directly without auth, causing 401 errors.
   /// 
   /// NOTE: Backend requires phone (QR-only without phone is not supported).
   /// 
@@ -155,13 +176,24 @@ class WhatsAppApiService {
     required String phone,
   }) async {
     return retryWithBackoff(() async {
-      final backendUrl = _getBackendUrl();
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw UnauthorizedException();
+      }
+
+      // Get Firebase ID token
+      final token = await user.getIdToken();
+      final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
 
+      debugPrint('[WhatsAppApiService] addAccount: calling proxy (uid=${user.uid.substring(0, 8)}..., name=$name, phone=$phone)');
+
+      // Call Functions proxy with Authorization header
       final response = await http
           .post(
-            Uri.parse('$backendUrl/api/whatsapp/add-account'),
+            Uri.parse('$functionsUrl/whatsappProxyAddAccount'),
             headers: {
+              'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
               'X-Request-ID': requestId,
             },
@@ -172,8 +204,11 @@ class WhatsAppApiService {
           )
           .timeout(requestTimeout);
 
+      debugPrint('[WhatsAppApiService] addAccount: status=${response.statusCode}, bodyLength=${response.body.length}');
+
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+        debugPrint('[WhatsAppApiService] addAccount: error=${errorBody?['error']}, message=${errorBody?['message']}');
         throw ErrorMapper.fromHttpException(
           response.statusCode,
           errorBody?['message'] as String?,
@@ -181,32 +216,50 @@ class WhatsAppApiService {
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
+      debugPrint('[WhatsAppApiService] addAccount: success, accountId=${data['accountId'] ?? data['account']?['id']}');
       return data;
     });
   }
 
-  /// Regenerate QR code for a WhatsApp account via Railway backend.
+  /// Regenerate QR code for a WhatsApp account via Functions proxy.
+  /// 
+  /// CRITICAL FIX: Uses proxy with Authorization header (Firebase ID token).
+  /// Previously called Railway directly without auth, causing 401 errors.
   /// 
   /// Returns: { success: bool, message?: string, ... }
   Future<Map<String, dynamic>> regenerateQr({
     required String accountId,
   }) async {
     return retryWithBackoff(() async {
-      final backendUrl = _getBackendUrl();
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw UnauthorizedException();
+      }
+
+      // Get Firebase ID token
+      final token = await user.getIdToken();
+      final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
 
+      debugPrint('[WhatsAppApiService] regenerateQr: calling proxy (uid=${user.uid.substring(0, 8)}..., accountId=$accountId)');
+
+      // Call Functions proxy with Authorization header (query param for accountId)
       final response = await http
           .post(
-            Uri.parse('$backendUrl/api/whatsapp/regenerate-qr/$accountId'),
+            Uri.parse('$functionsUrl/whatsappProxyRegenerateQr?accountId=$accountId'),
             headers: {
+              'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
               'X-Request-ID': requestId,
             },
           )
           .timeout(requestTimeout);
 
+      debugPrint('[WhatsAppApiService] regenerateQr: status=${response.statusCode}, bodyLength=${response.body.length}');
+
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+        debugPrint('[WhatsAppApiService] regenerateQr: error=${errorBody?['error']}, message=${errorBody?['message']}');
         throw ErrorMapper.fromHttpException(
           response.statusCode,
           errorBody?['message'] as String?,
@@ -214,6 +267,7 @@ class WhatsAppApiService {
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
+      debugPrint('[WhatsAppApiService] regenerateQr: success, message=${data['message']}');
       return data;
     });
   }
