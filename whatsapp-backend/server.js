@@ -342,6 +342,8 @@ const qrRegenerateLimiter = rateLimit({
 // In-memory store for active connections
 const connections = new Map();
 const reconnectAttempts = new Map();
+// Connection session ID counter per account (for debugging)
+const connectionSessionIds = new Map(); // accountId -> sessionId (incremental)
 
 // Note: makeInMemoryStore not available in Baileys 6.7.21
 // Message handling works without store (events still emit)
@@ -1078,6 +1080,10 @@ async function createConnection(accountId, name, phone) {
       },
     });
 
+    // Generate connection session ID for debugging (incremental per account)
+    const currentSessionId = (connectionSessionIds.get(accountId) || 0) + 1;
+    connectionSessionIds.set(accountId, currentSessionId);
+
     const account = {
       id: accountId,
       name,
@@ -1086,11 +1092,14 @@ async function createConnection(accountId, name, phone) {
       qrCode: null,
       pairingCode: null,
       sock,
+      sessionId: currentSessionId, // Debugging: unique ID for this connection attempt
       createdAt: new Date().toISOString(),
       lastUpdate: new Date().toISOString(),
     };
 
     connections.set(accountId, account);
+    
+    console.log(`🔌 [${accountId}] Connection session #${currentSessionId} started`);
 
     // Set timeout to prevent "connecting forever" (configurable via env)
     const CONNECTING_TIMEOUT = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
@@ -1144,7 +1153,7 @@ async function createConnection(accountId, name, phone) {
       console.log(`🔔 [${accountId}] Connection update: ${connection || 'qr'}`);
 
       if (qr) {
-        console.log(`📱 [${accountId}] QR Code generated (length: ${qr.length})`);
+        console.log(`📱 [${accountId}] QR Code generated (length: ${qr.length}, sessionId: ${account.sessionId || 'unknown'})`);
 
         // CRITICAL: Clear connecting timeout when QR is generated
         // QR pairing should not be limited by 60s connecting timeout
@@ -1222,8 +1231,11 @@ async function createConnection(accountId, name, phone) {
       }
 
       if (connection === 'open') {
-        console.log(`✅ [${accountId}] connection.update: open`);
+        console.log(`✅ [${accountId}] connection.update: open (sessionId: ${account.sessionId || 'unknown'})`);
         console.log(`✅ [${accountId}] Connected! Session persisted at: ${sessionPath}`);
+        
+        // Reset reconnect attempts on successful connection
+        reconnectAttempts.delete(accountId);
 
         // Clear connecting timeout
         if (account.connectingTimeout) {
@@ -1297,6 +1309,7 @@ async function createConnection(accountId, name, phone) {
         
         // Log detailed disconnect information (helps diagnose "unknown" reasons)
         console.error(`🔌 [${accountId}] connection.update: close`, {
+          sessionId: account.sessionId || 'unknown', // Connection session ID for debugging
           status: reason,
           rawStatus: rawReason,
           boomStatus,
@@ -1306,6 +1319,7 @@ async function createConnection(accountId, name, phone) {
           stack: errorStack?.substring(0, 200), // Truncate stack for readability
           shouldReconnect: reason !== DisconnectReason.loggedOut,
           currentStatus: account.status,
+          isPairingPhase: ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'].includes(account.status),
           lastDisconnect: lastDisconnect ? {
             error: error ? {
               name: error.name,
@@ -1340,7 +1354,7 @@ async function createConnection(accountId, name, phone) {
 
         if (isPairingPhase && !isExplicitCleanup) {
           console.log(
-            `⏸️  [${accountId}] Pairing phase (${account.status}), preserving account (reason: ${reason})`
+            `⏸️  [${accountId}] Pairing phase (${account.status}, sessionId: ${account.sessionId}), preserving account (reason: ${reason})`
           );
           
           // CRITICAL: Preserve QR code for user to scan
@@ -1369,18 +1383,71 @@ async function createConnection(accountId, name, phone) {
             ...(hasQR && account.qrCode ? { qrCode: account.qrCode } : {}),
           });
 
-          // CRITICAL: Reset connecting state to allow fresh reconnect attempts
-          // This prevents "Already connecting" deadlock when QR expires or connection closes
-          connectionRegistry.release(accountId);
+          // CRITICAL: Clean up old socket reference and timers before reconnect
+          // Clear stale socket reference (socket is already closed, but reference may remain)
+          if (account.sock) {
+            try {
+              // Remove all listeners to prevent memory leaks
+              if (account.sock.ev) {
+                account.sock.ev.removeAllListeners();
+              }
+            } catch (e) {
+              // Ignore cleanup errors
+            }
+            account.sock = null;
+          }
           
           // Clear any stale reconnect timers
           if (account.connectingTimeout) {
             clearTimeout(account.connectingTimeout);
             account.connectingTimeout = null;
           }
+          
+          if (account.qrScanTimeout) {
+            clearTimeout(account.qrScanTimeout);
+            account.qrScanTimeout = null;
+          }
 
-          // Don't delete, don't reconnect - just wait for user to scan QR
-          // If QR expires or user wants to regenerate, they can call "Regenerate QR" endpoint
+          // CRITICAL: Reset connecting state to allow fresh reconnect attempts
+          // This prevents "Already connecting" deadlock when QR expires or connection closes
+          connectionRegistry.release(accountId);
+          
+          // CRITICAL FIX: Auto-reconnect in pairing phase for transient errors
+          // Don't leave account stuck in qr_ready if socket closes due to transient network issue
+          // Only skip reconnect if reason is terminal (loggedOut/badSession/unauthorized)
+          if (shouldReconnect && reason !== DisconnectReason.loggedOut) {
+            const attempts = reconnectAttempts.get(accountId) || 0;
+            const MAX_PAIRING_RECONNECT_ATTEMPTS = parseInt(process.env.MAX_PAIRING_RECONNECT_ATTEMPTS || '10', 10);
+            
+            if (attempts < MAX_PAIRING_RECONNECT_ATTEMPTS) {
+              // Exponential backoff for pairing phase: 1s, 2s, 4s, 8s, 16s, 30s (max)
+              const backoff = Math.min(1000 * Math.pow(2, attempts), 30000);
+              console.log(
+                `🔄 [${accountId}] Pairing phase reconnect in ${backoff}ms (attempt ${attempts + 1}/${MAX_PAIRING_RECONNECT_ATTEMPTS}, reason: ${reason})`
+              );
+              
+              reconnectAttempts.set(accountId, attempts + 1);
+              
+              setTimeout(() => {
+                const acc = connections.get(accountId);
+                if (acc && ['qr_ready', 'awaiting_scan', 'connecting'].includes(acc.status)) {
+                  console.log(`🔄 [${accountId}] Starting pairing phase reconnect (session will be new)`);
+                  createConnection(accountId, acc.name, acc.phone);
+                }
+              }, backoff);
+            } else {
+              console.log(`❌ [${accountId}] Max pairing reconnect attempts reached, requires manual QR regeneration`);
+              account.status = 'needs_qr';
+              await saveAccountToFirestore(accountId, {
+                status: 'needs_qr',
+                lastError: `Max pairing reconnect attempts (${MAX_PAIRING_RECONNECT_ATTEMPTS}) reached`,
+              });
+              reconnectAttempts.delete(accountId);
+            }
+          } else {
+            console.log(`⏸️  [${accountId}] Pairing phase close: no reconnect (reason: ${reason}, shouldReconnect: ${shouldReconnect})`);
+          }
+          
           return;
         }
         
