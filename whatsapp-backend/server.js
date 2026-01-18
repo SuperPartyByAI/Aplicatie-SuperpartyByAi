@@ -135,7 +135,8 @@ function maskPhone(phone) {
 
 class AccountConnectionRegistry {
   constructor() {
-    this.locks = new Map(); // accountId -> { connecting: boolean, connectedAt: timestamp }
+    this.locks = new Map(); // accountId -> { connecting: boolean, connectedAt: timestamp, connectingSince: timestamp }
+    this.CONNECTING_TTL_MS = 90_000; // 90s - TTL for stale connecting locks
   }
 
   /**
@@ -146,8 +147,15 @@ class AccountConnectionRegistry {
     const existing = this.locks.get(accountId);
 
     if (existing && existing.connecting) {
-      console.log(`⚠️  [${accountId}] Already connecting, skipping duplicate`);
-      return false;
+      const age = Date.now() - (existing.connectingSince || Date.now());
+      if (age > this.CONNECTING_TTL_MS) {
+        // Stale lock - force release to prevent deadlock
+        console.log(`⚠️  [${accountId}] Stale connecting lock (${Math.round(age / 1000)}s old), forcing release`);
+        this.locks.delete(accountId);
+      } else {
+        console.log(`⚠️  [${accountId}] Already connecting, skipping duplicate`);
+        return false;
+      }
     }
 
     if (existing && existing.connectedAt && Date.now() - existing.connectedAt < 5000) {
@@ -157,7 +165,7 @@ class AccountConnectionRegistry {
       return false;
     }
 
-    this.locks.set(accountId, { connecting: true, connectedAt: null });
+    this.locks.set(accountId, { connecting: true, connectedAt: null, connectingSince: Date.now() });
     console.log(`🔒 [${accountId}] Connection lock acquired`);
     return true;
   }
@@ -166,7 +174,7 @@ class AccountConnectionRegistry {
    * Mark connection as established
    */
   markConnected(accountId) {
-    this.locks.set(accountId, { connecting: false, connectedAt: Date.now() });
+    this.locks.set(accountId, { connecting: false, connectedAt: Date.now(), connectingSince: null });
     console.log(`✅ [${accountId}] Connection lock: marked as connected`);
   }
 
@@ -1308,6 +1316,21 @@ async function createConnection(accountId, name, phone) {
         // CRITICAL: Extract real disconnect reason from Boom error
         // Check multiple sources (Boom error, output.statusCode, error.code, etc.)
         const error = lastDisconnect?.error;
+        
+        // DEBUG: Log raw error structure to diagnose "unknown" reasons
+        console.log(`🔍 [${accountId}] Raw lastDisconnect structure:`, {
+          hasError: !!error,
+          errorName: error?.name,
+          errorMessage: error?.message,
+          errorCode: error?.code,
+          errorStatusCode: error?.statusCode,
+          hasOutput: !!error?.output,
+          outputStatusCode: error?.output?.statusCode,
+          outputPayload: error?.output?.payload,
+          errorStack: error?.stack?.substring(0, 300), // First 300 chars
+          lastDisconnectKeys: lastDisconnect ? Object.keys(lastDisconnect) : [],
+        });
+        
         const boomStatus = error?.output?.statusCode;
         const errorCode = error?.code || error?.statusCode;
         const rawReason = boomStatus ?? errorCode ?? 'unknown';
