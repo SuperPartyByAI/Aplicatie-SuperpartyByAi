@@ -42,16 +42,20 @@ exports.whatsappExtractEventFromThread = onCall(
       throw new HttpsError('unauthenticated', 'User must be authenticated');
     }
 
-    const {threadId, accountId, phoneE164, lastNMessages = 50, dryRun = true} = request.data || {};
+    const {threadId, accountId, phoneE164, lastNMessages = 50, dryRun = true, bypassCache = false} = request.data || {};
 
     if (!threadId || !accountId) {
       throw new HttpsError('invalid-argument', 'threadId and accountId are required');
     }
 
+    // Generate trace ID for observability
+    const traceId = `trace_${Date.now()}_${Math.floor(Math.random() * 999999)}`;
+    console.log(`[whatsappExtractEventFromThread] ${traceId} - Start extraction for thread ${threadId}`);
+
     // Access GROQ API key from secret
     const groqKey = groqApiKey.value();
     if (!groqKey) {
-      console.error('[whatsappExtractEventFromThread] GROQ_API_KEY not available');
+      console.error(`[whatsappExtractEventFromThread] ${traceId} - GROQ_API_KEY not available`);
       throw new HttpsError('failed-precondition', 'GROQ_API_KEY not available');
     }
 
@@ -78,12 +82,56 @@ exports.whatsappExtractEventFromThread = onCall(
         .get();
 
       if (messagesSnapshot.empty) {
+        console.log(`[whatsappExtractEventFromThread] ${traceId} - No inbound messages found`);
         return {
           action: 'NOOP',
           confidence: 0,
           reasons: ['No inbound messages found in thread'],
+          traceId,
+          cacheHit: false,
         };
       }
+
+      // Generate cache key from last message ID + extractor version
+      const lastMessageId = messagesSnapshot.docs[0].id;
+      const extractorVersion = 'v2'; // Bump this when prompt/logic changes
+      const cacheKey = crypto.createHash('sha256')
+        .update(`${threadId}_${lastMessageId}_${extractorVersion}`)
+        .digest('hex').substring(0, 16);
+
+      // Check cache (unless bypassed)
+      if (!bypassCache) {
+        const cacheRef = threadRef.collection('extractions').doc(cacheKey);
+        const cacheDoc = await cacheRef.get();
+        
+        if (cacheDoc.exists) {
+          const cacheData = cacheDoc.data();
+          if (cacheData.status === 'success') {
+            console.log(`[whatsappExtractEventFromThread] ${traceId} - Cache hit: ${cacheKey}`);
+            return {
+              ...cacheData.result,
+              traceId,
+              cacheHit: true,
+              extractionDocPath: cacheRef.path,
+              extractedAt: cacheData.finishedAt,
+            };
+          }
+        }
+      }
+
+      console.log(`[whatsappExtractEventFromThread] ${traceId} - Cache miss, running AI extraction`);
+
+      // Mark extraction as running (for observability)
+      const extractionRef = threadRef.collection('extractions').doc(cacheKey);
+      await extractionRef.set({
+        status: 'running',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        requestedBy: userId,
+        traceId,
+        threadId,
+        lastMessageId,
+        extractorVersion,
+      });
 
       // Build conversation context from messages
       const messages = [];
@@ -221,42 +269,52 @@ Extrage date pentru petrecere (dacă există). Răspunde JSON strict.`;
         }
       }
 
-      // Generate idempotency key
-      const lastMessageId = messages[messages.length - 1]?.id || 'unknown';
+      // Generate idempotency key (using existing lastMessageId)
       const clientRequestId = crypto
         .createHash('sha256')
         .update(`${threadId}__${lastMessageId}`)
         .digest('hex')
         .substring(0, 16);
 
-      // If dryRun, return preview
+      // If dryRun, save to cache and return preview
+      const finalResult = {
+        action,
+        draftEvent: normalizedEvent,
+        targetEventId,
+        confidence: extraction.confidence || 0.5,
+        reasons: extraction.reasons || [],
+        clientRequestId,
+        traceId,
+        cacheHit: false,
+      };
+
       if (dryRun) {
-        return {
-          action,
-          draftEvent: normalizedEvent,
-          targetEventId,
-          confidence: extraction.confidence || 0.5,
-          reasons: extraction.reasons || [],
-          clientRequestId,
-        };
+        // Save extraction result to cache
+        await extractionRef.set({
+          status: 'success',
+          result: finalResult,
+          finishedAt: admin.firestore.FieldValue.serverTimestamp(),
+          model: 'llama-3.1-70b-versatile',
+          extractorVersion,
+          messageCount: messages.length,
+        }, {merge: true});
+
+        return finalResult;
       }
 
       // Execute CREATE or UPDATE using existing chatEventOps logic
-      // For now, we'll use chatEventOps CREATE/UPDATE commands internally
+      // For now, return draft and let Flutter call chatEventOps with confirmation
       let result;
 
       if (action === 'CREATE_EVENT') {
-        // Build chatEventOps command
-        const eventText = `CREATE petrecere ${normalizedEvent.date ? `data ${normalizedEvent.date}` : ''} ${normalizedEvent.address || ''} ${normalizedEvent.childName || ''} ${normalizedEvent.payment?.amount ? `${normalizedEvent.payment.amount} ${normalizedEvent.payment.currency || 'RON'}` : ''}`.trim();
-        
-        // Call chatEventOps internally (but we need to pass userId context)
-        // For now, return draft and let Flutter call chatEventOps with confirmation
         result = {
           action: 'CREATE_EVENT',
           draftEvent: {...normalizedEvent, clientRequestId},
           confidence: extraction.confidence || 0.5,
           reasons: extraction.reasons || [],
           clientRequestId,
+          traceId,
+          cacheHit: false,
           message: 'Use chatEventOps to create event from draftEvent',
         };
       } else {
@@ -268,25 +326,20 @@ Extrage date pentru petrecere (dacă există). Răspunde JSON strict.`;
           confidence: extraction.confidence || 0.5,
           reasons: extraction.reasons || [],
           clientRequestId,
+          traceId,
+          cacheHit: false,
           message: 'Use chatEventOps UPDATE to update event from draftEvent',
         };
       }
 
-      // Store extraction record for audit
-      const extractionRef = threadRef.collection('extractions').doc(lastMessageId);
+      // Save extraction result to cache
       await extractionRef.set({
-        messageId: lastMessageId,
-        threadId,
-        accountId,
-        clientJid: phoneE164,
-        intent: extraction.intent,
-        entities: extraction.event || {},
-        confidence: extraction.confidence || 0.5,
+        status: 'success',
+        result,
+        finishedAt: admin.firestore.FieldValue.serverTimestamp(),
         model: 'llama-3.1-70b-versatile',
-        action,
-        targetEventId,
-        clientRequestId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        extractorVersion,
+        messageCount: messages.length,
       }, {merge: true});
 
       return result;

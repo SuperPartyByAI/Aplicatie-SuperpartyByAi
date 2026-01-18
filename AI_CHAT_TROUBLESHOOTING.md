@@ -41,7 +41,7 @@ firebase deploy --only functions:chatWithAI
 ### Step 4: Check Function Logs (30 seconds)
 
 ```bash
-firebase functions:log --only chatWithAI --project superparty-frontend --limit 20
+firebase functions:log --only chatWithAI --project superparty-frontend --lines 20
 ```
 
 ## Error Code Reference
@@ -89,7 +89,7 @@ firebase functions:log --only chatWithAI --project superparty-frontend --limit 2
 echo "=== AI Chat Health Check ==="
 firebase functions:list --project superparty-frontend | grep chatWithAI && echo "✅ Function deployed" || echo "❌ NOT deployed"
 firebase functions:secrets:get GROQ_API_KEY --project superparty-frontend > /dev/null 2>&1 && echo "✅ Secret exists" || echo "❌ Secret missing"
-firebase functions:log --only chatWithAI --limit 5
+firebase functions:log --only chatWithAI --lines 5
 ```
 
 ## Manual Tests
@@ -113,10 +113,10 @@ firebase functions:log --only chatWithAI --limit 5
 
 ```bash
 # Recent logs
-firebase functions:log --only chatWithAI --limit 50
+firebase functions:log --only chatWithAI --lines 50
 
 # Search errors
-firebase functions:log --only chatWithAI --limit 100 | grep -i error
+firebase functions:log --only chatWithAI --lines 100 | grep -i error
 
 # List secrets
 firebase functions:secrets:list

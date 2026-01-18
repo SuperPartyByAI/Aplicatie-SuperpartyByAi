@@ -350,7 +350,7 @@ firebase deploy --only firestore:indexes
 
 ```bash
 # Check logs for errors
-firebase functions:log --only chatWithAI --limit 100
+firebase functions:log --only chatWithAI --lines 100
 
 # Monitor Firestore usage
 firebase firestore:usage
@@ -496,7 +496,7 @@ adb logcat | grep "AIChatScreen"
 # Should see: [AIChatScreen] ERROR: User not authenticated
 
 # Check Functions logs (should be empty - no call made)
-firebase functions:log --only chatWithAI --limit 10
+firebase functions:log --only chatWithAI --lines 10
 ```
 
 #### Test 2: Missing GROQ_API_KEY
@@ -526,7 +526,7 @@ firebase deploy --only functions:chatWithAI
 
 ```bash
 # Check Functions logs
-firebase functions:log --only chatWithAI --limit 10
+firebase functions:log --only chatWithAI --lines 10
 # Should see:
 # [req_xxx] GROQ_API_KEY not configured
 # failed-precondition: GROQ_API_KEY not configured. Please set the secret...
@@ -573,7 +573,7 @@ firebase functions:list | grep chatWithAI
 
 ```bash
 # Check Functions logs
-firebase functions:log --only chatWithAI --limit 10
+firebase functions:log --only chatWithAI --lines 10
 # Should see:
 # [req_xxx] chatWithAI called { userId: 'xxx', messageCount: 1 }
 # [req_xxx] GROQ_API_KEY loaded from secrets
@@ -597,7 +597,7 @@ firebase functions:log --only chatWithAI --limit 10
 **Verification:**
 
 ```bash
-firebase functions:log --only chatWithAI --limit 10
+firebase functions:log --only chatWithAI --lines 10
 # Look for timeout or deadline-exceeded errors
 ```
 
@@ -627,7 +627,7 @@ echo "gsk_YOUR_KEY_HERE" | firebase functions:secrets:set GROQ_API_KEY
 
 ```bash
 # Recent logs
-firebase functions:log --only chatWithAI --limit 50
+firebase functions:log --only chatWithAI --lines 50
 
 # Follow logs (real-time)
 firebase functions:log --only chatWithAI --follow

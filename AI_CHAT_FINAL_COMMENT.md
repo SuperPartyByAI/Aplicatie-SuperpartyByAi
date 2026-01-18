@@ -110,7 +110,7 @@ firebase functions:list | grep chatWithAI
 firebase functions:secrets:access GROQ_API_KEY
 
 # 4. Check function logs
-firebase functions:log --only chatWithAI --limit 5
+firebase functions:log --only chatWithAI --lines 5
 ```
 
 ### Manual Test

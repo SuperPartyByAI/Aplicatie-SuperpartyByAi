@@ -389,7 +389,7 @@ firebase functions:log --only <functionName> --lines 200
 
 **INCORRECT** (will fail):
 ```bash
-firebase functions:log --only <functionName> --limit 200  # ❌ Invalid flag
+firebase functions:log --only <functionName> --lines 200  # ❌ Invalid flag
 ```
 
 ---

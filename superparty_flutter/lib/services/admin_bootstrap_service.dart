@@ -1,6 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'retry_helper.dart';
 
 /// Admin Bootstrap Service
 /// 
@@ -12,6 +13,7 @@ class AdminBootstrapService {
   AdminBootstrapService._internal();
 
   bool _hasBootstrapped = false;
+  DateTime? _lastAttempt;
 
   /// Bootstrap admin access if user is in allowlist.
   /// 
@@ -22,11 +24,23 @@ class AdminBootstrapService {
   /// Only allowlisted emails can succeed. Others will get permission-denied.
   /// 
   /// Returns true if admin was set OR already set, false if not eligible.
+  /// 
+  /// Includes retry logic and debouncing (won't call more than once per 5 minutes).
   Future<bool> bootstrapIfEligible() async {
     if (_hasBootstrapped) {
       debugPrint('[AdminBootstrap] Already bootstrapped in this session');
       return true;
     }
+
+    // Debounce: don't call more than once per 5 minutes
+    if (_lastAttempt != null) {
+      final elapsed = DateTime.now().difference(_lastAttempt!);
+      if (elapsed.inMinutes < 5) {
+        debugPrint('[AdminBootstrap] Debounced (last attempt ${elapsed.inSeconds}s ago)');
+        return false;
+      }
+    }
+    _lastAttempt = DateTime.now();
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -40,7 +54,13 @@ class AdminBootstrapService {
       final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
       final callable = functions.httpsCallable('bootstrapAdmin');
       
-      final result = await callable.call();
+      // Use retry helper for transient failures
+      final result = await RetryHelper.retryWithBackoff(
+        () => callable.call(),
+        operationName: 'bootstrapAdmin',
+        maxAttempts: 3, // Lower for bootstrap (don't block too long)
+      );
+      
       final data = result.data as Map<String, dynamic>;
       
       if (data['success'] == true) {

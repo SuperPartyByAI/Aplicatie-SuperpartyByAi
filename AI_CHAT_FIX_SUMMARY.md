@@ -236,7 +236,7 @@ firebase functions:secrets:access GROQ_API_KEY
 ### 3. Check Function Logs
 
 ```bash
-firebase functions:log --only chatWithAI --limit 5
+firebase functions:log --only chatWithAI --lines 5
 # Should see: "[req_xxx] GROQ_API_KEY loaded from secrets"
 ```
 

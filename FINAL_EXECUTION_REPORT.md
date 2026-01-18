@@ -451,7 +451,7 @@ firebase functions:log --only clientCrmAsk --lines 200
 firebase functions:log --only aggregateClientStats --lines 200
 
 # ❌ INCORRECT (will error):
-firebase functions:log --only bootstrapAdmin --limit 200  # Invalid flag!
+firebase functions:log --only bootstrapAdmin --lines 200  # Invalid flag!
 ```
 
 ---

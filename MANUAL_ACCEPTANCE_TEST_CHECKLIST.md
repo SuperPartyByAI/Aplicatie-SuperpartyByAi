@@ -55,7 +55,7 @@ adb logcat | grep "AIChatScreen"
 
 ```bash
 # Check function logs
-firebase functions:log --only chatWithAI --limit 10
+firebase functions:log --only chatWithAI --lines 10
 ```
 
 ### Cleanup:
@@ -91,7 +91,7 @@ firebase deploy --only functions:chatWithAI
 
 ```bash
 # Check function logs for successful request
-firebase functions:log --only chatWithAI --limit 5
+firebase functions:log --only chatWithAI --lines 5
 
 # Look for:
 # - [requestId] Request received
@@ -131,7 +131,7 @@ firebase functions:log --only chatWithAI --limit 5
 
 ```bash
 # Check function logs for timeout
-firebase functions:log --only chatWithAI --limit 5
+firebase functions:log --only chatWithAI --lines 5
 
 # Look for:
 # - [requestId] Request received
@@ -161,7 +161,7 @@ firebase functions:log --only chatWithAI --limit 5
 
 ```bash
 # Check function logs for rate limit errors
-firebase functions:log --only chatWithAI --limit 10
+firebase functions:log --only chatWithAI --lines 10
 ```
 
 ---
@@ -203,7 +203,7 @@ firebase functions:secrets:access GROQ_API_KEY --data-file=-
 ### View Recent Logs
 
 ```bash
-firebase functions:log --only chatWithAI --limit 20
+firebase functions:log --only chatWithAI --lines 20
 ```
 
 ### Check Function Region

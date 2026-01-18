@@ -51,7 +51,7 @@ firebase deploy --only functions
 ## 🔍 Verifică Logs pentru Erori
 
 ```cmd
-firebase functions:log --only whatsapp --limit 20
+firebase functions:log --only whatsapp --lines 20
 ```
 
 Caută erori recente care ar putea explica de ce deploy-ul a eșuat.

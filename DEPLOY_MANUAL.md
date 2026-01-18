@@ -198,7 +198,7 @@ firebase deploy --only functions
 firebase functions:list
 
 # 2. Check logs
-firebase functions:log --limit 50
+firebase functions:log --lines 50
 
 # 3. Test Firestore access
 cd functions

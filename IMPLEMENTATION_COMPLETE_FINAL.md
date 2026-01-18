@@ -207,7 +207,7 @@ firebase functions:list
 # Expected: aiEventHandler, setStaffCode, processFollowUps
 
 # 2. Check logs
-firebase functions:log --only aiEventHandler --limit 10
+firebase functions:log --only aiEventHandler --lines 10
 
 # 3. Verify Firestore
 cd functions

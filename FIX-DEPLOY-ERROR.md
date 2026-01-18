@@ -34,7 +34,7 @@ Dacă funcția este în uz (primește requests), Firebase nu poate face update.
 ### **Soluția 1: Verifică Logs-urile (ACUM)**
 
 ```cmd
-firebase functions:log --only whatsapp --limit 50
+firebase functions:log --only whatsapp --lines 50
 ```
 
 Caută erori de tipul:
@@ -121,7 +121,7 @@ Dacă dă eroare → avem o problemă în cod.
 ### **Pas 1: Verifică Logs** (30 sec)
 
 ```cmd
-firebase functions:log --only whatsapp --limit 50
+firebase functions:log --only whatsapp --lines 50
 ```
 
 **Copiază output-ul și trimite-mi-l!**
@@ -211,7 +211,7 @@ firebase deploy --only functions
 
 ## 🎯 Next Steps
 
-1. **Rulează:** `firebase functions:log --only whatsapp --limit 50`
+1. **Rulează:** `firebase functions:log --only whatsapp --lines 50`
 2. **Trimite-mi output-ul** pentru a vedea eroarea exactă
 3. **Apoi aplicăm fix-ul corespunzător**
 

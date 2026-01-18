@@ -220,7 +220,7 @@ firebase functions:log --only functionName --lines 200
 
 **INCORRECT** (will error):
 ```bash
-firebase functions:log --only functionName --limit 200  # ❌ Invalid
+firebase functions:log --only functionName --lines 200  # ❌ Invalid
 ```
 
 ### Cleanup After Testing
