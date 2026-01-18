@@ -1358,15 +1358,23 @@ async function createConnection(accountId, name, phone) {
       if (qr) {
         console.log(`📱 [${accountId}] QR Code generated (length: ${qr.length}, sessionId: ${account.sessionId || 'unknown'})`);
 
-        // CRITICAL: Clear connecting timeout when QR is generated
-        // QR pairing should not be limited by 60s connecting timeout
-        // Use QR_SCAN_TIMEOUT instead (10 minutes for user to scan)
+        // CRITICAL: Set status to 'qr_ready' IMMEDIATELY when QR is detected
+        // This prevents timeout from firing (timeout checks pairing phase)
         // IMPORTANT: Get account from connections map (not closure variable) to ensure latest state
         const currentAccount = connections.get(accountId);
-        if (currentAccount && currentAccount.connectingTimeout) {
-          clearTimeout(currentAccount.connectingTimeout);
-          currentAccount.connectingTimeout = null;
-          console.log(`⏰ [${accountId}] Connecting timeout cleared (QR generated, pairing phase)`);
+        if (currentAccount) {
+          // Set status IMMEDIATELY (before async QR generation)
+          currentAccount.status = 'qr_ready';
+          console.log(`⏰ [${accountId}] Status set to 'qr_ready' (QR detected)`);
+          
+          // Clear connecting timeout IMMEDIATELY when QR is detected
+          // QR pairing should not be limited by 60s connecting timeout
+          // Use QR_SCAN_TIMEOUT instead (10 minutes for user to scan)
+          if (currentAccount.connectingTimeout) {
+            clearTimeout(currentAccount.connectingTimeout);
+            currentAccount.connectingTimeout = null;
+            console.log(`⏰ [${accountId}] Connecting timeout cleared (QR detected, pairing phase)`);
+          }
         }
 
         // Set QR scan timeout (10 minutes) - regenerate if user doesn't scan
