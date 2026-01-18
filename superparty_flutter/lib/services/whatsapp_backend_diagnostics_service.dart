@@ -1,7 +1,4 @@
 import 'dart:convert';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:http/http.dart' as http;
 
@@ -51,23 +48,6 @@ class WhatsAppBackendDiagnosticsService {
   WhatsAppBackendDiagnosticsService._internal();
 
   static WhatsAppBackendDiagnosticsService get instance => _instance;
-
-  /// Get Functions URL (for proxy calls if needed)
-  String _getFunctionsUrl() {
-    const region = 'us-central1';
-    
-    try {
-      final app = Firebase.app();
-      final projectId = app.options.projectId;
-      if (projectId.isNotEmpty) {
-        return 'https://$region-$projectId.cloudfunctions.net';
-      }
-    } catch (_) {
-      // Fallback if Firebase not initialized
-    }
-    
-    return 'https://$region-superparty-frontend.cloudfunctions.net';
-  }
 
   /// Get backend base URL (direct Railway URL)
   String _getBackendUrl() {

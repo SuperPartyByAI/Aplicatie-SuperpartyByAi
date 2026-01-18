@@ -29,7 +29,6 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   bool _isLoading = true;
   String? _error;
   BackendDiagnostics? _backendDiagnostics;
-  bool _isLoadingDiagnostics = false;
   
   // In-flight guards (prevent double-tap / concurrent requests)
   bool _isAddingAccount = false;
@@ -71,14 +70,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
       debugPrint('[WhatsAppAccountsScreen] Checking repo-relative script path: $absoluteRepoPath');
     }
     
-    // Fallback: try original location in user home (if user had separate wa-web-launcher project)
-    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
-    if (home.isNotEmpty) {
-      final fallbackPath = path.join(home, 'wa-web-launcher', 'bin', 'firefox-container');
-      // Return repo path first, async method will check existence and fallback if needed
-      return absoluteRepoPath;
-    }
-    
+    // Return repo path - async method will check existence and handle fallback if needed
     return absoluteRepoPath;
   }
 
@@ -90,13 +82,11 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   }
   
   Future<void> _checkBackendDiagnostics() async {
-    setState(() => _isLoadingDiagnostics = true);
     try {
       final diagnostics = await _diagnosticsService.checkReady();
       if (mounted) {
         setState(() {
           _backendDiagnostics = diagnostics;
-          _isLoadingDiagnostics = false;
         });
       }
     } catch (e) {
@@ -104,7 +94,6 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
         if (kDebugMode) {
           debugPrint('[WhatsAppAccountsScreen] Diagnostics check failed: $e');
         }
-        setState(() => _isLoadingDiagnostics = false);
       }
     }
   }
