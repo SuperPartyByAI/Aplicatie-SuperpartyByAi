@@ -327,6 +327,18 @@ const accountLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Rate limiting for QR regeneration: 30 per IP per minute (more permissive since it's a user action)
+const qrRegenerateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: {
+    success: false,
+    error: 'Too many QR regeneration requests. Limit: 30 per minute per IP. Please wait a moment.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // In-memory store for active connections
 const connections = new Map();
 const reconnectAttempts = new Map();
@@ -3132,7 +3144,7 @@ app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req, 
 });
 
 // Regenerate QR
-app.post('/api/whatsapp/regenerate-qr/:accountId', accountLimiter, async (req, res) => {
+app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (req, res) => {
   // HARD GATE: PASSIVE mode - do NOT regenerate QR (requires Baileys connection)
   if (!waBootstrap.canStartBaileys()) {
     return res.status(503).json({
