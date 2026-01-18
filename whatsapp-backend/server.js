@@ -63,13 +63,60 @@ function canonicalPhone(input) {
 /**
  * Generate deterministic accountId from phone number
  * @param {string} phone - Phone number (will be canonicalized)
- * @returns {string} - Deterministic accountId
+ * @returns {string} - Deterministic accountId (stable across environments)
  */
 function generateAccountId(phone) {
   const canonical = canonicalPhone(phone);
   const hash = crypto.createHash('sha256').update(canonical).digest('hex').substring(0, 32);
-  const env = process.env.NODE_ENV || 'dev';
-  return `account_${env}_${hash}`;
+  
+  // Use stable namespace (not NODE_ENV which can differ between instances)
+  // Default to 'prod' for backwards compatibility with existing accounts
+  const namespace = process.env.ACCOUNT_NAMESPACE || 'prod';
+  return `account_${namespace}_${hash}`;
+}
+
+/**
+ * Find accountId by phone (with backwards compatibility)
+ * Tries new stable id first, then legacy ids (account_dev_*, account_production_*)
+ * @param {string} phone - Phone number (canonicalized)
+ * @returns {Promise<string|null>} - AccountId if found, null otherwise
+ */
+async function findAccountIdByPhone(phone) {
+  const canonical = canonicalPhone(phone);
+  const hash = crypto.createHash('sha256').update(canonical).digest('hex').substring(0, 32);
+  
+  if (!firestoreAvailable || !db) {
+    // Fallback: try stable id only
+    const stableId = `account_prod_${hash}`;
+    return stableId;
+  }
+
+  // Try stable id first (account_prod_*)
+  const stableId = `account_prod_${hash}`;
+  const stableDoc = await db.collection('accounts').doc(stableId).get();
+  if (stableDoc.exists) {
+    return stableId;
+  }
+
+  // Try legacy ids for backwards compatibility
+  const legacyIds = [
+    `account_dev_${hash}`,
+    `account_development_${hash}`,
+    `account_production_${hash}`,
+  ];
+
+  for (const legacyId of legacyIds) {
+    const legacyDoc = await db.collection('accounts').doc(legacyId).get();
+    if (legacyDoc.exists) {
+      console.log(`ℹ️  Found account with legacy id: ${legacyId} (migrating to stable id: ${stableId})`);
+      // Optionally migrate to stable id (copy data, but don't delete legacy)
+      // For now, just return legacy id
+      return legacyId;
+    }
+  }
+
+  // Not found - return stable id for new account creation
+  return stableId;
 }
 
 /**
@@ -924,6 +971,12 @@ function isTerminalLogout(reasonCode) {
 
 // Helper: Create WhatsApp connection
 async function createConnection(accountId, name, phone) {
+  // HARD GATE: PASSIVE mode - do NOT start Baileys connections
+  if (!waBootstrap.canStartBaileys()) {
+    console.log(`⏸️  [${accountId}] PASSIVE mode - cannot start Baileys connection (lock not held)`);
+    return;
+  }
+
   // Guard: Do not auto-connect accounts with terminal logout status
   // These require explicit user action (Regenerate QR)
   const account = connections.get(accountId);
@@ -1081,6 +1134,30 @@ async function createConnection(accountId, name, phone) {
       if (qr) {
         console.log(`📱 [${accountId}] QR Code generated (length: ${qr.length})`);
 
+        // CRITICAL: Clear connecting timeout when QR is generated
+        // QR pairing should not be limited by 60s connecting timeout
+        // Use QR_SCAN_TIMEOUT instead (10 minutes for user to scan)
+        if (account.connectingTimeout) {
+          clearTimeout(account.connectingTimeout);
+          account.connectingTimeout = null;
+          console.log(`⏰ [${accountId}] Connecting timeout cleared (QR generated, pairing phase)`);
+        }
+
+        // Set QR scan timeout (10 minutes) - regenerate if user doesn't scan
+        const QR_SCAN_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+        account.qrScanTimeout = setTimeout(() => {
+          console.log(`⏰ [${accountId}] QR scan timeout (${QR_SCAN_TIMEOUT_MS / 1000}s) - QR expired`);
+          const acc = connections.get(accountId);
+          if (acc && acc.status === 'qr_ready') {
+            acc.status = 'needs_qr'; // Mark for regeneration
+            saveAccountToFirestore(accountId, {
+              status: 'needs_qr',
+              lastError: 'QR scan timeout - QR expired after 10 minutes',
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }).catch(err => console.error(`❌ [${accountId}] QR timeout save failed:`, err));
+          }
+        }, QR_SCAN_TIMEOUT_MS);
+
         try {
           const qrDataURL = await Sentry.startSpan(
             { op: 'whatsapp.qr.generate', name: 'Generate QR Code' },
@@ -1131,6 +1208,13 @@ async function createConnection(accountId, name, phone) {
         if (account.connectingTimeout) {
           clearTimeout(account.connectingTimeout);
           account.connectingTimeout = null;
+        }
+
+        // Clear QR scan timeout (connection established, QR no longer needed)
+        if (account.qrScanTimeout) {
+          clearTimeout(account.qrScanTimeout);
+          account.qrScanTimeout = null;
+          console.log(`⏰ [${accountId}] QR scan timeout cleared (connected)`);
         }
 
         // Mark connection as established in registry
@@ -1203,14 +1287,31 @@ async function createConnection(accountId, name, phone) {
           console.log(
             `⏸️  [${accountId}] Pairing phase (${account.status}), preserving account (reason: ${reason})`
           );
-          account.status = 'awaiting_scan'; // Mark as waiting for scan
+          
+          // CRITICAL: Preserve QR code for user to scan
+          // If QR exists, keep status 'qr_ready' so Flutter app can display it
+          // Don't change to 'awaiting_scan' which hides the QR in Flutter UI
+          const hasQR = account.qrCode || (account.data && account.data.qrCode);
+          const preserveQRStatus = hasQR && account.status === 'qr_ready';
+          
+          if (preserveQRStatus) {
+            console.log(`📱 [${accountId}] Preserving QR code (status: qr_ready) - user can scan`);
+            // Keep status as 'qr_ready' so QR remains visible in Flutter app
+            account.status = 'qr_ready';
+          } else {
+            // No QR yet, mark as awaiting scan
+            account.status = 'awaiting_scan';
+          }
+          
           account.lastUpdate = new Date().toISOString();
 
           await saveAccountToFirestore(accountId, {
-            status: 'awaiting_scan',
+            status: account.status, // Keep 'qr_ready' if QR exists, else 'awaiting_scan'
             lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
-            lastDisconnectReason: 'qr_waiting_scan',
+            lastDisconnectReason: preserveQRStatus ? 'qr_ready_preserved' : 'qr_waiting_scan',
             lastDisconnectCode: reason,
+            // Preserve QR code in Firestore so it's still available after close event
+            ...(hasQR && account.qrCode ? { qrCode: account.qrCode } : {}),
           });
 
           // Release lock to allow reconnect if needed, but keep account in Map
@@ -2759,6 +2860,15 @@ app.get('/api/whatsapp/qr-visual', async (req, res) => {
 
 // Add new account
 app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
+  // HARD GATE: PASSIVE mode - do NOT create new Baileys connections
+  if (!waBootstrap.canStartBaileys()) {
+    return res.status(503).json({
+      success: false,
+      error: 'PASSIVE mode: another instance holds lock; retry shortly',
+      mode: 'passive',
+    });
+  }
+
   try {
     const { name, phone } = req.body;
 
@@ -3014,6 +3124,15 @@ app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req, 
 
 // Regenerate QR
 app.post('/api/whatsapp/regenerate-qr/:accountId', accountLimiter, async (req, res) => {
+  // HARD GATE: PASSIVE mode - do NOT regenerate QR (requires Baileys connection)
+  if (!waBootstrap.canStartBaileys()) {
+    return res.status(503).json({
+      success: false,
+      error: 'PASSIVE mode: another instance holds lock; retry shortly',
+      mode: 'passive',
+    });
+  }
+
   try {
     const { accountId } = req.params;
     let account = connections.get(accountId);
@@ -3034,10 +3153,29 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', accountLimiter, async (req, r
       return res.status(404).json({ success: false, error: 'Account not found' });
     }
 
-    // Clear session to ensure fresh pairing (disk + Firestore)
+    // Check if QR is already ready and valid (don't regenerate unnecessarily)
+    const accountStatus = account.status || (account.data && account.data.status);
+    const hasValidQR = accountStatus === 'qr_ready' && account.qrCode;
+    const qrAge = account.qrUpdatedAt 
+      ? Date.now() - (account.qrUpdatedAt.toMillis ? account.qrUpdatedAt.toMillis() : new Date(account.qrUpdatedAt).getTime())
+      : Infinity;
+    const QR_EXPIRY_MS = 60 * 1000; // QR expires after 60 seconds (WhatsApp standard)
+
+    if (hasValidQR && qrAge < QR_EXPIRY_MS) {
+      console.log(`ℹ️  [${accountId}] QR already exists and valid (age: ${Math.round(qrAge/1000)}s), returning existing QR`);
+      return res.json({ 
+        success: true, 
+        message: 'QR code already available',
+        qrCode: account.qrCode,
+        status: 'qr_ready',
+        ageSeconds: Math.round(qrAge / 1000),
+      });
+    }
+
+    // Clear session to ensure fresh pairing (disk + Firestore) - only if QR expired or not valid
     try {
       await clearAccountSession(accountId);
-      console.log(`🗑️  [${accountId}] Session cleared for QR regeneration`);
+      console.log(`🗑️  [${accountId}] Session cleared for QR regeneration${hasValidQR ? ' (QR expired)' : ''}`);
     } catch (error) {
       console.error(`⚠️  [${accountId}] Failed to clear session during QR regeneration:`, error.message);
       // Continue anyway - createConnection will handle fresh session
@@ -3114,6 +3252,51 @@ app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) =
 
 // Send message
 app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
+  // HARD GATE: PASSIVE mode - do NOT process outbox (messages queued but not sent immediately)
+  // Note: Messages can still be queued (outbox), but worker won't process them in PASSIVE mode
+  if (!waBootstrap.canProcessOutbox()) {
+    // Queue message but return 503 to indicate immediate sending unavailable
+    const { accountId, to, message } = req.body;
+    if (firestoreAvailable && db) {
+      try {
+        const jid = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+        const threadId = `${accountId}__${jid}`;
+        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const outboxData = {
+          accountId,
+          toJid: jid,
+          threadId,
+          payload: { text: message },
+          body: message,
+          status: 'queued',
+          attemptCount: 0,
+          nextAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        await db.collection('outbox').doc(messageId).set(outboxData);
+        return res.status(503).json({
+          success: true,
+          message: 'Message queued (will be sent when ACTIVE mode)',
+          messageId,
+          queued: true,
+          mode: 'passive',
+        });
+      } catch (error) {
+        return res.status(503).json({
+          success: false,
+          error: `PASSIVE mode: ${error.message}`,
+          mode: 'passive',
+        });
+      }
+    }
+    return res.status(503).json({
+      success: false,
+      error: 'PASSIVE mode: another instance holds lock; retry shortly',
+      mode: 'passive',
+    });
+  }
+
   try {
     const { accountId, to, message } = req.body;
     const account = connections.get(accountId);
@@ -3962,6 +4145,12 @@ async function restoreSingleAccount(accountId) {
 
 // Extract account restore logic
 async function restoreAccount(accountId, data) {
+  // HARD GATE: PASSIVE mode - do NOT restore Baileys connections
+  if (!waBootstrap.canStartBaileys()) {
+    console.log(`⏸️  [${accountId}] PASSIVE mode - cannot restore Baileys connection (lock not held)`);
+    return;
+  }
+
   const CONNECTING_TIMEOUT = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
 
   try {
@@ -4099,6 +4288,28 @@ async function restoreAccount(accountId, data) {
       if (qr) {
         console.log(`📱 [${accountId}] QR Code generated (length: ${qr.length})`);
 
+        // CRITICAL: Clear connecting timeout when QR is generated (same as createConnection)
+        if (account.connectingTimeout) {
+          clearTimeout(account.connectingTimeout);
+          account.connectingTimeout = null;
+          console.log(`⏰ [${accountId}] Connecting timeout cleared (QR generated, pairing phase)`);
+        }
+
+        // Set QR scan timeout (10 minutes) - same as createConnection
+        const QR_SCAN_TIMEOUT_MS = 10 * 60 * 1000;
+        account.qrScanTimeout = setTimeout(() => {
+          console.log(`⏰ [${accountId}] QR scan timeout (${QR_SCAN_TIMEOUT_MS / 1000}s) - QR expired`);
+          const acc = connections.get(accountId);
+          if (acc && acc.status === 'qr_ready') {
+            acc.status = 'needs_qr';
+            saveAccountToFirestore(accountId, {
+              status: 'needs_qr',
+              lastError: 'QR scan timeout - QR expired after 10 minutes',
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }).catch(err => console.error(`❌ [${accountId}] QR timeout save failed:`, err));
+          }
+        }, QR_SCAN_TIMEOUT_MS);
+
         try {
           const qrDataURL = await QRCode.toDataURL(qr);
           account.qrCode = qrDataURL;
@@ -4129,6 +4340,13 @@ async function restoreAccount(accountId, data) {
         if (account.connectingTimeout) {
           clearTimeout(account.connectingTimeout);
           account.connectingTimeout = null;
+        }
+
+        // Clear QR scan timeout (connection established, QR no longer needed)
+        if (account.qrScanTimeout) {
+          clearTimeout(account.qrScanTimeout);
+          account.qrScanTimeout = null;
+          console.log(`⏰ [${accountId}] QR scan timeout cleared (connected)`);
         }
 
         account.status = 'connected';
@@ -4569,6 +4787,12 @@ async function restoreAccount(accountId, data) {
 }
 
 async function restoreAccountsFromFirestore() {
+  // HARD GATE: PASSIVE mode - do NOT restore accounts
+  if (!waBootstrap.canStartBaileys()) {
+    console.log('⏸️  PASSIVE mode - skipping account restore (lock not held)');
+    return;
+  }
+
   if (!firestoreAvailable) {
     console.log('⚠️  Firestore not available, skipping account restore');
     return;
@@ -5308,6 +5532,11 @@ app.listen(PORT, '0.0.0.0', async () => {
   const LEASE_DURATION_MS = 60000; // 60 seconds lease
 
   setInterval(async () => {
+    // HARD GATE: PASSIVE mode - do NOT process outbox
+    if (!waBootstrap.canProcessOutbox()) {
+      return; // Skip processing in PASSIVE mode
+    }
+
     if (!firestoreAvailable || !db) return;
 
     try {

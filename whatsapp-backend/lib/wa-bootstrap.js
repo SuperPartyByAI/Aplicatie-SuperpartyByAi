@@ -12,6 +12,7 @@ const crypto = require('crypto');
 let waIntegration = null;
 let isActive = false;
 let instanceId = null;
+let passiveRetryTimer = null; // Timer for retrying lock acquisition when PASSIVE
 
 /**
  * Initialize WA system with lock acquisition
@@ -43,6 +44,10 @@ async function initializeWASystem(db) {
     console.log('[WABootstrap] Will NOT start Baileys connections');
     console.log('[WABootstrap] Will NOT process outbox');
     console.log('[WABootstrap] Will NOT process inbound');
+    
+    // CRITICAL: Start retry loop to acquire lock when it becomes available
+    startPassiveRetryLoop(db);
+    
     return result;
   }
 
@@ -56,10 +61,70 @@ async function initializeWASystem(db) {
   console.log('[WABootstrap] ✅ ACTIVE MODE - lock acquired');
   console.log('[WABootstrap] Can start Baileys connections');
 
+  // Stop passive retry loop if it was running
+  stopPassiveRetryLoop();
+
   // Setup lock lost handler
   setupLockLostHandler();
 
   return result;
+}
+
+/**
+ * Start retry loop for lock acquisition when in PASSIVE mode
+ * Retries every 15 seconds until lock is acquired or instance shuts down
+ */
+function startPassiveRetryLoop(db) {
+  // Clear any existing retry timer
+  stopPassiveRetryLoop();
+  
+  console.log('[WABootstrap] Starting PASSIVE retry loop (every 15s) - will retry lock acquisition');
+  
+  passiveRetryTimer = setInterval(async () => {
+    if (!waIntegration || !db) {
+      console.log('[WABootstrap] Retry skipped: waIntegration or db not available');
+      return;
+    }
+    
+    if (isActive) {
+      // Already active, stop retry
+      console.log('[WABootstrap] Lock acquired, stopping PASSIVE retry loop');
+      stopPassiveRetryLoop();
+      return;
+    }
+    
+    try {
+      console.log('[WABootstrap] 🔄 Retrying lock acquisition (PASSIVE mode)...');
+      const result = await waIntegration.initialize();
+      
+      if (result.mode === 'active' && !result.blocked) {
+        isActive = true;
+        console.log('[WABootstrap] ✅ ACTIVE MODE - lock acquired after retry');
+        console.log('[WABootstrap] Can start Baileys connections');
+        stopPassiveRetryLoop();
+        setupLockLostHandler();
+        
+        // Emit event/log that system is now active (could trigger connection restoration)
+        console.log('[WABootstrap] 🔔 System transitioned from PASSIVE to ACTIVE - ready to process');
+      } else {
+        console.log(`[WABootstrap] Still PASSIVE - ${result.reason || 'lock held by another instance'}`);
+      }
+    } catch (error) {
+      console.error('[WABootstrap] Retry lock acquisition failed:', error.message);
+      // Continue retrying on next interval
+    }
+  }, 15000); // Retry every 15 seconds
+}
+
+/**
+ * Stop passive retry loop
+ */
+function stopPassiveRetryLoop() {
+  if (passiveRetryTimer) {
+    clearInterval(passiveRetryTimer);
+    passiveRetryTimer = null;
+    console.log('[WABootstrap] PASSIVE retry loop stopped');
+  }
 }
 
 /**
@@ -172,6 +237,9 @@ async function getWAStatus() {
  */
 async function shutdown(signal) {
   console.log(`[WABootstrap] Graceful shutdown initiated signal=${signal}`);
+
+  // Stop passive retry loop
+  stopPassiveRetryLoop();
 
   if (waIntegration) {
     try {

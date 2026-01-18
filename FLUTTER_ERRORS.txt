@@ -1,0 +1,23 @@
+🔍 Extragere erori din console...
+Generated: Sun Jan 18 05:31:39 EET 2026
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  FLUTTER/DART ERRORS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2️⃣  WHATSAPP/API ERRORS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+01-18 05:30:53.249  1049  1301 W AlarmManager: Unrecognized alarm listener com.android.networkstack.android.net.ip.IpClientLinkObserver$Dhcp6PdPreferredPrefixAlarmListener@a5fa6a6
+01-18 05:31:34.566  1421  1421 I KeyboardWrapper: KeyboardWrapper.activateKeyboard():581 activateKeyboard(): type=accessory, status=INACTIVE, imeDef=mir{stringId=ime_english_united_states, language=en-US, languageTag=en-US, processedConditions={writing_helper_enable_by_word_revert=false, true=true, enable_number_row=false, device=phone, enable_pk_simulator=false}, className=com.google.android.apps.inputmethod.libs.latin5.LatinIme, label=0, keyEventInterpreter=null, inlineComposing=true, autoCapital=true, announceAutoSelectedCandidate=true, statusIcon=0, indicatorIcon=0, indicatorLabel=US, displayAppCompletions=true, extraValues=mik{#0x7f0b02e0=TypedValue{t=0x3/d=0x0 "com.google.android.apps.inputmethod.libs.latin5.LatinIme"}}, processors=mkj@c07591e, unacceptableMetaKeys=4098, languageSpecificSettings=0, asciiCapable=true, alwaysShowSuggestions=false, useAsciiPasswordKeyboard=false, keyboardGroupDef=mjs@433f518, phenotypeFlagId=0, localizationLanguageTag=null, supportsInlineSuggestion=true}
+
+3️⃣  RECENT EXCEPTIONS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4️⃣  FLUTTER FRAMEWORK ERRORS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 SUMMARY:
+Total errors/exceptions (last 300 lines): 0
+
+✅ Errors saved to: FLUTTER_ERRORS.txt

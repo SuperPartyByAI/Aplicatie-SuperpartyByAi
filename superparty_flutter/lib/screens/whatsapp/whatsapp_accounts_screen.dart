@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -354,11 +355,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.grey[300]!),
                   ),
-                  child: QrImageView(
-                    data: qrCodeData,
-                    version: QrVersions.auto,
-                    size: 200,
-                  ),
+                  child: _buildQrWidget(qrCodeData),
                 ),
               ),
               const SizedBox(height: 8),
@@ -420,6 +417,40 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
         ),
       ),
     );
+  }
+
+  /// Build QR widget - supports both base64 images and QR code strings
+  Widget _buildQrWidget(String qrCodeData) {
+    // Check if qrCodeData is a base64 image (starts with "data:image/")
+    if (qrCodeData.startsWith('data:image/')) {
+      try {
+        // Extract base64 part (after comma)
+        final base64String = qrCodeData.contains(',') 
+            ? qrCodeData.split(',').last 
+            : qrCodeData;
+        final bytes = base64Decode(base64String);
+        return Image.memory(
+          bytes,
+          width: 200,
+          height: 200,
+          fit: BoxFit.contain,
+        );
+      } catch (e) {
+        // Fallback to QR code generation if base64 decode fails
+        return QrImageView(
+          data: qrCodeData.substring(0, qrCodeData.length < 1000 ? qrCodeData.length : 1000),
+          version: QrVersions.auto,
+          size: 200,
+        );
+      }
+    } else {
+      // Regular QR code string - generate QR code
+      return QrImageView(
+        data: qrCodeData,
+        version: QrVersions.auto,
+        size: 200,
+      );
+    }
   }
 
   Color _getStatusColor(String status) {
