@@ -4538,10 +4538,6 @@ app.get('/api/whatsapp/messages', async (req, res) => {
 
 // Delete account
 app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
-  // HARD GATE: PASSIVE mode - do NOT delete account
-  const passiveGuard = await checkPassiveModeGuard(req, res);
-  if (passiveGuard) return; // Response already sent
-  
   try {
     const { id } = req.params;
     const account = connections.get(id);
@@ -4549,6 +4545,7 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
     // Check if account exists in memory OR Firestore
     let accountExists = !!account;
     let accountInFirestore = false;
+    let accountStatus = null;
 
     // If not in memory, check Firestore
     if (!account && firestoreAvailable && db) {
@@ -4557,6 +4554,7 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
         accountInFirestore = accountDoc.exists;
         if (accountInFirestore) {
           const data = accountDoc.data();
+          accountStatus = data.status;
           // Don't delete if already deleted
           if (data.status === 'deleted') {
             return res.status(404).json({ 
@@ -4569,6 +4567,8 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
       } catch (error) {
         console.error(`❌ [${id}] Error checking Firestore:`, error.message);
       }
+    } else if (account) {
+      accountStatus = account.status;
     }
 
     if (!accountExists && !accountInFirestore) {
@@ -4578,6 +4578,25 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
         accountId: id,
       });
     }
+
+    // CRITICAL: Allow deletion in PASSIVE mode ONLY if:
+    // 1. Account exists only in Firestore (not in memory)
+    // 2. Account status is 'disconnected' or 'needs_qr' (doesn't require Baileys)
+    // 3. Account is not 'connected' or 'qr_ready' (would require Baileys)
+    const isFirestoreOnly = !accountExists && accountInFirestore;
+    const isSafeToDeleteInPassive = isFirestoreOnly && 
+      (accountStatus === 'disconnected' || accountStatus === 'needs_qr' || accountStatus === 'deleted');
+
+    // If account exists in memory OR is connected/qr_ready, require ACTIVE mode
+    if (accountExists || (!isSafeToDeleteInPassive && accountStatus !== 'disconnected' && accountStatus !== 'needs_qr')) {
+      const passiveGuard = await checkPassiveModeGuard(req, res);
+      if (passiveGuard) return; // Response already sent
+    } else if (!isSafeToDeleteInPassive && !accountExists) {
+      // Account only in Firestore but status requires Baileys - still need ACTIVE mode
+      const passiveGuard = await checkPassiveModeGuard(req, res);
+      if (passiveGuard) return; // Response already sent
+    }
+    // Otherwise, safe to delete in PASSIVE mode (Firestore-only, disconnected/needs_qr)
 
     // Close connection if exists in memory
     if (account) {
@@ -4601,7 +4620,7 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
           status: 'deleted',
           deletedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-        console.log(`🗑️  [${id}] Account marked as deleted in Firestore`);
+        console.log(`🗑️  [${id}] Account marked as deleted in Firestore (status was: ${accountStatus || 'unknown'})`);
       } catch (error) {
         console.error(`❌ [${id}] Error deleting from Firestore:`, error.message);
         // Continue even if Firestore update fails
@@ -4619,6 +4638,7 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
       accountId: id,
       deletedFromMemory: accountExists,
       deletedFromFirestore: accountInFirestore,
+      status: accountStatus,
     });
   } catch (error) {
     console.error(`❌ [${req.params.id}] Delete account error:`, error);
