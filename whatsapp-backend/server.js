@@ -191,8 +191,14 @@ const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000; // 5 minutes without events = 
 const HEALTH_CHECK_INTERVAL = 60 * 1000; // Check every 60 seconds
 
 // Admin token for protected endpoints
-const ADMIN_TOKEN =
-  process.env.ADMIN_TOKEN || 'dev-token-' + Math.random().toString(36).substring(7);
+// CRITICAL: In production (Railway), ADMIN_TOKEN must be set via env var (no random fallback)
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || (process.env.NODE_ENV === 'production' 
+  ? null // Fail fast in prod if missing
+  : 'dev-token-' + Math.random().toString(36).substring(7)); // Random only in dev
+if (!ADMIN_TOKEN) {
+  console.error('❌ ADMIN_TOKEN is required in production. Set it via Railway env var.');
+  process.exit(1);
+}
 console.log(`🔐 ADMIN_TOKEN configured: ${ADMIN_TOKEN.substring(0, 10)}...`);
 
 // ONE_TIME_TEST_TOKEN for orchestrator (30 min validity)
@@ -288,6 +294,13 @@ app.use(express.json());
 
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Async error handler wrapper (prevents unhandled promise rejections in routes)
+const asyncHandler = (fn) => {
+  return (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+};
 
 // Global rate limiting: 200 requests per IP per minute
 const globalLimiter = rateLimit({
@@ -1858,22 +1871,50 @@ app.get('/', (req, res) => {
   });
 });
 
-// Health endpoint
-// Root endpoint for basic connectivity test
-app.get('/', (req, res) => {
+// /ready endpoint - readiness check (returns mode + reason for passive)
+// MUST be fast - no blocking on lock or Firestore
+app.get('/ready', async (req, res) => {
+  try {
+    const status = await waBootstrap.getWAStatus();
+    const isActive = waBootstrap.isActiveMode();
+    
+    if (isActive) {
+      res.json({
+        ready: true,
+        mode: 'active',
+        instanceId: status.instanceId || 'unknown',
+        timestamp: new Date().toISOString(),
+      });
+    } else {
+      // PASSIVE mode - return 200 with mode=passive (not 503 to avoid healthcheck failure)
+      // Railway/K8s can use this to check readiness
+      res.json({
+        ready: false,
+        mode: 'passive',
+        reason: status.reason || 'lock_not_acquired',
+        instanceId: status.instanceId || 'unknown',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    // Even on error, return 200 to prevent healthcheck failures
+    res.json({
+      ready: false,
+      mode: 'unknown',
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Health endpoint - always returns 200 quickly (no lock dependency)
+app.get('/health', (req, res) => {
   res.json({
+    status: 'ok',
     service: 'SuperParty WhatsApp Backend',
     version: VERSION,
-    commit: COMMIT_HASH,
-    status: 'online',
     timestamp: new Date().toISOString(),
-    endpoints: [
-      'GET /',
-      'GET /health',
-      'GET /api/whatsapp/accounts',
-      'POST /api/whatsapp/add-account',
-      'GET /api/whatsapp/qr/:accountId',
-    ],
+    uptime: process.uptime(),
   });
 });
 
@@ -6258,4 +6299,22 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   await gracefulShutdown('SIGINT');
+});
+
+// Global error handler middleware (must be last)
+// Prevents 502 from unhandled async errors
+app.use((error, req, res, next) => {
+  const traceId = `trace_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+  console.error(`❌ [${traceId}] Unhandled error in ${req.method} ${req.path}:`, error.message);
+  console.error(`❌ [${traceId}] Stack:`, error.stack?.substring(0, 300));
+  
+  // Don't expose stack in production
+  const isDev = process.env.NODE_ENV !== 'production';
+  
+  res.status(error.status || 500).json({
+    success: false,
+    error: error.message || 'Internal server error',
+    traceId,
+    ...(isDev ? { stack: error.stack?.substring(0, 500) } : {}),
+  });
 });
