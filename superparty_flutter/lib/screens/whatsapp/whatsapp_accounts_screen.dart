@@ -469,11 +469,36 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
         if (response['success'] == true) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Account added successfully'),
+              content: Text('Account added successfully. QR code generating...'),
               backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
             ),
           );
+          
+          // Reload immediately to show account with 'connecting' status
           await _loadAccounts();
+          
+          // Wait 2 seconds for QR generation, then reload again
+          // This ensures QR code appears automatically
+          await Future.delayed(const Duration(seconds: 2));
+          if (mounted) {
+            await _loadAccounts();
+            
+            // If still no QR after 2s, wait another 3s and reload one more time
+            // This handles slower QR generation
+            final accounts = _accounts;
+            final newAccount = accounts.firstWhere(
+              (acc) => acc['id'] == response['account']?['id'],
+              orElse: () => {},
+            );
+            
+            if (newAccount.isNotEmpty && newAccount['status'] == 'connecting' && (newAccount['qrCode'] == null || newAccount['qrCode'] == '')) {
+              await Future.delayed(const Duration(seconds: 3));
+              if (mounted) {
+                await _loadAccounts();
+              }
+            }
+          }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -914,6 +939,41 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+            if (status == 'connecting' && !showQr && pairingCode == null) ...[
+              const SizedBox(height: 8),
+              Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Generating QR code...',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => _loadAccounts(),
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Refresh QR'),
+                  style: TextButton.styleFrom(
+                    textStyle: const TextStyle(fontSize: 12),
                   ),
                 ),
               ),
