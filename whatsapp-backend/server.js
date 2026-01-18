@@ -1314,6 +1314,7 @@ async function createConnection(accountId, name, phone) {
             }).catch(err => console.error(`❌ [${accountId}] QR timeout save failed:`, err));
           }
         }, QR_SCAN_TIMEOUT_MS);
+        }
 
         try {
           const qrDataURL = await Sentry.startSpan(
@@ -5304,6 +5305,7 @@ async function restoreAccount(accountId, data) {
             currentAccountRestoreSave.qrCode = qrDataURL;
             currentAccountRestoreSave.status = 'qr_ready';
             currentAccountRestoreSave.lastUpdate = new Date().toISOString();
+          }
 
           await saveAccountToFirestore(accountId, {
             qrCode: qrDataURL,
