@@ -409,28 +409,46 @@ class WAIntegration {
     // delta = actual time since last check (≈10000ms normally)
     // lag = real event loop delay beyond interval (>0 only if event loop was blocked)
     const intervalMs = 10000; // Must match setInterval interval below
+    const maxSamples = 60; // Fixed-size buffer: keep last 60 samples for P95 calculation
+    
+    // HARDENING FIX #1: Initialize lastEventLoopCheck right before setInterval
+    // Guard against undefined/null in first tick
+    if (!this.lastEventLoopCheck || typeof this.lastEventLoopCheck !== 'number') {
+      this.lastEventLoopCheck = Date.now();
+    }
+    
+    // HARDENING FIX #3: Make threshold configurable via env var
+    const threshold = parseInt(process.env.WA_EVENT_LOOP_LAG_P95_THRESHOLD_MS || '2000', 10);
     
     setInterval(() => {
       const now = Date.now();
+      // Guard: ensure lastEventLoopCheck is initialized
+      if (!this.lastEventLoopCheck || typeof this.lastEventLoopCheck !== 'number') {
+        this.lastEventLoopCheck = now;
+        return; // Skip first tick if somehow still uninitialized
+      }
+      
       const delta = now - this.lastEventLoopCheck;
-      const lag = Math.max(0, delta - intervalMs); // Real lag = excess beyond expected interval
+      const computedLag = Math.max(0, delta - intervalMs); // Real lag = excess beyond expected interval
       this.lastEventLoopCheck = now;
 
-      this.eventLoopLag.push(lag);
-      if (this.eventLoopLag.length > 30) {
-        this.eventLoopLag.shift();
+      // HARDENING FIX #2: Fixed-size buffer (max 60 samples)
+      // Push new lag, then trim if exceeds maxSamples
+      this.eventLoopLag.push(computedLag);
+      if (this.eventLoopLag.length > maxSamples) {
+        this.eventLoopLag.shift(); // Remove oldest sample
       }
 
-      // Check P95
-      if (this.eventLoopLag.length >= 30) {
+      // Check P95 only after we have enough samples (use maxSamples, not hardcoded 30)
+      if (this.eventLoopLag.length >= maxSamples) {
         const sorted = [...this.eventLoopLag].sort((a, b) => a - b);
         const p95 = sorted[Math.floor(sorted.length * 0.95)];
         const sampleCount = this.eventLoopLag.length;
-        const threshold = 2000;
 
-        // Log every check for debugging (helps validate fix in production)
-        if (p95 > 500 || sampleCount % 3 === 0) { // Log if p95 > 500ms OR every 3rd check (reduce noise)
-          console.log(`[WAIntegration] Event loop lag check: delta=${delta}ms, computedLag=${lag}ms, p95=${p95}ms, samples=${sampleCount}`);
+        // HARDENING FIX #4: Reduced logging (every 3rd check OR if p95 > 500ms)
+        // Ensure log includes: delta, computedLag, p95, samples
+        if (p95 > 500 || sampleCount % 3 === 0) {
+          console.log(`[WAIntegration] Event loop lag check: delta=${delta}ms, computedLag=${computedLag}ms, p95=${p95}ms, samples=${sampleCount}`);
         }
 
         if (p95 > threshold) {
