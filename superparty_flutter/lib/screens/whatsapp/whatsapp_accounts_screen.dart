@@ -3,11 +3,15 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:path/path.dart' as path;
 import '../../services/whatsapp_api_service.dart';
 import '../../services/whatsapp_backend_diagnostics_service.dart';
+import '../../services/whatsapp_web_launcher.dart';
+import '../../services/whatsapp_manual_accounts_service.dart';
+import '../../core/config/env.dart';
 import '../../core/errors/app_exception.dart';
 
 /// WhatsApp Accounts Management Screen
@@ -24,12 +28,25 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   final WhatsAppApiService _apiService = WhatsAppApiService.instance;
   final WhatsAppBackendDiagnosticsService _diagnosticsService =
       WhatsAppBackendDiagnosticsService.instance;
+  final WhatsAppWebLauncher _launcher = WhatsAppWebLauncher.instance;
+  final WhatsAppManualAccountsService _manualAccountsService =
+      WhatsAppManualAccountsService.instance;
 
+  // Feature flag: manual-only mode
+  final bool _isManualOnly = Env.waManualOnly;
+
+  // Backend mode state
   List<Map<String, dynamic>> _accounts = [];
   bool _isLoading = true;
   String? _error;
   BackendDiagnostics? _backendDiagnostics;
   
+  // Manual mode state
+  List<ManualAccount> _manualAccounts = [];
+  bool _isLoadingManual = true;
+  String? _manualError;
+  final Set<String> _openingManualFirefox = {}; // label -> in-flight
+
   // In-flight guards (prevent double-tap / concurrent requests)
   bool _isAddingAccount = false;
   final Set<String> _regeneratingQr = {}; // accountId -> in-flight
@@ -78,8 +95,12 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAccounts();
-    _checkBackendDiagnostics();
+    if (_isManualOnly) {
+      _loadManualAccounts();
+    } else {
+      _loadAccounts();
+      _checkBackendDiagnostics();
+    }
   }
   
   Future<void> _checkBackendDiagnostics() async {
@@ -96,6 +117,167 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           debugPrint('[WhatsAppAccountsScreen] Diagnostics check failed: $e');
         }
       }
+    }
+  }
+
+  // ============================================================================
+  // MANUAL MODE METHODS
+  // ============================================================================
+
+  Future<void> _loadManualAccounts() async {
+    setState(() {
+      _isLoadingManual = true;
+      _manualError = null;
+    });
+
+    try {
+      final accounts = await _manualAccountsService.loadAccounts();
+      if (mounted) {
+        setState(() {
+          _manualAccounts = accounts;
+          _isLoadingManual = false;
+          _manualError = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingManual = false;
+          _manualError = 'Failed to load accounts: ${e.toString()}';
+        });
+      }
+    }
+  }
+
+  Future<void> _openManualFirefox(ManualAccount account) async {
+    if (_openingManualFirefox.contains(account.label)) return;
+
+    setState(() => _openingManualFirefox.add(account.label));
+
+    try {
+      final result = await _launcher.openInFirefoxContainer(account);
+
+      if (mounted) {
+        if (result.success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Opened WhatsApp Web for ${account.label}'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        } else {
+          final errorMsg = result.error ?? result.stderr ?? 'Unknown error';
+          final trimmedError = errorMsg.length > 200
+              ? '${errorMsg.substring(0, 200)}...'
+              : errorMsg;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to open Firefox: $trimmedError'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _openingManualFirefox.remove(account.label));
+      }
+    }
+  }
+
+  Future<void> _copyPhone(ManualAccount account) async {
+    await Clipboard.setData(ClipboardData(text: account.phone));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Phone number copied to clipboard'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openManualQr(ManualAccount account) async {
+    final url = 'https://web.whatsapp.com';
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open: $url'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _testFirefox() async {
+    // Create a test account
+    final testAccount = ManualAccount(
+      index: 999,
+      label: 'TEST',
+      phone: '+40123456789',
+      container: 'TEST-Container',
+      color: 'blue',
+      icon: 'circle',
+    );
+
+    await _openManualFirefox(testAccount);
+  }
+
+  Future<void> _runDoctor() async {
+    final diagnostics = await _launcher.runDiagnostics();
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Firefox Launcher Diagnostics'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: diagnostics
+                  .map((msg) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Text(
+                          msg,
+                          style: TextStyle(
+                            color: msg.startsWith('✅')
+                                ? Colors.green
+                                : msg.startsWith('❌')
+                                    ? Colors.red
+                                    : Colors.orange,
+                          ),
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -1162,8 +1344,283 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     );
   }
 
+  // ============================================================================
+  // MANUAL MODE UI BUILDERS
+  // ============================================================================
+
+  Widget _buildManualModeInfoBox() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: Colors.blue, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Manual Mode',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Conversations are available in Firefox and on the phone. '
+                  'They are NOT shown inside the app unless a backend integration is enabled.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManualAccountCard(ManualAccount account) {
+    final isOpening = _openingManualFirefox.contains(account.label);
+    final maskedPhone = WhatsAppManualAccountsService.maskPhone(account.phone);
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        account.label,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        maskedPhone,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange),
+                  ),
+                  child: const Text(
+                    'MANUAL',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (Platform.isMacOS)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: isOpening
+                        ? null
+                        : () => _openManualFirefox(account),
+                    icon: isOpening
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.open_in_browser, size: 18),
+                    label: Text(isOpening ? 'Opening...' : 'Open WhatsApp Web'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _openManualQr(account),
+                    icon: const Icon(Icons.qr_code, size: 18),
+                    label: const Text('Open QR'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => _copyPhone(account),
+                    icon: const Icon(Icons.copy, size: 18),
+                    label: const Text('Copy Phone'),
+                  ),
+                ],
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  '⚠ Firefox integration is available only on macOS.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManualModeView() {
+    if (_isLoadingManual) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            const Text('Loading manual accounts...'),
+          ],
+        ),
+      );
+    }
+
+    if (_manualError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 64,
+                color: Colors.red[300],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _manualError!,
+                style: const TextStyle(fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _loadManualAccounts,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadManualAccounts,
+      child: CustomScrollView(
+        slivers: [
+          // Info box
+          SliverToBoxAdapter(
+            child: _buildManualModeInfoBox(),
+          ),
+          // Manual accounts list
+          if (_manualAccounts.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 64,
+                      color: Colors.grey[300],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No manual accounts found.',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Add accounts to assets/whatsapp_manual_accounts.json',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => _buildManualAccountCard(_manualAccounts[index]),
+                childCount: _manualAccounts.length,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Manual-only mode: show only manual accounts UI
+    if (_isManualOnly) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('WhatsApp Web (Manual)'),
+          backgroundColor: const Color(0xFF25D366),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _loadManualAccounts,
+              tooltip: 'Refresh',
+            ),
+            IconButton(
+              icon: const Icon(Icons.bug_report),
+              onPressed: _runDoctor,
+              tooltip: 'Diagnostics',
+            ),
+            if (Platform.isMacOS)
+              IconButton(
+                icon: const Icon(Icons.science),
+                onPressed: _testFirefox,
+                tooltip: 'Test Firefox',
+              ),
+          ],
+        ),
+        body: _buildManualModeView(),
+      );
+    }
+
+    // Backend mode: show existing UI
     // Debug: Force check loading state
     if (kDebugMode && _isLoading) {
       debugPrint('[WhatsAppAccountsScreen] build: _isLoading=true, _error=$_error, _accounts.length=${_accounts.length}');

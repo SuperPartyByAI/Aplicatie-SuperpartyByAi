@@ -31,6 +31,18 @@ class Env {
   /// Check if running in production mode
   static bool get isProd => appEnv == 'prod';
 
+  /// Check if manual-only mode is enabled (WhatsApp Web via Firefox, no backend)
+  /// 
+  /// Set via: --dart-define=WA_MANUAL_ONLY=true
+  /// When enabled:
+  /// - Hide/disable "Backend Accounts (AI)" features
+  /// - Show only "Firefox Sessions (Manual)" section
+  /// - No message syncing into Flutter
+  static final bool waManualOnly = const bool.fromEnvironment(
+    'WA_MANUAL_ONLY',
+    defaultValue: false,
+  );
+
   static const String _defaultWhatsAppBackendUrl =
       'https://whats-upp-production.up.railway.app';
 

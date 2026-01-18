@@ -1,0 +1,242 @@
+[
+  {
+    "index": 1,
+    "label": "WA-01",
+    "phone": "+40712345678",
+    "container": "WA-01",
+    "color": "orange",
+    "icon": "fruit"
+  },
+  {
+    "index": 2,
+    "label": "WA-02",
+    "phone": "+40712345679",
+    "container": "WA-02",
+    "color": "blue",
+    "icon": "circle"
+  },
+  {
+    "index": 3,
+    "label": "WA-03",
+    "phone": "+40712345680",
+    "container": "WA-03",
+    "color": "green",
+    "icon": "square"
+  },
+  {
+    "index": 4,
+    "label": "WA-04",
+    "phone": "+40712345681",
+    "container": "WA-04",
+    "color": "red",
+    "icon": "triangle"
+  },
+  {
+    "index": 5,
+    "label": "WA-05",
+    "phone": "+40712345682",
+    "container": "WA-05",
+    "color": "purple",
+    "icon": "fruit"
+  },
+  {
+    "index": 6,
+    "label": "WA-06",
+    "phone": "+40712345683",
+    "container": "WA-06",
+    "color": "pink",
+    "icon": "circle"
+  },
+  {
+    "index": 7,
+    "label": "WA-07",
+    "phone": "+40712345684",
+    "container": "WA-07",
+    "color": "yellow",
+    "icon": "square"
+  },
+  {
+    "index": 8,
+    "label": "WA-08",
+    "phone": "+40712345685",
+    "container": "WA-08",
+    "color": "turquoise",
+    "icon": "triangle"
+  },
+  {
+    "index": 9,
+    "label": "WA-09",
+    "phone": "+40712345686",
+    "container": "WA-09",
+    "color": "orange",
+    "icon": "fruit"
+  },
+  {
+    "index": 10,
+    "label": "WA-10",
+    "phone": "+40712345687",
+    "container": "WA-10",
+    "color": "blue",
+    "icon": "circle"
+  },
+  {
+    "index": 11,
+    "label": "WA-11",
+    "phone": "+40712345688",
+    "container": "WA-11",
+    "color": "green",
+    "icon": "square"
+  },
+  {
+    "index": 12,
+    "label": "WA-12",
+    "phone": "+40712345689",
+    "container": "WA-12",
+    "color": "red",
+    "icon": "triangle"
+  },
+  {
+    "index": 13,
+    "label": "WA-13",
+    "phone": "+40712345690",
+    "container": "WA-13",
+    "color": "purple",
+    "icon": "fruit"
+  },
+  {
+    "index": 14,
+    "label": "WA-14",
+    "phone": "+40712345691",
+    "container": "WA-14",
+    "color": "pink",
+    "icon": "circle"
+  },
+  {
+    "index": 15,
+    "label": "WA-15",
+    "phone": "+40712345692",
+    "container": "WA-15",
+    "color": "yellow",
+    "icon": "square"
+  },
+  {
+    "index": 16,
+    "label": "WA-16",
+    "phone": "+40712345693",
+    "container": "WA-16",
+    "color": "turquoise",
+    "icon": "triangle"
+  },
+  {
+    "index": 17,
+    "label": "WA-17",
+    "phone": "+40712345694",
+    "container": "WA-17",
+    "color": "orange",
+    "icon": "fruit"
+  },
+  {
+    "index": 18,
+    "label": "WA-18",
+    "phone": "+40712345695",
+    "container": "WA-18",
+    "color": "blue",
+    "icon": "circle"
+  },
+  {
+    "index": 19,
+    "label": "WA-19",
+    "phone": "+40712345696",
+    "container": "WA-19",
+    "color": "green",
+    "icon": "square"
+  },
+  {
+    "index": 20,
+    "label": "WA-20",
+    "phone": "+40712345697",
+    "container": "WA-20",
+    "color": "red",
+    "icon": "triangle"
+  },
+  {
+    "index": 21,
+    "label": "WA-21",
+    "phone": "+40712345698",
+    "container": "WA-21",
+    "color": "purple",
+    "icon": "fruit"
+  },
+  {
+    "index": 22,
+    "label": "WA-22",
+    "phone": "+40712345699",
+    "container": "WA-22",
+    "color": "pink",
+    "icon": "circle"
+  },
+  {
+    "index": 23,
+    "label": "WA-23",
+    "phone": "+40712345700",
+    "container": "WA-23",
+    "color": "yellow",
+    "icon": "square"
+  },
+  {
+    "index": 24,
+    "label": "WA-24",
+    "phone": "+40712345701",
+    "container": "WA-24",
+    "color": "turquoise",
+    "icon": "triangle"
+  },
+  {
+    "index": 25,
+    "label": "WA-25",
+    "phone": "+40712345702",
+    "container": "WA-25",
+    "color": "orange",
+    "icon": "fruit"
+  },
+  {
+    "index": 26,
+    "label": "WA-26",
+    "phone": "+40712345703",
+    "container": "WA-26",
+    "color": "blue",
+    "icon": "circle"
+  },
+  {
+    "index": 27,
+    "label": "WA-27",
+    "phone": "+40712345704",
+    "container": "WA-27",
+    "color": "green",
+    "icon": "square"
+  },
+  {
+    "index": 28,
+    "label": "WA-28",
+    "phone": "+40712345705",
+    "container": "WA-28",
+    "color": "red",
+    "icon": "triangle"
+  },
+  {
+    "index": 29,
+    "label": "WA-29",
+    "phone": "+40712345706",
+    "container": "WA-29",
+    "color": "purple",
+    "icon": "fruit"
+  },
+  {
+    "index": 30,
+    "label": "WA-30",
+    "phone": "+40712345707",
+    "container": "WA-30",
+    "color": "pink",
+    "icon": "circle"
+  }
+]
