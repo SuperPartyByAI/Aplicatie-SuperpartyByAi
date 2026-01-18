@@ -53,7 +53,11 @@ class AppRouter {
         kDebugMode ? const Duration(seconds: 30) : const Duration(seconds: 5),
         onTimeout: (sink) {
           debugPrint('[AppRouter] ⚠️ Auth stream timeout (${kDebugMode ? 30 : 5}s) - emulator may be down');
-          // Don't add error - just let it complete naturally
+          // CRITICAL FIX: Emit current user (or null) to prevent GoRouter from being stuck
+          // Without this, GoRouter has no valid configuration → black screen
+          final currentUser = FirebaseService.auth.currentUser;
+          sink.add(currentUser);
+          sink.close();
         },
       ),
     ),
