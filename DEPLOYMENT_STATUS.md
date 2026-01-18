@@ -110,16 +110,30 @@ firebase deploy --only functions
 ## ✅ Verification Commands (After Deployment)
 
 ```bash
-# List deployed functions
+# List all deployed functions (verify whatsappV4 exists, old whatsapp is gone)
 firebase functions:list | grep -E "whatsapp|clientCrmAsk|aggregateClientStats"
 
-# View logs (correct syntax)
-firebase functions:log --only clientCrmAsk --lines 120
-firebase functions:log --only whatsappExtractEventFromThread --lines 120
-firebase functions:log --only aggregateClientStats --lines 120
+# Expected output:
+# ✓ whatsappV4 (v2, us-central1)
+# ✓ whatsappExtractEventFromThread (v2, us-central1)
+# ✓ clientCrmAsk (v2, us-central1)
+# ✓ aggregateClientStats (v2, us-central1)
+# ✓ whatsappProxy* functions (v2, us-central1)
+# ✗ whatsapp (should NOT appear - if it does, deletion failed)
 
-# Verify no CPU quota errors in deployment logs
+# View logs (correct syntax with --lines, NOT --limit)
+firebase functions:log --only clientCrmAsk --lines 200
+firebase functions:log --only whatsappExtractEventFromThread --lines 200
+firebase functions:log --only aggregateClientStats --lines 200
+firebase functions:log --only whatsappProxySend --lines 100
+firebase functions:log --only whatsappV4 --lines 100
+
+# Check for CPU quota errors (should see none after hardening)
 firebase functions:log --only whatsappV4 --lines 50 | grep -i "quota"
+
+# Verify maxInstances applied correctly (should see low numbers)
+firebase functions:list | grep -A 2 "clientCrmAsk"
+# Look for: Memory: 512, Max instances: 1
 ```
 
 ---
