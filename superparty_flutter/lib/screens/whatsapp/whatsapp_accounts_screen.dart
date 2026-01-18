@@ -54,6 +54,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   final Set<String> _openingFirefox = {}; // accountId -> in-flight
   final Set<String> _autoOpenedFirefox = {}; // accountId -> auto-opened Firefox (prevent duplicates)
   int _loadRequestToken = 0;
+  Timer? _qrPollingTimer; // Timer for polling QR code generation
   
   static const String _waUrl = 'https://web.whatsapp.com';
   
@@ -100,7 +101,57 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     } else {
       _loadAccounts();
       _checkBackendDiagnostics();
+      _startQrPolling(); // Start polling for QR codes
     }
+  }
+  
+  @override
+  void dispose() {
+    _qrPollingTimer?.cancel();
+    super.dispose();
+  }
+  
+  /// Start polling for QR code generation
+  /// Polls every 2 seconds for accounts with status 'connecting' or 'qr_ready' without QR code
+  void _startQrPolling() {
+    _qrPollingTimer?.cancel();
+    _qrPollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
+      // Check if any account is waiting for QR code
+      final hasWaitingAccounts = _accounts.any((account) {
+        final status = account['status'] as String? ?? '';
+        final qrCode = account['qrCode'] as String?;
+        // Poll if status is connecting/qr_ready and no QR code yet
+        return (status == 'connecting' || status == 'qr_ready') && 
+               (qrCode == null || qrCode.isEmpty);
+      });
+      
+      if (hasWaitingAccounts) {
+        if (kDebugMode) {
+          debugPrint('[WhatsAppAccountsScreen] Polling for QR codes (accounts waiting for QR)...');
+        }
+        // Refresh accounts to check for new QR codes
+        _loadAccounts().catchError((error) {
+          if (kDebugMode) {
+            debugPrint('[WhatsAppAccountsScreen] Polling refresh error: $error');
+          }
+        });
+      } else {
+        // No accounts waiting for QR code
+        // Keep timer running (it will check again in 2s)
+        // Don't cancel - might add new account later
+      }
+    });
+  }
+  
+  /// Stop polling for QR codes (when all accounts have QR or are connected)
+  void _stopQrPolling() {
+    _qrPollingTimer?.cancel();
+    _qrPollingTimer = null;
   }
   
   Future<void> _checkBackendDiagnostics() async {
@@ -478,27 +529,17 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           // Reload immediately to show account with 'connecting' status
           await _loadAccounts();
           
-          // Wait 2 seconds for QR generation, then reload again
-          // This ensures QR code appears automatically
-          await Future.delayed(const Duration(seconds: 2));
-          if (mounted) {
-            await _loadAccounts();
-            
-            // If still no QR after 2s, wait another 3s and reload one more time
-            // This handles slower QR generation
-            final accounts = _accounts;
-            final newAccount = accounts.firstWhere(
-              (acc) => acc['id'] == response['account']?['id'],
-              orElse: () => {},
-            );
-            
-            if (newAccount.isNotEmpty && newAccount['status'] == 'connecting' && (newAccount['qrCode'] == null || newAccount['qrCode'] == '')) {
-              await Future.delayed(const Duration(seconds: 3));
-              if (mounted) {
-                await _loadAccounts();
-              }
-            }
-          }
+          // Polling timer will automatically refresh accounts every 2 seconds
+          // No need for manual delays - polling handles it
+          
+          // Show message that QR code will appear automatically
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account added. QR code will appear automatically when ready...'),
+              backgroundColor: Colors.blue,
+              duration: Duration(seconds: 3),
+            ),
+          );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -946,21 +987,33 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
             if (status == 'connecting' && !showQr && pairingCode == null) ...[
               const SizedBox(height: 8),
               Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Column(
                   children: [
-                    SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Generating QR code...',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(height: 4),
                     const Text(
-                      'Generating QR code...',
+                      'QR code will appear automatically',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 10,
                         color: Colors.grey,
-                        fontStyle: FontStyle.italic,
                       ),
                     ),
                   ],
@@ -971,7 +1024,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                 child: TextButton.icon(
                   onPressed: () => _loadAccounts(),
                   icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('Refresh QR'),
+                  label: const Text('Refresh Now'),
                   style: TextButton.styleFrom(
                     textStyle: const TextStyle(fontSize: 12),
                   ),
