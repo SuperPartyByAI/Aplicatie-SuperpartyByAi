@@ -159,11 +159,24 @@ class FirebaseService {
   /// Get initialization error (if any)
   static String? get initError => _initError;
 
+  // App Check state: track failures to prevent spam
+  static bool _appCheckDisabled = false;
+  static DateTime? _lastAppCheckErrorLog;
+  static const _appCheckErrorLogInterval = Duration(minutes: 5); // Rate limit: log every 5 minutes max
+
   /// Initialize Firebase App Check based on build mode
   /// 
   /// - Debug/Profile: Uses debug provider (requires debug token in Firebase Console)
   /// - Release: Uses production providers (Play Integrity for Android, App Attest for iOS)
+  /// 
+  /// CRITICAL FIX: Rate-limit logging and disable retry after 403/API disabled errors
   static Future<void> _initializeAppCheck() async {
+    // If App Check was disabled due to previous 403 error, skip initialization
+    if (_appCheckDisabled) {
+      debugPrint('[FirebaseService] ⚠️ App Check disabled (403/API disabled in previous attempt) - skipping');
+      return;
+    }
+
     try {
       if (kReleaseMode) {
         // Production mode: use production providers
@@ -191,15 +204,27 @@ class FirebaseService {
             androidProvider: AndroidProvider.debug,
           );
           
-          // Get debug token for Firebase Console
-          final token = await FirebaseAppCheck.instance.getToken(true);
-          if (token != null) {
-            debugPrint('[FirebaseService] 🔑 App Check DEBUG TOKEN (add this to Firebase Console):');
-            debugPrint('[FirebaseService] 🔑 $token');
-            debugPrint('[FirebaseService] 🔑 Steps:');
-            debugPrint('[FirebaseService] 🔑 1. Go to Firebase Console -> App Check');
-            debugPrint('[FirebaseService] 🔑 2. Click "Manage debug tokens"');
-            debugPrint('[FirebaseService] 🔑 3. Add token above to allow debug builds');
+          // Get debug token for Firebase Console (with error handling)
+          try {
+            final token = await FirebaseAppCheck.instance.getToken(true).timeout(
+              const Duration(seconds: 5),
+              onTimeout: () {
+                debugPrint('[FirebaseService] ⚠️ App Check getToken timeout (5s) - skipping debug token display');
+                return null;
+              },
+            );
+            
+            if (token != null) {
+              debugPrint('[FirebaseService] 🔑 App Check DEBUG TOKEN (add this to Firebase Console):');
+              debugPrint('[FirebaseService] 🔑 $token');
+              debugPrint('[FirebaseService] 🔑 Steps:');
+              debugPrint('[FirebaseService] 🔑 1. Go to Firebase Console -> App Check');
+              debugPrint('[FirebaseService] 🔑 2. Click "Manage debug tokens"');
+              debugPrint('[FirebaseService] 🔑 3. Add token above to allow debug builds');
+            }
+          } catch (tokenError) {
+            // Non-critical: debug token retrieval failed, but App Check can still work
+            debugPrint('[FirebaseService] ⚠️ App Check getToken failed (non-critical): $tokenError');
           }
         } else if (Platform.isIOS) {
           await FirebaseAppCheck.instance.activate(
@@ -215,10 +240,32 @@ class FirebaseService {
         debugPrint('[FirebaseService] ℹ️ NOTE: App Check enforcement must be enabled in Firebase Console after testing');
       }
     } catch (e) {
-      // App Check initialization failure should not block app startup
-      // Log error but continue (App Check will warn but not enforce until configured)
-      debugPrint('[FirebaseService] ⚠️ App Check initialization failed (non-blocking): $e');
-      debugPrint('[FirebaseService] ℹ️ App will continue without App Check enforcement');
+      // Check if error is 403 / API disabled
+      final errorStr = e.toString();
+      final is403Error = errorStr.contains('403') || 
+                         errorStr.contains('API has not been used') || 
+                         errorStr.contains('API is disabled');
+      
+      // Rate-limit error logging (prevent spam)
+      final shouldLog = _lastAppCheckErrorLog == null || 
+                        DateTime.now().difference(_lastAppCheckErrorLog!) > _appCheckErrorLogInterval;
+      
+      if (shouldLog) {
+        _lastAppCheckErrorLog = DateTime.now();
+        
+        if (is403Error) {
+          // 403/API disabled: disable App Check for this session (no retry)
+          _appCheckDisabled = true;
+          debugPrint('[FirebaseService] ⚠️ App Check API disabled (403) - disabling App Check for this session');
+          debugPrint('[FirebaseService] ℹ️ To enable: https://console.developers.google.com/apis/api/firebaseappcheck.googleapis.com/overview');
+          debugPrint('[FirebaseService] ℹ️ App will continue without App Check enforcement');
+        } else {
+          // Other errors: log once, continue without App Check
+          debugPrint('[FirebaseService] ⚠️ App Check initialization failed (non-blocking): $e');
+          debugPrint('[FirebaseService] ℹ️ App will continue without App Check enforcement');
+        }
+      }
+      // Else: skip logging (rate-limited)
     }
   }
   

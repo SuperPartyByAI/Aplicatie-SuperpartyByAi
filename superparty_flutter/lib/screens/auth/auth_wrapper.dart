@@ -121,15 +121,18 @@ class _AuthWrapperState extends State<AuthWrapper> {
           }
 
           // Check user status in Firestore (with timeout to prevent hanging)
+          // CRITICAL FIX: Longer timeout in debug mode for emulator connectivity
+          // Production: 5s (fast feedback), Debug: 30s (allow emulator cold start)
+          final firestoreTimeout = kDebugMode ? const Duration(seconds: 30) : const Duration(seconds: 5);
           return StreamBuilder<DocumentSnapshot>(
             stream: FirebaseService.firestore
                 .collection('users')
                 .doc(uid)
                 .snapshots()
                 .timeout(
-                  const Duration(seconds: 5),
+                  firestoreTimeout,
                   onTimeout: (sink) {
-                    debugPrint('[AuthWrapper] ⚠️ Firestore stream timeout (5s) - emulator may be down');
+                    debugPrint('[AuthWrapper] ⚠️ Firestore stream timeout (${firestoreTimeout.inSeconds}s) - emulator may be down');
                     sink.addError(TimeoutException('Firestore connection timeout'));
                   },
                 ),

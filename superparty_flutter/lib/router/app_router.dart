@@ -48,9 +48,11 @@ class AppRouter {
     debugLogDiagnostics: kDebugMode,
     refreshListenable: GoRouterRefreshStream(
       FirebaseService.auth.authStateChanges().timeout(
-        const Duration(seconds: 5),
+        // CRITICAL FIX: Longer timeout in debug mode for emulator connectivity
+        // Production: 5s (fast feedback), Debug: 30s (allow emulator cold start)
+        kDebugMode ? const Duration(seconds: 30) : const Duration(seconds: 5),
         onTimeout: (sink) {
-          debugPrint('[AppRouter] ⚠️ Auth stream timeout (5s) - emulator may be down');
+          debugPrint('[AppRouter] ⚠️ Auth stream timeout (${kDebugMode ? 30 : 5}s) - emulator may be down');
           // Don't add error - just let it complete naturally
         },
       ),
