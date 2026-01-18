@@ -4804,7 +4804,10 @@ async function restoreAccount(accountId, data) {
 
 async function restoreAccountsFromFirestore() {
   // HARD GATE: PASSIVE mode - do NOT restore accounts
-  if (!waBootstrap.canStartBaileys()) {
+  // DEBUG: Log canStartBaileys() result to understand why gate may not work
+  const canStart = waBootstrap.canStartBaileys();
+  console.log(`🔍 [DEBUG] restoreAccountsFromFirestore: canStartBaileys()=${canStart}`);
+  if (!canStart) {
     console.log('⏸️  PASSIVE mode - skipping account restore (lock not held)');
     return;
   }
@@ -4868,6 +4871,16 @@ async function restoreAccountsFromFirestore() {
     console.log(`✅ Account restore complete: ${connections.size} accounts loaded`);
 
     // Start connections for restored accounts with staggered boot (2-5s jitter)
+    // CRITICAL: Check PASSIVE mode again before starting connections
+    // This is necessary because waBootstrap may not be fully initialized when restoreAccountsFromFirestore() is called
+    const canStartConnections = waBootstrap.canStartBaileys();
+    console.log(`🔍 [DEBUG] Starting connections for restored accounts: canStartBaileys()=${canStartConnections}`);
+    
+    if (!canStartConnections) {
+      console.log('⏸️  PASSIVE mode - skipping connection start for restored accounts (lock not held)');
+      return; // Exit early - don't start connections in PASSIVE mode
+    }
+    
     console.log('🔌 Starting connections for restored accounts (staggered boot)...');
     
     // Sort accounts deterministically for predictable boot order
