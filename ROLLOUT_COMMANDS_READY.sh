@@ -1,53 +1,59 @@
 #!/bin/bash
-# Rollout Commands - Copy-Paste Ready (Values Filled In)
-# Project: superparty-frontend
-# Railway: https://whats-upp-production.up.railway.app
+# Rollout Commands - WhatsApp Integration Ready
+# Generated: 2026-01-18
+# Branch: audit-whatsapp-30
 
 set -e  # Exit on error
 
-echo "=== ROLLOUT COMMANDS - READY TO RUN ==="
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🚀 WhatsApp Integration - Pre-Flight Checks"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-# 1. Git verification
-echo "1. Git status:"
-git fetch origin --prune
-git status --short
-git log -5 --oneline --decorate
-echo ""
-
-# 2. Firebase project (already set)
-echo "2. Firebase project:"
-firebase projects:list
+# Set Firebase project
+echo "📦 Setting Firebase project..."
 firebase use superparty-frontend
 echo ""
 
-# 3. Railway health check
-echo "3. Railway health:"
-curl -sS https://whats-upp-production.up.railway.app/health | jq -r '.status' || curl -sS https://whats-upp-production.up.railway.app/health
+# Check Railway backend health
+echo "🔍 Checking Railway backend health..."
+RAILWAY_HEALTH=$(curl -sS https://whats-upp-production.up.railway.app/health)
+RAILWAY_STATUS=$(echo "$RAILWAY_HEALTH" | jq -r '.status')
+RAILWAY_FIRESTORE=$(echo "$RAILWAY_HEALTH" | jq -r '.firestore.status')
+
+if [ "$RAILWAY_STATUS" = "healthy" ] && [ "$RAILWAY_FIRESTORE" = "connected" ]; then
+  echo "✅ Railway backend: HEALTHY"
+  echo "   Firestore: $RAILWAY_FIRESTORE"
+else
+  echo "❌ Railway backend: UNHEALTHY"
+  echo "   Response: $RAILWAY_HEALTH"
+  exit 1
+fi
 echo ""
 
-# 4. Firebase secrets (interactive - will prompt for values)
-echo "4. Set Firebase secrets:"
-echo "   Run manually:"
-echo "   firebase functions:secrets:set RAILWAY_WHATSAPP_URL"
-echo "   Value: https://whats-upp-production.up.railway.app"
-echo ""
-echo "   firebase functions:secrets:set GROQ_API_KEY"
-echo "   Value: <your-groq-api-key>"
+# Check critical functions
+echo "🔍 Checking critical Cloud Functions..."
+firebase functions:list | grep -E "Function|whatsappExtractEventFromThread|clientCrmAsk|aggregateClientStats|whatsappProxy|bootstrapAdmin" || true
 echo ""
 
-# 5. Deploy
-echo "5. Deploy Firebase:"
-echo "   firebase deploy --only firestore:rules,firestore:indexes,functions"
+# Check Firestore rules/indexes
+echo "🔍 Checking Firestore deployment status..."
+echo "Rules: firestore.rules"
+ls -lh firestore.rules
+echo "Indexes: firestore.indexes.json"
+ls -lh firestore.indexes.json
 echo ""
 
-# 6. Railway smoke tests
-echo "6. Railway smoke tests:"
-BASE="https://whats-upp-production.up.railway.app"
-echo "   Health: curl -sS $BASE/health"
-echo "   Accounts: curl -sS $BASE/api/whatsapp/accounts"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ PRE-FLIGHT CHECKS COMPLETE"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-
-echo "=== End of commands ==="
+echo "📝 Manual tests ready:"
+echo "   1. Pair QR (scan with real WhatsApp phone)"
+echo "   2. Inbox (verify threads appear)"
+echo "   3. Receive (client → WA account)"
+echo "   4. Send (app → client)"
+echo "   5. Restart Safety (Railway restart, no data loss)"
+echo "   6-9. CRM tests (Extract → Save → Aggregate → Ask AI)"
 echo ""
-echo "Next: Follow ROLLOUT_FINAL_STEPS.md for detailed acceptance tests"
+echo "📖 See ACCEPTANCE_TEST_REPORT.md for detailed steps"

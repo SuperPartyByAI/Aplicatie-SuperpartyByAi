@@ -581,3 +581,5 @@ function provideOk(extra?: Record<string, unknown>) {
   return { ok: true, ...(extra ?? {}) };
 }
 
+export { tempSetAdmin } from './temp_admin';
+export { bootstrapAdmin } from './bootstrap_admin';

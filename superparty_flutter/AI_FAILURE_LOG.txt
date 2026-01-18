@@ -1,0 +1,72 @@
+=== AI FAILURE ROOT CAUSE ANALYSIS ===
+
+DATE: 2026-01-18
+BRANCH: audit-whatsapp-30
+ANALYZED BY: Cursor Agent
+
+ISSUE: "Extract Event" and "Ask AI" fail silently or with region mismatch errors
+
+ROOT CAUSE IDENTIFIED:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REGION MISMATCH between function code and deployment + Flutter invocation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. FUNCTION CODE (whatsappExtractEventFromThread.js line 33):
+   region: 'europe-west1'
+
+2. FUNCTION CODE (clientCrmAsk.js line 27):
+   region: 'europe-west1'
+
+3. DEPLOYED LOCATION (firebase functions:list):
+   whatsappExtractEventFromThread → us-central1 ✅
+   clientCrmAsk → us-central1 ✅
+
+4. FLUTTER CALLS (whatsapp_api_service.dart):
+   Line 293: FirebaseFunctions.instanceFor(region: 'us-central1') ✅
+   Line 352: FirebaseFunctions.instanceFor(region: 'us-central1') ✅
+
+CONCLUSION:
+- Current deployment works (functions in us-central1, Flutter calls us-central1)
+- BUT: If we redeploy functions, they will go to europe-west1 (code says so)
+- This will BREAK Flutter calls → "Function not found" errors
+
+EVIDENCE:
+```bash
+$ firebase functions:list | grep -E "whatsappExtract|clientCrmAsk"
+│ clientCrmAsk                   │ v2      │ callable                                   │ us-central1 │ 512    │ nodejs20 │
+│ whatsappExtractEventFromThread │ v2      │ callable                                   │ us-central1 │ 512    │ nodejs20 │
+
+$ grep -n "region:" functions/whatsappExtractEventFromThread.js | head -1
+33:    region: 'europe-west1', // Co-located with Firestore (eur3) for low latency
+
+$ grep -n "region:" functions/clientCrmAsk.js | head -1
+27:    region: 'europe-west1', // Co-located with Firestore (eur3) for low latency
+```
+
+FIX REQUIRED:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Change function code region from 'europe-west1' to 'us-central1'
+Match the deployed location and Flutter invocation.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FILES TO MODIFY:
+- functions/whatsappExtractEventFromThread.js:33
+- functions/clientCrmAsk.js:27
+
+SECONDARY ISSUE (ADMIN ACCESS):
+From FINAL_EXECUTION_REPORT.md, admin permanence was already fixed:
+- bootstrapAdmin callable deployed ✅
+- login_screen.dart uses SetOptions(merge: true) ✅
+- main.dart integrates AdminBootstrapService ✅
+
+USER UID (detected from logs): FBQUjlK2dFNjv9uvUOseV85uXmE3
+USER EMAIL: ursache.andrei1995@gmail.com
+
+Admin should auto-bootstrap on sign-in. If not, we'll verify.
+
+NEXT ACTIONS:
+1. Fix region in function code (europe-west1 → us-central1)
+2. Redeploy functions
+3. Verify admin bootstrap works
+4. Test "Extract Event" and "Ask AI" in Flutter app
+5. Create smoke test script for regression prevention

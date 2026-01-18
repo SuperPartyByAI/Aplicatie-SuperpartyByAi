@@ -24,7 +24,7 @@ const db = admin.firestore();
  */
 exports.clientCrmAsk = onCall(
   {
-    region: 'europe-west1', // Co-located with Firestore (eur3) for low latency
+    region: 'us-central1', // Match deployment region and Flutter callable invocation
     timeoutSeconds: 30,
     memory: '512MiB',
     maxInstances: 1, // Reduce CPU quota pressure

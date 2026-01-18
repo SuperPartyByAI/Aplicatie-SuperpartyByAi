@@ -141,6 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
         await user.sendEmailVerification();
 
         // Create document in Firestore with normalized email
+        // IMPORTANT: Use merge:true to preserve existing fields (e.g. admin role)
         await FirebaseService.firestore.collection('users').doc(user.uid).set({
           'uid': user.uid,
           'email': finalEmail,
@@ -148,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
           'status': 'kyc_required',
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
-        });
+        }, SetOptions(merge: true));
 
         debugPrint('[Auth] ✅ Registration successful email=$maskedEmail uid=${user.uid}');
       } else {

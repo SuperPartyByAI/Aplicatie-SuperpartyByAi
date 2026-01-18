@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'services/firebase_service.dart';
 import 'services/background_service.dart';
 import 'services/push_notification_service.dart';
+import 'services/admin_bootstrap_service.dart';
 import 'providers/app_state_provider.dart';
 import 'router/app_router.dart';
 import 'widgets/update_gate.dart';
@@ -92,9 +93,20 @@ void main() async {
   
   // Add auth state listener for diagnostics
   if (FirebaseService.isInitialized) {
-    FirebaseService.auth.authStateChanges().listen((user) {
+    FirebaseService.auth.authStateChanges().listen((user) async {
       final msg = '[AUTH] state change: user=${user?.uid ?? "null"} email=${user?.email ?? "null"}';
       debugPrint(msg);
+      
+      // Bootstrap admin access for eligible users (idempotent)
+      if (user != null) {
+        try {
+          final bootstrapService = AdminBootstrapService();
+          await bootstrapService.bootstrapIfEligible();
+        } catch (e) {
+          debugPrint('[Main] ⚠️ Admin bootstrap error (non-critical): $e');
+        }
+      }
+      
       // #region agent log
       try {
         final timestamp = DateTime.now().millisecondsSinceEpoch;

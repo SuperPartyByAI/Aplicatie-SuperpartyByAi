@@ -289,8 +289,8 @@ class WhatsAppApiService {
         throw UnauthorizedException();
       }
 
-      // Use europe-west1 region (Firestore is in eur3)
-      final functions = FirebaseFunctions.instanceFor(region: 'europe-west1');
+      // Use us-central1 region (where functions are deployed)
+      final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
       final callable = functions.httpsCallable(
         'whatsappExtractEventFromThread',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
