@@ -11,6 +11,9 @@ class BackendDiagnostics {
   final String mode; // 'active' | 'passive' | 'unknown'
   final String? reason;
   final String? instanceId;
+  final String? lockStatus; // 'held_by_this_instance' | 'held_by_other' | 'not_held' | null
+  final String? heldBy; // instance ID holding the lock (if passive)
+  final int? lockExpiresInSeconds; // seconds until lock expires
   final String? timestamp;
   final String? error;
 
@@ -19,6 +22,9 @@ class BackendDiagnostics {
     required this.mode,
     this.reason,
     this.instanceId,
+    this.lockStatus,
+    this.heldBy,
+    this.lockExpiresInSeconds,
     this.timestamp,
     this.error,
   });
@@ -29,6 +35,9 @@ class BackendDiagnostics {
       mode: json['mode'] ?? 'unknown',
       reason: json['reason'],
       instanceId: json['instanceId'],
+      lockStatus: json['lockStatus'],
+      heldBy: json['heldBy'],
+      lockExpiresInSeconds: json['lockExpiresInSeconds'] != null ? (json['lockExpiresInSeconds'] as num).toInt() : null,
       timestamp: json['timestamp'],
       error: json['error'],
     );
@@ -88,30 +97,63 @@ class WhatsAppBackendDiagnosticsService {
 
       if (kDebugMode) {
         debugPrint('[BackendDiagnostics] Response status: ${response.statusCode}');
-        debugPrint('[BackendDiagnostics] Response body: ${response.body}');
+        debugPrint('[BackendDiagnostics] Response body (first 500 chars): ${response.body.length > 500 ? response.body.substring(0, 500) + "..." : response.body}');
       }
 
       if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        return BackendDiagnostics.fromJson(json);
+        // Parse JSON safely - handle non-JSON responses (e.g., 502 HTML)
+        try {
+          final json = jsonDecode(response.body) as Map<String, dynamic>;
+          return BackendDiagnostics.fromJson(json);
+        } catch (parseError) {
+          // Non-JSON response (e.g., 502 HTML error page)
+          if (kDebugMode) {
+            debugPrint('[BackendDiagnostics] JSON parse error: $parseError');
+            debugPrint('[BackendDiagnostics] Response body was: ${response.body.substring(0, 200)}');
+          }
+          return BackendDiagnostics(
+            ready: false,
+            mode: 'unknown',
+            reason: 'invalid_response',
+            error: 'Backend returned non-JSON response (status ${response.statusCode}). Body: ${response.body.length > 200 ? response.body.substring(0, 200) + "..." : response.body}',
+          );
+        }
       } else if (response.statusCode == 502) {
-        // Backend down
+        // Backend down - parse body if possible
+        String errorBody = 'Backend returned 502 Bad Gateway';
+        try {
+          if (response.body.isNotEmpty) {
+            final first200Chars = response.body.length > 200 ? response.body.substring(0, 200) + '...' : response.body;
+            errorBody = 'Backend returned 502 Bad Gateway. Response: $first200Chars';
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
         return BackendDiagnostics(
           ready: false,
           mode: 'unknown',
           reason: 'backend_down',
-          error: 'Backend returned 502 Bad Gateway',
+          error: errorBody,
         );
       } else if (response.statusCode == 503) {
         // Backend passive (may return 503, but we check /ready which returns 200 with mode=passive)
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        return BackendDiagnostics.fromJson(json);
+        try {
+          final json = jsonDecode(response.body) as Map<String, dynamic>;
+          return BackendDiagnostics.fromJson(json);
+        } catch (parseError) {
+          return BackendDiagnostics(
+            ready: false,
+            mode: 'unknown',
+            reason: 'invalid_response',
+            error: 'Backend returned 503 but response was not valid JSON',
+          );
+        }
       } else {
         return BackendDiagnostics(
           ready: false,
           mode: 'unknown',
           reason: 'unexpected_status',
-          error: 'Backend returned status ${response.statusCode}',
+          error: 'Backend returned status ${response.statusCode}. Body: ${response.body.length > 200 ? response.body.substring(0, 200) + "..." : response.body}',
         );
       }
     } on TimeoutException {

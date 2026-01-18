@@ -2145,32 +2145,60 @@ app.get('/', (req, res) => {
 
 // /ready endpoint - readiness check (returns mode + reason for passive)
 // MUST be fast - no blocking on lock or Firestore
+// ALWAYS returns 200 (Railway uses /health for healthcheck, not /ready)
 app.get('/ready', async (req, res) => {
   try {
     const status = await waBootstrap.getWAStatus();
     const isActive = waBootstrap.isActiveMode();
     
+    // Get lock details if available (best-effort, non-blocking)
+    let lockStatus = null;
+    let heldBy = null;
+    let lockExpiresInSeconds = null;
+    
+    try {
+      if (waIntegration && waIntegration.stability && waIntegration.stability.lock) {
+        const lockInfo = await waIntegration.stability.lock.getStatus();
+        lockStatus = lockInfo.exists ? (lockInfo.isHolder ? 'held_by_this_instance' : 'held_by_other') : 'not_held';
+        if (lockInfo.exists && lockInfo.holder) {
+          heldBy = lockInfo.holder;
+        }
+        if (lockInfo.exists && lockInfo.remainingMs !== undefined) {
+          lockExpiresInSeconds = Math.max(0, Math.ceil(lockInfo.remainingMs / 1000));
+        }
+      }
+    } catch (lockError) {
+      // Ignore lock status errors - continue with null values
+      console.error('[ready] Error getting lock status:', lockError.message);
+    }
+    
     if (isActive) {
-      res.json({
+      res.status(200).json({
         ready: true,
         mode: 'active',
         instanceId: status.instanceId || 'unknown',
+        lockStatus: lockStatus,
+        heldBy: heldBy,
+        lockExpiresInSeconds: lockExpiresInSeconds,
         timestamp: new Date().toISOString(),
       });
     } else {
       // PASSIVE mode - return 200 with mode=passive (not 503 to avoid healthcheck failure)
-      // Railway/K8s can use this to check readiness
-      res.json({
+      // Railway/K8s can use this to check readiness, but /health is used for healthcheck
+      res.status(200).json({
         ready: false,
         mode: 'passive',
         reason: status.reason || 'lock_not_acquired',
         instanceId: status.instanceId || 'unknown',
+        lockStatus: lockStatus,
+        heldBy: heldBy,
+        lockExpiresInSeconds: lockExpiresInSeconds,
         timestamp: new Date().toISOString(),
       });
     }
   } catch (error) {
     // Even on error, return 200 to prevent healthcheck failures
-    res.json({
+    res.status(200).json({
       ready: false,
       mode: 'unknown',
       error: error.message,
@@ -2558,146 +2586,39 @@ app.get('/metrics-json', requireObsToken, async (req, res) => {
   }
 });
 
-// Health endpoint - comprehensive with WA mode, lock info, and observability
+// Health endpoint - SIMPLE liveness check (ALWAYS returns 200)
+// Railway/K8s healthcheck uses this - MUST be fast and never fail
+// Use /ready for readiness (active/passive mode), /health/detailed for comprehensive status
 app.get('/health', async (req, res) => {
   const requestId = req.headers['x-request-id'] || `health_${Date.now()}`;
   
+  // Simple counters (non-blocking, no async dependencies)
   const connected = Array.from(connections.values()).filter(c => c.status === 'connected').length;
-  const connecting = Array.from(connections.values()).filter(
-    c => c.status === 'connecting' || c.status === 'reconnecting'
-  ).length;
-  const needsQr = Array.from(connections.values()).filter(
-    c => c.status === 'needs_qr' || c.status === 'qr_ready' || c.status === 'awaiting_scan'
-  ).length;
-  const disconnected = Array.from(connections.values()).filter(
-    c => c.status === 'disconnected'
-  ).length;
-
-  // Check sessions directory writability at runtime (critical for Railway stability)
-  let sessionsDirWritable = false;
-  try {
-    if (fs.existsSync(authDir)) {
-      const testFile = path.join(authDir, '.health-check-write-test');
-      fs.writeFileSync(testFile, 'test');
-      fs.unlinkSync(testFile);
-      sessionsDirWritable = true;
-    }
-  } catch (error) {
-    sessionsDirWritable = false;
-  }
-
-  // Get commit from config if env var not set
-  if (!COMMIT_HASH && firestoreAvailable) {
-    try {
-      const configDoc = await db.doc('wa_metrics/longrun/config/current').get();
-      if (configDoc.exists) {
-        COMMIT_HASH = configDoc.data().commitHash || 'unknown';
-      } else {
-        COMMIT_HASH = 'unknown';
-      }
-    } catch (e) {
-      COMMIT_HASH = 'unknown';
-    }
-  } else if (!COMMIT_HASH) {
-    COMMIT_HASH = 'unknown';
-  }
-
-  // Get WA mode and lock status (non-blocking, best-effort)
-  let waMode = 'unknown';
-  let instanceId = process.env.RAILWAY_DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
-  let lockHolder = null;
-  let lockExpiresInSeconds = null;
-  let lockReason = null;
-  
-  try {
-    if (waBootstrap && waBootstrap.getWAStatus) {
-      const status = await waBootstrap.getWAStatus();
-      waMode = waBootstrap.isActiveMode() ? 'active' : 'passive';
-      instanceId = status.instanceId || instanceId;
-      lockReason = status.reason || null;
-      
-      // Get lock details if available
-      if (status.lock) {
-        const lock = status.lock;
-        if (lock.exists && lock.holder) {
-          lockHolder = lock.holder;
-          lockExpiresInSeconds = Math.max(0, Math.ceil(lock.remainingMs / 1000));
-        }
-      }
-    }
-  } catch (error) {
-    console.error(`[health/${requestId}] Error getting WA status:`, error.message);
-    // Continue with defaults
-  }
-
-  const fingerprint = {
-    version: VERSION,
-    commit: COMMIT_HASH,
-    bootTimestamp: BOOT_TIMESTAMP,
-    instanceId: instanceId,
-  };
-
-  // Test Firestore connection
-  let firestoreStatus = 'disconnected';
-  if (firestoreAvailable) {
-    try {
-      await db
-        .collection('_health_check')
-        .doc('test')
-        .set({ timestamp: admin.firestore.FieldValue.serverTimestamp() });
-      firestoreStatus = 'connected';
-    } catch (error) {
-      console.error('❌ Firestore health check failed:', error.message);
-      firestoreStatus = 'error';
-    }
-  } else {
-    firestoreStatus = 'not_configured';
-  }
-
-  // Aggregate lastError/lastDisconnectReason by status
-  const errorsByStatus = {};
-  for (const account of connections.values()) {
-    const status = account.status;
-    if (!errorsByStatus[status]) {
-      errorsByStatus[status] = [];
-    }
-    if (account.lastError) {
-      errorsByStatus[status].push(account.lastError);
-    }
-  }
-
   const accountsTotal = connections.size;
-  const ok = sessionsDirWritable && firestoreStatus === 'connected';
 
-  res.status(ok ? 200 : 503).json({
-    ok,
-    status: ok ? 'healthy' : 'unhealthy',
-    ...fingerprint,
-    waMode: waMode,
-    lock: lockHolder ? {
-      holderInstanceId: lockHolder,
-      expiresInSeconds: lockExpiresInSeconds,
-      reason: lockReason,
-    } : null,
-    accounts_total: accountsTotal,
-    connected,
-    needs_qr: needsQr,
-    sessions_dir_writable: sessionsDirWritable,
+  // Get commit (cached, non-blocking)
+  const commit = COMMIT_HASH || 'unknown';
+  
+  // Get instance ID (non-blocking)
+  const instanceId = process.env.RAILWAY_DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
+
+  // ALWAYS return 200 - this is liveness check, not readiness
+  // Railway marks instance unhealthy if healthcheck returns non-200
+  // /ready endpoint handles readiness (active/passive mode)
+  res.status(200).json({
+    ok: true,
+    status: 'healthy',
+    service: 'whatsapp-backend',
+    version: VERSION,
+    commit: commit,
+    instanceId: instanceId,
+    bootTimestamp: BOOT_TIMESTAMP,
     uptime: Math.floor((Date.now() - START_TIME) / 1000),
     timestamp: new Date().toISOString(),
     requestId: requestId,
-    accounts: {
-      total: accountsTotal,
-      connected,
-      connecting,
-      disconnected,
-      needs_qr: needsQr,
-      max: MAX_ACCOUNTS,
-    },
-    firestore: {
-      status: firestoreStatus,
-    },
-    errorsByStatus,
+    accounts_total: accountsTotal,
+    connected: connected,
+    // Note: Use /ready for mode (active/passive), /health/detailed for comprehensive status
   });
 });
 

@@ -562,10 +562,21 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
         debugPrint('[WhatsAppAccountsScreen] Container: $containerName, Color: $color, Icon: $icon');
       }
       
+      // Get working directory - repo root (where scripts/wa_web_launcher/ exists)
+      final currentDir = Directory.current.path;
+      final repoRoot = path.normalize(path.join(currentDir, '..', '..', '..'));
+      final absoluteRepoRoot = path.absolute(repoRoot);
+      
+      if (kDebugMode) {
+        debugPrint('[WhatsAppAccountsScreen] Working directory: $absoluteRepoRoot');
+        debugPrint('[WhatsAppAccountsScreen] Script path: $scriptPath');
+      }
+      
       final result = await Process.run(
         scriptPath,
         args,
         environment: env,
+        workingDirectory: absoluteRepoRoot, // Set working directory to repo root
         runInShell: false,
       );
       
@@ -854,19 +865,39 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
       bannerColor = Colors.orange;
       bannerIcon = Icons.warning_amber_rounded;
       bannerTitle = 'Backend in PASSIVE Mode';
-      bannerMessage = 'Another Railway instance holds the lock. '
+      String heldByInfo = '';
+      if (diagnostics.heldBy != null) {
+        heldByInfo = 'Lock held by: ${diagnostics.heldBy}. ';
+      }
+      if (diagnostics.lockExpiresInSeconds != null) {
+        final minutes = diagnostics.lockExpiresInSeconds! ~/ 60;
+        heldByInfo += 'Lock expires in: ${minutes}m. ';
+      }
+      bannerMessage = '$heldByInfo'
           '${diagnostics.reason != null ? "Reason: ${diagnostics.reason}" : "Backend will retry automatically."}\n'
           'Accounts can still be viewed, but AI features are disabled.';
     } else if (isActive) {
       bannerColor = Colors.green;
       bannerIcon = Icons.check_circle;
       bannerTitle = 'Backend ACTIVE';
-      bannerMessage = 'Backend is ready. AI features and account management are available.';
+      String lockInfo = '';
+      if (diagnostics.lockStatus == 'held_by_this_instance') {
+        lockInfo = 'Lock held by this instance. ';
+      }
+      if (diagnostics.instanceId != null) {
+        lockInfo += 'Instance: ${diagnostics.instanceId}. ';
+      }
+      bannerMessage = '$lockInfo'
+          'Backend is ready. AI features and account management are available.';
     } else {
       bannerColor = Colors.grey;
       bannerIcon = Icons.help_outline;
       bannerTitle = 'Backend Status Unknown';
-      bannerMessage = diagnostics.error ?? 'Could not determine backend status.';
+      String errorDetails = diagnostics.error ?? 'Could not determine backend status.';
+      if (diagnostics.error != null && diagnostics.error!.contains('502')) {
+        errorDetails = 'Backend is down (502 Bad Gateway). Check Railway service status.';
+      }
+      bannerMessage = errorDetails;
     }
     
     return Container(
