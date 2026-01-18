@@ -35,6 +35,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   final Set<String> _regeneratingQr = {}; // accountId -> in-flight
   final Set<String> _deletingAccount = {}; // accountId -> in-flight
   final Set<String> _openingFirefox = {}; // accountId -> in-flight
+  final Set<String> _autoOpenedFirefox = {}; // accountId -> auto-opened Firefox (prevent duplicates)
   int _loadRequestToken = 0;
   
   static const String _waUrl = 'https://web.whatsapp.com';
@@ -118,7 +119,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
       // Ignore late responses (if another load started)
       if (myToken != _loadRequestToken) return;
       
-      if (response['success'] == true) {
+          if (response['success'] == true) {
         final accounts = response['accounts'] as List<dynamic>? ?? [];
         if (mounted && myToken == _loadRequestToken) {
           setState(() {
@@ -126,6 +127,35 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
             _isLoading = false;
             _error = null;
           });
+          
+          // Auto-open Firefox containers for new QR codes (if enabled)
+          // Check for accounts with qr_ready status that don't have Firefox opened yet
+          if (Platform.isMacOS && accounts.isNotEmpty) {
+            for (final account in accounts) {
+              final accountId = account['id'] as String? ?? '';
+              final accountName = account['name'] as String? ?? 'Unnamed';
+              final status = account['status'] as String? ?? '';
+              final qrCode = account['qrCode'] as String?;
+              
+              // Auto-open Firefox for qr_ready accounts (user can disable this)
+              if (status == 'qr_ready' && 
+                  qrCode != null && 
+                  qrCode.isNotEmpty &&
+                  !_openingFirefox.contains(accountId) &&
+                  !_autoOpenedFirefox.contains(accountId)) {
+                // Small delay to allow UI to update
+                Future.delayed(const Duration(milliseconds: 500), () {
+                  if (mounted) {
+                    _openInFirefoxContainer(accountId, accountName);
+                    // Mark as auto-opened to prevent duplicate opens
+                    setState(() {
+                      _autoOpenedFirefox.add(accountId);
+                    });
+                  }
+                });
+              }
+            }
+          }
         }
       } else {
         if (mounted && myToken == _loadRequestToken) {
@@ -699,13 +729,8 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                if (!showQr && status == 'qr_ready')
-                  TextButton.icon(
-                    onPressed: () => _openQrPage(id),
-                    icon: const Icon(Icons.qr_code, size: 18),
-                    label: const Text('Open QR Page'),
-                  )
-                else if (Platform.isMacOS && status != 'connected')
+                // Firefox button for macOS - show for qr_ready, connecting, or connected
+                if (Platform.isMacOS && ['qr_ready', 'connecting', 'connected', 'awaiting_scan'].contains(status))
                   TextButton.icon(
                     onPressed: _openingFirefox.contains(id) || _isAddingAccount
                         ? null
@@ -719,15 +744,17 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                         : const Icon(Icons.open_in_browser, size: 18),
                     label: Text(_openingFirefox.contains(id) ? 'Opening...' : 'Open in Firefox'),
                   )
-                else if (Platform.isMacOS && status == 'connected')
-                  Tooltip(
-                    message: 'Open WhatsApp Web in Firefox container',
-                    child: TextButton.icon(
-                      onPressed: _openingFirefox.contains(id) || _isAddingAccount
-                          ? null
-                          : () => _openInFirefoxContainer(id, name),
-                      icon: const Icon(Icons.open_in_browser, size: 18),
-                      label: const Text('Open in Firefox'),
+                else if (!Platform.isMacOS && showQr)
+                  // Show info for non-macOS
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Firefox only on macOS',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   )
                 else
@@ -995,6 +1022,18 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                         ),
                       ),
                     ),
+                    if (Platform.isMacOS) ...[
+                      const SizedBox(height: 16),
+                      const Text(
+                        '💡 Tip: When you add an account, Firefox container will open automatically when QR code is generated.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.blue,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ],
                 ],
               ),
@@ -1045,7 +1084,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                     ),
                     child: const Text(
                       'Firefox WhatsApp Web sessions are separate from backend accounts.\n'
-                      'They do NOT appear here automatically. Use Firefox containers manually via terminal scripts.',
+                      'However, you can open Firefox containers directly from backend accounts using the "Open in Firefox" button.',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.orange,
