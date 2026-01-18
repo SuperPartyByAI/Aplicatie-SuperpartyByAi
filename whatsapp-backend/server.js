@@ -1008,18 +1008,54 @@ function isTerminalLogout(reasonCode) {
 async function createConnection(accountId, name, phone) {
   // HARD GATE: PASSIVE mode - do NOT start Baileys connections
   if (!waBootstrap.canStartBaileys()) {
+    const status = await waBootstrap.getWAStatus();
     console.log(`⏸️  [${accountId}] PASSIVE mode - cannot start Baileys connection (lock not held)`);
+    console.log(`⏸️  [${accountId}] PASSIVE mode details: reason=${status.reason || 'unknown'}, instanceId=${status.instanceId || 'unknown'}`);
+    
+    // Save passive status to Firestore so Flutter can display it
+    await saveAccountToFirestore(accountId, {
+      status: 'passive',
+      lastError: `Backend in PASSIVE mode: ${status.reason || 'lock not acquired'}`,
+      passiveModeReason: status.reason || 'lock_not_acquired',
+    }).catch(err => console.error(`❌ [${accountId}] Failed to save passive status:`, err));
+    
     return;
   }
 
   // Guard: Do not auto-connect accounts with terminal logout status
   // These require explicit user action (Regenerate QR)
+  // CRITICAL FIX: Check both in-memory AND Firestore to prevent 401 loops
   const account = connections.get(accountId);
   if (account) {
     const terminalStatuses = ['needs_qr', 'logged_out'];
     if (terminalStatuses.includes(account.status) || account.requiresQR === true) {
       console.log(`⏸️  [${accountId}] Account status is ${account.status} (requiresQR: ${account.requiresQR}), skipping auto-connect. Use Regenerate QR endpoint.`);
+      // #region agent log
+      console.log(`📋 [${accountId}] createConnection blocked: inMemory status=${account.status}, requiresQR=${account.requiresQR}, timestamp=${Date.now()}`);
+      // #endregion
       return;
+    }
+  }
+  
+  // CRITICAL FIX: Also check Firestore if account not in memory (might have been cleaned up)
+  // This prevents race conditions where cleanup sets needs_qr in Firestore but something triggers createConnection
+  if (!account && firestoreAvailable && db) {
+    try {
+      const accountDoc = await db.collection('accounts').doc(accountId).get();
+      if (accountDoc.exists) {
+        const data = accountDoc.data();
+        const terminalStatuses = ['needs_qr', 'logged_out'];
+        if (terminalStatuses.includes(data.status) || data.requiresQR === true) {
+          console.log(`⏸️  [${accountId}] Account status in Firestore is ${data.status} (requiresQR: ${data.requiresQR}), skipping auto-connect. Use Regenerate QR endpoint.`);
+          // #region agent log
+          console.log(`📋 [${accountId}] createConnection blocked: firestore status=${data.status}, requiresQR=${data.requiresQR}, timestamp=${Date.now()}`);
+          // #endregion
+          return;
+        }
+      }
+    } catch (error) {
+      console.error(`⚠️  [${accountId}] Failed to check Firestore status:`, error.message);
+      // Continue anyway - might be first connection
     }
   }
 
@@ -1055,35 +1091,42 @@ async function createConnection(accountId, name, phone) {
     let { state, saveCreds } = await useMultiFileAuthState(sessionPath);
 
     // Wrap saveCreds to backup to Firestore
+    // CRITICAL: Errors in backup must NEVER affect Baileys socket
     if (USE_FIRESTORE_BACKUP && firestoreAvailable && db) {
       const originalSaveCreds = saveCreds;
       saveCreds = async () => {
+        // Always call original saveCreds first (critical for Baileys)
         await originalSaveCreds();
 
-        // Backup to Firestore
-        try {
-          const sessionFiles = fs.readdirSync(sessionPath);
-          const sessionData = {};
+        // Backup to Firestore (fire-and-forget, errors don't affect socket)
+        // Use setImmediate to ensure it doesn't block the main flow
+        setImmediate(async () => {
+          try {
+            const sessionFiles = fs.readdirSync(sessionPath);
+            const sessionData = {};
 
-          for (const file of sessionFiles) {
-            const filePath = path.join(sessionPath, file);
-            if (fs.statSync(filePath).isFile()) {
-              sessionData[file] = fs.readFileSync(filePath, 'utf8');
+            for (const file of sessionFiles) {
+              const filePath = path.join(sessionPath, file);
+              if (fs.statSync(filePath).isFile()) {
+                sessionData[file] = fs.readFileSync(filePath, 'utf8');
+              }
             }
+
+            await db.collection('wa_sessions').doc(accountId).set({
+              files: sessionData,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              schemaVersion: 2,
+            });
+
+            console.log(
+              `💾 [${accountId}] Session backed up to Firestore (${Object.keys(sessionData).length} files)`
+            );
+          } catch (error) {
+            // CRITICAL: Log error but don't throw - backup failure must not kill socket
+            console.error(`❌ [${accountId}] Firestore backup failed (non-fatal):`, error.message, error.stack?.substring(0, 200));
+            // Don't rethrow - backup is optional, socket integrity is critical
           }
-
-          await db.collection('wa_sessions').doc(accountId).set({
-            files: sessionData,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            schemaVersion: 2,
-          });
-
-          console.log(
-            `💾 [${accountId}] Session backed up to Firestore (${Object.keys(sessionData).length} files)`
-          );
-        } catch (error) {
-          console.error(`❌ [${accountId}] Firestore backup failed:`, error.message);
-        }
+        });
       };
     }
 
@@ -1123,18 +1166,85 @@ async function createConnection(accountId, name, phone) {
     console.log(`🔌 [${accountId}] Connection session #${currentSessionId} started`);
 
     // Set timeout to prevent "connecting forever" (configurable via env)
+    // CRITICAL: Only apply timeout for normal connecting, NOT for pairing phase (qr_ready/awaiting_scan)
+    // Pairing phase uses QR_SCAN_TIMEOUT (10 minutes) instead
+    // CRITICAL: Cancel/extend timeout when QR is generated or status changes to pairing phase
     const CONNECTING_TIMEOUT = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
     account.connectingTimeout = setTimeout(() => {
       const timeoutSeconds = Math.floor(CONNECTING_TIMEOUT / 1000);
-      console.log(`⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`);
       const acc = connections.get(accountId);
-      if (acc && acc.status === 'connecting') {
-        acc.status = 'disconnected';
-        acc.lastError = 'Connection timeout - no progress after 60s';
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1175',message:'Timeout handler entry',data:{accountId,hasAccount:!!acc,accountStatus:acc?.status,accountConnectingTimeout:acc?.connectingTimeout},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      
+      // CRITICAL FIX: Don't timeout if status is pairing phase (qr_ready, awaiting_scan, pairing, connecting)
+      // NOTE: 'connecting' is included because during pairing phase close (reason 515), status may be set to 'connecting'
+      // but we still want to preserve the account and not timeout it
+      // These states use QR_SCAN_TIMEOUT instead (10 minutes)
+      // This prevents timeout from transitioning to disconnected while waiting for QR scan
+      const isPairingPhase = acc && ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'].includes(acc.status);
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1183',message:'Timeout pairing phase check',data:{accountId,hasAccount:!!acc,accountStatus:acc?.status,isPairingPhase,pairingPhaseList:['qr_ready','awaiting_scan','pairing','connecting']},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      
+      if (isPairingPhase) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1187',message:'Timeout skipped - pairing phase',data:{accountId,status:acc.status,timeoutId:account.connectingTimeout},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        console.log(`⏰ [${accountId}] Connecting timeout skipped (status: ${acc.status} - pairing phase uses QR_SCAN_TIMEOUT)`);
+        return; // Don't timeout pairing phase - QR scan timeout handles expiration
+      }
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1193',message:'Timeout firing - not pairing phase',data:{accountId,status:acc?.status,hasAccount:!!acc,isPairingPhase},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      
+      // CRITICAL FIX: Get fresh account state BEFORE logging - might have been cleaned up or preserved during timeout
+      const currentAcc = connections.get(accountId);
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1199',message:'Timeout fresh account check',data:{accountId,hasCurrentAcc:!!currentAcc,currentAccStatus:currentAcc?.status,currentAccTimeout:currentAcc?.connectingTimeout},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      
+      if (!currentAcc) {
+        console.log(`⏰ [${accountId}] Timeout fired but account already removed, ignoring`);
+        return; // Account already cleaned up (e.g., 401 cleanup)
+      }
+      
+      // CRITICAL FIX: Double-check pairing phase BEFORE logging transition - account might have been preserved
+      // This prevents misleading "transitioning to disconnected" log when status is qr_ready after 515
+      const isPairingPhaseNow = ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'].includes(currentAcc.status);
+      if (isPairingPhaseNow) {
+        console.log(`⏰ [${accountId}] Timeout fired but status is ${currentAcc.status} (pairing phase), skipping timeout transition`);
+        currentAcc.connectingTimeout = null; // Clear timeout property
+        return; // Don't timeout pairing phase
+      }
+      
+      // Only log "transitioning to disconnected" if we're actually going to transition
+      console.log(`⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`);
+      
+      // CRITICAL FIX: Only transition if still connecting - might have been cleaned up by 401 handler
+      // Also check if timeout was already cleared (account.connectingTimeout should be null if cleared)
+      if (currentAcc.status === 'connecting' && currentAcc.connectingTimeout !== null) {
+        currentAcc.status = 'disconnected';
+        currentAcc.lastError = 'Connection timeout - no progress after 60s';
+        // Clear timeout property
+        currentAcc.connectingTimeout = null;
+        
+        // #region agent log
+        console.log(`📋 [${accountId}] Connecting timeout: status=connecting -> disconnected, clearedTimeout=true, timestamp=${Date.now()}`);
+        // #endregion
+        
         saveAccountToFirestore(accountId, {
           status: 'disconnected',
           lastError: 'Connection timeout',
         }).catch(err => console.error(`❌ [${accountId}] Timeout save failed:`, err));
+      } else {
+        // Status already changed (e.g., needs_qr from 401 cleanup) - don't override
+        console.log(`⏰ [${accountId}] Timeout fired but status is ${currentAcc.status} (not connecting), ignoring timeout transition`);
+        currentAcc.connectingTimeout = null; // Clear timeout property anyway
       }
     }, CONNECTING_TIMEOUT);
 
@@ -1227,18 +1337,19 @@ async function createConnection(accountId, name, phone) {
 
           console.log(`✅ [${accountId}] QR saved to Firestore`);
 
-          // Invalidate accounts cache so frontend gets updated QR
-          if (featureFlags.isEnabled('API_CACHING')) {
-            await cache.delete('whatsapp:accounts');
-            console.log(`🗑️  [${accountId}] Cache invalidated for QR update`);
-          }
+    // Invalidate accounts cache so frontend gets updated QR
+    if (featureFlags.isEnabled('API_CACHING')) {
+      await cache.delete('whatsapp:accounts');
+      console.log(`🗑️  [${accountId}] Cache invalidated for QR update`);
+    }
 
-          logger.info('QR code generated and saved', { accountId, qrLength: qr.length });
-          logtail.info('QR code generated', {
-            accountId,
-            qrLength: qr.length,
-            phone: maskPhone(phone),
-          });
+    logger.info('QR code generated and saved', { accountId, qrLength: qr.length });
+    logtail.info('QR code generated', {
+      accountId,
+      qrLength: qr.length,
+      phone: maskPhone(phone),
+      instanceId: process.env.RAILWAY_DEPLOYMENT_ID || 'local',
+    });
         } catch (error) {
           console.error(`❌ [${accountId}] QR generation failed:`, error.message);
           logger.error('QR generation failed', { accountId, error: error.message });
@@ -1336,15 +1447,34 @@ async function createConnection(accountId, name, phone) {
         const rawReason = boomStatus ?? errorCode ?? 'unknown';
         
         // Normalize reason to number for comparison
-        const reason = typeof rawReason === 'number' ? rawReason : (typeof rawReason === 'string' ? parseInt(rawReason, 10) || 'unknown' : 'unknown');
+        // CRITICAL: Handle 515 (restart required) explicitly
+        let reason = typeof rawReason === 'number' ? rawReason : (typeof rawReason === 'string' ? parseInt(rawReason, 10) || 'unknown' : 'unknown');
+        
+        // CRITICAL: If error message contains "restart required" but statusCode is not 515, set it
+        if (error?.message && error.message.includes('restart required') && reason !== 515) {
+          console.log(`🔍 [${accountId}] Detected "restart required" in message but statusCode is ${reason}, normalizing to 515`);
+          reason = 515;
+        }
         
         // Extract Boom error details for better logging
         const boomPayload = error?.output?.payload;
         const errorMessage = error?.message || 'No error message';
         const errorStack = error?.stack;
         
+        // CRITICAL: Detect reason code 515 (restart required) and 428 (connection closed) - common in pairing phase
+        // 515 = "Stream Errored (restart required)" - requires socket recreation + new QR
+        // 428 = "Connection closed" - transient error, preserve QR and reconnect
+        const isRestartRequired = (typeof reason === 'number' && reason === 515) || 
+                                 (typeof boomStatus === 'number' && boomStatus === 515) ||
+                                 (errorMessage && errorMessage.includes('restart required'));
+        const isConnectionClosed = (typeof reason === 'number' && reason === 428) ||
+                                  (typeof boomStatus === 'number' && boomStatus === 428) ||
+                                  (errorMessage && errorMessage.includes('connection closed'));
+        const isTransientError = isRestartRequired || isConnectionClosed;
+        
         // Log detailed disconnect information (helps diagnose "unknown" reasons)
-        console.error(`🔌 [${accountId}] connection.update: close`, {
+        // CRITICAL: Log full error object for reason 515 to diagnose "stream errored out"
+        const logData = {
           sessionId: account.sessionId || 'unknown', // Connection session ID for debugging
           status: reason,
           rawStatus: rawReason,
@@ -1352,10 +1482,13 @@ async function createConnection(accountId, name, phone) {
           errorCode,
           reasonPayload: boomPayload,
           message: errorMessage,
-          stack: errorStack?.substring(0, 200), // Truncate stack for readability
+          stack: errorStack?.substring(0, 500), // Extended stack for 515 debugging
           shouldReconnect: reason !== DisconnectReason.loggedOut,
           currentStatus: account.status,
           isPairingPhase: ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'].includes(account.status),
+          isRestartRequired: isRestartRequired, // CRITICAL: Flag for 515 handling
+          isConnectionClosed: isConnectionClosed, // CRITICAL: Flag for 428 handling
+          isTransientError: isTransientError, // CRITICAL: Flag for 515/428 handling
           lastDisconnect: lastDisconnect ? {
             error: error ? {
               name: error.name,
@@ -1367,9 +1500,48 @@ async function createConnection(accountId, name, phone) {
             } : undefined,
             date: lastDisconnect.date,
           } : undefined,
-        });
+        };
         
-        const shouldReconnect = reason !== DisconnectReason.loggedOut;
+        // For reason 515, log full error object to diagnose underlying cause
+        if (isRestartRequired) {
+          logData.underlyingError = error ? {
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            errno: error.errno,
+            syscall: error.syscall,
+            address: error.address,
+            port: error.port,
+            stack: error.stack?.substring(0, 1000),
+          } : null;
+        }
+        
+        // CRITICAL: Enhanced logging for "unknown" reason codes to diagnose root cause
+        if (reason === 'unknown' || rawReason === 'unknown') {
+          console.error(`🔌 [${accountId}] connection.update: close - UNKNOWN REASON (investigating...)`);
+          console.error(`🔌 [${accountId}] lastDisconnect object:`, JSON.stringify(lastDisconnect, null, 2));
+          console.error(`🔌 [${accountId}] error object:`, error ? {
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            statusCode: error.statusCode,
+            output: error.output,
+            stack: error.stack?.substring(0, 500),
+          } : 'null');
+          console.error(`🔌 [${accountId}] connection object:`, connection ? {
+            lastDisconnect: connection.lastDisconnect,
+            qr: connection.qr,
+            isNewLogin: connection.isNewLogin,
+            isOnline: connection.isOnline,
+          } : 'null');
+        }
+        
+        console.error(`🔌 [${accountId}] connection.update: close`, logData);
+        
+        // CRITICAL FIX: For 515 (restart required) and 428 (connection closed), always reconnect (even in pairing phase)
+        // 515 means stream errored but session is valid - need new socket + potentially new QR
+        // 428 means connection closed transiently - preserve QR and reconnect
+        const shouldReconnect = reason !== DisconnectReason.loggedOut || isTransientError;
 
         // Define explicit cleanup reasons (only these trigger account deletion)
         // Ensure we compare numbers consistently
@@ -1393,30 +1565,50 @@ async function createConnection(accountId, name, phone) {
             `⏸️  [${accountId}] Pairing phase (${account.status}, sessionId: ${account.sessionId}), preserving account (reason: ${reason})`
           );
           
-          // CRITICAL: Preserve QR code for user to scan
-          // If QR exists, keep status 'qr_ready' so Flutter app can display it
-          // Don't change to 'awaiting_scan' which hides the QR in Flutter UI
+          // CRITICAL: Preserve QR code for user to scan (for 515/428 transient errors)
+          // If QR exists and error is transient (515/428), keep status 'qr_ready' so Flutter app can display it
+          // For 428 (connection closed), preserve QR and set status to 'awaiting_scan' (QR still valid)
+          // For 515 (restart required), QR will be regenerated on reconnect
           const hasQR = account.qrCode || (account.data && account.data.qrCode);
-          const preserveQRStatus = hasQR && account.status === 'qr_ready';
           
-          if (preserveQRStatus) {
+          if (isConnectionClosed && hasQR) {
+            // 428: Connection closed but QR is still valid - preserve it and set awaiting_scan
+            console.log(`📱 [${accountId}] Preserving QR code (status: awaiting_scan) - connection closed (428) but QR still valid`);
+            account.status = 'awaiting_scan';
+          } else if (isRestartRequired) {
+            // 515: Restart required - QR will be regenerated, clear it now
+            // CRITICAL: Clear timeout BEFORE changing status to prevent race condition
+            // The timeout handler checks pairing phase, and 'connecting' is now included, but we still want to clear it
+            if (account.connectingTimeout) {
+              clearTimeout(account.connectingTimeout);
+              account.connectingTimeout = null;
+              console.log(`⏱️  [${accountId}] Cleared connectingTimeout before status change to 'connecting' (reason: 515)`);
+            }
+            console.log(`🔄 [${accountId}] Clearing QR code (status: connecting) - restart required (515), will regenerate on reconnect`);
+            account.qrCode = null;
+            account.status = 'connecting';
+          } else if (hasQR && account.status === 'qr_ready') {
+            // Other transient errors: preserve QR if status is qr_ready
             console.log(`📱 [${accountId}] Preserving QR code (status: qr_ready) - user can scan`);
-            // Keep status as 'qr_ready' so QR remains visible in Flutter app
             account.status = 'qr_ready';
           } else {
-            // No QR yet, mark as awaiting scan
+            // No QR yet or other status, mark as awaiting scan
             account.status = 'awaiting_scan';
           }
           
           account.lastUpdate = new Date().toISOString();
 
           await saveAccountToFirestore(accountId, {
-            status: account.status, // Keep 'qr_ready' if QR exists, else 'awaiting_scan'
+            status: account.status,
             lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
-            lastDisconnectReason: preserveQRStatus ? 'qr_ready_preserved' : 'qr_waiting_scan',
+            lastDisconnectReason: isConnectionClosed ? 'connection_closed_428' : 
+                                 isRestartRequired ? 'restart_required_515' :
+                                 (hasQR && account.status === 'qr_ready') ? 'qr_ready_preserved' : 'qr_waiting_scan',
             lastDisconnectCode: reason,
-            // Preserve QR code in Firestore so it's still available after close event
-            ...(hasQR && account.qrCode ? { qrCode: account.qrCode } : {}),
+            // Preserve QR code in Firestore for 428 (connection closed) - QR still valid
+            // Clear QR for 515 (restart required) - will be regenerated
+            ...(isConnectionClosed && hasQR && account.qrCode ? { qrCode: account.qrCode } : {}),
+            ...(isRestartRequired ? { qrCode: null } : {}),
           });
 
           // CRITICAL: Clean up old socket reference and timers before reconnect
@@ -1434,9 +1626,15 @@ async function createConnection(accountId, name, phone) {
           }
           
           // Clear any stale reconnect timers
+          // CRITICAL: Clear timeout BEFORE status changes to prevent race condition
+          // If status changes to 'connecting' for 515, timeout handler won't recognize it as pairing phase
           if (account.connectingTimeout) {
             clearTimeout(account.connectingTimeout);
             account.connectingTimeout = null;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1588-1591',message:'Cleared connectingTimeout during pairing phase close',data:{accountId,reason,oldStatus:account.status,newStatus:account.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            console.log(`⏱️  [${accountId}] Cleared connectingTimeout during pairing phase close (reason: ${reason}, status: ${account.status})`);
           }
           
           if (account.qrScanTimeout) {
@@ -1451,23 +1649,34 @@ async function createConnection(accountId, name, phone) {
           // CRITICAL FIX: Auto-reconnect in pairing phase for transient errors
           // Don't leave account stuck in qr_ready if socket closes due to transient network issue
           // Only skip reconnect if reason is terminal (loggedOut/badSession/unauthorized)
-          if (shouldReconnect && reason !== DisconnectReason.loggedOut) {
+          // SPECIAL HANDLING: 515 (restart required) and 428 (connection closed) always trigger reconnect
+          if (shouldReconnect && (reason !== DisconnectReason.loggedOut || isTransientError)) {
             const attempts = reconnectAttempts.get(accountId) || 0;
             const MAX_PAIRING_RECONNECT_ATTEMPTS = parseInt(process.env.MAX_PAIRING_RECONNECT_ATTEMPTS || '10', 10);
             
+            // CRITICAL: For 515, QR already cleared above. For 428, preserve QR.
+            // Status already set above (connecting for 515, awaiting_scan for 428)
+            
             if (attempts < MAX_PAIRING_RECONNECT_ATTEMPTS) {
               // Exponential backoff for pairing phase: 1s, 2s, 4s, 8s, 16s, 30s (max)
-              const backoff = Math.min(1000 * Math.pow(2, attempts), 30000);
+              // For 515/428, use shorter backoff (2s, 4s, 8s) since they're known recoverable errors
+              const baseBackoff = isTransientError ? 2000 : 1000;
+              const backoff = Math.min(baseBackoff * Math.pow(2, attempts), 30000);
+              const reasonLabel = isRestartRequired ? ' [515 restart required]' : 
+                                 isConnectionClosed ? ' [428 connection closed]' : '';
               console.log(
-                `🔄 [${accountId}] Pairing phase reconnect in ${backoff}ms (attempt ${attempts + 1}/${MAX_PAIRING_RECONNECT_ATTEMPTS}, reason: ${reason})`
+                `🔄 [${accountId}] Pairing phase reconnect in ${backoff}ms (attempt ${attempts + 1}/${MAX_PAIRING_RECONNECT_ATTEMPTS}, reason: ${reason}${reasonLabel})`
               );
               
               reconnectAttempts.set(accountId, attempts + 1);
               
               setTimeout(() => {
                 const acc = connections.get(accountId);
-                if (acc && ['qr_ready', 'awaiting_scan', 'connecting'].includes(acc.status)) {
-                  console.log(`🔄 [${accountId}] Starting pairing phase reconnect (session will be new)`);
+                if (acc && ['qr_ready', 'awaiting_scan', 'connecting', 'needs_qr'].includes(acc.status)) {
+                  const reconnectNote = isRestartRequired ? ', QR will be regenerated' : 
+                                       isConnectionClosed ? ', QR preserved' : '';
+                  console.log(`🔄 [${accountId}] Starting pairing phase reconnect (session will be new${reconnectNote})`);
+                  // Status already set above (connecting for 515, awaiting_scan for 428)
                   createConnection(accountId, acc.name, acc.phone);
                 }
               }, backoff);
@@ -1476,12 +1685,12 @@ async function createConnection(accountId, name, phone) {
               account.status = 'needs_qr';
               await saveAccountToFirestore(accountId, {
                 status: 'needs_qr',
-                lastError: `Max pairing reconnect attempts (${MAX_PAIRING_RECONNECT_ATTEMPTS}) reached`,
+                lastError: `Max pairing reconnect attempts (${MAX_PAIRING_RECONNECT_ATTEMPTS}) reached${isRestartRequired ? ' (reason: 515 restart required)' : ''}`,
               });
               reconnectAttempts.delete(accountId);
             }
           } else {
-            console.log(`⏸️  [${accountId}] Pairing phase close: no reconnect (reason: ${reason}, shouldReconnect: ${shouldReconnect})`);
+            console.log(`⏸️  [${accountId}] Pairing phase close: no reconnect (reason: ${reason}, shouldReconnect: ${shouldReconnect}, isRestartRequired: ${isRestartRequired})`);
           }
           
           return;
@@ -1547,13 +1756,37 @@ async function createConnection(accountId, name, phone) {
         } else {
           // Terminal logout (401/loggedOut/badSession) - requires re-pairing
           console.log(`❌ [${accountId}] Explicit cleanup (${reason}), terminal logout - clearing session`);
+          
+          // CRITICAL FIX: Clear connectingTimeout BEFORE clearing session to prevent stale timer
+          if (account.connectingTimeout) {
+            clearTimeout(account.connectingTimeout);
+            account.connectingTimeout = null;
+            console.log(`⏱️  [${accountId}] Cleared connectingTimeout on terminal logout`);
+          }
+          
+          // Clear any reconnect timers
+          reconnectAttempts.delete(accountId);
+          
           account.status = 'needs_qr';
 
           // Clear session (disk + Firestore) to ensure fresh pairing
+          // #region agent log
+          const logTimestamp = Date.now();
+          const sessionPath = path.join(authDir, accountId);
+          const sessionExistsBefore = fs.existsSync(sessionPath);
+          // #endregion
+          
           try {
             await clearAccountSession(accountId);
+            // #region agent log
+            const sessionExistsAfter = fs.existsSync(sessionPath);
+            console.log(`📋 [${accountId}] 401 handler: sessionExistsBefore=${sessionExistsBefore}, sessionExistsAfter=${sessionExistsAfter}, timestamp=${logTimestamp}`);
+            // #endregion
           } catch (error) {
             console.error(`⚠️  [${accountId}] Failed to clear session:`, error.message);
+            // #region agent log
+            console.error(`📋 [${accountId}] 401 handler: clearAccountSession failed, error=${error.message}, stack=${error.stack?.substring(0, 200)}, timestamp=${logTimestamp}`);
+            // #endregion
             // Continue anyway - account will be marked needs_qr
           }
 
@@ -1564,17 +1797,30 @@ async function createConnection(accountId, name, phone) {
             lastDisconnectReason: reason,
             lastDisconnectCode: reason,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            // #region agent log
+            nextRetryAt: null, // Explicitly set to null to prevent auto-reconnect
+            retryCount: 0, // Reset retry count on terminal logout
+            // #endregion
           });
 
-          await logIncident(accountId, 'logged_out', {
+          await logIncident(accountId, 'wa_logged_out_requires_pairing', {
             reason: reason,
             requiresQR: true,
             traceId: `${accountId}_${Date.now()}`,
+            // #region agent log
+            clearedSession: true,
+            connectingTimeoutCleared: true,
+            reconnectScheduled: false,
+            // #endregion
           });
 
           // Clean up in-memory connection and release lock
           connections.delete(accountId);
           connectionRegistry.release(accountId);
+
+          // #region agent log
+          console.log(`📋 [${accountId}] 401 handler complete: status=needs_qr, nextRetryAt=null, retryCount=0, reconnectScheduled=false, timestamp=${logTimestamp}`);
+          // #endregion
 
           // CRITICAL: DO NOT schedule createConnection() for terminal logout
           // User must explicitly request "Regenerate QR" to re-pair
@@ -1930,15 +2176,45 @@ app.get('/ready', async (req, res) => {
   }
 });
 
-// Health endpoint - always returns 200 quickly (no lock dependency)
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    service: 'SuperParty WhatsApp Backend',
-    version: VERSION,
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-  });
+// Health endpoint - consolidated with WA mode and lock info
+// REMOVED: Simple health endpoint (replaced by comprehensive one below)
+
+// /api/longrun/status-now endpoint - comprehensive status including passive mode
+app.get('/api/longrun/status-now', requireAdmin, async (req, res) => {
+  try {
+    const status = await waBootstrap.getWAStatus();
+    const isActive = waBootstrap.isActiveMode();
+    
+    // Get account statuses
+    const accountStatuses = [];
+    for (const [accountId, account] of connections.entries()) {
+      accountStatuses.push({
+        accountId,
+        name: account.name,
+        phone: account.phone,
+        status: account.status,
+        hasQR: !!account.qrCode,
+        sessionId: account.sessionId,
+      });
+    }
+    
+    res.json({
+      waMode: isActive ? 'active' : 'passive',
+      waStatus: status.waStatus || (isActive ? 'RUNNING' : 'NOT_RUNNING'),
+      instanceId: status.instanceId || 'unknown',
+      reason: status.reason || (isActive ? null : 'lock_not_acquired'),
+      lockStatus: status.lockStatus || 'unknown',
+      accounts: accountStatuses,
+      accountsCount: connections.size,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[status-now] Error:', error.message);
+    res.status(500).json({
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 // Expose test token (temporary for orchestrator)
@@ -1953,6 +2229,37 @@ app.get('/api/test/token', (req, res) => {
     validFor: Math.floor((TEST_TOKEN_EXPIRY - Date.now()) / 1000) + 's',
   });
 });
+
+// Helper: Check PASSIVE mode guard (returns true if response sent, false if can proceed)
+async function checkPassiveModeGuard(req, res) {
+  try {
+    if (!waBootstrap.canStartBaileys()) {
+      const status = await waBootstrap.getWAStatus();
+      const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+      const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+      
+      console.log(`⏸️  [${requestId}] PASSIVE mode guard: lock not acquired, reason=${status.reason || 'unknown'}, instanceId=${instanceId}`);
+      
+      res.status(503).json({
+        success: false,
+        error: 'instance_passive',
+        message: `Backend in PASSIVE mode: ${status.reason || 'lock not acquired'}`,
+        mode: 'passive',
+        instanceId: instanceId,
+        holderInstanceId: status.holderInstanceId,
+        retryAfterSeconds: 15,
+        waMode: 'passive',
+        requestId: requestId,
+      });
+      return true; // Response sent
+    }
+    return false; // Can proceed
+  } catch (error) {
+    console.error(`[checkPassiveModeGuard] Error:`, error.message);
+    // On error, allow to proceed (fail open) but log
+    return false;
+  }
+}
 
 // Health monitoring functions
 function updateConnectionHealth(accountId, eventType) {
@@ -2248,13 +2555,16 @@ app.get('/metrics-json', requireObsToken, async (req, res) => {
   }
 });
 
+// Health endpoint - comprehensive with WA mode, lock info, and observability
 app.get('/health', async (req, res) => {
+  const requestId = req.headers['x-request-id'] || `health_${Date.now()}`;
+  
   const connected = Array.from(connections.values()).filter(c => c.status === 'connected').length;
   const connecting = Array.from(connections.values()).filter(
     c => c.status === 'connecting' || c.status === 'reconnecting'
   ).length;
   const needsQr = Array.from(connections.values()).filter(
-    c => c.status === 'needs_qr' || c.status === 'qr_ready'
+    c => c.status === 'needs_qr' || c.status === 'qr_ready' || c.status === 'awaiting_scan'
   ).length;
   const disconnected = Array.from(connections.values()).filter(
     c => c.status === 'disconnected'
@@ -2289,11 +2599,39 @@ app.get('/health', async (req, res) => {
     COMMIT_HASH = 'unknown';
   }
 
+  // Get WA mode and lock status (non-blocking, best-effort)
+  let waMode = 'unknown';
+  let instanceId = process.env.RAILWAY_DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
+  let lockHolder = null;
+  let lockExpiresInSeconds = null;
+  let lockReason = null;
+  
+  try {
+    if (waBootstrap && waBootstrap.getWAStatus) {
+      const status = await waBootstrap.getWAStatus();
+      waMode = waBootstrap.isActiveMode() ? 'active' : 'passive';
+      instanceId = status.instanceId || instanceId;
+      lockReason = status.reason || null;
+      
+      // Get lock details if available
+      if (status.lock) {
+        const lock = status.lock;
+        if (lock.exists && lock.holder) {
+          lockHolder = lock.holder;
+          lockExpiresInSeconds = Math.max(0, Math.ceil(lock.remainingMs / 1000));
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`[health/${requestId}] Error getting WA status:`, error.message);
+    // Continue with defaults
+  }
+
   const fingerprint = {
     version: VERSION,
     commit: COMMIT_HASH,
     bootTimestamp: BOOT_TIMESTAMP,
-    deploymentId: process.env.RAILWAY_DEPLOYMENT_ID || 'unknown',
+    instanceId: instanceId,
   };
 
   // Test Firestore connection
@@ -2330,15 +2668,21 @@ app.get('/health', async (req, res) => {
 
   res.status(ok ? 200 : 503).json({
     ok,
+    status: ok ? 'healthy' : 'unhealthy',
+    ...fingerprint,
+    waMode: waMode,
+    lock: lockHolder ? {
+      holderInstanceId: lockHolder,
+      expiresInSeconds: lockExpiresInSeconds,
+      reason: lockReason,
+    } : null,
     accounts_total: accountsTotal,
     connected,
     needs_qr: needsQr,
     sessions_dir_writable: sessionsDirWritable,
-    status: ok ? 'healthy' : 'unhealthy',
-    ...fingerprint,
-    mode: 'single', // Single worker mode (no multi-worker coordination yet)
     uptime: Math.floor((Date.now() - START_TIME) / 1000),
     timestamp: new Date().toISOString(),
+    requestId: requestId,
     accounts: {
       total: accountsTotal,
       connected,
@@ -2349,23 +2693,6 @@ app.get('/health', async (req, res) => {
     },
     firestore: {
       status: firestoreStatus,
-      policy: {
-        collections: [
-          'accounts - account metadata and status',
-          'wa_sessions - encrypted session files',
-          'threads - conversation threads',
-          'threads/{threadId}/messages - messages per thread',
-          'outbox - queued outbound messages',
-          'wa_outbox - WhatsApp-specific outbox',
-        ],
-        ownership: 'Single worker owns all accounts (no lease coordination yet)',
-        lease: 'Not implemented - future: claimedBy, claimedAt, leaseUntil fields',
-      },
-    },
-    lock: {
-      owner: process.env.RAILWAY_DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown',
-      expiresAt: null, // Not implemented yet
-      note: 'Lease/lock system not yet implemented - single worker mode',
     },
     errorsByStatus,
   });
@@ -2950,6 +3277,25 @@ app.get('/api/whatsapp/qr/:accountId', async (req, res) => {
  *                   type: boolean
  */
 app.get('/api/whatsapp/accounts', async (req, res) => {
+  const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+  
+  // Get WA status and mode (non-blocking, best-effort)
+  let status, instanceId, isActive, lockReason;
+  try {
+    status = await waBootstrap.getWAStatus();
+    instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+    isActive = waBootstrap.isActiveMode();
+    lockReason = status.reason || null;
+  } catch (error) {
+    console.error(`[GET /accounts/${requestId}] Error getting WA status:`, error.message);
+    instanceId = process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+    isActive = false;
+    lockReason = 'status_check_failed';
+  }
+  
+  // Log request with mode info
+  console.log(`📋 [GET /accounts/${requestId}] Request: waMode=${isActive ? 'active' : 'passive'}, instanceId=${instanceId}, lockReason=${lockReason || 'none'}`);
+  
   try {
     // Try cache first (if enabled)
     if (featureFlags.isEnabled('API_CACHING')) {
@@ -2957,7 +3303,16 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
       const cached = await cache.get(cacheKey);
 
       if (cached) {
-        return res.json({ success: true, accounts: cached, cached: true });
+        console.log(`📋 [GET /accounts/${requestId}] Cache hit: ${cached.length} accounts`);
+        return res.json({ 
+          success: true, 
+          accounts: cached, 
+          cached: true,
+          instanceId: instanceId,
+          waMode: isActive ? 'active' : 'passive',
+          lockReason: lockReason,
+          requestId: requestId,
+        });
       }
     }
 
@@ -2965,6 +3320,7 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
     const accountIdsInMemory = new Set();
     
     // First, add accounts from memory (active connections)
+    // NOTE: In PASSIVE mode, connections Map is empty (no Baileys connections)
     connections.forEach((conn, id) => {
       accountIdsInMemory.add(id);
       accounts.push({
@@ -2978,12 +3334,17 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
         lastUpdate: conn.lastUpdate,
       });
     });
+    
+    console.log(`📋 [GET /accounts/${requestId}] In-memory accounts: ${accounts.length}`);
 
     // CRITICAL: Also include accounts from Firestore that are not in memory
     // This ensures accounts with status 'needs_qr' remain visible after 401 logout
+    // AND ensures accounts are visible even in PASSIVE mode (when connections Map is empty)
     if (firestoreAvailable && db) {
       try {
         const snapshot = await db.collection('accounts').get();
+        console.log(`📋 [GET /accounts/${requestId}] Firestore accounts: ${snapshot.size} total`);
+        
         for (const doc of snapshot.docs) {
           const accountId = doc.id;
           
@@ -2994,8 +3355,8 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
           
           const data = doc.data();
           
-          // Include all accounts (including needs_qr, logged_out, etc.)
-          // This ensures accounts don't "disappear" from UI after 401
+          // Include all accounts (including needs_qr, logged_out, disconnected, etc.)
+          // This ensures accounts don't "disappear" from UI after 401 or in PASSIVE mode
           accounts.push({
             id: accountId,
             name: data.name || accountId,
@@ -3005,12 +3366,18 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
             pairingCode: data.pairingCode || null,
             createdAt: data.createdAt || null,
             lastUpdate: data.updatedAt || data.lastUpdate || null,
+            lastError: data.lastError || null,
+            passiveModeReason: data.passiveModeReason || null,
           });
         }
+        
+        console.log(`📋 [GET /accounts/${requestId}] Total accounts (memory + Firestore): ${accounts.length}`);
       } catch (error) {
-        console.error('⚠️  Failed to load accounts from Firestore:', error.message);
+        console.error(`⚠️  [GET /accounts/${requestId}] Failed to load accounts from Firestore:`, error.message);
         // Continue with in-memory accounts only
       }
+    } else {
+      console.log(`⚠️  [GET /accounts/${requestId}] Firestore not available - returning in-memory accounts only`);
     }
 
     // Cache if enabled
@@ -3019,9 +3386,26 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
       await cache.set('whatsapp:accounts', accounts, ttl);
     }
 
-    res.json({ success: true, accounts, cached: false });
+    // Response includes mode info for debugging
+    res.json({ 
+      success: true, 
+      accounts, 
+      cached: false,
+      instanceId: instanceId,
+      waMode: isActive ? 'active' : 'passive',
+      lockReason: lockReason,
+      requestId: requestId,
+    });
+    
+    console.log(`✅ [GET /accounts/${requestId}] Response: ${accounts.length} accounts, waMode=${isActive ? 'active' : 'passive'}`);
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error(`❌ [GET /accounts/${requestId}] Error:`, error.message, error.stack?.substring(0, 200));
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      requestId: requestId,
+      hint: `Check Railway logs for requestId: ${requestId}`,
+    });
   }
 });
 
@@ -3098,21 +3482,19 @@ app.get('/api/whatsapp/qr-visual', async (req, res) => {
 // Add new account
 app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
   // HARD GATE: PASSIVE mode - do NOT create new Baileys connections
-  if (!waBootstrap.canStartBaileys()) {
-    return res.status(503).json({
-      success: false,
-      error: 'PASSIVE mode: another instance holds lock; retry shortly',
-      mode: 'passive',
-    });
-  }
+  const passiveGuard = await checkPassiveModeGuard(req, res);
+  if (passiveGuard) return; // Response already sent
 
   try {
     const { name, phone } = req.body;
 
     if (connections.size >= MAX_ACCOUNTS) {
-      return res.status(400).json({
+      return res.status(429).json({
         success: false,
-        error: `Maximum ${MAX_ACCOUNTS} accounts reached`,
+        error: 'rate_limited',
+        message: `Maximum ${MAX_ACCOUNTS} accounts reached`,
+        maxAccounts: MAX_ACCOUNTS,
+        currentAccounts: connections.size,
       });
     }
 
@@ -3189,16 +3571,40 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
       await cache.delete('whatsapp:accounts');
     }
 
+    // HARD GATE: PASSIVE mode - do NOT create connection (requires Baileys)
+    if (!waBootstrap.canStartBaileys()) {
+      const status = await waBootstrap.getWAStatus();
+      const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+      console.log(`⏸️  [${accountId}] Add account blocked: PASSIVE mode (instanceId: ${instanceId})`);
+      return res.status(503).json({
+        success: false,
+        error: 'PASSIVE mode: another instance holds lock; retry shortly',
+        message: `Backend in PASSIVE mode: ${status.reason || 'lock not acquired'}`,
+        mode: 'passive',
+        instanceId: instanceId,
+        waMode: 'passive',
+        requestId: req.headers['x-request-id'] || `req_${Date.now()}`,
+      });
+    }
+
+    // Get instance info for response
+    const status = await waBootstrap.getWAStatus();
+    const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+    const isActive = waBootstrap.isActiveMode();
+    const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+
+    console.log(`[${requestId}] Add account: accountId=${accountId}, instanceId=${instanceId}, waMode=${isActive ? 'active' : 'passive'}`);
+
     // Create connection (async, will emit QR later)
     createConnection(accountId, name, phone).catch(err => {
       console.error(`❌ [${accountId}] Failed to create:`, err.message);
       Sentry.captureException(err, {
-        tags: { accountId, operation: 'create_connection' },
+        tags: { accountId, operation: 'create_connection', requestId },
         extra: { name, phone: maskPhone(canonicalPhoneNum) },
       });
     });
 
-    // Return immediately with connecting status
+    // Return immediately with connecting status + instance info
     res.json({
       success: true,
       account: {
@@ -3210,6 +3616,9 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
         pairingCode: null,
         createdAt: new Date().toISOString(),
       },
+      instanceId: instanceId,
+      waMode: isActive ? 'active' : 'passive',
+      requestId: requestId,
     });
   } catch (error) {
     Sentry.captureException(error, {
@@ -3319,17 +3728,31 @@ app.post('/api/cleanup-duplicates', async (req, res) => {
 
 // Update account name
 app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req, res) => {
+  // HARD GATE: PASSIVE mode - do NOT mutate account state
+  const passiveGuard = await checkPassiveModeGuard(req, res);
+  if (passiveGuard) return; // Response already sent
+  
   try {
     const { accountId } = req.params;
     const { name } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return res.status(400).json({ success: false, error: 'Name is required' });
+      return res.status(400).json({ 
+        success: false, 
+        error: 'invalid_request',
+        message: 'Name is required',
+        accountId: accountId,
+      });
     }
 
     const account = connections.get(accountId);
     if (!account) {
-      return res.status(404).json({ success: false, error: 'Account not found' });
+      return res.status(404).json({ 
+        success: false, 
+        error: 'account_not_found',
+        message: 'Account not found',
+        accountId: accountId,
+      });
     }
 
     // Update in memory
@@ -3363,63 +3786,163 @@ app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req, 
 app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (req, res) => {
   // DEBUG: Log incoming request
   const accountId = req.params.accountId;
-  console.log(`🔍 [DEBUG] Regenerate QR request: accountId=${accountId}, method=${req.method}, path=${req.path}`);
+  const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+  console.log(`🔍 [${requestId}] Regenerate QR request: accountId=${accountId}, method=${req.method}, path=${req.path}`);
   
   // HARD GATE: PASSIVE mode - do NOT regenerate QR (requires Baileys connection)
-  if (!waBootstrap.canStartBaileys()) {
-    console.log(`⏸️  [${accountId}] Regenerate QR blocked: PASSIVE mode`);
-    return res.status(503).json({
-      success: false,
-      error: 'PASSIVE mode: another instance holds lock; retry shortly',
-      mode: 'passive',
-    });
-  }
+  const passiveGuard = await checkPassiveModeGuard(req, res);
+  if (passiveGuard) return; // Response already sent
 
   try {
+    // Get current account state for logging
     let account = connections.get(accountId);
+    const accountStatus = account?.status || (account?.data && account.data.status) || 'unknown';
+    const lockStatus = await waBootstrap.getWAStatus();
+    const isActive = waBootstrap.isActiveMode();
+    
+    console.log(`🔍 [${requestId}] Account state: status=${accountStatus}, hasAccount=${!!account}, waMode=${isActive ? 'active' : 'passive'}, lockOwner=${lockStatus.instanceId || 'unknown'}`);
     
     // If not in memory, try to load from Firestore
     if (!account && firestoreAvailable && db) {
       try {
         const accountDoc = await db.collection('accounts').doc(accountId).get();
         if (accountDoc.exists) {
-          account = { id: accountId, ...accountDoc.data() };
+          const data = accountDoc.data();
+          account = { id: accountId, ...data };
+          console.log(`📥 [${requestId}] Loaded account from Firestore: status=${data.status || 'unknown'}, lastError=${data.lastError || 'none'}`);
+          
+          // Log last disconnect info if available
+          if (data.lastDisconnectReason) {
+            console.log(`📥 [${requestId}] Last disconnect: reason=${data.lastDisconnectReason}, at=${data.lastDisconnectedAt?.toDate?.() || data.lastDisconnectedAt || 'unknown'}`);
+          }
         }
       } catch (error) {
-        console.error(`⚠️  [${accountId}] Failed to load account from Firestore:`, error.message);
+        console.error(`⚠️  [${accountId}/${requestId}] Failed to load account from Firestore:`, error.message, error.stack?.substring(0, 200));
       }
     }
 
     if (!account) {
-      return res.status(404).json({ success: false, error: 'Account not found' });
+      console.log(`❌ [${requestId}] Account not found: accountId=${accountId}`);
+      return res.status(404).json({ 
+        success: false, 
+        error: 'account_not_found',
+        message: 'Account not found',
+        accountId: accountId,
+        requestId: requestId,
+      });
     }
 
-    // Check if QR is already ready and valid (don't regenerate unnecessarily)
-    const accountStatus = account.status || (account.data && account.data.status);
-    const hasValidQR = accountStatus === 'qr_ready' && account.qrCode;
-    const qrAge = account.qrUpdatedAt 
-      ? Date.now() - (account.qrUpdatedAt.toMillis ? account.qrUpdatedAt.toMillis() : new Date(account.qrUpdatedAt).getTime())
-      : Infinity;
-    const QR_EXPIRY_MS = 60 * 1000; // QR expires after 60 seconds (WhatsApp standard)
-
-    if (hasValidQR && qrAge < QR_EXPIRY_MS) {
-      console.log(`ℹ️  [${accountId}] QR already exists and valid (age: ${Math.round(qrAge/1000)}s), returning existing QR`);
-      return res.json({ 
+    // IDEMPOTENCY: Check if regenerate is already in progress
+    // Check both in-memory and Firestore for regenerating flag
+    let isRegenerating = false;
+    if (account && connections.has(accountId)) {
+      isRegenerating = account.regeneratingQr === true || account.status === 'connecting';
+    } else if (firestoreAvailable && db) {
+      // Check Firestore if not in memory
+      try {
+        const accountDoc = await db.collection('accounts').doc(accountId).get();
+        if (accountDoc.exists) {
+          const data = accountDoc.data();
+          isRegenerating = data.regeneratingQr === true || data.status === 'connecting';
+        }
+      } catch (error) {
+        console.error(`⚠️  [${accountId}/${requestId}] Failed to check regenerating flag in Firestore:`, error.message);
+      }
+    }
+    
+    if (isRegenerating) {
+      console.log(`ℹ️  [${accountId}/${requestId}] Regenerate already in progress (status=${account?.status || 'unknown'}), returning 202 Accepted`);
+      return res.status(202).json({ 
         success: true, 
-        message: 'QR code already available',
-        qrCode: account.qrCode,
-        status: 'qr_ready',
-        ageSeconds: Math.round(qrAge / 1000),
+        message: 'QR regeneration already in progress',
+        status: 'already_in_progress',
+        accountId: accountId,
+        requestId: requestId,
       });
+    }
+
+    // IDEMPOTENCY: Check if account is already in pairing phase with valid QR
+    const currentStatus = account.status || (account.data && account.data.status);
+    const hasValidQR = (currentStatus === 'qr_ready' || currentStatus === 'awaiting_scan') && account.qrCode;
+    
+    if (hasValidQR) {
+      // Check QR age if available
+      const qrAge = account.qrUpdatedAt 
+        ? Date.now() - (account.qrUpdatedAt.toMillis ? account.qrUpdatedAt.toMillis() : new Date(account.qrUpdatedAt).getTime())
+        : 0;
+      const QR_EXPIRY_MS = 60 * 1000; // QR expires after 60 seconds (WhatsApp standard)
+      
+      if (qrAge < QR_EXPIRY_MS) {
+        console.log(`ℹ️  [${accountId}/${requestId}] QR already exists and valid (status: ${currentStatus}, age: ${Math.round(qrAge/1000)}s), returning existing QR (idempotent)`);
+        return res.json({ 
+          success: true, 
+          message: 'QR code already available',
+          qrCode: account.qrCode,
+          status: currentStatus,
+          ageSeconds: Math.round(qrAge / 1000),
+          idempotent: true,
+          accountId: accountId,
+          requestId: requestId,
+        });
+      } else {
+        console.log(`ℹ️  [${accountId}/${requestId}] QR exists but expired (age: ${Math.round(qrAge/1000)}s), will regenerate`);
+      }
+    }
+    
+    // Per-account mutex: Mark as regenerating to prevent concurrent requests
+    if (account && connections.has(accountId)) {
+      account.regeneratingQr = true;
+    } else if (firestoreAvailable && db) {
+      // Also mark in Firestore if not in memory
+      try {
+        await db.collection('accounts').doc(accountId).update({
+          regeneratingQr: true,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (error) {
+        console.error(`⚠️  [${accountId}/${requestId}] Failed to mark regenerating in Firestore:`, error.message);
+      }
     }
 
     // Clear session to ensure fresh pairing (disk + Firestore) - only if QR expired or not valid
     try {
       await clearAccountSession(accountId);
-      console.log(`🗑️  [${accountId}] Session cleared for QR regeneration${hasValidQR ? ' (QR expired)' : ''}`);
+      console.log(`🗑️  [${accountId}/${requestId}] Session cleared for QR regeneration${hasValidQR ? ' (QR expired)' : ''}`);
     } catch (error) {
-      console.error(`⚠️  [${accountId}] Failed to clear session during QR regeneration:`, error.message);
+      console.error(`⚠️  [${accountId}/${requestId}] Failed to clear session during QR regeneration:`, error.message, error.stack?.substring(0, 200));
       // Continue anyway - createConnection will handle fresh session
+    }
+
+    // CRITICAL: Check if already connecting BEFORE cleanup to prevent duplicate connections
+    // This prevents 500 errors when regenerateQr is called while createConnection is already running
+    const canConnect = connectionRegistry.tryAcquire(accountId);
+    if (!canConnect) {
+      console.log(`ℹ️  [${accountId}/${requestId}] Already connecting (connectionRegistry check), skip createConnection - QR will be available shortly`);
+      // Clear regenerating flag since we're not actually regenerating
+      if (account && connections.has(accountId)) {
+        account.regeneratingQr = false;
+      }
+      if (firestoreAvailable && db) {
+        db.collection('accounts').doc(accountId).update({
+          regeneratingQr: false,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }).catch(e => console.error(`Failed to clear regenerating flag:`, e.message));
+      }
+      
+      // Return success - connection already in progress will emit QR when ready
+      const status = await waBootstrap.getWAStatus();
+      const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+      const isActiveMode = waBootstrap.canStartBaileys();
+      
+      return res.json({ 
+        success: true, 
+        message: 'Connection already in progress, QR will be available shortly',
+        status: 'already_connecting',
+        instanceId: instanceId,
+        waMode: isActiveMode ? 'active' : 'passive',
+        accountId: accountId,
+        requestId: requestId,
+      });
     }
 
     // Clean up old connection if exists
@@ -3431,44 +3954,133 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
       }
     }
 
-    // Clean up in-memory state
+    // Clean up in-memory state (but keep lock since we just acquired it)
     connections.delete(accountId);
     reconnectAttempts.delete(accountId);
-    connectionRegistry.release(accountId);
+    // NOTE: Don't release() here - we just acquired the lock above via tryAcquire
 
     // Update Firestore status to connecting (will transition to qr_ready)
-    await saveAccountToFirestore(accountId, {
-      status: 'connecting',
-      lastError: null,
-      requiresQR: true,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    try {
+      await saveAccountToFirestore(accountId, {
+        status: 'connecting',
+        lastError: null,
+        requiresQR: true,
+        regeneratingQr: true,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (error) {
+      console.error(`⚠️  [${accountId}/${requestId}] Failed to update Firestore status:`, error.message);
+    }
+
+    // Get instance info for response
+    const status = await waBootstrap.getWAStatus();
+    const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+    const isActiveMode = waBootstrap.isActiveMode();
 
     // Create new connection (will generate fresh QR since session is cleared)
-    await createConnection(accountId, account.name, account.phone);
+    // CRITICAL FIX: Wrap in try-catch to handle sync errors (e.g., validation, null checks)
+    // Note: createConnection is async but we don't await it - it will emit QR via connection.update event
+    try {
+      createConnection(accountId, account.name, account.phone).catch(err => {
+      console.error(`❌ [${accountId}/${requestId}] Failed to create connection during QR regeneration:`, err.message, err.stack?.substring(0, 300));
+      // Clear regenerating flag on error
+      const acc = connections.get(accountId);
+      if (acc) {
+        acc.regeneratingQr = false;
+      }
+      // Also clear in Firestore
+      if (firestoreAvailable && db) {
+        db.collection('accounts').doc(accountId).update({
+          regeneratingQr: false,
+          lastError: `Connection creation failed: ${err.message}`,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }).catch(e => console.error(`Failed to clear regenerating flag:`, e.message));
+      }
+      });
+    } catch (syncError) {
+      // CRITICAL FIX: Catch synchronous errors (e.g., validation, null checks)
+      // These occur before async, so .catch() on the promise doesn't help
+      console.error(`❌ [${accountId}/${requestId}] Sync error in regenerateQr (createConnection):`, syncError.message, syncError.stack?.substring(0, 300));
+      
+      // Release connection registry lock on sync error
+      connectionRegistry.release(accountId);
+      
+      // Clear regenerating flag on sync error
+      const acc = connections.get(accountId);
+      if (acc) {
+        acc.regeneratingQr = false;
+      }
+      if (firestoreAvailable && db) {
+        db.collection('accounts').doc(accountId).update({
+          regeneratingQr: false,
+          lastError: `Sync error: ${syncError.message}`,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }).catch(e => console.error(`Failed to clear regenerating flag:`, e.message));
+      }
+      
+      return res.status(500).json({
+        success: false,
+        error: 'sync_error',
+        message: syncError.message || 'Internal server error (sync)',
+        accountId: accountId,
+        requestId: requestId,
+        hint: `Check Railway logs for requestId: ${requestId}`,
+      });
+    }
 
-    res.json({ success: true, message: 'QR regeneration started' });
+    console.log(`✅ [${accountId}/${requestId}] QR regeneration started (connection creation in progress)`);
+
+    res.json({ 
+      success: true, 
+      message: 'QR regeneration started',
+      status: 'in_progress',
+      instanceId: instanceId,
+      waMode: isActiveMode ? 'active' : 'passive',
+      accountId: accountId,
+      requestId: requestId,
+    });
   } catch (error) {
-    console.error(`❌ Regenerate QR error:`, error);
-    res.status(500).json({ success: false, error: error.message });
+    const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+    console.error(`❌ [${requestId}] Regenerate QR error:`, error.message, error.stack?.substring(0, 300));
+    
+    // NEVER throw unhandled exceptions - always respond with JSON
+    res.status(500).json({ 
+      success: false, 
+      error: 'internal_error',
+      message: error.message || 'Internal server error',
+      accountId: accountId,
+      requestId: requestId,
+      hint: `Check Railway logs for requestId: ${requestId}`,
+    });
   }
 });
 
 // Backfill messages for an account (admin endpoint)
 app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) => {
+  // HARD GATE: PASSIVE mode - do NOT process backfill (mutates state)
+  const passiveGuard = await checkPassiveModeGuard(req, res);
+  if (passiveGuard) return; // Response already sent
+  
   try {
     const { accountId } = req.params;
     const account = connections.get(accountId);
 
     if (!account) {
-      return res.status(404).json({ success: false, error: 'Account not found' });
+      return res.status(404).json({ 
+        success: false, 
+        error: 'account_not_found',
+        message: 'Account not found',
+        accountId: accountId,
+      });
     }
 
     if (account.status !== 'connected') {
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
-        error: 'Account must be connected to backfill messages',
-        status: account.status,
+        error: 'invalid_state',
+        message: 'Account must be connected to backfill messages',
+        currentStatus: account.status,
+        accountId: accountId,
       });
     }
 
@@ -3494,6 +4106,8 @@ app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) =
 // Send message
 app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
   // HARD GATE: PASSIVE mode - do NOT process outbox (messages queued but not sent immediately)
+  const passiveGuard = await checkPassiveModeGuard(req, res);
+  if (passiveGuard) return; // Response already sent
   // Note: Messages can still be queued (outbox), but worker won't process them in PASSIVE mode
   if (!waBootstrap.canProcessOutbox()) {
     // Queue message but return 503 to indicate immediate sending unavailable
@@ -3543,7 +4157,12 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
     const account = connections.get(accountId);
 
     if (!account) {
-      return res.status(404).json({ success: false, error: 'Account not found' });
+      return res.status(404).json({ 
+        success: false, 
+        error: 'account_not_found',
+        message: 'Account not found',
+        accountId: accountId,
+      });
     }
 
     const jid = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
@@ -3836,6 +4455,109 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
     res.json({ success: true, message: 'Account deleted' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Reset account session (wipe auth and set to needs_qr)
+app.post('/api/whatsapp/accounts/:id/reset', accountLimiter, async (req, res) => {
+  // HARD GATE: PASSIVE mode - do NOT mutate account state
+  const passiveGuard = await checkPassiveModeGuard(req, res);
+  if (passiveGuard) return; // Response already sent
+  
+  try {
+    const { id } = req.params;
+    const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+    
+    console.log(`🔄 [${id}/${requestId}] Reset request received`);
+
+    // Get account (from memory or Firestore)
+    let account = connections.get(id);
+    const accountExists = !!account;
+    const accountInMemory = accountExists;
+    
+    // If not in memory, check Firestore
+    if (!account && firestoreAvailable && db) {
+      try {
+        const accountDoc = await db.collection('accounts').doc(id).get();
+        if (accountDoc.exists) {
+          const data = accountDoc.data();
+          account = { id, ...data };
+        }
+      } catch (error) {
+        console.error(`⚠️  [${id}/${requestId}] Failed to load from Firestore:`, error.message);
+      }
+    }
+
+    if (!account) {
+      console.log(`❌ [${id}/${requestId}] Account not found`);
+      return res.status(404).json({ 
+        success: false, 
+        error: 'account_not_found',
+        message: 'Account not found',
+        accountId: id,
+        requestId: requestId,
+      });
+    }
+
+    // Clear connectingTimeout if exists
+    if (account.connectingTimeout) {
+      clearTimeout(account.connectingTimeout);
+      account.connectingTimeout = null;
+      console.log(`⏱️  [${id}/${requestId}] Cleared connectingTimeout`);
+    }
+
+    // Close socket if exists
+    if (account.sock) {
+      try {
+        account.sock.end();
+        console.log(`🔌 [${id}/${requestId}] Socket closed`);
+      } catch (e) {
+        // Ignore
+      }
+    }
+
+    // Clear session directory on disk
+    try {
+      await clearAccountSession(id);
+      console.log(`🗑️  [${id}/${requestId}] Session directory deleted`);
+    } catch (error) {
+      console.error(`⚠️  [${id}/${requestId}] Failed to clear session:`, error.message);
+      // Continue anyway
+    }
+
+    // Clean up in-memory state
+    if (connections.has(id)) {
+      connections.delete(id);
+    }
+    reconnectAttempts.delete(id);
+    connectionRegistry.release(id);
+
+    // Update Firestore: set status to needs_qr
+    await saveAccountToFirestore(id, {
+      status: 'needs_qr',
+      lastError: 'Session reset by user - requires QR re-pair',
+      requiresQR: true,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      nextRetryAt: null,
+      retryCount: 0,
+    });
+
+    console.log(`✅ [${id}/${requestId}] Reset complete: status=needs_qr, session cleared`);
+
+    res.json({
+      success: true,
+      message: 'Session reset successfully. Use regenerate QR to pair again.',
+      accountId: id,
+      status: 'needs_qr',
+      requestId: requestId,
+    });
+  } catch (error) {
+    console.error(`❌ [${req.params.id}] Reset error:`, error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      requestId: req.headers['x-request-id'] || `req_${Date.now()}`,
+    });
   }
 });
 
@@ -4373,8 +5095,11 @@ async function restoreSingleAccount(accountId) {
 
     const data = doc.data();
 
-    if (data.status !== 'connected') {
-      console.log(`⚠️  [${accountId}] Account status is ${data.status}, skipping restore`);
+    // CRITICAL FIX: Restore accounts in pairing phase (qr_ready, connecting, awaiting_scan) + connected
+    // Previously only restored 'connected' accounts, causing accounts to disappear after restart
+    const restorableStatuses = ['qr_ready', 'connecting', 'awaiting_scan', 'connected'];
+    if (!restorableStatuses.includes(data.status)) {
+      console.log(`⚠️  [${accountId}] Account status is ${data.status}, skipping restore (not in restorable statuses: ${restorableStatuses.join(', ')})`);
       return;
     }
 
@@ -4502,11 +5227,21 @@ async function restoreAccount(accountId, data) {
     };
 
     // Set timeout to prevent "connecting forever" - CRITICAL FIX (configurable via env)
+    // CRITICAL: Only apply timeout for normal connecting, NOT for pairing phase (qr_ready/awaiting_scan)
     const CONNECTING_TIMEOUT = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
     account.connectingTimeout = setTimeout(() => {
       const timeoutSeconds = Math.floor(CONNECTING_TIMEOUT / 1000);
-      console.log(`⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`);
       const acc = connections.get(accountId);
+      
+      // CRITICAL FIX: Don't timeout if status is pairing phase (qr_ready, awaiting_scan, pairing)
+      // These states use QR_SCAN_TIMEOUT instead (10 minutes)
+      const isPairingPhase = acc && ['qr_ready', 'awaiting_scan', 'pairing'].includes(acc.status);
+      if (isPairingPhase) {
+        console.log(`⏰ [${accountId}] Connecting timeout skipped (status: ${acc.status} - pairing phase uses QR_SCAN_TIMEOUT)`);
+        return; // Don't timeout pairing phase
+      }
+      
+      console.log(`⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`);
       if (acc && acc.status === 'connecting') {
         acc.status = 'disconnected';
         acc.lastError = `Connection timeout - no progress after ${timeoutSeconds}s`;
@@ -5052,10 +5787,16 @@ async function restoreAccountsFromFirestore() {
   try {
     console.log('🔄 Restoring accounts from Firestore...');
 
-    // Get ONLY connected accounts (skip dead sessions and terminal logout accounts)
-    const snapshot = await db.collection('accounts').where('status', '==', 'connected').get();
+    // CRITICAL FIX: Restore ALL accounts in pairing phase (qr_ready, connecting, awaiting_scan) + connected
+    // Previously only restored 'connected' accounts, causing accounts to disappear after restart
+    // This ensures accounts in pairing phase remain visible and can continue pairing after restart
+    // NOTE: Firestore 'in' operator supports up to 10 values, we have 4, so it's safe
+    const pairingStatuses = ['qr_ready', 'connecting', 'awaiting_scan', 'connected'];
+    const snapshot = await db.collection('accounts')
+      .where('status', 'in', pairingStatuses)
+      .get();
 
-    console.log(`📦 Found ${snapshot.size} connected accounts in Firestore`);
+    console.log(`📦 Found ${snapshot.size} accounts in Firestore (statuses: ${pairingStatuses.join(', ')})`);
 
     // Clean up disk sessions that are NOT in Firestore (SAFE: move to orphaned folder, don't delete)
     const allAccountIds = new Set(snapshot.docs.map(doc => doc.id));
@@ -5120,7 +5861,7 @@ async function restoreAccountsFromFirestore() {
         await new Promise(resolve => setTimeout(resolve, jitter));
       }
 
-      console.log(`🔄 [${accountId}] Restoring connected account (${data.name || 'N/A'})`);
+      console.log(`🔄 [${accountId}] Restoring account (status: ${data.status}, name: ${data.name || 'N/A'})`);
       await restoreAccount(accountId, data);
     }
 
@@ -5140,8 +5881,9 @@ async function restoreAccountsFromFirestore() {
     console.log('🔌 Starting connections for restored accounts (staggered boot)...');
     
     // Sort accounts deterministically for predictable boot order
+    // CRITICAL FIX: Include accounts in pairing phase (qr_ready, connecting, awaiting_scan) + connected
     const sortedConnections = Array.from(connections.entries())
-      .filter(([accountId, account]) => !account.sock && (account.status === 'connected' || account.status === 'connecting'))
+      .filter(([accountId, account]) => !account.sock && ['qr_ready', 'connecting', 'awaiting_scan', 'connected'].includes(account.status))
       .sort(([a], [b]) => a.localeCompare(b));
 
     for (let i = 0; i < sortedConnections.length; i++) {
@@ -6221,7 +6963,26 @@ app.listen(PORT, '0.0.0.0', async () => {
     // Initialize WA system with lock acquisition (BEFORE any Baileys init)
     console.log('🔒 Initializing WA system with lock acquisition...');
     const waInitResult = await waBootstrap.initializeWASystem(db);
-    console.log(`🔒 WA system initialized: mode=${waInitResult.mode}`);
+    
+    // Get lock status for startup log
+    let lockInfo = 'unknown';
+    try {
+      const status = await waBootstrap.getWAStatus();
+      const lock = status.lock || {};
+      if (lock.exists && lock.holder) {
+        const expiresIn = lock.remainingMs ? Math.ceil(lock.remainingMs / 1000) : 'unknown';
+        lockInfo = `holder=${lock.holder}, expiresIn=${expiresIn}s`;
+      } else if (!lock.exists) {
+        lockInfo = 'no_lock';
+      } else {
+        lockInfo = 'lock_status_unknown';
+      }
+    } catch (error) {
+      lockInfo = `error: ${error.message}`;
+    }
+    
+    console.log(`🔒 WA system initialized: mode=${waInitResult.mode}, instanceId=${waInitResult.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown'}, lock=${lockInfo}`);
+    console.log(`📋 Startup info: commit=${COMMIT_HASH || 'unknown'}, instanceId=${process.env.RAILWAY_DEPLOYMENT_ID || 'unknown'}, mode=${waInitResult.mode}, lockInfo=${lockInfo}`);
 
     // Initialize evidence endpoints (after baileys interface + wa-bootstrap)
     new EvidenceEndpoints(
