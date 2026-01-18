@@ -32,11 +32,37 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   final Set<String> _openingFirefox = {}; // accountId -> in-flight
   int _loadRequestToken = 0;
   
-  // Path to firefox-container script
-  // NOTE: This path should be configured per environment. For macOS development,
-  // ensure wa-web-launcher is installed at this location or adjust the path.
-  static const String _firefoxContainerScript = '/Users/universparty/wa-web-launcher/bin/firefox-container';
   static const String _waUrl = 'https://web.whatsapp.com';
+  
+  /// Get path to firefox-container script
+  /// 
+  /// Priority:
+  /// 1. WA_WEB_LAUNCHER_PATH environment variable
+  /// 2. Relative path from repo root: scripts/wa_web_launcher/firefox-container
+  /// 
+  /// The script should be executable and located in the repo or configured via env var.
+  static String _getFirefoxContainerScriptPath() {
+    // Check environment variable first
+    final envPath = Platform.environment['WA_WEB_LAUNCHER_PATH'];
+    if (envPath != null && envPath.isNotEmpty) {
+      if (kDebugMode) {
+        debugPrint('[WhatsAppAccountsScreen] Using WA_WEB_LAUNCHER_PATH: $envPath');
+      }
+      return envPath;
+    }
+    
+    // Fallback: relative path from Flutter project root
+    // This assumes the script is in scripts/wa_web_launcher/ relative to repo root
+    // We need to go up from superparty_flutter/ to repo root, then into scripts/
+    final repoRoot = Directory.current.parent.path;
+    final defaultPath = '$repoRoot/scripts/wa_web_launcher/firefox-container';
+    
+    if (kDebugMode) {
+      debugPrint('[WhatsAppAccountsScreen] Using default script path: $defaultPath');
+    }
+    
+    return defaultPath;
+  }
 
   @override
   void initState() {
@@ -346,15 +372,27 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     
     setState(() => _openingFirefox.add(accountId));
 
+    // Get script path (from env var or default) - defined outside try for catch block access
+    final scriptPath = _getFirefoxContainerScriptPath();
+
     try {
+      
+      if (kDebugMode) {
+        debugPrint('[WhatsAppAccountsScreen] Firefox script path: $scriptPath');
+      }
+      
       // Check if script exists
-      final scriptFile = File(_firefoxContainerScript);
+      final scriptFile = File(scriptPath);
       if (!await scriptFile.exists()) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Firefox container script not found at:\n$_firefoxContainerScript\n\nPlease install wa-web-launcher project first.',
+                'Firefox container script not found at:\n$scriptPath\n\n'
+                'Please:\n'
+                '1. Install the script at: scripts/wa_web_launcher/firefox-container\n'
+                '2. Or set WA_WEB_LAUNCHER_PATH environment variable\n'
+                '3. Make the script executable: chmod +x <script-path>',
               ),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 5),
@@ -371,7 +409,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Script is not executable. Run: chmod +x $_firefoxContainerScript',
+                'Script is not executable. Run: chmod +x $scriptPath',
               ),
               backgroundColor: Colors.orange,
             ),
@@ -439,12 +477,12 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
       }
       
       if (kDebugMode) {
-        debugPrint('[WhatsAppAccountsScreen] Executing: $_firefoxContainerScript ${args.join(" ")}');
+        debugPrint('[WhatsAppAccountsScreen] Executing: $scriptPath ${args.join(" ")}');
         debugPrint('[WhatsAppAccountsScreen] Container: $containerName, Color: $color, Icon: $icon');
       }
       
       final result = await Process.run(
-        _firefoxContainerScript,
+        scriptPath,
         args,
         environment: env,
         runInShell: false,
@@ -493,8 +531,9 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
               'Error opening Firefox: ${e.toString()}\n\n'
               'Make sure:\n'
               '1. Firefox is installed\n'
-              '2. Script exists at: $_firefoxContainerScript\n'
-              '3. OPEN_URL_IN_CONTAINER_SIGNING_KEY is set',
+              '2. Script exists at: $scriptPath\n'
+              '3. Script is executable (chmod +x)\n'
+              '4. OPEN_URL_IN_CONTAINER_SIGNING_KEY is set (optional)',
             ),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),
@@ -753,12 +792,12 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                     'This may take a few seconds',
                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
-                  if (kDebugMode && Platform.isMacOS) ...[
+                  if (Platform.isMacOS) ...[
                     const SizedBox(height: 24),
                     ElevatedButton.icon(
                       onPressed: () => _openInFirefoxContainer('test', 'Test Container'),
                       icon: const Icon(Icons.open_in_browser),
-                      label: const Text('Test Firefox (Debug)'),
+                      label: const Text('Test Firefox'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orange,
                         foregroundColor: Colors.white,
@@ -766,8 +805,25 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Test button - opens Firefox directly',
-                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                      'Tip: This button works on macOS only. Opens Firefox directly even if backend is down.',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                  if (!Platform.isMacOS) ...[
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                      ),
+                      child: const Text(
+                        '⚠ Firefox integration is available only on macOS.\nRun the app on macOS to test Firefox containers.',
+                        style: TextStyle(fontSize: 12, color: Colors.orange),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ],
                 ],

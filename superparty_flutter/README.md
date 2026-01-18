@@ -122,6 +122,53 @@ WebSocket URLs (update if needed):
 
 ---
 
+### Firefox WhatsApp Web Launcher (macOS)
+
+The app can open WhatsApp Web in Firefox Multi-Account Containers for isolated sessions.
+
+#### Setup
+
+1. **Install Firefox Multi-Account Containers extension:**
+   - Open Firefox
+   - Install: https://addons.mozilla.org/en-US/firefox/addon/multi-account-containers/
+
+2. **Install the firefox-container script:**
+   - Place the script at: `scripts/wa_web_launcher/firefox-container` (relative to repo root)
+   - Make it executable:
+     ```bash
+     chmod +x scripts/wa_web_launcher/firefox-container
+     ```
+
+3. **Configure script path (optional):**
+   - If script is in a different location, set `WA_WEB_LAUNCHER_PATH` environment variable:
+     ```bash
+     export WA_WEB_LAUNCHER_PATH=/path/to/firefox-container
+     ```
+
+4. **Set signing key (optional, recommended):**
+   - To avoid Firefox confirmation dialogs, set `OPEN_URL_IN_CONTAINER_SIGNING_KEY`:
+     ```bash
+     export OPEN_URL_IN_CONTAINER_SIGNING_KEY=your-signing-key
+     ```
+   - Or configure in VSCode `launch.json` or IDE run configuration
+
+#### Usage
+
+1. Open the WhatsApp Accounts screen
+2. For any account, tap **"Open in Firefox"** button
+3. Firefox opens WhatsApp Web in a named container
+4. Scan the QR code with your WhatsApp app
+5. Each account gets its own isolated container (different color/icon)
+
+#### Troubleshooting
+
+- **Script not found:** Ensure script exists at `scripts/wa_web_launcher/firefox-container` or set `WA_WEB_LAUNCHER_PATH`
+- **Permission denied:** Run `chmod +x <script-path>` to make script executable
+- **Firefox confirmation dialogs:** Set `OPEN_URL_IN_CONTAINER_SIGNING_KEY` environment variable
+- **Only works on macOS:** Firefox container integration is macOS-only
+
+---
+
 ## 🐛 Known Issues
 
 1. WebSocket URLs are placeholders - update with real server URLs
