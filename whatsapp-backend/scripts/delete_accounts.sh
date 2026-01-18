@@ -10,15 +10,46 @@ BASE_URL="${RAILWAY_PUBLIC_DOMAIN:-https://whats-upp-production.up.railway.app}"
 
 # Try to get ADMIN_TOKEN from Railway CLI if not set
 if [ -z "$ADMIN_TOKEN" ]; then
-  ADMIN_TOKEN=$(railway variables 2>&1 | grep 'ADMIN_TOKEN' | head -1 | awk -F'│' '{print $3}' | xargs)
-  if [ -n "$ADMIN_TOKEN" ]; then
-    export ADMIN_TOKEN
+  # Source helper script if available
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [ -f "$SCRIPT_DIR/set_admin_token.sh" ]; then
+    source "$SCRIPT_DIR/set_admin_token.sh" 2>/dev/null || true
+  fi
+  
+  # Fallback: try direct extraction methods
+  if [ -z "$ADMIN_TOKEN" ]; then
+    # Try JSON format first (most reliable)
+    if command -v jq &> /dev/null; then
+      ADMIN_TOKEN=$(railway variables --json 2>/dev/null | jq -r '.[] | select(.name == "ADMIN_TOKEN") | .value' 2>/dev/null | grep -v "null" || true)
+    fi
+    
+    # If still empty, try table format
+    if [ -z "$ADMIN_TOKEN" ] || [ "$ADMIN_TOKEN" = "null" ]; then
+      # Method: perl regex (most reliable for Railway CLI table format)
+      if command -v perl &> /dev/null; then
+        ADMIN_TOKEN=$(railway variables 2>&1 | grep 'ADMIN_TOKEN' | head -1 | perl -pe 's/.*\│[[:space:]]*([^[:space:]]+).*/$1/' 2>/dev/null || true)
+      fi
+    fi
+    
+    if [ -n "$ADMIN_TOKEN" ] && [ "$ADMIN_TOKEN" != "null" ] && [ "$ADMIN_TOKEN" != "" ]; then
+      export ADMIN_TOKEN
+      echo "✅ ADMIN_TOKEN obținut automat din Railway CLI (${#ADMIN_TOKEN} caractere)"
+    fi
   fi
 fi
 
 if [ -z "$ADMIN_TOKEN" ]; then
   echo "❌ ADMIN_TOKEN nu este setat!"
-  echo "Setare: export ADMIN_TOKEN='your-token'"
+  echo ""
+  echo "💡 SOLUȚIE:"
+  echo "   1. Obține token-ul manual:"
+  echo "      railway variables | grep ADMIN_TOKEN"
+  echo ""
+  echo "   2. Setează token-ul:"
+  echo "      export ADMIN_TOKEN='your-token-here'"
+  echo ""
+  echo "   3. Sau rulează direct cu token:"
+  echo "      ADMIN_TOKEN='your-token' ./scripts/delete_accounts.sh --list"
   exit 1
 fi
 
@@ -48,9 +79,26 @@ if [ "$1" == "--status" ]; then
   status=$2
   echo "🔍 Caut conturi cu status: $status"
   
-  accounts=$(curl -s "$BASE_URL/api/whatsapp/accounts" \
-    -H "Authorization: Bearer $ADMIN_TOKEN" | \
-    jq -r ".accounts[] | select(.status == \"$status\") | .id")
+  # Get accounts with proper error handling
+  response=$(curl -s -w "\n%{http_code}" "$BASE_URL/api/whatsapp/accounts" \
+    -H "Authorization: Bearer $ADMIN_TOKEN")
+  
+  http_code=$(echo "$response" | tail -n1)
+  body=$(echo "$response" | sed '$d')
+  
+  if [ "$http_code" -ne 200 ]; then
+    echo "❌ Eroare la obținerea listei de conturi: HTTP $http_code"
+    echo "$body" | jq -r '.error // .message' 2>/dev/null || echo "$body"
+    exit 1
+  fi
+  
+  # Check if response has accounts array
+  if echo "$body" | jq -e '.accounts == null' >/dev/null 2>&1; then
+    echo "ℹ️  Nu s-au găsit conturi (răspuns null)"
+    exit 0
+  fi
+  
+  accounts=$(echo "$body" | jq -r ".accounts[]? | select(.status == \"$status\") | .id" 2>/dev/null)
   
   if [ -z "$accounts" ]; then
     echo "ℹ️  Nu s-au găsit conturi cu status: $status"
