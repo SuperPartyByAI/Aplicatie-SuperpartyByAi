@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:path/path.dart' as path;
 import '../../services/whatsapp_api_service.dart';
+import '../../services/whatsapp_backend_diagnostics_service.dart';
 import '../../core/errors/app_exception.dart';
 
 /// WhatsApp Accounts Management Screen
@@ -20,10 +22,14 @@ class WhatsAppAccountsScreen extends StatefulWidget {
 
 class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   final WhatsAppApiService _apiService = WhatsAppApiService.instance;
+  final WhatsAppBackendDiagnosticsService _diagnosticsService =
+      WhatsAppBackendDiagnosticsService.instance;
 
   List<Map<String, dynamic>> _accounts = [];
   bool _isLoading = true;
   String? _error;
+  BackendDiagnostics? _backendDiagnostics;
+  bool _isLoadingDiagnostics = false;
   
   // In-flight guards (prevent double-tap / concurrent requests)
   bool _isAddingAccount = false;
@@ -38,7 +44,9 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   /// 
   /// Priority:
   /// 1. WA_WEB_LAUNCHER_PATH environment variable
-  /// 2. Relative path from repo root: scripts/wa_web_launcher/firefox-container
+  /// 2. Repo-relative path: <repo-root>/scripts/wa_web_launcher/firefox-container
+  ///    (calculated from Flutter app directory, assuming repo structure)
+  /// 3. Fallback: <home>/wa-web-launcher/bin/firefox-container (original location)
   /// 
   /// The script should be executable and located in the repo or configured via env var.
   static String _getFirefoxContainerScriptPath() {
@@ -51,23 +59,54 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
       return envPath;
     }
     
-    // Fallback: relative path from Flutter project root
-    // This assumes the script is in scripts/wa_web_launcher/ relative to repo root
-    // We need to go up from superparty_flutter/ to repo root, then into scripts/
-    final repoRoot = Directory.current.parent.path;
-    final defaultPath = '$repoRoot/scripts/wa_web_launcher/firefox-container';
+    // Try repo-relative path: go up from superparty_flutter/lib to repo root
+    // Path structure: <repo-root>/superparty_flutter/lib/... -> <repo-root>/scripts/wa_web_launcher/firefox-container
+    // In production, we can't reliably detect repo root, so use a fallback heuristic
+    final currentDir = Directory.current.path;
+    final repoRoot = path.normalize(path.join(currentDir, '..', '..', '..'));
+    final repoPath = path.join(repoRoot, 'scripts', 'wa_web_launcher', 'firefox-container');
+    final absoluteRepoPath = path.absolute(repoPath);
     
     if (kDebugMode) {
-      debugPrint('[WhatsAppAccountsScreen] Using default script path: $defaultPath');
+      debugPrint('[WhatsAppAccountsScreen] Checking repo-relative script path: $absoluteRepoPath');
     }
     
-    return defaultPath;
+    // Fallback: try original location in user home (if user had separate wa-web-launcher project)
+    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
+    if (home.isNotEmpty) {
+      final fallbackPath = path.join(home, 'wa-web-launcher', 'bin', 'firefox-container');
+      // Return repo path first, async method will check existence and fallback if needed
+      return absoluteRepoPath;
+    }
+    
+    return absoluteRepoPath;
   }
 
   @override
   void initState() {
     super.initState();
     _loadAccounts();
+    _checkBackendDiagnostics();
+  }
+  
+  Future<void> _checkBackendDiagnostics() async {
+    setState(() => _isLoadingDiagnostics = true);
+    try {
+      final diagnostics = await _diagnosticsService.checkReady();
+      if (mounted) {
+        setState(() {
+          _backendDiagnostics = diagnostics;
+          _isLoadingDiagnostics = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        if (kDebugMode) {
+          debugPrint('[WhatsAppAccountsScreen] Diagnostics check failed: $e');
+        }
+        setState(() => _isLoadingDiagnostics = false);
+      }
+    }
   }
 
   Future<void> _loadAccounts() async {
@@ -120,18 +159,41 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
       }
       
       if (mounted) {
-        final errorMessage = e is AppException
-            ? e.message
-            : 'Error: ${e.toString()}';
+        String errorMessage;
+        if (e is AppException) {
+          errorMessage = e.message;
+        } else if (e is TimeoutException) {
+          errorMessage = 'Request timed out. Backend may be down or slow.';
+        } else {
+          errorMessage = 'Error: ${e.toString()}';
+        }
+        
+        // Check if error is related to backend being down (502) or passive (503)
+        String? backendStatusHint;
+        if (e is NetworkException) {
+          if (e.code == '502' || e.message.contains('502')) {
+            backendStatusHint = 'Backend is down (502 Bad Gateway). Check Railway service status.';
+          } else if (e.code == '503' || e.message.contains('503') || e.message.contains('passive')) {
+            backendStatusHint = 'Backend is in PASSIVE mode (503). Another instance holds the lock.';
+          }
+        }
         
         if (kDebugMode) {
           debugPrint('[WhatsAppAccountsScreen] _loadAccounts: caught exception - $errorMessage');
         }
         
         setState(() {
-          _error = '$errorMessage\n\nBackend may be down. Please check Firebase Functions or try again later.';
+          _error = errorMessage;
+          if (backendStatusHint != null) {
+            _error = '$_error\n\n$backendStatusHint';
+          } else {
+            _error = '$_error\n\nBackend may be down. Please check Firebase Functions or try again later.';
+          }
           _isLoading = false;
         });
+        
+        // Refresh diagnostics to show current backend status
+        _checkBackendDiagnostics();
         
         if (kDebugMode) {
           debugPrint('[WhatsAppAccountsScreen] _loadAccounts: setState called - _isLoading=false, _error=$_error');
@@ -759,6 +821,288 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     }
   }
 
+  /// Build diagnostics banner showing backend mode (active/passive)
+  Widget _buildDiagnosticsBanner() {
+    if (_backendDiagnostics == null) return const SizedBox.shrink();
+    
+    final diagnostics = _backendDiagnostics!;
+    final isPassive = diagnostics.isPassive;
+    final isActive = diagnostics.isActive;
+    
+    Color bannerColor;
+    IconData bannerIcon;
+    String bannerTitle;
+    String bannerMessage;
+    
+    if (isPassive) {
+      bannerColor = Colors.orange;
+      bannerIcon = Icons.warning_amber_rounded;
+      bannerTitle = 'Backend in PASSIVE Mode';
+      bannerMessage = 'Another Railway instance holds the lock. '
+          '${diagnostics.reason != null ? "Reason: ${diagnostics.reason}" : "Backend will retry automatically."}\n'
+          'Accounts can still be viewed, but AI features are disabled.';
+    } else if (isActive) {
+      bannerColor = Colors.green;
+      bannerIcon = Icons.check_circle;
+      bannerTitle = 'Backend ACTIVE';
+      bannerMessage = 'Backend is ready. AI features and account management are available.';
+    } else {
+      bannerColor = Colors.grey;
+      bannerIcon = Icons.help_outline;
+      bannerTitle = 'Backend Status Unknown';
+      bannerMessage = diagnostics.error ?? 'Could not determine backend status.';
+    }
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bannerColor.withOpacity(0.1),
+        border: Border(
+          bottom: BorderSide(color: bannerColor.withOpacity(0.3), width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(bannerIcon, color: bannerColor, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  bannerTitle,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: bannerColor,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  bannerMessage,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (isPassive)
+            TextButton(
+              onPressed: _checkBackendDiagnostics,
+              child: const Text('Refresh'),
+            ),
+        ],
+      ),
+    );
+  }
+  
+  /// Build loading view
+  Widget _buildLoadingView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          const Text('Loading WhatsApp accounts...'),
+          const SizedBox(height: 8),
+          Text(
+            'This may take a few seconds',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  /// Build error view
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.red[300],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _error!,
+              style: const TextStyle(fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () {
+                _loadAccounts();
+                _checkBackendDiagnostics();
+              },
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  /// Build accounts view with two sections: Backend accounts (AI) and Firefox sessions (manual)
+  Widget _buildAccountsView() {
+    return RefreshIndicator(
+      onRefresh: () async {
+        await _loadAccounts();
+        await _checkBackendDiagnostics();
+      },
+      child: CustomScrollView(
+        slivers: [
+          // Section: Backend Accounts (AI)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.smart_toy, size: 24),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Backend Accounts (AI)',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'These accounts are managed by the Railway backend (Baileys). '
+                    'They enable AI features and operator inbox.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  if (_accounts.isEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'No backend accounts found.\nAdd an account to enable AI features.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          
+          // Backend accounts list
+          if (_accounts.isNotEmpty)
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => _buildAccountCard(_accounts[index]),
+                childCount: _accounts.length,
+              ),
+            ),
+          
+          // Section separator
+          const SliverToBoxAdapter(
+            child: Divider(height: 32),
+          ),
+          
+          // Section: Firefox Sessions (Manual)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.open_in_browser, size: 24),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Firefox Sessions (Manual)',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: const Text(
+                      'Firefox WhatsApp Web sessions are separate from backend accounts.\n'
+                      'They do NOT appear here automatically. Use Firefox containers manually via terminal scripts.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ),
+                  if (Platform.isMacOS) ...[
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () => _openInFirefoxContainer('test', 'Test Container'),
+                      icon: const Icon(Icons.open_in_browser),
+                      label: const Text('Test Firefox Container'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'This opens WhatsApp Web in a Firefox container for manual scanning.',
+                      style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                    ),
+                  ],
+                  if (!Platform.isMacOS) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        '⚠ Firefox integration is available only on macOS.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Debug: Force check loading state
@@ -774,191 +1118,29 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           if (!_isLoading && _error == null)
             IconButton(
               icon: const Icon(Icons.refresh),
-              onPressed: _loadAccounts,
+              onPressed: () {
+                _loadAccounts();
+                _checkBackendDiagnostics();
+              },
               tooltip: 'Refresh',
             ),
         ],
       ),
-      body: _isLoading
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
-                  const Text('Loading WhatsApp accounts...'),
-                  const SizedBox(height: 8),
-                  Text(
-                    'This may take a few seconds',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                  if (Platform.isMacOS) ...[
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () => _openInFirefoxContainer('test', 'Test Container'),
-                      icon: const Icon(Icons.open_in_browser),
-                      label: const Text('Test Firefox'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Tip: This button works on macOS only. Opens Firefox directly even if backend is down.',
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                  if (!Platform.isMacOS) ...[
-                    const SizedBox(height: 24),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                      ),
-                      child: const Text(
-                        '⚠ Firefox integration is available only on macOS.\nRun the app on macOS to test Firefox containers.',
-                        style: TextStyle(fontSize: 12, color: Colors.orange),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            )
-          : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: Colors.red[300],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          _error!,
-                          style: const TextStyle(fontSize: 16),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 24),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            ElevatedButton(
-                              onPressed: _loadAccounts,
-                              child: const Text('Retry'),
-                            ),
-                            if (Platform.isMacOS) ...[
-                              const SizedBox(width: 12),
-                              ElevatedButton.icon(
-                                onPressed: () => _openInFirefoxContainer('test', 'Test Container'),
-                                icon: const Icon(Icons.open_in_browser),
-                                label: const Text('Test Firefox'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.orange,
-                                  foregroundColor: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        if (Platform.isMacOS) ...[
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Tip: You can test Firefox integration directly even if backend is down',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                )
-              : _accounts.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.account_circle_outlined,
-                              size: 64,
-                              color: Colors.grey[400],
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No accounts found',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Add your first WhatsApp account',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[500],
-                              ),
-                            ),
-                            if (Platform.isMacOS) ...[
-                              const SizedBox(height: 32),
-                              const Divider(),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'Firefox Integration Available',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'You can use Firefox containers directly from terminal:',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton.icon(
-                                onPressed: () => _openInFirefoxContainer('test', 'Test Container'),
-                                icon: const Icon(Icons.open_in_browser),
-                                label: const Text('Test Firefox Now'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.orange,
-                                  foregroundColor: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'This will open WhatsApp Web in Firefox container',
-                                style: TextStyle(fontSize: 10, color: Colors.grey),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _loadAccounts,
-                      child: ListView.builder(
-                        itemCount: _accounts.length,
-                        itemBuilder: (context, index) {
-                          return _buildAccountCard(_accounts[index]);
-                        },
-                      ),
-                    ),
+      body: Column(
+        children: [
+          // Backend diagnostics banner
+          if (_backendDiagnostics != null) _buildDiagnosticsBanner(),
+          
+          // Main content (loading/error/accounts)
+          Expanded(
+            child: _isLoading
+                ? _buildLoadingView()
+                : _error != null
+                    ? _buildErrorView()
+                    : _buildAccountsView(),
+          ),
+        ],
+      ),
       floatingActionButton: _isLoading || _error != null
           ? null
           : FloatingActionButton.extended(

@@ -1,0 +1,126 @@
+#!/bin/sh
+#
+# Firefox Container Launcher
+# Opens URLs in Firefox containers using the ext+container: protocol
+#
+# Usage: firefox-container [OPTIONS] URL
+#
+# Options:
+#   -n, --name NAME       Container name (required)
+#   --color COLOR         Container color (orange, blue, green, red, purple, pink, yellow, turquoise)
+#   --icon ICON           Container icon (circle, fruit, square, triangle)
+#   -p, --pin             Pin the tab
+#   -r, --reader          Open in reader mode
+#
+
+set -e
+
+# Default values
+CONTAINER_NAME=""
+COLOR=""
+ICON=""
+PIN=false
+READER=false
+URL=""
+
+# Parse arguments
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -n|--name)
+            CONTAINER_NAME="$2"
+            shift 2
+            ;;
+        --name=*)
+            CONTAINER_NAME="${1#*=}"
+            shift
+            ;;
+        --color)
+            COLOR="$2"
+            shift 2
+            ;;
+        --color=*)
+            COLOR="${1#*=}"
+            shift
+            ;;
+        --icon)
+            ICON="$2"
+            shift 2
+            ;;
+        --icon=*)
+            ICON="${1#*=}"
+            shift
+            ;;
+        -p|--pin)
+            PIN=true
+            shift
+            ;;
+        -r|--reader)
+            READER=true
+            shift
+            ;;
+        http://*|https://*|ext+container:*)
+            URL="$1"
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            echo "Usage: $0 [OPTIONS] URL" >&2
+            echo "Options: -n, --name NAME    Container name (required)" >&2
+            echo "         --color COLOR      Container color" >&2
+            echo "         --icon ICON        Container icon" >&2
+            echo "         -p, --pin          Pin the tab" >&2
+            echo "         -r, --reader       Open in reader mode" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# Check if container name is provided
+if [ -z "$CONTAINER_NAME" ]; then
+    echo "Error: Container name is required. Use -n or --name" >&2
+    exit 1
+fi
+
+# Check if URL is provided
+if [ -z "$URL" ]; then
+    echo "Error: URL is required" >&2
+    exit 1
+fi
+
+# Build ext+container: URL
+PROTOCOL_URL="ext+container:name=$CONTAINER_NAME"
+
+# Add color if specified
+if [ -n "$COLOR" ]; then
+    PROTOCOL_URL="$PROTOCOL_URL&color=$COLOR"
+fi
+
+# Add icon if specified
+if [ -n "$ICON" ]; then
+    PROTOCOL_URL="$PROTOCOL_URL&icon=$ICON"
+fi
+
+# Add URL (encode if needed)
+PROTOCOL_URL="$PROTOCOL_URL&url=$(echo "$URL" | sed 's/&/%26/g')"
+
+# Add pin if requested
+if [ "$PIN" = true ]; then
+    PROTOCOL_URL="$PROTOCOL_URL&pinned=true"
+fi
+
+# Add reader mode if requested
+if [ "$READER" = true ]; then
+    PROTOCOL_URL="$PROTOCOL_URL&reader=true"
+fi
+
+# Open in Firefox (in normal window, not private)
+# Use -new-window to ensure it opens in a regular window
+if command -v firefox >/dev/null 2>&1; then
+    firefox -new-window "$PROTOCOL_URL" 2>/dev/null || firefox "$PROTOCOL_URL"
+elif [ -d "/Applications/Firefox.app" ]; then
+    /Applications/Firefox.app/Contents/MacOS/firefox -new-window "$PROTOCOL_URL" 2>/dev/null || \
+    /Applications/Firefox.app/Contents/MacOS/firefox "$PROTOCOL_URL"
+else
+    echo "Error: Firefox not found" >&2
+    exit 1
+fi
