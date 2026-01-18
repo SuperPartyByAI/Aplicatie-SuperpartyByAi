@@ -1280,16 +1280,46 @@ async function createConnection(accountId, name, phone) {
       }
 
       if (connection === 'close') {
-        // Normalize reason to number for comparison (can be string or number)
-        const rawReason = lastDisconnect?.error?.output?.statusCode || 'unknown';
+        // CRITICAL: Extract real disconnect reason from Boom error
+        // Check multiple sources (Boom error, output.statusCode, error.code, etc.)
+        const error = lastDisconnect?.error;
+        const boomStatus = error?.output?.statusCode;
+        const errorCode = error?.code || error?.statusCode;
+        const rawReason = boomStatus ?? errorCode ?? 'unknown';
+        
+        // Normalize reason to number for comparison
         const reason = typeof rawReason === 'number' ? rawReason : (typeof rawReason === 'string' ? parseInt(rawReason, 10) || 'unknown' : 'unknown');
         
+        // Extract Boom error details for better logging
+        const boomPayload = error?.output?.payload;
+        const errorMessage = error?.message || 'No error message';
+        const errorStack = error?.stack;
+        
+        // Log detailed disconnect information (helps diagnose "unknown" reasons)
+        console.error(`🔌 [${accountId}] connection.update: close`, {
+          status: reason,
+          rawStatus: rawReason,
+          boomStatus,
+          errorCode,
+          reasonPayload: boomPayload,
+          message: errorMessage,
+          stack: errorStack?.substring(0, 200), // Truncate stack for readability
+          shouldReconnect: reason !== DisconnectReason.loggedOut,
+          currentStatus: account.status,
+          lastDisconnect: lastDisconnect ? {
+            error: error ? {
+              name: error.name,
+              message: error.message,
+              output: error.output ? {
+                statusCode: error.output.statusCode,
+                payload: error.output.payload,
+              } : undefined,
+            } : undefined,
+            date: lastDisconnect.date,
+          } : undefined,
+        });
+        
         const shouldReconnect = reason !== DisconnectReason.loggedOut;
-        const errorMsg = lastDisconnect?.error?.message || 'No error message';
-
-        console.log(`🔌 [${accountId}] connection.update: close`);
-        console.log(`🔌 [${accountId}] Reason code: ${reason} (raw: ${rawReason}), Reconnect: ${shouldReconnect}`);
-        console.log(`🔌 [${accountId}] Current status: ${account.status}`);
 
         // Define explicit cleanup reasons (only these trigger account deletion)
         // Ensure we compare numbers consistently
@@ -1339,12 +1369,25 @@ async function createConnection(accountId, name, phone) {
             ...(hasQR && account.qrCode ? { qrCode: account.qrCode } : {}),
           });
 
-          // Release lock to allow reconnect if needed, but keep account in Map
+          // CRITICAL: Reset connecting state to allow fresh reconnect attempts
+          // This prevents "Already connecting" deadlock when QR expires or connection closes
           connectionRegistry.release(accountId);
+          
+          // Clear any stale reconnect timers
+          if (account.connectingTimeout) {
+            clearTimeout(account.connectingTimeout);
+            account.connectingTimeout = null;
+          }
 
           // Don't delete, don't reconnect - just wait for user to scan QR
+          // If QR expires or user wants to regenerate, they can call "Regenerate QR" endpoint
           return;
         }
+        
+        // CRITICAL: Reset connecting state on close (before reconnect attempt)
+        // This prevents "Already connecting" deadlock where reconnect is blocked by stale state
+        // Release lock FIRST to reset connecting flag, then allow reconnect scheduling
+        connectionRegistry.release(accountId);
 
         account.status = shouldReconnect ? 'reconnecting' : 'logged_out';
         account.lastUpdate = new Date().toISOString();
@@ -1368,8 +1411,8 @@ async function createConnection(accountId, name, phone) {
 
             reconnectAttempts.set(accountId, attempts + 1);
 
-            // Release lock before reconnect
-            connectionRegistry.release(accountId);
+            // NOTE: Lock already released above (on close), so reconnect can proceed
+            // No need to release again - lock is already cleared for fresh connection attempt
 
             setTimeout(() => {
               if (connections.has(accountId)) {
