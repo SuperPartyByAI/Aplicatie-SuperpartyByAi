@@ -1787,12 +1787,14 @@ async function createConnection(accountId, name, phone) {
             // #region agent log
             console.error(`📋 [${accountId}] 401 handler: clearAccountSession failed, error=${error.message}, stack=${error.stack?.substring(0, 200)}, timestamp=${logTimestamp}`);
             // #endregion
-            // Continue anyway - account will be marked needs_qr
+            // Continue anyway - account will be marked logged_out
           }
 
+          // CRITICAL: Set status to 'logged_out' (not 'needs_qr') to indicate session expired and re-link required
+          // 'needs_qr' is for expired QR during pairing, 'logged_out' is for invalid session credentials
           await saveAccountToFirestore(accountId, {
-            status: 'needs_qr',
-            lastError: `logged_out (${reason}) - requires QR re-pair`,
+            status: 'logged_out',
+            lastError: `logged_out (${reason}) - requires re-link`,
             requiresQR: true,
             lastDisconnectReason: reason,
             lastDisconnectCode: reason,
@@ -4426,6 +4428,10 @@ app.get('/api/whatsapp/messages', async (req, res) => {
 
 // Delete account
 app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
+  // HARD GATE: PASSIVE mode - do NOT delete account
+  const passiveGuard = await checkPassiveModeGuard(req, res);
+  if (passiveGuard) return; // Response already sent
+  
   try {
     const { id } = req.params;
     const account = connections.get(id);
