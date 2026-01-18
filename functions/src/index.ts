@@ -1,10 +1,10 @@
 import * as admin from 'firebase-admin';
-import { setGlobalOptions } from 'firebase-functions/v2';
 import { onCall, HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 
 import { assertAdmin } from './admin';
 
-setGlobalOptions({ region: 'us-central1' });
+// NOTE: setGlobalOptions is already called in functions/index.js
+// Do NOT call it again here to avoid "Calling setGlobalOptions twice" warning
 
 if (!admin.apps.length) {
   admin.initializeApp();

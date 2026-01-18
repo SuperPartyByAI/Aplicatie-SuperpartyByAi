@@ -53,7 +53,7 @@ async function setGroqApiKey() {
   console.log('🔑 STEP 2: Set GROQ_API_KEY Secret');
   console.log('─'.repeat(70));
   
-  const GROQ_API_KEY = 'gsk_Ej8Ry4Aq3xyPLWqxqWGWWGdyb3FYqKWZjBqJqLYjqLYjqLYj'; // Your key
+  const GROQ_API_KEY = '[REDACTED - Use Firebase Secrets Manager]'; // DO NOT commit real keys
   
   console.log('✅ GROQ_API_KEY ready');
   console.log('');
