@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/whatsapp_api_service.dart';
+import '../../core/errors/app_exception.dart';
 
 /// WhatsApp Accounts Management Screen
 /// 
@@ -199,12 +200,24 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        // CRITICAL FIX: Handle 429 (rate limited) gracefully - show friendly message with retry time
+        if (e is NetworkException && e.code == 'rate_limited') {
+          final retryAfterSeconds = (e.originalError as Map<String, dynamic>?)?['retryAfterSeconds'] as int? ?? 10;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.message ?? 'Please wait ${retryAfterSeconds}s before regenerating QR again'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: retryAfterSeconds),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } finally {
       if (mounted) {

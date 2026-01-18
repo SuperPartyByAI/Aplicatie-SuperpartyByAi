@@ -257,6 +257,30 @@ class WhatsAppApiService {
 
       debugPrint('[WhatsAppApiService] regenerateQr: status=${response.statusCode}, bodyLength=${response.body.length}');
 
+      // CRITICAL FIX: Handle 202 (already in progress) as non-fatal - return success
+      if (response.statusCode == 202) {
+        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+        debugPrint('[WhatsAppApiService] regenerateQr: 202 already_in_progress - returning success');
+        return {
+          'success': true,
+          'message': errorBody?['message'] ?? 'QR regeneration already in progress',
+          'status': errorBody?['status'] ?? 'already_in_progress',
+          'requestId': errorBody?['requestId'],
+        };
+      }
+
+      // CRITICAL FIX: Handle 429 (rate limited) gracefully - throw NetworkException with message
+      if (response.statusCode == 429) {
+        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+        final retryAfterSeconds = errorBody?['retryAfterSeconds'] as int? ?? 10;
+        debugPrint('[WhatsAppApiService] regenerateQr: 429 rate_limited - throttle applied, retryAfter=${retryAfterSeconds}s');
+        throw NetworkException(
+          errorBody?['message'] ?? 'Please wait ${retryAfterSeconds}s before regenerating QR again',
+          code: 'rate_limited',
+          originalError: {'retryAfterSeconds': retryAfterSeconds, ...?errorBody},
+        );
+      }
+
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
         debugPrint('[WhatsAppApiService] regenerateQr: error=${errorBody?['error']}, message=${errorBody?['message']}');
