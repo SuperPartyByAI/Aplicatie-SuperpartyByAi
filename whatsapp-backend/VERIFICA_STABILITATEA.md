@@ -28,9 +28,20 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ### 3. Verifică logurile pentru restores:
 
+**Opțiunea 1: Railway Dashboard (recomandat)**
+- Deschide: https://railway.app/project
+- Selectează proiectul "Whats Upp"
+- Click pe service → Logs
+- Caută: `restore.*Firestore` sau `Session restored`
+
+**Opțiunea 2: Railway CLI (dacă e linkat)**
 ```bash
-railway logs --service whatsapp-backend | \
-  grep -i "restore\|Firestore\|Session" | tail -20
+# Link proiectul mai întâi:
+cd whatsapp-backend
+railway link
+
+# Apoi verifică logurile:
+railway logs | grep -i "restore.*Firestore\|Session restored" | tail -20
 ```
 
 **Rezultat OK:**
@@ -43,23 +54,18 @@ railway logs --service whatsapp-backend | \
 
 ### Test 1: Simulează redeploy
 
-**Pas 1:** Monitorează logurile:
-```bash
-railway logs --service whatsapp-backend | tee logs_before.txt
-```
+**Pas 1:** Monitorează logurile (Railway Dashboard):
+- Deschide: https://railway.app/project
+- Selectează "Whats Upp" → Service → Logs
+- SAU: `railway logs` (dacă e linkat)
 
-**Pas 2:** Redeploy backend:
-```bash
-railway restart
-# SAU
-railway up
-```
+**Pas 2:** Redeploy backend (Railway Dashboard):
+- Click pe service → Deployments → Redeploy
+- SAU: `railway up` (dacă e linkat din whatsapp-backend/)
 
 **Pas 3:** Verifică restore în loguri:
-```bash
-railway logs --service whatsapp-backend | \
-  grep -i "restore.*Firestore\|Session restored" | tail -10
-```
+- În Railway Dashboard → Logs
+- SAU: `railway logs | grep -i "restore.*Firestore" | tail -10`
 
 **✅ SUCCESS dacă:**
 - Apare `"🔄 [account_xxx] Disk session missing, attempting Firestore restore..."`
@@ -96,7 +102,9 @@ echo "Accounts:" && curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
   jq -r '.accounts[] | "\(.name // .id): \(.status)"'
 
 # 3. Recent restores (ultima oră)
-echo "Recent restores:" && railway logs --service whatsapp-backend --since 1h | \
-  grep -c "restore.*Firestore" || echo "None (good)"
+# Opțiunea 1: Railway Dashboard → Logs → Search "restore"
+# Opțiunea 2: Railway CLI (dacă e linkat)
+echo "Recent restores:" && railway logs | \
+  grep -c "restore.*Firestore" || echo "None (good - session stable)"
 ```
 
