@@ -72,6 +72,40 @@ See https://firebase.google.com/docs/functions/2nd-gen-upgrade before migrating 
 
 ---
 
+## 🌍 EU Region Migration (APPLIED)
+
+**Status:** ✅ **COMPLETE**
+
+**Functions moved to europe-west1:**
+- `aggregateClientStats` (Firestore trigger)
+- `whatsappExtractEventFromThread` (AI callable)
+- `clientCrmAsk` (AI callable)
+
+**Flutter updated:**
+- `extractEventFromThread()` → calls `europe-west1`
+- `askClientAI()` → calls `europe-west1`
+
+**Deployment command (after manual deletion):**
+```bash
+# Deploy only migrated functions
+firebase deploy --only functions:aggregateClientStats,functions:whatsappExtractEventFromThread,functions:clientCrmAsk
+
+# Then deploy all other functions
+firebase deploy --only functions
+```
+
+**Post-migration verification:**
+```bash
+# Verify regions changed
+firebase functions:list | grep -E "aggregateClientStats|whatsappExtractEventFromThread|clientCrmAsk"
+# Expected: Region should show europe-west1 for these 3
+
+# Test callable from Flutter
+# extractEventFromThread and askClientAI should work without errors
+```
+
+---
+
 ## 🚀 After Manual Deletion
 
 Run deployment command:

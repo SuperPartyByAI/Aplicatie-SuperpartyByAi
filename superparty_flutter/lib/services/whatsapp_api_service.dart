@@ -272,6 +272,8 @@ class WhatsAppApiService {
   /// Extract event booking from WhatsApp thread messages (AI extraction).
   /// 
   /// Calls Firebase callable: whatsappExtractEventFromThread
+  /// Uses europe-west1 region (co-located with Firestore eur3 for low latency)
+  /// 
   /// Input: { threadId, accountId, phoneE164?, lastNMessages?, dryRun? }
   /// Output: { action: CREATE_EVENT|UPDATE_EVENT|NOOP, draftEvent, targetEventId?, confidence, reasons }
   Future<Map<String, dynamic>> extractEventFromThread({
@@ -287,7 +289,8 @@ class WhatsAppApiService {
         throw UnauthorizedException();
       }
 
-      final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
+      // Use europe-west1 region (Firestore is in eur3)
+      final functions = FirebaseFunctions.instanceFor(region: 'europe-west1');
       final callable = functions.httpsCallable(
         'whatsappExtractEventFromThread',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 60)),
