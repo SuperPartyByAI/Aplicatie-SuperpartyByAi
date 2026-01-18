@@ -106,6 +106,12 @@ function startPassiveRetryLoop(db) {
         
         // Emit event/log that system is now active (could trigger connection restoration)
         console.log('[WABootstrap] 🔔 System transitioned from PASSIVE to ACTIVE - ready to process');
+        
+        // CRITICAL: Auto-reconnect accounts that were stuck in connecting/reconnecting
+        // This ensures session stability when lock becomes available
+        if (typeof process.emit === 'function') {
+          process.emit('wa-bootstrap:active', { instanceId });
+        }
       } else {
         console.log(`[WABootstrap] Still PASSIVE - ${result.reason || 'lock held by another instance'}`);
       }

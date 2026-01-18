@@ -198,6 +198,9 @@ const connectionHealth = new Map(); // accountId -> { lastEventAt, lastMessageAt
 const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000; // 5 minutes without events = stale
 const HEALTH_CHECK_INTERVAL = 60 * 1000; // Check every 60 seconds
 
+// Session stability tracking
+const sessionStability = new Map(); // accountId -> { lastRestoreAt, restoreCount, lastStableAt }
+
 // Admin token for protected endpoints
 // CRITICAL: In production (Railway), ADMIN_TOKEN must be set via env var (no random fallback)
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || (process.env.NODE_ENV === 'production' 
@@ -456,6 +459,28 @@ const CONNECTING_TIMEOUT_MS = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS |
 console.log(`⏱️  WhatsApp connect timeout: ${Math.floor(CONNECTING_TIMEOUT_MS / 1000)}s`);
 console.log(`🔥 Firestore: ${admin.apps.length > 0 ? 'Connected' : 'Not connected'}`);
 console.log(`📊 Max accounts: ${MAX_ACCOUNTS}`);
+
+// Listen for ACTIVE mode transition to auto-reconnect stuck accounts
+process.on('wa-bootstrap:active', async ({ instanceId }) => {
+  console.log(`🔄 [Auto-Reconnect] ACTIVE mode detected, checking for stuck connections...`);
+  
+  // Reconnect accounts that were stuck during passive mode
+  for (const [accountId, account] of connections.entries()) {
+    if (['connecting', 'reconnecting', 'disconnected'].includes(account.status)) {
+      console.log(`🔄 [${accountId}] Auto-reconnecting after ACTIVE mode transition (status: ${account.status})`);
+      
+      // Small delay to avoid overwhelming the system
+      setTimeout(() => {
+        if (connections.has(accountId)) {
+          const acc = connections.get(accountId);
+          if (acc && ['connecting', 'reconnecting', 'disconnected'].includes(acc.status)) {
+            createConnection(accountId, acc.name, acc.phone);
+          }
+        }
+      }, Math.random() * 2000); // Random delay 0-2s per account
+    }
+  }
+});
 
 // History sync configuration
 const SYNC_FULL_HISTORY = process.env.WHATSAPP_SYNC_FULL_HISTORY !== 'false'; // Default: true
@@ -1083,11 +1108,58 @@ async function createConnection(accountId, name, phone) {
     console.log(`🔑 [${accountId}] Session path: ${sessionPath}`);
     console.log(`🔑 [${accountId}] Credentials exist: ${credsExists}`);
 
+    // CRITICAL: Restore from Firestore if disk session is missing
+    // This ensures session stability across redeploys and crashes
+    if (!credsExists && USE_FIRESTORE_BACKUP && firestoreAvailable && db) {
+      console.log(`🔄 [${accountId}] Disk session missing, attempting Firestore restore...`);
+      try {
+        const sessionDoc = await db.collection('wa_sessions').doc(accountId).get();
+        
+        if (sessionDoc.exists) {
+          const sessionData = sessionDoc.data();
+          
+          if (sessionData.files && typeof sessionData.files === 'object') {
+            // Restore session files from Firestore
+            let restoredCount = 0;
+            for (const [filename, content] of Object.entries(sessionData.files)) {
+              const filePath = path.join(sessionPath, filename);
+              try {
+                await fs.promises.writeFile(filePath, content, 'utf8');
+                restoredCount++;
+              } catch (writeError) {
+                console.error(`❌ [${accountId}] Failed to restore file ${filename}:`, writeError.message);
+              }
+            }
+            
+            if (restoredCount > 0) {
+              console.log(`✅ [${accountId}] Session restored from Firestore (${restoredCount} files)`);
+              // Verify creds.json was restored
+              const restoredCredsExists = fs.existsSync(credsPath);
+              if (restoredCredsExists) {
+                console.log(`✅ [${accountId}] Credentials restored successfully`);
+              } else {
+                console.warn(`⚠️  [${accountId}] Session files restored but creds.json missing`);
+              }
+            } else {
+              console.log(`⚠️  [${accountId}] Firestore backup exists but contains no files`);
+            }
+          } else {
+            console.log(`⚠️  [${accountId}] Firestore backup exists but format is not recognized`);
+          }
+        } else {
+          console.log(`🆕 [${accountId}] No Firestore backup found, will generate new QR`);
+        }
+      } catch (restoreError) {
+        console.error(`❌ [${accountId}] Firestore restore failed (non-fatal):`, restoreError.message);
+        // Continue with fresh session - restore failure shouldn't block connection
+      }
+    }
+
     // Fetch latest Baileys version (CRITICAL FIX)
     const { version, isLatest } = await fetchLatestBaileysVersion();
     console.log(`✅ [${accountId}] Baileys version: ${version.join('.')}, isLatest: ${isLatest}`);
 
-    // Use disk auth + Firestore backup
+    // Use disk auth + Firestore backup (will use restored session if available)
     let { state, saveCreds } = await useMultiFileAuthState(sessionPath);
 
     // Wrap saveCreds to backup to Firestore
@@ -1756,39 +1828,84 @@ async function createConnection(accountId, name, phone) {
           }
         } else {
           // Terminal logout (401/loggedOut/badSession) - requires re-pairing
-          console.log(`❌ [${accountId}] Explicit cleanup (${reason}), terminal logout - clearing session`);
+          // CRITICAL: Check if this is a real logout or temporary network issue
+          const logoutCount = (account.logoutCount || 0) + 1;
+          account.logoutCount = logoutCount;
           
-          // CRITICAL FIX: Clear connectingTimeout BEFORE clearing session to prevent stale timer
-          if (account.connectingTimeout) {
-            clearTimeout(account.connectingTimeout);
-            account.connectingTimeout = null;
-            console.log(`⏱️  [${accountId}] Cleared connectingTimeout on terminal logout`);
-          }
+          // Retry with restore before clearing session (logout might be temporary)
+          const MAX_LOGOUT_RETRIES = parseInt(process.env.MAX_LOGOUT_RETRIES || '2', 10);
           
-          // Clear any reconnect timers
-          reconnectAttempts.delete(accountId);
-          
-          account.status = 'needs_qr';
+          if (logoutCount <= MAX_LOGOUT_RETRIES) {
+            console.log(`⚠️  [${accountId}] Terminal logout (${reason}), retry ${logoutCount}/${MAX_LOGOUT_RETRIES} with restore...`);
+            
+            // Clear connectingTimeout BEFORE retry
+            if (account.connectingTimeout) {
+              clearTimeout(account.connectingTimeout);
+              account.connectingTimeout = null;
+            }
+            
+            // Clear any reconnect timers
+            reconnectAttempts.delete(accountId);
+            
+            account.status = 'logged_out';
+            
+            await saveAccountToFirestore(accountId, {
+              status: 'logged_out',
+              logoutCount: logoutCount,
+              lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
+              lastDisconnectReason: `Terminal logout (retry ${logoutCount}/${MAX_LOGOUT_RETRIES})`,
+              lastDisconnectCode: reason,
+            });
+            
+            // Retry with exponential backoff: 5s, 15s
+            const backoff = logoutCount === 1 ? 5000 : 15000;
+            console.log(`🔄 [${accountId}] Retrying connection in ${backoff}ms with session restore...`);
+            
+            setTimeout(async () => {
+              // At reconnect, restore from Firestore if disk session was cleared
+              // The restore logic in createConnection() will handle this
+              const acc = connections.get(accountId);
+              if (acc && acc.status === 'logged_out') {
+                console.log(`🔄 [${accountId}] Attempting reconnect with session restore (logout retry ${logoutCount})`);
+                createConnection(accountId, acc.name, acc.phone);
+              }
+            }, backoff);
+          } else {
+            // Real logout - clear session after max retries
+            console.log(`❌ [${accountId}] Terminal logout confirmed (${logoutCount} attempts), clearing session`);
+            
+            // CRITICAL FIX: Clear connectingTimeout BEFORE clearing session to prevent stale timer
+            if (account.connectingTimeout) {
+              clearTimeout(account.connectingTimeout);
+              account.connectingTimeout = null;
+              console.log(`⏱️  [${accountId}] Cleared connectingTimeout on terminal logout`);
+            }
+            
+            // Clear any reconnect timers
+            reconnectAttempts.delete(accountId);
+            account.logoutCount = 0; // Reset for next time
+            account.status = 'needs_qr';
 
-          // Clear session (disk + Firestore) to ensure fresh pairing
-          // #region agent log
-          const logTimestamp = Date.now();
-          const sessionPath = path.join(authDir, accountId);
-          const sessionExistsBefore = fs.existsSync(sessionPath);
-          // #endregion
-          
-          try {
-            await clearAccountSession(accountId);
+            // Clear session (disk + Firestore) to ensure fresh pairing
             // #region agent log
-            const sessionExistsAfter = fs.existsSync(sessionPath);
-            console.log(`📋 [${accountId}] 401 handler: sessionExistsBefore=${sessionExistsBefore}, sessionExistsAfter=${sessionExistsAfter}, timestamp=${logTimestamp}`);
+            const logTimestamp = Date.now();
+            const sessionPath = path.join(authDir, accountId);
+            const sessionExistsBefore = fs.existsSync(sessionPath);
             // #endregion
-          } catch (error) {
-            console.error(`⚠️  [${accountId}] Failed to clear session:`, error.message);
-            // #region agent log
-            console.error(`📋 [${accountId}] 401 handler: clearAccountSession failed, error=${error.message}, stack=${error.stack?.substring(0, 200)}, timestamp=${logTimestamp}`);
-            // #endregion
-            // Continue anyway - account will be marked logged_out
+            
+            try {
+              await clearAccountSession(accountId);
+              // #region agent log
+              const sessionExistsAfter = fs.existsSync(sessionPath);
+              console.log(`📋 [${accountId}] 401 handler: sessionExistsBefore=${sessionExistsBefore}, sessionExistsAfter=${sessionExistsAfter}, timestamp=${logTimestamp}`);
+              // #endregion
+            } catch (error) {
+              console.error(`⚠️  [${accountId}] Failed to clear session:`, error.message);
+              // #region agent log
+              console.error(`📋 [${accountId}] 401 handler: clearAccountSession failed, error=${error.message}, stack=${error.stack?.substring(0, 200)}, timestamp=${logTimestamp}`);
+              // #endregion
+              // Continue anyway - account will be marked logged_out
+            }
           }
 
           // CRITICAL: Set status to 'logged_out' (not 'needs_qr') to indicate session expired and re-link required
@@ -2313,12 +2430,75 @@ function updateConnectionHealth(accountId, eventType) {
   health.isStale = false;
 }
 
+// Check session health and restore if needed
+async function checkSessionHealth(accountId, account) {
+  if (!account || !account.sock) return;
+  
+  try {
+    // Check if socket is still connected
+    const isConnected = account.sock?.user?.id && account.status === 'connected';
+    
+    if (!isConnected && account.status === 'connected') {
+      // Socket might be disconnected but status not updated
+      console.log(`⚠️  [${accountId}] Session health check: socket disconnected but status is connected`);
+      
+      // Verify disk session exists
+      const sessionPath = path.join(authDir, accountId);
+      const credsPath = path.join(sessionPath, 'creds.json');
+      const credsExists = fs.existsSync(credsPath);
+      
+      if (!credsExists && USE_FIRESTORE_BACKUP && firestoreAvailable && db) {
+        // Restore from Firestore
+        console.log(`🔄 [${accountId}] Session health check: restoring missing disk session from Firestore...`);
+        try {
+          const sessionDoc = await db.collection('wa_sessions').doc(accountId).get();
+          if (sessionDoc.exists && sessionDoc.data().files) {
+            const sessionData = sessionDoc.data().files;
+            let restoredCount = 0;
+            for (const [filename, content] of Object.entries(sessionData)) {
+              const filePath = path.join(sessionPath, filename);
+              await fs.promises.writeFile(filePath, content, 'utf8');
+              restoredCount++;
+            }
+            if (restoredCount > 0) {
+              console.log(`✅ [${accountId}] Session restored from Firestore (${restoredCount} files)`);
+              // Mark session as stable
+              if (!sessionStability.has(accountId)) {
+                sessionStability.set(accountId, { lastRestoreAt: Date.now(), restoreCount: 0, lastStableAt: Date.now() });
+              }
+              const stability = sessionStability.get(accountId);
+              stability.restoreCount++;
+              stability.lastRestoreAt = Date.now();
+            }
+          }
+        } catch (restoreError) {
+          console.error(`❌ [${accountId}] Session health restore failed:`, restoreError.message);
+        }
+      }
+    } else if (isConnected) {
+      // Session is healthy - update stability tracking
+      if (!sessionStability.has(accountId)) {
+        sessionStability.set(accountId, { lastRestoreAt: null, restoreCount: 0, lastStableAt: Date.now() });
+      }
+      const stability = sessionStability.get(accountId);
+      stability.lastStableAt = Date.now();
+    }
+  } catch (error) {
+    console.error(`❌ [${accountId}] Session health check error:`, error.message);
+  }
+}
+
 function checkStaleConnections() {
   const now = Date.now();
   const staleAccounts = [];
 
   for (const [accountId, account] of connections.entries()) {
     if (account.status !== 'connected') continue;
+
+    // Check session health (restore if needed)
+    checkSessionHealth(accountId, account).catch(err => 
+      console.error(`❌ [${accountId}] Session health check failed:`, err.message)
+    );
 
     const health = connectionHealth.get(accountId);
     if (!health) {
