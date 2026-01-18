@@ -4546,30 +4546,82 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
     const { id } = req.params;
     const account = connections.get(id);
 
-    if (!account) {
-      return res.status(404).json({ success: false, error: 'Account not found' });
-    }
+    // Check if account exists in memory OR Firestore
+    let accountExists = !!account;
+    let accountInFirestore = false;
 
-    // Close connection
-    if (account.sock) {
+    // If not in memory, check Firestore
+    if (!account && firestoreAvailable && db) {
       try {
-        account.sock.end();
-      } catch (e) {
-        // Ignore
+        const accountDoc = await db.collection('accounts').doc(id).get();
+        accountInFirestore = accountDoc.exists;
+        if (accountInFirestore) {
+          const data = accountDoc.data();
+          // Don't delete if already deleted
+          if (data.status === 'deleted') {
+            return res.status(404).json({ 
+              success: false, 
+              error: 'Account already deleted',
+              accountId: id,
+            });
+          }
+        }
+      } catch (error) {
+        console.error(`❌ [${id}] Error checking Firestore:`, error.message);
       }
     }
 
-    connections.delete(id);
-    reconnectAttempts.delete(id);
+    if (!accountExists && !accountInFirestore) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Account not found',
+        accountId: id,
+      });
+    }
 
-    // Update Firestore
-    await saveAccountToFirestore(id, {
-      status: 'deleted',
-      deletedAt: admin.firestore.FieldValue.serverTimestamp(),
+    // Close connection if exists in memory
+    if (account) {
+      if (account.sock) {
+        try {
+          account.sock.end();
+        } catch (e) {
+          // Ignore
+        }
+      }
+
+      connections.delete(id);
+      reconnectAttempts.delete(id);
+      connectionRegistry.release(id);
+    }
+
+    // Delete from Firestore (mark as deleted)
+    if (firestoreAvailable && db) {
+      try {
+        await db.collection('accounts').doc(id).update({
+          status: 'deleted',
+          deletedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        console.log(`🗑️  [${id}] Account marked as deleted in Firestore`);
+      } catch (error) {
+        console.error(`❌ [${id}] Error deleting from Firestore:`, error.message);
+        // Continue even if Firestore update fails
+      }
+    }
+
+    // Invalidate cache
+    if (featureFlags.isEnabled('API_CACHING')) {
+      await cache.delete('whatsapp:accounts');
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Account deleted',
+      accountId: id,
+      deletedFromMemory: accountExists,
+      deletedFromFirestore: accountInFirestore,
     });
-
-    res.json({ success: true, message: 'Account deleted' });
   } catch (error) {
+    console.error(`❌ [${req.params.id}] Delete account error:`, error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
