@@ -405,9 +405,15 @@ class WAIntegration {
    */
   startWatchdogs() {
     // Event loop lag watchdog
+    // CRITICAL FIX: Calculate real lag (delta - interval), not just delta
+    // delta = actual time since last check (≈10000ms normally)
+    // lag = real event loop delay beyond interval (>0 only if event loop was blocked)
+    const intervalMs = 10000; // Must match setInterval interval below
+    
     setInterval(() => {
       const now = Date.now();
-      const lag = now - this.lastEventLoopCheck;
+      const delta = now - this.lastEventLoopCheck;
+      const lag = Math.max(0, delta - intervalMs); // Real lag = excess beyond expected interval
       this.lastEventLoopCheck = now;
 
       this.eventLoopLag.push(lag);
@@ -419,13 +425,21 @@ class WAIntegration {
       if (this.eventLoopLag.length >= 30) {
         const sorted = [...this.eventLoopLag].sort((a, b) => a - b);
         const p95 = sorted[Math.floor(sorted.length * 0.95)];
+        const sampleCount = this.eventLoopLag.length;
+        const threshold = 2000;
 
-        if (p95 > 2000) {
-          console.error('[WAIntegration] Event loop lag P95 > 2000ms - triggering shutdown');
+        // Log every check for debugging (helps validate fix in production)
+        if (p95 > 500 || sampleCount % 3 === 0) { // Log if p95 > 500ms OR every 3rd check (reduce noise)
+          console.log(`[WAIntegration] Event loop lag check: delta=${delta}ms, computedLag=${lag}ms, p95=${p95}ms, samples=${sampleCount}`);
+        }
+
+        if (p95 > threshold) {
+          console.error(`[WAIntegration] Event loop lag P95 ${p95}ms > ${threshold}ms threshold - triggering shutdown`);
+          console.error(`[WAIntegration] Event loop lag samples: ${this.eventLoopLag.slice(-10).join(', ')}ms`);
           this.gracefulShutdown('event_loop_stall');
         }
       }
-    }, 10000); // Every 10s
+    }, intervalMs); // Every 10s
 
     // Memory watchdog
     setInterval(() => {
