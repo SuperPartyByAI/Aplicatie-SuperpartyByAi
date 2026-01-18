@@ -1280,23 +1280,27 @@ async function createConnection(accountId, name, phone) {
       }
 
       if (connection === 'close') {
-        const shouldReconnect =
-          lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-        const reason = lastDisconnect?.error?.output?.statusCode || 'unknown';
+        // Normalize reason to number for comparison (can be string or number)
+        const rawReason = lastDisconnect?.error?.output?.statusCode || 'unknown';
+        const reason = typeof rawReason === 'number' ? rawReason : (typeof rawReason === 'string' ? parseInt(rawReason, 10) || 'unknown' : 'unknown');
+        
+        const shouldReconnect = reason !== DisconnectReason.loggedOut;
         const errorMsg = lastDisconnect?.error?.message || 'No error message';
 
         console.log(`🔌 [${accountId}] connection.update: close`);
-        console.log(`🔌 [${accountId}] Reason code: ${reason}, Reconnect: ${shouldReconnect}`);
+        console.log(`🔌 [${accountId}] Reason code: ${reason} (raw: ${rawReason}), Reconnect: ${shouldReconnect}`);
         console.log(`🔌 [${accountId}] Current status: ${account.status}`);
 
         // Define explicit cleanup reasons (only these trigger account deletion)
+        // Ensure we compare numbers consistently
         const EXPLICIT_CLEANUP_REASONS = [
-          DisconnectReason.loggedOut,
+          DisconnectReason.loggedOut, // 401
           DisconnectReason.badSession,
-          DisconnectReason.unauthorized,
+          DisconnectReason.unauthorized, // 401 (alias)
         ];
 
-        const isExplicitCleanup = EXPLICIT_CLEANUP_REASONS.includes(reason);
+        // Normalize comparison: convert reason to number if needed
+        const isExplicitCleanup = typeof reason === 'number' && EXPLICIT_CLEANUP_REASONS.includes(reason);
 
         // CRITICAL: Preserve account during pairing phase
         // Don't delete if: status is pairing-related AND reason is transient (not explicit cleanup)
@@ -2784,7 +2788,11 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
     }
 
     const accounts = [];
+    const accountIdsInMemory = new Set();
+    
+    // First, add accounts from memory (active connections)
     connections.forEach((conn, id) => {
+      accountIdsInMemory.add(id);
       accounts.push({
         id,
         name: conn.name,
@@ -2796,6 +2804,40 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
         lastUpdate: conn.lastUpdate,
       });
     });
+
+    // CRITICAL: Also include accounts from Firestore that are not in memory
+    // This ensures accounts with status 'needs_qr' remain visible after 401 logout
+    if (firestoreAvailable && db) {
+      try {
+        const snapshot = await db.collection('accounts').get();
+        for (const doc of snapshot.docs) {
+          const accountId = doc.id;
+          
+          // Skip if already in memory (already added above)
+          if (accountIdsInMemory.has(accountId)) {
+            continue;
+          }
+          
+          const data = doc.data();
+          
+          // Include all accounts (including needs_qr, logged_out, etc.)
+          // This ensures accounts don't "disappear" from UI after 401
+          accounts.push({
+            id: accountId,
+            name: data.name || accountId,
+            phone: data.phoneE164 || data.phone || null,
+            status: data.status || 'unknown',
+            qrCode: data.qrCode || null,
+            pairingCode: data.pairingCode || null,
+            createdAt: data.createdAt || null,
+            lastUpdate: data.updatedAt || data.lastUpdate || null,
+          });
+        }
+      } catch (error) {
+        console.error('⚠️  Failed to load accounts from Firestore:', error.message);
+        // Continue with in-memory accounts only
+      }
+    }
 
     // Cache if enabled
     if (featureFlags.isEnabled('API_CACHING')) {
@@ -4841,19 +4883,43 @@ async function restoreAccountsFromFirestore() {
 
     console.log(`📦 Found ${snapshot.size} connected accounts in Firestore`);
 
-    // Clean up disk sessions that are NOT in Firestore
-    const connectedAccountIds = new Set(snapshot.docs.map(doc => doc.id));
+    // Clean up disk sessions that are NOT in Firestore (SAFE: move to orphaned folder, don't delete)
+    const allAccountIds = new Set(snapshot.docs.map(doc => doc.id));
     const sessionsDir = path.join(__dirname, 'sessions');
+    const orphanedDir = path.join(sessionsDir, '_orphaned');
 
     if (fs.existsSync(sessionsDir)) {
-      const diskSessions = fs.readdirSync(sessionsDir);
+      const diskSessions = fs.readdirSync(sessionsDir).filter(
+        name => name !== '_orphaned' && !name.startsWith('.')
+      );
       console.log(`🧹 Checking ${diskSessions.length} disk sessions...`);
 
+      // Only delete orphaned sessions if explicitly enabled via env var
+      const ORPHAN_SESSION_DELETE = process.env.ORPHAN_SESSION_DELETE === 'true';
+
       for (const sessionId of diskSessions) {
-        if (!connectedAccountIds.has(sessionId)) {
+        if (!allAccountIds.has(sessionId)) {
           const sessionPath = path.join(sessionsDir, sessionId);
-          console.log(`🗑️  Deleting orphaned session: ${sessionId}`);
-          fs.rmSync(sessionPath, { recursive: true, force: true });
+          
+          if (ORPHAN_SESSION_DELETE) {
+            // Hard delete (only if explicitly enabled)
+            console.log(`🗑️  [ORPHAN_DELETE] Deleting orphaned session: ${sessionId}`);
+            fs.rmSync(sessionPath, { recursive: true, force: true });
+          } else {
+            // Safe move to orphaned folder (default behavior)
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const orphanedPath = path.join(orphanedDir, `${timestamp}_${sessionId}`);
+            
+            try {
+              if (!fs.existsSync(orphanedDir)) {
+                fs.mkdirSync(orphanedDir, { recursive: true });
+              }
+              fs.renameSync(sessionPath, orphanedPath);
+              console.log(`📦 [ORPHAN] Moved orphaned session to _orphaned folder: ${sessionId} -> ${path.basename(orphanedPath)}`);
+            } catch (error) {
+              console.error(`⚠️  Failed to move orphaned session ${sessionId}:`, error.message);
+            }
+          }
         }
       }
     }
