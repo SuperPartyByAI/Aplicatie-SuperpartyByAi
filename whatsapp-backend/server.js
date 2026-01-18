@@ -878,8 +878,63 @@ async function backfillAccountMessages(accountId) {
   }
 }
 
+/**
+ * Clear account session (disk + Firestore backup)
+ * This ensures next pairing starts fresh with no stale credentials
+ * @param {string} accountId - Account ID
+ */
+async function clearAccountSession(accountId) {
+  try {
+    const sessionPath = path.join(authDir, accountId);
+    
+    // Delete disk session directory
+    if (fs.existsSync(sessionPath)) {
+      fs.rmSync(sessionPath, { recursive: true, force: true });
+      console.log(`🗑️  [${accountId}] Session directory deleted: ${sessionPath}`);
+    }
+    
+    // Delete Firestore session backup
+    if (firestoreAvailable && db) {
+      try {
+        await db.collection('wa_sessions').doc(accountId).delete();
+        console.log(`🗑️  [${accountId}] Firestore session backup deleted`);
+      } catch (error) {
+        console.error(`⚠️  [${accountId}] Failed to delete Firestore session backup:`, error.message);
+      }
+    }
+  } catch (error) {
+    console.error(`❌ [${accountId}] Failed to clear session:`, error.message);
+    throw error;
+  }
+}
+
+/**
+ * Check if disconnect reason is terminal (requires re-pairing)
+ * @param {number} reasonCode - Disconnect reason code
+ * @returns {boolean} - true if terminal (401, loggedOut, badSession)
+ */
+function isTerminalLogout(reasonCode) {
+  const TERMINAL_REASONS = [
+    DisconnectReason.loggedOut, // 401
+    DisconnectReason.badSession,
+    DisconnectReason.unauthorized, // 401 (alias)
+  ];
+  return TERMINAL_REASONS.includes(reasonCode);
+}
+
 // Helper: Create WhatsApp connection
 async function createConnection(accountId, name, phone) {
+  // Guard: Do not auto-connect accounts with terminal logout status
+  // These require explicit user action (Regenerate QR)
+  const account = connections.get(accountId);
+  if (account) {
+    const terminalStatuses = ['needs_qr', 'logged_out'];
+    if (terminalStatuses.includes(account.status) || account.requiresQR === true) {
+      console.log(`⏸️  [${accountId}] Account status is ${account.status} (requiresQR: ${account.requiresQR}), skipping auto-connect. Use Regenerate QR endpoint.`);
+      return;
+    }
+  }
+
   // Try to acquire connection lock (prevent duplicate sockets)
   if (!connectionRegistry.tryAcquire(accountId)) {
     console.log(`⚠️  [${accountId}] Connection already in progress, skipping`);
@@ -1218,25 +1273,40 @@ async function createConnection(accountId, name, phone) {
             }, 5000);
           }
         } else {
-          console.log(`❌ [${accountId}] Explicit cleanup (${reason}), deleting account`);
+          // Terminal logout (401/loggedOut/badSession) - requires re-pairing
+          console.log(`❌ [${accountId}] Explicit cleanup (${reason}), terminal logout - clearing session`);
           account.status = 'needs_qr';
+
+          // Clear session (disk + Firestore) to ensure fresh pairing
+          try {
+            await clearAccountSession(accountId);
+          } catch (error) {
+            console.error(`⚠️  [${accountId}] Failed to clear session:`, error.message);
+            // Continue anyway - account will be marked needs_qr
+          }
 
           await saveAccountToFirestore(accountId, {
             status: 'needs_qr',
+            lastError: `logged_out (${reason}) - requires QR re-pair`,
+            requiresQR: true,
+            lastDisconnectReason: reason,
+            lastDisconnectCode: reason,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
           await logIncident(accountId, 'logged_out', {
             reason: reason,
             requiresQR: true,
+            traceId: `${accountId}_${Date.now()}`,
           });
 
-          // Clean up and regenerate
+          // Clean up in-memory connection and release lock
           connections.delete(accountId);
           connectionRegistry.release(accountId);
 
-          setTimeout(() => {
-            createConnection(accountId, account.name, account.phone);
-          }, 5000);
+          // CRITICAL: DO NOT schedule createConnection() for terminal logout
+          // User must explicitly request "Regenerate QR" to re-pair
+          // This prevents infinite reconnect loop with invalid credentials
         }
       }
     });
@@ -2946,13 +3016,34 @@ app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req, 
 app.post('/api/whatsapp/regenerate-qr/:accountId', accountLimiter, async (req, res) => {
   try {
     const { accountId } = req.params;
-    const account = connections.get(accountId);
+    let account = connections.get(accountId);
+    
+    // If not in memory, try to load from Firestore
+    if (!account && firestoreAvailable && db) {
+      try {
+        const accountDoc = await db.collection('accounts').doc(accountId).get();
+        if (accountDoc.exists) {
+          account = { id: accountId, ...accountDoc.data() };
+        }
+      } catch (error) {
+        console.error(`⚠️  [${accountId}] Failed to load account from Firestore:`, error.message);
+      }
+    }
 
     if (!account) {
       return res.status(404).json({ success: false, error: 'Account not found' });
     }
 
-    // Clean up old connection
+    // Clear session to ensure fresh pairing (disk + Firestore)
+    try {
+      await clearAccountSession(accountId);
+      console.log(`🗑️  [${accountId}] Session cleared for QR regeneration`);
+    } catch (error) {
+      console.error(`⚠️  [${accountId}] Failed to clear session during QR regeneration:`, error.message);
+      // Continue anyway - createConnection will handle fresh session
+    }
+
+    // Clean up old connection if exists
     if (account.sock) {
       try {
         account.sock.end();
@@ -2961,14 +3052,25 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', accountLimiter, async (req, r
       }
     }
 
+    // Clean up in-memory state
     connections.delete(accountId);
     reconnectAttempts.delete(accountId);
+    connectionRegistry.release(accountId);
 
-    // Create new connection
+    // Update Firestore status to connecting (will transition to qr_ready)
+    await saveAccountToFirestore(accountId, {
+      status: 'connecting',
+      lastError: null,
+      requiresQR: true,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Create new connection (will generate fresh QR since session is cleared)
     await createConnection(accountId, account.name, account.phone);
 
     res.json({ success: true, message: 'QR regeneration started' });
   } catch (error) {
+    console.error(`❌ Regenerate QR error:`, error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -4149,18 +4251,40 @@ async function restoreAccount(accountId, data) {
             }, 5000);
           }
         } else {
-          console.log(`❌ [${accountId}] Explicit cleanup (${reason}), deleting account`);
+          // Terminal logout (401/loggedOut/badSession) - requires re-pairing
+          console.log(`❌ [${accountId}] Explicit cleanup (${reason}), terminal logout - clearing session`);
           account.status = 'needs_qr';
+
+          // Clear session (disk + Firestore) to ensure fresh pairing
+          try {
+            await clearAccountSession(accountId);
+          } catch (error) {
+            console.error(`⚠️  [${accountId}] Failed to clear session:`, error.message);
+            // Continue anyway - account will be marked needs_qr
+          }
 
           await saveAccountToFirestore(accountId, {
             status: 'needs_qr',
+            lastError: `logged_out (${reason}) - requires QR re-pair`,
+            requiresQR: true,
+            lastDisconnectReason: reason,
+            lastDisconnectCode: reason,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
-          connections.delete(accountId);
+          await logIncident(accountId, 'logged_out', {
+            reason: reason,
+            requiresQR: true,
+            traceId: `${accountId}_${Date.now()}`,
+          });
 
-          setTimeout(() => {
-            createConnection(accountId, account.name, account.phone);
-          }, 5000);
+          // Clean up in-memory connection and release lock
+          connections.delete(accountId);
+          connectionRegistry.release(accountId);
+
+          // CRITICAL: DO NOT schedule createConnection() for terminal logout
+          // User must explicitly request "Regenerate QR" to re-pair
+          // This prevents infinite reconnect loop with invalid credentials
         }
       }
     });
@@ -4453,7 +4577,7 @@ async function restoreAccountsFromFirestore() {
   try {
     console.log('🔄 Restoring accounts from Firestore...');
 
-    // Get ONLY connected accounts (skip dead sessions)
+    // Get ONLY connected accounts (skip dead sessions and terminal logout accounts)
     const snapshot = await db.collection('accounts').where('status', '==', 'connected').get();
 
     console.log(`📦 Found ${snapshot.size} connected accounts in Firestore`);
@@ -4482,6 +4606,13 @@ async function restoreAccountsFromFirestore() {
       const doc = sortedDocs[i];
       const data = doc.data();
       const accountId = doc.id;
+
+      // Guard: Skip terminal logout accounts (require explicit QR regeneration)
+      const terminalStatuses = ['needs_qr', 'logged_out'];
+      if (terminalStatuses.includes(data.status) || data.requiresQR === true) {
+        console.log(`⏸️  [${accountId}] Skipping restore (status: ${data.status}, requiresQR: ${data.requiresQR}) - use Regenerate QR`);
+        continue;
+      }
 
       // Add 2-5s jitter between account restores (staggered boot to avoid rate limiting)
       if (i > 0) {
