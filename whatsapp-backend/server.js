@@ -3370,6 +3370,58 @@ app.post('/admin/force-delete-lock', async (req, res) => {
   }
 });
 
+// Admin-only: Clear ALL wa_sessions from Firestore (for fresh WhatsApp connection)
+app.post('/admin/clear-wa-sessions', async (req, res) => {
+  try {
+    // Check admin token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    console.log(`🗑️  [ADMIN] Clearing all wa_sessions from Firestore...`);
+
+    const sessionsRef = db.collection('wa_sessions');
+    const snapshot = await sessionsRef.get();
+    
+    if (snapshot.empty) {
+      console.log(`ℹ️  No wa_sessions found`);
+      return res.json({
+        success: true,
+        message: 'No wa_sessions found (already clean)',
+        deleted: 0,
+      });
+    }
+
+    const deletePromises = [];
+    snapshot.docs.forEach((doc) => {
+      console.log(`🗑️  Deleting wa_session: ${doc.id}`);
+      deletePromises.push(doc.ref.delete());
+    });
+
+    await Promise.all(deletePromises);
+    console.log(`✅ Deleted ${snapshot.size} wa_sessions`);
+
+    return res.json({
+      success: true,
+      message: `Deleted ${snapshot.size} wa_sessions`,
+      deleted: snapshot.size,
+    });
+  } catch (error) {
+    console.error(`❌ [ADMIN] Error clearing wa_sessions:`, error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Admin-only: Update all thread displayNames from contacts collection
 app.post('/admin/update-display-names', async (req, res) => {
   try {
