@@ -3422,6 +3422,67 @@ app.post('/admin/clear-wa-sessions', async (req, res) => {
   }
 });
 
+// Admin-only: Delete ALL old WhatsApp accounts from Firestore (for fresh start)
+app.post('/admin/delete-all-accounts', async (req, res) => {
+  try {
+    // Check admin token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    console.log(`🗑️  [ADMIN] Deleting ALL accounts from Firestore and memory...`);
+
+    // Delete from memory
+    const memoryAccounts = Array.from(connections.keys());
+    for (const accountId of memoryAccounts) {
+      console.log(`🗑️  Disconnecting memory account: ${accountId}`);
+      const account = connections.get(accountId);
+      if (account?.sock) {
+        try {
+          await account.sock.logout();
+        } catch (e) {
+          // Ignore
+        }
+      }
+      connections.delete(accountId);
+    }
+
+    // Delete from Firestore accounts collection
+    const accountsRef = db.collection('accounts');
+    const accountsSnapshot = await accountsRef.get();
+    
+    const deleteAccountPromises = [];
+    accountsSnapshot.docs.forEach((doc) => {
+      console.log(`🗑️  Deleting Firestore account: ${doc.id}`);
+      deleteAccountPromises.push(doc.ref.delete());
+    });
+
+    await Promise.all(deleteAccountPromises);
+
+    console.log(`✅ Deleted ${memoryAccounts.length} memory accounts, ${accountsSnapshot.size} Firestore accounts`);
+
+    return res.json({
+      success: true,
+      message: `Deleted ${memoryAccounts.length} memory + ${accountsSnapshot.size} Firestore accounts`,
+      memoryDeleted: memoryAccounts.length,
+      firestoreDeleted: accountsSnapshot.size,
+    });
+  } catch (error) {
+    console.error(`❌ [ADMIN] Error deleting accounts:`, error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Admin-only: Update all thread displayNames from contacts collection
 app.post('/admin/update-display-names', async (req, res) => {
   try {
