@@ -3347,6 +3347,134 @@ app.post('/admin/update-display-names', async (req, res) => {
   }
 });
 
+// Admin-only: Remove duplicate threads (keep best one per clientJid)
+app.post('/admin/deduplicate-threads', async (req, res) => {
+  try {
+    // Check admin token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    const { accountId, dryRun = true } = req.body;
+
+    if (!accountId) {
+      return res.status(400).json({ success: false, error: 'accountId is required' });
+    }
+
+    console.log(`🔄 [ADMIN] Deduplicating threads: accountId=${accountId}, dryRun=${dryRun}`);
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    // Get all threads for this account
+    const threadsSnapshot = await db.collection('threads')
+      .where('accountId', '==', accountId)
+      .get();
+
+    console.log(`📊 Found ${threadsSnapshot.size} total threads`);
+
+    // Group threads by clientJid
+    const threadsByJid = new Map();
+    
+    threadsSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const jid = data.clientJid;
+      
+      if (!threadsByJid.has(jid)) {
+        threadsByJid.set(jid, []);
+      }
+      
+      threadsByJid.get(jid).push({
+        id: doc.id,
+        ref: doc.ref,
+        data,
+      });
+    });
+
+    console.log(`📊 Found ${threadsByJid.size} unique JIDs`);
+
+    let processed = 0;
+    let deleted = 0;
+    let kept = 0;
+    const results = [];
+
+    for (const [jid, threads] of threadsByJid.entries()) {
+      if (threads.length <= 1) {
+        kept++;
+        continue; // No duplicates
+      }
+
+      processed++;
+      console.log(`🔍 [${accountId}] Found ${threads.length} duplicates for ${jid.substring(0, 25)}`);
+
+      // Sort threads to pick the best one:
+      // 1. Has displayName (prefer non-null, non-empty)
+      // 2. Has most recent lastMessageAt
+      // 3. Longest id (most recent creation)
+      threads.sort((a, b) => {
+        const aHasName = a.data.displayName && a.data.displayName.trim().length > 0;
+        const bHasName = b.data.displayName && b.data.displayName.trim().length > 0;
+        
+        if (aHasName && !bHasName) return -1;
+        if (!aHasName && bHasName) return 1;
+        
+        const aTime = a.data.lastMessageAt?._seconds || 0;
+        const bTime = b.data.lastMessageAt?._seconds || 0;
+        
+        if (aTime !== bTime) return bTime - aTime;
+        
+        return b.id.localeCompare(a.id);
+      });
+
+      const toKeep = threads[0];
+      const toDelete = threads.slice(1);
+
+      console.log(`  ✅ Keeping: ${toKeep.id.substring(0, 50)} (displayName="${toKeep.data.displayName || 'null'}")`);
+      
+      for (const thread of toDelete) {
+        console.log(`  ❌ Deleting: ${thread.id.substring(0, 50)} (displayName="${thread.data.displayName || 'null'}")`);
+        
+        if (!dryRun) {
+          await thread.ref.delete();
+          deleted++;
+        }
+        
+        results.push({
+          jid: jid.substring(0, 30),
+          deleted: thread.id.substring(0, 50),
+          kept: toKeep.id.substring(0, 50),
+          keptName: toKeep.data.displayName || 'no_name',
+        });
+      }
+      
+      kept++;
+    }
+
+    console.log(`✅ Deduplication complete: processed=${processed}, deleted=${dryRun ? 0 : deleted}, kept=${kept}`);
+
+    return res.json({
+      success: true,
+      dryRun,
+      totalThreads: threadsSnapshot.size,
+      uniqueJids: threadsByJid.size,
+      duplicatesFound: processed,
+      deleted: dryRun ? 0 : deleted,
+      kept,
+      sampleResults: results.slice(0, 20),
+    });
+  } catch (error) {
+    console.error(`❌ Deduplication failed:`, error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Admin-only: Migrate threads to new accountId
 app.post('/admin/migrate-account-id', async (req, res) => {
   try {
