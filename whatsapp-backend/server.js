@@ -799,27 +799,46 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
     // Try to extract display name from message pushName or other sources
     if (msg.pushName) {
       threadData.displayName = msg.pushName;
-    } else if (sock && from.endsWith('@lid')) {
-      // For LID (Lidded IDs), try to fetch contact info from WhatsApp
+    } else {
+      // 📇 Try to find contact name from saved contacts
       try {
-        console.log(`🔍 [${accountId}] Fetching contact info for LID: ${from}`);
-        const [contact] = await sock.onWhatsApp(from);
-        if (contact?.name) {
-          threadData.displayName = contact.name;
-          console.log(`✅ [${accountId}] Found contact name for LID: ${contact.name}`);
-        } else if (contact?.jid && contact.jid !== from) {
-          // Sometimes onWhatsApp returns the real JID
-          threadData.displayName = contact.jid.split('@')[0];
-          console.log(`✅ [${accountId}] Using JID as display name: ${contact.jid}`);
+        const contactRef = db.collection('contacts').doc(`${accountId}__${from}`);
+        const contactDoc = await contactRef.get();
+        if (contactDoc.exists) {
+          const contactData = contactDoc.data();
+          threadData.displayName = contactData.name || contactData.notify || contactData.verifiedName || null;
+          if (threadData.displayName) {
+            console.log(`📇 [${accountId}] Found contact name from Firestore: ${threadData.displayName}`);
+          }
         }
       } catch (e) {
-        console.log(`⚠️  [${accountId}] Could not fetch contact info for LID: ${e.message}`);
+        console.log(`⚠️  [${accountId}] Could not fetch contact from Firestore: ${e.message}`);
       }
-    } else {
-      // For other cases without pushName, try verifiedBizName or participant
-      const contactName = msg.verifiedBizName || msg.key.participant || null;
-      if (contactName && contactName !== from) {
-        threadData.displayName = contactName;
+      
+      // If still no name and it's a LID, try sock.onWhatsApp()
+      if (!threadData.displayName && sock && from.endsWith('@lid')) {
+        try {
+          console.log(`🔍 [${accountId}] Fetching contact info for LID: ${from}`);
+          const [contact] = await sock.onWhatsApp(from);
+          if (contact?.name) {
+            threadData.displayName = contact.name;
+            console.log(`✅ [${accountId}] Found contact name for LID: ${contact.name}`);
+          } else if (contact?.jid && contact.jid !== from) {
+            // Sometimes onWhatsApp returns the real JID
+            threadData.displayName = contact.jid.split('@')[0];
+            console.log(`✅ [${accountId}] Using JID as display name: ${contact.jid}`);
+          }
+        } catch (e) {
+          console.log(`⚠️  [${accountId}] Could not fetch contact info for LID: ${e.message}`);
+        }
+      }
+      
+      // Final fallback: verifiedBizName or participant
+      if (!threadData.displayName) {
+        const contactName = msg.verifiedBizName || msg.key.participant || null;
+        if (contactName && contactName !== from) {
+          threadData.displayName = contactName;
+        }
       }
       // If still no displayName, leave it empty - Flutter will show formatted phone
     }
@@ -1015,6 +1034,74 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
   }
 
   return { saved, skipped, errors };
+}
+
+// Helper: Save contacts to Firestore
+async function saveContactsBatch(accountId, contacts) {
+  if (!firestoreAvailable || !db) {
+    return { saved: 0, errors: 0 };
+  }
+
+  if (HISTORY_SYNC_DRY_RUN) {
+    console.log(`🧪 [${accountId}] DRY RUN: Would save ${contacts.length} contacts`);
+    return { saved: 0, errors: 0, dryRun: true };
+  }
+
+  let contactsList = [];
+  if (Array.isArray(contacts)) {
+    contactsList = contacts;
+  } else if (typeof contacts === 'object') {
+    contactsList = Object.values(contacts);
+  }
+
+  if (contactsList.length === 0) {
+    return { saved: 0, errors: 0 };
+  }
+
+  console.log(`📇 [${accountId}] Saving ${contactsList.length} contacts to Firestore...`);
+
+  const BATCH_SIZE = 500;
+  let saved = 0;
+  let errors = 0;
+
+  for (let i = 0; i < contactsList.length; i += BATCH_SIZE) {
+    const batch = db.batch();
+    const batchContacts = contactsList.slice(i, i + BATCH_SIZE);
+
+    for (const contact of batchContacts) {
+      try {
+        if (!contact.id) continue;
+
+        const contactRef = db.collection('contacts').doc(`${accountId}__${contact.id}`);
+        batch.set(contactRef, {
+          accountId,
+          jid: contact.id,
+          name: contact.name || contact.notify || null,
+          notify: contact.notify || null,
+          verifiedName: contact.verifiedName || null,
+          imgUrl: contact.imgUrl || null,
+          status: contact.status || null,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        saved++;
+      } catch (error) {
+        console.error(`❌ [${accountId}] Failed to add contact ${contact.id} to batch:`, error.message);
+        errors++;
+      }
+    }
+
+    try {
+      await batch.commit();
+      console.log(`📇 [${accountId}] Contacts batch committed: ${saved}/${contactsList.length}`);
+    } catch (error) {
+      console.error(`❌ [${accountId}] Failed to commit contacts batch:`, error.message);
+      errors += batchContacts.length;
+    }
+  }
+
+  console.log(`✅ [${accountId}] Saved ${saved} contacts (${errors} errors)`);
+  return { saved, errors };
 }
 
 // Helper: Backfill messages for an account (best-effort gap filling after reconnect)
@@ -2201,6 +2288,11 @@ async function createConnection(accountId, name, phone) {
         // Optionally save chats metadata (for future reference)
         if (historyChats.length > 0 && !HISTORY_SYNC_DRY_RUN) {
           console.log(`📚 [${accountId}] History sync: ${historyChats.length} chats found (metadata only, not persisted separately)`);
+        }
+
+        // 📇 Save contacts to Firestore
+        if (contacts) {
+          await saveContactsBatch(accountId, contacts);
         }
 
       } catch (error) {
@@ -6386,6 +6478,11 @@ async function restoreAccount(accountId, data) {
         // Optionally save chats metadata (for future reference)
         if (historyChats.length > 0 && !HISTORY_SYNC_DRY_RUN) {
           console.log(`📚 [${accountId}] History sync: ${historyChats.length} chats found (metadata only, not persisted separately)`);
+        }
+
+        // 📇 Save contacts to Firestore
+        if (contacts) {
+          await saveContactsBatch(accountId, contacts);
         }
 
       } catch (error) {
