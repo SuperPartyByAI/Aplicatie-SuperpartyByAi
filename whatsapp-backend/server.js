@@ -4707,6 +4707,99 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
   }
 });
 
+// Get unified inbox - all messages from all threads in chronological order
+app.get('/api/whatsapp/inbox/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const { limit = 100 } = req.query;
+
+    if (!firestoreAvailable || !db) {
+      return res.status(503).json({ success: false, error: 'Firestore not available' });
+    }
+
+    // Get account phone number to exclude self-conversation
+    let accountPhone = null;
+    const account = connections.get(accountId);
+    if (account && account.phone) {
+      accountPhone = account.phone.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+    } else if (firestoreAvailable && db) {
+      try {
+        const accountDoc = await db.collection('accounts').doc(accountId).get();
+        if (accountDoc.exists) {
+          const accountData = accountDoc.data();
+          if (accountData.phone) {
+            accountPhone = accountData.phone.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+          }
+        }
+      } catch (err) {
+        // Ignore
+      }
+    }
+
+    // Get all threads for this account (excluding self-conversation)
+    let threadsQuery = db.collection('threads').where('accountId', '==', accountId);
+    const threadsSnapshot = await threadsQuery.get();
+
+    // Collect all messages from all threads
+    const allMessages = [];
+
+    for (const threadDoc of threadsSnapshot.docs) {
+      const threadId = threadDoc.id;
+      const threadData = threadDoc.data();
+
+      // Skip self-conversation
+      if (accountPhone && threadData.clientJid === accountPhone) {
+        continue;
+      }
+
+      // Get messages from this thread
+      try {
+        const messagesSnapshot = await db
+          .collection('threads')
+          .doc(threadId)
+          .collection('messages')
+          .orderBy('tsServer', 'desc')
+          .limit(parseInt(limit))
+          .get();
+
+        messagesSnapshot.forEach(msgDoc => {
+          const msgData = msgDoc.data();
+          allMessages.push({
+            messageId: msgDoc.id,
+            threadId: threadId,
+            clientJid: threadData.clientJid,
+            displayName: threadData.displayName || threadData.clientJid.split('@')[0],
+            contactType: threadData.clientJid.includes('@g.us') ? 'group' : 
+                        threadData.clientJid.includes('@lid') ? 'linked_device' : 'phone',
+            ...msgData,
+          });
+        });
+      } catch (err) {
+        console.error(`❌ [${accountId}] Error fetching messages from thread ${threadId}:`, err.message);
+      }
+    }
+
+    // Sort all messages by timestamp (most recent first)
+    allMessages.sort((a, b) => {
+      const timeA = a.tsServer?._seconds || a.createdAt?._seconds || 0;
+      const timeB = b.tsServer?._seconds || b.createdAt?._seconds || 0;
+      return timeB - timeA; // Descending (newest first)
+    });
+
+    // Limit to requested number
+    const limitedMessages = allMessages.slice(0, parseInt(limit));
+
+    res.json({ 
+      success: true, 
+      messages: limitedMessages,
+      count: limitedMessages.length,
+      totalMessages: allMessages.length,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get messages for a specific thread
 app.get('/api/whatsapp/messages/:accountId/:threadId', async (req, res) => {
   try {
