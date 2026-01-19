@@ -793,7 +793,8 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       accountId,
       clientJid: from,
       lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-      lastMessagePreview: body.substring(0, 100), // First 100 chars
+      lastMessageText: body.substring(0, 100), // For display in inbox
+      lastMessagePreview: body.substring(0, 100), // Legacy field (keep for compatibility)
     };
 
     // Try to extract display name from message pushName or other sources
