@@ -922,7 +922,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     final pairingCode = account['pairingCode'] as String?;
 
     final statusColor = _getStatusColor(status);
-    final showQr = status == 'qr_ready' && qrCode != null;
+    final showQr = (status == 'qr_ready' || status == 'connecting') && qrCode != null;
     // When showQr is true, qrCode is guaranteed non-null
     final qrCodeData = qrCode ?? '';
 
