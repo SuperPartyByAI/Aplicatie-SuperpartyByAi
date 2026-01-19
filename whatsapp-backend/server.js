@@ -3247,6 +3247,163 @@ app.post('/admin/force-delete-lock', async (req, res) => {
   }
 });
 
+// Admin-only: Fetch contacts for LID threads and update display names
+app.post('/admin/fetch-lid-contacts', async (req, res) => {
+  try {
+    // Check admin token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    const dryRun = req.body.dryRun !== false; // Default to dry run
+    const accountFilter = req.body.accountId || null;
+
+    console.log(`🔍 [ADMIN] Fetching LID contacts: dryRun=${dryRun}, accountFilter=${accountFilter}`);
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    // Get all threads with LID jids
+    let threadsQuery = db.collection('threads').where('clientJid', '>=', '@lid').where('clientJid', '<=', '@lid\uf8ff');
+    
+    if (accountFilter) {
+      threadsQuery = threadsQuery.where('accountId', '==', accountFilter);
+    }
+
+    const threadsSnapshot = await threadsQuery.limit(100).get();
+    
+    if (threadsSnapshot.empty) {
+      return res.json({
+        success: true,
+        message: 'No LID threads found',
+        processed: 0,
+        updated: 0,
+      });
+    }
+
+    console.log(`📇 Found ${threadsSnapshot.size} LID threads to process`);
+
+    let processed = 0;
+    let updated = 0;
+    let skipped = 0;
+    let errors = 0;
+    const results = [];
+
+    for (const threadDoc of threadsSnapshot.docs) {
+      const threadData = threadDoc.data();
+      const threadId = threadDoc.id;
+      const accountId = threadData.accountId;
+      const clientJid = threadData.clientJid;
+
+      processed++;
+
+      try {
+        // Get active connection for this account
+        const connection = connections.get(accountId);
+        if (!connection || !connection.sock) {
+          console.log(`⚠️  [${accountId}] No active connection, skipping`);
+          skipped++;
+          results.push({
+            threadId: threadId.substring(0, 50),
+            clientJid,
+            action: 'skipped_no_connection',
+          });
+          continue;
+        }
+
+        const sock = connection.sock;
+
+        // Try to fetch contact info via onWhatsApp
+        let contactName = null;
+        try {
+          console.log(`🔍 [${accountId}] Fetching contact for ${clientJid}`);
+          const [contact] = await sock.onWhatsApp(clientJid);
+          
+          if (contact?.name) {
+            contactName = contact.name;
+          } else if (contact?.notify) {
+            contactName = contact.notify;
+          } else if (contact?.verifiedName) {
+            contactName = contact.verifiedName;
+          } else if (contact?.jid && contact.jid !== clientJid) {
+            // Use real JID as fallback
+            contactName = contact.jid.split('@')[0];
+          }
+        } catch (e) {
+          console.log(`⚠️  [${accountId}] onWhatsApp failed for ${clientJid}: ${e.message}`);
+        }
+
+        if (contactName) {
+          console.log(`✅ [${accountId}] Found contact name: ${contactName}`);
+
+          if (!dryRun) {
+            // Update thread with display name
+            await db.collection('threads').doc(threadId).update({
+              displayName: contactName,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+            // Save contact to contacts collection
+            await db.collection('contacts').doc(`${accountId}__${clientJid}`).set({
+              accountId,
+              jid: clientJid,
+              name: contactName,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+          }
+
+          updated++;
+          results.push({
+            threadId: threadId.substring(0, 50),
+            clientJid,
+            action: 'updated',
+            contactName,
+          });
+        } else {
+          skipped++;
+          results.push({
+            threadId: threadId.substring(0, 50),
+            clientJid,
+            action: 'skipped_no_name',
+          });
+        }
+      } catch (error) {
+        console.error(`❌ [${accountId}] Error processing ${threadId}:`, error.message);
+        errors++;
+        results.push({
+          threadId: threadId.substring(0, 50),
+          clientJid,
+          error: error.message,
+          action: 'error',
+        });
+      }
+    }
+
+    const summary = {
+      success: true,
+      dryRun,
+      processed,
+      updated,
+      skipped,
+      errors,
+      sampleResults: results.slice(0, 20),
+    };
+
+    console.log(`📊 Fetch LID contacts summary:`, summary);
+    return res.json(summary);
+  } catch (error) {
+    console.error(`❌ Fetch LID contacts failed:`, error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Health endpoint - SIMPLE liveness check (ALWAYS returns 200)
 // Railway/K8s healthcheck uses this - MUST be fast and never fail
 // Use /ready for readiness (active/passive mode), /health/detailed for comprehensive status
