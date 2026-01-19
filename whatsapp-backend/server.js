@@ -1031,8 +1031,6 @@ function isTerminalLogout(reasonCode) {
 
 // Helper: Create WhatsApp connection
 async function createConnection(accountId, name, phone) {
-  console.log(`🔍 [DEBUG] createConnection ENTRY - accountId: ${accountId}, name: ${name}, phone: ${phone || 'N/A'}`);
-  
   // HARD GATE: PASSIVE mode - do NOT start Baileys connections
   if (!waBootstrap.canStartBaileys()) {
     const status = await waBootstrap.getWAStatus();
@@ -1407,7 +1405,6 @@ async function createConnection(accountId, name, phone) {
         }
 
         try {
-          console.log(`🔍 [DEBUG] QR generation #1 - accountId: ${accountId}, qrType: ${typeof qr}, qrLength: ${qr?.length}, qrIsNull: ${qr===null}`);
           const qrDataURL = await Sentry.startSpan(
             { op: 'whatsapp.qr.generate', name: 'Generate QR Code' },
             () => QRCode.toDataURL(qr)
@@ -3656,8 +3653,19 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
     }
 
     // Generate deterministic accountId based on canonicalized phone number
-    const canonicalPhoneNum = canonicalPhone(phone);
-    const accountId = generateAccountId(canonicalPhoneNum);
+    // If no phone provided, generate random ID
+    let accountId;
+    let canonicalPhoneNum = null;
+    
+    if (phone) {
+      canonicalPhoneNum = canonicalPhone(phone);
+      accountId = generateAccountId(canonicalPhoneNum);
+    } else {
+      // No phone provided - generate random ID for QR-only accounts
+      const randomId = crypto.randomBytes(16).toString('hex');
+      const namespace = process.env.ACCOUNT_NAMESPACE || 'prod';
+      accountId = `account_${namespace}_${randomId}`;
+    }
 
     // Check for duplicate phone number and disconnect old session
     if (phone) {
@@ -3754,7 +3762,6 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
 
     // Create connection (async, will emit QR later)
     createConnection(accountId, name, phone).catch(err => {
-      console.error(`🔍 [DEBUG] createConnection FAILED - accountId: ${accountId}, error: ${err.message}, stack: ${err.stack?.substring(0,500)}`);
       console.error(`❌ [${accountId}] Failed to create:`, err.message);
       Sentry.captureException(err, {
         tags: { accountId, operation: 'create_connection', requestId },
@@ -3763,7 +3770,6 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
     });
 
     // Return immediately with connecting status + instance info
-    console.log(`🔍 [DEBUG] POST /add-account RESPONSE - accountId: ${accountId}, status: connecting`);
     res.json({
       success: true,
       account: {
@@ -3780,7 +3786,6 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
       requestId: requestId,
     });
   } catch (error) {
-    console.error(`🔍 [DEBUG] POST /add-account ERROR - error: ${error.message}, stack: ${error.stack?.substring(0,800)}`);
     Sentry.captureException(error, {
       tags: { endpoint: 'add-account' },
       extra: { body: req.body },
@@ -4261,13 +4266,6 @@ app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) =
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
-});
-
-// INSTRUMENTATION: Track add-account flow
-app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
-  console.log(`🔍 [DEBUG] POST /add-account ENTRY - body:`, JSON.stringify(req.body), `connectionsSize: ${connections.size}`);
-  
-  // Original handler follows...
 });
 
 // Send message
@@ -5534,7 +5532,6 @@ async function restoreAccount(accountId, data) {
         }
 
         try {
-          console.log(`🔍 [DEBUG] QR generation #2 (restore) - accountId: ${accountId}, qrType: ${typeof qr}, qrLength: ${qr?.length}`);
           const qrDataURL = await QRCode.toDataURL(qr);
           // IMPORTANT: Get account from connections map to ensure latest state
           const currentAccountRestoreSave = connections.get(accountId);
@@ -6723,7 +6720,6 @@ app.get('/api/status/dashboard', async (req, res) => {
       // Include QR code only if needsQR is true (and qr is not null/empty)
       if (account.qr && typeof account.qr === 'string' && account.qr.length > 0) {
         try {
-          console.log(`🔍 [DEBUG] QR generation #3 (status endpoint) - accountId: ${accountId}, qrType: ${typeof account.qr}, qrLength: ${account.qr?.length}`);
           accountData.qrCode = await QRCode.toDataURL(account.qr);
         } catch (err) {
           console.error(`❌ [${accountId}] QR code generation failed:`, err.message);
