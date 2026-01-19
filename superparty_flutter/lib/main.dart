@@ -83,6 +83,13 @@ void main() async {
     try {
       debugPrint('[Main] Initializing push notifications...');
       await PushNotificationService.initialize();
+      
+      // Set up navigation callback for notification taps
+      PushNotificationService.onMessageTap = (accountId, threadId, clientJid) {
+        debugPrint('[Main] Notification tapped: accountId=$accountId, threadId=$threadId');
+        // Navigation will be handled by AppRouter's listener after app is running
+      };
+      
       debugPrint('[Main] ✅ Push notifications initialized');
     } catch (e) {
       debugPrint('[Main] ⚠️ Push notification init error (non-critical): $e');
