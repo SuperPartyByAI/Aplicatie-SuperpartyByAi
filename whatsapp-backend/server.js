@@ -1353,9 +1353,17 @@ async function createConnection(accountId, name, phone) {
     sock.ev.on('connection.update', async update => {
       const { connection, lastDisconnect, qr } = update;
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1353',message:'connection.update event received',data:{accountId,connection:connection||'null',hasQr:!!qr,hasLastDisconnect:!!lastDisconnect,updateKeys:Object.keys(update)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+
       console.log(`🔔 [${accountId}] Connection update: ${connection || 'qr'}`);
 
       if (qr) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1358',message:'QR code detected in update',data:{accountId,qrLength:qr.length,currentStatus:account.status,sessionId:account.sessionId||'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
+        
         console.log(`📱 [${accountId}] QR Code generated (length: ${qr.length}, sessionId: ${account.sessionId || 'unknown'})`);
 
         // CRITICAL: Set status to 'qr_ready' IMMEDIATELY when QR is detected
@@ -1444,6 +1452,10 @@ async function createConnection(accountId, name, phone) {
       }
 
       if (connection === 'open') {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1446',message:'connection.open handler ENTRY',data:{accountId,currentStatus:account.status,hasSock:!!account.sock,hasUser:!!account.sock?.user,userId:account.sock?.user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+
         console.log(`✅ [${accountId}] connection.update: open (sessionId: ${account.sessionId || 'unknown'})`);
         console.log(`✅ [${accountId}] Connected! Session persisted at: ${sessionPath}`);
         
@@ -1465,11 +1477,20 @@ async function createConnection(accountId, name, phone) {
 
         // Mark connection as established in registry
         connectionRegistry.markConnected(accountId);
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1467',message:'BEFORE status change to connected',data:{accountId,oldStatus:account.status,hasSock:!!account.sock,hasUser:!!account.sock?.user,userId:account.sock?.user?.id,phoneFromSock:sock.user?.id?.split(':')[0]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+        
         account.status = 'connected';
         account.qrCode = null;
         account.phone = sock.user?.id?.split(':')[0] || phone;
         account.waJid = sock.user?.id;
         account.lastUpdate = new Date().toISOString();
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1473',message:'AFTER status change to connected',data:{accountId,newStatus:account.status,phone:account.phone,waJid:account.waJid,lastUpdate:account.lastUpdate},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
 
         // Reset reconnect attempts
         reconnectAttempts.delete(accountId);
@@ -1481,6 +1502,10 @@ async function createConnection(accountId, name, phone) {
         }
 
         // Save to Firestore
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1484',message:'BEFORE Firestore save',data:{accountId,status:account.status,waJid:account.waJid,phone:account.phone},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
+        
         await saveAccountToFirestore(accountId, {
           status: 'connected',
           waJid: account.waJid,
@@ -1488,6 +1513,10 @@ async function createConnection(accountId, name, phone) {
           lastConnectedAt: admin.firestore.FieldValue.serverTimestamp(),
           qrCode: null,
         });
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1490',message:'AFTER Firestore save',data:{accountId,status:account.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
 
         // Schedule backfill after connection is established (best-effort gap filling)
         // Use jitter to avoid hitting all 30 accounts at once
