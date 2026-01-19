@@ -118,6 +118,28 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
         
         try {
           final response = await _apiService.getThreads(accountId: accountId);
+          
+          // #region agent log
+          try {
+            final http = await HttpClient().postUrl(Uri.parse('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591'));
+            http.headers.set('Content-Type', 'application/json');
+            http.write(jsonEncode({
+              'location': 'whatsapp_inbox_screen.dart:120',
+              'message': 'getThreads response',
+              'data': {
+                'accountId': accountId.substring(0, 30),
+                'success': response['success'],
+                'threadsCount': (response['threads'] as List<dynamic>?)?.length ?? 0,
+                'hasError': response['error'] != null
+              },
+              'timestamp': DateTime.now().millisecondsSinceEpoch,
+              'sessionId': 'debug-session',
+              'hypothesisId': 'H7-H8'
+            }));
+            await http.close();
+          } catch (_) {}
+          // #endregion
+          
           if (response['success'] == true) {
             final threads = (response['threads'] as List<dynamic>? ?? [])
                 .cast<Map<String, dynamic>>();
@@ -138,6 +160,28 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
 
       final allThreadsLists = await Future.wait(futures);
       final allThreads = allThreadsLists.expand((list) => list).toList();
+      
+      // #region agent log
+      try {
+        final http = await HttpClient().postUrl(Uri.parse('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591'));
+        http.headers.set('Content-Type', 'application/json');
+        http.write(jsonEncode({
+          'location': 'whatsapp_inbox_screen.dart:140',
+          'message': '_loadThreads got threads',
+          'data': {
+            'connectedAccountsCount': connectedAccounts.length,
+            'threadsListsCount': allThreadsLists.length,
+            'totalThreads': allThreads.length,
+            'accountIds': connectedAccounts.map((a) => (a['id'] as String?)?.substring(0, 30)).toList(),
+            'threadsPerAccount': allThreadsLists.map((list) => list.length).toList()
+          },
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'sessionId': 'debug-session',
+          'hypothesisId': 'H7-H8-H10'
+        }));
+        await http.close();
+      } catch (_) {}
+      // #endregion
       
       // Sort by lastMessageAt (most recent first)
       allThreads.sort((a, b) {

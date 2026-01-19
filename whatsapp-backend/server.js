@@ -5708,6 +5708,24 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
     const { accountId } = req.params;
     const { limit = 50, orderBy = 'lastMessageAt' } = req.query;
 
+    // #region agent log
+    const fs = require('fs');
+    const logPath = '/Users/universparty/.cursor/debug.log';
+    const logEntry1 = JSON.stringify({
+      location: 'server.js:5706',
+      message: 'GET /threads/:accountId called',
+      data: {
+        accountId: accountId.substring(0, 30),
+        limit: limit,
+        orderBy: orderBy
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      hypothesisId: 'H7-H9'
+    }) + '\n';
+    try { fs.appendFileSync(logPath, logEntry1); } catch (e) {}
+    // #endregion
+
     if (!firestoreAvailable || !db) {
       return res.status(503).json({ success: false, error: 'Firestore not available' });
     }
@@ -5831,6 +5849,24 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
         console.error(`❌ [${accountId}] Some thread migrations failed:`, err.message);
       });
     }
+
+    // #region agent log
+    const logEntry2 = JSON.stringify({
+      location: 'server.js:5835',
+      message: 'GET /threads/:accountId response',
+      data: {
+        accountId: accountId.substring(0, 30),
+        threadsCount: threads.length,
+        snapshotSize: threadsSnapshot.size,
+        skippedSelf: accountPhone ? 1 : 0,
+        firstThreadIds: threads.slice(0, 3).map(t => t.id.substring(0, 40))
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      hypothesisId: 'H9'
+    }) + '\n';
+    try { fs.appendFileSync(logPath, logEntry2); } catch (e) {}
+    // #endregion
 
     res.json({ success: true, threads, count: threads.length });
   } catch (error) {
