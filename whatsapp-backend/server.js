@@ -4592,9 +4592,34 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
     const threads = [];
     const migrationPromises = [];
 
+    // Get account phone number to exclude self-conversation
+    let accountPhone = null;
+    const account = connections.get(accountId);
+    if (account && account.phone) {
+      accountPhone = account.phone.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+    } else if (firestoreAvailable && db) {
+      // Try to get from Firestore if not in memory
+      try {
+        const accountDoc = await db.collection('accounts').doc(accountId).get();
+        if (accountDoc.exists) {
+          const accountData = accountDoc.data();
+          if (accountData.phone) {
+            accountPhone = accountData.phone.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+          }
+        }
+      } catch (err) {
+        // Ignore error, will just not filter self-conversation
+      }
+    }
+
     for (const doc of threadsSnapshot.docs) {
       const threadId = doc.id;
       const threadData = doc.data();
+      
+      // Skip self-conversation (conversation with own phone number)
+      if (accountPhone && threadData.clientJid === accountPhone) {
+        continue; // Skip this thread
+      }
       
       // Check if thread uses old format (doesn't start with accountId__)
       if (!threadId.startsWith(`${accountId}__`) && threadData.clientJid) {
