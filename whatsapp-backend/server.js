@@ -4665,13 +4665,9 @@ app.get('/api/whatsapp/messages', async (req, res) => {
 
 // Delete account
 app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
-  console.log(`🔍 [DEBUG-DELETE] Entry - accountId: ${req.params.id}, hasAuth: ${!!req.headers.authorization}`);
-  
   try {
     const { id } = req.params;
     const account = connections.get(id);
-
-    console.log(`🔍 [DEBUG-DELETE] Account lookup - accountId: ${id}, inMemory: ${!!account}, connectionsSize: ${connections.size}`);
 
     // Check if account exists in memory OR Firestore
     let accountExists = !!account;
@@ -4687,8 +4683,6 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
           const data = accountDoc.data();
           accountStatus = data.status;
           
-          console.log(`🔍 [DEBUG-DELETE] Found in Firestore - accountId: ${id}, status: ${accountStatus}`);
-          
           // Don't delete if already deleted
           if (data.status === 'deleted') {
             return res.status(404).json({ 
@@ -4699,7 +4693,6 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
           }
         }
       } catch (error) {
-        console.error(`🔍 [DEBUG-DELETE] Firestore check error - accountId: ${id}, error: ${error.message}, code: ${error.code}`);
         console.error(`❌ [${id}] Error checking Firestore:`, error.message);
       }
     } else if (account) {
@@ -4737,10 +4730,8 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
     if (account) {
       if (account.sock) {
         try {
-          console.log(`🔍 [DEBUG-DELETE] Closing socket - accountId: ${id}`);
           account.sock.end();
         } catch (e) {
-          console.error(`🔍 [DEBUG-DELETE] Socket close error - accountId: ${id}, error: ${e.message}`);
           // Ignore
         }
       }
@@ -4753,17 +4744,13 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
     // Delete from Firestore (mark as deleted)
     if (firestoreAvailable && db) {
       try {
-        console.log(`🔍 [DEBUG-DELETE] Updating Firestore BEFORE - accountId: ${id}, accountInFirestore: ${accountInFirestore}, accountStatus: ${accountStatus}`);
-        
         await db.collection('accounts').doc(id).update({
           status: 'deleted',
           deletedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         
-        console.log(`🔍 [DEBUG-DELETE] Firestore updated SUCCESS - accountId: ${id}`);
         console.log(`🗑️  [${id}] Account marked as deleted in Firestore (status was: ${accountStatus || 'unknown'})`);
       } catch (error) {
-        console.error(`🔍 [DEBUG-DELETE] Firestore update FAILED - accountId: ${id}, error: ${error.message}, code: ${error.code}`);
         console.error(`❌ [${id}] Error deleting from Firestore:`, error.message);
         // Continue even if Firestore update fails
       }
@@ -4783,7 +4770,6 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
       status: accountStatus,
     });
   } catch (error) {
-    console.error(`🔍 [DEBUG-DELETE] CATCH BLOCK - ERROR 500 - accountId: ${req.params.id}, error: ${error.message}, code: ${error.code}, stack: ${error.stack?.substring(0,300)}`);
     console.error(`❌ [${req.params.id}] Delete account error:`, error);
     res.status(500).json({ success: false, error: error.message });
   }
