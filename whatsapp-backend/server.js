@@ -1359,7 +1359,7 @@ async function createConnection(accountId, name, phone) {
 
       console.log(`🔔 [${accountId}] Connection update: ${connection || 'qr'}`);
 
-      if (qr) {
+      if (qr && typeof qr === 'string' && qr.length > 0) {
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1358',message:'QR code detected in update',data:{accountId,qrLength:qr.length,currentStatus:account.status,sessionId:account.sessionId||'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
         // #endregion
@@ -5491,7 +5491,7 @@ async function restoreAccount(accountId, data) {
 
       console.log(`🔔 [${accountId}] Connection update: ${connection || 'qr'}`);
 
-      if (qr) {
+      if (qr && typeof qr === 'string' && qr.length > 0) {
         console.log(`📱 [${accountId}] QR Code generated (length: ${qr.length})`);
 
         // CRITICAL: Clear connecting timeout when QR is generated (same as createConnection)
