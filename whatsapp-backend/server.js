@@ -3247,6 +3247,106 @@ app.post('/admin/force-delete-lock', async (req, res) => {
   }
 });
 
+// Admin-only: Update all thread displayNames from contacts collection
+app.post('/admin/update-display-names', async (req, res) => {
+  try {
+    // Check admin token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    const { accountId, dryRun = true } = req.body;
+
+    if (!accountId) {
+      return res.status(400).json({ success: false, error: 'accountId is required' });
+    }
+
+    console.log(`🔄 [ADMIN] Updating display names from contacts: accountId=${accountId}, dryRun=${dryRun}`);
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    // Get all threads for this account
+    const threadsSnapshot = await db.collection('threads')
+      .where('accountId', '==', accountId)
+      .limit(500)
+      .get();
+
+    console.log(`📊 Found ${threadsSnapshot.size} threads to process`);
+
+    let processed = 0;
+    let updated = 0;
+    let skipped = 0;
+    let errors = 0;
+    const results = [];
+
+    for (const threadDoc of threadsSnapshot.docs) {
+      const threadData = threadDoc.data();
+      const clientJid = threadData.clientJid;
+      processed++;
+
+      try {
+        // Look up contact
+        const contactRef = db.collection('contacts').doc(`${accountId}__${clientJid}`);
+        const contactDoc = await contactRef.get();
+
+        if (contactDoc.exists) {
+          const contactData = contactDoc.data();
+          const newDisplayName = contactData.name || contactData.notify || contactData.verifiedName || null;
+
+          if (newDisplayName && newDisplayName !== threadData.displayName) {
+            console.log(`✅ [${accountId}] Update thread ${clientJid.substring(0, 20)}: "${threadData.displayName}" -> "${newDisplayName}"`);
+
+            if (!dryRun) {
+              await threadDoc.ref.update({
+                displayName: newDisplayName,
+                displayNameUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            }
+
+            updated++;
+            results.push({
+              clientJid: clientJid.substring(0, 30),
+              oldName: threadData.displayName || 'no_name',
+              newName: newDisplayName,
+              action: dryRun ? 'would_update' : 'updated',
+            });
+          } else {
+            skipped++;
+          }
+        } else {
+          skipped++;
+        }
+      } catch (error) {
+        console.error(`❌ [${accountId}] Error processing thread ${clientJid}:`, error.message);
+        errors++;
+      }
+    }
+
+    console.log(`✅ Display names update complete: processed=${processed}, updated=${updated}, skipped=${skipped}, errors=${errors}`);
+
+    return res.json({
+      success: true,
+      dryRun,
+      processed,
+      updated,
+      skipped,
+      errors,
+      sampleResults: results.slice(0, 20),
+    });
+  } catch (error) {
+    console.error(`❌ Update display names failed:`, error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Admin-only: Migrate threads to new accountId
 app.post('/admin/migrate-account-id', async (req, res) => {
   try {
