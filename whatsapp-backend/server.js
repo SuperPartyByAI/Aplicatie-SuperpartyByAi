@@ -700,20 +700,46 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false) {
     if (msg.message.conversation) {
       body = msg.message.conversation;
       messageType = 'text';
+      if (!isFromHistory) {
+        console.log(`📝 [${accountId}] Extracted conversation text (length: ${body.length})`);
+      }
     } else if (msg.message.extendedTextMessage?.text) {
       body = msg.message.extendedTextMessage.text;
       messageType = 'text';
+      if (!isFromHistory) {
+        console.log(`📝 [${accountId}] Extracted extendedTextMessage text (length: ${body.length})`);
+      }
     } else if (msg.message.imageMessage) {
       body = msg.message.imageMessage.caption || '';
       messageType = 'image';
+      if (!isFromHistory) {
+        console.log(`🖼️  [${accountId}] Extracted image caption (length: ${body.length})`);
+      }
     } else if (msg.message.videoMessage) {
       body = msg.message.videoMessage.caption || '';
       messageType = 'video';
+      if (!isFromHistory) {
+        console.log(`🎥 [${accountId}] Extracted video caption (length: ${body.length})`);
+      }
     } else if (msg.message.audioMessage) {
       messageType = 'audio';
+      if (!isFromHistory) {
+        console.log(`🎵 [${accountId}] Audio message (no caption)`);
+      }
     } else if (msg.message.documentMessage) {
       body = msg.message.documentMessage.caption || '';
       messageType = 'document';
+      if (!isFromHistory) {
+        console.log(`📄 [${accountId}] Extracted document caption (length: ${body.length})`);
+      }
+    } else {
+      // Protocol messages or other types without text content
+      if (!isFromHistory) {
+        const messageKeys = Object.keys(msg.message || {});
+        console.log(`⚠️  [${accountId}] Message type not recognized, keys: ${messageKeys.join(', ')}, skipping save`);
+      }
+      // Don't save protocol messages or other non-text messages
+      return null;
     }
 
     const threadId = `${accountId}__${from}`;
@@ -769,9 +795,16 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false) {
 
     await db.collection('threads').doc(threadId).set(threadData, { merge: true });
 
-    return { threadId, messageId };
+    // Return full data including body for FCM notifications
+    return { 
+      threadId, 
+      messageId,
+      messageBody: body, // Add body for FCM notifications
+      displayName: msg.pushName || null,
+    };
   } catch (error) {
     console.error(`❌ [${accountId}] Error saving message:`, error.message);
+    console.error(`❌ [${accountId}] Stack:`, error.stack?.substring(0, 300));
     return null;
   }
 }
@@ -2200,11 +2233,12 @@ async function createConnection(accountId, name, phone) {
             // Save to Firestore (use helper function for consistency)
             const saved = await saveMessageToFirestore(accountId, msg, false);
             if (saved) {
-              console.log(`💾 [${accountId}] Message saved to Firestore: ${saved.messageId} in thread ${saved.threadId}`);
+              console.log(`💾 [${accountId}] Message saved to Firestore: ${saved.messageId} in thread ${saved.threadId}, body length: ${saved.messageBody?.length || 0}`);
               
               // Send FCM notification for inbound messages (not from me)
               if (!isFromMe && saved.messageBody) {
                 const displayName = saved.displayName || from.split('@')[0];
+                console.log(`📱 [${accountId}] Sending FCM notification for inbound message from ${from}`);
                 await sendWhatsAppNotification(
                   accountId,
                   saved.threadId,
@@ -2212,7 +2246,11 @@ async function createConnection(accountId, name, phone) {
                   saved.messageBody,
                   displayName
                 );
+              } else if (!isFromMe && !saved.messageBody) {
+                console.log(`⚠️  [${accountId}] Inbound message saved but no body (protocol message?), skipping FCM`);
               }
+            } else {
+              console.log(`⚠️  [${accountId}] saveMessageToFirestore returned null for message ${messageId} from ${from}`);
             }
           } catch (msgError) {
             console.error(`❌ [${accountId}] Error processing message:`, msgError.message);
