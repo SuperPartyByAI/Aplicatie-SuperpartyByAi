@@ -743,6 +743,8 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false) {
     }
 
     const threadId = `${accountId}__${from}`;
+    
+    // Sanitize messageData - remove undefined values before saving to Firestore
     const messageData = {
       accountId,
       clientJid: from,
@@ -756,29 +758,35 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false) {
       messageType,
     };
 
-    // Add media metadata if present
+    // Add media metadata if present (only defined values)
     if (msg.message.imageMessage) {
       messageData.mediaType = 'image';
-      messageData.mediaUrl = msg.message.imageMessage.url || null;
-      messageData.mediaMimetype = msg.message.imageMessage.mimetype || null;
+      if (msg.message.imageMessage.url) messageData.mediaUrl = msg.message.imageMessage.url;
+      if (msg.message.imageMessage.mimetype) messageData.mediaMimetype = msg.message.imageMessage.mimetype;
     } else if (msg.message.videoMessage) {
       messageData.mediaType = 'video';
-      messageData.mediaUrl = msg.message.videoMessage.url || null;
-      messageData.mediaMimetype = msg.message.videoMessage.mimetype || null;
+      if (msg.message.videoMessage.url) messageData.mediaUrl = msg.message.videoMessage.url;
+      if (msg.message.videoMessage.mimetype) messageData.mediaMimetype = msg.message.videoMessage.mimetype;
     } else if (msg.message.audioMessage) {
       messageData.mediaType = 'audio';
-      messageData.mediaUrl = msg.message.audioMessage.url || null;
-      messageData.mediaMimetype = msg.message.audioMessage.mimetype || null;
+      if (msg.message.audioMessage.url) messageData.mediaUrl = msg.message.audioMessage.url;
+      if (msg.message.audioMessage.mimetype) messageData.mediaMimetype = msg.message.audioMessage.mimetype;
     } else if (msg.message.documentMessage) {
       messageData.mediaType = 'document';
-      messageData.mediaUrl = msg.message.documentMessage.url || null;
-      messageData.mediaMimetype = msg.message.documentMessage.mimetype || null;
-      messageData.mediaFilename = msg.message.documentMessage.fileName || null;
+      if (msg.message.documentMessage.url) messageData.mediaUrl = msg.message.documentMessage.url;
+      if (msg.message.documentMessage.mimetype) messageData.mediaMimetype = msg.message.documentMessage.mimetype;
+      if (msg.message.documentMessage.fileName) messageData.mediaFilename = msg.message.documentMessage.fileName;
     }
 
     // Idempotent upsert (set with merge)
     const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
-    await messageRef.set(messageData, { merge: true });
+    
+    // Remove any undefined values recursively before saving
+    const sanitizedData = JSON.parse(JSON.stringify(messageData, (key, value) => {
+      return value === undefined ? null : value;
+    }));
+    
+    await messageRef.set(sanitizedData, { merge: true });
 
     // Update thread metadata
     const threadData = {
