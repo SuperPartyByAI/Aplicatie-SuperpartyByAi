@@ -3347,6 +3347,99 @@ app.post('/admin/update-display-names', async (req, res) => {
   }
 });
 
+// Admin-only: Force sync messages from WhatsApp for existing threads
+app.post('/admin/sync-messages', async (req, res) => {
+  try {
+    // Check admin token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    const { accountId, limit = 10 } = req.body;
+
+    if (!accountId) {
+      return res.status(400).json({ success: false, error: 'accountId is required' });
+    }
+
+    console.log(`📥 [ADMIN] Syncing messages for accountId=${accountId}, limit=${limit}`);
+
+    // Get the socket for this account
+    const account = accounts.get(accountId);
+    if (!account) {
+      return res.status(404).json({ success: false, error: 'Account not found' });
+    }
+
+    if (!account.sock) {
+      return res.status(400).json({ success: false, error: 'Socket not available' });
+    }
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    // Get threads from Firestore
+    const threadsSnapshot = await db.collection('threads')
+      .where('accountId', '==', accountId)
+      .orderBy('lastMessageAt', 'desc')
+      .limit(limit)
+      .get();
+
+    console.log(`📊 Found ${threadsSnapshot.size} threads to sync`);
+
+    let synced = 0;
+    let errors = 0;
+    const results = [];
+
+    for (const threadDoc of threadsSnapshot.docs) {
+      const thread = threadDoc.data();
+      const jid = thread.clientJid;
+
+      try {
+        console.log(`📥 Fetching messages for ${jid.substring(0, 25)}...`);
+
+        // Fetch last 20 messages from WhatsApp
+        const messages = await account.sock.fetchMessagesFromWA(jid, 20, undefined, undefined);
+        
+        console.log(`  ✅ Fetched ${messages.length} messages for ${jid.substring(0, 25)}`);
+
+        if (messages.length > 0) {
+          // Save messages to Firestore
+          const result = await saveMessagesBatch(accountId, messages, 'manual_sync');
+          
+          synced++;
+          results.push({
+            jid: jid.substring(0, 30),
+            fetched: messages.length,
+            saved: result.saved || 0,
+          });
+        }
+      } catch (error) {
+        console.error(`❌ Error syncing ${jid.substring(0, 25)}:`, error.message);
+        errors++;
+      }
+    }
+
+    console.log(`✅ Message sync complete: synced=${synced}, errors=${errors}`);
+
+    return res.json({
+      success: true,
+      synced,
+      errors,
+      total: threadsSnapshot.size,
+      sampleResults: results.slice(0, 5),
+    });
+  } catch (error) {
+    console.error(`❌ Message sync failed:`, error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Admin-only: Remove duplicate threads (keep best one per clientJid)
 app.post('/admin/deduplicate-threads', async (req, res) => {
   try {
