@@ -1755,6 +1755,128 @@ async function createConnection(accountId, name, phone) {
         fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1490',message:'AFTER Firestore save',data:{accountId,status:account.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
         // #endregion
 
+        // 🔄 AUTO-CLEANUP: Disconnect old accounts with same phone number
+        (async () => {
+          try {
+            const currentPhone = account.phone;
+            if (!currentPhone) return;
+
+            console.log(`🔍 [${accountId}] Checking for duplicate accounts with phone: ${currentPhone}`);
+
+            // Find other connected accounts with same phone
+            const duplicateAccounts = Array.from(connections.entries())
+              .filter(([id, acc]) => 
+                id !== accountId && // Not current account
+                acc.phone === currentPhone && // Same phone
+                acc.status === 'connected' // Connected
+              );
+
+            if (duplicateAccounts.length > 0) {
+              console.log(`🗑️  [${accountId}] Found ${duplicateAccounts.length} duplicate account(s) with phone ${currentPhone}, cleaning up...`);
+
+              for (const [oldAccountId, oldAccount] of duplicateAccounts) {
+                console.log(`  ❌ Disconnecting OLD account: ${oldAccountId}`);
+                
+                // Disconnect old account
+                try {
+                  if (oldAccount.sock) {
+                    await oldAccount.sock.logout();
+                  }
+                } catch (err) {
+                  console.error(`  ⚠️  Error logging out ${oldAccountId}:`, err.message);
+                }
+
+                oldAccount.status = 'disconnected';
+                connections.delete(oldAccountId);
+                reconnectAttempts.delete(oldAccountId);
+                connectionRegistry.release(oldAccountId);
+
+                await saveAccountToFirestore(oldAccountId, {
+                  status: 'disconnected',
+                  lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  lastDisconnectReason: 'Auto-cleanup: duplicate phone number',
+                });
+
+                // Migrate threads from old to new
+                if (db) {
+                  console.log(`  🔄 Migrating threads: ${oldAccountId} → ${accountId}`);
+                  const oldThreadsSnapshot = await db.collection('threads')
+                    .where('accountId', '==', oldAccountId)
+                    .limit(1000)
+                    .get();
+
+                  if (oldThreadsSnapshot.size > 0) {
+                    const batch = db.batch();
+                    let batchCount = 0;
+
+                    for (const doc of oldThreadsSnapshot.docs) {
+                      batch.update(doc.ref, { accountId });
+                      batchCount++;
+
+                      if (batchCount >= 500) {
+                        await batch.commit();
+                        batchCount = 0;
+                      }
+                    }
+
+                    if (batchCount > 0) {
+                      await batch.commit();
+                    }
+
+                    console.log(`  ✅ Migrated ${oldThreadsSnapshot.size} threads from ${oldAccountId}`);
+                  }
+                }
+              }
+
+              // Deduplicate threads after migration
+              if (db) {
+                console.log(`  🧹 Deduplicating threads for ${accountId}...`);
+                const threadsSnapshot = await db.collection('threads')
+                  .where('accountId', '==', accountId)
+                  .get();
+
+                const threadsByJid = new Map();
+                threadsSnapshot.docs.forEach(doc => {
+                  const jid = doc.data().clientJid;
+                  if (!threadsByJid.has(jid)) {
+                    threadsByJid.set(jid, []);
+                  }
+                  threadsByJid.get(jid).push({ id: doc.id, ref: doc.ref, data: doc.data() });
+                });
+
+                let deletedCount = 0;
+                for (const [jid, threads] of threadsByJid.entries()) {
+                  if (threads.length > 1) {
+                    // Sort: keep thread with displayName, most recent lastMessageAt, longest id
+                    threads.sort((a, b) => {
+                      const aHasName = a.data.displayName && a.data.displayName.trim().length > 0;
+                      const bHasName = b.data.displayName && b.data.displayName.trim().length > 0;
+                      if (aHasName && !bHasName) return -1;
+                      if (!aHasName && bHasName) return 1;
+                      const aTime = a.data.lastMessageAt?._seconds || 0;
+                      const bTime = b.data.lastMessageAt?._seconds || 0;
+                      if (aTime !== bTime) return bTime - aTime;
+                      return b.id.localeCompare(a.id);
+                    });
+
+                    // Delete duplicates
+                    for (let i = 1; i < threads.length; i++) {
+                      await threads[i].ref.delete();
+                      deletedCount++;
+                    }
+                  }
+                }
+
+                console.log(`  ✅ Deleted ${deletedCount} duplicate threads`);
+              }
+
+              console.log(`✅ [${accountId}] Auto-cleanup complete`);
+            }
+          } catch (error) {
+            console.error(`❌ [${accountId}] Auto-cleanup failed:`, error.message);
+          }
+        })();
+
         // Schedule backfill after connection is established (best-effort gap filling)
         // Use jitter to avoid hitting all 30 accounts at once
         const backfillDelay = Math.floor(Math.random() * 30000) + 10000; // 10-40 seconds
