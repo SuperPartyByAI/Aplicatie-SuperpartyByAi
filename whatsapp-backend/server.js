@@ -6952,6 +6952,24 @@ app.listen(PORT, '0.0.0.0', async () => {
   await restoreAccountsFromFirestore();
   await restoreAccountsFromDisk();
 
+  // CRITICAL: Listen for PASSIVE → ACTIVE transition and restore accounts automatically
+  // This ensures accounts are restored when backend acquires lock after starting in PASSIVE mode
+  // Without this, accounts remain in Firestore but not in memory until manual redeploy
+  process.on('wa-bootstrap:active', async ({ instanceId }) => {
+    console.log(`🔔 [Auto-Restore] PASSIVE → ACTIVE transition detected (instance: ${instanceId})`);
+    console.log(`🔄 [Auto-Restore] Triggering account restoration from Firestore...`);
+    
+    try {
+      // Restore accounts from Firestore now that we have the lock
+      await restoreAccountsFromFirestore();
+      await restoreAccountsFromDisk();
+      
+      console.log(`✅ [Auto-Restore] Account restoration complete after ACTIVE transition`);
+    } catch (error) {
+      console.error(`❌ [Auto-Restore] Failed to restore accounts after ACTIVE transition:`, error.message);
+    }
+  });
+
   // Start health monitoring watchdog AFTER accounts are restored
   setInterval(() => {
     const staleAccounts = checkStaleConnections();
