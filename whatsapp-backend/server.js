@@ -799,6 +799,14 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false) {
     // Try to extract display name from message pushName or other sources
     if (msg.pushName) {
       threadData.displayName = msg.pushName;
+    } else {
+      // For LID (Lidded IDs) without pushName, try to get contact name
+      // Check if we have the contact in store or extract from participant
+      const contactName = msg.verifiedBizName || msg.key.participant || null;
+      if (contactName && contactName !== from) {
+        threadData.displayName = contactName;
+      }
+      // If still no displayName, leave it empty - Flutter will show formatted phone
     }
 
     await db.collection('threads').doc(threadId).set(threadData, { merge: true });

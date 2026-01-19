@@ -442,4 +442,105 @@ class WhatsAppApiService {
       return data;
     });
   }
+
+  /// Get threads for an account via Functions proxy.
+  /// 
+  /// Returns: { success: bool, threads: List<Thread>, count: int }
+  /// Thread: { id, clientJid, displayName, lastMessageBody, lastMessageAt, ... }
+  Future<Map<String, dynamic>> getThreads({
+    required String accountId,
+  }) async {
+    return retryWithBackoff(() async {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw UnauthorizedException();
+      }
+
+      final token = await user.getIdToken();
+      final functionsUrl = _getFunctionsUrl();
+      final requestId = _generateRequestId();
+
+      debugPrint('[WhatsAppApiService] getThreads: calling proxy (accountId=$accountId)');
+
+      // Call Functions proxy - need to create proxy function or call Railway directly
+      // For now, call Railway directly with token
+      final backendUrl = _getBackendUrl();
+      final response = await http
+          .get(
+            Uri.parse('$backendUrl/api/whatsapp/threads/$accountId'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+              'X-Request-ID': requestId,
+            },
+          )
+          .timeout(requestTimeout);
+
+      debugPrint('[WhatsAppApiService] getThreads: status=${response.statusCode}');
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+        debugPrint('[WhatsAppApiService] getThreads: error=${errorBody?['error']}');
+        throw ErrorMapper.fromHttpException(
+          response.statusCode,
+          errorBody?['message'] as String?,
+        );
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      debugPrint('[WhatsAppApiService] getThreads: success, threadsCount=${data['threads']?.length ?? 0}');
+      return data;
+    });
+  }
+
+  /// Get unified inbox (all messages from all threads) via API.
+  /// 
+  /// Returns: { success: bool, messages: List<Message>, count: int, totalMessages: int }
+  Future<Map<String, dynamic>> getInbox({
+    required String accountId,
+    int limit = 100,
+  }) async {
+    return retryWithBackoff(() async {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw UnauthorizedException();
+      }
+
+      final token = await user.getIdToken();
+      final backendUrl = _getBackendUrl();
+      final requestId = _generateRequestId();
+
+      debugPrint('[WhatsAppApiService] getInbox: calling API (accountId=$accountId, limit=$limit, backendUrl=$backendUrl)');
+
+      final response = await http
+          .get(
+            Uri.parse('$backendUrl/api/whatsapp/inbox/$accountId?limit=$limit'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+              'X-Request-ID': requestId,
+            },
+          )
+          .timeout(requestTimeout);
+
+      debugPrint('[WhatsAppApiService] getInbox: status=${response.statusCode}, bodyLength=${response.body.length}');
+      
+      if (response.statusCode != 200) {
+        debugPrint('[WhatsAppApiService] getInbox: error body=${response.body.substring(0, 200)}');
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+        debugPrint('[WhatsAppApiService] getInbox: error=${errorBody?['error']}');
+        throw ErrorMapper.fromHttpException(
+          response.statusCode,
+          errorBody?['message'] as String?,
+        );
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      debugPrint('[WhatsAppApiService] getInbox: success, messagesCount=${data['messages']?.length ?? 0}');
+      return data;
+    });
+  }
 }

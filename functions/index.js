@@ -932,6 +932,10 @@ exports.whatsappProxyDeleteAccount = whatsappProxy.deleteAccount;
 exports.whatsappProxyBackfillAccount = whatsappProxy.backfillAccount;
 exports.whatsappProxySend = whatsappProxy.send;
 
+// Process outbox collection - send WhatsApp messages
+const processOutbox = require('./processOutbox');
+exports.processOutbox = processOutbox.processOutbox;
+
 // Client CRM aggregation (triggers on evenimente create/update)
 exports.aggregateClientStats = require('./aggregateClientStats').aggregateClientStats;
 

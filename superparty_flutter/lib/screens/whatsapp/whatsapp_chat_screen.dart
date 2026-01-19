@@ -52,7 +52,19 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty || _isSending || _accountId == null || _threadId == null || _clientJid == null) {
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Message cannot be empty')),
+      );
+      return;
+    }
+    
+    if (_isSending) return;
+    
+    if (_accountId == null || _threadId == null || _clientJid == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Missing required data: accountId=$_accountId, threadId=$_threadId, clientJid=$_clientJid')),
+      );
       return;
     }
 
@@ -63,7 +75,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     try {
       final clientMessageId = 'client_${DateTime.now().millisecondsSinceEpoch}';
       
-      await _apiService.sendViaProxy(
+      debugPrint('[ChatScreen] Sending message: text=$text, accountId=$_accountId, threadId=$_threadId, clientJid=$_clientJid');
+      
+      final result = await _apiService.sendViaProxy(
         threadId: _threadId!,
         accountId: _accountId!,
         toJid: _clientJid!,
@@ -71,14 +85,21 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         clientMessageId: clientMessageId,
       );
 
+      debugPrint('[ChatScreen] Message sent successfully: $result');
+
       if (mounted) {
         _messageController.clear();
         _scrollToBottom();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Message sent!'), backgroundColor: Colors.green),
+        );
       }
     } catch (e) {
+      debugPrint('[ChatScreen] Error sending message: $e');
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error sending message: $e')),
+          SnackBar(content: Text('Error sending message: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -249,13 +270,25 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
   // Get display name from thread or clientJid
   String get displayName {
-    // Try to get from phoneE164 if available, otherwise use clientJid
-    if (_phoneE164 != null) {
-      return _phoneE164!;
-    }
+    // Try to extract a readable name from clientJid first
     if (_clientJid != null) {
-      return _clientJid!.split('@')[0];
+      final jidPart = _clientJid!.split('@')[0];
+      // If it's not just a phone number (has letters), use it
+      if (jidPart.contains(RegExp(r'[a-zA-Z]'))) {
+        return jidPart;
+      }
     }
+    
+    // Otherwise, try to format phone number nicely
+    final phone = _phoneE164 ?? _extractPhoneFromJid(_clientJid);
+    if (phone != null) {
+      // Format phone number: +40 123 456 789
+      return phone.replaceAllMapped(
+        RegExp(r'^\+(\d{1,3})(\d{3})(\d{3})(\d+)$'),
+        (match) => '+${match[1]} ${match[2]} ${match[3]} ${match[4]}',
+      );
+    }
+    
     return 'Unknown';
   }
 
@@ -270,6 +303,13 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            // Navigate back to WhatsApp inbox
+            context.go('/whatsapp/inbox');
+          },
+        ),
         title: Row(
           children: [
             CircleAvatar(
@@ -392,7 +432,25 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                     final direction = data['direction'] as String? ?? 'inbound';
                     final body = data['body'] as String? ?? '';
                     final status = data['status'] as String?;
-                    final tsClient = data['tsClient'] as Timestamp?;
+                    
+                    // Handle tsClient - it might be a Timestamp, String, or int
+                    Timestamp? tsClient;
+                    final tsClientRaw = data['tsClient'];
+                    if (tsClientRaw is Timestamp) {
+                      tsClient = tsClientRaw;
+                    } else if (tsClientRaw is String) {
+                      try {
+                        // Try parsing ISO8601 string
+                        final dateTime = DateTime.parse(tsClientRaw);
+                        tsClient = Timestamp.fromDate(dateTime);
+                      } catch (e) {
+                        // If parsing fails, tsClient remains null
+                        tsClient = null;
+                      }
+                    } else if (tsClientRaw is int) {
+                      // Unix timestamp in milliseconds
+                      tsClient = Timestamp.fromMillisecondsSinceEpoch(tsClientRaw);
+                    }
 
                     final isOutbound = direction == 'outbound';
 

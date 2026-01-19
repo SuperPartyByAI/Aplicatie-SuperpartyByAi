@@ -1,5 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
@@ -17,14 +17,135 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   final WhatsAppApiService _apiService = WhatsAppApiService.instance;
   
   List<Map<String, dynamic>> _accounts = [];
-  String? _selectedAccountId;
   bool _isLoadingAccounts = true;
+  bool _isLoadingThreads = false;
   String _searchQuery = '';
+  List<Map<String, dynamic>> _threads = [];
+  String? _errorMessage;
+  
+  // Cache to prevent duplicate loads
+  DateTime? _lastLoadTime;
+  bool _isCurrentlyLoading = false;
 
   @override
   void initState() {
     super.initState();
     _loadAccounts();
+  }
+
+  Future<void> _loadThreads() async {
+    // Prevent duplicate loads within 2 seconds
+    if (_isCurrentlyLoading) {
+      debugPrint('[WhatsAppInboxScreen] Already loading, skipping duplicate request');
+      return;
+    }
+    
+    final now = DateTime.now();
+    if (_lastLoadTime != null && now.difference(_lastLoadTime!) < const Duration(seconds: 2)) {
+      debugPrint('[WhatsAppInboxScreen] Too soon since last load, skipping');
+      return;
+    }
+    
+    _isCurrentlyLoading = true;
+    _lastLoadTime = now;
+    
+    // Get all connected accounts
+    final connectedAccounts = _accounts.where((a) => a['status'] == 'connected').toList();
+    
+    if (connectedAccounts.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _threads = [];
+          _isLoadingThreads = false;
+          _errorMessage = 'No connected accounts found';
+          _isCurrentlyLoading = false;
+        });
+      }
+      return;
+    }
+    
+    setState(() {
+      _isLoadingThreads = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Load threads from all connected accounts in parallel
+      final futures = connectedAccounts.map((account) async {
+        final accountId = account['id'] as String?;
+        if (accountId == null) return <Map<String, dynamic>>[];
+        
+        try {
+          final response = await _apiService.getThreads(accountId: accountId);
+          if (response['success'] == true) {
+            final threads = (response['threads'] as List<dynamic>? ?? [])
+                .cast<Map<String, dynamic>>();
+            // Add accountId and account name to each thread
+            return threads.map((thread) {
+              return {
+                ...thread,
+                'accountId': accountId,
+                'accountName': account['name'] as String? ?? accountId,
+              };
+            }).toList();
+          }
+        } catch (e) {
+          debugPrint('[WhatsAppInboxScreen] Error loading threads for account $accountId: $e');
+        }
+        return <Map<String, dynamic>>[];
+      });
+
+      final allThreadsLists = await Future.wait(futures);
+      final allThreads = allThreadsLists.expand((list) => list).toList();
+      
+      // Sort by lastMessageAt (most recent first)
+      allThreads.sort((a, b) {
+        DateTime? timeA;
+        DateTime? timeB;
+        
+        if (a['lastMessageAt'] != null) {
+          final ts = a['lastMessageAt'] as Map<String, dynamic>?;
+          if (ts?['_seconds'] != null) {
+            timeA = DateTime.fromMillisecondsSinceEpoch((ts!['_seconds'] as int) * 1000);
+          }
+        }
+        
+        if (b['lastMessageAt'] != null) {
+          final ts = b['lastMessageAt'] as Map<String, dynamic>?;
+          if (ts?['_seconds'] != null) {
+            timeB = DateTime.fromMillisecondsSinceEpoch((ts!['_seconds'] as int) * 1000);
+          }
+        }
+        
+        if (timeA == null && timeB == null) return 0;
+        if (timeA == null) return 1;
+        if (timeB == null) return -1;
+        return timeB.compareTo(timeA); // Most recent first
+      });
+      
+      if (mounted) {
+        setState(() {
+          _threads = allThreads;
+          _isLoadingThreads = false;
+          _isCurrentlyLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[WhatsAppInboxScreen] Error loading threads: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Error loading threads: ${e.toString()}';
+          _isLoadingThreads = false;
+          _isCurrentlyLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _loadAccounts() async {
@@ -40,14 +161,8 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
           setState(() {
             _accounts = accounts;
             _isLoadingAccounts = false;
-            // Auto-select first connected account if available
-            if (_selectedAccountId == null && accounts.isNotEmpty) {
-              final connected = accounts.firstWhere(
-                (a) => a['status'] == 'connected',
-                orElse: () => accounts.first,
-              );
-              _selectedAccountId = connected['id'] as String?;
-            }
+            // Load threads from all connected accounts
+            _loadThreads();
           });
         }
       }
@@ -78,46 +193,16 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadAccounts,
-            tooltip: 'Refresh accounts',
+            onPressed: () {
+              _loadAccounts();
+              _loadThreads();
+            },
+            tooltip: 'Refresh',
           ),
         ],
       ),
       body: Column(
         children: [
-          // Account selector
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-            ),
-            child: _isLoadingAccounts
-                ? const Center(child: CircularProgressIndicator())
-                : _accounts.isEmpty
-                    ? const Text('No accounts found. Add an account first.')
-                    : DropdownButtonFormField<String>(
-                        value: _selectedAccountId,
-                        decoration: const InputDecoration(
-                          labelText: 'Select Account',
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        ),
-                        items: _accounts.map((account) {
-                          final id = account['id'] as String? ?? 'unknown';
-                          final name = account['name'] as String? ?? 'Unnamed';
-                          final status = account['status'] as String? ?? 'unknown';
-                          return DropdownMenuItem<String>(
-                            value: id,
-                            child: Text('$name (${status.toUpperCase()})'),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() => _selectedAccountId = value);
-                        },
-                      ),
-          ),
-          
           // Search bar
           Padding(
             padding: const EdgeInsets.all(16),
@@ -133,108 +218,236 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
             ),
           ),
 
-          // Threads list
+          // Threads list - all conversations from all accounts
           Expanded(
-            child: _selectedAccountId == null
-                ? const Center(
-                    child: Text('Select an account to view threads'),
-                  )
-                : StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('threads')
-                        .where('accountId', isEqualTo: _selectedAccountId)
-                        .orderBy('lastMessageAt', descending: true)
-                        .limit(100)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Text('Error: ${snapshot.error}'),
-                        );
-                      }
-
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return const Center(
-                          child: Text('No threads found'),
-                        );
-                      }
-
-                      // Filter by search query
-                      final threads = snapshot.data!.docs.where((doc) {
-                        if (_searchQuery.isEmpty) return true;
-                        final data = doc.data() as Map<String, dynamic>;
-                        final clientJid = (data['clientJid'] as String? ?? '').toLowerCase();
-                        final displayName = (data['displayName'] as String? ?? '').toLowerCase();
-                        final remoteJid = (data['remoteJid'] as String? ?? '').toLowerCase();
-                        final phone = _extractPhoneFromJid(clientJid)?.toLowerCase() ?? '';
-                        return clientJid.contains(_searchQuery) ||
-                            displayName.contains(_searchQuery) ||
-                            remoteJid.contains(_searchQuery) ||
-                            phone.contains(_searchQuery);
-                      }).toList();
-
-                      if (threads.isEmpty) {
-                        return const Center(
-                          child: Text('No threads match search query'),
-                        );
-                      }
-
-                      return ListView.builder(
-                        itemCount: threads.length,
-                        itemBuilder: (context, index) {
-                          final doc = threads[index];
-                          final data = doc.data() as Map<String, dynamic>;
-                          
-                          final threadId = doc.id;
-                          final clientJid = data['clientJid'] as String? ?? '';
-                          final displayName = data['displayName'] as String? ?? clientJid;
-                          final lastMessageText = data['lastMessageText'] as String? ?? '';
-                          final lastMessageAt = data['lastMessageAt'] as Timestamp?;
-
-                          final phone = _extractPhoneFromJid(clientJid);
-
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: const Color(0xFF25D366),
-                              child: Text(
-                                displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                            ),
-                            title: Text(
-                              displayName,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+            child: _isLoadingThreads
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('Loading conversations...', style: TextStyle(color: Colors.grey)),
+                          ],
+                        ),
+                      )
+                    : _errorMessage != null
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                if (phone != null) Text(phone, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                                if (lastMessageText.isNotEmpty)
-                                  Text(
-                                    lastMessageText,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                Text(
+                                  _errorMessage!,
+                                  style: TextStyle(color: Colors.red[700]),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 16),
+                                ElevatedButton(
+                                  onPressed: _loadThreads,
+                                  child: const Text('Retry'),
+                                ),
                               ],
                             ),
-                            trailing: lastMessageAt != null
-                                ? Text(
-                                    DateFormat('HH:mm').format(lastMessageAt.toDate()),
-                                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                  )
-                                : null,
-                            onTap: () {
-                              context.go('/whatsapp/chat?accountId=$_selectedAccountId&threadId=$threadId&clientJid=${Uri.encodeComponent(clientJid)}&phoneE164=${Uri.encodeComponent(phone ?? '')}');
-                            },
-                          );
-                        },
-                      );
-                    },
-                  ),
+                          )
+                        : _threads.isEmpty
+                            ? const Center(
+                                child: Text('No conversations found'),
+                              )
+                            : Builder(
+                                builder: (context) {
+                                  // Filter threads by search query
+                                  final filteredThreads = _threads.where((thread) {
+                                    if (_searchQuery.isEmpty) return true;
+                                    final clientJid = (thread['clientJid'] as String? ?? '').toLowerCase();
+                                    final displayName = (thread['displayName'] as String? ?? '').toLowerCase();
+                                    final lastMessageText = (thread['lastMessageText'] as String? ?? '').toLowerCase();
+                                    final phone = _extractPhoneFromJid(thread['clientJid'] as String?)?.toLowerCase() ?? '';
+                                    return clientJid.contains(_searchQuery) ||
+                                        displayName.contains(_searchQuery) ||
+                                        lastMessageText.contains(_searchQuery) ||
+                                        phone.contains(_searchQuery);
+                                  }).toList();
+
+                                  if (filteredThreads.isEmpty) {
+                                    return const Center(
+                                      child: Text('No conversations match search query'),
+                                    );
+                                  }
+
+                                  return RefreshIndicator(
+                                    onRefresh: _loadThreads,
+                                    child: ListView.builder(
+                                      itemCount: filteredThreads.length,
+                                      itemBuilder: (context, index) {
+                                        final thread = filteredThreads[index];
+                                        final threadId = thread['id'] as String? ?? '';
+                                        final accountId = thread['accountId'] as String? ?? '';
+                                        final accountName = thread['accountName'] as String? ?? '';
+                                        final clientJid = thread['clientJid'] as String? ?? '';
+                                        final rawDisplayName = thread['displayName'] as String? ?? '';
+                                        final lastMessageText = thread['lastMessageText'] as String? ?? '';
+                                        
+                                        // Extract phone from clientJid
+                                        final phone = _extractPhoneFromJid(clientJid);
+                                        
+                                        // DEBUG: Print raw data to see what we receive
+                                        if (index == 0) {
+                                          debugPrint('[Inbox] Sample thread data: clientJid=$clientJid, rawDisplayName=$rawDisplayName, phone=$phone');
+                                        }
+                                        
+                                        // Smart display name logic:
+                                        // Always use formatted phone from clientJid for consistency
+                                        String displayName = rawDisplayName.trim();
+                                        
+                                        // If displayName is empty or looks like a number/JID, use formatted phone
+                                        if (phone != null && phone.isNotEmpty) {
+                                          // Check if rawDisplayName is just a messy number or empty
+                                          final isMixedFormat = displayName.isEmpty ||
+                                              displayName.contains('@') ||
+                                              RegExp(r'^\+?[\d\s\-\(\)]{10,}$').hasMatch(displayName);
+                                          
+                                          if (isMixedFormat) {
+                                            // Use formatted phone number
+                                            // Try international format: +[country][area][number]
+                                            var formatted = phone.replaceAllMapped(
+                                              RegExp(r'^\+(\d{1,4})(\d{3})(\d{3})(\d{3,})$'),
+                                              (match) => '+${match[1]} ${match[2]} ${match[3]} ${match[4]}',
+                                            );
+                                            
+                                            // If regex didn't match (formatted == phone), try simpler split
+                                            if (formatted == phone && phone.length > 4) {
+                                              // Just split every 3 digits after country code
+                                              if (phone.startsWith('+')) {
+                                                final digits = phone.substring(1);
+                                                final parts = <String>[];
+                                                for (int i = 0; i < digits.length; i += 3) {
+                                                  parts.add(digits.substring(i, (i + 3).clamp(0, digits.length)));
+                                                }
+                                                formatted = '+${parts.join(' ')}';
+                                              } else {
+                                                formatted = phone;
+                                              }
+                                            }
+                                            
+                                            displayName = formatted;
+                                            debugPrint('[Inbox] Formatted displayName: $displayName (from phone: $phone)');
+                                          }
+                                        }
+                                        
+                                        // Parse lastMessageAt timestamp
+                                        DateTime? lastMessageAt;
+                                        if (thread['lastMessageAt'] != null) {
+                                          final ts = thread['lastMessageAt'] as Map<String, dynamic>?;
+                                          if (ts?['_seconds'] != null) {
+                                            lastMessageAt = DateTime.fromMillisecondsSinceEpoch(
+                                              (ts!['_seconds'] as int) * 1000,
+                                            );
+                                          }
+                                        }
+                                        
+                                        // Don't show phone in subtitle if it's already the displayName
+                                        String? displayPhone;
+                                        if (phone != null && !displayName.contains(phone.replaceAll('+', '').replaceAll(' ', ''))) {
+                                          displayPhone = phone.replaceAllMapped(
+                                            RegExp(r'^\+?(\d{1,3})(\d{3})(\d{3})(\d+)$'),
+                                            (match) => '+${match[1]} ${match[2]} ${match[3]} ${match[4]}',
+                                          );
+                                        }
+                                        
+                                        // Format timestamp
+                                        String timeText = '';
+                                        if (lastMessageAt != null) {
+                                          final now = DateTime.now();
+                                          final diff = now.difference(lastMessageAt);
+                                          
+                                          if (diff.inMinutes < 60) {
+                                            timeText = '${diff.inMinutes}m ago';
+                                          } else if (diff.inHours < 24) {
+                                            timeText = '${diff.inHours}h ago';
+                                          } else if (diff.inDays < 7) {
+                                            timeText = DateFormat('EEE').format(lastMessageAt);
+                                          } else {
+                                            timeText = DateFormat('dd/MM').format(lastMessageAt);
+                                          }
+                                        }
+
+                                        return ListTile(
+                                          leading: CircleAvatar(
+                                            backgroundColor: const Color(0xFF25D366),
+                                            child: Text(
+                                              displayName.isNotEmpty 
+                                                  ? displayName[0].toUpperCase() 
+                                                  : '?',
+                                              style: const TextStyle(color: Colors.white),
+                                            ),
+                                          ),
+                                          title: Row(
+                                            children: [
+                                              Expanded(
+                                                flex: 3,
+                                                child: Text(
+                                                  displayName,
+                                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              if (accountName.isNotEmpty) ...[
+                                                const SizedBox(width: 4),
+                                                Flexible(
+                                                  flex: 1,
+                                                  child: Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.blue[100],
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                    child: Text(
+                                                      accountName,
+                                                      style: TextStyle(
+                                                        fontSize: 9,
+                                                        color: Colors.blue[800],
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                      overflow: TextOverflow.ellipsis,
+                                                      maxLines: 1,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                          subtitle: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              if (displayPhone != null && displayPhone.isNotEmpty) 
+                                                Text(
+                                                  displayPhone, 
+                                                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                                ),
+                                              if (lastMessageText.isNotEmpty)
+                                                Text(
+                                                  lastMessageText,
+                                                  maxLines: 2,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(fontSize: 13),
+                                                ),
+                                            ],
+                                          ),
+                                          trailing: timeText.isNotEmpty
+                                              ? Text(
+                                                  timeText,
+                                                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                                                )
+                                              : null,
+                                          onTap: () {
+                                            context.go('/whatsapp/chat?accountId=${Uri.encodeComponent(accountId)}&threadId=${Uri.encodeComponent(threadId)}&clientJid=${Uri.encodeComponent(clientJid)}&phoneE164=${Uri.encodeComponent(phone ?? '')}');
+                                          },
+                                        );
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
           ),
         ],
       ),

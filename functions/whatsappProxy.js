@@ -380,24 +380,15 @@ async function sendHandler(req, res) {
     const requestId = crypto.createHash('sha256').update(requestIdInput).digest('hex');
 
     // Use transaction to atomically:
-    // 1. Set ownerUid if needed
-    // 2. Create outbox doc (or detect duplicate)
+    // 1. Check outbox doc exists (idempotency)
+    // 2. Read thread to get latest state
+    // 3. Set ownerUid if needed
+    // 4. Create outbox doc
     let duplicate = false;
     await db.runTransaction(async (transaction) => {
-      // Re-read thread to get latest state
-      const latestThreadDoc = await transaction.get(threadRef);
-      const latestThreadData = latestThreadDoc.data();
-
-      // Set ownerUid if needed (atomic)
-      if (shouldSetOwner && !latestThreadData?.ownerUid) {
-        transaction.update(threadRef, {
-          ownerUid: uid,
-          // Initialize coWriterUids as empty array if missing (don't use arrayUnion with no args)
-          coWriterUids: latestThreadData?.coWriterUids || [],
-        });
-      }
-
-      // Check if outbox doc already exists (idempotency)
+      // IMPORTANT: ALL READS MUST BE BEFORE ALL WRITES IN FIRESTORE TRANSACTIONS
+      
+      // Read 1: Check if outbox doc already exists (idempotency)
       const outboxRef = db.collection('outbox').doc(requestId);
       const outboxDoc = await transaction.get(outboxRef);
 
@@ -406,7 +397,20 @@ async function sendHandler(req, res) {
         return; // Don't create duplicate
       }
 
-      // Create outbox document (server-only write via Admin SDK)
+      // Read 2: Re-read thread to get latest state
+      const latestThreadDoc = await transaction.get(threadRef);
+      const latestThreadData = latestThreadDoc.data();
+
+      // Write 1: Set ownerUid if needed (atomic)
+      if (shouldSetOwner && !latestThreadData?.ownerUid) {
+        transaction.update(threadRef, {
+          ownerUid: uid,
+          // Initialize coWriterUids as empty array if missing
+          coWriterUids: latestThreadData?.coWriterUids || [],
+        });
+      }
+
+      // Write 2: Create outbox document (server-only write via Admin SDK)
       const outboxData = {
         requestId,
         threadId,
@@ -1027,7 +1031,7 @@ async function regenerateQrHandler(req, res) {
         // For other 4xx/5xx errors, return structured error with requestId
         // Include Railway error details for debugging (not just generic message)
         const httpStatus = response.statusCode;
-        const railwayBody = response.body || {};
+        // railwayBody already declared above, reuse it
         
         // DEBUG MODE: For super-admin in debug mode, include backendStatusCode and backendErrorSafe
         const debugInfo = isSuperAdminDebug ? {

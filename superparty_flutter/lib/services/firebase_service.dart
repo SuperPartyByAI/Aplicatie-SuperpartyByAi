@@ -32,6 +32,19 @@ class FirebaseService {
     try {
       debugPrint('[FirebaseService] Initializing Firebase...');
       
+      // CRITICAL FIX: Check if Firebase app already exists before initializing
+      // This prevents crash when Firebase is initialized multiple times
+      try {
+        Firebase.app(); // This will throw if no app exists
+        debugPrint('[FirebaseService] Firebase app already exists, skipping initialization');
+        _initialized = true;
+        _initError = null;
+        return;
+      } catch (e) {
+        // No app exists, proceed with initialization
+        debugPrint('[FirebaseService] No existing Firebase app found, initializing...');
+      }
+      
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );

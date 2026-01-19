@@ -99,8 +99,11 @@ void main() async {
   }
   
   // Add auth state listener for diagnostics
+  debugPrint('[Main] Setting up auth listener...');
   if (FirebaseService.isInitialized) {
+    debugPrint('[Main] Firebase is initialized, creating listener...');
     FirebaseService.auth.authStateChanges().listen((user) async {
+      debugPrint('[Main] Auth listener callback triggered');
       final msg = '[AUTH] state change: user=${user?.uid ?? "null"} email=${user?.email ?? "null"}';
       debugPrint(msg);
       
@@ -136,6 +139,7 @@ void main() async {
       } catch (_) {}
       // #endregion
     });
+    debugPrint('[Main] Auth listener created successfully');
   }
 
   debugPrint('[Main] Starting app...');
