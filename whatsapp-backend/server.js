@@ -3108,6 +3108,53 @@ app.post('/admin/migrate-lid-contacts', async (req, res) => {
   }
 });
 
+// Admin-only: Force delete WA lock (emergency use)
+app.post('/admin/force-delete-lock', async (req, res) => {
+  try {
+    // Check admin token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    console.log(`🚨 [ADMIN] Force deleting WA lock...`);
+
+    const lockRef = db.collection('system').doc('wa_lock');
+    const lockDoc = await lockRef.get();
+
+    if (lockDoc.exists) {
+      const lockData = lockDoc.data();
+      console.log(`📋 Current lock holder:`, lockData);
+      
+      await lockRef.delete();
+      console.log(`✅ Lock deleted successfully`);
+
+      return res.json({
+        success: true,
+        message: 'Lock deleted successfully',
+        previousLock: lockData,
+      });
+    } else {
+      return res.json({
+        success: true,
+        message: 'No lock found (already released)',
+      });
+    }
+  } catch (error) {
+    console.error(`❌ Force delete lock failed:`, error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Health endpoint - SIMPLE liveness check (ALWAYS returns 200)
 // Railway/K8s healthcheck uses this - MUST be fast and never fail
 // Use /ready for readiness (active/passive mode), /health/detailed for comprehensive status
