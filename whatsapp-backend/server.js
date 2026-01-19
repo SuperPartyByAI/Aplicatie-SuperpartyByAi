@@ -7577,11 +7577,11 @@ async function restoreAccountsFromFirestore() {
   try {
     console.log('🔄 Restoring accounts from Firestore...');
 
-    // CRITICAL FIX: Restore ALL accounts in pairing phase (qr_ready, connecting, awaiting_scan) + connected
+    // CRITICAL FIX: Restore ALL accounts in pairing phase (qr_ready, connecting, awaiting_scan, needs_qr) + connected
     // Previously only restored 'connected' accounts, causing accounts to disappear after restart
     // This ensures accounts in pairing phase remain visible and can continue pairing after restart
-    // NOTE: Firestore 'in' operator supports up to 10 values, we have 4, so it's safe
-    const pairingStatuses = ['qr_ready', 'connecting', 'awaiting_scan', 'connected'];
+    // NOTE: Firestore 'in' operator supports up to 10 values, we have 5, so it's safe
+    const pairingStatuses = ['qr_ready', 'connecting', 'awaiting_scan', 'connected', 'needs_qr'];
     const snapshot = await db.collection('accounts')
       .where('status', 'in', pairingStatuses)
       .get();
