@@ -2970,6 +2970,131 @@ app.get('/metrics-json', requireObsToken, async (req, res) => {
   }
 });
 
+// Admin-only: Migrate LID contacts (update displayName from messages)
+app.post('/admin/migrate-lid-contacts', async (req, res) => {
+  try {
+    // Check admin token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    const dryRun = req.body.dryRun !== false; // Default to dry run
+    const accountFilter = req.body.accountId || null;
+
+    console.log(`🚀 Starting LID migration: dryRun=${dryRun}, accountFilter=${accountFilter}`);
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    const threadsRef = db.collection('threads');
+    const snapshot = await threadsRef.get();
+
+    let processed = 0;
+    let updated = 0;
+    let skipped = 0;
+    let errors = 0;
+    const results = [];
+
+    for (const doc of snapshot.docs) {
+      const threadId = doc.id;
+      const data = doc.data();
+      const clientJid = data.clientJid;
+      const accountId = data.accountId;
+
+      // Filter by account if specified
+      if (accountFilter && accountId !== accountFilter) {
+        continue;
+      }
+
+      // Skip if not a LID
+      if (!clientJid || !clientJid.endsWith('@lid')) {
+        continue;
+      }
+
+      processed++;
+
+      // Check if displayName is missing or empty
+      const hasDisplayName = data.displayName && data.displayName.trim().length > 0;
+
+      if (hasDisplayName) {
+        skipped++;
+        continue;
+      }
+
+      // Try to get the last message to check for pushName
+      try {
+        const messagesSnapshot = await db
+          .collection('threads')
+          .doc(threadId)
+          .collection('messages')
+          .orderBy('tsClient', 'desc')
+          .limit(10)
+          .get();
+
+        let foundPushName = null;
+        for (const msgDoc of messagesSnapshot.docs) {
+          const msgData = msgDoc.data();
+          if (msgData.pushName && msgData.pushName.trim().length > 0) {
+            foundPushName = msgData.pushName;
+            break;
+          }
+        }
+
+        if (foundPushName) {
+          if (!dryRun) {
+            await threadsRef.doc(threadId).update({
+              displayName: foundPushName,
+            });
+            console.log(`✅ Updated ${threadId}: ${foundPushName}`);
+          }
+          updated++;
+          results.push({
+            threadId,
+            clientJid,
+            displayName: foundPushName,
+            action: dryRun ? 'would_update' : 'updated',
+          });
+        } else {
+          skipped++;
+        }
+      } catch (error) {
+        console.error(`❌ Error processing ${threadId}:`, error.message);
+        errors++;
+        results.push({
+          threadId,
+          clientJid,
+          error: error.message,
+          action: 'error',
+        });
+      }
+    }
+
+    const summary = {
+      success: true,
+      dryRun,
+      processed,
+      updated,
+      skipped,
+      errors,
+      sampleResults: results.slice(0, 10), // First 10 results
+    };
+
+    console.log(`📊 Migration summary:`, summary);
+
+    return res.json(summary);
+  } catch (error) {
+    console.error('❌ Migration error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Health endpoint - SIMPLE liveness check (ALWAYS returns 200)
 // Railway/K8s healthcheck uses this - MUST be fast and never fail
 // Use /ready for readiness (active/passive mode), /health/detailed for comprehensive status
