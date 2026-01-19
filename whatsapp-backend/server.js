@@ -6706,8 +6706,8 @@ app.get('/api/status/dashboard', async (req, res) => {
         lastHistorySyncAt,
       };
 
-      // Include QR code only if needsQR is true
-      if (account.qr) {
+      // Include QR code only if needsQR is true (and qr is not null/empty)
+      if (account.qr && typeof account.qr === 'string' && account.qr.length > 0) {
         try {
           accountData.qrCode = await QRCode.toDataURL(account.qr);
         } catch (err) {

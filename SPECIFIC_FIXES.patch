@@ -1,0 +1,2559 @@
+diff --git a/TEST_PLAN.md b/TEST_PLAN.md
+index 205d2113..9a385564 100644
+--- a/TEST_PLAN.md
++++ b/TEST_PLAN.md
+@@ -1,477 +1,337 @@
+-# Test Plan - Evenimente Module Enhancement
++# Test Plan: WhatsApp Connect + Black Screen + AI Flow
+ 
+-## Overview
++## Prerequisites
+ 
+-This document outlines the test plan for all new features implemented in the evenimente module, including interactive noting mode, role detection, short codes, and admin corrections.
++### 1. Environment Setup
+ 
+-## Test Execution
++```bash
++# Backend (Railway)
++export ADMIN_TOKEN='your-admin-token'
++export FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'
+ 
+-### Run All Tests
++# Functions (Firebase)
++firebase functions:secrets:set WHATSAPP_RAILWAY_BASE_URL
++# Value: https://whats-upp-production.up.railway.app
+ 
+-```bash
+-cd functions
+-npm test
++# Flutter (Optional - override backend URL)
++# flutter run --dart-define=WHATSAPP_BACKEND_URL=https://custom-url.up.railway.app
+ ```
+ 
+-### Run Specific Test Suite
++---
++
++## Test 1: WhatsApp Connect Flow (Emulator)
+ 
++### Setup:
+ ```bash
+-npm test -- roleDetector.test.js
+-npm test -- dateTimeParser.test.js
+-npm test -- shortCodeGenerator.test.js
+-```
++# Terminal 1: Start emulators
++export WHATSAPP_RAILWAY_BASE_URL='https://whats-upp-production.up.railway.app'
++firebase emulators:start --only firestore,functions,auth
+ 
+-## Unit Tests
+-
+-### ✅ RoleDetector (`roleDetector.test.js`)
+-
+-**Coverage**:
+-- [x] Text normalization (remove diacritics, lowercase)
+-- [x] Role detection from text
+-- [x] Animator detection (including character names, MC)
+-- [x] Ursitoare detection
+-- [x] Multiple role detection
+-- [x] Synonym matching
+-- [x] Role details extraction (animator, ursitoare)
+-- [x] Duration parsing (hours, minutes, decimal, combined)
+-
+-**Test Cases**:
+-1. Detect "animator" from "Vreau un animator"
+-2. Detect "animator" from "Vreau Elsa" (character name)
+-3. Detect "animator" from "Am nevoie de MC"
+-4. Detect "ursitoare" from "3 ursitoare pentru botez"
+-5. Detect multiple roles from "animator, vată de zahăr și popcorn"
+-6. Extract animator details: name, age, character
+-7. Extract ursitoare count (3 or 4, with 1 rea if 4)
+-8. Parse duration: "2 ore" → 120 minutes
+-9. Parse duration: "1.5 ore" → 90 minutes
+-10. Parse duration: "2 ore si 30 minute" → 150 minutes
+-
+-### ✅ DateTimeParser (`dateTimeParser.test.js`)
+-
+-**Coverage**:
+-- [x] Date parsing (DD-MM-YYYY format)
+-- [x] Date validation (reject relative dates)
+-- [x] Time parsing (HH:mm format)
+-- [x] Duration parsing (various formats)
+-- [x] Phone number parsing (Romanian format)
+-- [x] Formatting functions
+-
+-**Test Cases**:
+-1. Parse valid date: "15-01-2026" → valid
+-2. Reject relative date: "mâine" → error
+-3. Reject day names: "vineri" → error
+-4. Validate date ranges (day 1-31, month 1-12, year 2024-2030)
+-5. Reject invalid dates: "31-02-2026" → error
+-6. Parse time: "14:30" → valid
+-7. Normalize time: "9:30" → "09:30"
+-8. Parse duration: "2 ore" → 120 minutes
+-9. Parse phone: "0712345678" → "+40712345678"
+-10. Format phone: "+40712345678" → "+40 712 345 678"
+-
+-### ✅ ShortCodeGenerator (`shortCodeGenerator.test.js`)
+-
+-**Coverage**:
+-- [x] Event short code generation (01, 02, ...)
+-- [x] Role slot generation (A, B, ..., Z)
+-- [x] Role code generation (01A, 01B, ...)
+-- [x] Role code parsing
+-- [x] Validation functions
+-
+-**Test Cases**:
+-1. Generate first slot: [] → "A"
+-2. Generate next slot: [A, B] → "C"
+-3. Skip used slots: [A, C] → "B"
+-4. Throw error when all 26 slots used
+-5. Generate role code: ("01", "A") → "01A"
+-6. Parse role code: "01A" → { eventShortCode: "01", slot: "A" }
+-7. Validate event short code: "01" → true, "1" → false
+-8. Validate role code: "01A" → true, "1A" → false
+-
+-## Integration Tests
+-
+-### Conversation Flow Tests
+-
+-**Test File**: `functions/__tests__/conversationFlow.test.js` (to be created)
+-
+-**Scenarios**:
+-
+-#### 1. Happy Path - Complete Event Creation
++# Terminal 2: Run Flutter
++cd superparty_flutter
++flutter run -d emulator-5554 --dart-define=USE_EMULATORS=true
+ 
+-```
+-User: "Vreau să notez un eveniment"
+-AI: "Perfect! Am nevoie de data (DD-MM-YYYY), adresa, și serviciile necesare."
+-
+-User: "15-01-2026, București, Str. Exemplu 10, pentru Maria 5 ani, animator și vată de zahăr"
+-AI: "Am înțeles:
+-     📅 Data: 15-01-2026
+-     📍 Adresa: București, Str. Exemplu 10
+-     🎂 Sărbătorit: Maria (5 ani)
+-     🎭 Servicii:
+-       1. Animator
+-       2. Vată de zahăr
+-     
+-     La ce oră începe animatorul?"
+-
+-User: "14:00"
+-AI: "Cât durează animatorul?"
+-
+-User: "2 ore"
+-AI: "La ce oră începe vata de zahăr?"
+-
+-User: "14:00"
+-AI: "Cât durează vata de zahăr?"
+-
+-User: "2 ore"
+-AI: "📋 Am înțeles:
+-     📅 Data: 15-01-2026
+-     📍 Adresa: București, Str. Exemplu 10
+-     🎂 Sărbătorit: Maria (5 ani)
+-     🎭 Servicii:
+-       1. Animator - 14:00 (2h)
+-       2. Vată de zahăr - 14:00 (2h)
+-     
+-     ✅ Confirm crearea evenimentului?"
+-
+-User: "da"
+-AI: "✅ Eveniment creat cu succes!
+-     📋 Cod: 01
+-     📅 Data: 15-01-2026
+-     📍 Adresa: București, Str. Exemplu 10"
++# Terminal 3: Watch logs
++adb -s emulator-5554 logcat | grep -iE "WhatsApp|whatsapp|515|passive|pairing|timeout|regenerateQr"
+ ```
+ 
+-**Assertions**:
+-- [x] AI enters noting mode
+-- [x] AI asks for missing information
+-- [x] AI collects all required fields
+-- [x] AI generates confirmation summary
+-- [x] Event is created with short code
+-- [x] Roles have correct slots (A, B)
+-- [x] Transcript is saved
++### Test Steps:
+ 
+-#### 2. Cancel Flow
++1. **Login & Navigate**
++   - ✅ Login cu Firebase Auth
++   - ✅ Navigate to WhatsApp Accounts screen
++   - ✅ Check logs: `[WhatsAppAccountsScreen] initState: loading accounts`
+ 
+-```
+-User: "Vreau să notez un eveniment"
+-AI: "Perfect! Am nevoie de..."
++2. **Add Account**
++   - ✅ Tap "Add Account"
++   - ✅ Enter name: "Test Account", phone: "+40712345678"
++   - ✅ Tap "Add"
++   - ✅ Check logs: `[WhatsAppAccountsScreen] _addAccount: starting`
++   - ✅ Check logs: `[WhatsAppApiService] addAccount: calling proxy`
++   - ✅ Expected: Account created, status = "connecting"
+ 
+-User: "anulează"
+-AI: "✅ Am anulat notarea evenimentului. Cu ce te pot ajuta?"
+-```
++3. **QR Generation**
++   - ✅ Wait 2-5 seconds
++   - ✅ Check logs: `[accountId] QR Code generated`
++   - ✅ Check logs: `[accountId] Connecting timeout cleared (QR generated, pairing phase)`
++   - ✅ Expected: QR code appears in UI, status = "qr_ready"
+ 
+-**Assertions**:
+-- [x] Conversation state is cleared
+-- [x] AI exits noting mode
+-- [x] No event is created
++4. **515 Handling (if occurs)**
++   - ✅ If 515 occurs, check logs: `[accountId] Reason 515 (restart required) - clearing QR`
++   - ✅ Check logs: `[accountId] Pairing phase reconnect in 2000ms (attempt 1/10, reason: 515)`
++   - ✅ Expected: QR clears → new QR appears after reconnect
+ 
+-#### 3. Animator with Character
++5. **PASSIVE MODE (if backend passive)**
++   - ✅ If backend e PASSIVE, check logs: `[add-account] Blocked: PASSIVE mode`
++   - ✅ Expected: Purple SnackBar "Backend în mod PASSIVE. Lock nu este achiziționat."
++   - ✅ Expected: Retry cu backoff mai lung (15s base, max 60s)
+ 
+-```
+-User: "Vreau Elsa pentru petrecere pe 15-01-2026 la București"
+-AI: "Am înțeles că vrei animator cu personaj Elsa. Am nevoie de:
+-     - Numele sărbătoritului
+-     - Vârsta/data nașterii
+-     - Ora și durata"
+-```
++6. **QR Scan**
++   - ✅ Scan QR cu WhatsApp mobile
++   - ✅ Check logs: `[accountId] connection.update: open`
++   - ✅ Expected: Status changes to "connected"
+ 
+-**Assertions**:
+-- [x] AI detects "Elsa" as animator
+-- [x] AI sets personaj = "Elsa"
+-- [x] AI asks for required animator details
++---
+ 
+-#### 4. Ursitoare with Count
++## Test 2: Backend Status Verification
+ 
+-```
+-User: "Vreau 4 ursitoare pentru botez"
+-AI: "Am înțeles 4 ursitoare (3 bune + 1 rea). Durată fixă: 60 minute.
+-     Am nevoie de:
+-     - Data (DD-MM-YYYY)
+-     - Adresa
+-     - Numele copilului
+-     - Data nașterii copilului
+-     - Ora"
++### Commands:
++
++```bash
++# 1. Health check
++curl https://whats-upp-production.up.railway.app/health
++
++# Expected: { "status": "ok", "version": "...", "uptime": ... }
++
++# 2. Status (requires ADMIN_TOKEN)
++curl -H "Authorization: Bearer $ADMIN_TOKEN" \
++  https://whats-upp-production.up.railway.app/api/longrun/status-now
++
++# Expected:
++# {
++#   "waMode": "active" | "passive",
++#   "waStatus": "RUNNING" | "NOT_RUNNING",
++#   "instanceId": "...",
++#   "reason": "lock_not_acquired" | null,
++#   "accounts": [...],
++#   "accountsCount": 2
++# }
++
++# 3. Ready endpoint
++curl https://whats-upp-production.up.railway.app/ready
++
++# Expected:
++# {
++#   "ready": true | false,
++#   "mode": "active" | "passive",
++#   "reason": "lock_not_acquired" | null,
++#   "instanceId": "..."
++# }
+ ```
+ 
+-**Assertions**:
+-- [x] AI detects 4 ursitoare
+-- [x] AI includes 1 rea automatically
+-- [x] AI sets fixed duration to 60 minutes
+-- [x] AI asks for required details
++---
+ 
+-#### 5. UPDATE vs CREATE
++## Test 3: HTTP Probes (Functions Proxy)
+ 
++### Setup:
++```bash
++# Get Firebase ID token (from Flutter app logs or Firebase Console)
++export FIREBASE_ID_TOKEN='your-firebase-id-token'
+ ```
+-User: "Mai vreau vată de zahăr" (with phone +40712345678)
+-AI: "Am găsit un eveniment viitor:
+-     📅 Data: 15-01-2026
+-     📍 Adresa: București, Str. Exemplu 10
+-     
+-     Vrei să adaugi vată de zahăr la acest eveniment?"
+-
+-User: "da"
+-AI: "✅ Am adăugat vată de zahăr la evenimentul 01"
++
++### Commands:
++
++```bash
++# 1. Get Accounts
++curl -X GET \
++  -H "Authorization: Bearer $FIREBASE_ID_TOKEN" \
++  -H "X-Request-ID: test_$(date +%s)" \
++  https://us-central1-superparty-frontend.cloudfunctions.net/whatsappProxyGetAccounts
++
++# Expected:
++# {
++#   "success": true,
++#   "accounts": [...],
++#   "instanceId": "...",
++#   "waMode": "active" | "passive",
++#   "requestId": "..."
++# }
++
++# 2. Add Account (should return 503 if PASSIVE)
++curl -X POST \
++  -H "Authorization: Bearer $FIREBASE_ID_TOKEN" \
++  -H "Content-Type: application/json" \
++  -H "X-Request-ID: test_$(date +%s)" \
++  -d '{"name":"Test","phone":"+40712345678"}' \
++  https://us-central1-superparty-frontend.cloudfunctions.net/whatsappProxyAddAccount
++
++# Expected (if ACTIVE):
++# { "success": true, "account": {...}, "instanceId": "...", "waMode": "active", "requestId": "..." }
++
++# Expected (if PASSIVE):
++# {
++#   "success": false,
++#   "error": "PASSIVE mode: another instance holds lock; retry shortly",
++#   "message": "Backend in PASSIVE mode: lock_not_acquired",
++#   "mode": "passive",
++#   "instanceId": "...",
++#   "waMode": "passive",
++#   "requestId": "..."
++# }
++
++# 3. Regenerate QR (should return 503 if PASSIVE)
++curl -X POST \
++  -H "Authorization: Bearer $FIREBASE_ID_TOKEN" \
++  -H "X-Request-ID: test_$(date +%s)" \
++  "https://us-central1-superparty-frontend.cloudfunctions.net/whatsappProxyRegenerateQr?accountId=account_xxx"
++
++# Expected (if ACTIVE):
++# { "success": true, "message": "QR regeneration started", "instanceId": "...", "waMode": "active", "requestId": "..." }
++
++# Expected (if PASSIVE):
++# {
++#   "success": false,
++#   "error": "PASSIVE mode: another instance holds lock; retry shortly",
++#   "message": "Backend in PASSIVE mode: lock_not_acquired",
++#   "mode": "passive",
++#   "instanceId": "...",
++#   "waMode": "passive",
++#   "requestId": "..."
++# }
+ ```
+ 
+-**Assertions**:
+-- [x] AI identifies existing event by phone
+-- [x] AI proposes UPDATE instead of CREATE
+-- [x] AI adds role to existing event
+-- [x] New role gets next available slot
++---
+ 
+-#### 6. Multiple Events - Ambiguous
++## Test 4: Events Flow
+ 
+-```
+-User: "Mai vreau popcorn" (with phone that has 2 future events)
+-AI: "Am găsit mai multe evenimente viitoare:
+-     1. [01] 📅 15-01-2026 - 📍 București, Str. Exemplu 10
+-     2. [02] 📅 20-01-2026 - 📍 Cluj, Str. Test 5
+-     
+-     Te rog să specifici:
+-     - Data (ex: 15-01-2026)
+-     - Adresa (ex: București)
+-     - SAU codul evenimentului (ex: 01)"
+-
+-User: "01"
+-AI: "✅ Am adăugat popcorn la evenimentul 01"
+-```
++### Test Steps:
+ 
+-**Assertions**:
+-- [x] AI finds multiple events
+-- [x] AI asks for clarification
+-- [x] AI accepts short code for identification
+-- [x] AI updates correct event
+-
+-## Manual Testing Checklist
+-
+-### Date Validation
+-
+-- [ ] Accept "15-01-2026" (DD-MM-YYYY)
+-- [ ] Accept "15/01/2026" (with slash)
+-- [ ] Accept "15.01.2026" (with dot)
+-- [ ] Reject "mâine" (relative date)
+-- [ ] Reject "vineri" (day name)
+-- [ ] Reject "32-01-2026" (invalid day)
+-- [ ] Reject "15-13-2026" (invalid month)
+-- [ ] Reject "15-01-2020" (year too old)
+-- [ ] Reject "31-02-2026" (invalid date)
+-- [ ] Accept "29-02-2024" (leap year)
+-- [ ] Reject "29-02-2025" (non-leap year)
+-
+-### Duration Parsing
+-
+-- [ ] "2 ore" → 120 minutes
+-- [ ] "90 minute" → 90 minutes
+-- [ ] "1.5 ore" → 90 minutes
+-- [ ] "1,5 ore" → 90 minutes
+-- [ ] "2 ore si 30 minute" → 150 minutes
+-- [ ] "120" → 120 minutes
+-- [ ] "2" → 120 minutes (< 10 = hours)
+-- [ ] "o oră jumătate" → 90 minutes
+-
+-### Role Detection
+-
+-- [ ] "animator" → Animator
+-- [ ] "Elsa" → Animator (personaj: Elsa)
+-- [ ] "MC" → Animator (personaj: MC)
+-- [ ] "3 ursitoare" → Ursitoare (count: 3)
+-- [ ] "4 ursitoare" → Ursitoare (count: 4, includesRea: true)
+-- [ ] "vată de zahăr" → Vată de zahăr
+-- [ ] "vata de zahar" → Vată de zahăr (no diacritics)
+-- [ ] "popcorn" → Popcorn
+-- [ ] "animator, vată și popcorn" → 3 roles
+-
+-### Short Codes
+-
+-- [ ] First event gets code "01"
+-- [ ] Second event gets code "02"
+-- [ ] First role gets slot "A" → "01A"
+-- [ ] Second role gets slot "B" → "01B"
+-- [ ] Can identify event by short code "01"
+-- [ ] Can identify role by role code "01A"
+-
+-### Animator Details
+-
+-- [ ] Collect sărbătorit name
+-- [ ] Collect data nașterii
+-- [ ] Collect vârstă reală
+-- [ ] Collect personaj/character
+-- [ ] Collect număr copii aprox
+-- [ ] Collect parent name
+-- [ ] Collect client phone
+-
+-### Ursitoare Details
+-
+-- [ ] Ask "3 sau 4 ursitoare?"
+-- [ ] If 4, include 1 rea automatically
+-- [ ] Fixed duration: 60 minutes (don't ask)
+-- [ ] Same time for all ursitoare
+-- [ ] Collect sărbătorit name
+-- [ ] Collect data nașterii
+-
+-### CREATE vs UPDATE
+-
+-- [ ] "Vreau să notez" → CREATE
+-- [ ] "Mai vreau" + phone → search existing
+-- [ ] 1 existing event → propose UPDATE
+-- [ ] Multiple existing events → ask for clarification
+-- [ ] No existing events → CREATE
+-- [ ] Accept date for identification
+-- [ ] Accept address for identification
+-- [ ] Accept short code for identification
+-
+-### Archive
+-
+-- [ ] Can archive entire event
+-- [ ] Can archive single role
+-- [ ] AI asks: "Arhivez doar rolul X sau tot evenimentul?"
+-- [ ] Archived events don't appear in future events search
+-
+-### Admin Corrections
+-
+-- [ ] Correction button only visible to super admin
+-- [ ] Can view AI interpretation log
+-- [ ] Can add new synonyms
+-- [ ] Can add role mapping rules
+-- [ ] Can add duration rules
+-- [ ] Overrides are applied in next detection
+-
+-## Performance Tests
+-
+-### Response Time
+-
+-- [ ] AI response < 3 seconds (normal case)
+-- [ ] AI response < 5 seconds (complex case)
+-- [ ] Event creation < 2 seconds
+-- [ ] Event update < 2 seconds
+-- [ ] List events < 1 second
+-
+-### Concurrency
+-
+-- [ ] Multiple users can create events simultaneously
+-- [ ] Short code generation is atomic (no duplicates)
+-- [ ] Role slot generation is correct under concurrent updates
+-
+-## Regression Tests
+-
+-### Existing Functionality
+-
+-- [ ] Old chatEventOps still works
+-- [ ] Event listing still works
+-- [ ] Event archiving still works
+-- [ ] Audit trail still works
+-- [ ] Rate limiting still works
+-
+-## Test Data
+-
+-### Sample Events
+-
+-```javascript
+-const sampleEvents = [
+-  {
+-    date: '15-01-2026',
+-    address: 'București, Str. Exemplu 10',
+-    client: '+40712345678',
+-    sarbatoritNume: 'Maria',
+-    sarbatoritVarsta: 5,
+-    roles: [
+-      {
+-        label: 'Animator',
+-        startTime: '14:00',
+-        durationMinutes: 120,
+-        details: {
+-          sarbatoritNume: 'Maria',
+-          dataNastere: '15-01-2021',
+-          varstaReala: 5,
+-          personaj: 'Elsa',
+-        },
+-      },
+-      {
+-        label: 'Vată de zahăr',
+-        startTime: '14:00',
+-        durationMinutes: 120,
+-      },
+-    ],
+-  },
+-  {
+-    date: '20-01-2026',
+-    address: 'Cluj, Str. Test 5',
+-    client: '+40712345678',
+-    sarbatoritNume: 'Ion',
+-    sarbatoritVarsta: 1,
+-    roles: [
+-      {
+-        label: 'Ursitoare',
+-        startTime: '15:00',
+-        durationMinutes: 60,
+-        details: {
+-          count: 4,
+-          includesRea: true,
+-          sarbatoritNume: 'Ion',
+-          dataNastere: '20-01-2025',
+-        },
+-      },
+-    ],
+-  },
+-];
+-```
++1. **Navigate to Events**
++   - ✅ Navigate to "Evenimente" screen
++   - ✅ Check logs: `[EvenimenteScreen] Loaded X events from Firestore`
++   - ✅ Check logs: `[EvenimenteScreen] Events with isArchived=false: Y`
++   - ✅ Check logs: `[EvenimenteScreen] Filtered events count: Z`
++
++2. **Empty State**
++   - ✅ If no events: See icon + message "Nu există evenimente"
++   - ✅ See hint: "Creează evenimente din AI Chat sau folosește seed_evenimente.js"
++
++3. **Filters**
++   - ✅ Test date filter (today, yesterday, last7, next7, next30, custom)
++   - ✅ Test driver filter (all, yes, open, no)
++   - ✅ Test code filter (NEREZOLVATE, REZOLVATE, specific code)
++   - ✅ Test noted by filter (`cineNoteaza` field)
+ 
+-## Bug Tracking
++---
+ 
+-### Known Issues
++## Test 5: AI Flow (GM Mode)
+ 
+-1. **Issue**: [None yet]
+-   - **Severity**: N/A
+-   - **Status**: N/A
+-   - **Workaround**: N/A
++### Test Steps:
+ 
+-## Test Results
++1. **Navigate to AI Chat**
++   - ✅ Navigate to AI Chat screen
++   - ✅ Check logs: `[AIChatScreen] Initialized`
+ 
+-### Last Run: [Date]
++2. **Event Creation (Preview)**
++   - ✅ Type: "Notează o petrecere pe 15 martie"
++   - ✅ Check logs: `[AIChat] Calling chatEventOps (preview): dryRun=true`
++   - ✅ Check logs: `[AIChat] chatEventOps preview result: ok=true, action=CREATE`
++   - ✅ Expected: Preview card appears with event details
+ 
+-- **Total Tests**: 0
+-- **Passed**: 0
+-- **Failed**: 0
+-- **Skipped**: 0
+-- **Coverage**: 0%
++3. **Event Creation (Confirm)**
++   - ✅ Tap "Confirm" on preview card
++   - ✅ Check logs: `[AIChat] Calling chatEventOps (create): dryRun=false`
++   - ✅ Check logs: `[AIChat] chatEventOps create result: ok=true, eventId=...`
++   - ✅ Expected: Event created in Firestore
+ 
+-### Test Execution Log
++4. **Verify in Events**
++   - ✅ Navigate to Events screen
++   - ✅ Expected: New event appears in list
++   - ✅ Check logs: `[EvenimenteScreen] Loaded X events (new event included)`
+ 
++---
++
++## Test 6: Black Screen Prevention
++
++### Test Steps:
++
++1. **Start Emulator WITHOUT Firebase Emulators**
++   ```bash
++   flutter run -d emulator-5554
++   # DO NOT start firebase emulators:start
++   ```
++
++2. **Expected Behavior:**
++   - ✅ Auth stream timeout → fallback la `currentUser` (sau null)
++   - ✅ App navigates to Login sau Home (nu black screen)
++   - ✅ Check logs: `[AuthWrapper] ⚠️ Auth stream timeout - using currentUser as fallback`
++   - ✅ Check logs: `[AppRouter] ⚠️ Auth stream timeout (30s) - emulator may be down`
++
++3. **Firestore Timeout**
++   - ✅ If Firestore stream timeout → error handling → show Home
++   - ✅ Check logs: `[AuthWrapper] ⚠️ Firestore stream timeout (30s) - emulator may be down`
++
++---
++
++## Expected Logs Summary
++
++### WhatsApp Connect:
++```
++[WhatsAppAccountsScreen] _addAccount: starting
++[WhatsAppApiService] addAccount: calling proxy
++[accountId] Connection session #1 started
++[accountId] QR Code generated
++[accountId] Connecting timeout cleared (QR generated, pairing phase)
++[accountId] Pairing phase reconnect in 2000ms (if 515 occurs)
++```
++
++### PASSIVE MODE:
++```
++[add-account] Blocked: PASSIVE mode (instanceId: ..., requestId: ...)
++[WhatsAppApiService] addAccount: error=PASSIVE mode, mode=passive
++[WhatsAppAccountsScreen] _addAccount: exception - ServiceUnavailableException
++# Purple SnackBar: "Backend în mod PASSIVE. Lock nu este achiziționat."
++```
++
++### Events:
++```
++[EvenimenteScreen] Loaded 10 events from Firestore
++[EvenimenteScreen] Events with isArchived=false: 8
++[EvenimenteScreen] Filtered events count: 5
+ ```
+-[To be filled after running tests]
++
++### AI Flow:
++```
++[AIChat] Calling chatEventOps (preview): dryRun=true
++[AIChat] chatEventOps preview result: ok=true, action=CREATE
++[AIChat] Calling chatEventOps (create): dryRun=false
++[AIChat] chatEventOps create result: ok=true, eventId=...
+ ```
+ 
+-## Continuous Integration
++---
+ 
+-### GitHub Actions
++## Troubleshooting
+ 
+-```yaml
+-# .github/workflows/test.yml
+-name: Test
++### Issue: QR nu apare
++- Check: Backend logs pentru `QR Code generated`
++- Check: Flutter logs pentru `getAccounts: success, accountsCount=1`
++- Check: Account status în Firestore (`accounts/{accountId}`)
+ 
+-on: [push, pull_request]
++### Issue: 515 constant
++- Check: Backend logs pentru `Reason 515 (restart required)`
++- Check: Reconnect attempts (max 10)
++- Action: Regenerate QR manual
+ 
+-jobs:
+-  test:
+-    runs-on: ubuntu-latest
+-    steps:
+-      - uses: actions/checkout@v2
+-      - uses: actions/setup-node@v2
+-        with:
+-          node-version: '18'
+-      - run: cd functions && npm install
+-      - run: cd functions && npm test
+-```
++### Issue: PASSIVE MODE persistent
++- Check: Backend logs pentru `lock_not_acquired`
++- Check: `api/longrun/status-now` pentru `waMode: passive`
++- Action: Verifică dacă altă instanță ține lock-ul
++
++### Issue: Black screen
++- Check: Flutter logs pentru `Auth stream timeout`
++- Check: `USE_EMULATORS` flag (trebuie `true` în debug mode)
++- Action: Start Firebase emulators sau dezactivează `USE_EMULATORS`
++
++---
+ 
+-## Sign-off
++## Success Criteria
+ 
+-### Test Plan Approval
++✅ **WhatsApp Connect:**
++- QR apare în < 5 secunde după addAccount
++- QR rămâne stabil (nu expiră în < 60s)
++- 515 declanșează reconnect automat
++- PASSIVE MODE afișează mesaj clar
+ 
+-- [ ] Test plan reviewed by: _______________
+-- [ ] Test plan approved by: _______________
+-- [ ] Date: _______________
++✅ **Black Screen:**
++- App navigates la Login/Home chiar dacă emulators nu rulează
++- Timeout handling previne blocaj
+ 
+-### Test Execution Sign-off
++✅ **AI Flow:**
++- Event creation funcționează (preview → confirm → create)
++- Events apar în Evenimente screen
++- Logging complet pentru debugging
+ 
+-- [ ] All tests executed: _______________
+-- [ ] All tests passed: _______________
+-- [ ] Date: _______________
++✅ **Evenimente:**
++- Query funcționează corect
++- Filters aplică corect
++- Empty state informativ
+diff --git a/functions/chatEventOps.js b/functions/chatEventOps.js
+index dae96e1b..af050ea8 100644
+--- a/functions/chatEventOps.js
++++ b/functions/chatEventOps.js
+@@ -186,13 +186,19 @@ function sanitizeUpdateFields(data) {
+   return out;
+ }
+ 
+-exports.chatEventOps = onCall(
+-  { 
+-    region: 'us-central1', 
+-    timeoutSeconds: 30,
+-    secrets: [groqApiKey]  // Attach GROQ_API_KEY secret
+-  },
+-  async (request) => {
++// Internal handler function (can be called directly or via onCall)
++async function chatEventOpsHandler(request) {
++  const requestId = request.data?.clientRequestId || `chatEventOps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
++  const startTime = Date.now();
++  
++  try {
++    console.log(`[${requestId}] chatEventOps called`, {
++      uid: request.auth?.uid,
++      email: request.auth?.token?.email,
++      textLength: (request.data?.text || '').length,
++      dryRun: request.data?.dryRun === true,
++    });
++
+     // Require authentication (all authenticated users can use this)
+     const auth = requireAuth(request);
+     const { uid, email } = auth;
+@@ -201,7 +207,10 @@ exports.chatEventOps = onCall(
+     const employeeInfo = await isEmployee(uid, email);
+ 
+     const text = (request.data?.text || '').toString().trim();
+-    if (!text) throw new HttpsError('invalid-argument', 'Lipsește "text".');
++    if (!text) {
++      console.error(`[${requestId}] Missing text parameter`);
++      throw new HttpsError('invalid-argument', 'Lipsește "text".');
++    }
+ 
+     // DryRun mode: parse command but don't execute (for preview)
+     const dryRun = request.data?.dryRun === true;
+@@ -209,7 +218,7 @@ exports.chatEventOps = onCall(
+     // Access GROQ API key from secret
+     const groqKey = groqApiKey.value();
+     if (!groqKey) {
+-      console.error('[chatEventOps] GROQ_API_KEY not available');
++      console.error(`[${requestId}] GROQ_API_KEY not available`);
+       throw new HttpsError('failed-precondition', 'Lipsește GROQ_API_KEY.');
+     }
+ 
+@@ -481,7 +490,14 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
+       }
+ 
+       const ref = await db.collection('evenimente').add(doc);
+-      return { ok: true, action: 'CREATE', eventId: ref.id, message: `Eveniment creat și adăugat în Evenimente.`, dryRun: false };
++      const result = { ok: true, action: 'CREATE', eventId: ref.id, message: `Eveniment creat și adăugat în Evenimente.`, dryRun: false };
++      console.log(`[${requestId}] Event created`, {
++        eventId: ref.id,
++        eventShortId: doc.eventShortId,
++        date: doc.date,
++        address: doc.address,
++      });
++      return result;
+     }
+ 
+     if (action === 'UPDATE') {
+@@ -627,8 +643,36 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
+       return { ok: true, action: 'UNARCHIVE', eventId, message: `Eveniment dezarhivat: ${eventId}`, dryRun: false };
+     }
+ 
+-    return { ok: false, action: 'NONE', message: `Acțiune necunoscută: ${action}`, raw };
++    const result = { ok: false, action: 'NONE', message: `Acțiune necunoscută: ${action}`, raw };
++    const duration = Date.now() - startTime;
++    console.log(`[${requestId}] chatEventOps completed`, {
++      action: result.action,
++      ok: result.ok,
++      durationMs: duration,
++    });
++    return result;
++  } catch (error) {
++    const duration = Date.now() - startTime;
++    console.error(`[${requestId}] chatEventOps error`, {
++      error: error.message,
++      stack: error.stack,
++      durationMs: duration,
++    });
++    throw error;
+   }
++}
++
++// Export as onCall handler
++exports.chatEventOps = onCall(
++  { 
++    region: 'us-central1', 
++    timeoutSeconds: 30,
++    secrets: [groqApiKey]  // Attach GROQ_API_KEY secret
++  },
++  chatEventOpsHandler
+ );
+ 
++// Export handler function for direct calls (e.g., from chatWithAI)
++exports.chatEventOpsHandler = chatEventOpsHandler;
++
+ // Force redeploy Fri Jan  9 14:06:54 UTC 2026
+diff --git a/functions/index.js b/functions/index.js
+index db7cd048..4ea5b3ca 100644
+--- a/functions/index.js
++++ b/functions/index.js
+@@ -546,22 +546,38 @@ Scrie "da" pentru a confirma și crea evenimentul, sau "anulează" pentru a renu
+ 
+         if (step === 'confirm') {
+           if (userText === 'da' || userText === 'confirm' || userText === 'confirma') {
+-            // Call chatEventOps to create event
+-            const chatEventOps = require('./chatEventOps');
+-            
++            // Call chatEventOps via exported callable (proper way)
+             const eventText = `Notează eveniment pentru ${eventData.sarbatoritNume}, ${eventData.sarbatoritVarsta} ani, pe ${eventData.date} la ${eventData.address}`;
++            const clientRequestId = `interactive_${currentSessionId}_${Date.now()}`;
++            
++            console.log(`[${requestId}] Creating event via chatEventOps`, {
++              clientRequestId,
++              sessionId: currentSessionId,
++              eventData: {
++                name: eventData.sarbatoritNume,
++                age: eventData.sarbatoritVarsta,
++                date: eventData.date,
++                address: eventData.address,
++              },
++            });
+             
+             try {
+-              const eventResult = await chatEventOps({
++              // Use the exported handler function directly (not the onCall wrapper)
++              const { chatEventOpsHandler } = require('./chatEventOps');
++              
++              // Call handler directly with request-like object
++              const eventResult = await chatEventOpsHandler({
+                 data: {
+                   text: eventText,
+                   dryRun: false,
+-                  clientRequestId: `interactive_${currentSessionId}_${Date.now()}`
++                  clientRequestId,
+                 },
+-                auth: request.auth
+-              }, {
+-                status: () => ({ json: () => {} }),
+-                json: (data) => data
++                auth: request.auth,
++              });
++              
++              console.log(`[${requestId}] Event created successfully`, {
++                eventId: eventResult.eventId,
++                clientRequestId,
+               });
+               
+               // Clear conversation state
+@@ -575,7 +591,11 @@ Scrie "da" pentru a confirma și crea evenimentul, sau "anulează" pentru a renu
+                 eventId: eventResult.eventId
+               };
+             } catch (error) {
+-              console.error(`[${requestId}] Error creating event:`, error);
++              console.error(`[${requestId}] Error creating event:`, {
++                error: error.message,
++                stack: error.stack,
++                clientRequestId,
++              });
+               await stateRef.delete();
+               
+               return {
+diff --git a/functions/whatsappProxy.js b/functions/whatsappProxy.js
+index f85b42ec..404292c2 100644
+--- a/functions/whatsappProxy.js
++++ b/functions/whatsappProxy.js
+@@ -478,12 +478,16 @@ async function getAccountsHandler(req, res) {
+       // Lazy-load Railway base URL (computed at handler runtime, not module load time)
+       const railwayBaseUrl = getRailwayBaseUrl();
+       if (!railwayBaseUrl) {
++        console.error('[whatsappProxy/getAccounts] WHATSAPP_RAILWAY_BASE_URL missing');
++        console.error('[whatsappProxy/getAccounts] process.env.WHATSAPP_RAILWAY_BASE_URL:', process.env.WHATSAPP_RAILWAY_BASE_URL ? 'SET' : 'NOT SET');
+         return res.status(500).json({
+           success: false,
+           error: 'configuration_missing',
+           message: 'WHATSAPP_RAILWAY_BASE_URL must be set via environment variable or functions.config().whatsapp.railway_base_url',
+         });
+       }
++      
++      console.log('[whatsappProxy/getAccounts] Railway URL:', railwayBaseUrl.substring(0, 30) + '...');
+ 
+       // Forward to Railway backend
+       const railwayUrl = `${railwayBaseUrl}/api/whatsapp/accounts`;
+@@ -585,11 +589,30 @@ async function addAccountHandler(req, res) {
+       if (response.statusCode >= 200 && response.statusCode < 300) {
+         return res.status(response.statusCode).json(response.body);
+       } else {
+-        // Non-2xx: return safe error message
++        // Special handling for 503 (PASSIVE mode) - propagate error message with full details
++        if (response.statusCode === 503) {
++          return res.status(503).json({
++            success: false,
++            error: response.body?.error || 'passive_mode',
++            message: response.body?.message || response.body?.error || 'Backend in PASSIVE mode - lock not acquired',
++            mode: response.body?.mode || 'passive',
++            instanceId: response.body?.instanceId,
++            holderInstanceId: response.body?.holderInstanceId,
++            retryAfterSeconds: response.body?.retryAfterSeconds || 15,
++            waMode: response.body?.waMode || 'passive',
++            requestId: response.body?.requestId,
++          });
++        }
++        
++        // For other errors, return safe message but include status code
+         return res.status(500).json({
+           success: false,
+           error: 'backend_error',
+-          message: 'Backend service returned an error',
++          message: `Backend service returned an error (status: ${response.statusCode})`,
++          ...(response.body && typeof response.body === 'object' && response.body.error ? {
++            backendError: response.body.error,
++            backendMessage: response.body.message || response.body.error,
++          } : {}),
+         });
+       }
+     } catch (error) {
+@@ -844,6 +867,8 @@ async function regenerateQrHandler(req, res) {
+ 
+       // Forward to Railway backend
+       const railwayUrl = `${railwayBaseUrl}/api/whatsapp/regenerate-qr/${accountId.trim()}`;
++      console.log(`[whatsappProxy/regenerateQr] Calling Railway: ${railwayUrl}`);
++      
+       const response = await getForwardRequest()(railwayUrl, {
+         method: 'POST',
+         headers: {
+@@ -851,15 +876,40 @@ async function regenerateQrHandler(req, res) {
+         },
+       });
+ 
++      console.log(`[whatsappProxy/regenerateQr] Railway response: status=${response.statusCode}, body=${JSON.stringify(response.body).substring(0, 200)}`);
++
+       // Forward Railway response, but sanitize non-2xx errors
+       if (response.statusCode >= 200 && response.statusCode < 300) {
+         return res.status(response.statusCode).json(response.body);
+       } else {
+-        // Non-2xx: return safe error message
++        // Non-2xx: log full error for debugging
++        console.error(`[whatsappProxy/regenerateQr] Railway error: status=${response.statusCode}, body=${JSON.stringify(response.body)}`);
++        
++        // Special handling for 503 (PASSIVE mode) - propagate error message with full details
++        if (response.statusCode === 503) {
++          return res.status(503).json({
++            success: false,
++            error: response.body?.error || 'passive_mode',
++            message: response.body?.message || response.body?.error || 'Backend in PASSIVE mode - lock not acquired',
++            mode: response.body?.mode || 'passive',
++            instanceId: response.body?.instanceId,
++            holderInstanceId: response.body?.holderInstanceId,
++            retryAfterSeconds: response.body?.retryAfterSeconds || 15,
++            waMode: response.body?.waMode || 'passive',
++            requestId: response.body?.requestId,
++          });
++        }
++        
++        // For other errors, return safe message but include status code
+         return res.status(500).json({
+           success: false,
+           error: 'backend_error',
+-          message: 'Backend service returned an error',
++          message: `Backend service returned an error (status: ${response.statusCode})`,
++          // Include Railway error message if available (for debugging)
++          ...(response.body && typeof response.body === 'object' && response.body.error ? {
++            backendError: response.body.error,
++            backendMessage: response.body.message || response.body.error,
++          } : {}),
+         });
+       }
+     } catch (error) {
+diff --git a/superparty_flutter/lib/core/errors/app_exception.dart b/superparty_flutter/lib/core/errors/app_exception.dart
+index fbd52c96..5f98fd7f 100644
+--- a/superparty_flutter/lib/core/errors/app_exception.dart
++++ b/superparty_flutter/lib/core/errors/app_exception.dart
+@@ -38,6 +38,23 @@ class TimeoutException extends AppException {
+       : super(message ?? 'Timeout: cererea a durat prea mult.', code: 'timeout');
+ }
+ 
++/// Service unavailable errors (503 - PASSIVE mode, backend down, etc.)
++class ServiceUnavailableException extends AppException {
++  final String? mode; // 'passive' | 'active' | null
++  final String? instanceId;
++  final String? holderInstanceId;
++  final int? retryAfterSeconds;
++  
++  ServiceUnavailableException(
++    super.message, {
++    this.mode,
++    this.instanceId,
++    this.holderInstanceId,
++    this.retryAfterSeconds,
++    super.originalError,
++  }) : super(code: 'service_unavailable');
++}
++
+ /// Unknown/unexpected errors
+ class UnknownException extends AppException {
+   UnknownException(super.message, {super.originalError}) : super(code: 'unknown');
+@@ -64,12 +81,33 @@ class ErrorMapper {
+     return UnknownException(message, originalError: e);
+   }
+ 
+-  static AppException fromHttpException(int statusCode, String? message) {
++  static AppException fromHttpException(
++    int statusCode, 
++    String? message, {
++    Map<String, dynamic>? responseBody,
++  }) {
+     switch (statusCode) {
+       case 401:
+         return UnauthorizedException(message);
+       case 403:
+         return ForbiddenException(message);
++      case 503:
++        // Service unavailable - could be PASSIVE mode
++        final mode = responseBody?['mode'] as String?;
++        final instanceId = responseBody?['instanceId'] as String?;
++        final holderInstanceId = responseBody?['holderInstanceId'] as String?;
++        final retryAfterSeconds = responseBody?['retryAfterSeconds'] as int?;
++        final errorMsg = message ?? 
++                        responseBody?['message'] as String? ?? 
++                        'Serviciul nu este disponibil momentan.';
++        return ServiceUnavailableException(
++          errorMsg,
++          mode: mode,
++          instanceId: instanceId,
++          holderInstanceId: holderInstanceId,
++          retryAfterSeconds: retryAfterSeconds,
++          originalError: responseBody,
++        );
+       case 408:
+       case 504:
+         return TimeoutException(message);
+diff --git a/superparty_flutter/lib/core/utils/retry.dart b/superparty_flutter/lib/core/utils/retry.dart
+index e6e30a4d..804f0eb6 100644
+--- a/superparty_flutter/lib/core/utils/retry.dart
++++ b/superparty_flutter/lib/core/utils/retry.dart
+@@ -2,6 +2,8 @@ import 'dart:math';
+ import 'package:cloud_functions/cloud_functions.dart';
+ import '../errors/app_exception.dart';
+ 
++// Import ServiceUnavailableException for type check
++
+ /// Retry configuration
+ class RetryConfig {
+   final int maxAttempts;
+@@ -30,6 +32,12 @@ class RetryConfig {
+       return false; // Never retry auth/permission errors
+     }
+     
++    // Handle ServiceUnavailableException (503) - retry with longer backoff
++    // PASSIVE mode is transient - backend will retry lock acquisition
++    if (e is ServiceUnavailableException) {
++      return true; // Retry 503 (PASSIVE mode is transient)
++    }
++    
+     // Other errors: retry
+     return true;
+   }
+@@ -104,10 +112,31 @@ Future<T> retryWithBackoff<T>(
+       }
+ 
+       // Calculate delay with exponential backoff + jitter
+-      final exponentialDelay = cfg.initialDelay.inMilliseconds * pow(cfg.backoffMultiplier, attempt - 1);
++      // CRITICAL: For 503 (ServiceUnavailableException), use retryAfterSeconds from response if available
++      // PASSIVE mode requires time for lock acquisition retry
++      final isServiceUnavailable = lastError is ServiceUnavailableException;
++      int baseDelayMs;
++      int maxDelayMs;
++      
++      if (isServiceUnavailable) {
++        // Use retryAfterSeconds from ServiceUnavailableException if available, otherwise default to 15s
++        final serviceUnavailable = lastError as ServiceUnavailableException;
++        final retryAfterSeconds = serviceUnavailable.retryAfterSeconds;
++        baseDelayMs = (retryAfterSeconds ?? 15) * 1000; // Use retryAfterSeconds or default 15s
++        maxDelayMs = 60 * 1000; // Max 60s for PASSIVE mode retries
++      } else {
++        baseDelayMs = cfg.initialDelay.inMilliseconds;
++        maxDelayMs = cfg.maxDelay.inMilliseconds;
++      }
++      
++      final baseDelay = Duration(milliseconds: baseDelayMs);
++      final maxDelayForError = Duration(milliseconds: maxDelayMs);
++      
++      final exponentialDelay = baseDelay.inMilliseconds * pow(cfg.backoffMultiplier, attempt - 1);
++      
+       final cappedDelayMs = exponentialDelay.clamp(
+-        cfg.initialDelay.inMilliseconds.toDouble(),
+-        cfg.maxDelay.inMilliseconds.toDouble(),
++        baseDelay.inMilliseconds.toDouble(),
++        maxDelayForError.inMilliseconds.toDouble(),
+       ).toInt();
+       
+       final jitter = Random().nextInt(cappedDelayMs ~/ 4); // +/- 25% jitter
+diff --git a/superparty_flutter/lib/router/app_router.dart b/superparty_flutter/lib/router/app_router.dart
+index 08f5e543..0e7d80ad 100644
+--- a/superparty_flutter/lib/router/app_router.dart
++++ b/superparty_flutter/lib/router/app_router.dart
+@@ -2,7 +2,7 @@ import 'dart:async';
+ import 'dart:io';
+ import 'dart:convert';
+ 
+-import 'package:flutter/foundation.dart';
++import 'package:flutter/foundation.dart' show kDebugMode;
+ import 'package:flutter/material.dart';
+ import 'package:go_router/go_router.dart';
+ 
+@@ -17,6 +17,7 @@ import '../screens/disponibilitate/disponibilitate_screen.dart';
+ import '../screens/salarizare/salarizare_screen.dart';
+ import '../screens/centrala/centrala_screen.dart';
+ import '../screens/whatsapp/whatsapp_screen.dart';
++import '../screens/debug/whatsapp_diagnostics_screen.dart';
+ import '../screens/whatsapp/whatsapp_accounts_screen.dart';
+ import '../screens/whatsapp/whatsapp_inbox_screen.dart';
+ import '../screens/whatsapp/whatsapp_chat_screen.dart';
+@@ -116,6 +117,12 @@ class AppRouter {
+           child: const WhatsAppScreen(),
+         ),
+         routes: [
++          // Debug diagnostics (only in debug mode)
++          if (kDebugMode)
++            GoRoute(
++              path: 'diagnostics',
++              builder: (context, state) => const WhatsAppDiagnosticsScreen(),
++            ),
+           GoRoute(
+             path: 'accounts',
+             builder: (context, state) => AuthGate(
+diff --git a/superparty_flutter/lib/screens/ai_chat/ai_chat_screen.dart b/superparty_flutter/lib/screens/ai_chat/ai_chat_screen.dart
+index 58e367f6..86e30e71 100644
+--- a/superparty_flutter/lib/screens/ai_chat/ai_chat_screen.dart
++++ b/superparty_flutter/lib/screens/ai_chat/ai_chat_screen.dart
+@@ -372,6 +372,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
+         // Generate unique clientRequestId for idempotency
+         final clientRequestId = 'req_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
+         
++        debugPrint('[AIChat] Calling chatEventOps (preview): requestId=$clientRequestId, textLength=${commandText.length}, dryRun=true');
++        
+         // Call chatEventOps with dryRun=true for preview
+         final eventCallable =
+             FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
+@@ -385,6 +387,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
+           'clientRequestId': clientRequestId,
+         });
+         
++        debugPrint('[AIChat] chatEventOps preview result: requestId=$clientRequestId, ok=${previewResult.data['ok']}, action=${previewResult.data['action']}');
++        
+         final previewData = Map<String, dynamic>.from(previewResult.data);
+         
+         // Remove placeholder and show preview
+@@ -1308,6 +1312,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
+     });
+     _scrollToBottomSoon();
+ 
++    debugPrint('[AIChat] Calling chatEventOps (create): requestId=$clientRequestId, textLength=${commandText.length}, dryRun=false');
++    
+     try {
+       final eventCallable =
+           FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
+@@ -1320,6 +1326,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
+         'dryRun': false,
+         'clientRequestId': clientRequestId,
+       });
++      
++      debugPrint('[AIChat] chatEventOps create result: requestId=$clientRequestId, ok=${result.data['ok']}, action=${result.data['action']}, eventId=${result.data['eventId']}');
+ 
+       final data = Map<String, dynamic>.from(result.data);
+       final ok = data['ok'] == true;
+diff --git a/superparty_flutter/lib/screens/evenimente/evenimente_screen.dart b/superparty_flutter/lib/screens/evenimente/evenimente_screen.dart
+index 4501cfc3..fda58f39 100644
+--- a/superparty_flutter/lib/screens/evenimente/evenimente_screen.dart
++++ b/superparty_flutter/lib/screens/evenimente/evenimente_screen.dart
+@@ -2,6 +2,7 @@ import 'dart:ui' show ImageFilter;
+ import 'dart:io';
+ import 'dart:convert';
+ import 'package:flutter/material.dart';
++import 'package:flutter/foundation.dart' show debugPrint;
+ import 'package:cloud_firestore/cloud_firestore.dart';
+ import '../../models/event_model.dart';
+ import '../../widgets/modals/range_modal.dart';
+@@ -512,6 +513,7 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
+         }
+ 
+         if (snapshot.hasError) {
++          debugPrint('[EvenimenteScreen] Firestore error: ${snapshot.error}');
+           return Center(
+             child: Text(
+               'Eroare: ${snapshot.error}',
+@@ -523,17 +525,54 @@ class _EvenimenteScreenState extends State<EvenimenteScreen> {
+         final events = snapshot.data?.docs.map((doc) {
+           return EventModel.fromFirestore(doc);
+         }).toList() ?? [];
++        
++        debugPrint('[EvenimenteScreen] Loaded ${events.length} events from Firestore');
++        debugPrint('[EvenimenteScreen] Events with isArchived=false: ${events.where((e) => !e.isArchived).length}');
++        
+         _allEvents = events; // Cache for CodeInfoModal
+         final filteredEvents = _applyFilters(events);
++        
++        debugPrint('[EvenimenteScreen] Filtered events count: ${filteredEvents.length}');
+ 
+         if (filteredEvents.isEmpty) {
+           return Center(
+-            child: Text(
+-              'Nu există evenimente',
+-              style: TextStyle(
+-                fontSize: 14,
+-                color: const Color(0xFFEAF1FF).withValues(alpha: 0.7),
+-              ),
++            child: Column(
++              mainAxisAlignment: MainAxisAlignment.center,
++              children: [
++                Icon(
++                  Icons.event_busy,
++                  size: 64,
++                  color: const Color(0xFFEAF1FF).withValues(alpha: 0.5),
++                ),
++                const SizedBox(height: 16),
++                Text(
++                  'Nu există evenimente',
++                  style: TextStyle(
++                    fontSize: 16,
++                    color: const Color(0xFFEAF1FF).withValues(alpha: 0.7),
++                  ),
++                ),
++                const SizedBox(height: 8),
++                Text(
++                  'Total în Firestore: ${events.length} (arhivate: ${events.where((e) => e.isArchived).length})',
++                  style: TextStyle(
++                    fontSize: 12,
++                    color: const Color(0xFFEAF1FF).withValues(alpha: 0.5),
++                  ),
++                ),
++                if (events.isEmpty) ...[
++                  const SizedBox(height: 16),
++                  Text(
++                    '💡 Creează evenimente din AI Chat sau folosește seed_evenimente.js',
++                    style: TextStyle(
++                      fontSize: 12,
++                      color: const Color(0xFFEAF1FF).withValues(alpha: 0.5),
++                      fontStyle: FontStyle.italic,
++                    ),
++                    textAlign: TextAlign.center,
++                  ),
++                ],
++              ],
+             ),
+           );
+         }
+diff --git a/superparty_flutter/lib/screens/whatsapp/whatsapp_accounts_screen.dart b/superparty_flutter/lib/screens/whatsapp/whatsapp_accounts_screen.dart
+index 5f83fff1..c162a9ab 100644
+--- a/superparty_flutter/lib/screens/whatsapp/whatsapp_accounts_screen.dart
++++ b/superparty_flutter/lib/screens/whatsapp/whatsapp_accounts_screen.dart
+@@ -1,8 +1,10 @@
+ import 'dart:convert';
+ import 'package:flutter/material.dart';
++import 'package:flutter/foundation.dart' show debugPrint;
+ import 'package:qr_flutter/qr_flutter.dart';
+ import 'package:url_launcher/url_launcher.dart';
+ import '../../services/whatsapp_api_service.dart';
++import '../../core/errors/app_exception.dart';
+ 
+ /// WhatsApp Accounts Management Screen
+ /// 
+@@ -30,25 +32,42 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+   @override
+   void initState() {
+     super.initState();
++    debugPrint('[WhatsAppAccountsScreen] initState: loading accounts');
+     _loadAccounts();
+   }
+ 
+   Future<void> _loadAccounts() async {
+     final myToken = ++_loadRequestToken;
+     
++    debugPrint('[WhatsAppAccountsScreen] _loadAccounts: starting (token=$myToken)');
++    
+     setState(() {
+       _isLoading = true;
+       _error = null;
+     });
+ 
+     try {
++      debugPrint('[WhatsAppAccountsScreen] _loadAccounts: calling getAccounts()');
+       final response = await _apiService.getAccounts();
+       
++      debugPrint('[WhatsAppAccountsScreen] _loadAccounts: response received (token=$myToken, success=${response['success']}, accountsCount=${(response['accounts'] as List?)?.length ?? 0})');
++      
+       // Ignore late responses (if another load started)
+-      if (myToken != _loadRequestToken) return;
++      if (myToken != _loadRequestToken) {
++        debugPrint('[WhatsAppAccountsScreen] _loadAccounts: ignoring late response (token mismatch)');
++        return;
++      }
+       
+       if (response['success'] == true) {
+         final accounts = response['accounts'] as List<dynamic>? ?? [];
++        debugPrint('[WhatsAppAccountsScreen] _loadAccounts: success, ${accounts.length} accounts');
++        
++        // Log account statuses for debugging
++        for (final account in accounts) {
++          final acc = account as Map<String, dynamic>;
++          debugPrint('[WhatsAppAccountsScreen] Account: id=${acc['id']}, status=${acc['status']}, hasQR=${acc['qrCode'] != null}');
++        }
++        
+         if (mounted && myToken == _loadRequestToken) {
+           setState(() {
+             _accounts = accounts.cast<Map<String, dynamic>>();
+@@ -56,6 +75,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+           });
+         }
+       } else {
++        debugPrint('[WhatsAppAccountsScreen] _loadAccounts: failed - ${response['message']}');
+         if (mounted && myToken == _loadRequestToken) {
+           setState(() {
+             _error = response['message'] ?? 'Failed to load accounts';
+@@ -64,12 +84,25 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+         }
+       }
+     } catch (e) {
++      debugPrint('[WhatsAppAccountsScreen] _loadAccounts: exception - $e');
+       // Ignore late responses
+-      if (myToken != _loadRequestToken) return;
++      if (myToken != _loadRequestToken) {
++        debugPrint('[WhatsAppAccountsScreen] _loadAccounts: ignoring late exception (token mismatch)');
++        return;
++      }
+       
+       if (mounted) {
++        String errorMessage = 'Error: ${e.toString()}';
++        
++        // Special handling for ServiceUnavailableException (503 - PASSIVE mode)
++        if (e is ServiceUnavailableException) {
++          errorMessage = e.mode == 'passive'
++              ? 'Backend în mod PASSIVE (lock nu este achiziționat). Reîncearcă în câteva secunde.'
++              : e.message;
++        }
++        
+         setState(() {
+-          _error = 'Error: ${e.toString()}';
++          _error = errorMessage;
+           _isLoading = false;
+         });
+       }
+@@ -122,10 +155,18 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+       ),
+     );
+ 
+-    if (result != true) return;
++    if (result != true) {
++      debugPrint('[WhatsAppAccountsScreen] _addAccount: cancelled');
++      return;
++    }
+ 
+     // Guard: prevent double-tap
+-    if (_isAddingAccount) return;
++    if (_isAddingAccount) {
++      debugPrint('[WhatsAppAccountsScreen] _addAccount: already in progress, skipping');
++      return;
++    }
++    
++    debugPrint('[WhatsAppAccountsScreen] _addAccount: starting (name=${nameController.text.trim()}, phone=${phoneController.text.trim()})');
+     setState(() => _isAddingAccount = true);
+ 
+     try {
+@@ -134,6 +175,8 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+         phone: phoneController.text.trim(),
+       );
+ 
++      debugPrint('[WhatsAppAccountsScreen] _addAccount: response received (success=${response['success']}, accountId=${response['account']?['id'] ?? response['accountId']})');
++
+       if (mounted) {
+         if (response['success'] == true) {
+           ScaffoldMessenger.of(context).showSnackBar(
+@@ -142,8 +185,10 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+               backgroundColor: Colors.green,
+             ),
+           );
++          debugPrint('[WhatsAppAccountsScreen] _addAccount: success, reloading accounts');
+           await _loadAccounts();
+         } else {
++          debugPrint('[WhatsAppAccountsScreen] _addAccount: failed - ${response['message']}');
+           ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(
+               content: Text(response['message'] ?? 'Failed to add account'),
+@@ -153,11 +198,24 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+         }
+       }
+     } catch (e) {
++      debugPrint('[WhatsAppAccountsScreen] _addAccount: exception - $e');
+       if (mounted) {
++        String errorMessage = 'Error: ${e.toString()}';
++        Color backgroundColor = Colors.red;
++        
++        // Special handling for ServiceUnavailableException (503 - PASSIVE mode)
++        if (e is ServiceUnavailableException) {
++          errorMessage = e.mode == 'passive'
++              ? 'Backend în mod PASSIVE. Lock nu este achiziționat. Reîncearcă în câteva secunde.'
++              : e.message;
++          backgroundColor = Colors.purple; // Purple for PASSIVE mode
++        }
++        
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(
+-            content: Text('Error: ${e.toString()}'),
+-            backgroundColor: Colors.red,
++            content: Text(errorMessage),
++            backgroundColor: backgroundColor,
++            duration: const Duration(seconds: 5),
+           ),
+         );
+       }
+@@ -168,15 +226,46 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+     }
+   }
+ 
++  // Throttle map: accountId -> last regenerate timestamp
++  final Map<String, DateTime> _regenerateThrottle = {};
++  static const _regenerateThrottleSeconds = 5; // Minimum 5 seconds between regenerates
++
+   Future<void> _regenerateQr(String accountId) async {
+     // Guard: prevent double-tap
+-    if (_regeneratingQr.contains(accountId)) return;
++    if (_regeneratingQr.contains(accountId)) {
++      debugPrint('[WhatsAppAccountsScreen] _regenerateQr: already in progress for $accountId');
++      return;
++    }
+     
++    // Throttle: prevent spamming regenerateQr
++    final lastRegenerate = _regenerateThrottle[accountId];
++    if (lastRegenerate != null) {
++      final secondsSinceLast = DateTime.now().difference(lastRegenerate).inSeconds;
++      if (secondsSinceLast < _regenerateThrottleSeconds) {
++        final remaining = _regenerateThrottleSeconds - secondsSinceLast;
++        debugPrint('[WhatsAppAccountsScreen] _regenerateQr: throttled (${remaining}s remaining)');
++        if (mounted) {
++          ScaffoldMessenger.of(context).showSnackBar(
++            SnackBar(
++              content: Text('Please wait ${remaining}s before regenerating QR again'),
++              backgroundColor: Colors.orange,
++              duration: Duration(seconds: remaining),
++            ),
++          );
++        }
++        return;
++      }
++    }
++    
++    debugPrint('[WhatsAppAccountsScreen] _regenerateQr: starting for accountId=$accountId');
++    _regenerateThrottle[accountId] = DateTime.now();
+     setState(() => _regeneratingQr.add(accountId));
+ 
+     try {
+       final response = await _apiService.regenerateQr(accountId: accountId);
+ 
++      debugPrint('[WhatsAppAccountsScreen] _regenerateQr: response received (success=${response['success']}, message=${response['message']}, error=${response['error']}, mode=${response['mode']})');
++
+       if (mounted) {
+         if (response['success'] == true) {
+           ScaffoldMessenger.of(context).showSnackBar(
+@@ -186,18 +275,51 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+             ),
+           );
+           // Reload accounts to get new QR code
++          debugPrint('[WhatsAppAccountsScreen] _regenerateQr: waiting 2s then reloading accounts');
+           await Future.delayed(const Duration(seconds: 2));
+           await _loadAccounts();
+         } else {
++          final errorMessage = response['message'] ?? response['backendMessage'] ?? 'Failed to regenerate QR';
++          final errorMode = response['mode'];
++          final backendError = response['error'] ?? response['backendError'];
++          
++          debugPrint('[WhatsAppAccountsScreen] _regenerateQr: failed - $errorMessage (error=$backendError, mode=$errorMode)');
++          
++          // Special handling for PASSIVE mode
++          if (errorMode == 'passive' || backendError == 'PASSIVE mode') {
++            ScaffoldMessenger.of(context).showSnackBar(
++              SnackBar(
++                content: Text('Backend in PASSIVE mode: ${response['message'] ?? 'Lock not acquired. Retry shortly.'}'),
++                backgroundColor: Colors.purple,
++                duration: const Duration(seconds: 5),
++              ),
++            );
++          } else {
++            ScaffoldMessenger.of(context).showSnackBar(
++              SnackBar(
++                content: Text(errorMessage),
++                backgroundColor: Colors.red,
++              ),
++            );
++          }
++        }
++      }
++    } catch (e) {
++      debugPrint('[WhatsAppAccountsScreen] _regenerateQr: exception - $e');
++      
++      // Special handling for ServiceUnavailableException (503 - PASSIVE mode)
++      if (e is ServiceUnavailableException && e.mode == 'passive') {
++        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(
+-              content: Text(response['message'] ?? 'Failed to regenerate QR'),
+-              backgroundColor: Colors.red,
++              content: Text('Backend în mod PASSIVE. Lock nu este achiziționat. Reîncearcă în câteva secunde.'),
++              backgroundColor: Colors.purple,
++              duration: const Duration(seconds: 5),
+             ),
+           );
+         }
++        return; // Don't show generic error for PASSIVE mode
+       }
+-    } catch (e) {
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(
+@@ -288,11 +410,16 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+     final status = account['status'] as String? ?? 'unknown';
+     final qrCode = account['qrCode'] as String?;
+     final pairingCode = account['pairingCode'] as String?;
++    final lastError = account['lastError'] as String?;
++    final passiveModeReason = account['passiveModeReason'] as String?;
+ 
+     final statusColor = _getStatusColor(status);
+     final showQr = status == 'qr_ready' && qrCode != null;
+     // When showQr is true, qrCode is guaranteed non-null
+     final qrCodeData = qrCode ?? '';
++    
++    // Show passive mode warning if status is passive
++    final isPassive = status == 'passive' || passiveModeReason != null;
+ 
+     return Card(
+       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+@@ -335,7 +462,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+                     border: Border.all(color: statusColor),
+                   ),
+                   child: Text(
+-                    status.toUpperCase(),
++                    _getStatusDisplayText(status),
+                     style: TextStyle(
+                       fontSize: 12,
+                       fontWeight: FontWeight.bold,
+@@ -345,6 +472,53 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+                 ),
+               ],
+             ),
++            if (isPassive) ...[
++              const SizedBox(height: 12),
++              Container(
++                padding: const EdgeInsets.all(12),
++                decoration: BoxDecoration(
++                  color: Colors.purple.withValues(alpha: 0.1),
++                  borderRadius: BorderRadius.circular(8),
++                  border: Border.all(color: Colors.purple),
++                ),
++                child: Column(
++                  crossAxisAlignment: CrossAxisAlignment.start,
++                  children: [
++                    Row(
++                      children: [
++                        const Icon(Icons.warning_amber_rounded, color: Colors.purple, size: 20),
++                        const SizedBox(width: 8),
++                        const Text(
++                          'Backend in PASSIVE mode',
++                          style: TextStyle(
++                            fontSize: 14,
++                            fontWeight: FontWeight.bold,
++                            color: Colors.purple,
++                          ),
++                        ),
++                      ],
++                    ),
++                    const SizedBox(height: 4),
++                    Text(
++                      passiveModeReason ?? lastError ?? 'Lock not acquired by this instance',
++                      style: const TextStyle(
++                        fontSize: 12,
++                        color: Colors.purple,
++                      ),
++                    ),
++                    const SizedBox(height: 4),
++                    const Text(
++                      'Backend will retry lock acquisition automatically. Accounts cannot connect until backend is ACTIVE.',
++                      style: TextStyle(
++                        fontSize: 11,
++                        color: Colors.purple,
++                        fontStyle: FontStyle.italic,
++                      ),
++                    ),
++                  ],
++                ),
++              ),
++            ],
+             if (showQr) ...[
+               const SizedBox(height: 16),
+               Center(
+@@ -463,10 +637,25 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+         return Colors.blue;
+       case 'disconnected':
+         return Colors.red;
++      case 'passive':
++        return Colors.purple; // Purple for passive mode
++      case 'needs_qr':
++        return Colors.amber;
+       default:
+         return Colors.grey;
+     }
+   }
++  
++  String _getStatusDisplayText(String status) {
++    switch (status.toLowerCase()) {
++      case 'passive':
++        return 'PASSIVE (Backend not active)';
++      case 'needs_qr':
++        return 'NEEDS QR';
++      default:
++        return status.toUpperCase();
++    }
++  }
+ 
+   @override
+   Widget build(BuildContext context) {
+@@ -485,7 +674,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+       ),
+       body: _isLoading
+           ? const Center(child: CircularProgressIndicator())
+-          : _error != null
++              : _error != null
+               ? Center(
+                   child: Padding(
+                     padding: const EdgeInsets.all(24.0),
+@@ -493,9 +682,9 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+                       mainAxisAlignment: MainAxisAlignment.center,
+                       children: [
+                         Icon(
+-                          Icons.error_outline,
++                          _error!.contains('PASSIVE') ? Icons.pause_circle_outline : Icons.error_outline,
+                           size: 64,
+-                          color: Colors.red[300],
++                          color: _error!.contains('PASSIVE') ? Colors.purple[300] : Colors.red[300],
+                         ),
+                         const SizedBox(height: 16),
+                         Text(
+@@ -503,6 +692,14 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
+                           style: const TextStyle(fontSize: 16),
+                           textAlign: TextAlign.center,
+                         ),
++                        if (_error!.contains('PASSIVE')) ...[
++                          const SizedBox(height: 8),
++                          const Text(
++                            'Backend-ul va încerca automat să achiziționeze lock-ul.',
++                            style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
++                            textAlign: TextAlign.center,
++                          ),
++                        ],
+                         const SizedBox(height: 24),
+                         ElevatedButton(
+                           onPressed: _loadAccounts,
+diff --git a/superparty_flutter/lib/screens/whatsapp/whatsapp_chat_screen.dart b/superparty_flutter/lib/screens/whatsapp/whatsapp_chat_screen.dart
+index 113179c6..71b0e87b 100644
+--- a/superparty_flutter/lib/screens/whatsapp/whatsapp_chat_screen.dart
++++ b/superparty_flutter/lib/screens/whatsapp/whatsapp_chat_screen.dart
+@@ -1,6 +1,7 @@
+ import 'package:cloud_firestore/cloud_firestore.dart';
+ import 'package:firebase_auth/firebase_auth.dart';
+ import 'package:flutter/material.dart';
++import 'package:flutter/foundation.dart' show debugPrint;
+ import 'package:go_router/go_router.dart';
+ import 'package:intl/intl.dart';
+ 
+@@ -53,9 +54,12 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
+   Future<void> _sendMessage() async {
+     final text = _messageController.text.trim();
+     if (text.isEmpty || _isSending || _accountId == null || _threadId == null || _clientJid == null) {
++      debugPrint('[WhatsAppChatScreen] _sendMessage: validation failed (isEmpty=${text.isEmpty}, isSending=$_isSending, accountId=$_accountId, threadId=$_threadId, clientJid=$_clientJid)');
+       return;
+     }
+ 
++    debugPrint('[WhatsAppChatScreen] _sendMessage: starting (accountId=$_accountId, threadId=$_threadId, textLength=${text.length})');
++    
+     setState(() {
+       _isSending = true;
+     });
+@@ -63,7 +67,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
+     try {
+       final clientMessageId = 'client_${DateTime.now().millisecondsSinceEpoch}';
+       
+-      await _apiService.sendViaProxy(
++      debugPrint('[WhatsAppChatScreen] _sendMessage: calling sendViaProxy (clientMessageId=$clientMessageId)');
++      
++      final result = await _apiService.sendViaProxy(
+         threadId: _threadId!,
+         accountId: _accountId!,
+         toJid: _clientJid!,
+@@ -71,11 +77,14 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
+         clientMessageId: clientMessageId,
+       );
+ 
++      debugPrint('[WhatsAppChatScreen] _sendMessage: success (requestId=${result['requestId']}, duplicate=${result['duplicate']})');
++
+       if (mounted) {
+         _messageController.clear();
+         _scrollToBottom();
+       }
+     } catch (e) {
++      debugPrint('[WhatsAppChatScreen] _sendMessage: exception - $e');
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('Error sending message: $e')),
+diff --git a/superparty_flutter/lib/services/whatsapp_api_service.dart b/superparty_flutter/lib/services/whatsapp_api_service.dart
+index cb8d90a5..5feb13be 100644
+--- a/superparty_flutter/lib/services/whatsapp_api_service.dart
++++ b/superparty_flutter/lib/services/whatsapp_api_service.dart
+@@ -81,10 +81,21 @@ class WhatsAppApiService {
+       final functionsUrl = _getFunctionsUrl();
+       final requestId = _generateRequestId();
+ 
++      final endpointUrl = '$functionsUrl/whatsappProxySend';
++      final hasToken = (token?.isNotEmpty ?? false);
++      
++      debugPrint('[WhatsAppApiService] sendViaProxy: calling proxy');
++      debugPrint('  endpoint: $endpointUrl');
++      debugPrint('  uid: ${user.uid.substring(0, 8)}...');
++      debugPrint('  tokenPresent: $hasToken');
++      debugPrint('  requestId: $requestId');
++      debugPrint('  threadId: $threadId, accountId: $accountId, toJid: $toJid');
++      debugPrint('  textLength: ${text.length}');
++
+       // Call Functions proxy with timeout
+       final response = await http
+           .post(
+-            Uri.parse('$functionsUrl/whatsappProxySend'),
++            Uri.parse(endpointUrl),
+             headers: {
+               'Authorization': 'Bearer $token',
+               'Content-Type': 'application/json',
+@@ -100,8 +111,13 @@ class WhatsAppApiService {
+           )
+           .timeout(requestTimeout);
+ 
++      debugPrint('[WhatsAppApiService] sendViaProxy: response');
++      debugPrint('  statusCode: ${response.statusCode}');
++      debugPrint('  bodyLength: ${response.body.length}');
++
+       if (response.statusCode < 200 || response.statusCode >= 300) {
+         final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
++        debugPrint('[WhatsAppApiService] sendViaProxy: error=${errorBody?['error']}, message=${errorBody?['message']}');
+         throw ErrorMapper.fromHttpException(
+           response.statusCode,
+           errorBody?['message'] as String?,
+@@ -109,6 +125,7 @@ class WhatsAppApiService {
+       }
+ 
+       final data = jsonDecode(response.body) as Map<String, dynamic>;
++      debugPrint('[WhatsAppApiService] sendViaProxy: success (requestId=${data['requestId']}, duplicate=${data['duplicate']})');
+       return data;
+     });
+   }
+@@ -132,12 +149,19 @@ class WhatsAppApiService {
+       final functionsUrl = _getFunctionsUrl();
+       final requestId = _generateRequestId();
+ 
+-      debugPrint('[WhatsAppApiService] getAccounts: calling proxy (uid=${user.uid.substring(0, 8)}...)');
++      final endpointUrl = '$functionsUrl/whatsappProxyGetAccounts';
++      final hasToken = (token?.isNotEmpty ?? false);
++      
++      debugPrint('[WhatsAppApiService] getAccounts: calling proxy');
++      debugPrint('  endpoint: $endpointUrl');
++      debugPrint('  uid: ${user.uid.substring(0, 8)}...');
++      debugPrint('  tokenPresent: $hasToken');
++      debugPrint('  requestId: $requestId');
+ 
+       // Call Functions proxy with Authorization header
+       final response = await http
+           .get(
+-            Uri.parse('$functionsUrl/whatsappProxyGetAccounts'),
++            Uri.parse(endpointUrl),
+             headers: {
+               'Authorization': 'Bearer $token',
+               'Content-Type': 'application/json',
+@@ -146,14 +170,17 @@ class WhatsAppApiService {
+           )
+           .timeout(requestTimeout);
+ 
+-      debugPrint('[WhatsAppApiService] getAccounts: status=${response.statusCode}, bodyLength=${response.body.length}');
++      debugPrint('[WhatsAppApiService] getAccounts: response');
++      debugPrint('  statusCode: ${response.statusCode}');
++      debugPrint('  bodyLength: ${response.body.length}');
+ 
+       if (response.statusCode < 200 || response.statusCode >= 300) {
+         final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+-        debugPrint('[WhatsAppApiService] getAccounts: error=${errorBody?['error']}, message=${errorBody?['message']}');
++        debugPrint('[WhatsAppApiService] getAccounts: error=${errorBody?['error']}, message=${errorBody?['message']}, mode=${errorBody?['mode']}, instanceId=${errorBody?['instanceId']}');
+         throw ErrorMapper.fromHttpException(
+           response.statusCode,
+           errorBody?['message'] as String?,
++          responseBody: errorBody,
+         );
+       }
+ 
+@@ -186,12 +213,20 @@ class WhatsAppApiService {
+       final functionsUrl = _getFunctionsUrl();
+       final requestId = _generateRequestId();
+ 
+-      debugPrint('[WhatsAppApiService] addAccount: calling proxy (uid=${user.uid.substring(0, 8)}..., name=$name, phone=$phone)');
++      final endpointUrl = '$functionsUrl/whatsappProxyAddAccount';
++      final hasToken = (token?.isNotEmpty ?? false);
++      
++      debugPrint('[WhatsAppApiService] addAccount: calling proxy');
++      debugPrint('  endpoint: $endpointUrl');
++      debugPrint('  uid: ${user.uid.substring(0, 8)}...');
++      debugPrint('  tokenPresent: $hasToken');
++      debugPrint('  requestId: $requestId');
++      debugPrint('  name: $name, phone: $phone');
+ 
+       // Call Functions proxy with Authorization header
+       final response = await http
+           .post(
+-            Uri.parse('$functionsUrl/whatsappProxyAddAccount'),
++            Uri.parse(endpointUrl),
+             headers: {
+               'Authorization': 'Bearer $token',
+               'Content-Type': 'application/json',
+@@ -204,14 +239,17 @@ class WhatsAppApiService {
+           )
+           .timeout(requestTimeout);
+ 
+-      debugPrint('[WhatsAppApiService] addAccount: status=${response.statusCode}, bodyLength=${response.body.length}');
++      debugPrint('[WhatsAppApiService] addAccount: response');
++      debugPrint('  statusCode: ${response.statusCode}');
++      debugPrint('  bodyLength: ${response.body.length}');
+ 
+       if (response.statusCode < 200 || response.statusCode >= 300) {
+         final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+-        debugPrint('[WhatsAppApiService] addAccount: error=${errorBody?['error']}, message=${errorBody?['message']}');
++        debugPrint('[WhatsAppApiService] addAccount: error=${errorBody?['error']}, message=${errorBody?['message']}, mode=${errorBody?['mode']}, instanceId=${errorBody?['instanceId']}');
+         throw ErrorMapper.fromHttpException(
+           response.statusCode,
+           errorBody?['message'] as String?,
++          responseBody: errorBody,
+         );
+       }
+ 
+@@ -241,12 +279,20 @@ class WhatsAppApiService {
+       final functionsUrl = _getFunctionsUrl();
+       final requestId = _generateRequestId();
+ 
+-      debugPrint('[WhatsAppApiService] regenerateQr: calling proxy (uid=${user.uid.substring(0, 8)}..., accountId=$accountId)');
++      final endpointUrl = '$functionsUrl/whatsappProxyRegenerateQr?accountId=$accountId';
++      final hasToken = (token?.isNotEmpty ?? false);
++      
++      debugPrint('[WhatsAppApiService] regenerateQr: calling proxy');
++      debugPrint('  endpoint: $endpointUrl');
++      debugPrint('  uid: ${user.uid.substring(0, 8)}...');
++      debugPrint('  tokenPresent: $hasToken');
++      debugPrint('  requestId: $requestId');
++      debugPrint('  accountId: $accountId');
+ 
+       // Call Functions proxy with Authorization header (query param for accountId)
+       final response = await http
+           .post(
+-            Uri.parse('$functionsUrl/whatsappProxyRegenerateQr?accountId=$accountId'),
++            Uri.parse(endpointUrl),
+             headers: {
+               'Authorization': 'Bearer $token',
+               'Content-Type': 'application/json',
+@@ -255,14 +301,17 @@ class WhatsAppApiService {
+           )
+           .timeout(requestTimeout);
+ 
+-      debugPrint('[WhatsAppApiService] regenerateQr: status=${response.statusCode}, bodyLength=${response.body.length}');
++      debugPrint('[WhatsAppApiService] regenerateQr: response');
++      debugPrint('  statusCode: ${response.statusCode}');
++      debugPrint('  bodyLength: ${response.body.length}');
+ 
+       if (response.statusCode < 200 || response.statusCode >= 300) {
+         final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+-        debugPrint('[WhatsAppApiService] regenerateQr: error=${errorBody?['error']}, message=${errorBody?['message']}');
++        debugPrint('[WhatsAppApiService] regenerateQr: error=${errorBody?['error']}, message=${errorBody?['message']}, mode=${errorBody?['mode']}, instanceId=${errorBody?['instanceId']}');
+         throw ErrorMapper.fromHttpException(
+           response.statusCode,
+           errorBody?['message'] as String?,
++          responseBody: errorBody,
+         );
+       }
+ 
+diff --git a/whatsapp-backend/lib/wa-bootstrap.js b/whatsapp-backend/lib/wa-bootstrap.js
+index 34052aa9..e5fe8484 100644
+--- a/whatsapp-backend/lib/wa-bootstrap.js
++++ b/whatsapp-backend/lib/wa-bootstrap.js
+@@ -132,26 +132,48 @@ function stopPassiveRetryLoop() {
+  */
+ function setupLockLostHandler() {
+   // Check lock status every 30s
+-  setInterval(async () => {
+-    if (!waIntegration || !isActive) return;
++  const lockCheckInterval = setInterval(async () => {
++    if (!waIntegration || !isActive) {
++      // If not active, stop checking (will be restarted when active)
++      clearInterval(lockCheckInterval);
++      return;
++    }
+ 
+-    const lockStatus = await waIntegration.stability.lock.getStatus();
++    try {
++      const lockStatus = await waIntegration.stability.lock.getStatus();
+ 
+-    if (!lockStatus.isHolder) {
+-      console.error('[WABootstrap] 🚨 LOCK LOST - entering PASSIVE mode');
+-      console.error(
+-        `[WABootstrap] lock_lost_entering_passive instanceId=${instanceId} leaseEpoch=${lockStatus.leaseEpoch || 'unknown'}`
+-      );
++      if (!lockStatus.isHolder) {
++        console.error('[WABootstrap] 🚨 LOCK LOST - entering PASSIVE mode');
++        console.error(
++          `[WABootstrap] lock_lost_entering_passive instanceId=${instanceId} leaseEpoch=${lockStatus.leaseEpoch || 'unknown'} holderInstanceId=${lockStatus.holderInstanceId || 'unknown'}`
++        );
+ 
+-      isActive = false;
++        isActive = false;
++        clearInterval(lockCheckInterval); // Stop checking when passive
+ 
+-      // TODO: Close all Baileys sockets immediately
+-      // This will be implemented when integrating with actual socket management
++        // TODO: Close all Baileys sockets immediately
++        // This will be implemented when integrating with actual socket management
+ 
+-      console.log('[WABootstrap] All Baileys connections closed');
+-      console.log('[WABootstrap] Now in PASSIVE mode');
++        console.log('[WABootstrap] All Baileys connections closed');
++        console.log('[WABootstrap] Now in PASSIVE mode - will retry lock acquisition');
++        
++        // Restart passive retry loop to re-acquire lock
++        if (waIntegration && db) {
++          startPassiveRetryLoop(db);
++        }
++      } else {
++        // Lock still held - log periodically for debugging
++        if (Date.now() % 300000 < 30000) { // Log every ~5 minutes
++          console.log(`[WABootstrap] Lock check: still holder (leaseEpoch: ${lockStatus.leaseEpoch || 'unknown'})`);
++        }
++      }
++    } catch (error) {
++      console.error('[WABootstrap] Lock status check failed:', error.message);
++      // Continue checking on next interval
+     }
+   }, 30000);
++  
++  console.log('[WABootstrap] Lock lost handler started (checks every 30s)');
+ }
+ 
+ /**
+diff --git a/whatsapp-backend/server.js b/whatsapp-backend/server.js
+index 0ae451ce..7d47b315 100644
+--- a/whatsapp-backend/server.js
++++ b/whatsapp-backend/server.js
+@@ -1008,7 +1008,17 @@ function isTerminalLogout(reasonCode) {
+ async function createConnection(accountId, name, phone) {
+   // HARD GATE: PASSIVE mode - do NOT start Baileys connections
+   if (!waBootstrap.canStartBaileys()) {
++    const status = await waBootstrap.getWAStatus();
+     console.log(`⏸️  [${accountId}] PASSIVE mode - cannot start Baileys connection (lock not held)`);
++    console.log(`⏸️  [${accountId}] PASSIVE mode details: reason=${status.reason || 'unknown'}, instanceId=${status.instanceId || 'unknown'}`);
++    
++    // Save passive status to Firestore so Flutter can display it
++    await saveAccountToFirestore(accountId, {
++      status: 'passive',
++      lastError: `Backend in PASSIVE mode: ${status.reason || 'lock not acquired'}`,
++      passiveModeReason: status.reason || 'lock_not_acquired',
++    }).catch(err => console.error(`❌ [${accountId}] Failed to save passive status:`, err));
++    
+     return;
+   }
+ 
+@@ -1123,11 +1133,24 @@ async function createConnection(accountId, name, phone) {
+     console.log(`🔌 [${accountId}] Connection session #${currentSessionId} started`);
+ 
+     // Set timeout to prevent "connecting forever" (configurable via env)
++    // CRITICAL: Only apply timeout for normal connecting, NOT for pairing phase (qr_ready/awaiting_scan)
++    // Pairing phase uses QR_SCAN_TIMEOUT (10 minutes) instead
++    // CRITICAL: Cancel/extend timeout when QR is generated or status changes to pairing phase
+     const CONNECTING_TIMEOUT = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
+     account.connectingTimeout = setTimeout(() => {
+       const timeoutSeconds = Math.floor(CONNECTING_TIMEOUT / 1000);
+-      console.log(`⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`);
+       const acc = connections.get(accountId);
++      
++      // CRITICAL FIX: Don't timeout if status is pairing phase (qr_ready, awaiting_scan, pairing)
++      // These states use QR_SCAN_TIMEOUT instead (10 minutes)
++      // This prevents timeout from transitioning to disconnected while waiting for QR scan
++      const isPairingPhase = acc && ['qr_ready', 'awaiting_scan', 'pairing'].includes(acc.status);
++      if (isPairingPhase) {
++        console.log(`⏰ [${accountId}] Connecting timeout skipped (status: ${acc.status} - pairing phase uses QR_SCAN_TIMEOUT)`);
++        return; // Don't timeout pairing phase - QR scan timeout handles expiration
++      }
++      
++      console.log(`⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`);
+       if (acc && acc.status === 'connecting') {
+         acc.status = 'disconnected';
+         acc.lastError = 'Connection timeout - no progress after 60s';
+@@ -1227,18 +1250,19 @@ async function createConnection(accountId, name, phone) {
+ 
+           console.log(`✅ [${accountId}] QR saved to Firestore`);
+ 
+-          // Invalidate accounts cache so frontend gets updated QR
+-          if (featureFlags.isEnabled('API_CACHING')) {
+-            await cache.delete('whatsapp:accounts');
+-            console.log(`🗑️  [${accountId}] Cache invalidated for QR update`);
+-          }
++    // Invalidate accounts cache so frontend gets updated QR
++    if (featureFlags.isEnabled('API_CACHING')) {
++      await cache.delete('whatsapp:accounts');
++      console.log(`🗑️  [${accountId}] Cache invalidated for QR update`);
++    }
+ 
+-          logger.info('QR code generated and saved', { accountId, qrLength: qr.length });
+-          logtail.info('QR code generated', {
+-            accountId,
+-            qrLength: qr.length,
+-            phone: maskPhone(phone),
+-          });
++    logger.info('QR code generated and saved', { accountId, qrLength: qr.length });
++    logtail.info('QR code generated', {
++      accountId,
++      qrLength: qr.length,
++      phone: maskPhone(phone),
++      instanceId: process.env.RAILWAY_DEPLOYMENT_ID || 'local',
++    });
+         } catch (error) {
+           console.error(`❌ [${accountId}] QR generation failed:`, error.message);
+           logger.error('QR generation failed', { accountId, error: error.message });
+@@ -1336,13 +1360,31 @@ async function createConnection(accountId, name, phone) {
+         const rawReason = boomStatus ?? errorCode ?? 'unknown';
+         
+         // Normalize reason to number for comparison
+-        const reason = typeof rawReason === 'number' ? rawReason : (typeof rawReason === 'string' ? parseInt(rawReason, 10) || 'unknown' : 'unknown');
++        // CRITICAL: Handle 515 (restart required) explicitly
++        let reason = typeof rawReason === 'number' ? rawReason : (typeof rawReason === 'string' ? parseInt(rawReason, 10) || 'unknown' : 'unknown');
++        
++        // CRITICAL: If error message contains "restart required" but statusCode is not 515, set it
++        if (error?.message && error.message.includes('restart required') && reason !== 515) {
++          console.log(`🔍 [${accountId}] Detected "restart required" in message but statusCode is ${reason}, normalizing to 515`);
++          reason = 515;
++        }
+         
+         // Extract Boom error details for better logging
+         const boomPayload = error?.output?.payload;
+         const errorMessage = error?.message || 'No error message';
+         const errorStack = error?.stack;
+         
++        // CRITICAL: Detect reason code 515 (restart required) and 428 (connection closed) - common in pairing phase
++        // 515 = "Stream Errored (restart required)" - requires socket recreation + new QR
++        // 428 = "Connection closed" - transient error, preserve QR and reconnect
++        const isRestartRequired = (typeof reason === 'number' && reason === 515) || 
++                                 (typeof boomStatus === 'number' && boomStatus === 515) ||
++                                 (errorMessage && errorMessage.includes('restart required'));
++        const isConnectionClosed = (typeof reason === 'number' && reason === 428) ||
++                                  (typeof boomStatus === 'number' && boomStatus === 428) ||
++                                  (errorMessage && errorMessage.includes('connection closed'));
++        const isTransientError = isRestartRequired || isConnectionClosed;
++        
+         // Log detailed disconnect information (helps diagnose "unknown" reasons)
+         console.error(`🔌 [${accountId}] connection.update: close`, {
+           sessionId: account.sessionId || 'unknown', // Connection session ID for debugging
+@@ -1356,6 +1398,9 @@ async function createConnection(accountId, name, phone) {
+           shouldReconnect: reason !== DisconnectReason.loggedOut,
+           currentStatus: account.status,
+           isPairingPhase: ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'].includes(account.status),
++          isRestartRequired: isRestartRequired, // CRITICAL: Flag for 515 handling
++          isConnectionClosed: isConnectionClosed, // CRITICAL: Flag for 428 handling
++          isTransientError: isTransientError, // CRITICAL: Flag for 515/428 handling
+           lastDisconnect: lastDisconnect ? {
+             error: error ? {
+               name: error.name,
+@@ -1369,7 +1414,10 @@ async function createConnection(accountId, name, phone) {
+           } : undefined,
+         });
+         
+-        const shouldReconnect = reason !== DisconnectReason.loggedOut;
++        // CRITICAL FIX: For 515 (restart required) and 428 (connection closed), always reconnect (even in pairing phase)
++        // 515 means stream errored but session is valid - need new socket + potentially new QR
++        // 428 means connection closed transiently - preserve QR and reconnect
++        const shouldReconnect = reason !== DisconnectReason.loggedOut || isTransientError;
+ 
+         // Define explicit cleanup reasons (only these trigger account deletion)
+         // Ensure we compare numbers consistently
+@@ -1393,30 +1441,43 @@ async function createConnection(accountId, name, phone) {
+             `⏸️  [${accountId}] Pairing phase (${account.status}, sessionId: ${account.sessionId}), preserving account (reason: ${reason})`
+           );
+           
+-          // CRITICAL: Preserve QR code for user to scan
+-          // If QR exists, keep status 'qr_ready' so Flutter app can display it
+-          // Don't change to 'awaiting_scan' which hides the QR in Flutter UI
++          // CRITICAL: Preserve QR code for user to scan (for 515/428 transient errors)
++          // If QR exists and error is transient (515/428), keep status 'qr_ready' so Flutter app can display it
++          // For 428 (connection closed), preserve QR and set status to 'awaiting_scan' (QR still valid)
++          // For 515 (restart required), QR will be regenerated on reconnect
+           const hasQR = account.qrCode || (account.data && account.data.qrCode);
+-          const preserveQRStatus = hasQR && account.status === 'qr_ready';
+           
+-          if (preserveQRStatus) {
++          if (isConnectionClosed && hasQR) {
++            // 428: Connection closed but QR is still valid - preserve it and set awaiting_scan
++            console.log(`📱 [${accountId}] Preserving QR code (status: awaiting_scan) - connection closed (428) but QR still valid`);
++            account.status = 'awaiting_scan';
++          } else if (isRestartRequired) {
++            // 515: Restart required - QR will be regenerated, clear it now
++            console.log(`🔄 [${accountId}] Clearing QR code (status: connecting) - restart required (515), will regenerate on reconnect`);
++            account.qrCode = null;
++            account.status = 'connecting';
++          } else if (hasQR && account.status === 'qr_ready') {
++            // Other transient errors: preserve QR if status is qr_ready
+             console.log(`📱 [${accountId}] Preserving QR code (status: qr_ready) - user can scan`);
+-            // Keep status as 'qr_ready' so QR remains visible in Flutter app
+             account.status = 'qr_ready';
+           } else {
+-            // No QR yet, mark as awaiting scan
++            // No QR yet or other status, mark as awaiting scan
+             account.status = 'awaiting_scan';
+           }
+           
+           account.lastUpdate = new Date().toISOString();
+ 
+           await saveAccountToFirestore(accountId, {
+-            status: account.status, // Keep 'qr_ready' if QR exists, else 'awaiting_scan'
++            status: account.status,
+             lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
+-            lastDisconnectReason: preserveQRStatus ? 'qr_ready_preserved' : 'qr_waiting_scan',
++            lastDisconnectReason: isConnectionClosed ? 'connection_closed_428' : 
++                                 isRestartRequired ? 'restart_required_515' :
++                                 (hasQR && account.status === 'qr_ready') ? 'qr_ready_preserved' : 'qr_waiting_scan',
+             lastDisconnectCode: reason,
+-            // Preserve QR code in Firestore so it's still available after close event
+-            ...(hasQR && account.qrCode ? { qrCode: account.qrCode } : {}),
++            // Preserve QR code in Firestore for 428 (connection closed) - QR still valid
++            // Clear QR for 515 (restart required) - will be regenerated
++            ...(isConnectionClosed && hasQR && account.qrCode ? { qrCode: account.qrCode } : {}),
++            ...(isRestartRequired ? { qrCode: null } : {}),
+           });
+ 
+           // CRITICAL: Clean up old socket reference and timers before reconnect
+@@ -1451,23 +1512,34 @@ async function createConnection(accountId, name, phone) {
+           // CRITICAL FIX: Auto-reconnect in pairing phase for transient errors
+           // Don't leave account stuck in qr_ready if socket closes due to transient network issue
+           // Only skip reconnect if reason is terminal (loggedOut/badSession/unauthorized)
+-          if (shouldReconnect && reason !== DisconnectReason.loggedOut) {
++          // SPECIAL HANDLING: 515 (restart required) and 428 (connection closed) always trigger reconnect
++          if (shouldReconnect && (reason !== DisconnectReason.loggedOut || isTransientError)) {
+             const attempts = reconnectAttempts.get(accountId) || 0;
+             const MAX_PAIRING_RECONNECT_ATTEMPTS = parseInt(process.env.MAX_PAIRING_RECONNECT_ATTEMPTS || '10', 10);
+             
++            // CRITICAL: For 515, QR already cleared above. For 428, preserve QR.
++            // Status already set above (connecting for 515, awaiting_scan for 428)
++            
+             if (attempts < MAX_PAIRING_RECONNECT_ATTEMPTS) {
+               // Exponential backoff for pairing phase: 1s, 2s, 4s, 8s, 16s, 30s (max)
+-              const backoff = Math.min(1000 * Math.pow(2, attempts), 30000);
++              // For 515/428, use shorter backoff (2s, 4s, 8s) since they're known recoverable errors
++              const baseBackoff = isTransientError ? 2000 : 1000;
++              const backoff = Math.min(baseBackoff * Math.pow(2, attempts), 30000);
++              const reasonLabel = isRestartRequired ? ' [515 restart required]' : 
++                                 isConnectionClosed ? ' [428 connection closed]' : '';
+               console.log(
+-                `🔄 [${accountId}] Pairing phase reconnect in ${backoff}ms (attempt ${attempts + 1}/${MAX_PAIRING_RECONNECT_ATTEMPTS}, reason: ${reason})`
++                `🔄 [${accountId}] Pairing phase reconnect in ${backoff}ms (attempt ${attempts + 1}/${MAX_PAIRING_RECONNECT_ATTEMPTS}, reason: ${reason}${reasonLabel})`
+               );
+               
+               reconnectAttempts.set(accountId, attempts + 1);
+               
+               setTimeout(() => {
+                 const acc = connections.get(accountId);
+-                if (acc && ['qr_ready', 'awaiting_scan', 'connecting'].includes(acc.status)) {
+-                  console.log(`🔄 [${accountId}] Starting pairing phase reconnect (session will be new)`);
++                if (acc && ['qr_ready', 'awaiting_scan', 'connecting', 'needs_qr'].includes(acc.status)) {
++                  const reconnectNote = isRestartRequired ? ', QR will be regenerated' : 
++                                       isConnectionClosed ? ', QR preserved' : '';
++                  console.log(`🔄 [${accountId}] Starting pairing phase reconnect (session will be new${reconnectNote})`);
++                  // Status already set above (connecting for 515, awaiting_scan for 428)
+                   createConnection(accountId, acc.name, acc.phone);
+                 }
+               }, backoff);
+@@ -1476,12 +1548,12 @@ async function createConnection(accountId, name, phone) {
+               account.status = 'needs_qr';
+               await saveAccountToFirestore(accountId, {
+                 status: 'needs_qr',
+-                lastError: `Max pairing reconnect attempts (${MAX_PAIRING_RECONNECT_ATTEMPTS}) reached`,
++                lastError: `Max pairing reconnect attempts (${MAX_PAIRING_RECONNECT_ATTEMPTS}) reached${isRestartRequired ? ' (reason: 515 restart required)' : ''}`,
+               });
+               reconnectAttempts.delete(accountId);
+             }
+           } else {
+-            console.log(`⏸️  [${accountId}] Pairing phase close: no reconnect (reason: ${reason}, shouldReconnect: ${shouldReconnect})`);
++            console.log(`⏸️  [${accountId}] Pairing phase close: no reconnect (reason: ${reason}, shouldReconnect: ${shouldReconnect}, isRestartRequired: ${isRestartRequired})`);
+           }
+           
+           return;
+@@ -1941,6 +2013,44 @@ app.get('/health', (req, res) => {
+   });
+ });
+ 
++// /api/longrun/status-now endpoint - comprehensive status including passive mode
++app.get('/api/longrun/status-now', requireAdmin, async (req, res) => {
++  try {
++    const status = await waBootstrap.getWAStatus();
++    const isActive = waBootstrap.isActiveMode();
++    
++    // Get account statuses
++    const accountStatuses = [];
++    for (const [accountId, account] of connections.entries()) {
++      accountStatuses.push({
++        accountId,
++        name: account.name,
++        phone: account.phone,
++        status: account.status,
++        hasQR: !!account.qrCode,
++        sessionId: account.sessionId,
++      });
++    }
++    
++    res.json({
++      waMode: isActive ? 'active' : 'passive',
++      waStatus: status.waStatus || (isActive ? 'RUNNING' : 'NOT_RUNNING'),
++      instanceId: status.instanceId || 'unknown',
++      reason: status.reason || (isActive ? null : 'lock_not_acquired'),
++      lockStatus: status.lockStatus || 'unknown',
++      accounts: accountStatuses,
++      accountsCount: connections.size,
++      timestamp: new Date().toISOString(),
++    });
++  } catch (error) {
++    console.error('[status-now] Error:', error.message);
++    res.status(500).json({
++      error: error.message,
++      timestamp: new Date().toISOString(),
++    });
++  }
++});
++
+ // Expose test token (temporary for orchestrator)
+ app.get('/api/test/token', (req, res) => {
+   if (Date.now() > TEST_TOKEN_EXPIRY) {
+@@ -2950,6 +3060,11 @@ app.get('/api/whatsapp/qr/:accountId', async (req, res) => {
+  *                   type: boolean
+  */
+ app.get('/api/whatsapp/accounts', async (req, res) => {
++  const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
++  const status = await waBootstrap.getWAStatus();
++  const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
++  const isActive = waBootstrap.isActiveMode();
++  
+   try {
+     // Try cache first (if enabled)
+     if (featureFlags.isEnabled('API_CACHING')) {
+@@ -2957,7 +3072,14 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
+       const cached = await cache.get(cacheKey);
+ 
+       if (cached) {
+-        return res.json({ success: true, accounts: cached, cached: true });
++        return res.json({ 
++          success: true, 
++          accounts: cached, 
++          cached: true,
++          instanceId: instanceId,
++          waMode: isActive ? 'active' : 'passive',
++          requestId: requestId,
++        });
+       }
+     }
+ 
+@@ -3098,13 +3220,8 @@ app.get('/api/whatsapp/qr-visual', async (req, res) => {
+ // Add new account
+ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
+   // HARD GATE: PASSIVE mode - do NOT create new Baileys connections
+-  if (!waBootstrap.canStartBaileys()) {
+-    return res.status(503).json({
+-      success: false,
+-      error: 'PASSIVE mode: another instance holds lock; retry shortly',
+-      mode: 'passive',
+-    });
+-  }
++  const passiveGuard = await checkPassiveModeGuard(req, res);
++  if (passiveGuard) return; // Response already sent
+ 
+   try {
+     const { name, phone } = req.body;
+@@ -3189,16 +3306,40 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
+       await cache.delete('whatsapp:accounts');
+     }
+ 
++    // HARD GATE: PASSIVE mode - do NOT create connection (requires Baileys)
++    if (!waBootstrap.canStartBaileys()) {
++      const status = await waBootstrap.getWAStatus();
++      const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
++      console.log(`⏸️  [${accountId}] Add account blocked: PASSIVE mode (instanceId: ${instanceId})`);
++      return res.status(503).json({
++        success: false,
++        error: 'PASSIVE mode: another instance holds lock; retry shortly',
++        message: `Backend in PASSIVE mode: ${status.reason || 'lock not acquired'}`,
++        mode: 'passive',
++        instanceId: instanceId,
++        waMode: 'passive',
++        requestId: req.headers['x-request-id'] || `req_${Date.now()}`,
++      });
++    }
++
++    // Get instance info for response
++    const status = await waBootstrap.getWAStatus();
++    const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
++    const isActive = waBootstrap.isActiveMode();
++    const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
++
++    console.log(`[${requestId}] Add account: accountId=${accountId}, instanceId=${instanceId}, waMode=${isActive ? 'active' : 'passive'}`);
++
+     // Create connection (async, will emit QR later)
+     createConnection(accountId, name, phone).catch(err => {
+       console.error(`❌ [${accountId}] Failed to create:`, err.message);
+       Sentry.captureException(err, {
+-        tags: { accountId, operation: 'create_connection' },
++        tags: { accountId, operation: 'create_connection', requestId },
+         extra: { name, phone: maskPhone(canonicalPhoneNum) },
+       });
+     });
+ 
+-    // Return immediately with connecting status
++    // Return immediately with connecting status + instance info
+     res.json({
+       success: true,
+       account: {
+@@ -3210,6 +3351,9 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
+         pairingCode: null,
+         createdAt: new Date().toISOString(),
+       },
++      instanceId: instanceId,
++      waMode: isActive ? 'active' : 'passive',
++      requestId: requestId,
+     });
+   } catch (error) {
+     Sentry.captureException(error, {
+@@ -3319,6 +3463,10 @@ app.post('/api/cleanup-duplicates', async (req, res) => {
+ 
+ // Update account name
+ app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req, res) => {
++  // HARD GATE: PASSIVE mode - do NOT mutate account state
++  const passiveGuard = await checkPassiveModeGuard(req, res);
++  if (passiveGuard) return; // Response already sent
++  
+   try {
+     const { accountId } = req.params;
+     const { name } = req.body;
+@@ -3363,17 +3511,12 @@ app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req,
+ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (req, res) => {
+   // DEBUG: Log incoming request
+   const accountId = req.params.accountId;
+-  console.log(`🔍 [DEBUG] Regenerate QR request: accountId=${accountId}, method=${req.method}, path=${req.path}`);
++  const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
++  console.log(`🔍 [${requestId}] Regenerate QR request: accountId=${accountId}, method=${req.method}, path=${req.path}`);
+   
+   // HARD GATE: PASSIVE mode - do NOT regenerate QR (requires Baileys connection)
+-  if (!waBootstrap.canStartBaileys()) {
+-    console.log(`⏸️  [${accountId}] Regenerate QR blocked: PASSIVE mode`);
+-    return res.status(503).json({
+-      success: false,
+-      error: 'PASSIVE mode: another instance holds lock; retry shortly',
+-      mode: 'passive',
+-    });
+-  }
++  const passiveGuard = await checkPassiveModeGuard(req, res);
++  if (passiveGuard) return; // Response already sent
+ 
+   try {
+     let account = connections.get(accountId);
+@@ -3394,23 +3537,31 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
+       return res.status(404).json({ success: false, error: 'Account not found' });
+     }
+ 
+-    // Check if QR is already ready and valid (don't regenerate unnecessarily)
++    // IDEMPOTENCY: Check if QR is already ready and valid (don't regenerate unnecessarily)
++    // If account is in qr_ready or awaiting_scan with valid QR, return current state
+     const accountStatus = account.status || (account.data && account.data.status);
+-    const hasValidQR = accountStatus === 'qr_ready' && account.qrCode;
+-    const qrAge = account.qrUpdatedAt 
+-      ? Date.now() - (account.qrUpdatedAt.toMillis ? account.qrUpdatedAt.toMillis() : new Date(account.qrUpdatedAt).getTime())
+-      : Infinity;
+-    const QR_EXPIRY_MS = 60 * 1000; // QR expires after 60 seconds (WhatsApp standard)
+-
+-    if (hasValidQR && qrAge < QR_EXPIRY_MS) {
+-      console.log(`ℹ️  [${accountId}] QR already exists and valid (age: ${Math.round(qrAge/1000)}s), returning existing QR`);
+-      return res.json({ 
+-        success: true, 
+-        message: 'QR code already available',
+-        qrCode: account.qrCode,
+-        status: 'qr_ready',
+-        ageSeconds: Math.round(qrAge / 1000),
+-      });
++    const hasValidQR = (accountStatus === 'qr_ready' || accountStatus === 'awaiting_scan') && account.qrCode;
++    
++    if (hasValidQR) {
++      // Check QR age if available
++      const qrAge = account.qrUpdatedAt 
++        ? Date.now() - (account.qrUpdatedAt.toMillis ? account.qrUpdatedAt.toMillis() : new Date(account.qrUpdatedAt).getTime())
++        : 0; // If no timestamp, assume fresh (just generated)
++      const QR_EXPIRY_MS = 60 * 1000; // QR expires after 60 seconds (WhatsApp standard)
++      
++      if (qrAge < QR_EXPIRY_MS) {
++        console.log(`ℹ️  [${accountId}] QR already exists and valid (status: ${accountStatus}, age: ${Math.round(qrAge/1000)}s), returning existing QR (idempotent)`);
++        return res.json({ 
++          success: true, 
++          message: 'QR code already available',
++          qrCode: account.qrCode,
++          status: accountStatus,
++          ageSeconds: Math.round(qrAge / 1000),
++          idempotent: true,
++        });
++      } else {
++        console.log(`ℹ️  [${accountId}] QR exists but expired (age: ${Math.round(qrAge/1000)}s), will regenerate`);
++      }
+     }
+ 
+     // Clear session to ensure fresh pairing (disk + Firestore) - only if QR expired or not valid
+@@ -3444,10 +3595,22 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
+       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+     });
+ 
++    // Get instance info for response
++    const status = await waBootstrap.getWAStatus();
++    const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
++    const isActive = waBootstrap.isActiveMode();
++    const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
++
+     // Create new connection (will generate fresh QR since session is cleared)
+     await createConnection(accountId, account.name, account.phone);
+ 
+-    res.json({ success: true, message: 'QR regeneration started' });
++    res.json({ 
++      success: true, 
++      message: 'QR regeneration started',
++      instanceId: instanceId,
++      waMode: isActive ? 'active' : 'passive',
++      requestId: requestId,
++    });
+   } catch (error) {
+     console.error(`❌ Regenerate QR error:`, error);
+     res.status(500).json({ success: false, error: error.message });
+@@ -3456,6 +3619,10 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
+ 
+ // Backfill messages for an account (admin endpoint)
+ app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) => {
++  // HARD GATE: PASSIVE mode - do NOT process backfill (mutates state)
++  const passiveGuard = await checkPassiveModeGuard(req, res);
++  if (passiveGuard) return; // Response already sent
++  
+   try {
+     const { accountId } = req.params;
+     const account = connections.get(accountId);
+@@ -3494,6 +3661,8 @@ app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) =
+ // Send message
+ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
+   // HARD GATE: PASSIVE mode - do NOT process outbox (messages queued but not sent immediately)
++  const passiveGuard = await checkPassiveModeGuard(req, res);
++  if (passiveGuard) return; // Response already sent
+   // Note: Messages can still be queued (outbox), but worker won't process them in PASSIVE mode
+   if (!waBootstrap.canProcessOutbox()) {
+     // Queue message but return 503 to indicate immediate sending unavailable
+@@ -4502,11 +4671,21 @@ async function restoreAccount(accountId, data) {
+     };
+ 
+     // Set timeout to prevent "connecting forever" - CRITICAL FIX (configurable via env)
++    // CRITICAL: Only apply timeout for normal connecting, NOT for pairing phase (qr_ready/awaiting_scan)
+     const CONNECTING_TIMEOUT = parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10);
+     account.connectingTimeout = setTimeout(() => {
+       const timeoutSeconds = Math.floor(CONNECTING_TIMEOUT / 1000);
+-      console.log(`⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`);
+       const acc = connections.get(accountId);
++      
++      // CRITICAL FIX: Don't timeout if status is pairing phase (qr_ready, awaiting_scan, pairing)
++      // These states use QR_SCAN_TIMEOUT instead (10 minutes)
++      const isPairingPhase = acc && ['qr_ready', 'awaiting_scan', 'pairing'].includes(acc.status);
++      if (isPairingPhase) {
++        console.log(`⏰ [${accountId}] Connecting timeout skipped (status: ${acc.status} - pairing phase uses QR_SCAN_TIMEOUT)`);
++        return; // Don't timeout pairing phase
++      }
++      
++      console.log(`⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`);
+       if (acc && acc.status === 'connecting') {
+         acc.status = 'disconnected';
+         acc.lastError = `Connection timeout - no progress after ${timeoutSeconds}s`;

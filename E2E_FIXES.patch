@@ -1,0 +1,211 @@
+diff --git a/functions/chatEventOps.js b/functions/chatEventOps.js
+index dae96e1b..af050ea8 100644
+--- a/functions/chatEventOps.js
++++ b/functions/chatEventOps.js
+@@ -186,13 +186,19 @@ function sanitizeUpdateFields(data) {
+   return out;
+ }
+ 
+-exports.chatEventOps = onCall(
+-  { 
+-    region: 'us-central1', 
+-    timeoutSeconds: 30,
+-    secrets: [groqApiKey]  // Attach GROQ_API_KEY secret
+-  },
+-  async (request) => {
++// Internal handler function (can be called directly or via onCall)
++async function chatEventOpsHandler(request) {
++  const requestId = request.data?.clientRequestId || `chatEventOps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
++  const startTime = Date.now();
++  
++  try {
++    console.log(`[${requestId}] chatEventOps called`, {
++      uid: request.auth?.uid,
++      email: request.auth?.token?.email,
++      textLength: (request.data?.text || '').length,
++      dryRun: request.data?.dryRun === true,
++    });
++
+     // Require authentication (all authenticated users can use this)
+     const auth = requireAuth(request);
+     const { uid, email } = auth;
+@@ -201,7 +207,10 @@ exports.chatEventOps = onCall(
+     const employeeInfo = await isEmployee(uid, email);
+ 
+     const text = (request.data?.text || '').toString().trim();
+-    if (!text) throw new HttpsError('invalid-argument', 'Lipsește "text".');
++    if (!text) {
++      console.error(`[${requestId}] Missing text parameter`);
++      throw new HttpsError('invalid-argument', 'Lipsește "text".');
++    }
+ 
+     // DryRun mode: parse command but don't execute (for preview)
+     const dryRun = request.data?.dryRun === true;
+@@ -209,7 +218,7 @@ exports.chatEventOps = onCall(
+     // Access GROQ API key from secret
+     const groqKey = groqApiKey.value();
+     if (!groqKey) {
+-      console.error('[chatEventOps] GROQ_API_KEY not available');
++      console.error(`[${requestId}] GROQ_API_KEY not available`);
+       throw new HttpsError('failed-precondition', 'Lipsește GROQ_API_KEY.');
+     }
+ 
+@@ -481,7 +490,14 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
+       }
+ 
+       const ref = await db.collection('evenimente').add(doc);
+-      return { ok: true, action: 'CREATE', eventId: ref.id, message: `Eveniment creat și adăugat în Evenimente.`, dryRun: false };
++      const result = { ok: true, action: 'CREATE', eventId: ref.id, message: `Eveniment creat și adăugat în Evenimente.`, dryRun: false };
++      console.log(`[${requestId}] Event created`, {
++        eventId: ref.id,
++        eventShortId: doc.eventShortId,
++        date: doc.date,
++        address: doc.address,
++      });
++      return result;
+     }
+ 
+     if (action === 'UPDATE') {
+@@ -627,8 +643,36 @@ Dacă utilizatorul cere "șterge", întoarce action:"ARCHIVE" sau "NONE".
+       return { ok: true, action: 'UNARCHIVE', eventId, message: `Eveniment dezarhivat: ${eventId}`, dryRun: false };
+     }
+ 
+-    return { ok: false, action: 'NONE', message: `Acțiune necunoscută: ${action}`, raw };
++    const result = { ok: false, action: 'NONE', message: `Acțiune necunoscută: ${action}`, raw };
++    const duration = Date.now() - startTime;
++    console.log(`[${requestId}] chatEventOps completed`, {
++      action: result.action,
++      ok: result.ok,
++      durationMs: duration,
++    });
++    return result;
++  } catch (error) {
++    const duration = Date.now() - startTime;
++    console.error(`[${requestId}] chatEventOps error`, {
++      error: error.message,
++      stack: error.stack,
++      durationMs: duration,
++    });
++    throw error;
+   }
++}
++
++// Export as onCall handler
++exports.chatEventOps = onCall(
++  { 
++    region: 'us-central1', 
++    timeoutSeconds: 30,
++    secrets: [groqApiKey]  // Attach GROQ_API_KEY secret
++  },
++  chatEventOpsHandler
+ );
+ 
++// Export handler function for direct calls (e.g., from chatWithAI)
++exports.chatEventOpsHandler = chatEventOpsHandler;
++
+ // Force redeploy Fri Jan  9 14:06:54 UTC 2026
+diff --git a/functions/index.js b/functions/index.js
+index db7cd048..4ea5b3ca 100644
+--- a/functions/index.js
++++ b/functions/index.js
+@@ -546,22 +546,38 @@ Scrie "da" pentru a confirma și crea evenimentul, sau "anulează" pentru a renu
+ 
+         if (step === 'confirm') {
+           if (userText === 'da' || userText === 'confirm' || userText === 'confirma') {
+-            // Call chatEventOps to create event
+-            const chatEventOps = require('./chatEventOps');
+-            
++            // Call chatEventOps via exported callable (proper way)
+             const eventText = `Notează eveniment pentru ${eventData.sarbatoritNume}, ${eventData.sarbatoritVarsta} ani, pe ${eventData.date} la ${eventData.address}`;
++            const clientRequestId = `interactive_${currentSessionId}_${Date.now()}`;
++            
++            console.log(`[${requestId}] Creating event via chatEventOps`, {
++              clientRequestId,
++              sessionId: currentSessionId,
++              eventData: {
++                name: eventData.sarbatoritNume,
++                age: eventData.sarbatoritVarsta,
++                date: eventData.date,
++                address: eventData.address,
++              },
++            });
+             
+             try {
+-              const eventResult = await chatEventOps({
++              // Use the exported handler function directly (not the onCall wrapper)
++              const { chatEventOpsHandler } = require('./chatEventOps');
++              
++              // Call handler directly with request-like object
++              const eventResult = await chatEventOpsHandler({
+                 data: {
+                   text: eventText,
+                   dryRun: false,
+-                  clientRequestId: `interactive_${currentSessionId}_${Date.now()}`
++                  clientRequestId,
+                 },
+-                auth: request.auth
+-              }, {
+-                status: () => ({ json: () => {} }),
+-                json: (data) => data
++                auth: request.auth,
++              });
++              
++              console.log(`[${requestId}] Event created successfully`, {
++                eventId: eventResult.eventId,
++                clientRequestId,
+               });
+               
+               // Clear conversation state
+@@ -575,7 +591,11 @@ Scrie "da" pentru a confirma și crea evenimentul, sau "anulează" pentru a renu
+                 eventId: eventResult.eventId
+               };
+             } catch (error) {
+-              console.error(`[${requestId}] Error creating event:`, error);
++              console.error(`[${requestId}] Error creating event:`, {
++                error: error.message,
++                stack: error.stack,
++                clientRequestId,
++              });
+               await stateRef.delete();
+               
+               return {
+diff --git a/superparty_flutter/lib/screens/ai_chat/ai_chat_screen.dart b/superparty_flutter/lib/screens/ai_chat/ai_chat_screen.dart
+index 58e367f6..86e30e71 100644
+--- a/superparty_flutter/lib/screens/ai_chat/ai_chat_screen.dart
++++ b/superparty_flutter/lib/screens/ai_chat/ai_chat_screen.dart
+@@ -372,6 +372,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
+         // Generate unique clientRequestId for idempotency
+         final clientRequestId = 'req_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
+         
++        debugPrint('[AIChat] Calling chatEventOps (preview): requestId=$clientRequestId, textLength=${commandText.length}, dryRun=true');
++        
+         // Call chatEventOps with dryRun=true for preview
+         final eventCallable =
+             FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
+@@ -385,6 +387,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
+           'clientRequestId': clientRequestId,
+         });
+         
++        debugPrint('[AIChat] chatEventOps preview result: requestId=$clientRequestId, ok=${previewResult.data['ok']}, action=${previewResult.data['action']}');
++        
+         final previewData = Map<String, dynamic>.from(previewResult.data);
+         
+         // Remove placeholder and show preview
+@@ -1308,6 +1312,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
+     });
+     _scrollToBottomSoon();
+ 
++    debugPrint('[AIChat] Calling chatEventOps (create): requestId=$clientRequestId, textLength=${commandText.length}, dryRun=false');
++    
+     try {
+       final eventCallable =
+           FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
+@@ -1320,6 +1326,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
+         'dryRun': false,
+         'clientRequestId': clientRequestId,
+       });
++      
++      debugPrint('[AIChat] chatEventOps create result: requestId=$clientRequestId, ok=${result.data['ok']}, action=${result.data['action']}, eventId=${result.data['eventId']}');
+ 
+       final data = Map<String, dynamic>.from(result.data);
+       final ok = data['ok'] == true;

@@ -1,0 +1,214 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../../services/whatsapp_api_service.dart';
+
+/// WhatsApp Diagnostics Screen (Debug Only)
+/// 
+/// Shows:
+/// - Current user (uid, email)
+/// - Token presence
+/// - Connected accountId
+/// - Last API response for accounts
+/// - Firestore thread count
+class WhatsAppDiagnosticsScreen extends StatefulWidget {
+  const WhatsAppDiagnosticsScreen({super.key});
+
+  @override
+  State<WhatsAppDiagnosticsScreen> createState() => _WhatsAppDiagnosticsScreenState();
+}
+
+class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
+  final WhatsAppApiService _apiService = WhatsAppApiService.instance;
+  Map<String, dynamic>? _lastAccountsResponse;
+  String? _lastError;
+  bool _isLoading = false;
+  int? _threadCount;
+  String? _selectedAccountId;
+
+  @override
+  void initState() {
+    super.initState();
+    if (kDebugMode) {
+      _loadDiagnostics();
+    }
+  }
+
+  Future<void> _loadDiagnostics() async {
+    setState(() {
+      _isLoading = true;
+      _lastError = null;
+    });
+
+    try {
+      // Test getAccounts API
+      final response = await _apiService.getAccounts();
+      setState(() {
+        _lastAccountsResponse = response;
+        final accounts = (response['accounts'] as List<dynamic>? ?? []);
+        if (accounts.isNotEmpty) {
+          _selectedAccountId = accounts.first['id'] as String?;
+        }
+      });
+
+      // Count threads if account selected
+      if (_selectedAccountId != null) {
+        final threadsSnapshot = await FirebaseFirestore.instance
+            .collection('threads')
+            .where('accountId', isEqualTo: _selectedAccountId)
+            .limit(1)
+            .get();
+        setState(() {
+          _threadCount = threadsSnapshot.size;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _lastError = e.toString();
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<String?> _getTokenStatus() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+    try {
+      final token = await user.getIdToken();
+      return (token?.isNotEmpty ?? false) ? 'Present (${token?.length ?? 0} chars)' : 'Empty';
+    } catch (e) {
+      return 'Error: $e';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!kDebugMode) {
+      return const Scaffold(
+        body: Center(child: Text('Diagnostics only available in debug mode')),
+      );
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('WhatsApp Diagnostics'),
+        backgroundColor: Colors.orange,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadDiagnostics,
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSection('Auth Status', [
+                    _buildInfoRow('User UID', user?.uid ?? 'Not logged in'),
+                    _buildInfoRow('User Email', user?.email ?? 'N/A'),
+                    FutureBuilder<String?>(
+                      future: _getTokenStatus(),
+                      builder: (context, snapshot) {
+                        return _buildInfoRow(
+                          'Token Status',
+                          snapshot.data ?? 'Checking...',
+                        );
+                      },
+                    ),
+                  ]),
+                  const SizedBox(height: 24),
+                  _buildSection('API Status', [
+                    if (_lastError != null)
+                      _buildInfoRow('Last Error', _lastError!, isError: true),
+                    if (_lastAccountsResponse != null) ...[
+                      _buildInfoRow(
+                        'Accounts Count',
+                        '${(_lastAccountsResponse!['accounts'] as List?)?.length ?? 0}',
+                      ),
+                      _buildInfoRow(
+                        'Success',
+                        '${_lastAccountsResponse!['success'] ?? false}',
+                      ),
+                    ],
+                  ]),
+                  const SizedBox(height: 24),
+                  _buildSection('Firestore Status', [
+                    if (_selectedAccountId != null) ...[
+                      _buildInfoRow('Selected AccountId', _selectedAccountId!),
+                      _buildInfoRow(
+                        'Threads Count',
+                        _threadCount?.toString() ?? 'Not loaded',
+                      ),
+                    ] else
+                      _buildInfoRow('Selected AccountId', 'None'),
+                  ]),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: _loadDiagnostics,
+                    child: const Text('Refresh Diagnostics'),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildSection(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...children,
+      ],
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value, {bool isError = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: isError ? Colors.red : null,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: isError ? Colors.red : null,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
