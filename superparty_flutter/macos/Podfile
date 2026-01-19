@@ -51,16 +51,31 @@ post_install do |installer|
         
         if value.is_a?(Array)
           # Remove all occurrences of -G flag from array
-          filtered = value.reject { |flag| flag.to_s.strip == '-G' }
+          filtered = value.reject { |flag| flag.to_s.strip == '-G' || flag.to_s.strip == '-g' }
           config.build_settings[key] = filtered if filtered != value
         elsif value.is_a?(String)
           # Remove -G flag from string (handle with space or without)
           # Also handle cases like "-G " or " -G" or " -G " or "-Gsomething"
-          filtered = value.gsub(/\s*-G\b\s*/, ' ').strip
+          filtered = value.gsub(/\s*-G\b\s*/, ' ').gsub(/\s*-g\b\s*/, ' ').strip
           # Also remove if it's part of a combined flag like "-O2 -G" or "-G -O2"
           filtered = filtered.gsub(/\s+/, ' ').strip
           config.build_settings[key] = filtered if filtered != value
         end
+      end
+      
+      # Force compiler to treat unsupported flags as warnings instead of errors
+      config.build_settings['OTHER_CFLAGS'] ||= ['$(inherited)']
+      config.build_settings['OTHER_CPLUSPLUSFLAGS'] ||= ['$(inherited)']
+      
+      # Remove -G and add -Wno-unused-command-line-argument to suppress warnings
+      ['OTHER_CFLAGS', 'OTHER_CPLUSPLUSFLAGS'].each do |flag_key|
+        flags = config.build_settings[flag_key]
+        if flags.is_a?(String)
+          flags = flags.split(' ')
+        end
+        flags = flags.reject { |f| f == '-G' || f == '-g' }
+        flags << '-Wno-unused-command-line-argument' unless flags.include?('-Wno-unused-command-line-argument')
+        config.build_settings[flag_key] = flags.join(' ')
       end
     end
   end
