@@ -3025,6 +3025,12 @@ app.post('/admin/migrate-lid-contacts', async (req, res) => {
 
       if (hasDisplayName) {
         skipped++;
+        results.push({
+          threadId: threadId.substring(0, 50),
+          clientJid,
+          currentDisplayName: data.displayName,
+          action: 'skipped_has_name',
+        });
         continue;
       }
 
@@ -3063,6 +3069,12 @@ app.post('/admin/migrate-lid-contacts', async (req, res) => {
           });
         } else {
           skipped++;
+          results.push({
+            threadId: threadId.substring(0, 50),
+            clientJid,
+            action: 'skipped_no_pushname',
+            messagesChecked: messagesSnapshot.size,
+          });
         }
       } catch (error) {
         console.error(`❌ Error processing ${threadId}:`, error.message);
