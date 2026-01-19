@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:go_router/go_router.dart';
@@ -72,7 +74,23 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     final connectedAccounts = _accounts.where((a) => a['status'] == 'connected').toList();
     
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp_inbox_screen.dart:54',message:'_loadThreads called',data:{totalAccounts:_accounts.length,connectedAccounts:connectedAccounts.length,accountStatuses:_accounts.map((a)=>{'id':(a['id'] as String?)?.substring(0,20),'status':a['status']}).toList()},timestamp:DateTime.now().millisecondsSinceEpoch,sessionId:'debug-session',hypothesisId:'H3'})}).catchError((_){});
+    try {
+      final http = await HttpClient().postUrl(Uri.parse('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591'));
+      http.headers.set('Content-Type', 'application/json');
+      http.write(jsonEncode({
+        'location': 'whatsapp_inbox_screen.dart:54',
+        'message': '_loadThreads called',
+        'data': {
+          'totalAccounts': _accounts.length,
+          'connectedAccounts': connectedAccounts.length,
+          'accountStatuses': _accounts.map((a) => {'id': (a['id'] as String?)?.substring(0, 20), 'status': a['status']}).toList()
+        },
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'sessionId': 'debug-session',
+        'hypothesisId': 'H3'
+      }));
+      await http.close();
+    } catch (_) {}
     // #endregion
     
     if (connectedAccounts.isEmpty) {

@@ -358,7 +358,26 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
         final accounts = response['accounts'] as List<dynamic>? ?? [];
         
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp_accounts_screen.dart:359',message:'_loadAccounts got response',data:{accountsCount:accounts.length,accountStatuses:accounts.map((a)=>{'id':(a['id'] as String?)?.substring(0,20),'status':a['status'],'hasQR':a['qrCode']!=null}).toList()},timestamp:DateTime.now().millisecondsSinceEpoch,sessionId:'debug-session',hypothesisId:'H1-H2'})}).catchError((_){});
+        try {
+          final http = await HttpClient().postUrl(Uri.parse('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591'));
+          http.headers.set('Content-Type', 'application/json');
+          http.write(jsonEncode({
+            'location': 'whatsapp_accounts_screen.dart:359',
+            'message': '_loadAccounts got response',
+            'data': {
+              'accountsCount': accounts.length,
+              'accountStatuses': accounts.map((a) => {
+                'id': (a['id'] as String?)?.substring(0, 20),
+                'status': a['status'],
+                'hasQR': a['qrCode'] != null
+              }).toList()
+            },
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+            'sessionId': 'debug-session',
+            'hypothesisId': 'H1-H2'
+          }));
+          await http.close();
+        } catch (_) {}
         // #endregion
         
         if (mounted && myToken == _loadRequestToken) {

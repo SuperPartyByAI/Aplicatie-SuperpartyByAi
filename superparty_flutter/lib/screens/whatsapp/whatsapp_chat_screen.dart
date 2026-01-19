@@ -32,6 +32,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   bool _isSending = false;
   bool _showCrmPanel = false;
   Map<String, dynamic>? _draftEvent;
+  int _previousMessageCount = 0; // Track message count to detect new messages
 
   String? get _accountId => widget.accountId ?? _extractFromQuery('accountId');
   String? get _threadId => widget.threadId ?? _extractFromQuery('threadId');
@@ -398,6 +399,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                   .limit(200)
                   .snapshots(),
               builder: (context, snapshot) {
+                
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -410,22 +412,31 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                   return const Center(child: Text('No messages yet'));
                 }
 
-                // Auto-scroll to bottom when new messages arrive
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (_scrollController.hasClients) {
-                    _scrollController.animateTo(
-                      _scrollController.position.maxScrollExtent,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOut,
-                    );
-                  }
-                });
+                final currentMessageCount = snapshot.data!.docs.length;
+                final hasNewMessages = currentMessageCount > _previousMessageCount;
+                
+                // Auto-scroll to bottom ONLY when new messages arrive
+                if (hasNewMessages) {
+                  
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (_scrollController.hasClients) {
+                      _scrollController.animateTo(
+                        _scrollController.position.maxScrollExtent,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOut,
+                      );
+                    }
+                  });
+                  _previousMessageCount = currentMessageCount;
+                } else {
+                }
 
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
                   itemCount: snapshot.data!.docs.length,
                   itemBuilder: (context, index) {
+                    
                     final doc = snapshot.data!.docs[index];
                     final data = doc.data() as Map<String, dynamic>;
                     
