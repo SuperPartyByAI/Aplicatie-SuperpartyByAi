@@ -4927,45 +4927,59 @@ app.get('/api/whatsapp/messages', async (req, res) => {
 
 // Delete account
 app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
+  const accountId = req.params?.id;
+  if (!accountId) {
+    return res.status(400).json({ success: false, error: 'Account ID is required' });
+  }
+
   try {
-    const { id } = req.params;
-    const account = connections.get(id);
+    console.log(`🗑️  [DELETE] Attempting to delete account: ${accountId}`);
+    const account = connections.get(accountId);
 
     // Check if account exists in memory OR Firestore
     let accountExists = !!account;
     let accountInFirestore = false;
     let accountStatus = null;
 
+    console.log(`🔍 [DELETE ${accountId}] Account in memory: ${accountExists}, status: ${account?.status || 'N/A'}`);
+
     // If not in memory, check Firestore
     if (!account && firestoreAvailable && db) {
       try {
-        const accountDoc = await db.collection('accounts').doc(id).get();
+        const accountDoc = await db.collection('accounts').doc(accountId).get();
         accountInFirestore = accountDoc.exists;
         if (accountInFirestore) {
           const data = accountDoc.data();
           accountStatus = data.status;
+          console.log(`🔍 [DELETE ${accountId}] Account in Firestore: true, status: ${accountStatus}`);
           
           // Don't delete if already deleted
           if (data.status === 'deleted') {
+            console.log(`⚠️  [DELETE ${accountId}] Account already deleted, skipping`);
             return res.status(404).json({ 
               success: false, 
               error: 'Account already deleted',
-              accountId: id,
+              accountId: accountId,
             });
           }
+        } else {
+          console.log(`🔍 [DELETE ${accountId}] Account not found in Firestore`);
         }
       } catch (error) {
-        console.error(`❌ [${id}] Error checking Firestore:`, error.message);
+        console.error(`❌ [DELETE ${accountId}] Error checking Firestore:`, error.message);
+        console.error(`❌ [DELETE ${accountId}] Stack:`, error.stack?.substring(0, 200));
       }
     } else if (account) {
       accountStatus = account.status;
+      console.log(`🔍 [DELETE ${accountId}] Account status from memory: ${accountStatus}`);
     }
 
     if (!accountExists && !accountInFirestore) {
+      console.log(`❌ [DELETE ${accountId}] Account not found in memory or Firestore`);
       return res.status(404).json({ 
         success: false, 
         error: 'Account not found',
-        accountId: id,
+        accountId: accountId,
       });
     }
 
@@ -4990,50 +5004,72 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
 
     // Close connection if exists in memory
     if (account) {
+      console.log(`🔌 [DELETE ${accountId}] Closing socket connection...`);
       if (account.sock) {
         try {
           account.sock.end();
+          console.log(`✅ [DELETE ${accountId}] Socket closed`);
         } catch (e) {
-          // Ignore
+          console.error(`⚠️  [DELETE ${accountId}] Error closing socket:`, e.message);
         }
       }
 
-      connections.delete(id);
-      reconnectAttempts.delete(id);
-      connectionRegistry.release(id);
+      connections.delete(accountId);
+      reconnectAttempts.delete(accountId);
+      connectionRegistry.release(accountId);
+      console.log(`✅ [DELETE ${accountId}] Removed from memory`);
     }
 
     // Delete from Firestore (mark as deleted)
     if (firestoreAvailable && db) {
       try {
-        await db.collection('accounts').doc(id).update({
+        console.log(`💾 [DELETE ${accountId}] Updating Firestore status to 'deleted'...`);
+        
+        // Use set with merge instead of update to handle case where document doesn't exist
+        // This prevents "Document not found" errors
+        await db.collection('accounts').doc(accountId).set({
           status: 'deleted',
           deletedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+          accountId: accountId, // Ensure accountId is set
+        }, { merge: true });
         
-        console.log(`🗑️  [${id}] Account marked as deleted in Firestore (status was: ${accountStatus || 'unknown'})`);
+        console.log(`✅ [DELETE ${accountId}] Account marked as deleted in Firestore (status was: ${accountStatus || 'unknown'})`);
       } catch (error) {
-        console.error(`❌ [${id}] Error deleting from Firestore:`, error.message);
-        // Continue even if Firestore update fails
+        console.error(`❌ [DELETE ${accountId}] Error deleting from Firestore:`, error.message);
+        console.error(`❌ [DELETE ${accountId}] Error code:`, error.code);
+        console.error(`❌ [DELETE ${accountId}] Stack:`, error.stack?.substring(0, 300));
+        // Continue even if Firestore update fails - account might not exist in Firestore
       }
     }
 
     // Invalidate cache
     if (featureFlags.isEnabled('API_CACHING')) {
-      await cache.delete('whatsapp:accounts');
+      try {
+        await cache.delete('whatsapp:accounts');
+        console.log(`🗑️  [DELETE ${accountId}] Cache invalidated`);
+      } catch (cacheError) {
+        console.error(`⚠️  [DELETE ${accountId}] Cache invalidation failed:`, cacheError.message);
+      }
     }
 
+    console.log(`✅ [DELETE ${accountId}] Account deletion completed successfully`);
     res.json({ 
       success: true, 
       message: 'Account deleted',
-      accountId: id,
+      accountId: accountId,
       deletedFromMemory: accountExists,
       deletedFromFirestore: accountInFirestore,
       status: accountStatus,
     });
   } catch (error) {
-    console.error(`❌ [${req.params.id}] Delete account error:`, error);
-    res.status(500).json({ success: false, error: error.message });
+    console.error(`❌ [DELETE ${accountId || 'unknown'}] Delete account error:`, error.message);
+    console.error(`❌ [DELETE ${accountId || 'unknown'}] Error code:`, error.code);
+    console.error(`❌ [DELETE ${accountId || 'unknown'}] Stack:`, error.stack?.substring(0, 500));
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      accountId: accountId || 'unknown',
+    });
   }
 });
 
