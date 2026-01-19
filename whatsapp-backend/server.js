@@ -5962,7 +5962,9 @@ async function restoreAccount(accountId, data) {
 
             if (firestoreAvailable && db) {
               try {
-                const threadId = from;
+                // CRITICAL FIX: Use consistent threadId format: accountId__clientJid
+                // This ensures threads are properly namespaced per account
+                const threadId = `${accountId}__${from}`;
                 const messageData = {
                   accountId,
                   clientJid: from,
