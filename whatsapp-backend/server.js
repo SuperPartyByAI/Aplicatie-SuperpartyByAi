@@ -3247,6 +3247,84 @@ app.post('/admin/force-delete-lock', async (req, res) => {
   }
 });
 
+// Admin-only: Migrate threads to new accountId
+app.post('/admin/migrate-account-id', async (req, res) => {
+  try {
+    // Check admin token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    const { oldAccountId, newAccountId, dryRun = true } = req.body;
+
+    if (!oldAccountId || !newAccountId) {
+      return res.status(400).json({ success: false, error: 'oldAccountId and newAccountId are required' });
+    }
+
+    console.log(`🔄 [ADMIN] Migrating threads: ${oldAccountId} → ${newAccountId} (dryRun=${dryRun})`);
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    // Get all threads with old accountId
+    const threadsSnapshot = await db.collection('threads')
+      .where('accountId', '==', oldAccountId)
+      .limit(500)
+      .get();
+
+    console.log(`📊 Found ${threadsSnapshot.size} threads to migrate`);
+
+    if (dryRun) {
+      return res.json({
+        success: true,
+        dryRun: true,
+        threadsToMigrate: threadsSnapshot.size,
+        message: `Would migrate ${threadsSnapshot.size} threads from ${oldAccountId} to ${newAccountId}`,
+      });
+    }
+
+    // Perform migration
+    let migrated = 0;
+    let errors = 0;
+    const batch = db.batch();
+    const batchLimit = 500;
+
+    threadsSnapshot.docs.forEach((doc, index) => {
+      if (index < batchLimit) {
+        batch.update(doc.ref, {
+          accountId: newAccountId,
+          migratedAt: admin.firestore.FieldValue.serverTimestamp(),
+          previousAccountId: oldAccountId,
+        });
+        migrated++;
+      }
+    });
+
+    await batch.commit();
+
+    console.log(`✅ Migrated ${migrated} threads`);
+
+    return res.json({
+      success: true,
+      dryRun: false,
+      migrated,
+      errors,
+      oldAccountId,
+      newAccountId,
+    });
+  } catch (error) {
+    console.error(`❌ Account migration failed:`, error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Admin-only: Fetch contacts for LID threads and update display names
 app.post('/admin/fetch-lid-contacts', async (req, res) => {
   try {
