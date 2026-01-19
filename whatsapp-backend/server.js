@@ -3270,16 +3270,24 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
       return res.status(500).json({ success: false, error: 'Firestore not available' });
     }
 
-    // Get all threads with LID jids
-    let threadsQuery = db.collection('threads').where('clientJid', '>=', '@lid').where('clientJid', '<=', '@lid\uf8ff');
-    
-    if (accountFilter) {
-      threadsQuery = threadsQuery.where('accountId', '==', accountFilter);
+    // Get all threads for the account (to avoid compound index requirement)
+    if (!accountFilter) {
+      return res.status(400).json({ success: false, error: 'accountId is required' });
     }
 
-    const threadsSnapshot = await threadsQuery.limit(100).get();
+    const threadsQuery = db.collection('threads')
+      .where('accountId', '==', accountFilter)
+      .limit(500);
+
+    const threadsSnapshot = await threadsQuery.get();
     
-    if (threadsSnapshot.empty) {
+    // Filter LIDs in memory
+    const lidThreads = threadsSnapshot.docs.filter(doc => {
+      const clientJid = doc.data().clientJid || '';
+      return clientJid.endsWith('@lid');
+    });
+    
+    if (lidThreads.length === 0) {
       return res.json({
         success: true,
         message: 'No LID threads found',
@@ -3288,7 +3296,7 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
       });
     }
 
-    console.log(`📇 Found ${threadsSnapshot.size} LID threads to process`);
+    console.log(`📇 Found ${lidThreads.length} LID threads (from ${threadsSnapshot.size} total threads)`);
 
     let processed = 0;
     let updated = 0;
@@ -3296,7 +3304,7 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
     let errors = 0;
     const results = [];
 
-    for (const threadDoc of threadsSnapshot.docs) {
+    for (const threadDoc of lidThreads) {
       const threadData = threadDoc.data();
       const threadId = threadDoc.id;
       const accountId = threadData.accountId;
