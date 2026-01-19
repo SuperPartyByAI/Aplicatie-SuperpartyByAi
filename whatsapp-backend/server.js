@@ -1031,6 +1031,10 @@ function isTerminalLogout(reasonCode) {
 
 // Helper: Create WhatsApp connection
 async function createConnection(accountId, name, phone) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:createConnection:entry',message:'createConnection ENTRY',data:{accountId,name,phone:phone||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
+  
   // HARD GATE: PASSIVE mode - do NOT start Baileys connections
   if (!waBootstrap.canStartBaileys()) {
     const status = await waBootstrap.getWAStatus();
@@ -1405,6 +1409,9 @@ async function createConnection(accountId, name, phone) {
         }
 
         try {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1410:qr-gen-1',message:'QR generation attempt #1',data:{accountId,qrType:typeof qr,qrLength:qr?.length,qrIsNull:qr===null,qrIsUndefined:qr===undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,D'})}).catch(()=>{});
+          // #endregion
           const qrDataURL = await Sentry.startSpan(
             { op: 'whatsapp.qr.generate', name: 'Generate QR Code' },
             () => QRCode.toDataURL(qr)
@@ -3751,6 +3758,9 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
 
     // Create connection (async, will emit QR later)
     createConnection(accountId, name, phone).catch(err => {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:createConnection:catch',message:'createConnection FAILED',data:{accountId,error:err.message,stack:err.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       console.error(`❌ [${accountId}] Failed to create:`, err.message);
       Sentry.captureException(err, {
         tags: { accountId, operation: 'create_connection', requestId },
@@ -3759,6 +3769,9 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
     });
 
     // Return immediately with connecting status + instance info
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:add-account:response',message:'POST /add-account RESPONSE',data:{accountId,status:'connecting',qrCodeIsNull:true},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
     res.json({
       success: true,
       account: {
@@ -3775,6 +3788,9 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
       requestId: requestId,
     });
   } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:add-account:error',message:'POST /add-account ERROR',data:{error:error.message,stack:error.stack?.substring(0,800)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,E'})}).catch(()=>{});
+    // #endregion
     Sentry.captureException(error, {
       tags: { endpoint: 'add-account' },
       extra: { body: req.body },
@@ -4255,6 +4271,15 @@ app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) =
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// INSTRUMENTATION: Track add-account flow
+app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:add-account:entry',message:'POST /add-account ENTRY',data:{body:req.body,connectionsSize:connections.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
+  
+  // Original handler follows...
 });
 
 // Send message
@@ -5521,6 +5546,9 @@ async function restoreAccount(accountId, data) {
         }
 
         try {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:5526:qr-gen-2',message:'QR generation attempt #2 (restore)',data:{accountId,qrType:typeof qr,qrLength:qr?.length,qrIsNull:qr===null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,D'})}).catch(()=>{});
+          // #endregion
           const qrDataURL = await QRCode.toDataURL(qr);
           // IMPORTANT: Get account from connections map to ensure latest state
           const currentAccountRestoreSave = connections.get(accountId);
@@ -6709,6 +6737,9 @@ app.get('/api/status/dashboard', async (req, res) => {
       // Include QR code only if needsQR is true (and qr is not null/empty)
       if (account.qr && typeof account.qr === 'string' && account.qr.length > 0) {
         try {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:6715:qr-gen-3',message:'QR generation attempt #3 (status endpoint)',data:{accountId,qrType:typeof account.qr,qrLength:account.qr?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,E'})}).catch(()=>{});
+          // #endregion
           accountData.qrCode = await QRCode.toDataURL(account.qr);
         } catch (err) {
           console.error(`❌ [${accountId}] QR code generation failed:`, err.message);
