@@ -3095,7 +3095,8 @@ app.post('/admin/migrate-lid-contacts', async (req, res) => {
       updated,
       skipped,
       errors,
-      sampleResults: results.slice(0, 10), // First 10 results
+      totalResults: results.length,
+      sampleResults: results.slice(0, 20), // First 20 results for debugging
     };
 
     console.log(`📊 Migration summary:`, summary);
