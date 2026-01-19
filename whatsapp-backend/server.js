@@ -4784,6 +4784,30 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
     }
 
     // Response includes mode info for debugging
+    // #region agent log
+    const fs = require('fs');
+    const logPath = '/Users/universparty/.cursor/debug.log';
+    const logEntry = JSON.stringify({
+      location: 'server.js:4787',
+      message: 'GET /accounts response',
+      data: {
+        accountsCount: accounts.length,
+        accountStatuses: accounts.map(a => ({
+          id: a.id.substring(0, 30),
+          status: a.status,
+          hasQR: !!a.qrCode,
+          phone: a.phone
+        })),
+        waMode: isActive ? 'active' : 'passive',
+        inMemory: accountIdsInMemory.size
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      hypothesisId: 'H2'
+    }) + '\n';
+    try { fs.appendFileSync(logPath, logEntry); } catch (e) {}
+    // #endregion
+    
     res.json({ 
       success: true, 
       accounts, 

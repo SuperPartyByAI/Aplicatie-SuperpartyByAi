@@ -71,6 +71,10 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     // Get all connected accounts
     final connectedAccounts = _accounts.where((a) => a['status'] == 'connected').toList();
     
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'whatsapp_inbox_screen.dart:54',message:'_loadThreads called',data:{totalAccounts:_accounts.length,connectedAccounts:connectedAccounts.length,accountStatuses:_accounts.map((a)=>{'id':(a['id'] as String?)?.substring(0,20),'status':a['status']}).toList()},timestamp:DateTime.now().millisecondsSinceEpoch,sessionId:'debug-session',hypothesisId:'H3'})}).catchError((_){});
+    // #endregion
+    
     if (connectedAccounts.isEmpty) {
       if (mounted) {
         setState(() {
