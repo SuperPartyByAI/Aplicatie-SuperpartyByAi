@@ -613,6 +613,68 @@ async function logIncident(accountId, type, details) {
   }
 }
 
+/**
+ * Send FCM push notification for new inbound WhatsApp message
+ * @param {string} accountId - Account ID
+ * @param {string} threadId - Thread ID
+ * @param {string} clientJid - Client JID
+ * @param {string} messageBody - Message text
+ * @param {string} displayName - Sender display name
+ */
+async function sendWhatsAppNotification(accountId, threadId, clientJid, messageBody, displayName) {
+  if (!firestoreAvailable || !db) return;
+  
+  try {
+    // Get all users with FCM tokens (admin users who manage WhatsApp)
+    const usersSnapshot = await db.collection('users')
+      .where('fcmToken', '!=', null)
+      .where('notificationsEnabled', '==', true)
+      .get();
+    
+    if (usersSnapshot.empty) {
+      console.log(`📱 [${accountId}] No FCM tokens found for notifications`);
+      return;
+    }
+    
+    const tokens = usersSnapshot.docs.map(doc => doc.data().fcmToken).filter(Boolean);
+    
+    if (tokens.length === 0) {
+      console.log(`📱 [${accountId}] No valid FCM tokens`);
+      return;
+    }
+    
+    // Truncate message body for notification
+    const truncatedBody = messageBody.length > 100 
+      ? messageBody.substring(0, 100) + '...' 
+      : messageBody;
+    
+    const message = {
+      notification: {
+        title: `${displayName || 'WhatsApp Message'}`,
+        body: truncatedBody,
+      },
+      data: {
+        type: 'whatsapp_message',
+        accountId,
+        threadId,
+        clientJid,
+        click_action: 'FLUTTER_NOTIFICATION_CLICK',
+      },
+      tokens,
+    };
+    
+    const response = await admin.messaging().sendEachForMulticast(message);
+    console.log(`📱 [${accountId}] FCM sent: ${response.successCount}/${tokens.length} success`);
+    
+    if (response.failureCount > 0) {
+      console.warn(`📱 [${accountId}] FCM failures: ${response.failureCount}`, 
+        response.responses.filter(r => !r.success).map(r => r.error?.message));
+    }
+  } catch (error) {
+    console.error(`❌ [${accountId}] FCM send error:`, error.message);
+  }
+}
+
 // Helper: Save message to Firestore (idempotent upsert)
 // Used by both real-time messages.upsert and history sync
 async function saveMessageToFirestore(accountId, msg, isFromHistory = false) {
@@ -2139,6 +2201,18 @@ async function createConnection(accountId, name, phone) {
             const saved = await saveMessageToFirestore(accountId, msg, false);
             if (saved) {
               console.log(`💾 [${accountId}] Message saved to Firestore: ${saved.messageId} in thread ${saved.threadId}`);
+              
+              // Send FCM notification for inbound messages (not from me)
+              if (!isFromMe && saved.messageBody) {
+                const displayName = saved.displayName || from.split('@')[0];
+                await sendWhatsAppNotification(
+                  accountId,
+                  saved.threadId,
+                  from,
+                  saved.messageBody,
+                  displayName
+                );
+              }
             }
           } catch (msgError) {
             console.error(`❌ [${accountId}] Error processing message:`, msgError.message);
