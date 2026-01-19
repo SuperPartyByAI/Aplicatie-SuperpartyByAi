@@ -111,8 +111,10 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     super.dispose();
   }
   
-  /// Start polling for QR code generation
-  /// Polls every 2 seconds for accounts with status 'connecting' or 'qr_ready' without QR code
+  /// Start polling for QR code generation and connection status
+  /// Polls every 2 seconds for:
+  /// - Accounts with status 'connecting' or 'qr_ready' without QR code (to get QR)
+  /// - Accounts with 'qr_ready' status (to detect when scanned and connected)
   void _startQrPolling() {
     _qrPollingTimer?.cancel();
     _qrPollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
@@ -121,29 +123,29 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
         return;
       }
       
-      // Check if any account is waiting for QR code
+      // Check if any account is waiting for QR code OR has QR ready (awaiting scan)
       final hasWaitingAccounts = _accounts.any((account) {
         final status = account['status'] as String? ?? '';
         final qrCode = account['qrCode'] as String?;
-        // Poll if status is connecting/qr_ready and no QR code yet
+        // Poll if:
+        // 1. Status is connecting/qr_ready and no QR code yet (waiting for QR generation)
+        // 2. Status is qr_ready with QR code (waiting for scan - check if connected)
         return (status == 'connecting' || status == 'qr_ready') && 
-               (qrCode == null || qrCode.isEmpty);
+               ((qrCode == null || qrCode.isEmpty) || status == 'qr_ready');
       });
       
       if (hasWaitingAccounts) {
         if (kDebugMode) {
-          debugPrint('[WhatsAppAccountsScreen] Polling for QR codes (accounts waiting for QR)...');
+          debugPrint('[WhatsAppAccountsScreen] Auto-polling: checking QR codes and connection status...');
         }
-        // Refresh accounts to check for new QR codes
+        // Refresh accounts to check for new QR codes or connection updates
         _loadAccounts().catchError((error) {
           if (kDebugMode) {
             debugPrint('[WhatsAppAccountsScreen] Polling refresh error: $error');
           }
         });
       } else {
-        // No accounts waiting for QR code
-        // Keep timer running (it will check again in 2s)
-        // Don't cancel - might add new account later
+        // No accounts waiting - keep timer running (might add new account later)
       }
     });
   }

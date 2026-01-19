@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../services/whatsapp_api_service.dart';
 
 /// WhatsApp Inbox Screen - List threads per accountId
+/// Updated: Auto-refresh every 10s for real-time sync!
 class WhatsAppInboxScreen extends StatefulWidget {
   const WhatsAppInboxScreen({super.key});
 
@@ -26,11 +28,28 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   // Cache to prevent duplicate loads
   DateTime? _lastLoadTime;
   bool _isCurrentlyLoading = false;
+  
+  // Auto-refresh timer
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadAccounts();
+    
+    // Auto-refresh threads every 10 seconds
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted && !_isCurrentlyLoading) {
+        debugPrint('[WhatsAppInboxScreen] Auto-refresh triggered');
+        _loadThreads();
+      }
+    });
+  }
+  
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadThreads() async {
