@@ -677,7 +677,7 @@ async function sendWhatsAppNotification(accountId, threadId, clientJid, messageB
 
 // Helper: Save message to Firestore (idempotent upsert)
 // Used by both real-time messages.upsert and history sync
-async function saveMessageToFirestore(accountId, msg, isFromHistory = false) {
+async function saveMessageToFirestore(accountId, msg, isFromHistory = false, sock = null) {
   if (!firestoreAvailable || !db) {
     if (!isFromHistory) {
       console.log(`⚠️  [${accountId}] Firestore not available, message not persisted`);
@@ -799,9 +799,24 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false) {
     // Try to extract display name from message pushName or other sources
     if (msg.pushName) {
       threadData.displayName = msg.pushName;
+    } else if (sock && from.endsWith('@lid')) {
+      // For LID (Lidded IDs), try to fetch contact info from WhatsApp
+      try {
+        console.log(`🔍 [${accountId}] Fetching contact info for LID: ${from}`);
+        const [contact] = await sock.onWhatsApp(from);
+        if (contact?.name) {
+          threadData.displayName = contact.name;
+          console.log(`✅ [${accountId}] Found contact name for LID: ${contact.name}`);
+        } else if (contact?.jid && contact.jid !== from) {
+          // Sometimes onWhatsApp returns the real JID
+          threadData.displayName = contact.jid.split('@')[0];
+          console.log(`✅ [${accountId}] Using JID as display name: ${contact.jid}`);
+        }
+      } catch (e) {
+        console.log(`⚠️  [${accountId}] Could not fetch contact info for LID: ${e.message}`);
+      }
     } else {
-      // For LID (Lidded IDs) without pushName, try to get contact name
-      // Check if we have the contact in store or extract from participant
+      // For other cases without pushName, try verifiedBizName or participant
       const contactName = msg.verifiedBizName || msg.key.participant || null;
       if (contactName && contactName !== from) {
         threadData.displayName = contactName;
@@ -2271,7 +2286,7 @@ async function createConnection(accountId, name, phone) {
             }
 
             // Save to Firestore (use helper function for consistency)
-            const saved = await saveMessageToFirestore(accountId, msg, false);
+            const saved = await saveMessageToFirestore(accountId, msg, false, sock);
             if (saved) {
               console.log(`💾 [${accountId}] Message saved to Firestore: ${saved.messageId} in thread ${saved.threadId}, body length: ${saved.messageBody?.length || 0}`);
               
