@@ -809,6 +809,25 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false) {
   }
 }
 
+// Helper: Convert Long (protobuf) to Number for Firestore compatibility
+// Baileys uses Long objects from protobuf which Firestore can't serialize
+function convertLongToNumber(value) {
+  if (!value) return 0;
+  // If it's already a number, return it
+  if (typeof value === 'number') return value;
+  // If it's a Long object (from protobuf), convert to number
+  if (value && typeof value === 'object' && ('low' in value || 'high' in value || 'toNumber' in value)) {
+    try {
+      return typeof value.toNumber === 'function' ? value.toNumber() : Number(value);
+    } catch (e) {
+      // Fallback: try to extract numeric value
+      return value.low || value.high || 0;
+    }
+  }
+  // Try to parse as number
+  return Number(value) || 0;
+}
+
 // Helper: Process messages in batch (for history sync)
 // Uses Firestore batch writes (max 500 ops per batch)
 async function saveMessagesBatch(accountId, messages, source = 'history') {
@@ -866,6 +885,10 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
         }
 
         const threadId = `${accountId}__${from}`;
+        
+        // Convert messageTimestamp from Long to Number (Firestore compatibility)
+        const messageTimestamp = convertLongToNumber(msg.messageTimestamp);
+        
         const messageData = {
           accountId,
           clientJid: from,
@@ -873,7 +896,7 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
           body: body.substring(0, 10000),
           waMessageId: messageId,
           status: isFromMe ? 'sent' : 'delivered',
-          tsClient: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : new Date().toISOString(),
+          tsClient: messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString(),
           tsServer: admin.firestore.FieldValue.serverTimestamp(),
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           messageType,
@@ -914,11 +937,12 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
         } else {
           // Update preview if this message is more recent
           const existing = threadUpdates.get(threadId);
-          const msgTime = msg.messageTimestamp || 0;
-          const existingTime = existing.lastMessageTimestamp || 0;
+          // Convert Long to Number for Firestore compatibility
+          const msgTime = convertLongToNumber(msg.messageTimestamp);
+          const existingTime = convertLongToNumber(existing.lastMessageTimestamp);
           if (msgTime > existingTime) {
             existing.lastMessagePreview = body.substring(0, 100);
-            existing.lastMessageTimestamp = msgTime;
+            existing.lastMessageTimestamp = msgTime; // Now it's a Number, not Long
           }
         }
       } catch (error) {
@@ -4565,10 +4589,85 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
     }
 
     const threadsSnapshot = await query.limit(parseInt(limit)).get();
-    const threads = threadsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const threads = [];
+    const migrationPromises = [];
+
+    for (const doc of threadsSnapshot.docs) {
+      const threadId = doc.id;
+      const threadData = doc.data();
+      
+      // Check if thread uses old format (doesn't start with accountId__)
+      if (!threadId.startsWith(`${accountId}__`) && threadData.clientJid) {
+        // Old format detected - migrate to new format
+        const newThreadId = `${accountId}__${threadData.clientJid}`;
+        console.log(`🔄 [${accountId}] Migrating thread from old format: ${threadId} → ${newThreadId}`);
+        
+        // Migrate messages from old thread to new thread
+        const migrationPromise = (async () => {
+          try {
+            const oldMessagesRef = db.collection('threads').doc(threadId).collection('messages');
+            const oldMessagesSnapshot = await oldMessagesRef.get();
+            
+            if (!oldMessagesSnapshot.empty) {
+              const batch = db.batch();
+              let batchOps = 0;
+              
+              for (const msgDoc of oldMessagesSnapshot.docs) {
+                const newMsgRef = db.collection('threads').doc(newThreadId).collection('messages').doc(msgDoc.id);
+                batch.set(newMsgRef, msgDoc.data(), { merge: true });
+                batchOps++;
+                
+                // Firestore batch limit is 500
+                if (batchOps >= 500) {
+                  await batch.commit();
+                  batchOps = 0;
+                }
+              }
+              
+              if (batchOps > 0) {
+                await batch.commit();
+              }
+              
+              // Update new thread with data from old thread
+              await db.collection('threads').doc(newThreadId).set(threadData, { merge: true });
+              
+              // Delete old thread (messages already migrated)
+              await db.collection('threads').doc(threadId).delete();
+              
+              console.log(`✅ [${accountId}] Thread migrated: ${oldMessagesSnapshot.size} messages moved`);
+            } else {
+              // No messages, just update thread ID
+              await db.collection('threads').doc(newThreadId).set(threadData, { merge: true });
+              await db.collection('threads').doc(threadId).delete();
+              console.log(`✅ [${accountId}] Thread migrated (no messages)`);
+            }
+          } catch (migError) {
+            console.error(`❌ [${accountId}] Thread migration failed for ${threadId}:`, migError.message);
+          }
+        })();
+        
+        migrationPromises.push(migrationPromise);
+        
+        // Add new thread to response (will be populated after migration)
+        threads.push({
+          id: newThreadId,
+          ...threadData,
+        });
+      } else {
+        // Already using new format
+        threads.push({
+          id: threadId,
+          ...threadData,
+        });
+      }
+    }
+
+    // Wait for migrations to complete (but don't block response)
+    if (migrationPromises.length > 0) {
+      Promise.all(migrationPromises).catch(err => {
+        console.error(`❌ [${accountId}] Some thread migrations failed:`, err.message);
+      });
+    }
 
     res.json({ success: true, threads, count: threads.length });
   } catch (error) {
