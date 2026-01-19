@@ -4597,6 +4597,7 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
     const account = connections.get(accountId);
     if (account && account.phone) {
       accountPhone = account.phone.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+      console.log(`📋 [${accountId}] Inbox filter: Found phone in memory: ${accountPhone}`);
     } else if (firestoreAvailable && db) {
       // Try to get from Firestore if not in memory
       try {
@@ -4605,11 +4606,16 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
           const accountData = accountDoc.data();
           if (accountData.phone) {
             accountPhone = accountData.phone.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+            console.log(`📋 [${accountId}] Inbox filter: Found phone in Firestore: ${accountPhone}`);
           }
         }
       } catch (err) {
-        // Ignore error, will just not filter self-conversation
+        console.log(`⚠️  [${accountId}] Inbox filter: Could not get phone from Firestore: ${err.message}`);
       }
+    }
+    
+    if (!accountPhone) {
+      console.log(`⚠️  [${accountId}] Inbox filter: No phone number found, will not filter self-conversation`);
     }
 
     for (const doc of threadsSnapshot.docs) {
@@ -4618,6 +4624,7 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
       
       // Skip self-conversation (conversation with own phone number)
       if (accountPhone && threadData.clientJid === accountPhone) {
+        console.log(`📋 [${accountId}] Inbox filter: Skipping self-conversation ${threadData.clientJid}`);
         continue; // Skip this thread
       }
       
