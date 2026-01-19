@@ -4665,17 +4665,13 @@ app.get('/api/whatsapp/messages', async (req, res) => {
 
 // Delete account
 app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:4667',message:'DELETE endpoint entry',data:{accountId:req.params.id,hasAuth:!!req.headers.authorization},timestamp:Date.now(),sessionId:'debug-session',runId:'delete-test',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
+  console.log(`🔍 [DEBUG-DELETE] Entry - accountId: ${req.params.id}, hasAuth: ${!!req.headers.authorization}`);
   
   try {
     const { id } = req.params;
     const account = connections.get(id);
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:4670',message:'Account lookup',data:{accountId:id,inMemory:!!account,connectionsSize:connections.size},timestamp:Date.now(),sessionId:'debug-session',runId:'delete-test',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
+    console.log(`🔍 [DEBUG-DELETE] Account lookup - accountId: ${id}, inMemory: ${!!account}, connectionsSize: ${connections.size}`);
 
     // Check if account exists in memory OR Firestore
     let accountExists = !!account;
@@ -4691,9 +4687,7 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
           const data = accountDoc.data();
           accountStatus = data.status;
           
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:4685',message:'Found in Firestore',data:{accountId:id,status:accountStatus},timestamp:Date.now(),sessionId:'debug-session',runId:'delete-test',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
+          console.log(`🔍 [DEBUG-DELETE] Found in Firestore - accountId: ${id}, status: ${accountStatus}`);
           
           // Don't delete if already deleted
           if (data.status === 'deleted') {
@@ -4705,10 +4699,7 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
           }
         }
       } catch (error) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:4694',message:'Firestore check error',data:{accountId:id,error:error.message,code:error.code},timestamp:Date.now(),sessionId:'debug-session',runId:'delete-test',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        
+        console.error(`🔍 [DEBUG-DELETE] Firestore check error - accountId: ${id}, error: ${error.message}, code: ${error.code}`);
         console.error(`❌ [${id}] Error checking Firestore:`, error.message);
       }
     } else if (account) {
@@ -4746,15 +4737,10 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
     if (account) {
       if (account.sock) {
         try {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:4732',message:'Closing socket',data:{accountId:id,sockExists:!!account.sock},timestamp:Date.now(),sessionId:'debug-session',runId:'delete-test',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
-          
+          console.log(`🔍 [DEBUG-DELETE] Closing socket - accountId: ${id}`);
           account.sock.end();
         } catch (e) {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:4735',message:'Socket close error',data:{accountId:id,error:e.message},timestamp:Date.now(),sessionId:'debug-session',runId:'delete-test',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
+          console.error(`🔍 [DEBUG-DELETE] Socket close error - accountId: ${id}, error: ${e.message}`);
           // Ignore
         }
       }
@@ -4767,25 +4753,17 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
     // Delete from Firestore (mark as deleted)
     if (firestoreAvailable && db) {
       try {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:4746',message:'Updating Firestore BEFORE',data:{accountId:id,accountInFirestore:accountInFirestore,accountStatus:accountStatus},timestamp:Date.now(),sessionId:'debug-session',runId:'delete-test',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
+        console.log(`🔍 [DEBUG-DELETE] Updating Firestore BEFORE - accountId: ${id}, accountInFirestore: ${accountInFirestore}, accountStatus: ${accountStatus}`);
         
         await db.collection('accounts').doc(id).update({
           status: 'deleted',
           deletedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:4750',message:'Firestore updated SUCCESS',data:{accountId:id},timestamp:Date.now(),sessionId:'debug-session',runId:'delete-test',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
-        
+        console.log(`🔍 [DEBUG-DELETE] Firestore updated SUCCESS - accountId: ${id}`);
         console.log(`🗑️  [${id}] Account marked as deleted in Firestore (status was: ${accountStatus || 'unknown'})`);
       } catch (error) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:4752',message:'Firestore update FAILED',data:{accountId:id,error:error.message,code:error.code,stack:error.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'delete-test',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
-        
+        console.error(`🔍 [DEBUG-DELETE] Firestore update FAILED - accountId: ${id}, error: ${error.message}, code: ${error.code}`);
         console.error(`❌ [${id}] Error deleting from Firestore:`, error.message);
         // Continue even if Firestore update fails
       }
@@ -4805,10 +4783,7 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
       status: accountStatus,
     });
   } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:4770',message:'DELETE catch block ERROR 500',data:{accountId:req.params.id,error:error.message,code:error.code,stack:error.stack?.substring(0,300)},timestamp:Date.now(),sessionId:'debug-session',runId:'delete-test',hypothesisId:'E'})}).catch(()=>{});
-    // #endregion
-    
+    console.error(`🔍 [DEBUG-DELETE] CATCH BLOCK - ERROR 500 - accountId: ${req.params.id}, error: ${error.message}, code: ${error.code}, stack: ${error.stack?.substring(0,300)}`);
     console.error(`❌ [${req.params.id}] Delete account error:`, error);
     res.status(500).json({ success: false, error: error.message });
   }
