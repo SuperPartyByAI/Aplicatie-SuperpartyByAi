@@ -8798,15 +8798,27 @@ app.listen(PORT, '0.0.0.0', async () => {
 
   // Initialize long-run schema and evidence endpoints FIRST (before restore)
   if (firestoreAvailable) {
-    const baseUrl = process.env.BAILEYS_BASE_URL || 'https://whats-upp-production.up.railway.app';
+    const baseUrl =
+      process.env.WHATSAPP_BACKEND_BASE_URL ||
+      process.env.WHATSAPP_BACKEND_URL ||
+      process.env.BAILEYS_BASE_URL ||
+      'http://localhost:8080';
 
     // Initialize schema
     const longrunSchema = new LongRunSchemaComplete(db);
 
     // Initialize config
-    const commitHash = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'ed61e9f4';
+    const commitHash =
+      process.env.DEPLOY_COMMIT_SHA ||
+      process.env.GIT_COMMIT_SHA ||
+      process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) ||
+      'unknown';
     const serviceVersion = '2.0.0';
-    const instanceId = process.env.RAILWAY_DEPLOYMENT_ID || `local-${Date.now()}`;
+    const instanceId =
+      process.env.INSTANCE_ID ||
+      process.env.DEPLOYMENT_ID ||
+      process.env.RAILWAY_DEPLOYMENT_ID ||
+      `local-${Date.now()}`;
 
     await longrunSchema.initConfig(baseUrl, commitHash, serviceVersion, instanceId);
     console.log('✅ Long-run config initialized');
