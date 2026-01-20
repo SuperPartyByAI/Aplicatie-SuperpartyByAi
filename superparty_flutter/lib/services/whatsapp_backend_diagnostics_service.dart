@@ -47,7 +47,7 @@ class BackendDiagnostics {
   bool get isActive => mode == 'active';
 }
 
-/// Service for checking Railway WhatsApp backend health and mode.
+/// Service for checking WhatsApp backend health and mode.
 /// 
 /// Checks /ready endpoint to determine if backend is active/passive.
 class WhatsAppBackendDiagnosticsService {
@@ -58,7 +58,7 @@ class WhatsAppBackendDiagnosticsService {
 
   static WhatsAppBackendDiagnosticsService get instance => _instance;
 
-  /// Get backend base URL (direct Railway URL)
+  /// Get backend base URL
   String _getBackendUrl() {
     return Env.whatsappBackendUrl;
   }

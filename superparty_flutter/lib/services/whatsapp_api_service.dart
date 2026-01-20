@@ -11,7 +11,7 @@ import '../core/config/env.dart';
 import '../core/errors/app_exception.dart';
 import '../core/utils/retry.dart';
 
-/// Service for interacting with Railway WhatsApp backend directly.
+/// Service for interacting with WhatsApp backend directly.
 class WhatsAppApiService {
   static final WhatsAppApiService _instance = WhatsAppApiService._internal();
   factory WhatsAppApiService() => _instance;
@@ -22,7 +22,7 @@ class WhatsAppApiService {
   /// Request timeout (configurable)
   Duration requestTimeout = const Duration(seconds: 30);
 
-  /// Get Railway backend base URL
+  /// Get backend base URL
   String _getBackendUrl() {
     return Env.whatsappBackendUrl;
   }
@@ -116,7 +116,7 @@ class WhatsAppApiService {
   /// Get list of WhatsApp accounts via Functions proxy.
   /// 
   /// CRITICAL FIX: Uses proxy with Authorization header (Firebase ID token).
-  /// Previously called Railway directly without auth, causing 401 errors.
+  /// Previously called backend directly without auth, causing 401 errors.
   /// 
   /// Returns: { success: bool, accounts: List<Account> }
   /// Account: { id, name, phone, status, qrCode?, pairingCode?, ... }
@@ -166,7 +166,7 @@ class WhatsAppApiService {
   /// Add a new WhatsApp account via Functions proxy.
   /// 
   /// CRITICAL FIX: Uses proxy with Authorization header (Firebase ID token).
-  /// Previously called Railway directly without auth, causing 401 errors.
+  /// Previously called backend directly without auth, causing 401 errors.
   /// 
   /// NOTE: Backend requires phone (QR-only without phone is not supported).
   /// 
@@ -224,7 +224,7 @@ class WhatsAppApiService {
   /// Regenerate QR code for a WhatsApp account via Functions proxy.
   /// 
   /// CRITICAL FIX: Uses proxy with Authorization header (Firebase ID token).
-  /// Previously called Railway directly without auth, causing 401 errors.
+  /// Previously called backend directly without auth, causing 401 errors.
   /// 
   /// Returns: { success: bool, message?: string, ... }
   Future<Map<String, dynamic>> regenerateQr({
@@ -341,7 +341,7 @@ class WhatsAppApiService {
 
   /// Get QR page URL for an account (fallback: open in browser).
   /// 
-  /// Returns: Full URL to Railway QR endpoint (HTML page).
+  /// Returns: Full URL to QR endpoint (HTML page).
   String qrPageUrl(String accountId) {
     final backendUrl = _getBackendUrl();
     return '$backendUrl/api/whatsapp/qr/$accountId';
@@ -462,8 +462,8 @@ class WhatsAppApiService {
 
       debugPrint('[WhatsAppApiService] getThreads: calling proxy (accountId=$accountId)');
 
-      // Call Functions proxy - need to create proxy function or call Railway directly
-      // For now, call Railway directly with token
+      // Call Functions proxy - need to create proxy function or call backend directly
+      // For now, call backend directly with token
       final backendUrl = _getBackendUrl();
       final response = await http
           .get(

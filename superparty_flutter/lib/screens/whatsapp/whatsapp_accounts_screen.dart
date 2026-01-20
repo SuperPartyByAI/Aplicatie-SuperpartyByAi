@@ -450,7 +450,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
         String? backendStatusHint;
         if (e is NetworkException) {
           if (e.code == '502' || e.message.contains('502')) {
-            backendStatusHint = 'Backend is down (502 Bad Gateway). Check Railway service status.';
+            backendStatusHint = 'Backend is down (502 Bad Gateway). Check backend service status.';
           } else if (e.code == '503' || e.message.contains('503') || e.message.contains('passive')) {
             backendStatusHint = 'Backend is in PASSIVE mode (503). Another instance holds the lock.';
           }
@@ -1216,7 +1216,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
       bannerTitle = 'Backend Status Unknown';
       String errorDetails = diagnostics.error ?? 'Could not determine backend status.';
       if (diagnostics.error != null && diagnostics.error!.contains('502')) {
-        errorDetails = 'Backend is down (502 Bad Gateway). Check Railway service status.';
+        errorDetails = 'Backend is down (502 Bad Gateway). Check backend service status.';
       }
       bannerMessage = errorDetails;
     }
@@ -1351,7 +1351,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'These accounts are managed by the Railway backend (Baileys). '
+                    'These accounts are managed by the WhatsApp backend (Baileys). '
                     'They enable AI features and operator inbox.',
                     style: TextStyle(
                       fontSize: 12,

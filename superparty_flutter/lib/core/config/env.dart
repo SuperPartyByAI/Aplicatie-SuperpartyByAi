@@ -46,10 +46,10 @@ class Env {
   static const String _defaultWhatsAppBackendUrl =
       'http://37.27.34.179:8080';
 
-  /// Base URL for Railway `whatsapp-backend`.
+  /// Base URL for WhatsApp backend.
   ///
   /// Configure via:
-  /// `--dart-define=WHATSAPP_BACKEND_URL=https://your-service.up.railway.app`
+  /// `--dart-define=WHATSAPP_BACKEND_URL=https://your-backend-host`
   static final String whatsappBackendUrl = _normalizeBaseUrl(
     const String.fromEnvironment(
       'WHATSAPP_BACKEND_URL',
