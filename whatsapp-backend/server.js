@@ -191,7 +191,17 @@ class AccountConnectionRegistry {
 const connectionRegistry = new AccountConnectionRegistry();
 
 const app = express();
-const PORT = process.env.PORT || 8080; // Railway injects PORT
+const PORT = process.env.PORT || 8080; // Platform injects PORT
+const getInstanceId = () =>
+  process.env.INSTANCE_ID ||
+  process.env.DEPLOYMENT_ID ||
+  process.env.HOSTNAME ||
+  'unknown';
+const getCommitHash = () =>
+  process.env.DEPLOY_COMMIT_SHA ||
+  process.env.GIT_COMMIT_SHA ||
+  null;
+const getVolumeMountPath = () => process.env.VOLUME_MOUNT_PATH || null;
 const MAX_ACCOUNTS = 30;
 
 // Health monitoring and auto-recovery
@@ -203,12 +213,12 @@ const HEALTH_CHECK_INTERVAL = 60 * 1000; // Check every 60 seconds
 const sessionStability = new Map(); // accountId -> { lastRestoreAt, restoreCount, lastStableAt }
 
 // Admin token for protected endpoints
-// CRITICAL: In production (Railway), ADMIN_TOKEN must be set via env var (no random fallback)
+// CRITICAL: In production, ADMIN_TOKEN must be set via env var (no random fallback)
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || (process.env.NODE_ENV === 'production' 
   ? null // Fail fast in prod if missing
   : 'dev-token-' + Math.random().toString(36).substring(7)); // Random only in dev
 if (!ADMIN_TOKEN) {
-  console.error('❌ ADMIN_TOKEN is required in production. Set it via Railway env var.');
+  console.error('❌ ADMIN_TOKEN is required in production. Set it via env var.');
   process.exit(1);
 }
 console.log(`🔐 ADMIN_TOKEN configured: ${ADMIN_TOKEN.substring(0, 10)}...`);
@@ -218,14 +228,14 @@ const ONE_TIME_TEST_TOKEN = 'test-' + Math.random().toString(36).substring(2, 15
 const TEST_TOKEN_EXPIRY = Date.now() + 30 * 60 * 1000;
 console.log(`🧪 ONE_TIME_TEST_TOKEN: ${ONE_TIME_TEST_TOKEN} (valid 30min)`);
 
-// Trust Railway proxy for rate limiting
+// Trust upstream proxy for rate limiting
 app.set('trust proxy', 1);
 
 // Use hybrid: disk for Baileys, Firestore for backup/restore
 const USE_FIRESTORE_BACKUP = true;
 console.log(`🔧 Auth: disk + Firestore backup`);
 
-// Initialize Firebase Admin with Railway env var
+// Initialize Firebase Admin with env var
 let firestoreAvailable = false;
 if (!admin.apps.length) {
   try {
@@ -398,12 +408,12 @@ const testRuns = new Map();
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_TIMEOUT_MS = 60000;
 
-// Auth directory: use SESSIONS_PATH env var (Railway Volume)
-// Priority: SESSIONS_PATH > RAILWAY_VOLUME_MOUNT_PATH > local fallback
+// Auth directory: use SESSIONS_PATH env var (persistent volume)
+// Priority: SESSIONS_PATH > VOLUME_MOUNT_PATH > local fallback
 const authDir =
   process.env.SESSIONS_PATH ||
-  (process.env.RAILWAY_VOLUME_MOUNT_PATH
-    ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'baileys_auth')
+  (getVolumeMountPath()
+    ? path.join(getVolumeMountPath(), 'baileys_auth')
     : path.join(__dirname, '.baileys_auth'));
 
 // Ensure directory exists at startup
@@ -436,13 +446,13 @@ console.log(`📁 Sessions dir writable: ${isWritable}`);
 if (!isWritable) {
   console.error('❌ CRITICAL: Auth directory is not writable!');
   console.error(`   Path: ${authDir}`);
-  console.error('   Check: SESSIONS_PATH env var and Railway volume mount');
-  console.error('   Fix: Create Railway volume and set SESSIONS_PATH=/data/sessions');
+  console.error('   Check: SESSIONS_PATH env var and volume mount');
+  console.error('   Fix: Ensure persistent volume and set SESSIONS_PATH=/data/sessions');
   process.exit(1);
 }
 
 const VERSION = '2.0.0';
-let COMMIT_HASH = process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || null;
+let COMMIT_HASH = getCommitHash() || null;
 const BOOT_TIMESTAMP = new Date().toISOString();
 
 // Long-run jobs (production-grade v2)
@@ -504,7 +514,7 @@ function generateLeaseData() {
   const now = Date.now();
 
   return {
-    claimedBy: process.env.RAILWAY_DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown',
+    claimedBy: getInstanceId(),
     claimedAt: admin.firestore.Timestamp.fromMillis(now),
     leaseUntil: admin.firestore.Timestamp.fromMillis(now + LEASE_DURATION_MS),
   };
@@ -1718,8 +1728,8 @@ async function createConnection(accountId, name, phone) {
       createdAt: account.createdAt,
       ...generateLeaseData(),
       worker: {
-        service: 'railway',
-        instanceId: process.env.RAILWAY_DEPLOYMENT_ID || 'local',
+        service: 'backend',
+        instanceId: getInstanceId(),
         version: VERSION,
         commit: COMMIT_HASH,
         uptime: process.uptime(),
@@ -1815,7 +1825,7 @@ async function createConnection(accountId, name, phone) {
       accountId,
       qrLength: qr.length,
       phone: maskPhone(phone),
-      instanceId: process.env.RAILWAY_DEPLOYMENT_ID || 'local',
+      instanceId: getInstanceId(),
     });
         } catch (error) {
           console.error(`❌ [${accountId}] QR generation failed:`, error.message);
@@ -2845,7 +2855,7 @@ app.get('/', (req, res) => {
 
 // /ready endpoint - readiness check (returns mode + reason for passive)
 // MUST be fast - no blocking on lock or Firestore
-// ALWAYS returns 200 (Railway uses /health for healthcheck, not /ready)
+// ALWAYS returns 200 (platform uses /health for healthcheck, not /ready)
 app.get('/ready', async (req, res) => {
   try {
     const status = await waBootstrap.getWAStatus();
@@ -2884,7 +2894,7 @@ app.get('/ready', async (req, res) => {
       });
     } else {
       // PASSIVE mode - return 200 with mode=passive (not 503 to avoid healthcheck failure)
-      // Railway/K8s can use this to check readiness, but /health is used for healthcheck
+      // Platform/K8s can use this to check readiness, but /health is used for healthcheck
       res.status(200).json({
         ready: false,
         mode: 'passive',
@@ -2966,7 +2976,7 @@ async function checkPassiveModeGuard(req, res) {
   try {
     if (!waBootstrap.canStartBaileys()) {
       const status = await waBootstrap.getWAStatus();
-      const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+      const instanceId = status.instanceId || getInstanceId();
       const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
       
       console.log(`⏸️  [${requestId}] PASSIVE mode guard: lock not acquired, reason=${status.reason || 'unknown'}, instanceId=${instanceId}`);
@@ -4304,7 +4314,7 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
 });
 
 // Health endpoint - SIMPLE liveness check (ALWAYS returns 200)
-// Railway/K8s healthcheck uses this - MUST be fast and never fail
+// Platform/K8s healthcheck uses this - MUST be fast and never fail
 // Use /ready for readiness (active/passive mode), /health/detailed for comprehensive status
 app.get('/health', async (req, res) => {
   const requestId = req.headers['x-request-id'] || `health_${Date.now()}`;
@@ -4317,10 +4327,10 @@ app.get('/health', async (req, res) => {
   const commit = COMMIT_HASH || 'unknown';
   
   // Get instance ID (non-blocking)
-  const instanceId = process.env.RAILWAY_DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
+  const instanceId = getInstanceId();
 
   // ALWAYS return 200 - this is liveness check, not readiness
-  // Railway marks instance unhealthy if healthcheck returns non-200
+  // Platform marks instance unhealthy if healthcheck returns non-200
   // /ready endpoint handles readiness (active/passive mode)
   res.status(200).json({
     ok: true,
@@ -4924,12 +4934,12 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
   let status, instanceId, isActive, lockReason;
   try {
     status = await waBootstrap.getWAStatus();
-    instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+    instanceId = status.instanceId || getInstanceId();
     isActive = waBootstrap.isActiveMode();
     lockReason = status.reason || null;
   } catch (error) {
     console.error(`[GET /accounts/${requestId}] Error getting WA status:`, error.message);
-    instanceId = process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+    instanceId = getInstanceId();
     isActive = false;
     lockReason = 'status_check_failed';
   }
@@ -5082,7 +5092,7 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
       success: false, 
       error: error.message,
       requestId: requestId,
-      hint: `Check Railway logs for requestId: ${requestId}`,
+      hint: `Check backend logs for requestId: ${requestId}`,
     });
   }
 });
@@ -5263,7 +5273,7 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
     // HARD GATE: PASSIVE mode - do NOT create connection (requires Baileys)
     if (!waBootstrap.canStartBaileys()) {
       const status = await waBootstrap.getWAStatus();
-      const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+      const instanceId = status.instanceId || getInstanceId();
       console.log(`⏸️  [${accountId}] Add account blocked: PASSIVE mode (instanceId: ${instanceId})`);
       return res.status(503).json({
         success: false,
@@ -5278,7 +5288,7 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
 
     // Get instance info for response
     const status = await waBootstrap.getWAStatus();
-    const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+    const instanceId = status.instanceId || getInstanceId();
     const isActive = waBootstrap.isActiveMode();
     const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
 
@@ -5620,7 +5630,7 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
       
       // Return success - connection already in progress will emit QR when ready
       const status = await waBootstrap.getWAStatus();
-      const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+      const instanceId = status.instanceId || getInstanceId();
       const isActiveMode = waBootstrap.canStartBaileys();
       
       return res.json({ 
@@ -5663,7 +5673,7 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
 
     // Get instance info for response
     const status = await waBootstrap.getWAStatus();
-    const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
+    const instanceId = status.instanceId || getInstanceId();
     const isActiveMode = waBootstrap.isActiveMode();
 
     // Create new connection (will generate fresh QR since session is cleared)
@@ -5713,7 +5723,7 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
         message: syncError.message || 'Internal server error (sync)',
         accountId: accountId,
         requestId: requestId,
-        hint: `Check Railway logs for requestId: ${requestId}`,
+        hint: `Check backend logs for requestId: ${requestId}`,
       });
     }
 
@@ -5739,7 +5749,7 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
       message: error.message || 'Internal server error',
       accountId: accountId,
       requestId: requestId,
-      hint: `Check Railway logs for requestId: ${requestId}`,
+      hint: `Check backend logs for requestId: ${requestId}`,
     });
   }
 });
@@ -8804,7 +8814,7 @@ app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🌐 Health: http://localhost:${PORT}/health`);
   console.log(`📱 Accounts: http://localhost:${PORT}/api/whatsapp/accounts`);
   console.log(`📊 Status Dashboard: http://localhost:${PORT}/api/status/dashboard`);
-  console.log(`🚀 Railway deployment ready!\n`);
+  console.log(`🚀 Deployment ready!\n`);
 
   // CRITICAL: Invalidate cache on server start to prevent stale data after deployments
   // This ensures that any code changes (like filtering deleted accounts) take effect immediately
@@ -8832,13 +8842,11 @@ app.listen(PORT, '0.0.0.0', async () => {
     const commitHash =
       process.env.DEPLOY_COMMIT_SHA ||
       process.env.GIT_COMMIT_SHA ||
-      process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) ||
       'unknown';
     const serviceVersion = '2.0.0';
     const instanceId =
       process.env.INSTANCE_ID ||
       process.env.DEPLOYMENT_ID ||
-      process.env.RAILWAY_DEPLOYMENT_ID ||
       `local-${Date.now()}`;
 
     await longrunSchema.initConfig(baseUrl, commitHash, serviceVersion, instanceId);
@@ -8902,8 +8910,8 @@ app.listen(PORT, '0.0.0.0', async () => {
       lockInfo = `error: ${error.message}`;
     }
     
-    console.log(`🔒 WA system initialized: mode=${waInitResult.mode}, instanceId=${waInitResult.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown'}, lock=${lockInfo}`);
-    console.log(`📋 Startup info: commit=${COMMIT_HASH || 'unknown'}, instanceId=${process.env.RAILWAY_DEPLOYMENT_ID || 'unknown'}, mode=${waInitResult.mode}, lockInfo=${lockInfo}`);
+    console.log(`🔒 WA system initialized: mode=${waInitResult.mode}, instanceId=${waInitResult.instanceId || getInstanceId()}, lock=${lockInfo}`);
+    console.log(`📋 Startup info: commit=${COMMIT_HASH || 'unknown'}, instanceId=${getInstanceId()}, mode=${waInitResult.mode}, lockInfo=${lockInfo}`);
 
     // Initialize evidence endpoints (after baileys interface + wa-bootstrap)
     new EvidenceEndpoints(
@@ -8978,7 +8986,7 @@ app.listen(PORT, '0.0.0.0', async () => {
   const MAX_RETRY_ATTEMPTS = 5;
 
   // Worker instance ID for distributed leasing
-  const WORKER_ID = process.env.RAILWAY_DEPLOYMENT_ID || process.env.HOSTNAME || `local-${Date.now()}`;
+  const WORKER_ID = getInstanceId() || `local-${Date.now()}`;
   const LEASE_DURATION_MS = 60000; // 60 seconds lease
 
   setInterval(async () => {
