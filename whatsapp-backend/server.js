@@ -719,6 +719,10 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
     );
     const isFromMe = msg.key.fromMe || false;
     const { normalizedPhone } = normalizeJidToE164(canonicalJid);
+    const messageTimestamp =
+      msg.messageTimestamp != null ? convertLongToNumber(msg.messageTimestamp) : null;
+    const messageTimestampMs =
+      messageTimestamp != null ? messageTimestamp * 1000 : Date.now();
 
     // Extract message body (text content)
     let body = '';
@@ -788,6 +792,7 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       tsClient: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : new Date().toISOString(),
       tsServer: admin.firestore.FieldValue.serverTimestamp(),
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAtMs: messageTimestampMs,
       messageType,
     };
 
@@ -877,6 +882,7 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       canonicalThreadId: threadId,
       isLidThread,
       lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastMessageAtMs: messageTimestampMs,
       lastMessageText: body.substring(0, 100), // For display in inbox
       lastMessagePreview: body.substring(0, 100), // Legacy field (keep for compatibility)
     };
@@ -1037,6 +1043,8 @@ async function saveMessagesBatch(accountId, messages, source = 'history', sock =
         
         // Convert messageTimestamp from Long to Number (Firestore compatibility)
         const messageTimestamp = convertLongToNumber(msg.messageTimestamp);
+        const messageTimestampMs =
+          messageTimestamp && messageTimestamp > 0 ? messageTimestamp * 1000 : Date.now();
         
         const messageData = {
           accountId,
@@ -1054,6 +1062,7 @@ async function saveMessagesBatch(accountId, messages, source = 'history', sock =
           tsClient: messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString(),
           tsServer: admin.firestore.FieldValue.serverTimestamp(),
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAtMs: messageTimestampMs,
           messageType,
           syncedAt: admin.firestore.FieldValue.serverTimestamp(),
           syncSource: source,
@@ -1094,6 +1103,7 @@ async function saveMessagesBatch(accountId, messages, source = 'history', sock =
             lastMessageText: body.substring(0, 100),
             lastMessageDirection: msg.key?.fromMe ? 'outbound' : 'inbound',
             lastMessageTimestamp: msgTime || 0,
+            lastMessageAtMs: msgTime && msgTime > 0 ? msgTime * 1000 : null,
           });
           if (msg.pushName) {
             threadUpdates.get(threadId).displayName = msg.pushName;
@@ -1107,6 +1117,7 @@ async function saveMessagesBatch(accountId, messages, source = 'history', sock =
             existing.lastMessageText = body.substring(0, 100);
             existing.lastMessageDirection = msg.key?.fromMe ? 'outbound' : 'inbound';
             existing.lastMessageTimestamp = msgTime;
+            existing.lastMessageAtMs = msgTime && msgTime > 0 ? msgTime * 1000 : null;
           }
         }
       } catch (error) {

@@ -445,12 +445,14 @@ async function sendHandler(req, res) {
         tsClient: new Date().toISOString(),
         tsServer: admin.firestore.FieldValue.serverTimestamp(),
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAtMs: Date.now(),
         messageType: 'text',
         clientMessageId,
       }, { merge: true });
 
       await threadRef.set({
         lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastMessageAtMs: Date.now(),
         lastMessagePreview: text.substring(0, 100),
         lastMessageText: text.substring(0, 100),
         lastMessageDirection: 'outbound',
