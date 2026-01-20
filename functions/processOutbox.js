@@ -3,7 +3,7 @@
 /**
  * Process Outbox - Firestore Trigger
  * 
- * Monitors outbox collection and sends WhatsApp messages via Railway backend.
+ * Monitors outbox collection and sends WhatsApp messages via backend.
  * Triggered when outbox document is created with status='queued'.
  */
 
@@ -12,31 +12,33 @@ const admin = require('firebase-admin');
 const https = require('https');
 const http = require('http');
 
-// Railway backend base URL
-function getRailwayBaseUrl() {
+// Backend base URL
+function getBackendBaseUrl() {
   // Try v2 process.env first
-  if (process.env.WHATSAPP_RAILWAY_BASE_URL) {
-    return process.env.WHATSAPP_RAILWAY_BASE_URL;
+  if (process.env.WHATSAPP_BACKEND_URL) {
+    return process.env.WHATSAPP_BACKEND_URL;
   }
 
   // Try v1 functions.config()
   try {
     const functions = require('firebase-functions');
     const config = functions.config();
-    if (config?.whatsapp?.railway_base_url) {
-      return config.whatsapp.railway_base_url;
+    if (config?.whatsapp?.backend_base_url) {
+      return config.whatsapp.backend_base_url;
     }
   } catch (e) {
     // Ignore
   }
 
-  return null;
+  // Fallback to hardcoded Hetzner URL
+  console.log('[processOutbox] Using hardcoded backend URL (temporary fix)');
+  return 'http://37.27.34.179:8080';
 }
 
 const REQUEST_TIMEOUT_MS = 30000; // 30 seconds
 
 /**
- * Forward HTTP request to Railway backend
+ * Forward HTTP request to backend
  */
 function forwardRequest(url, options, body = null) {
   return new Promise((resolve, reject) => {
@@ -131,10 +133,10 @@ async function processOutboxHandler(event) {
   const outboxRef = db.collection('outbox').doc(requestId);
 
   try {
-    // Get Railway backend URL
-    const railwayBaseUrl = getRailwayBaseUrl();
-    if (!railwayBaseUrl) {
-      throw new Error('WHATSAPP_RAILWAY_BASE_URL not configured');
+    // Get backend URL
+    const backendBaseUrl = getBackendBaseUrl();
+    if (!backendBaseUrl) {
+      throw new Error('WHATSAPP_BACKEND_URL not configured');
     }
 
     // Extract message data
@@ -153,9 +155,9 @@ async function processOutboxHandler(event) {
       lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Send message to Railway backend
-    const railwayUrl = `${railwayBaseUrl}/api/whatsapp/send`;
-    const response = await forwardRequest(railwayUrl, {
+    // Send message to backend
+    const backendUrl = `${backendBaseUrl}/api/whatsapp/send-message`;
+    const response = await forwardRequest(backendUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -164,18 +166,17 @@ async function processOutboxHandler(event) {
     }, {
       threadId,
       accountId,
-      toJid,
-      text: body,
-      ...payload,
+      to: toJid,
+      message: body,
     });
 
-    console.log(`[processOutbox] Railway response: status=${response.statusCode}`);
+    console.log(`[processOutbox] Backend response: status=${response.statusCode}`);
 
     // #region agent log
     try {
       fs.appendFileSync('/Users/universparty/.cursor/debug.log', JSON.stringify({
         location: 'processOutbox.js:172',
-        message: 'Railway backend response',
+        message: 'Backend response',
         data: {requestId, statusCode: response.statusCode, body: response.body},
         timestamp: Date.now(),
         sessionId: 'debug-session',
@@ -189,7 +190,7 @@ async function processOutboxHandler(event) {
       await outboxRef.update({
         status: 'sent',
         sentAt: admin.firestore.FieldValue.serverTimestamp(),
-        railwayResponse: response.body,
+        backendResponse: response.body,
       });
 
       console.log(`[processOutbox] ✅ Message sent successfully: ${requestId}`);
@@ -199,7 +200,7 @@ async function processOutboxHandler(event) {
         status: 'failed',
         error: response.body?.error || `HTTP ${response.statusCode}`,
         errorMessage: response.body?.message || 'Backend returned error',
-        railwayResponse: response.body,
+        backendResponse: response.body,
       });
 
       console.error(`[processOutbox] ❌ Message failed: ${requestId}, status=${response.statusCode}`);
@@ -222,12 +223,17 @@ async function processOutboxHandler(event) {
   }
 }
 
+// Define secret for backend URL
+const { defineSecret } = require('firebase-functions/params');
+const whatsappBackendUrl = defineSecret('WHATSAPP_BACKEND_URL');
+
 // Export Firestore trigger
 exports.processOutbox = onDocumentCreated(
   {
     document: 'outbox/{requestId}',
     region: 'us-central1',
     maxInstances: 3,
+    secrets: [whatsappBackendUrl], // Add secret dependency
   },
   processOutboxHandler
 );

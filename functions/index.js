@@ -1,4 +1,5 @@
 const { onRequest, onCall } = require('firebase-functions/v2/https');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { setGlobalOptions } = require('firebase-functions/v2');
 const { defineSecret } = require('firebase-functions/params');
 const functions = require('firebase-functions'); // Keep v1 for existing functions
@@ -876,20 +877,20 @@ exports.aiEventHandler = require('./aiEventHandler_v3').aiEventHandler;
 
 // WhatsApp Backend Proxy - QR Connect Routes Only
 const whatsappProxy = require('./whatsappProxy');
-// Define secret for Railway URL (v2 functions)
-const whatsappRailwayUrl = defineSecret('WHATSAPP_RAILWAY_BASE_URL');
+// Define secret for backend URL (v2 functions)
+const whatsappBackendUrl = defineSecret('WHATSAPP_BACKEND_URL');
 
 // Wrap handlers to inject secret into process.env for lazy-loading compatibility
-// This allows getRailwayBaseUrl() in whatsappProxy.js to find the value
+// This allows getBackendBaseUrl() in whatsappProxy.js to find the value
 const wrapWithSecret = (handler, secret) => {
   return async (req, res) => {
-    // Inject secret value into process.env for getRailwayBaseUrl() to find it
-    if (secret && !process.env.WHATSAPP_RAILWAY_BASE_URL) {
+    // Inject secret value into process.env for getBackendBaseUrl() to find it
+    if (secret && !process.env.WHATSAPP_BACKEND_URL) {
       try {
-        process.env.WHATSAPP_RAILWAY_BASE_URL = secret.value();
+        process.env.WHATSAPP_BACKEND_URL = secret.value();
       } catch (e) {
         // Secret not available (emulator/local dev) - will use .runtimeconfig.json or env var
-        // This is OK - getRailwayBaseUrl() will fallback to functions.config()
+        // This is OK - getBackendBaseUrl() will fallback to functions.config()
       }
     }
     return handler(req, res);
@@ -902,9 +903,9 @@ exports.whatsappProxyGetAccounts = onRequest(
     region: 'us-central1',
     cors: true,
     maxInstances: 1,
-    secrets: [whatsappRailwayUrl],
+    secrets: [whatsappBackendUrl],
   },
-  wrapWithSecret(whatsappProxy.getAccountsHandler, whatsappRailwayUrl)
+  wrapWithSecret(whatsappProxy.getAccountsHandler, whatsappBackendUrl)
 );
 
 exports.whatsappProxyAddAccount = onRequest(
@@ -912,9 +913,9 @@ exports.whatsappProxyAddAccount = onRequest(
     region: 'us-central1',
     cors: true,
     maxInstances: 1,
-    secrets: [whatsappRailwayUrl],
+    secrets: [whatsappBackendUrl],
   },
-  wrapWithSecret(whatsappProxy.addAccountHandler, whatsappRailwayUrl)
+  wrapWithSecret(whatsappProxy.addAccountHandler, whatsappBackendUrl)
 );
 
 exports.whatsappProxyRegenerateQr = onRequest(
@@ -922,9 +923,9 @@ exports.whatsappProxyRegenerateQr = onRequest(
     region: 'us-central1',
     cors: true,
     maxInstances: 1,
-    secrets: [whatsappRailwayUrl],
+    secrets: [whatsappBackendUrl],
   },
-  wrapWithSecret(whatsappProxy.regenerateQrHandler, whatsappRailwayUrl)
+  wrapWithSecret(whatsappProxy.regenerateQrHandler, whatsappBackendUrl)
 );
 
 // Keep other functions as-is (they may not need secrets or use different config)
