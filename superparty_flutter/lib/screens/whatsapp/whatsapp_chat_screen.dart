@@ -132,6 +132,64 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     }
   }
 
+  int? _extractTsMillis(dynamic tsClientRaw) {
+    if (tsClientRaw is Timestamp) {
+      return tsClientRaw.millisecondsSinceEpoch;
+    }
+    if (tsClientRaw is String) {
+      try {
+        return DateTime.parse(tsClientRaw).millisecondsSinceEpoch;
+      } catch (_) {
+        return null;
+      }
+    }
+    if (tsClientRaw is int) {
+      return tsClientRaw;
+    }
+    return null;
+  }
+
+  List<QueryDocumentSnapshot> _dedupeMessageDocs(List<QueryDocumentSnapshot> docs) {
+    final byKey = <String, QueryDocumentSnapshot>{};
+    for (final doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final waMessageId = data['waMessageId'] as String?;
+      final clientMessageId = data['clientMessageId'] as String?;
+      final direction = data['direction'] as String? ?? 'inbound';
+      final body = (data['body'] as String? ?? '').trim();
+      final tsMillis = _extractTsMillis(data['tsClient']);
+      final tsRounded = tsMillis != null ? (tsMillis / 1000).floor() : null;
+      final fallbackKey = 'fallback:$direction|$body|$tsRounded';
+
+      final primaryKey = waMessageId?.isNotEmpty == true
+          ? 'wa:$waMessageId'
+          : (clientMessageId?.isNotEmpty == true ? 'client:$clientMessageId' : fallbackKey);
+
+      if (byKey.containsKey(primaryKey)) {
+        continue;
+      }
+
+      final existing = byKey[fallbackKey];
+      if (existing != null) {
+        final existingData = existing.data() as Map<String, dynamic>;
+        final existingHasWa = (existingData['waMessageId'] as String?)?.isNotEmpty == true;
+        final currentHasWa = waMessageId?.isNotEmpty == true;
+        if (existingHasWa && !currentHasWa) {
+          continue;
+        }
+        if (!existingHasWa && currentHasWa) {
+          byKey[fallbackKey] = doc;
+          byKey[primaryKey] = doc;
+          continue;
+        }
+      }
+
+      byKey[primaryKey] = doc;
+      byKey.putIfAbsent(fallbackKey, () => doc);
+    }
+    return byKey.values.toList();
+  }
+
   Future<void> _extractEvent() async {
     if (_threadId == null || _accountId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -427,7 +485,8 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                   return const Center(child: Text('No messages yet'));
                 }
 
-                final currentMessageCount = snapshot.data!.docs.length;
+                final dedupedDocs = _dedupeMessageDocs(snapshot.data!.docs);
+                final currentMessageCount = dedupedDocs.length;
                 final hasNewMessages = currentMessageCount > _previousMessageCount;
                 
                 // Auto-scroll to bottom ONLY when new messages arrive
@@ -449,10 +508,10 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
-                  itemCount: snapshot.data!.docs.length,
+                  itemCount: dedupedDocs.length,
                   itemBuilder: (context, index) {
                     
-                    final doc = snapshot.data!.docs[index];
+                    final doc = dedupedDocs[index];
                     final data = doc.data() as Map<String, dynamic>;
                     
                     final direction = data['direction'] as String? ?? 'inbound';
