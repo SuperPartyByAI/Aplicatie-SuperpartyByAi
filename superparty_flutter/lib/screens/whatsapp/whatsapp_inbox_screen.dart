@@ -39,8 +39,8 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     super.initState();
     _loadAccounts();
     
-    // Auto-refresh threads every 10 seconds
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    // Auto-refresh threads every 60 seconds (avoid UI flicker)
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       if (mounted && !_isCurrentlyLoading) {
         debugPrint('[WhatsAppInboxScreen] Auto-refresh triggered');
         _loadThreads();
@@ -70,8 +70,11 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     _isCurrentlyLoading = true;
     _lastLoadTime = now;
     
-    // Get all connected accounts
-    final connectedAccounts = _accounts.where((a) => a['status'] == 'connected').toList();
+    // Get accounts that can still show history (even if reconnecting)
+    const allowedStatuses = {'connected', 'connecting', 'qr_ready', 'needs_qr'};
+    final connectedAccounts = _accounts
+        .where((a) => allowedStatuses.contains((a['status'] as String?) ?? ''))
+        .toList();
     
     // #region agent log
     try {
@@ -98,7 +101,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
         setState(() {
           _threads = [];
           _isLoadingThreads = false;
-          _errorMessage = 'No connected accounts found';
+          _errorMessage = 'No available accounts found';
           _isCurrentlyLoading = false;
         });
       }
@@ -193,6 +196,8 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
           if (ts?['_seconds'] != null) {
             timeA = DateTime.fromMillisecondsSinceEpoch((ts!['_seconds'] as int) * 1000);
           }
+        } else if (a['lastMessageTimestamp'] is int) {
+          timeA = DateTime.fromMillisecondsSinceEpoch((a['lastMessageTimestamp'] as int) * 1000);
         }
         
         if (b['lastMessageAt'] != null) {
@@ -200,6 +205,8 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
           if (ts?['_seconds'] != null) {
             timeB = DateTime.fromMillisecondsSinceEpoch((ts!['_seconds'] as int) * 1000);
           }
+        } else if (b['lastMessageTimestamp'] is int) {
+          timeB = DateTime.fromMillisecondsSinceEpoch((b['lastMessageTimestamp'] as int) * 1000);
         }
         
         if (timeA == null && timeB == null) return 0;
@@ -263,9 +270,11 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
 
   String? _extractPhoneFromJid(String? jid) {
     if (jid == null) return null;
+    if (jid.contains('@lid')) return null;
     final parts = jid.split('@');
     if (parts.isEmpty) return null;
     final digits = parts[0];
+    if (digits.length > 15) return null;
     return digits.startsWith('+') ? digits : '+$digits';
   }
 
@@ -305,7 +314,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
 
           // Threads list - all conversations from all accounts
           Expanded(
-            child: _isLoadingThreads
+            child: (_isLoadingThreads && _threads.isEmpty)
                     ? const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -334,7 +343,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                               ],
                             ),
                           )
-                        : _threads.isEmpty
+                            : _threads.isEmpty
                             ? const Center(
                                 child: Text('No conversations found'),
                               )
@@ -346,7 +355,10 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                     final clientJid = (thread['clientJid'] as String? ?? '').toLowerCase();
                                     final displayName = (thread['displayName'] as String? ?? '').toLowerCase();
                                     final lastMessageText = (thread['lastMessageText'] as String? ?? '').toLowerCase();
-                                    final phone = _extractPhoneFromJid(thread['clientJid'] as String?)?.toLowerCase() ?? '';
+                                    final normalizedPhone = (thread['normalizedPhone'] as String? ?? '').toLowerCase();
+                                    final phone = normalizedPhone.isNotEmpty
+                                        ? normalizedPhone
+                                        : (_extractPhoneFromJid(thread['clientJid'] as String?)?.toLowerCase() ?? '');
                                     return clientJid.contains(_searchQuery) ||
                                         displayName.contains(_searchQuery) ||
                                         lastMessageText.contains(_searchQuery) ||
@@ -371,9 +383,10 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                         final clientJid = thread['clientJid'] as String? ?? '';
                                         final rawDisplayName = thread['displayName'] as String? ?? '';
                                         final lastMessageText = thread['lastMessageText'] as String? ?? '';
+                                        final normalizedPhone = thread['normalizedPhone'] as String?;
                                         
                                         // Extract phone from clientJid
-                                        final phone = _extractPhoneFromJid(clientJid);
+                                        final phone = normalizedPhone ?? _extractPhoneFromJid(clientJid);
                                         
                                         // DEBUG: Print raw data to see what we receive
                                         if (index == 0) {
@@ -432,7 +445,8 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                         
                                         // Don't show phone in subtitle if it's already the displayName
                                         String? displayPhone;
-                                        if (phone != null && !displayName.contains(phone.replaceAll('+', '').replaceAll(' ', ''))) {
+                                        if (phone != null &&
+                                            !displayName.contains(phone.replaceAll('+', '').replaceAll(' ', ''))) {
                                           displayPhone = phone.replaceAllMapped(
                                             RegExp(r'^\+?(\d{1,3})(\d{3})(\d{3})(\d+)$'),
                                             (match) => '+${match[1]} ${match[2]} ${match[3]} ${match[4]}',
@@ -525,7 +539,8 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                                 )
                                               : null,
                                           onTap: () {
-                                            context.go('/whatsapp/chat?accountId=${Uri.encodeComponent(accountId)}&threadId=${Uri.encodeComponent(threadId)}&clientJid=${Uri.encodeComponent(clientJid)}&phoneE164=${Uri.encodeComponent(phone ?? '')}');
+                                            final encodedDisplayName = Uri.encodeComponent(displayName);
+                                            context.go('/whatsapp/chat?accountId=${Uri.encodeComponent(accountId)}&threadId=${Uri.encodeComponent(threadId)}&clientJid=${Uri.encodeComponent(clientJid)}&phoneE164=${Uri.encodeComponent(phone ?? '')}&displayName=$encodedDisplayName');
                                           },
                                         );
                                       },
