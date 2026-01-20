@@ -1,8 +1,5 @@
 import 'dart:async';
-import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
@@ -76,26 +73,6 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
         .where((a) => allowedStatuses.contains((a['status'] as String?) ?? ''))
         .toList();
     
-    // #region agent log
-    try {
-      final http = await HttpClient().postUrl(Uri.parse('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591'));
-      http.headers.set('Content-Type', 'application/json');
-      http.write(jsonEncode({
-        'location': 'whatsapp_inbox_screen.dart:54',
-        'message': '_loadThreads called',
-        'data': {
-          'totalAccounts': _accounts.length,
-          'connectedAccounts': connectedAccounts.length,
-          'accountStatuses': _accounts.map((a) => {'id': (a['id'] as String?)?.substring(0, 20), 'status': a['status']}).toList()
-        },
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-        'sessionId': 'debug-session',
-        'hypothesisId': 'H3'
-      }));
-      await http.close();
-    } catch (_) {}
-    // #endregion
-    
     if (connectedAccounts.isEmpty) {
       if (mounted) {
         setState(() {
@@ -122,27 +99,6 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
         try {
           final response = await _apiService.getThreads(accountId: accountId);
           
-          // #region agent log
-          try {
-            final http = await HttpClient().postUrl(Uri.parse('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591'));
-            http.headers.set('Content-Type', 'application/json');
-            http.write(jsonEncode({
-              'location': 'whatsapp_inbox_screen.dart:120',
-              'message': 'getThreads response',
-              'data': {
-                'accountId': accountId.substring(0, 30),
-                'success': response['success'],
-                'threadsCount': (response['threads'] as List<dynamic>?)?.length ?? 0,
-                'hasError': response['error'] != null
-              },
-              'timestamp': DateTime.now().millisecondsSinceEpoch,
-              'sessionId': 'debug-session',
-              'hypothesisId': 'H7-H8'
-            }));
-            await http.close();
-          } catch (_) {}
-          // #endregion
-          
           if (response['success'] == true) {
             final threads = (response['threads'] as List<dynamic>? ?? [])
                 .cast<Map<String, dynamic>>();
@@ -164,60 +120,55 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       final allThreadsLists = await Future.wait(futures);
       final allThreads = allThreadsLists.expand((list) => list).toList();
       
-      // #region agent log
-      try {
-        final http = await HttpClient().postUrl(Uri.parse('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591'));
-        http.headers.set('Content-Type', 'application/json');
-        http.write(jsonEncode({
-          'location': 'whatsapp_inbox_screen.dart:140',
-          'message': '_loadThreads got threads',
-          'data': {
-            'connectedAccountsCount': connectedAccounts.length,
-            'threadsListsCount': allThreadsLists.length,
-            'totalThreads': allThreads.length,
-            'accountIds': connectedAccounts.map((a) => (a['id'] as String?)?.substring(0, 30)).toList(),
-            'threadsPerAccount': allThreadsLists.map((list) => list.length).toList()
-          },
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-          'sessionId': 'debug-session',
-          'hypothesisId': 'H7-H8-H10'
-        }));
-        await http.close();
-      } catch (_) {}
-      // #endregion
-      
+      DateTime? resolveThreadTime(Map<String, dynamic> thread) {
+        if (thread['lastMessageAt'] != null) {
+          final ts = thread['lastMessageAt'] as Map<String, dynamic>?;
+          if (ts?['_seconds'] != null) {
+            return DateTime.fromMillisecondsSinceEpoch((ts!['_seconds'] as int) * 1000);
+          }
+        } else if (thread['lastMessageTimestamp'] is int) {
+          return DateTime.fromMillisecondsSinceEpoch((thread['lastMessageTimestamp'] as int) * 1000);
+        }
+        return null;
+      }
+
+      final visibleThreads = allThreads.where((thread) {
+        final hidden = thread['hidden'] == true || thread['archived'] == true;
+        final redirectTo = (thread['redirectTo'] as String?)?.trim();
+        final clientJid = (thread['clientJid'] as String? ?? '').trim();
+        final isLid = clientJid.endsWith('@lid');
+        if (hidden) return false;
+        if (redirectTo != null && redirectTo.isNotEmpty) return false;
+        if (isLid) return false; // defensive: never show @lid
+        return true;
+      }).toList();
+
       // Sort by lastMessageAt (most recent first)
-      allThreads.sort((a, b) {
-        DateTime? timeA;
-        DateTime? timeB;
-        
-        if (a['lastMessageAt'] != null) {
-          final ts = a['lastMessageAt'] as Map<String, dynamic>?;
-          if (ts?['_seconds'] != null) {
-            timeA = DateTime.fromMillisecondsSinceEpoch((ts!['_seconds'] as int) * 1000);
-          }
-        } else if (a['lastMessageTimestamp'] is int) {
-          timeA = DateTime.fromMillisecondsSinceEpoch((a['lastMessageTimestamp'] as int) * 1000);
-        }
-        
-        if (b['lastMessageAt'] != null) {
-          final ts = b['lastMessageAt'] as Map<String, dynamic>?;
-          if (ts?['_seconds'] != null) {
-            timeB = DateTime.fromMillisecondsSinceEpoch((ts!['_seconds'] as int) * 1000);
-          }
-        } else if (b['lastMessageTimestamp'] is int) {
-          timeB = DateTime.fromMillisecondsSinceEpoch((b['lastMessageTimestamp'] as int) * 1000);
-        }
-        
+      visibleThreads.sort((a, b) {
+        final timeA = resolveThreadTime(a);
+        final timeB = resolveThreadTime(b);
         if (timeA == null && timeB == null) return 0;
         if (timeA == null) return 1;
         if (timeB == null) return -1;
         return timeB.compareTo(timeA); // Most recent first
       });
+
+      // Dedupe by normalizedPhone (keep most recent)
+      final dedupedByPhone = <String, Map<String, dynamic>>{};
+      for (final thread in visibleThreads) {
+        final normalizedPhone = (thread['normalizedPhone'] as String?)?.trim();
+        final clientJid = (thread['clientJid'] as String? ?? '').trim();
+        final threadId = (thread['id'] as String? ?? '').trim();
+        final key = normalizedPhone?.isNotEmpty == true
+            ? normalizedPhone!
+            : (threadId.isNotEmpty ? threadId : clientJid);
+        dedupedByPhone.putIfAbsent(key, () => thread);
+      }
+      final dedupedThreads = dedupedByPhone.values.toList();
       
       if (mounted) {
         setState(() {
-          _threads = allThreads;
+          _threads = dedupedThreads;
           _isLoadingThreads = false;
           _isCurrentlyLoading = false;
         });
@@ -378,6 +329,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                       itemBuilder: (context, index) {
                                         final thread = filteredThreads[index];
                                         final threadId = thread['id'] as String? ?? '';
+                                        final redirectTo = thread['redirectTo'] as String?;
                                         final accountId = thread['accountId'] as String? ?? '';
                                         final accountName = thread['accountName'] as String? ?? '';
                                         final clientJid = thread['clientJid'] as String? ?? '';
@@ -540,7 +492,17 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                               : null,
                                           onTap: () {
                                             final encodedDisplayName = Uri.encodeComponent(displayName);
-                                            context.go('/whatsapp/chat?accountId=${Uri.encodeComponent(accountId)}&threadId=${Uri.encodeComponent(threadId)}&clientJid=${Uri.encodeComponent(clientJid)}&phoneE164=${Uri.encodeComponent(phone ?? '')}&displayName=$encodedDisplayName');
+                                            final effectiveThreadId =
+                                                (redirectTo != null && redirectTo.isNotEmpty)
+                                                    ? redirectTo
+                                                    : threadId;
+                                            context.go(
+                                              '/whatsapp/chat?accountId=${Uri.encodeComponent(accountId)}'
+                                              '&threadId=${Uri.encodeComponent(effectiveThreadId)}'
+                                              '&clientJid=${Uri.encodeComponent(clientJid)}'
+                                              '&phoneE164=${Uri.encodeComponent(phone ?? '')}'
+                                              '&displayName=$encodedDisplayName',
+                                            );
                                           },
                                         );
                                       },

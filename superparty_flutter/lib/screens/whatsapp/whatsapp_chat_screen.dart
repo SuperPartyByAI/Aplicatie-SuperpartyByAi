@@ -36,6 +36,8 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   DateTime? _lastSendAt;
   String? _lastSentText;
   int _sendCounter = 0;
+  bool _initialScrollDone = false;
+  bool _redirectChecked = false;
 
   String? get _accountId => widget.accountId ?? _extractFromQuery('accountId');
   String? get _threadId => widget.threadId ?? _extractFromQuery('threadId');
@@ -49,10 +51,69 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _ensureCanonicalThread();
+  }
+
+  @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _ensureCanonicalThread() async {
+    if (_redirectChecked) return;
+    _redirectChecked = true;
+    if (_threadId == null || _accountId == null) {
+      return;
+    }
+
+    try {
+      final threadDoc = await FirebaseFirestore.instance
+          .collection('threads')
+          .doc(_threadId!)
+          .get();
+      if (!threadDoc.exists) {
+        return;
+      }
+
+      final data = threadDoc.data() ?? <String, dynamic>{};
+      final redirectTo = data['redirectTo'] as String?;
+      final canonicalThreadId = data['canonicalThreadId'] as String?;
+      final clientJid = (data['clientJid'] as String? ?? '').trim();
+      final isLid = clientJid.endsWith('@lid');
+      final targetThreadId = redirectTo?.isNotEmpty == true ? redirectTo : canonicalThreadId;
+
+      if ((isLid || redirectTo != null) && targetThreadId != null && targetThreadId != _threadId) {
+        final targetDoc = await FirebaseFirestore.instance
+            .collection('threads')
+            .doc(targetThreadId)
+            .get();
+        if (!targetDoc.exists) {
+          return;
+        }
+
+        final targetData = targetDoc.data() ?? <String, dynamic>{};
+        final targetClientJid = targetData['clientJid'] as String? ?? '';
+        final targetPhone = targetData['normalizedPhone'] as String?;
+        final displayName = targetData['displayName'] as String? ?? '';
+
+        if (mounted) {
+          final encodedDisplayName = Uri.encodeComponent(displayName);
+          context.go(
+            '/whatsapp/chat?accountId=${Uri.encodeComponent(_accountId!)}'
+            '&threadId=${Uri.encodeComponent(targetThreadId)}'
+            '&clientJid=${Uri.encodeComponent(targetClientJid)}'
+            '&phoneE164=${Uri.encodeComponent(targetPhone ?? '')}'
+            '&displayName=$encodedDisplayName',
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[ChatScreen] Redirect check failed: $e');
+    }
   }
 
   Future<void> _sendMessage() async {
@@ -102,7 +163,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
       if (mounted) {
         _messageController.clear();
-        _scrollToBottom();
+        _scrollToBottom(force: true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Message sent!'), backgroundColor: Colors.green),
         );
@@ -122,14 +183,15 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     }
   }
 
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
+  void _scrollToBottom({bool force = false}) {
+    if (!_scrollController.hasClients) return;
+    final nearBottom = _scrollController.offset < 200;
+    if (!force && !nearBottom) return;
+    _scrollController.animateTo(
+      _scrollController.position.minScrollExtent,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
   }
 
   int? _extractTsMillis(dynamic tsClientRaw) {
@@ -468,8 +530,8 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                   .collection('threads')
                   .doc(_threadId!)
                   .collection('messages')
-                  .orderBy('tsClient', descending: false)
-                  .limitToLast(500)
+                  .orderBy('tsClient', descending: true)
+                  .limit(500)
                   .snapshots(),
               builder: (context, snapshot) {
                 
@@ -489,30 +551,31 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                 final currentMessageCount = dedupedDocs.length;
                 final hasNewMessages = currentMessageCount > _previousMessageCount;
                 
-                // Auto-scroll to bottom ONLY when new messages arrive
-                if (hasNewMessages) {
-                  
+                if (!_initialScrollDone && dedupedDocs.isNotEmpty) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (_scrollController.hasClients) {
-                      _scrollController.animateTo(
-                        _scrollController.position.maxScrollExtent,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOut,
-                      );
-                    }
+                    _scrollToBottom(force: true);
                   });
-                  _previousMessageCount = currentMessageCount;
-                } else {
+                  _initialScrollDone = true;
+                } else if (hasNewMessages) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _scrollToBottom();
+                  });
                 }
+                _previousMessageCount = currentMessageCount;
 
                 return ListView.builder(
                   controller: _scrollController,
+                  key: PageStorageKey('whatsapp-chat-${_threadId ?? ''}'),
+                  reverse: true,
                   padding: const EdgeInsets.all(16),
                   itemCount: dedupedDocs.length,
                   itemBuilder: (context, index) {
                     
                     final doc = dedupedDocs[index];
                     final data = doc.data() as Map<String, dynamic>;
+                    final messageKey = data['waMessageId'] as String? ??
+                        data['clientMessageId'] as String? ??
+                        doc.id;
                     
                     final direction = data['direction'] as String? ?? 'inbound';
                     final body = data['body'] as String? ?? '';
@@ -561,92 +624,93 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                       }
                     }
                     
-                    return Align(
-                      alignment: isOutbound ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 4, left: 48, right: 48),
-                        child: Row(
-                          mainAxisAlignment: isOutbound ? MainAxisAlignment.end : MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            // Avatar for inbound messages (left side)
-                            if (!isOutbound) ...[
-                              CircleAvatar(
-                                radius: 16,
-                                backgroundColor: Colors.grey[300],
-                                child: Text(
-                                  displayName[0].toUpperCase(),
-                                  style: const TextStyle(fontSize: 12, color: Colors.black87),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                            ],
-                            
-                            // Message bubble
-                            Flexible(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                constraints: BoxConstraints(
-                                  maxWidth: MediaQuery.of(context).size.width * 0.65,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isOutbound ? const Color(0xFF25D366) : Colors.white,
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: const Radius.circular(8),
-                                    topRight: const Radius.circular(8),
-                                    bottomLeft: Radius.circular(isOutbound ? 8 : 0),
-                                    bottomRight: Radius.circular(isOutbound ? 0 : 8),
+                    return KeyedSubtree(
+                      key: ValueKey(messageKey),
+                      child: Align(
+                        alignment: isOutbound ? Alignment.centerRight : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 4, left: 48, right: 48),
+                          child: Row(
+                            mainAxisAlignment: isOutbound ? MainAxisAlignment.end : MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              // Avatar for inbound messages (left side)
+                              if (!isOutbound) ...[
+                                CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: Colors.grey[300],
+                                  child: Text(
+                                    displayName[0].toUpperCase(),
+                                    style: const TextStyle(fontSize: 12, color: Colors.black87),
                                   ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 1,
-                                      offset: const Offset(0, 1),
-                                    ),
-                                  ],
-                                  border: isOutbound ? null : Border.all(color: Colors.grey[200]!),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      body,
-                                      style: TextStyle(
-                                        color: isOutbound ? Colors.white : Colors.black87,
-                                        fontSize: 15,
+                                const SizedBox(width: 8),
+                              ],
+                              // Message bubble
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  constraints: BoxConstraints(
+                                    maxWidth: MediaQuery.of(context).size.width * 0.65,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isOutbound ? const Color(0xFF25D366) : Colors.white,
+                                    borderRadius: BorderRadius.only(
+                                      topLeft: const Radius.circular(8),
+                                      topRight: const Radius.circular(8),
+                                      bottomLeft: Radius.circular(isOutbound ? 8 : 0),
+                                      bottomRight: Radius.circular(isOutbound ? 0 : 8),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 1,
+                                        offset: const Offset(0, 1),
                                       ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        if (timeText.isNotEmpty)
-                                          Text(
-                                            timeText,
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: isOutbound ? Colors.white70 : Colors.grey[600],
+                                    ],
+                                    border: isOutbound ? null : Border.all(color: Colors.grey[200]!),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        body,
+                                        style: TextStyle(
+                                          color: isOutbound ? Colors.white : Colors.black87,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (timeText.isNotEmpty)
+                                            Text(
+                                              timeText,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: isOutbound ? Colors.white70 : Colors.grey[600],
+                                              ),
                                             ),
-                                          ),
-                                        if (isOutbound && status != null) ...[
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            _getStatusIcon(status),
-                                            style: const TextStyle(fontSize: 12),
-                                          ),
+                                          if (isOutbound && status != null) ...[
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              _getStatusIcon(status),
+                                              style: const TextStyle(fontSize: 12),
+                                            ),
+                                          ],
                                         ],
-                                      ],
-                                    ),
-                                  ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                            
-                            // Spacing for outbound messages (before avatar area)
-                            if (isOutbound) ...[
-                              const SizedBox(width: 48), // Match avatar width for alignment
+                              // Spacing for outbound messages (before avatar area)
+                              if (isOutbound) ...[
+                                const SizedBox(width: 48), // Match avatar width for alignment
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     );
