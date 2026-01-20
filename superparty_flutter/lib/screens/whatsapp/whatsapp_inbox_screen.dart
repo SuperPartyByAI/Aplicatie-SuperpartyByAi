@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -6,7 +7,7 @@ import 'package:intl/intl.dart';
 import '../../services/whatsapp_api_service.dart';
 
 /// WhatsApp Inbox Screen - List threads per accountId
-/// Updated: Auto-refresh every 10s for real-time sync!
+/// Uses Firestore streams for real-time updates, with manual refresh fallback.
 class WhatsAppInboxScreen extends StatefulWidget {
   const WhatsAppInboxScreen({super.key});
 
@@ -29,31 +30,137 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   bool _isCurrentlyLoading = false;
   static const Duration _minRefreshInterval = Duration(seconds: 30);
   
-  // Auto-refresh timer
-  Timer? _autoRefreshTimer;
+  // Firestore thread streams (per account)
+  final Map<String, StreamSubscription<QuerySnapshot>> _threadSubscriptions = {};
+  final Map<String, List<Map<String, dynamic>>> _threadsByAccount = {};
 
   @override
   void initState() {
     super.initState();
     _loadAccounts();
-    
-    // Auto-refresh threads every 60 seconds (avoid UI flicker)
-    _autoRefreshTimer?.cancel();
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
-      final now = DateTime.now();
-      if (mounted &&
-          !_isCurrentlyLoading &&
-          (_lastLoadTime == null || now.difference(_lastLoadTime!) >= _minRefreshInterval)) {
-        debugPrint('[WhatsAppInboxScreen] Auto-refresh triggered');
-        _loadThreads();
-      }
-    });
   }
   
   @override
   void dispose() {
-    _autoRefreshTimer?.cancel();
+    for (final subscription in _threadSubscriptions.values) {
+      subscription.cancel();
+    }
+    _threadSubscriptions.clear();
     super.dispose();
+  }
+
+  void _startThreadListeners() {
+    final accountIds = _accounts
+        .map((account) => account['id'])
+        .whereType<String>()
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    final staleIds = _threadSubscriptions.keys.where((id) => !accountIds.contains(id)).toList();
+    for (final accountId in staleIds) {
+      _threadSubscriptions[accountId]?.cancel();
+      _threadSubscriptions.remove(accountId);
+      _threadsByAccount.remove(accountId);
+    }
+
+    for (final accountId in accountIds) {
+      if (_threadSubscriptions.containsKey(accountId)) continue;
+
+      final subscription = FirebaseFirestore.instance
+          .collection('threads')
+          .where('accountId', isEqualTo: accountId)
+          .snapshots()
+          .listen(
+        (snapshot) {
+          final accountName = _accounts
+                  .firstWhere(
+                    (account) => account['id'] == accountId,
+                    orElse: () => <String, dynamic>{},
+                  )['name'] as String? ??
+              accountId;
+          final threads = snapshot.docs.map((doc) {
+            return {
+              'id': doc.id,
+              ...doc.data() as Map<String, dynamic>,
+              'accountId': accountId,
+              'accountName': accountName,
+            };
+          }).toList();
+          _threadsByAccount[accountId] = threads;
+          _rebuildThreadsFromCache();
+        },
+        onError: (error) {
+          debugPrint('[WhatsAppInboxScreen] Thread stream error ($accountId): $error');
+        },
+      );
+
+      _threadSubscriptions[accountId] = subscription;
+    }
+  }
+
+  void _rebuildThreadsFromCache() {
+    final allThreads = _threadsByAccount.values.expand((list) => list).toList();
+    final dedupedThreads = _filterAndDedupeThreads(allThreads);
+
+    if (mounted) {
+      setState(() {
+        _threads = dedupedThreads;
+        _isLoadingThreads = false;
+        _isCurrentlyLoading = false;
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> _filterAndDedupeThreads(List<Map<String, dynamic>> allThreads) {
+    DateTime? resolveThreadTime(Map<String, dynamic> thread) {
+      if (thread['lastMessageAtMs'] is int) {
+        return DateTime.fromMillisecondsSinceEpoch(thread['lastMessageAtMs'] as int);
+      }
+      if (thread['lastMessageAt'] != null) {
+        final ts = thread['lastMessageAt'] as Map<String, dynamic>?;
+        if (ts?['_seconds'] != null) {
+          return DateTime.fromMillisecondsSinceEpoch((ts!['_seconds'] as int) * 1000);
+        }
+      } else if (thread['lastMessageTimestamp'] is int) {
+        return DateTime.fromMillisecondsSinceEpoch((thread['lastMessageTimestamp'] as int) * 1000);
+      }
+      return null;
+    }
+
+    final visibleThreads = allThreads.where((thread) {
+      final hidden = thread['hidden'] == true || thread['archived'] == true;
+      final redirectTo = (thread['redirectTo'] as String?)?.trim();
+      final clientJid = (thread['clientJid'] as String? ?? '').trim();
+      final isLid = clientJid.endsWith('@lid');
+      final isBroadcast = clientJid.endsWith('@broadcast');
+      if (hidden) return false;
+      if (redirectTo != null && redirectTo.isNotEmpty) return false;
+      if (isLid) return false;
+      if (isBroadcast) return false;
+      return true;
+    }).toList();
+
+    visibleThreads.sort((a, b) {
+      final timeA = resolveThreadTime(a);
+      final timeB = resolveThreadTime(b);
+      if (timeA == null && timeB == null) return 0;
+      if (timeA == null) return 1;
+      if (timeB == null) return -1;
+      return timeB.compareTo(timeA);
+    });
+
+    final dedupedByPhone = <String, Map<String, dynamic>>{};
+    for (final thread in visibleThreads) {
+      final normalizedPhone = (thread['normalizedPhone'] as String?)?.trim();
+      final clientJid = (thread['clientJid'] as String? ?? '').trim();
+      final threadId = (thread['id'] as String? ?? '').trim();
+      final key = normalizedPhone?.isNotEmpty == true
+          ? normalizedPhone!
+          : (threadId.isNotEmpty ? threadId : clientJid);
+      dedupedByPhone.putIfAbsent(key, () => thread);
+    }
+    return dedupedByPhone.values.toList();
   }
 
   Future<void> _loadThreads() async {
@@ -72,13 +179,9 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     _isCurrentlyLoading = true;
     _lastLoadTime = now;
     
-    // Get accounts that can still show history (even if reconnecting)
-    const allowedStatuses = {'connected', 'connecting', 'qr_ready', 'needs_qr'};
-    final connectedAccounts = _accounts
-        .where((a) => allowedStatuses.contains((a['status'] as String?) ?? ''))
-        .toList();
+    final availableAccounts = _accounts.toList();
     
-    if (connectedAccounts.isEmpty) {
+    if (availableAccounts.isEmpty) {
       if (mounted) {
         setState(() {
           _threads = [];
@@ -96,8 +199,8 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     });
 
     try {
-      // Load threads from all connected accounts in parallel
-      final futures = connectedAccounts.map((account) async {
+      // Load threads from all available accounts in parallel
+      final futures = availableAccounts.map((account) async {
         final accountId = account['id'] as String?;
         if (accountId == null) return <Map<String, dynamic>>[];
         
@@ -125,53 +228,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       final allThreadsLists = await Future.wait(futures);
       final allThreads = allThreadsLists.expand((list) => list).toList();
       
-      DateTime? resolveThreadTime(Map<String, dynamic> thread) {
-        if (thread['lastMessageAt'] != null) {
-          final ts = thread['lastMessageAt'] as Map<String, dynamic>?;
-          if (ts?['_seconds'] != null) {
-            return DateTime.fromMillisecondsSinceEpoch((ts!['_seconds'] as int) * 1000);
-          }
-        } else if (thread['lastMessageTimestamp'] is int) {
-          return DateTime.fromMillisecondsSinceEpoch((thread['lastMessageTimestamp'] as int) * 1000);
-        }
-        return null;
-      }
-
-      final visibleThreads = allThreads.where((thread) {
-        final hidden = thread['hidden'] == true || thread['archived'] == true;
-        final redirectTo = (thread['redirectTo'] as String?)?.trim();
-        final clientJid = (thread['clientJid'] as String? ?? '').trim();
-        final isLid = clientJid.endsWith('@lid');
-        final isBroadcast = clientJid.endsWith('@broadcast');
-        if (hidden) return false;
-        if (redirectTo != null && redirectTo.isNotEmpty) return false;
-        if (isLid) return false; // defensive: never show @lid
-        if (isBroadcast) return false;
-        return true;
-      }).toList();
-
-      // Sort by lastMessageAt (most recent first)
-      visibleThreads.sort((a, b) {
-        final timeA = resolveThreadTime(a);
-        final timeB = resolveThreadTime(b);
-        if (timeA == null && timeB == null) return 0;
-        if (timeA == null) return 1;
-        if (timeB == null) return -1;
-        return timeB.compareTo(timeA); // Most recent first
-      });
-
-      // Dedupe by normalizedPhone (keep most recent)
-      final dedupedByPhone = <String, Map<String, dynamic>>{};
-      for (final thread in visibleThreads) {
-        final normalizedPhone = (thread['normalizedPhone'] as String?)?.trim();
-        final clientJid = (thread['clientJid'] as String? ?? '').trim();
-        final threadId = (thread['id'] as String? ?? '').trim();
-        final key = normalizedPhone?.isNotEmpty == true
-            ? normalizedPhone!
-            : (threadId.isNotEmpty ? threadId : clientJid);
-        dedupedByPhone.putIfAbsent(key, () => thread);
-      }
-      final dedupedThreads = dedupedByPhone.values.toList();
+      final dedupedThreads = _filterAndDedupeThreads(allThreads);
       
       if (mounted) {
         setState(() {
@@ -211,7 +268,9 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
           setState(() {
             _accounts = accounts;
             _isLoadingAccounts = false;
-            // Load threads from all connected accounts
+            // Start Firestore listeners for real-time updates
+            _startThreadListeners();
+            // Manual refresh fallback (uses Functions proxy)
             _loadThreads();
           });
         }

@@ -256,6 +256,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   }
 
   int _extractSortMillis(Map<String, dynamic> data) {
+    if (data['createdAtMs'] is int) {
+      return data['createdAtMs'] as int;
+    }
     return _extractTsMillis(data['tsClient']) ??
         _extractTsMillis(data['createdAt']) ??
         _extractTsMillis(data['tsServer']) ??
