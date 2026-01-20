@@ -696,7 +696,22 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
     }
 
     const messageId = msg.key.id;
-    const from = msg.key.remoteJid;
+    const rawJid = msg.key.remoteJid;
+    let canonicalJid = rawJid;
+    let resolvedContact = null;
+    if (rawJid.endsWith('@lid') && sock) {
+      try {
+        console.log(`🔍 [${accountId}] Resolving LID to JID: ${rawJid}`);
+        const [contact] = await sock.onWhatsApp(rawJid);
+        resolvedContact = contact || null;
+        if (contact?.jid && contact.jid !== rawJid) {
+          canonicalJid = contact.jid;
+          console.log(`✅ [${accountId}] Resolved LID to JID: ${canonicalJid}`);
+        }
+      } catch (e) {
+        console.log(`⚠️  [${accountId}] Failed to resolve LID: ${e.message}`);
+      }
+    }
     const isFromMe = msg.key.fromMe || false;
 
     // Extract message body (text content)
@@ -747,12 +762,14 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       return null;
     }
 
-    const threadId = `${accountId}__${from}`;
+    const threadId = `${accountId}__${canonicalJid}`;
     
     // Sanitize messageData - remove undefined values before saving to Firestore
     const messageData = {
       accountId,
-      clientJid: from,
+      clientJid: canonicalJid,
+      rawJid,
+      resolvedJid: canonicalJid !== rawJid ? canonicalJid : null,
       senderJid: msg.key.participant || msg.key.remoteJid,
       direction: isFromMe ? 'outbound' : 'inbound',
       body: body.substring(0, 10000), // Limit body size (Firestore limit)
@@ -797,7 +814,9 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
     // Update thread metadata
     const threadData = {
       accountId,
-      clientJid: from,
+      clientJid: canonicalJid,
+      rawJid,
+      resolvedJid: canonicalJid !== rawJid ? canonicalJid : null,
       lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
       lastMessageText: body.substring(0, 100), // For display in inbox
       lastMessagePreview: body.substring(0, 100), // Legacy field (keep for compatibility)
@@ -813,7 +832,7 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
           .collection('contacts')
           .doc(accountId)
           .collection('items')
-          .doc(from);
+          .doc(canonicalJid);
         const mappingDoc = await mappingRef.get();
         if (mappingDoc.exists) {
           const contactData = mappingDoc.data();
@@ -823,7 +842,7 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
             console.log(`📇 [${accountId}] Found contact name from Firestore: ${threadData.displayName}`);
           }
         } else {
-          const contactRef = db.collection('contacts').doc(`${accountId}__${from}`);
+          const contactRef = db.collection('contacts').doc(`${accountId}__${canonicalJid}`);
           const contactDoc = await contactRef.get();
           if (contactDoc.exists) {
             const contactData = contactDoc.data();
@@ -839,29 +858,22 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       }
       
       // If still no name and it's a LID, try sock.onWhatsApp()
-      if (!threadData.displayName && sock && from.endsWith('@lid')) {
-        try {
-          console.log(`🔍 [${accountId}] Fetching contact info for LID: ${from}`);
-          const [contact] = await sock.onWhatsApp(from);
-          if (contact?.name) {
-            threadData.displayName = contact.name;
-            console.log(`✅ [${accountId}] Found contact name for LID: ${contact.name}`);
-          } else if (contact?.jid && contact.jid !== from) {
-            // Sometimes onWhatsApp returns the real JID
-            threadData.displayName = contact.jid.split('@')[0];
-            threadData.resolvedJid = contact.jid;
-            threadData.normalizedPhone = normalizeJidToE164(contact.jid).normalizedPhone || null;
-            console.log(`✅ [${accountId}] Using JID as display name: ${contact.jid}`);
-          }
-        } catch (e) {
-          console.log(`⚠️  [${accountId}] Could not fetch contact info for LID: ${e.message}`);
+      if (!threadData.displayName && rawJid.endsWith('@lid')) {
+        if (resolvedContact?.name) {
+          threadData.displayName = resolvedContact.name;
+          console.log(`✅ [${accountId}] Found contact name for LID: ${resolvedContact.name}`);
+        } else if (resolvedContact?.jid && resolvedContact.jid !== rawJid) {
+          threadData.displayName = resolvedContact.jid.split('@')[0];
+          threadData.resolvedJid = resolvedContact.jid;
+          threadData.normalizedPhone = normalizeJidToE164(resolvedContact.jid).normalizedPhone || null;
+          console.log(`✅ [${accountId}] Using JID as display name: ${resolvedContact.jid}`);
         }
       }
       
       // Final fallback: verifiedBizName or participant
       if (!threadData.displayName) {
         const contactName = msg.verifiedBizName || msg.key.participant || null;
-        if (contactName && contactName !== from) {
+        if (contactName && contactName !== rawJid) {
           threadData.displayName = contactName;
         }
       }
@@ -5861,7 +5873,7 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
     const requestIdHeader = req.headers['x-request-id'];
     const idempotencyKey = requestIdHeader || clientMessageId || null;
     const effectiveClientMessageId =
-      clientMessageId || `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      requestIdHeader || clientMessageId || `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // Idempotency guard for repeated sends (best-effort)
     if (idempotencyKey && firestoreAvailable && db) {
@@ -5981,7 +5993,8 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
     // Persist sent message to Firestore thread
     if (firestoreAvailable && db && result?.key) {
       const waMessageId = result.key.id;
-      const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(waMessageId);
+      const messageDocId = requestIdHeader || waMessageId;
+      const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageDocId);
       
       await messageRef.set({
         accountId,
@@ -5994,6 +6007,7 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
         tsServer: admin.firestore.FieldValue.serverTimestamp(),
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         messageType: 'text',
+        clientMessageId: effectiveClientMessageId,
       }, { merge: true });
 
       // Update thread
