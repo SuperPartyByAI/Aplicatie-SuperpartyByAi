@@ -5774,6 +5774,20 @@ app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) =
       accountId,
     });
   } catch (error) {
+    try {
+      const requestIdHeader = req.headers['x-request-id'];
+      const idempotencyKey = requestIdHeader || req.body?.clientMessageId || null;
+      if (idempotencyKey && firestoreAvailable && db) {
+        await db.collection('send_requests').doc(idempotencyKey).set({
+          status: 'failed',
+          error: error.message,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+    } catch (_) {
+      // Ignore send_requests update errors
+    }
+
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -5786,7 +5800,7 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
   // Note: Messages can still be queued (outbox), but worker won't process them in PASSIVE mode
   if (!waBootstrap.canProcessOutbox()) {
     // Queue message but return 503 to indicate immediate sending unavailable
-    const { accountId, to, message } = req.body;
+    const { accountId, to, message, clientMessageId } = req.body;
     if (firestoreAvailable && db) {
       try {
         const jid = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
@@ -5842,7 +5856,46 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
 
     const jid = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
     const threadId = `${accountId}__${jid}`;
-    const clientMessageId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const requestIdHeader = req.headers['x-request-id'];
+    const idempotencyKey = requestIdHeader || clientMessageId || null;
+    const effectiveClientMessageId =
+      clientMessageId || `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Idempotency guard for repeated sends (best-effort)
+    if (idempotencyKey && firestoreAvailable && db) {
+      const idempotencyRef = db.collection('send_requests').doc(idempotencyKey);
+      let shouldSend = false;
+      await db.runTransaction(async tx => {
+        const existing = await tx.get(idempotencyRef);
+        if (existing.exists) {
+          const data = existing.data() || {};
+          const status = data.status;
+          const updatedAt = data.updatedAt?.toDate?.().getTime?.() || 0;
+          const isRecent = updatedAt && Date.now() - updatedAt < 30000;
+          if (status === 'sent' || (status === 'sending' && isRecent)) {
+            return;
+          }
+        }
+        tx.set(idempotencyRef, {
+          status: 'sending',
+          accountId,
+          threadId,
+          to: jid,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        shouldSend = true;
+      });
+
+      if (!shouldSend) {
+        return res.json({
+          success: true,
+          duplicate: true,
+          requestId: idempotencyKey,
+          message: 'Duplicate send suppressed (idempotency)',
+        });
+      }
+    }
 
     if (account.status !== 'connected') {
       // Queue message in Firestore outbox
@@ -5864,7 +5917,7 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
 
       // Also create message doc in thread with status=queued (will be updated when sent)
       if (firestoreAvailable && db) {
-        const threadMessageRef = db.collection('threads').doc(threadId).collection('messages').doc(clientMessageId);
+        const threadMessageRef = db.collection('threads').doc(threadId).collection('messages').doc(effectiveClientMessageId);
         await threadMessageRef.set({
           accountId,
           clientJid: jid,
@@ -5875,6 +5928,7 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
           tsServer: admin.firestore.FieldValue.serverTimestamp(),
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           messageType: 'text',
+          clientMessageId: effectiveClientMessageId,
         }, { merge: true });
 
         // Update thread
@@ -5886,7 +5940,18 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
         }, { merge: true });
       }
 
-      return res.json({ success: true, queued: true, messageId, clientMessageId });
+      if (idempotencyKey && firestoreAvailable && db) {
+        try {
+          await db.collection('send_requests').doc(idempotencyKey).set({
+            status: 'queued',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+        } catch (error) {
+          console.error(`❌ [${accountId}] Failed to update send_requests status:`, error.message);
+        }
+      }
+
+      return res.json({ success: true, queued: true, messageId, clientMessageId: effectiveClientMessageId });
     }
 
     // Account is connected: send immediately and persist
@@ -5936,6 +6001,17 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
         lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
         lastMessagePreview: message.substring(0, 100),
       }, { merge: true });
+    }
+
+    if (idempotencyKey && firestoreAvailable && db) {
+      try {
+        await db.collection('send_requests').doc(idempotencyKey).set({
+          status: 'sent',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } catch (error) {
+        console.error(`❌ [${accountId}] Failed to update send_requests status:`, error.message);
+      }
     }
 
     res.json({ success: true, messageId: result.key.id, status: 'sent' });
