@@ -16,6 +16,7 @@ const path = require('path');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
 const { normalizeJidToE164, resolveDisplayName } = require('./lib/phone-utils');
+const { resolveCanonicalJid } = require('./lib/jid-utils');
 
 // Initialize Sentry
 const { Sentry, logger } = require('./sentry');
@@ -706,23 +707,12 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
     }
 
     const messageId = msg.key.id;
-    const rawJid = msg.key.remoteJid;
-    let canonicalJid = rawJid;
-    let resolvedContact = null;
-    if (rawJid.endsWith('@lid') && sock) {
-      try {
-        console.log(`🔍 [${accountId}] Resolving LID to JID: ${rawJid}`);
-        const [contact] = await sock.onWhatsApp(rawJid);
-        resolvedContact = contact || null;
-        if (contact?.jid && contact.jid !== rawJid) {
-          canonicalJid = contact.jid;
-          console.log(`✅ [${accountId}] Resolved LID to JID: ${canonicalJid}`);
-        }
-      } catch (e) {
-        console.log(`⚠️  [${accountId}] Failed to resolve LID: ${e.message}`);
-      }
-    }
+    const { rawJid, canonicalJid, resolvedContact } = await resolveCanonicalJid(
+      sock,
+      msg.key.remoteJid
+    );
     const isFromMe = msg.key.fromMe || false;
+    const { normalizedPhone } = normalizeJidToE164(canonicalJid);
 
     // Extract message body (text content)
     let body = '';
@@ -773,6 +763,7 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
     }
 
     const threadId = `${accountId}__${canonicalJid}`;
+    const isLidThread = rawJid?.endsWith('@lid') || false;
     
     // Sanitize messageData - remove undefined values before saving to Firestore
     const messageData = {
@@ -780,6 +771,9 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       clientJid: canonicalJid,
       rawJid,
       resolvedJid: canonicalJid !== rawJid ? canonicalJid : null,
+      normalizedPhone: normalizedPhone || null,
+      canonicalThreadId: threadId,
+      isLidThread,
       senderJid: msg.key.participant || msg.key.remoteJid,
       direction: isFromMe ? 'outbound' : 'inbound',
       body: body.substring(0, 10000), // Limit body size (Firestore limit)
@@ -812,7 +806,36 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
     }
 
     // Idempotent upsert (set with merge)
-    const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
+    let messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
+    if (firestoreAvailable && db) {
+      const mappingId = `${accountId}__${messageId}`;
+      try {
+        const mappingDoc = await db.collection('message_ids').doc(mappingId).get();
+        if (mappingDoc.exists) {
+          const mappingData = mappingDoc.data() || {};
+          if (mappingData.threadId && mappingData.docId) {
+            messageRef = db
+              .collection('threads')
+              .doc(mappingData.threadId)
+              .collection('messages')
+              .doc(mappingData.docId);
+          }
+        } else if (isFromMe) {
+          const existingSnapshot = await db
+            .collection('threads')
+            .doc(threadId)
+            .collection('messages')
+            .where('waMessageId', '==', messageId)
+            .limit(1)
+            .get();
+          if (!existingSnapshot.empty) {
+            messageRef = existingSnapshot.docs[0].ref;
+          }
+        }
+      } catch (e) {
+        console.log(`⚠️  [${accountId}] Message mapping lookup failed: ${e.message}`);
+      }
+    }
     
     // Remove any undefined values recursively before saving
     const sanitizedData = JSON.parse(JSON.stringify(messageData, (key, value) => {
@@ -820,6 +843,19 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
     }));
     
     await messageRef.set(sanitizedData, { merge: true });
+    if (firestoreAvailable && db) {
+      const mappingId = `${accountId}__${messageId}`;
+      await db.collection('message_ids').doc(mappingId).set(
+        {
+          accountId,
+          threadId: messageRef.parent.parent?.id || threadId,
+          docId: messageRef.id,
+          waMessageId: messageId,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
 
     // Update thread metadata
     const threadData = {
@@ -827,6 +863,9 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       clientJid: canonicalJid,
       rawJid,
       resolvedJid: canonicalJid !== rawJid ? canonicalJid : null,
+      normalizedPhone: normalizedPhone || null,
+      canonicalThreadId: threadId,
+      isLidThread,
       lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
       lastMessageText: body.substring(0, 100), // For display in inbox
       lastMessagePreview: body.substring(0, 100), // Legacy field (keep for compatibility)
@@ -927,7 +966,7 @@ function convertLongToNumber(value) {
 
 // Helper: Process messages in batch (for history sync)
 // Uses Firestore batch writes (max 500 ops per batch)
-async function saveMessagesBatch(accountId, messages, source = 'history') {
+async function saveMessagesBatch(accountId, messages, source = 'history', sock = null) {
   if (!firestoreAvailable || !db) {
     return { saved: 0, skipped: 0, errors: 0 };
   }
@@ -959,6 +998,8 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
 
         const messageId = msg.key.id;
         const from = msg.key.remoteJid;
+        const { canonicalJid, rawJid } = await resolveCanonicalJid(sock, from);
+        const { normalizedPhone } = normalizeJidToE164(canonicalJid);
         const isFromMe = msg.key.fromMe || false;
 
         // Extract body
@@ -981,14 +1022,20 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
           messageType = 'document';
         }
 
-        const threadId = `${accountId}__${from}`;
+        const threadId = `${accountId}__${canonicalJid}`;
+        const isLidThread = rawJid?.endsWith('@lid') || false;
         
         // Convert messageTimestamp from Long to Number (Firestore compatibility)
         const messageTimestamp = convertLongToNumber(msg.messageTimestamp);
         
         const messageData = {
           accountId,
-          clientJid: from,
+          clientJid: canonicalJid,
+          rawJid,
+          resolvedJid: canonicalJid !== rawJid ? canonicalJid : null,
+          normalizedPhone: normalizedPhone || null,
+          canonicalThreadId: threadId,
+          isLidThread,
           senderJid: msg.key?.participant || msg.key?.remoteJid || from,
           direction: isFromMe ? 'outbound' : 'inbound',
           body: body.substring(0, 10000),
@@ -1027,7 +1074,12 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
         if (!threadUpdates.has(threadId)) {
           threadUpdates.set(threadId, {
             accountId,
-            clientJid: from,
+            clientJid: canonicalJid,
+            rawJid,
+            resolvedJid: canonicalJid !== rawJid ? canonicalJid : null,
+            normalizedPhone: normalizedPhone || null,
+            canonicalThreadId: threadId,
+            isLidThread,
             lastMessagePreview: body.substring(0, 100),
             lastMessageText: body.substring(0, 100),
             lastMessageDirection: msg.key?.fromMe ? 'outbound' : 'inbound',
@@ -2538,7 +2590,7 @@ async function createConnection(accountId, name, phone) {
         // Process messages in batches
         if (historyMessages.length > 0) {
           console.log(`📚 [${accountId}] Starting history sync: ${historyMessages.length} messages`);
-          const result = await saveMessagesBatch(accountId, historyMessages, 'history_sync');
+          const result = await saveMessagesBatch(accountId, historyMessages, 'history_sync', sock);
           
           console.log(`✅ [${accountId}] History sync complete: ${result.saved} saved, ${result.skipped} skipped, ${result.errors} errors`);
           
@@ -2602,6 +2654,7 @@ async function createConnection(accountId, name, phone) {
     // Messages handler
     sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
       try {
+        updateConnectionHealth(accountId, 'message');
         console.log(
           `🔔🔔🔔 [${accountId}] messages.upsert EVENT TRIGGERED: type=${type}, count=${newMessages.length}, timestamp=${new Date().toISOString()}`
         );
@@ -2740,7 +2793,8 @@ async function createConnection(accountId, name, phone) {
 
             // Update message in Firestore if status changed
             if (status && remoteJid) {
-              const threadId = `${accountId}__${remoteJid}`;
+              const { canonicalJid } = await resolveCanonicalJid(sock, remoteJid);
+              const threadId = `${accountId}__${canonicalJid}`;
               const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
               
               const updateFields = {
@@ -2785,7 +2839,8 @@ async function createConnection(accountId, name, phone) {
 
             // Extract read receipts
             if (receiptData.readTimestamp && remoteJid) {
-              const threadId = `${accountId}__${remoteJid}`;
+              const { canonicalJid } = await resolveCanonicalJid(sock, remoteJid);
+              const threadId = `${accountId}__${canonicalJid}`;
               const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
               
               await messageRef.set({
@@ -3899,7 +3954,7 @@ app.post('/admin/sync-messages', async (req, res) => {
 
         if (messages.length > 0) {
           // Save messages to Firestore
-          const result = await saveMessagesBatch(accountId, messages, 'manual_sync');
+          const result = await saveMessagesBatch(accountId, messages, 'manual_sync', account.sock);
           
           synced++;
           results.push({
@@ -5827,13 +5882,20 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
     const { accountId, to, message, clientMessageId } = req.body;
     if (firestoreAvailable && db) {
       try {
+        const requestIdHeader = req.headers['x-request-id'];
         const jid = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
-        const threadId = `${accountId}__${jid}`;
-        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const { canonicalJid } = await resolveCanonicalJid(null, jid);
+        const threadId = `${accountId}__${canonicalJid}`;
+        const messageId =
+          requestIdHeader ||
+          clientMessageId ||
+          `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const outboxData = {
+          requestId: messageId,
           accountId,
           toJid: jid,
           threadId,
+          clientMessageId: clientMessageId || null,
           payload: { text: message },
           body: message,
           status: 'queued',
@@ -5866,7 +5928,7 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
   }
 
   try {
-    const { accountId, to, message } = req.body;
+    const { accountId, to, message, clientMessageId } = req.body;
     const account = connections.get(accountId);
 
     if (!account) {
@@ -5879,7 +5941,8 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
     }
 
     const jid = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
-    const threadId = `${accountId}__${jid}`;
+    const { canonicalJid } = await resolveCanonicalJid(account?.sock, jid);
+    const threadId = `${accountId}__${canonicalJid}`;
     const requestIdHeader = req.headers['x-request-id'];
     const idempotencyKey = requestIdHeader || clientMessageId || null;
     const effectiveClientMessageId =
@@ -5923,11 +5986,13 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
 
     if (account.status !== 'connected') {
       // Queue message in Firestore outbox
-      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const messageId = effectiveClientMessageId;
       const outboxData = {
+        requestId: messageId,
         accountId,
         toJid: jid,
         threadId,
+        clientMessageId: effectiveClientMessageId,
         payload: { text: message },
         body: message,
         status: 'queued',
@@ -5944,7 +6009,12 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
         const threadMessageRef = db.collection('threads').doc(threadId).collection('messages').doc(effectiveClientMessageId);
         await threadMessageRef.set({
           accountId,
-          clientJid: jid,
+          clientJid: canonicalJid,
+          rawJid: jid,
+          resolvedJid: canonicalJid !== jid ? canonicalJid : null,
+          normalizedPhone: normalizeJidToE164(canonicalJid).normalizedPhone || null,
+          canonicalThreadId: threadId,
+          isLidThread: jid.endsWith('@lid'),
           direction: 'outbound',
           body: message,
           status: 'queued',
@@ -5958,7 +6028,12 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
         // Update thread
         await db.collection('threads').doc(threadId).set({
           accountId,
-          clientJid: jid,
+          clientJid: canonicalJid,
+          rawJid: jid,
+          resolvedJid: canonicalJid !== jid ? canonicalJid : null,
+          normalizedPhone: normalizeJidToE164(canonicalJid).normalizedPhone || null,
+          canonicalThreadId: threadId,
+          isLidThread: jid.endsWith('@lid'),
           lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
           lastMessagePreview: message.substring(0, 100),
         }, { merge: true });
@@ -5984,11 +6059,13 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
       result = await account.sock.sendMessage(jid, { text: message });
     } catch (sendError) {
       // If send fails, queue it instead
-      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const messageId = effectiveClientMessageId;
       await db.collection('outbox').doc(messageId).set({
+        requestId: messageId,
         accountId,
         toJid: jid,
         threadId,
+        clientMessageId: effectiveClientMessageId,
         payload: { text: message },
         body: message,
         status: 'queued',
@@ -6003,12 +6080,17 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
     // Persist sent message to Firestore thread
     if (firestoreAvailable && db && result?.key) {
       const waMessageId = result.key.id;
-      const messageDocId = requestIdHeader || waMessageId;
+      const messageDocId = requestIdHeader || effectiveClientMessageId || waMessageId;
       const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageDocId);
       
       await messageRef.set({
         accountId,
-        clientJid: jid,
+        clientJid: canonicalJid,
+        rawJid: jid,
+        resolvedJid: canonicalJid !== jid ? canonicalJid : null,
+        normalizedPhone: normalizeJidToE164(canonicalJid).normalizedPhone || null,
+        canonicalThreadId: threadId,
+        isLidThread: jid.endsWith('@lid'),
         direction: 'outbound',
         body: message,
         waMessageId,
@@ -6023,10 +6105,27 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
       // Update thread
       await db.collection('threads').doc(threadId).set({
         accountId,
-        clientJid: jid,
+        clientJid: canonicalJid,
+        rawJid: jid,
+        resolvedJid: canonicalJid !== jid ? canonicalJid : null,
+        normalizedPhone: normalizeJidToE164(canonicalJid).normalizedPhone || null,
+        canonicalThreadId: threadId,
+        isLidThread: jid.endsWith('@lid'),
         lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
         lastMessagePreview: message.substring(0, 100),
       }, { merge: true });
+
+      const mappingId = `${accountId}__${waMessageId}`;
+      await db.collection('message_ids').doc(mappingId).set(
+        {
+          accountId,
+          threadId,
+          docId: messageDocId,
+          waMessageId,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
     }
 
     if (idempotencyKey && firestoreAvailable && db) {
@@ -7819,7 +7918,7 @@ async function restoreAccount(accountId, data) {
         // Process messages in batches
         if (historyMessages.length > 0) {
           console.log(`📚 [${accountId}] Starting history sync: ${historyMessages.length} messages`);
-          const result = await saveMessagesBatch(accountId, historyMessages, 'history_sync');
+          const result = await saveMessagesBatch(accountId, historyMessages, 'history_sync', sock);
           
           console.log(`✅ [${accountId}] History sync complete: ${result.saved} saved, ${result.skipped} skipped, ${result.errors} errors`);
           
@@ -7853,207 +7952,6 @@ async function restoreAccount(accountId, data) {
         console.error(`❌ [${accountId}] History sync error:`, error.message);
         console.error(`❌ [${accountId}] Stack:`, error.stack);
         await logIncident(accountId, 'history_sync_failed', { error: error.message });
-      }
-    });
-
-    // Messages handler - CRITICAL for receiving messages
-    sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
-      try {
-        updateConnectionHealth(accountId, 'message');
-        console.log(
-          `🔔🔔🔔 [${accountId}] messages.upsert EVENT TRIGGERED: type=${type}, count=${newMessages.length}, timestamp=${new Date().toISOString()}`
-        );
-        console.log(
-          `🔔 [${accountId}] Account status: ${account?.status}, Socket exists: ${!!sock}`
-        );
-        console.log(
-          `🔔 [${accountId}] Firestore available: ${firestoreAvailable}, DB exists: ${!!db}`
-        );
-
-        for (const msg of newMessages) {
-          try {
-            console.log(
-              `📩 [${accountId}] RAW MESSAGE:`,
-              JSON.stringify({
-                id: msg.key.id,
-                remoteJid: msg.key.remoteJid,
-                fromMe: msg.key.fromMe,
-                participant: msg.key.participant,
-                hasMessage: !!msg.message,
-                messageKeys: msg.message ? Object.keys(msg.message) : [],
-              })
-            );
-
-            if (!msg.message) {
-              console.log(`⚠️  [${accountId}] Skipping message ${msg.key.id} - no message content`);
-              continue;
-            }
-
-            const messageId = msg.key.id;
-            const from = msg.key.remoteJid;
-            const isFromMe = msg.key.fromMe;
-
-            console.log(
-              `📨 [${accountId}] PROCESSING: ${isFromMe ? 'OUTBOUND' : 'INBOUND'} message ${messageId} from ${from}`
-            );
-
-            if (firestoreAvailable && db) {
-              try {
-                // CRITICAL FIX: Use consistent threadId format: accountId__clientJid
-                // This ensures threads are properly namespaced per account
-                const threadId = `${accountId}__${from}`;
-                const messageData = {
-                  accountId,
-                  clientJid: from,
-                  direction: isFromMe ? 'outbound' : 'inbound',
-                  body: msg.message.conversation || msg.message.extendedTextMessage?.text || '',
-                  waMessageId: messageId,
-                  status: 'delivered',
-                  tsClient: new Date(msg.messageTimestamp * 1000).toISOString(),
-                  tsServer: admin.firestore.FieldValue.serverTimestamp(),
-                  createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                };
-
-                console.log(
-                  `💾 [${accountId}] Saving to Firestore: threads/${threadId}/messages/${messageId}`,
-                  {
-                    direction: messageData.direction,
-                    body: messageData.body.substring(0, 50),
-                  }
-                );
-
-                await db
-                  .collection('threads')
-                  .doc(threadId)
-                  .collection('messages')
-                  .doc(messageId)
-                  .set(messageData);
-
-                console.log(`✅ [${accountId}] Message saved successfully`);
-
-                await db.collection('threads').doc(threadId).set(
-                  {
-                    accountId,
-                    clientJid: from,
-                    lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-                  },
-                  { merge: true }
-                );
-
-                console.log(`💾 [${accountId}] Message saved to Firestore: ${messageId}`);
-              } catch (error) {
-                console.error(`❌ [${accountId}] Message save failed:`, error.message);
-                console.error(`❌ [${accountId}] Error stack:`, error.stack);
-              }
-            } else {
-              console.log(`⚠️  [${accountId}] Firestore not available, message not persisted`);
-            }
-          } catch (msgError) {
-            console.error(`❌ [${accountId}] Error processing message:`, msgError.message);
-            console.error(`❌ [${accountId}] Stack:`, msgError.stack);
-          }
-        }
-      } catch (eventError) {
-        console.error(`❌ [${accountId}] Error in messages.upsert handler:`, eventError.message);
-        console.error(`❌ [${accountId}] Stack:`, eventError.stack);
-      }
-    });
-
-    // Messages update handler (for status updates: delivered/read receipts)
-    sock.ev.on('messages.update', async (updates) => {
-      try {
-        console.log(`🔄 [${accountId}] messages.update EVENT: ${updates.length} updates`);
-        
-        if (!firestoreAvailable || !db) {
-          return;
-        }
-
-        for (const update of updates) {
-          try {
-            const messageKey = update.key;
-            const messageId = messageKey.id;
-            const remoteJid = messageKey.remoteJid;
-            const updateData = update.update || {};
-
-            // Extract status from update (status: 2 = delivered, 3 = read)
-            let status = null;
-            let deliveredAt = null;
-            let readAt = null;
-
-            if (updateData.status !== undefined) {
-              if (updateData.status === 2) {
-                status = 'delivered';
-                deliveredAt = admin.firestore.FieldValue.serverTimestamp();
-              } else if (updateData.status === 3) {
-                status = 'read';
-                readAt = admin.firestore.FieldValue.serverTimestamp();
-              }
-            }
-
-            // Update message in Firestore if status changed
-            if (status && remoteJid) {
-              const threadId = `${accountId}__${remoteJid}`;
-              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
-              
-              const updateFields = {
-                status,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              };
-              
-              if (deliveredAt) {
-                updateFields.deliveredAt = deliveredAt;
-              }
-              if (readAt) {
-                updateFields.readAt = readAt;
-              }
-
-              await messageRef.set(updateFields, { merge: true });
-              console.log(`✅ [${accountId}] Updated message ${messageId} status to ${status}`);
-            }
-          } catch (updateError) {
-            console.error(`❌ [${accountId}] Error updating message receipt:`, updateError.message);
-          }
-        }
-      } catch (error) {
-        console.error(`❌ [${accountId}] Error in messages.update handler:`, error.message);
-      }
-    });
-
-    // Message receipt handler (complementary to messages.update)
-    sock.ev.on('message-receipt.update', async (receipts) => {
-      try {
-        console.log(`📬 [${accountId}] message-receipt.update EVENT: ${receipts.length} receipts`);
-        
-        if (!firestoreAvailable || !db) {
-          return;
-        }
-
-        for (const receipt of receipts) {
-          try {
-            const receiptKey = receipt.key;
-            const messageId = receiptKey.id;
-            const remoteJid = receiptKey.remoteJid;
-            const receiptData = receipt.receipt || {};
-
-            // Extract read receipts
-            if (receiptData.readTimestamp && remoteJid) {
-              const threadId = `${accountId}__${remoteJid}`;
-              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
-              
-              await messageRef.set({
-                status: 'read',
-                readAt: admin.firestore.Timestamp.fromMillis(receiptData.readTimestamp * 1000),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              }, { merge: true });
-              
-              console.log(`✅ [${accountId}] Updated message ${messageId} receipt: read`);
-            }
-          } catch (receiptError) {
-            console.error(`❌ [${accountId}] Error updating receipt:`, receiptError.message);
-          }
-        }
-      } catch (error) {
-        console.error(`❌ [${accountId}] Error in message-receipt.update handler:`, error.message);
       }
     });
 
@@ -9196,57 +9094,60 @@ app.listen(PORT, '0.0.0.0', async () => {
           // Also persist message to thread (if threadId exists in outbox doc)
           if (threadId && firestoreAvailable && db) {
             const waMessageId = result.key.id;
-            const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(waMessageId);
-            
-            await messageRef.set({
-              accountId,
-              clientJid: toJid,
-              direction: 'outbound',
-              body: body || '',
-              waMessageId,
-              status: 'sent',
-              tsClient: new Date().toISOString(),
-              tsServer: admin.firestore.FieldValue.serverTimestamp(),
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
-              messageType: 'text',
-            }, { merge: true });
+            const { canonicalJid } = await resolveCanonicalJid(account?.sock, toJid);
+            const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(requestId);
+
+            await messageRef.set(
+              {
+                accountId,
+                clientJid: canonicalJid,
+                rawJid: toJid,
+                resolvedJid: canonicalJid !== toJid ? canonicalJid : null,
+                normalizedPhone: normalizeJidToE164(canonicalJid).normalizedPhone || null,
+                canonicalThreadId: threadId,
+                isLidThread: toJid.endsWith('@lid'),
+                direction: 'outbound',
+                body: body || '',
+                waMessageId,
+                status: 'sent',
+                tsClient: new Date().toISOString(),
+                tsServer: admin.firestore.FieldValue.serverTimestamp(),
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                messageType: 'text',
+                clientMessageId: data?.clientMessageId || requestId,
+                lastError: null,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
 
             // Update thread
-            await db.collection('threads').doc(threadId).set({
-              accountId,
-              clientJid: toJid,
-              lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-              lastMessagePreview: (body || '').substring(0, 100),
-            }, { merge: true });
-          }
+            await db.collection('threads').doc(threadId).set(
+              {
+                accountId,
+                clientJid: canonicalJid,
+                rawJid: toJid,
+                resolvedJid: canonicalJid !== toJid ? canonicalJid : null,
+                normalizedPhone: normalizeJidToE164(canonicalJid).normalizedPhone || null,
+                canonicalThreadId: threadId,
+                isLidThread: toJid.endsWith('@lid'),
+                lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+                lastMessagePreview: (body || '').substring(0, 100),
+              },
+              { merge: true }
+            );
 
-          // Update message doc in thread (if threadId provided)
-          if (threadId) {
-            try {
-              const messageRef = db
-                .collection('threads')
-                .doc(threadId)
-                .collection('messages')
-                .doc(requestId);
-              const messageDoc = await messageRef.get();
-
-              if (messageDoc.exists) {
-                await messageRef.update({
-                  status: 'sent',
-                  waMessageId: result.key.id,
-                  lastError: null,
-                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                });
-                console.log(
-                  `💾 [${accountId}] Updated message doc ${requestId} in thread ${threadId}`
-                );
-              }
-            } catch (msgError) {
-              console.error(
-                `⚠️  [${accountId}] Failed to update message doc ${requestId}:`,
-                msgError.message
-              );
-            }
+            const mappingId = `${accountId}__${waMessageId}`;
+            await db.collection('message_ids').doc(mappingId).set(
+              {
+                accountId,
+                threadId,
+                docId: requestId,
+                waMessageId,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
           }
 
           // Update thread lastMessageAt
