@@ -238,6 +238,7 @@ console.log(`🔧 Auth: disk + Firestore backup`);
 
 // Initialize Firebase Admin with env var
 let firestoreAvailable = false;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 if (!admin.apps.length) {
   try {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
@@ -280,6 +281,11 @@ if (!admin.apps.length) {
     });
     console.log('⚠️  Continuing without Firestore...');
   }
+}
+
+if (!firestoreAvailable && IS_PRODUCTION) {
+  console.error('❌ Firestore is required in production. Set FIREBASE_SERVICE_ACCOUNT_JSON.');
+  process.exit(1);
 }
 
 const db = firestoreAvailable ? admin.firestore() : null;
@@ -845,6 +851,9 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
     await messageRef.set(sanitizedData, { merge: true });
     if (firestoreAvailable && db) {
       const mappingId = `${accountId}__${messageId}`;
+      const mappingTtl = admin.firestore.Timestamp.fromMillis(
+        Date.now() + 30 * 24 * 60 * 60 * 1000
+      );
       await db.collection('message_ids').doc(mappingId).set(
         {
           accountId,
@@ -852,6 +861,7 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
           docId: messageRef.id,
           waMessageId: messageId,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          expiresAt: mappingTtl,
         },
         { merge: true }
       );
@@ -5871,6 +5881,66 @@ app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) =
   }
 });
 
+// Repair sync (admin-only): validates socket + runs backfill with result tracking
+app.post('/api/whatsapp/repair-sync/:accountId', requireAdmin, accountLimiter, async (req, res) => {
+  const passiveGuard = await checkPassiveModeGuard(req, res);
+  if (passiveGuard) return;
+
+  try {
+    const { accountId } = req.params;
+    const account = connections.get(accountId);
+
+    if (!account) {
+      return res.status(404).json({
+        success: false,
+        error: 'account_not_found',
+        message: 'Account not found',
+        accountId,
+      });
+    }
+
+    if (account.status !== 'connected') {
+      const result = { success: false, reason: 'not_connected', status: account.status };
+      if (firestoreAvailable && db) {
+        await saveAccountToFirestore(accountId, {
+          lastBackfillAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastBackfillResult: result,
+        });
+      }
+      return res.status(409).json({
+        success: false,
+        error: 'invalid_state',
+        message: 'Account must be connected to repair sync',
+        currentStatus: account.status,
+        accountId,
+      });
+    }
+
+    const result = await backfillAccountMessages(accountId);
+    if (firestoreAvailable && db && result) {
+      await saveAccountToFirestore(accountId, {
+        lastBackfillAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastBackfillResult: {
+          ...result,
+          requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+      });
+    }
+
+    return res.json({
+      success: true,
+      accountId,
+      result,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'internal_error',
+      message: error.message,
+    });
+  }
+});
+
 // Send message
 app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
   // HARD GATE: PASSIVE mode - do NOT process outbox (messages queued but not sent immediately)
@@ -6116,6 +6186,9 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
       }, { merge: true });
 
       const mappingId = `${accountId}__${waMessageId}`;
+      const mappingTtl = admin.firestore.Timestamp.fromMillis(
+        Date.now() + 30 * 24 * 60 * 60 * 1000
+      );
       await db.collection('message_ids').doc(mappingId).set(
         {
           accountId,
@@ -6123,6 +6196,7 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
           docId: messageDocId,
           waMessageId,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          expiresAt: mappingTtl,
         },
         { merge: true }
       );
@@ -8618,6 +8692,21 @@ app.post('/api/admin/accounts/:id/reset-session', requireAdmin, async (req, res)
 // Status dashboard endpoint - returns per-account status for all 30 accounts
 app.get('/api/status/dashboard', async (req, res) => {
   try {
+    const sanitizedBaseUrl = (() => {
+      const raw =
+        process.env.WHATSAPP_BACKEND_BASE_URL ||
+        process.env.WHATSAPP_BACKEND_URL ||
+        process.env.BAILEYS_BASE_URL ||
+        '';
+      if (!raw) return null;
+      try {
+        const url = new URL(raw);
+        return `${url.protocol}//${url.host}`;
+      } catch (_) {
+        return raw.split('/')[0] || raw;
+      }
+    })();
+
     const accounts = [];
     let connectedCount = 0;
     let disconnectedCount = 0;
@@ -8686,6 +8775,10 @@ app.get('/api/status/dashboard', async (req, res) => {
         status: 'healthy',
         uptime: Math.floor((Date.now() - START_TIME) / 1000),
         version: VERSION,
+        firestoreConnected: firestoreAvailable,
+        historySyncEnabled: SYNC_FULL_HISTORY,
+        historySyncDryRun: HISTORY_SYNC_DRY_RUN,
+        backendBaseUrl: sanitizedBaseUrl,
       },
       storage: {
         path: authDir,
@@ -9138,6 +9231,9 @@ app.listen(PORT, '0.0.0.0', async () => {
             );
 
             const mappingId = `${accountId}__${waMessageId}`;
+            const mappingTtl = admin.firestore.Timestamp.fromMillis(
+              Date.now() + 30 * 24 * 60 * 60 * 1000
+            );
             await db.collection('message_ids').doc(mappingId).set(
               {
                 accountId,
@@ -9145,6 +9241,7 @@ app.listen(PORT, '0.0.0.0', async () => {
                 docId: requestId,
                 waMessageId,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                expiresAt: mappingTtl,
               },
               { merge: true }
             );
