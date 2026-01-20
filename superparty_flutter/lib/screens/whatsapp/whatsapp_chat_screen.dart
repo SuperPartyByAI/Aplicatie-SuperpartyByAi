@@ -33,11 +33,15 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   bool _showCrmPanel = false;
   Map<String, dynamic>? _draftEvent;
   int _previousMessageCount = 0; // Track message count to detect new messages
+  DateTime? _lastSendAt;
+  String? _lastSentText;
+  int _sendCounter = 0;
 
   String? get _accountId => widget.accountId ?? _extractFromQuery('accountId');
   String? get _threadId => widget.threadId ?? _extractFromQuery('threadId');
   String? get _clientJid => widget.clientJid ?? _extractFromQuery('clientJid');
   String? get _phoneE164 => widget.phoneE164 ?? _extractFromQuery('phoneE164');
+  String? get _displayName => _extractFromQuery('displayName');
 
   String? _extractFromQuery(String param) {
     final uri = Uri.base;
@@ -61,6 +65,12 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     }
     
     if (_isSending) return;
+    if (_lastSendAt != null &&
+        _lastSentText == text &&
+        DateTime.now().difference(_lastSendAt!).inMilliseconds < 1500) {
+      debugPrint('[ChatScreen] Skipping duplicate send (cooldown)');
+      return;
+    }
     
     if (_accountId == null || _threadId == null || _clientJid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -69,12 +79,14 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       return;
     }
 
-    setState(() {
-      _isSending = true;
-    });
+    _isSending = true;
+    setState(() {});
+    _lastSendAt = DateTime.now();
+    _lastSentText = text;
 
     try {
-      final clientMessageId = 'client_${DateTime.now().millisecondsSinceEpoch}';
+      final now = DateTime.now();
+      final clientMessageId = 'client_${now.millisecondsSinceEpoch}_${_sendCounter++}';
       
       debugPrint('[ChatScreen] Sending message: text=$text, accountId=$_accountId, threadId=$_threadId, clientJid=$_clientJid');
       
@@ -271,6 +283,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
   // Get display name from thread or clientJid
   String get displayName {
+    if (_displayName != null && _displayName!.trim().isNotEmpty) {
+      return _displayName!.trim();
+    }
     // Try to extract a readable name from clientJid first
     if (_clientJid != null) {
       final jidPart = _clientJid!.split('@')[0];
@@ -396,7 +411,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                   .doc(_threadId!)
                   .collection('messages')
                   .orderBy('tsClient', descending: false)
-                  .limit(200)
+                  .limitToLast(500)
                   .snapshots(),
               builder: (context, snapshot) {
                 
