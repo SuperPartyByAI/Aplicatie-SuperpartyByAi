@@ -6,6 +6,14 @@ import 'package:intl/intl.dart';
 
 import '../../services/whatsapp_api_service.dart';
 
+String getDisplayInitial(String name) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) {
+    return '?';
+  }
+  return trimmed[0].toUpperCase();
+}
+
 /// WhatsApp Chat Screen - Messages + Send + CRM Panel
 class WhatsAppChatScreen extends StatefulWidget {
   final String? accountId;
@@ -452,7 +460,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
               radius: 18,
               backgroundColor: Colors.white.withOpacity(0.3),
               child: Text(
-                displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                getDisplayInitial(displayName),
                 style: const TextStyle(color: Colors.white),
               ),
             ),
@@ -640,7 +648,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                                   radius: 16,
                                   backgroundColor: Colors.grey[300],
                                   child: Text(
-                                    displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                                    getDisplayInitial(displayName),
                                     style: const TextStyle(fontSize: 12, color: Colors.black87),
                                   ),
                                 ),

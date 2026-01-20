@@ -8,6 +8,10 @@ const path = require('path');
 const crypto = require('crypto');
 const BootstrapRunner = require('./bootstrap-runner');
 
+function getBackendBaseUrl() {
+  return process.env.WHATSAPP_BACKEND_BASE_URL || process.env.WHATSAPP_BACKEND_URL || null;
+}
+
 class EvidenceEndpoints {
   constructor(app, db, schema, adminToken, baileys, waBootstrap) {
     this.app = app;
@@ -237,8 +241,8 @@ class EvidenceEndpoints {
           ts: Date.now(),
           tsIso: new Date().toISOString(),
           purpose: 'write_capability_proof',
-          commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
-          instanceId: process.env.RAILWAY_DEPLOYMENT_ID || 'local',
+          commitHash: process.env.BUILD_SHA?.slice(0, 8) || process.env.GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+          instanceId: process.env.INSTANCE_ID || process.env.HOSTNAME || 'local',
         };
 
         await testRef.set(testDoc);
@@ -319,8 +323,8 @@ class EvidenceEndpoints {
           }
         }
 
-        // Check Railway Volume mount
-        const volumePath = process.env.RAILWAY_VOLUME_MOUNT_PATH;
+        // Check configured volume mount
+        const volumePath = process.env.VOLUME_MOUNT_PATH;
         if (volumePath) {
           checks.volumeMount = {
             path: volumePath,
@@ -348,7 +352,7 @@ class EvidenceEndpoints {
           env: {
             WA_AUTH_PATH: process.env.WA_AUTH_PATH,
             WA_WAL_PATH: process.env.WA_WAL_PATH,
-            RAILWAY_VOLUME_MOUNT_PATH: process.env.RAILWAY_VOLUME_MOUNT_PATH,
+            VOLUME_MOUNT_PATH: process.env.VOLUME_MOUNT_PATH,
           },
         });
       } catch (error) {
@@ -408,8 +412,14 @@ class EvidenceEndpoints {
     // POST /api/longrun/bootstrap
     this.app.post('/api/longrun/bootstrap', this.verifyToken.bind(this), async (req, res) => {
       try {
-        const baseUrl =
-          process.env.BAILEYS_BASE_URL || 'https://whats-upp-production.up.railway.app';
+        const baseUrl = getBackendBaseUrl();
+        if (!baseUrl) {
+          return res.status(500).json({
+            success: false,
+            error: 'configuration_missing',
+            message: 'WHATSAPP_BACKEND_BASE_URL or WHATSAPP_BACKEND_URL must be set',
+          });
+        }
         const bootstrap = new BootstrapRunner(this.db, this.schema, baseUrl, this.baileys);
         const results = await bootstrap.run();
 
