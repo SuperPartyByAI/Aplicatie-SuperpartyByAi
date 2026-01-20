@@ -27,6 +27,18 @@ class WhatsAppApiService {
     return Env.whatsappBackendUrl;
   }
 
+  String _requireBackendUrl() {
+    final backendUrl = _getBackendUrl();
+    if (backendUrl.isEmpty) {
+      throw DomainFailure(
+        'WHATSAPP_BACKEND_URL is not configured. '
+        'Set --dart-define=WHATSAPP_BACKEND_URL=https://<backend-host>.',
+        code: 'backend_url_missing',
+      );
+    }
+    return backendUrl;
+  }
+
   /// Get Functions URL (for proxy calls)
   String _getFunctionsUrl() {
     const region = 'us-central1';
@@ -343,7 +355,7 @@ class WhatsAppApiService {
   /// 
   /// Returns: Full URL to QR endpoint (HTML page).
   String qrPageUrl(String accountId) {
-    final backendUrl = _getBackendUrl();
+    final backendUrl = _requireBackendUrl();
     return '$backendUrl/api/whatsapp/qr/$accountId';
   }
 
@@ -464,7 +476,7 @@ class WhatsAppApiService {
 
       // Call Functions proxy - need to create proxy function or call backend directly
       // For now, call backend directly with token
-      final backendUrl = _getBackendUrl();
+      final backendUrl = _requireBackendUrl();
       final response = await http
           .get(
             Uri.parse('$backendUrl/api/whatsapp/threads/$accountId?limit=500&orderBy=lastMessageAt'),
@@ -507,7 +519,7 @@ class WhatsAppApiService {
       }
 
       final token = await user.getIdToken();
-      final backendUrl = _getBackendUrl();
+      final backendUrl = _requireBackendUrl();
       final requestId = _generateRequestId();
 
       debugPrint('[WhatsAppApiService] getInbox: calling API (accountId=$accountId, limit=$limit, backendUrl=$backendUrl)');
