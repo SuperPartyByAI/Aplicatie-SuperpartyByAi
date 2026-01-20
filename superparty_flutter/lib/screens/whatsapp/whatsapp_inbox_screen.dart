@@ -27,6 +27,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   // Cache to prevent duplicate loads
   DateTime? _lastLoadTime;
   bool _isCurrentlyLoading = false;
+  static const Duration _minRefreshInterval = Duration(seconds: 30);
   
   // Auto-refresh timer
   Timer? _autoRefreshTimer;
@@ -37,8 +38,12 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     _loadAccounts();
     
     // Auto-refresh threads every 60 seconds (avoid UI flicker)
+    _autoRefreshTimer?.cancel();
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
-      if (mounted && !_isCurrentlyLoading) {
+      final now = DateTime.now();
+      if (mounted &&
+          !_isCurrentlyLoading &&
+          (_lastLoadTime == null || now.difference(_lastLoadTime!) >= _minRefreshInterval)) {
         debugPrint('[WhatsAppInboxScreen] Auto-refresh triggered');
         _loadThreads();
       }
@@ -59,7 +64,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     }
     
     final now = DateTime.now();
-    if (_lastLoadTime != null && now.difference(_lastLoadTime!) < const Duration(seconds: 2)) {
+    if (_lastLoadTime != null && now.difference(_lastLoadTime!) < _minRefreshInterval) {
       debugPrint('[WhatsAppInboxScreen] Too soon since last load, skipping');
       return;
     }
@@ -137,9 +142,11 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
         final redirectTo = (thread['redirectTo'] as String?)?.trim();
         final clientJid = (thread['clientJid'] as String? ?? '').trim();
         final isLid = clientJid.endsWith('@lid');
+        final isBroadcast = clientJid.endsWith('@broadcast');
         if (hidden) return false;
         if (redirectTo != null && redirectTo.isNotEmpty) return false;
         if (isLid) return false; // defensive: never show @lid
+        if (isBroadcast) return false;
         return true;
       }).toList();
 
@@ -221,12 +228,12 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
 
   String? _extractPhoneFromJid(String? jid) {
     if (jid == null) return null;
-    if (jid.contains('@lid')) return null;
+    if (jid.contains('@lid') || jid.contains('@broadcast')) return null;
     final parts = jid.split('@');
     if (parts.isEmpty) return null;
     final digits = parts[0];
-    if (digits.length > 15) return null;
-    return digits.startsWith('+') ? digits : '+$digits';
+    if (digits.length > 15 || !RegExp(r'^\d{6,15}$').hasMatch(digits)) return null;
+    return '+$digits';
   }
 
   @override
@@ -339,6 +346,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                         
                                         // Extract phone from clientJid
                                         final phone = normalizedPhone ?? _extractPhoneFromJid(clientJid);
+                                        final isBroadcast = clientJid.endsWith('@broadcast');
                                         
                                         // DEBUG: Print raw data to see what we receive
                                         if (index == 0) {
@@ -350,7 +358,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                         String displayName = rawDisplayName.trim();
                                         
                                         // If displayName is empty or looks like a number/JID, use formatted phone
-                                        if (phone != null && phone.isNotEmpty) {
+                                        if (!isBroadcast && phone != null && phone.isNotEmpty) {
                                           // Check if rawDisplayName is just a messy number or empty
                                           final isMixedFormat = displayName.isEmpty ||
                                               displayName.contains('@') ||
