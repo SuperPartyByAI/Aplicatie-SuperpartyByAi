@@ -218,7 +218,6 @@ async function processOutboxHandler(event) {
 const { defineSecret } = require('firebase-functions/params');
 const whatsappBackendBaseUrl = defineSecret('WHATSAPP_BACKEND_BASE_URL');
 const whatsappBackendUrl = defineSecret('WHATSAPP_BACKEND_URL');
-const whatsappRailwayUrl = defineSecret('WHATSAPP_RAILWAY_BASE_URL');
 
 // Export Firestore trigger
 exports.processOutbox = onDocumentCreated(
@@ -226,7 +225,7 @@ exports.processOutbox = onDocumentCreated(
     document: 'outbox/{requestId}',
     region: 'us-central1',
     maxInstances: 3,
-    secrets: [whatsappBackendBaseUrl, whatsappBackendUrl, whatsappRailwayUrl], // Add secret dependency
+    secrets: [whatsappBackendBaseUrl, whatsappBackendUrl], // Add secret dependency
   },
   processOutboxHandler
 );

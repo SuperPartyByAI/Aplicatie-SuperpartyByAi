@@ -9,20 +9,12 @@ function getBackendBaseUrl() {
     return process.env.WHATSAPP_BACKEND_URL;
   }
 
-  // Legacy: Railway URL
-  if (process.env.WHATSAPP_RAILWAY_BASE_URL) {
-    return process.env.WHATSAPP_RAILWAY_BASE_URL;
-  }
-
   // Try v1 functions.config() (v2 may not have this)
   try {
     const functions = require('firebase-functions');
     const config = functions.config();
     if (config?.whatsapp?.backend_base_url) {
       return config.whatsapp.backend_base_url;
-    }
-    if (config?.whatsapp?.railway_base_url) {
-      return config.whatsapp.railway_base_url;
     }
   } catch (e) {
     // Ignore
