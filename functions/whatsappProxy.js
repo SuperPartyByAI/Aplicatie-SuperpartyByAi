@@ -11,33 +11,12 @@ const { onRequest } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
 const https = require('https');
 const http = require('http');
+const { getBackendBaseUrl } = require('./lib/backend-url');
 
 // Super admin email
 const SUPER_ADMIN_EMAIL = 'ursache.andrei1995@gmail.com';
 
-// Backend base URL - LAZY EVALUATION (computed only when handler is called)
-// Supports both v1 functions.config() and v2 process.env/defineSecret
-// This avoids throwing at module import time (allows Firebase emulator to analyze code)
-function getBackendBaseUrl() {
-  // Try v2 process.env first (for v2 functions)
-  if (process.env.WHATSAPP_BACKEND_URL) {
-    return process.env.WHATSAPP_BACKEND_URL;
-  }
-
-  // Try v1 functions.config() (for v1 functions)
-  try {
-    const functions = require('firebase-functions');
-    const config = functions.config();
-    if (config?.whatsapp?.backend_base_url) {
-      return config.whatsapp.backend_base_url;
-    }
-  } catch (e) {
-    // functions.config() not available (v2 functions or test environment)
-  }
-
-  // Fallback: Hetzner backend
-  return 'http://37.27.34.179:8080';
-}
+// Backend base URL is resolved lazily via lib/backend-url.js
 
 const REQUEST_TIMEOUT_MS = 30000; // 30 seconds
 
@@ -538,7 +517,7 @@ async function getAccountsHandler(req, res) {
         return res.status(500).json({
           success: false,
           error: 'configuration_missing',
-          message: 'WHATSAPP_BACKEND_URL must be set via environment variable or functions.config().whatsapp.backend_base_url',
+          message: 'WHATSAPP_BACKEND_BASE_URL or WHATSAPP_BACKEND_URL must be set (env or functions.config().whatsapp.backend_base_url)',
         });
       }
       
@@ -651,7 +630,7 @@ async function addAccountHandler(req, res) {
         return res.status(500).json({
           success: false,
           error: 'configuration_missing',
-          message: 'WHATSAPP_BACKEND_URL must be set via environment variable or functions.config().whatsapp.backend_base_url',
+          message: 'WHATSAPP_BACKEND_BASE_URL or WHATSAPP_BACKEND_URL must be set (env or functions.config().whatsapp.backend_base_url)',
         });
       }
 
@@ -777,7 +756,7 @@ async function deleteAccountHandler(req, res) {
       return res.status(500).json({
         success: false,
         error: 'configuration_missing',
-        message: 'WHATSAPP_BACKEND_URL must be set via environment variable or functions.config().whatsapp.backend_base_url',
+        message: 'WHATSAPP_BACKEND_BASE_URL or WHATSAPP_BACKEND_URL must be set (env or functions.config().whatsapp.backend_base_url)',
       });
     }
 
@@ -846,7 +825,7 @@ async function backfillAccountHandler(req, res) {
       return res.status(500).json({
         success: false,
         error: 'configuration_missing',
-        message: 'WHATSAPP_BACKEND_URL must be set via environment variable or functions.config().whatsapp.backend_base_url',
+        message: 'WHATSAPP_BACKEND_BASE_URL or WHATSAPP_BACKEND_URL must be set (env or functions.config().whatsapp.backend_base_url)',
       });
     }
 
@@ -977,7 +956,7 @@ async function regenerateQrHandler(req, res) {
         return res.status(500).json({
           success: false,
           error: 'configuration_missing',
-          message: 'WHATSAPP_BACKEND_URL must be set via environment variable or functions.config().whatsapp.backend_base_url',
+          message: 'WHATSAPP_BACKEND_BASE_URL or WHATSAPP_BACKEND_URL must be set (env or functions.config().whatsapp.backend_base_url)',
         });
       }
 
@@ -1030,17 +1009,17 @@ async function regenerateQrHandler(req, res) {
       } else {
         // CRITICAL: Log full backend response body for non-2xx to diagnose root cause
         // This is essential because proxy masks upstream errors as generic 500
-        const railwayBody = response.body || {};
-        const railwayBodyStr = typeof railwayBody === 'string' 
-          ? railwayBody 
-          : JSON.stringify(railwayBody);
-        const railwayBodyPreview = railwayBodyStr.length > 500 
-          ? railwayBodyStr.substring(0, 500) + '...' 
-          : railwayBodyStr;
+        const backendBody = response.body || {};
+        const backendBodyStr = typeof backendBody === 'string' 
+          ? backendBody 
+          : JSON.stringify(backendBody);
+        const backendBodyPreview = backendBodyStr.length > 500 
+          ? backendBodyStr.substring(0, 500) + '...' 
+          : backendBodyStr;
         
         console.error(`[whatsappProxy/regenerateQr] Backend error (non-2xx): status=${response.statusCode}, requestId=${requestId}`);
-        console.error(`[whatsappProxy/regenerateQr] Backend error body: ${railwayBodyPreview}`);
-        console.error(`[whatsappProxy/regenerateQr] Backend error details: error=${railwayBody.error || 'none'}, message=${railwayBody.message || 'none'}, status=${railwayBody.status || 'none'}, accountId=${railwayBody.accountId || 'none'}`);
+        console.error(`[whatsappProxy/regenerateQr] Backend error body: ${backendBodyPreview}`);
+        console.error(`[whatsappProxy/regenerateQr] Backend error details: error=${backendBody.error || 'none'}, message=${backendBody.message || 'none'}, status=${backendBody.status || 'none'}, accountId=${backendBody.accountId || 'none'}`);
         
         // Special handling for 503 (PASSIVE mode) - propagate error message with full details
         if (response.statusCode === 503) {
@@ -1082,23 +1061,23 @@ async function regenerateQrHandler(req, res) {
         // For other 4xx/5xx errors, return structured error with requestId
         // Include backend error details for debugging (not just generic message)
         const httpStatus = response.statusCode;
-        // railwayBody already declared above, reuse it
+        // backendBody already declared above, reuse it
         
         // DEBUG MODE: For super-admin in debug mode, include backendStatusCode and backendErrorSafe
         const debugInfo = isSuperAdminDebug ? {
           backendStatusCode: httpStatus,
-          backendErrorSafe: typeof railwayBody.error === 'string' 
-            ? railwayBody.error.substring(0, 50) 
-            : (railwayBody.errorCode || 'unknown_error'),
-          backendStatus: railwayBody.status,
-          backendAccountId: railwayBody.accountId,
-          backendRequestId: railwayBody.requestId,
+          backendErrorSafe: typeof backendBody.error === 'string' 
+            ? backendBody.error.substring(0, 50) 
+            : (backendBody.errorCode || 'unknown_error'),
+          backendStatus: backendBody.status,
+          backendAccountId: backendBody.accountId,
+          backendRequestId: backendBody.requestId,
         } : {};
         
         return res.status(httpStatus >= 400 && httpStatus < 500 ? httpStatus : 500).json({
           success: false,
           error: `UPSTREAM_HTTP_${httpStatus}`,
-          message: railwayBody.message || `Backend service returned an error (status: ${httpStatus})`,
+          message: backendBody.message || `Backend service returned an error (status: ${httpStatus})`,
           requestId: requestId,
           hint: `Check backend logs for requestId: ${requestId}`,
           upstreamStatusCode: httpStatus,

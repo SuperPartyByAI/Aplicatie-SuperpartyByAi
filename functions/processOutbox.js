@@ -11,29 +11,7 @@ const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 const https = require('https');
 const http = require('http');
-
-// Backend base URL
-function getBackendBaseUrl() {
-  // Try v2 process.env first
-  if (process.env.WHATSAPP_BACKEND_URL) {
-    return process.env.WHATSAPP_BACKEND_URL;
-  }
-
-  // Try v1 functions.config()
-  try {
-    const functions = require('firebase-functions');
-    const config = functions.config();
-    if (config?.whatsapp?.backend_base_url) {
-      return config.whatsapp.backend_base_url;
-    }
-  } catch (e) {
-    // Ignore
-  }
-
-  // Fallback to hardcoded Hetzner URL
-  console.log('[processOutbox] Using hardcoded backend URL (temporary fix)');
-  return 'http://37.27.34.179:8080';
-}
+const { getBackendBaseUrl } = require('./lib/backend-url');
 
 const REQUEST_TIMEOUT_MS = 30000; // 30 seconds
 
@@ -104,6 +82,11 @@ async function processOutboxHandler(event) {
     return;
   }
 
+  if (process.env.OUTBOX_PROCESSOR_ENABLED === 'false') {
+    console.log('[processOutbox] OUTBOX_PROCESSOR_ENABLED=false, skipping');
+    return;
+  }
+
   const outboxDoc = snapshot.data();
   const requestId = event.params.requestId || snapshot.id;
 
@@ -151,7 +134,7 @@ async function processOutboxHandler(event) {
     // Get backend URL
     const backendBaseUrl = getBackendBaseUrl();
     if (!backendBaseUrl) {
-      throw new Error('WHATSAPP_BACKEND_URL not configured');
+      throw new Error('WHATSAPP_BACKEND_BASE_URL/WHATSAPP_BACKEND_URL not configured');
     }
 
     // Extract message data
@@ -231,9 +214,11 @@ async function processOutboxHandler(event) {
   }
 }
 
-// Define secret for backend URL
+// Define secrets for backend URL resolution
 const { defineSecret } = require('firebase-functions/params');
+const whatsappBackendBaseUrl = defineSecret('WHATSAPP_BACKEND_BASE_URL');
 const whatsappBackendUrl = defineSecret('WHATSAPP_BACKEND_URL');
+const whatsappRailwayUrl = defineSecret('WHATSAPP_RAILWAY_BASE_URL');
 
 // Export Firestore trigger
 exports.processOutbox = onDocumentCreated(
@@ -241,7 +226,7 @@ exports.processOutbox = onDocumentCreated(
     document: 'outbox/{requestId}',
     region: 'us-central1',
     maxInstances: 3,
-    secrets: [whatsappBackendUrl], // Add secret dependency
+    secrets: [whatsappBackendBaseUrl, whatsappBackendUrl, whatsappRailwayUrl], // Add secret dependency
   },
   processOutboxHandler
 );
