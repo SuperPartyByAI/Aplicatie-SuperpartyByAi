@@ -452,7 +452,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
               radius: 18,
               backgroundColor: Colors.white.withOpacity(0.3),
               child: Text(
-                displayName[0].toUpperCase(),
+                displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
                 style: const TextStyle(color: Colors.white),
               ),
             ),
@@ -640,7 +640,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                                   radius: 16,
                                   backgroundColor: Colors.grey[300],
                                   child: Text(
-                                    displayName[0].toUpperCase(),
+                                    displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
                                     style: const TextStyle(fontSize: 12, color: Colors.black87),
                                   ),
                                 ),
