@@ -43,8 +43,7 @@ class Env {
     defaultValue: false,
   );
 
-  static const String _defaultWhatsAppBackendUrl =
-      'http://37.27.34.179:8080';
+  static const String _defaultWhatsAppBackendUrl = '';
 
   /// Base URL for WhatsApp backend.
   ///
@@ -59,6 +58,9 @@ class Env {
 
   static String _normalizeBaseUrl(String raw) {
     var url = raw.trim();
+    if (url.isEmpty) {
+      return url;
+    }
     while (url.endsWith('/')) {
       url = url.substring(0, url.length - 1);
     }
