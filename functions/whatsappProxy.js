@@ -3,7 +3,7 @@
 /**
  * WhatsApp Backend Proxy - QR Connect Routes Only
  * 
- * Secure proxy for Flutter app to interact with Railway WhatsApp backend.
+ * Secure proxy for Flutter app to interact with WhatsApp backend.
  * Provides account management and QR code generation for WhatsApp connections.
  */
 
@@ -15,29 +15,28 @@ const http = require('http');
 // Super admin email
 const SUPER_ADMIN_EMAIL = 'ursache.andrei1995@gmail.com';
 
-// Railway backend base URL - LAZY EVALUATION (computed only when handler is called)
+// Backend base URL - LAZY EVALUATION (computed only when handler is called)
 // Supports both v1 functions.config() and v2 process.env/defineSecret
 // This avoids throwing at module import time (allows Firebase emulator to analyze code)
-function getRailwayBaseUrl() {
+function getBackendBaseUrl() {
   // Try v2 process.env first (for v2 functions)
-  if (process.env.WHATSAPP_RAILWAY_BASE_URL) {
-    return process.env.WHATSAPP_RAILWAY_BASE_URL;
+  if (process.env.WHATSAPP_BACKEND_URL) {
+    return process.env.WHATSAPP_BACKEND_URL;
   }
 
   // Try v1 functions.config() (for v1 functions)
   try {
     const functions = require('firebase-functions');
     const config = functions.config();
-    if (config?.whatsapp?.railway_base_url) {
-      return config.whatsapp.railway_base_url;
+    if (config?.whatsapp?.backend_base_url) {
+      return config.whatsapp.backend_base_url;
     }
   } catch (e) {
     // functions.config() not available (v2 functions or test environment)
   }
 
-  // Return null if missing (handler will return 500 error at runtime)
-  // This allows module to load without throwing during Firebase emulator analysis
-  return null;
+  // Fallback: Hetzner backend
+  return 'http://37.27.34.179:8080';
 }
 
 const REQUEST_TIMEOUT_MS = 30000; // 30 seconds
@@ -178,7 +177,7 @@ async function requireSuperAdmin(req, res) {
 }
 
 /**
- * Forward HTTP request to Railway backend
+ * Forward HTTP request to backend
  * 
  * Security: No sensitive headers logged, timeout enforced, safe error messages
  * 
@@ -198,7 +197,7 @@ let forwardRequest = function(url, options, body = null) {
       headers: {
         ...options.headers,
         // Remove any sensitive headers that might leak
-        'Authorization': undefined, // Don't forward client auth to Railway
+        'Authorization': undefined, // Don't forward client auth to backend
       },
     };
 
@@ -352,6 +351,32 @@ async function sendHandler(req, res) {
     const ownerUid = threadData?.ownerUid;
     const coWriterUids = threadData?.coWriterUids || [];
 
+    // Duplicate guard: if last outbound message matches within 2s, skip
+    try {
+      const lastText = (threadData?.lastMessageText || threadData?.lastMessagePreview || '').trim();
+      const lastDirection = (threadData?.lastMessageDirection || '').toLowerCase();
+      const lastAt = threadData?.lastMessageAt;
+      let lastMillis = null;
+      if (lastAt && typeof lastAt.toMillis === 'function') {
+        lastMillis = lastAt.toMillis();
+      } else if (lastAt?._seconds) {
+        lastMillis = lastAt._seconds * 1000;
+      }
+      if (lastMillis &&
+          lastText === text &&
+          (lastDirection === 'outbound' || lastDirection === 'out') &&
+          Date.now() - lastMillis < 2000) {
+        return res.status(200).json({
+          success: true,
+          requestId: 'dup_last_message',
+          duplicate: true,
+          message: 'Duplicate send suppressed (recent outbound)',
+        });
+      }
+    } catch (_) {
+      // Ignore duplicate guard errors
+    }
+
     // Check owner/co-writer policy
     let isOwner = false;
     let shouldSetOwner = false;
@@ -428,6 +453,32 @@ async function sendHandler(req, res) {
       transaction.set(outboxRef, outboxData);
     });
 
+    // Also persist outbound message to thread (so UI shows immediately)
+    // Use requestId so outbox worker can update status later.
+    if (!duplicate) {
+      const messageRef = threadRef.collection('messages').doc(requestId);
+      await messageRef.set({
+        accountId,
+        clientJid: toJid,
+        direction: 'outbound',
+        body: text,
+        status: 'queued',
+        tsClient: new Date().toISOString(),
+        tsServer: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        messageType: 'text',
+        clientMessageId,
+      }, { merge: true });
+
+      await threadRef.set({
+        lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastMessagePreview: text.substring(0, 100),
+        lastMessageText: text.substring(0, 100),
+        lastMessageDirection: 'outbound',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+
     // Return success response
     return res.status(200).json({
       success: true,
@@ -462,7 +513,7 @@ exports.sendHandler = sendHandler;
 /**
  * GET /whatsappProxyGetAccounts handler
  * 
- * Get list of WhatsApp accounts from Railway backend.
+ * Get list of WhatsApp accounts from backend.
  * SECURITY: Super-admin only (QR codes are sensitive).
  */
 async function getAccountsHandler(req, res) {
@@ -479,25 +530,25 @@ async function getAccountsHandler(req, res) {
       const isSuperAdmin = await requireSuperAdmin(req, res);
       if (!isSuperAdmin) return; // Response already sent (401/403)
 
-      // Lazy-load Railway base URL (computed at handler runtime, not module load time)
-      const railwayBaseUrl = getRailwayBaseUrl();
-      if (!railwayBaseUrl) {
-        console.error('[whatsappProxy/getAccounts] WHATSAPP_RAILWAY_BASE_URL missing');
-        console.error('[whatsappProxy/getAccounts] process.env.WHATSAPP_RAILWAY_BASE_URL:', process.env.WHATSAPP_RAILWAY_BASE_URL ? 'SET' : 'NOT SET');
+      // Lazy-load backend base URL (computed at handler runtime, not module load time)
+      const backendBaseUrl = getBackendBaseUrl();
+      if (!backendBaseUrl) {
+        console.error('[whatsappProxy/getAccounts] WHATSAPP_BACKEND_URL missing');
+        console.error('[whatsappProxy/getAccounts] process.env.WHATSAPP_BACKEND_URL:', process.env.WHATSAPP_BACKEND_URL ? 'SET' : 'NOT SET');
         return res.status(500).json({
           success: false,
           error: 'configuration_missing',
-          message: 'WHATSAPP_RAILWAY_BASE_URL must be set via environment variable or functions.config().whatsapp.railway_base_url',
+          message: 'WHATSAPP_BACKEND_URL must be set via environment variable or functions.config().whatsapp.backend_base_url',
         });
       }
       
-      console.log('[whatsappProxy/getAccounts] Railway URL:', railwayBaseUrl.substring(0, 30) + '...');
+      console.log('[whatsappProxy/getAccounts] Backend URL:', backendBaseUrl.substring(0, 30) + '...');
 
-      // Forward to Railway backend
-      const railwayUrl = `${railwayBaseUrl}/api/whatsapp/accounts`;
+      // Forward to backend
+      const backendUrl = `${backendBaseUrl}/api/whatsapp/accounts`;
       const correlationId = req.headers['x-correlation-id'] || req.headers['x-request-id'] || `getAccounts_${Date.now()}`;
-      console.log(`[whatsappProxy/getAccounts] Calling Railway: ${railwayUrl}, correlationId=${correlationId}`);
-      const response = await getForwardRequest()(railwayUrl, {
+      console.log(`[whatsappProxy/getAccounts] Calling backend: ${backendUrl}, correlationId=${correlationId}`);
+      const response = await getForwardRequest()(backendUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -505,7 +556,7 @@ async function getAccountsHandler(req, res) {
         },
       });
 
-      // Forward Railway response, propagate status codes and body
+      // Forward backend response, propagate status codes and body
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return res.status(response.statusCode).json(response.body);
       } else {
@@ -577,7 +628,7 @@ async function getAccountsHandler(req, res) {
 /**
  * POST /whatsappProxyAddAccount handler
  * 
- * Add a new WhatsApp account via Railway backend.
+ * Add a new WhatsApp account via backend.
  * Requires super-admin authentication.
  */
 async function addAccountHandler(req, res) {
@@ -594,13 +645,13 @@ async function addAccountHandler(req, res) {
       const isSuperAdmin = await requireSuperAdmin(req, res);
       if (!isSuperAdmin) return; // Response already sent (401/403)
 
-      // Lazy-load Railway base URL (computed at handler runtime, not module load time)
-      const railwayBaseUrl = getRailwayBaseUrl();
-      if (!railwayBaseUrl) {
+      // Lazy-load backend base URL (computed at handler runtime, not module load time)
+      const backendBaseUrl = getBackendBaseUrl();
+      if (!backendBaseUrl) {
         return res.status(500).json({
           success: false,
           error: 'configuration_missing',
-          message: 'WHATSAPP_RAILWAY_BASE_URL must be set via environment variable or functions.config().whatsapp.railway_base_url',
+          message: 'WHATSAPP_BACKEND_URL must be set via environment variable or functions.config().whatsapp.backend_base_url',
         });
       }
 
@@ -627,9 +678,9 @@ async function addAccountHandler(req, res) {
         });
       }
 
-      // Forward to Railway backend with normalized values
-      const railwayUrl = `${railwayBaseUrl}/api/whatsapp/add-account`;
-      const response = await getForwardRequest()(railwayUrl, {
+      // Forward to backend with normalized values
+      const backendUrl = `${backendBaseUrl}/api/whatsapp/add-account`;
+      const response = await getForwardRequest()(backendUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -639,7 +690,7 @@ async function addAccountHandler(req, res) {
         phone: phoneValidation.normalized,
       });
 
-      // Forward Railway response, but sanitize non-2xx errors
+      // Forward backend response, but sanitize non-2xx errors
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return res.status(response.statusCode).json(response.body);
       } else {
@@ -703,7 +754,7 @@ async function addAccountHandler(req, res) {
 /**
  * DELETE /whatsappProxyDeleteAccount handler
  * 
- * Delete a WhatsApp account via Railway backend.
+ * Delete a WhatsApp account via backend.
  * Requires super-admin authentication.
  */
 async function deleteAccountHandler(req, res) {
@@ -720,13 +771,13 @@ async function deleteAccountHandler(req, res) {
     const isSuperAdmin = await requireSuperAdmin(req, res);
     if (!isSuperAdmin) return; // Response already sent (401/403)
 
-    // Lazy-load Railway base URL
-    const railwayBaseUrl = getRailwayBaseUrl();
-    if (!railwayBaseUrl) {
+    // Lazy-load backend base URL
+    const backendBaseUrl = getBackendBaseUrl();
+    if (!backendBaseUrl) {
       return res.status(500).json({
         success: false,
         error: 'configuration_missing',
-        message: 'WHATSAPP_RAILWAY_BASE_URL must be set via environment variable or functions.config().whatsapp.railway_base_url',
+        message: 'WHATSAPP_BACKEND_URL must be set via environment variable or functions.config().whatsapp.backend_base_url',
       });
     }
 
@@ -740,16 +791,16 @@ async function deleteAccountHandler(req, res) {
       });
     }
 
-    // Forward to Railway backend
-    const railwayUrl = `${railwayBaseUrl}/api/whatsapp/accounts/${accountId.trim()}`;
-    const response = await getForwardRequest()(railwayUrl, {
+    // Forward to backend
+    const backendUrl = `${backendBaseUrl}/api/whatsapp/accounts/${accountId.trim()}`;
+    const response = await getForwardRequest()(backendUrl, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
       },
     });
 
-    // Forward Railway response, but sanitize non-2xx errors
+    // Forward backend response, but sanitize non-2xx errors
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return res.status(response.statusCode).json(response.body);
     } else {
@@ -772,7 +823,7 @@ async function deleteAccountHandler(req, res) {
 /**
  * POST /whatsappProxyBackfillAccount handler
  * 
- * Trigger backfill for a WhatsApp account via Railway backend.
+ * Trigger backfill for a WhatsApp account via backend.
  * Requires super-admin authentication.
  */
 async function backfillAccountHandler(req, res) {
@@ -789,13 +840,13 @@ async function backfillAccountHandler(req, res) {
     const isSuperAdmin = await requireSuperAdmin(req, res);
     if (!isSuperAdmin) return; // Response already sent (401/403)
 
-    // Lazy-load Railway base URL
-    const railwayBaseUrl = getRailwayBaseUrl();
-    if (!railwayBaseUrl) {
+    // Lazy-load backend base URL
+    const backendBaseUrl = getBackendBaseUrl();
+    if (!backendBaseUrl) {
       return res.status(500).json({
         success: false,
         error: 'configuration_missing',
-        message: 'WHATSAPP_RAILWAY_BASE_URL must be set via environment variable or functions.config().whatsapp.railway_base_url',
+        message: 'WHATSAPP_BACKEND_URL must be set via environment variable or functions.config().whatsapp.backend_base_url',
       });
     }
 
@@ -809,9 +860,9 @@ async function backfillAccountHandler(req, res) {
       });
     }
 
-    // Forward to Railway backend
-    const railwayUrl = `${railwayBaseUrl}/api/whatsapp/backfill/${accountId.trim()}`;
-    const response = await getForwardRequest()(railwayUrl, {
+    // Forward to backend
+    const backendUrl = `${backendBaseUrl}/api/whatsapp/backfill/${accountId.trim()}`;
+    const response = await getForwardRequest()(backendUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -819,7 +870,7 @@ async function backfillAccountHandler(req, res) {
       },
     });
 
-    // Forward Railway response, but sanitize non-2xx errors
+    // Forward backend response, but sanitize non-2xx errors
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return res.status(response.statusCode).json(response.body);
     } else {
@@ -903,7 +954,7 @@ exports.backfillAccountHandler = backfillAccountHandler;
 /**
  * POST /whatsappProxyRegenerateQr handler
  * 
- * Regenerate QR code for a WhatsApp account via Railway backend.
+ * Regenerate QR code for a WhatsApp account via backend.
  * Requires super-admin authentication.
  */
 async function regenerateQrHandler(req, res) {
@@ -920,13 +971,13 @@ async function regenerateQrHandler(req, res) {
       const isSuperAdmin = await requireSuperAdmin(req, res);
       if (!isSuperAdmin) return; // Response already sent (401/403)
 
-      // Lazy-load Railway base URL (computed at handler runtime, not module load time)
-      const railwayBaseUrl = getRailwayBaseUrl();
-      if (!railwayBaseUrl) {
+      // Lazy-load backend base URL (computed at handler runtime, not module load time)
+      const backendBaseUrl = getBackendBaseUrl();
+      if (!backendBaseUrl) {
         return res.status(500).json({
           success: false,
           error: 'configuration_missing',
-          message: 'WHATSAPP_RAILWAY_BASE_URL must be set via environment variable or functions.config().whatsapp.railway_base_url',
+          message: 'WHATSAPP_BACKEND_URL must be set via environment variable or functions.config().whatsapp.backend_base_url',
         });
       }
 
@@ -951,34 +1002,34 @@ async function regenerateQrHandler(req, res) {
       const userEmail = req.user?.email || '';
       const isSuperAdminDebug = isDebugMode && userEmail === SUPER_ADMIN_EMAIL;
       
-      // Forward to Railway backend
-      const railwayUrl = `${railwayBaseUrl}/api/whatsapp/regenerate-qr/${accountId.trim()}`;
-      console.log(`[whatsappProxy/regenerateQr] Calling Railway: ${railwayUrl}, requestId=${requestId}, correlationId=${correlationId}, debugMode=${isSuperAdminDebug}`);
+      // Forward to backend
+      const backendUrl = `${backendBaseUrl}/api/whatsapp/regenerate-qr/${accountId.trim()}`;
+      console.log(`[whatsappProxy/regenerateQr] Calling backend: ${backendUrl}, requestId=${requestId}, correlationId=${correlationId}, debugMode=${isSuperAdminDebug}`);
       
-      const response = await getForwardRequest()(railwayUrl, {
+      const response = await getForwardRequest()(backendUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Request-ID': requestId, // Forward requestId to Railway
+          'X-Request-ID': requestId, // Forward requestId to backend
           'X-Correlation-Id': correlationId, // Forward correlation ID for end-to-end tracing
         },
       });
 
-      // Extract short error ID from Railway response for correlation
+      // Extract short error ID from backend response for correlation
       const errorId = response.body?.error || response.body?.errorCode || 'unknown';
       const shortErrorId = typeof errorId === 'string' ? errorId.substring(0, 20) : 'unknown';
       
-      console.log(`[whatsappProxy/regenerateQr] Railway response: status=${response.statusCode}, errorId=${shortErrorId}, requestId=${requestId}, debugMode=${isSuperAdminDebug}`);
+      console.log(`[whatsappProxy/regenerateQr] Backend response: status=${response.statusCode}, errorId=${shortErrorId}, requestId=${requestId}, debugMode=${isSuperAdminDebug}`);
 
-      // Forward Railway response, but sanitize non-2xx errors
+      // Forward backend response, but sanitize non-2xx errors
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return res.status(response.statusCode).json({
           ...response.body,
           requestId: requestId, // Ensure requestId is in response
         });
       } else {
-        // CRITICAL: Log full Railway response body for non-2xx to diagnose root cause
-        // This is essential because proxy masks Railway errors as generic 500
+        // CRITICAL: Log full backend response body for non-2xx to diagnose root cause
+        // This is essential because proxy masks upstream errors as generic 500
         const railwayBody = response.body || {};
         const railwayBodyStr = typeof railwayBody === 'string' 
           ? railwayBody 
@@ -987,9 +1038,9 @@ async function regenerateQrHandler(req, res) {
           ? railwayBodyStr.substring(0, 500) + '...' 
           : railwayBodyStr;
         
-        console.error(`[whatsappProxy/regenerateQr] Railway error (non-2xx): status=${response.statusCode}, requestId=${requestId}`);
-        console.error(`[whatsappProxy/regenerateQr] Railway error body: ${railwayBodyPreview}`);
-        console.error(`[whatsappProxy/regenerateQr] Railway error details: error=${railwayBody.error || 'none'}, message=${railwayBody.message || 'none'}, status=${railwayBody.status || 'none'}, accountId=${railwayBody.accountId || 'none'}`);
+        console.error(`[whatsappProxy/regenerateQr] Backend error (non-2xx): status=${response.statusCode}, requestId=${requestId}`);
+        console.error(`[whatsappProxy/regenerateQr] Backend error body: ${railwayBodyPreview}`);
+        console.error(`[whatsappProxy/regenerateQr] Backend error details: error=${railwayBody.error || 'none'}, message=${railwayBody.message || 'none'}, status=${railwayBody.status || 'none'}, accountId=${railwayBody.accountId || 'none'}`);
         
         // Special handling for 503 (PASSIVE mode) - propagate error message with full details
         if (response.statusCode === 503) {
@@ -1029,7 +1080,7 @@ async function regenerateQrHandler(req, res) {
         }
         
         // For other 4xx/5xx errors, return structured error with requestId
-        // Include Railway error details for debugging (not just generic message)
+        // Include backend error details for debugging (not just generic message)
         const httpStatus = response.statusCode;
         // railwayBody already declared above, reuse it
         
@@ -1049,9 +1100,9 @@ async function regenerateQrHandler(req, res) {
           error: `UPSTREAM_HTTP_${httpStatus}`,
           message: railwayBody.message || `Backend service returned an error (status: ${httpStatus})`,
           requestId: requestId,
-          hint: `Check Railway logs for requestId: ${requestId}`,
+          hint: `Check backend logs for requestId: ${requestId}`,
           upstreamStatusCode: httpStatus,
-          // Include Railway error code and status for debugging (always logged server-side)
+          // Include backend error code and status for debugging (always logged server-side)
           // For debug mode, also include in response (only for super-admin in non-production)
           ...(response.body && typeof response.body === 'object' ? {
             backendError: response.body.error || response.body.errorCode,
