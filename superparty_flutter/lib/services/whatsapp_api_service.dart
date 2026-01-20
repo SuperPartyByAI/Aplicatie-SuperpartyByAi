@@ -474,19 +474,28 @@ class WhatsAppApiService {
 
       debugPrint('[WhatsAppApiService] getThreads: calling proxy (accountId=$accountId)');
 
-      // Call Functions proxy - need to create proxy function or call backend directly
-      // For now, call backend directly with token
-      final backendUrl = _requireBackendUrl();
-      final response = await http
-          .get(
-            Uri.parse('$backendUrl/api/whatsapp/threads/$accountId?limit=500&orderBy=lastMessageAt'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-              'X-Request-ID': requestId,
-            },
-          )
-          .timeout(requestTimeout);
+      final backendUrl = _getBackendUrl();
+      final response = backendUrl.isEmpty
+          ? await http
+              .get(
+                Uri.parse('$functionsUrl/whatsappProxyGetThreads?accountId=$accountId&limit=500'),
+                headers: {
+                  'Authorization': 'Bearer $token',
+                  'Content-Type': 'application/json',
+                  'X-Request-ID': requestId,
+                },
+              )
+              .timeout(requestTimeout)
+          : await http
+              .get(
+                Uri.parse('$backendUrl/api/whatsapp/threads/$accountId?limit=500&orderBy=lastMessageAt'),
+                headers: {
+                  'Authorization': 'Bearer $token',
+                  'Content-Type': 'application/json',
+                  'X-Request-ID': requestId,
+                },
+              )
+              .timeout(requestTimeout);
 
       debugPrint('[WhatsAppApiService] getThreads: status=${response.statusCode}');
 

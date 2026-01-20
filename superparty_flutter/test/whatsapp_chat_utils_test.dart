@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:superparty_flutter/screens/whatsapp/whatsapp_chat_screen.dart';
+import 'package:superparty_app/screens/whatsapp/whatsapp_chat_screen.dart';
 
 void main() {
   test('getDisplayInitial returns fallback for empty strings', () {

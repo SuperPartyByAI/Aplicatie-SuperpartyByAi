@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../services/whatsapp_api_service.dart';
 
@@ -43,15 +44,20 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   int _previousMessageCount = 0; // Track message count to detect new messages
   DateTime? _lastSendAt;
   String? _lastSentText;
-  int _sendCounter = 0;
   bool _initialScrollDone = false;
   bool _redirectChecked = false;
+  String? _threadClientJid;
+  String? _threadPhoneE164;
+  String? _threadDisplayName;
 
   String? get _accountId => widget.accountId ?? _extractFromQuery('accountId');
   String? get _threadId => widget.threadId ?? _extractFromQuery('threadId');
-  String? get _clientJid => widget.clientJid ?? _extractFromQuery('clientJid');
-  String? get _phoneE164 => widget.phoneE164 ?? _extractFromQuery('phoneE164');
-  String? get _displayName => _extractFromQuery('displayName');
+  String? get _clientJid =>
+      _threadClientJid ?? widget.clientJid ?? _extractFromQuery('clientJid');
+  String? get _phoneE164 =>
+      _threadPhoneE164 ?? widget.phoneE164 ?? _extractFromQuery('phoneE164');
+  String? get _displayName =>
+      _threadDisplayName ?? _extractFromQuery('displayName');
 
   String? _extractFromQuery(String param) {
     final uri = Uri.base;
@@ -93,6 +99,14 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       final clientJid = (data['clientJid'] as String? ?? '').trim();
       final isLid = clientJid.endsWith('@lid');
       final targetThreadId = redirectTo?.isNotEmpty == true ? redirectTo : canonicalThreadId;
+
+      if (mounted) {
+        setState(() {
+          _threadClientJid = clientJid.isNotEmpty ? clientJid : null;
+          _threadPhoneE164 = data['normalizedPhone'] as String?;
+          _threadDisplayName = data['displayName'] as String?;
+        });
+      }
 
       if ((isLid || redirectTo != null) && targetThreadId != null && targetThreadId != _threadId) {
         final targetDoc = await FirebaseFirestore.instance
@@ -141,9 +155,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       return;
     }
     
-    if (_accountId == null || _threadId == null || _clientJid == null) {
+    if (_accountId == null || _threadId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Missing required data: accountId=$_accountId, threadId=$_threadId, clientJid=$_clientJid')),
+        SnackBar(content: Text('Missing required data: accountId=$_accountId, threadId=$_threadId')),
       );
       return;
     }
@@ -154,15 +168,37 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     _lastSentText = text;
 
     try {
-      final now = DateTime.now();
-      final clientMessageId = 'client_${now.millisecondsSinceEpoch}_${_sendCounter++}';
+      if (_threadClientJid == null || _threadClientJid!.isEmpty) {
+        final refreshed = await FirebaseFirestore.instance
+            .collection('threads')
+            .doc(_threadId!)
+            .get();
+        final refreshedData = refreshed.data() ?? <String, dynamic>{};
+        final refreshedJid = (refreshedData['clientJid'] as String? ?? '').trim();
+        if (mounted) {
+          setState(() {
+            _threadClientJid = refreshedJid.isNotEmpty ? refreshedJid : null;
+          });
+        }
+      }
+
+      if (_threadClientJid == null || _threadClientJid!.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Missing canonical clientJid for thread')),
+        );
+        return;
+      }
+
+      const uuid = Uuid();
+      final clientMessageId = uuid.v4();
+      final toJid = _threadClientJid!;
       
-      debugPrint('[ChatScreen] Sending message: text=$text, accountId=$_accountId, threadId=$_threadId, clientJid=$_clientJid');
+      debugPrint('[ChatScreen] Sending message: text=$text, accountId=$_accountId, threadId=$_threadId, clientJid=$toJid');
       
       final result = await _apiService.sendViaProxy(
         threadId: _threadId!,
         accountId: _accountId!,
-        toJid: _clientJid!,
+        toJid: toJid,
         text: text,
         clientMessageId: clientMessageId,
       );
@@ -219,6 +255,13 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     return null;
   }
 
+  int _extractSortMillis(Map<String, dynamic> data) {
+    return _extractTsMillis(data['tsClient']) ??
+        _extractTsMillis(data['createdAt']) ??
+        _extractTsMillis(data['tsServer']) ??
+        0;
+  }
+
   List<QueryDocumentSnapshot> _dedupeMessageDocs(List<QueryDocumentSnapshot> docs) {
     final byKey = <String, QueryDocumentSnapshot>{};
     for (final doc in docs) {
@@ -257,7 +300,18 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       byKey[primaryKey] = doc;
       byKey.putIfAbsent(fallbackKey, () => doc);
     }
-    return byKey.values.toList();
+    final deduped = byKey.values.toList();
+    deduped.sort((a, b) {
+      final aData = a.data() as Map<String, dynamic>;
+      final bData = b.data() as Map<String, dynamic>;
+      final aSort = _extractSortMillis(aData);
+      final bSort = _extractSortMillis(bData);
+      if (aSort != bSort) {
+        return bSort.compareTo(aSort); // Descending (newest first)
+      }
+      return a.id.compareTo(b.id);
+    });
+    return deduped;
   }
 
   Future<void> _extractEvent() async {
@@ -538,7 +592,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                   .collection('threads')
                   .doc(_threadId!)
                   .collection('messages')
-                  .orderBy('tsClient', descending: true)
+                  .orderBy('createdAt', descending: true)
                   .limit(500)
                   .snapshots(),
               builder: (context, snapshot) {

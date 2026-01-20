@@ -75,6 +75,17 @@ class WhatsAppBackendDiagnosticsService {
   Future<BackendDiagnostics> checkReady() async {
     try {
       final backendUrl = _getBackendUrl();
+      if (backendUrl.isEmpty) {
+        if (kDebugMode) {
+          debugPrint('[BackendDiagnostics] Skipped: WHATSAPP_BACKEND_URL not set');
+        }
+        return BackendDiagnostics(
+          ready: false,
+          mode: 'unknown',
+          reason: 'backend_url_missing',
+          error: 'WHATSAPP_BACKEND_URL not configured',
+        );
+      }
       final readyUrl = '$backendUrl/ready';
 
       if (kDebugMode) {
