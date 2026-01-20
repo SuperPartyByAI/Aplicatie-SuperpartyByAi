@@ -15,6 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
+const { normalizeJidToE164, resolveDisplayName } = require('./lib/phone-utils');
 
 // Initialize Sentry
 const { Sentry, logger } = require('./sentry');
@@ -271,6 +272,10 @@ if (!admin.apps.length) {
 }
 
 const db = firestoreAvailable ? admin.firestore() : null;
+if (db) {
+  // Avoid failing writes when optional fields are undefined
+  db.settings({ ignoreUndefinedProperties: true });
+}
 
 // CORS configuration
 app.use(
@@ -748,6 +753,7 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
     const messageData = {
       accountId,
       clientJid: from,
+      senderJid: msg.key.participant || msg.key.remoteJid,
       direction: isFromMe ? 'outbound' : 'inbound',
       body: body.substring(0, 10000), // Limit body size (Firestore limit)
       waMessageId: messageId,
@@ -803,13 +809,29 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
     } else {
       // 📇 Try to find contact name from saved contacts
       try {
-        const contactRef = db.collection('contacts').doc(`${accountId}__${from}`);
-        const contactDoc = await contactRef.get();
-        if (contactDoc.exists) {
-          const contactData = contactDoc.data();
-          threadData.displayName = contactData.name || contactData.notify || contactData.verifiedName || null;
+        const mappingRef = db
+          .collection('contacts')
+          .doc(accountId)
+          .collection('items')
+          .doc(from);
+        const mappingDoc = await mappingRef.get();
+        if (mappingDoc.exists) {
+          const contactData = mappingDoc.data();
+          threadData.displayName =
+            contactData.displayName || contactData.notify || contactData.verifiedName || null;
           if (threadData.displayName) {
             console.log(`📇 [${accountId}] Found contact name from Firestore: ${threadData.displayName}`);
+          }
+        } else {
+          const contactRef = db.collection('contacts').doc(`${accountId}__${from}`);
+          const contactDoc = await contactRef.get();
+          if (contactDoc.exists) {
+            const contactData = contactDoc.data();
+            threadData.displayName =
+              contactData.name || contactData.notify || contactData.verifiedName || null;
+            if (threadData.displayName) {
+              console.log(`📇 [${accountId}] Found contact name from Firestore: ${threadData.displayName}`);
+            }
           }
         }
       } catch (e) {
@@ -943,6 +965,7 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
         const messageData = {
           accountId,
           clientJid: from,
+          senderJid: msg.key?.participant || msg.key?.remoteJid || from,
           direction: isFromMe ? 'outbound' : 'inbound',
           body: body.substring(0, 10000),
           waMessageId: messageId,
@@ -976,11 +999,15 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
         batchOps++;
 
         // Track thread update (will apply after message batch)
+        const msgTime = convertLongToNumber(msg.messageTimestamp);
         if (!threadUpdates.has(threadId)) {
           threadUpdates.set(threadId, {
             accountId,
             clientJid: from,
             lastMessagePreview: body.substring(0, 100),
+            lastMessageText: body.substring(0, 100),
+            lastMessageDirection: msg.key?.fromMe ? 'outbound' : 'inbound',
+            lastMessageTimestamp: msgTime || 0,
           });
           if (msg.pushName) {
             threadUpdates.get(threadId).displayName = msg.pushName;
@@ -988,12 +1015,12 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
         } else {
           // Update preview if this message is more recent
           const existing = threadUpdates.get(threadId);
-          // Convert Long to Number for Firestore compatibility
-          const msgTime = convertLongToNumber(msg.messageTimestamp);
           const existingTime = convertLongToNumber(existing.lastMessageTimestamp);
           if (msgTime > existingTime) {
             existing.lastMessagePreview = body.substring(0, 100);
-            existing.lastMessageTimestamp = msgTime; // Now it's a Number, not Long
+            existing.lastMessageText = body.substring(0, 100);
+            existing.lastMessageDirection = msg.key?.fromMe ? 'outbound' : 'inbound';
+            existing.lastMessageTimestamp = msgTime;
           }
         }
       } catch (error) {
@@ -1017,7 +1044,13 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
     if (threadUpdates.size > 0) {
       const threadBatch = db.batch();
       for (const [threadId, threadData] of threadUpdates.entries()) {
-        threadData.lastMessageAt = admin.firestore.FieldValue.serverTimestamp();
+        if (threadData.lastMessageTimestamp && threadData.lastMessageTimestamp > 0) {
+          threadData.lastMessageAt = admin.firestore.Timestamp.fromMillis(
+            threadData.lastMessageTimestamp * 1000
+          );
+        } else {
+          threadData.lastMessageAt = admin.firestore.FieldValue.serverTimestamp();
+        }
         const threadRef = db.collection('threads').doc(threadId);
         threadBatch.set(threadRef, threadData, { merge: true });
       }
@@ -1038,6 +1071,78 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
 }
 
 // Helper: Save contacts to Firestore
+async function saveContactMappings(accountId, contacts, source = 'contacts') {
+  if (!firestoreAvailable || !db) {
+    return { saved: 0, errors: 0 };
+  }
+
+  let contactsList = [];
+  if (Array.isArray(contacts)) {
+    contactsList = contacts;
+  } else if (typeof contacts === 'object' && contacts) {
+    contactsList = Object.values(contacts);
+  }
+
+  if (contactsList.length === 0) {
+    return { saved: 0, errors: 0 };
+  }
+
+  console.log(`📇 [${accountId}] Saving ${contactsList.length} contact mappings (${source})...`);
+
+  const BATCH_SIZE = 500;
+  let saved = 0;
+  let errors = 0;
+
+  for (let i = 0; i < contactsList.length; i += BATCH_SIZE) {
+    const batch = db.batch();
+    const batchContacts = contactsList.slice(i, i + BATCH_SIZE);
+
+    for (const contact of batchContacts) {
+      try {
+        const jid = contact?.id || contact?.jid;
+        if (!jid) continue;
+
+        const displayName = resolveDisplayName(contact);
+        const normalizedPhone = normalizeJidToE164(jid).normalizedPhone;
+
+        const contactRef = db
+          .collection('contacts')
+          .doc(accountId)
+          .collection('items')
+          .doc(jid);
+
+        batch.set(
+          contactRef,
+          {
+            displayName,
+            notify: contact.notify || null,
+            verifiedName: contact.verifiedName || null,
+            normalizedPhone: normalizedPhone || null,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        saved++;
+      } catch (error) {
+        console.error(`❌ [${accountId}] Failed to add contact mapping:`, error.message);
+        errors++;
+      }
+    }
+
+    try {
+      await batch.commit();
+      console.log(`📇 [${accountId}] Contact mappings committed: ${saved}/${contactsList.length}`);
+    } catch (error) {
+      console.error(`❌ [${accountId}] Failed to commit contact mappings:`, error.message);
+      errors += batchContacts.length;
+    }
+  }
+
+  return { saved, errors };
+}
+
+// Helper: Save contacts to Firestore (legacy + mapping)
 async function saveContactsBatch(accountId, contacts) {
   if (!firestoreAvailable || !db) {
     return { saved: 0, errors: 0 };
@@ -1074,16 +1179,37 @@ async function saveContactsBatch(accountId, contacts) {
         if (!contact.id) continue;
 
         const contactRef = db.collection('contacts').doc(`${accountId}__${contact.id}`);
-        batch.set(contactRef, {
-          accountId,
-          jid: contact.id,
-          name: contact.name || contact.notify || null,
-          notify: contact.notify || null,
-          verifiedName: contact.verifiedName || null,
-          imgUrl: contact.imgUrl || null,
-          status: contact.status || null,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
+        batch.set(
+          contactRef,
+          {
+            accountId,
+            jid: contact.id,
+            name: contact.name || contact.notify || null,
+            notify: contact.notify || null,
+            verifiedName: contact.verifiedName || null,
+            imgUrl: contact.imgUrl || null,
+            status: contact.status || null,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        const mappingRef = db
+          .collection('contacts')
+          .doc(accountId)
+          .collection('items')
+          .doc(contact.id);
+        batch.set(
+          mappingRef,
+          {
+            displayName: resolveDisplayName(contact),
+            notify: contact.notify || null,
+            verifiedName: contact.verifiedName || null,
+            normalizedPhone: normalizeJidToE164(contact.id).normalizedPhone || null,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
 
         saved++;
       } catch (error) {
@@ -2425,6 +2551,30 @@ async function createConnection(accountId, name, phone) {
       }
     });
 
+    sock.ev.on('contacts.upsert', async contacts => {
+      try {
+        await saveContactMappings(accountId, contacts, 'contacts.upsert');
+      } catch (error) {
+        console.error(`❌ [${accountId}] contacts.upsert error:`, error.message);
+      }
+    });
+
+    sock.ev.on('chats.upsert', async chats => {
+      try {
+        const chatContacts = Array.isArray(chats)
+          ? chats.map(chat => ({
+              id: chat.id,
+              name: chat.name || chat.subject || chat.displayName || null,
+              notify: chat.notify || null,
+              verifiedName: chat.verifiedName || null,
+            }))
+          : [];
+        await saveContactMappings(accountId, chatContacts, 'chats.upsert');
+      } catch (error) {
+        console.error(`❌ [${accountId}] chats.upsert error:`, error.message);
+      }
+    });
+
     // Messages handler
     sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
       try {
@@ -3483,6 +3633,72 @@ app.post('/admin/delete-all-accounts', async (req, res) => {
   }
 });
 
+// Admin-only: Search contact mappings for an account (debug)
+app.get('/api/admin/accounts/:id/contacts/search', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    const accountId = req.params.id;
+    const q = (req.query.q || '').toString().trim();
+    if (!q) {
+      return res.status(400).json({ success: false, error: 'q is required' });
+    }
+
+    const contactsRef = db.collection('contacts').doc(accountId).collection('items');
+    const normalizedQuery = normalizeJidToE164(q).normalizedPhone;
+
+    let results = [];
+    if (normalizedQuery) {
+      const byPhone = await contactsRef.where('normalizedPhone', '==', normalizedQuery).limit(50).get();
+      results = byPhone.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }
+
+    if (results.length === 0) {
+      const snapshot = await contactsRef.limit(200).get();
+      const lower = q.toLowerCase();
+      results = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(item => {
+          const haystack = [
+            item.displayName,
+            item.notify,
+            item.verifiedName,
+            item.normalizedPhone,
+            item.id,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          return haystack.includes(lower);
+        });
+    }
+
+    return res.json({
+      success: true,
+      accountId,
+      q,
+      normalizedQuery,
+      count: results.length,
+      results,
+    });
+  } catch (error) {
+    console.error('❌ Contact search failed:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Admin-only: Update all thread displayNames from contacts collection
 app.post('/admin/update-display-names', async (req, res) => {
   try {
@@ -3529,13 +3745,26 @@ app.post('/admin/update-display-names', async (req, res) => {
       processed++;
 
       try {
-        // Look up contact
-        const contactRef = db.collection('contacts').doc(`${accountId}__${clientJid}`);
-        const contactDoc = await contactRef.get();
+        const mappingRef = db
+          .collection('contacts')
+          .doc(accountId)
+          .collection('items')
+          .doc(clientJid);
+        const mappingDoc = await mappingRef.get();
+        let contactData = null;
+        if (mappingDoc.exists) {
+          contactData = mappingDoc.data();
+        } else {
+          const contactRef = db.collection('contacts').doc(`${accountId}__${clientJid}`);
+          const contactDoc = await contactRef.get();
+          if (contactDoc.exists) {
+            contactData = contactDoc.data();
+          }
+        }
 
-        if (contactDoc.exists) {
-          const contactData = contactDoc.data();
-          const newDisplayName = contactData.name || contactData.notify || contactData.verifiedName || null;
+        if (contactData) {
+          const newDisplayName =
+            contactData.displayName || contactData.name || contactData.notify || contactData.verifiedName || null;
 
           if (newDisplayName && newDisplayName !== threadData.displayName) {
             console.log(`✅ [${accountId}] Update thread ${clientJid.substring(0, 20)}: "${threadData.displayName}" -> "${newDisplayName}"`);
@@ -3999,6 +4228,20 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
               name: contactName,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             }, { merge: true });
+
+            await db
+              .collection('contacts')
+              .doc(accountId)
+              .collection('items')
+              .doc(clientJid)
+              .set(
+                {
+                  displayName: contactName,
+                  normalizedPhone: normalizeJidToE164(clientJid).normalizedPhone || null,
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
           }
 
           updated++;
@@ -4132,7 +4375,7 @@ const aiLimiter = rateLimit({
 });
 
 // Helper: Save message to Firestore (permanent storage)
-async function saveMessageToFirestore(phoneNumber, role, content, metadata = {}) {
+async function saveAiMessageToFirestore(phoneNumber, role, content, metadata = {}) {
   if (!db) {
     console.warn('Firestore not available, skipping message save');
     return;
@@ -4322,7 +4565,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       console.log(`[${requestId}] Loaded ${conversationHistory.length} messages from history`);
 
       // Save user message to Firestore
-      await saveMessageToFirestore(phoneNumber, 'user', userMessage.content);
+      await saveAiMessageToFirestore(phoneNumber, 'user', userMessage.content);
     }
 
     // Build context: history + current messages
@@ -4343,7 +4586,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
 
     // Save AI response to Firestore
     if (phoneNumber) {
-      await saveMessageToFirestore(phoneNumber, 'assistant', message, {
+      await saveAiMessageToFirestore(phoneNumber, 'assistant', message, {
         model: response.model || 'llama-3.1-70b-versatile',
         tokensUsed,
       });
@@ -5868,7 +6111,8 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
     try { fs.appendFileSync(logPath, logEntry2); } catch (e) {}
     // #endregion
 
-    res.json({ success: true, threads, count: threads.length });
+    const enrichedThreads = await attachThreadInfo(accountId, threads);
+    res.json({ success: true, threads: enrichedThreads, count: enrichedThreads.length });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -5968,6 +6212,91 @@ app.get('/api/whatsapp/inbox/:accountId', async (req, res) => {
 });
 
 // Get messages for a specific thread
+async function attachSenderInfo(accountId, messages) {
+  if (!firestoreAvailable || !db || !messages?.length) {
+    return messages;
+  }
+
+  const jids = new Set();
+  for (const msg of messages) {
+    const jid = msg.senderJid || msg.participant || msg.clientJid || msg.remoteJid;
+    if (jid) jids.add(jid);
+  }
+
+  if (jids.size === 0) {
+    return messages;
+  }
+
+  const refs = Array.from(jids).map(jid =>
+    db.collection('contacts').doc(accountId).collection('items').doc(jid)
+  );
+
+  const docs = await db.getAll(...refs);
+  const contactMap = new Map();
+  docs.forEach(doc => {
+    if (doc.exists) {
+      contactMap.set(doc.id, doc.data());
+    }
+  });
+
+  return messages.map(msg => {
+    const senderJid = msg.senderJid || msg.participant || msg.clientJid || msg.remoteJid;
+    const contact = senderJid ? contactMap.get(senderJid) : null;
+    const fallbackPhone = senderJid ? normalizeJidToE164(senderJid).normalizedPhone : null;
+    return {
+      ...msg,
+      senderDisplayName:
+        contact?.displayName || contact?.notify || contact?.verifiedName || null,
+      senderPhoneE164: contact?.normalizedPhone || fallbackPhone || null,
+    };
+  });
+}
+
+async function attachThreadInfo(accountId, threads) {
+  if (!firestoreAvailable || !db || !threads?.length) {
+    return threads;
+  }
+
+  const jids = new Set();
+  for (const thread of threads) {
+    if (thread.clientJid) jids.add(thread.clientJid);
+  }
+
+  if (jids.size === 0) {
+    return threads;
+  }
+
+  const refs = Array.from(jids).map(jid =>
+    db.collection('contacts').doc(accountId).collection('items').doc(jid)
+  );
+  const docs = await db.getAll(...refs);
+  const contactMap = new Map();
+  docs.forEach(doc => {
+    if (doc.exists) {
+      contactMap.set(doc.id, doc.data());
+    }
+  });
+
+  return threads.map(thread => {
+    const contact = thread.clientJid ? contactMap.get(thread.clientJid) : null;
+    const normalizedPhone =
+      contact?.normalizedPhone || normalizeJidToE164(thread.clientJid).normalizedPhone || null;
+    const displayName =
+      thread.displayName ||
+      contact?.displayName ||
+      contact?.notify ||
+      contact?.verifiedName ||
+      null;
+
+    return {
+      ...thread,
+      rawJid: thread.clientJid || null,
+      normalizedPhone,
+      displayName,
+    };
+  });
+}
+
 app.get('/api/whatsapp/messages/:accountId/:threadId', async (req, res) => {
   try {
     const { accountId, threadId } = req.params;
@@ -6001,10 +6330,11 @@ app.get('/api/whatsapp/messages/:accountId/:threadId', async (req, res) => {
     }
 
     const messagesSnapshot = await messagesQuery.limit(parseInt(limit)).get();
-    const messages = messagesSnapshot.docs.map(doc => ({
+    let messages = messagesSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     }));
+    messages = await attachSenderInfo(accountId, messages);
 
     res.json({
       success: true,
@@ -6044,10 +6374,11 @@ app.get('/api/whatsapp/messages', async (req, res) => {
         .limit(parseInt(limit))
         .get();
 
-      const messages = messagesSnapshot.docs.map(doc => ({
+      let messages = messagesSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
       }));
+      messages = await attachSenderInfo(accountId, messages);
 
       return res.json({
         success: true,
@@ -6074,10 +6405,11 @@ app.get('/api/whatsapp/messages', async (req, res) => {
         .limit(10)
         .get();
 
-      const messages = messagesSnapshot.docs.map(doc => ({
+      let messages = messagesSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
       }));
+      messages = await attachSenderInfo(accountId, messages);
 
       threads.push({
         id: threadDoc.id,
