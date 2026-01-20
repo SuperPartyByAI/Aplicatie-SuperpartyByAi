@@ -849,6 +849,8 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
           } else if (contact?.jid && contact.jid !== from) {
             // Sometimes onWhatsApp returns the real JID
             threadData.displayName = contact.jid.split('@')[0];
+            threadData.resolvedJid = contact.jid;
+            threadData.normalizedPhone = normalizeJidToE164(contact.jid).normalizedPhone || null;
             console.log(`✅ [${accountId}] Using JID as display name: ${contact.jid}`);
           }
         } catch (e) {
@@ -6356,8 +6358,12 @@ async function attachThreadInfo(accountId, threads) {
 
   return threads.map(thread => {
     const contact = thread.clientJid ? contactMap.get(thread.clientJid) : null;
+    const resolvedJid = thread.resolvedJid || null;
     const normalizedPhone =
-      contact?.normalizedPhone || normalizeJidToE164(thread.clientJid).normalizedPhone || null;
+      thread.normalizedPhone ||
+      contact?.normalizedPhone ||
+      normalizeJidToE164(resolvedJid || thread.clientJid).normalizedPhone ||
+      null;
     const displayName =
       thread.displayName ||
       contact?.displayName ||
@@ -6368,6 +6374,7 @@ async function attachThreadInfo(accountId, threads) {
     return {
       ...thread,
       rawJid: thread.clientJid || null,
+      resolvedJid,
       normalizedPhone,
       displayName,
     };
@@ -6402,7 +6409,7 @@ function dedupeThreads(threads) {
 
     const key =
       normalizedPhone ||
-      (!isLid ? normalizeJidToE164(clientJid).normalizedPhone : null) ||
+      normalizeJidToE164(thread?.resolvedJid || clientJid).normalizedPhone ||
       clientJid;
 
     const existing = byKey.get(key);
