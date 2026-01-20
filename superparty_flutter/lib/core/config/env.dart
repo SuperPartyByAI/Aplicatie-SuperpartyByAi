@@ -44,7 +44,7 @@ class Env {
   );
 
   static const String _defaultWhatsAppBackendUrl =
-      'https://whats-upp-production.up.railway.app';
+      'http://37.27.34.179:8080';
 
   /// Base URL for Railway `whatsapp-backend`.
   ///

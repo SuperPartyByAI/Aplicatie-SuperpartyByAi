@@ -467,7 +467,7 @@ class WhatsAppApiService {
       final backendUrl = _getBackendUrl();
       final response = await http
           .get(
-            Uri.parse('$backendUrl/api/whatsapp/threads/$accountId'),
+            Uri.parse('$backendUrl/api/whatsapp/threads/$accountId?limit=500&orderBy=lastMessageAt'),
             headers: {
               'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
