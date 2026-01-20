@@ -870,24 +870,48 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
     const sanitizedData = JSON.parse(JSON.stringify(messageData, (key, value) => {
       return value === undefined ? null : value;
     }));
-    
-    await messageRef.set(sanitizedData, { merge: true });
+
+    let finalMessageRef = messageRef;
+    let finalThreadId = messageRef.parent.parent?.id || threadId;
+
     if (firestoreAvailable && db) {
       const mappingId = `${accountId}__${messageId}`;
       const mappingTtl = admin.firestore.Timestamp.fromMillis(
         Date.now() + 30 * 24 * 60 * 60 * 1000
       );
-      await db.collection('message_ids').doc(mappingId).set(
-        {
-          accountId,
-          threadId: messageRef.parent.parent?.id || threadId,
-          docId: messageRef.id,
-          waMessageId: messageId,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          expiresAt: mappingTtl,
-        },
-        { merge: true }
-      );
+
+      await db.runTransaction(async (transaction) => {
+        const mappingRef = db.collection('message_ids').doc(mappingId);
+        const mappingSnap = await transaction.get(mappingRef);
+        if (mappingSnap.exists) {
+          const mappingData = mappingSnap.data() || {};
+          if (mappingData.threadId && mappingData.docId) {
+            finalMessageRef = db
+              .collection('threads')
+              .doc(mappingData.threadId)
+              .collection('messages')
+              .doc(mappingData.docId);
+            finalThreadId = mappingData.threadId;
+          }
+        }
+
+        transaction.set(finalMessageRef, sanitizedData, { merge: true });
+        transaction.set(
+          mappingRef,
+          {
+            accountId,
+            threadId: finalThreadId,
+            docId: finalMessageRef.id,
+            waMessageId: messageId,
+            requestId: isFromMe ? finalMessageRef.id : null,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            expiresAt: mappingTtl,
+          },
+          { merge: true }
+        );
+      });
+    } else {
+      await finalMessageRef.set(sanitizedData, { merge: true });
     }
 
     // Update thread metadata
@@ -897,7 +921,7 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       rawJid,
       resolvedJid: canonicalJid !== rawJid ? canonicalJid : null,
       normalizedPhone: normalizedPhone || null,
-      canonicalThreadId: threadId,
+      canonicalThreadId: finalThreadId,
       isLidThread,
       lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
       lastMessageAtMs: messageTimestampMs,
@@ -963,11 +987,11 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       // If still no displayName, leave it empty - Flutter will show formatted phone
     }
 
-    await db.collection('threads').doc(threadId).set(threadData, { merge: true });
+    await db.collection('threads').doc(finalThreadId).set(threadData, { merge: true });
 
     // Return full data including body for FCM notifications
     return { 
-      threadId, 
+      threadId: finalThreadId, 
       messageId,
       messageBody: body, // Add body for FCM notifications
       displayName: msg.pushName || null,
@@ -1022,6 +1046,13 @@ async function saveMessagesBatch(accountId, messages, source = 'history', sock =
     let batchOps = 0;
 
     const threadUpdates = new Map(); // Track thread updates per threadId
+    const mappingRefs = batchMessages
+      .filter(msg => msg?.key?.id)
+      .map(msg => db.collection('message_ids').doc(`${accountId}__${msg.key.id}`));
+    const mappingSnaps = mappingRefs.length > 0 ? await db.getAll(...mappingRefs) : [];
+    const existingMappings = new Set(
+      mappingSnaps.filter(snap => snap.exists).map(snap => snap.id)
+    );
 
     for (const msg of batchMessages) {
       try {
@@ -1031,6 +1062,11 @@ async function saveMessagesBatch(accountId, messages, source = 'history', sock =
         }
 
         const messageId = msg.key.id;
+        const mappingId = `${accountId}__${messageId}`;
+        if (existingMappings.has(mappingId)) {
+          skipped++;
+          continue;
+        }
         const from = msg.key.remoteJid;
         const { canonicalJid, rawJid } = await resolveCanonicalJid(sock, from);
         const { normalizedPhone } = normalizeJidToE164(canonicalJid);
@@ -1105,6 +1141,23 @@ async function saveMessagesBatch(accountId, messages, source = 'history', sock =
         const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
         batch.set(messageRef, messageData, { merge: true });
         batchOps++;
+
+        const mappingTtl = admin.firestore.Timestamp.fromMillis(
+          Date.now() + 30 * 24 * 60 * 60 * 1000
+        );
+        const mappingRef = db.collection('message_ids').doc(mappingId);
+        batch.set(
+          mappingRef,
+          {
+            accountId,
+            threadId,
+            docId: messageRef.id,
+            waMessageId: messageId,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            expiresAt: mappingTtl,
+          },
+          { merge: true }
+        );
 
         // Track thread update (will apply after message batch)
         const msgTime = convertLongToNumber(msg.messageTimestamp);
@@ -9272,6 +9325,8 @@ app.listen(PORT, '0.0.0.0', async () => {
                 threadId,
                 docId: requestId,
                 waMessageId,
+              requestId,
+              clientMessageId: data?.clientMessageId || requestId,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 expiresAt: mappingTtl,
               },
