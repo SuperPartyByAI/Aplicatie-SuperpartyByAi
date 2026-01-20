@@ -123,16 +123,31 @@ async function processOutboxHandler(event) {
 
   console.log(`[processOutbox] Processing outbox doc: ${requestId}, status=${outboxDoc.status}`);
 
-  // Only process queued messages
-  if (outboxDoc.status !== 'queued') {
-    console.log(`[processOutbox] Skipping doc with status=${outboxDoc.status}`);
-    return;
-  }
-
   const db = admin.firestore();
   const outboxRef = db.collection('outbox').doc(requestId);
 
   try {
+    // Acquire single-processing lock: transition queued -> sending atomically
+    const claimed = await db.runTransaction(async tx => {
+      const doc = await tx.get(outboxRef);
+      if (!doc.exists) return null;
+      const data = doc.data();
+      if (!data || data.status !== 'queued') {
+        return null;
+      }
+      tx.update(outboxRef, {
+        status: 'sending',
+        attemptCount: admin.firestore.FieldValue.increment(1),
+        lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return data;
+    });
+
+    if (!claimed) {
+      console.log(`[processOutbox] Skipping doc (already processed): ${requestId}`);
+      return;
+    }
+
     // Get backend URL
     const backendBaseUrl = getBackendBaseUrl();
     if (!backendBaseUrl) {
@@ -140,20 +155,13 @@ async function processOutboxHandler(event) {
     }
 
     // Extract message data
-    const { threadId, accountId, toJid, body, payload } = outboxDoc;
+    const { threadId, accountId, toJid, body, payload } = claimed;
 
     if (!threadId || !accountId || !toJid || !body) {
       throw new Error('Missing required fields in outbox document');
     }
 
     console.log(`[processOutbox] Sending message: threadId=${threadId}, accountId=${accountId}, toJid=${toJid}`);
-
-    // Update status to 'sending'
-    await outboxRef.update({
-      status: 'sending',
-      attemptCount: admin.firestore.FieldValue.increment(1),
-      lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
 
     // Send message to backend
     const backendUrl = `${backendBaseUrl}/api/whatsapp/send-message`;
