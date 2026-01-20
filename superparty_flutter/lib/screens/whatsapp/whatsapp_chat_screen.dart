@@ -267,6 +267,16 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
   List<QueryDocumentSnapshot> _dedupeMessageDocs(List<QueryDocumentSnapshot> docs) {
     final byKey = <String, QueryDocumentSnapshot>{};
+    int scoreDoc(QueryDocumentSnapshot doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      int score = 0;
+      if ((data['waMessageId'] as String?)?.isNotEmpty == true) score += 3;
+      final status = data['status'] as String? ?? '';
+      if (status == 'sent' || status == 'delivered' || status == 'read') score += 2;
+      if (data['createdAtMs'] is int) score += 1;
+      if ((data['clientMessageId'] as String?)?.isNotEmpty == true) score += 1;
+      return score;
+    }
     for (final doc in docs) {
       final data = doc.data() as Map<String, dynamic>;
       final waMessageId = data['waMessageId'] as String?;
@@ -282,6 +292,10 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
           : (clientMessageId?.isNotEmpty == true ? 'client:$clientMessageId' : fallbackKey);
 
       if (byKey.containsKey(primaryKey)) {
+        final existing = byKey[primaryKey]!;
+        if (scoreDoc(doc) > scoreDoc(existing)) {
+          byKey[primaryKey] = doc;
+        }
         continue;
       }
 

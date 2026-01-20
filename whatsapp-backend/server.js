@@ -832,15 +832,33 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
               .doc(mappingData.docId);
           }
         } else if (isFromMe) {
-          const existingSnapshot = await db
-            .collection('threads')
-            .doc(threadId)
-            .collection('messages')
-            .where('waMessageId', '==', messageId)
+          // Prefer queued/outbox placeholder if we can map waMessageId -> requestId
+          const outboxSnapshot = await db
+            .collection('outbox')
+            .where('accountId', '==', accountId)
+            .where('providerMessageId', '==', messageId)
             .limit(1)
             .get();
-          if (!existingSnapshot.empty) {
-            messageRef = existingSnapshot.docs[0].ref;
+          if (!outboxSnapshot.empty) {
+            const outboxDoc = outboxSnapshot.docs[0];
+            const outboxData = outboxDoc.data() || {};
+            const outboxThreadId = outboxData.threadId || threadId;
+            messageRef = db
+              .collection('threads')
+              .doc(outboxThreadId)
+              .collection('messages')
+              .doc(outboxDoc.id);
+          } else {
+            const existingSnapshot = await db
+              .collection('threads')
+              .doc(threadId)
+              .collection('messages')
+              .where('waMessageId', '==', messageId)
+              .limit(1)
+              .get();
+            if (!existingSnapshot.empty) {
+              messageRef = existingSnapshot.docs[0].ref;
+            }
           }
         }
       } catch (e) {
@@ -9200,6 +9218,7 @@ app.listen(PORT, '0.0.0.0', async () => {
             const waMessageId = result.key.id;
             const { canonicalJid } = await resolveCanonicalJid(account?.sock, toJid);
             const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(requestId);
+            const messageTimestampMs = Date.now();
 
             await messageRef.set(
               {
@@ -9217,6 +9236,7 @@ app.listen(PORT, '0.0.0.0', async () => {
                 tsClient: new Date().toISOString(),
                 tsServer: admin.firestore.FieldValue.serverTimestamp(),
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                createdAtMs: messageTimestampMs,
                 messageType: 'text',
                 clientMessageId: data?.clientMessageId || requestId,
                 lastError: null,
@@ -9236,6 +9256,7 @@ app.listen(PORT, '0.0.0.0', async () => {
                 canonicalThreadId: threadId,
                 isLidThread: toJid.endsWith('@lid'),
                 lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+                lastMessageAtMs: messageTimestampMs,
                 lastMessagePreview: (body || '').substring(0, 100),
               },
               { merge: true }
