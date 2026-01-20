@@ -869,6 +869,64 @@ async function backfillAccountHandler(req, res) {
   }
 }
 
+/**
+ * GET /whatsappProxyGetThreads handler
+ *
+ * Returns threads directly from Firestore (no backend base URL required).
+ * SECURITY: Employee-only.
+ */
+async function getThreadsHandler(req, res) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({
+      success: false,
+      error: 'method_not_allowed',
+      message: 'Only GET method is allowed',
+    });
+  }
+
+  try {
+    const employeeInfo = await requireEmployee(req, res);
+    if (!employeeInfo) return;
+
+    const accountId = (req.query.accountId || '').toString().trim();
+    const limit = Math.min(parseInt(req.query.limit || '500', 10) || 500, 500);
+
+    if (!accountId) {
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_request',
+        message: 'Missing required query param: accountId',
+      });
+    }
+
+    const db = admin.firestore();
+    const snapshot = await db
+      .collection('threads')
+      .where('accountId', '==', accountId)
+      .orderBy('lastMessageAt', 'desc')
+      .limit(limit)
+      .get();
+
+    const threads = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return res.status(200).json({
+      success: true,
+      threads,
+      count: threads.length,
+    });
+  } catch (error) {
+    console.error('[whatsappProxy/getThreads] Error:', error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'internal_error',
+      message: 'Internal server error',
+    });
+  }
+}
+
 // Export handlers for use in index.js
 exports.getAccounts = onRequest(
   {
@@ -881,6 +939,17 @@ exports.getAccounts = onRequest(
 
 // Export handler for testing
 exports.getAccountsHandler = getAccountsHandler;
+
+exports.getThreads = onRequest(
+  {
+    region: 'us-central1',
+    cors: true,
+    maxInstances: 1,
+  },
+  getThreadsHandler
+);
+
+exports.getThreadsHandler = getThreadsHandler;
 
 exports.addAccount = onRequest(
   {
