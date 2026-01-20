@@ -6112,7 +6112,8 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
     // #endregion
 
     const enrichedThreads = await attachThreadInfo(accountId, threads);
-    res.json({ success: true, threads: enrichedThreads, count: enrichedThreads.length });
+    const dedupedThreads = dedupeThreads(enrichedThreads);
+    res.json({ success: true, threads: dedupedThreads, count: dedupedThreads.length });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -6295,6 +6296,71 @@ async function attachThreadInfo(accountId, threads) {
       displayName,
     };
   });
+}
+
+function getThreadTimestamp(thread) {
+  const ts = thread?.lastMessageAt;
+  if (ts && typeof ts.toMillis === 'function') {
+    return ts.toMillis();
+  }
+  if (ts?._seconds) {
+    return ts._seconds * 1000;
+  }
+  if (typeof thread?.lastMessageTimestamp === 'number') {
+    return thread.lastMessageTimestamp * 1000;
+  }
+  return 0;
+}
+
+function dedupeThreads(threads) {
+  if (!Array.isArray(threads) || threads.length === 0) {
+    return threads;
+  }
+
+  const byKey = new Map();
+  for (const thread of threads) {
+    const normalizedPhone = thread?.normalizedPhone;
+    const displayName = (thread?.displayName || '').trim().toLowerCase();
+    const clientJid = thread?.clientJid || '';
+    const isLid = clientJid.includes('@lid');
+
+    const key =
+      normalizedPhone ||
+      (!isLid ? normalizeJidToE164(clientJid).normalizedPhone : null) ||
+      clientJid;
+
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, thread);
+      continue;
+    }
+
+    const existingTime = getThreadTimestamp(existing);
+    const currentTime = getThreadTimestamp(thread);
+    if (currentTime > existingTime) {
+      byKey.set(key, thread);
+    }
+
+    // Extra: drop LID duplicates when displayName matches a real thread
+    if (!normalizedPhone && isLid && displayName) {
+      for (const [existingKey, existingThread] of byKey.entries()) {
+        const existingPhone = existingThread?.normalizedPhone;
+        const existingName = (existingThread?.displayName || '').trim().toLowerCase();
+        if (existingPhone && existingName && existingName === displayName) {
+          const lidTime = getThreadTimestamp(thread);
+          const realTime = getThreadTimestamp(existingThread);
+          if (realTime >= lidTime) {
+            byKey.set(existingKey, existingThread);
+          } else {
+            byKey.set(existingKey, thread);
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  return Array.from(byKey.values());
 }
 
 app.get('/api/whatsapp/messages/:accountId/:threadId', async (req, res) => {
