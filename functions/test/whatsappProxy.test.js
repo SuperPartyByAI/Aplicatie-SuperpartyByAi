@@ -8,8 +8,8 @@
 
 // Set env var before importing module (to avoid fail-fast in tests)
 // Note: For lazy-loading tests, we'll unset this to test missing config behavior
-process.env.WHATSAPP_RAILWAY_BASE_URL =
-  process.env.WHATSAPP_RAILWAY_BASE_URL || 'https://test-railway.invalid';
+process.env.WHATSAPP_BACKEND_BASE_URL =
+  process.env.WHATSAPP_BACKEND_BASE_URL || 'https://test-backend.invalid';
 process.env.NODE_ENV = 'test';
 
 // Mock Firebase Admin BEFORE requiring it (Jest hoisting)
@@ -407,6 +407,12 @@ describe('WhatsApp Proxy /send', () => {
 
     mockThreadRef = {
       get: jest.fn(),
+      set: jest.fn(),
+      collection: jest.fn(() => ({
+        doc: jest.fn(() => ({
+          set: jest.fn(),
+        })),
+      })),
     };
 
     mockOutboxRef = {
@@ -609,8 +615,8 @@ describe('WhatsApp Proxy /send', () => {
     mockTransaction.get.mockReset();
     // Mock transaction - thread first, then outbox
     mockTransaction.get
-      .mockResolvedValueOnce(threadSnap) // Thread read in transaction
-      .mockResolvedValueOnce(snap(false)); // Outbox check (not duplicate)
+      .mockResolvedValueOnce(snap(false)) // Outbox check (not duplicate)
+      .mockResolvedValueOnce(threadSnap); // Thread read in transaction
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -636,8 +642,8 @@ describe('WhatsApp Proxy /send', () => {
     mockTransaction.get.mockReset();
     // Mock transaction - thread first, then outbox
     mockTransaction.get
-      .mockResolvedValueOnce(threadSnap) // Thread read in transaction
-      .mockResolvedValueOnce(snap(false)); // Outbox check (not duplicate)
+      .mockResolvedValueOnce(snap(false)) // Outbox check (not duplicate)
+      .mockResolvedValueOnce(threadSnap); // Thread read in transaction
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -664,8 +670,8 @@ describe('WhatsApp Proxy /send', () => {
     // Reset transaction mocks
     mockTransaction.get.mockReset();
     mockTransaction.get
-      .mockResolvedValueOnce(threadSnapInTx) // Thread read in transaction
-      .mockResolvedValueOnce(snap(false)); // Outbox check (not duplicate)
+      .mockResolvedValueOnce(snap(false)) // Outbox check (not duplicate)
+      .mockResolvedValueOnce(threadSnapInTx); // Thread read in transaction
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -690,8 +696,8 @@ describe('WhatsApp Proxy /send', () => {
     mockTransaction.get.mockReset();
     // Mock transaction - thread first, then outbox (exists = duplicate)
     mockTransaction.get
-      .mockResolvedValueOnce(threadSnap) // Thread read in transaction
-      .mockResolvedValueOnce(snap(true)); // Outbox exists (duplicate)
+      .mockResolvedValueOnce(snap(true)) // Outbox exists (duplicate)
+      .mockResolvedValueOnce(threadSnap); // Thread read in transaction (unused)
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -717,8 +723,8 @@ describe('WhatsApp Proxy /send', () => {
     mockTransaction.get.mockReset();
     // Mock transaction - thread first, then outbox
     mockTransaction.get
-      .mockResolvedValueOnce(threadSnap) // Thread read in transaction
-      .mockResolvedValueOnce(snap(false)); // Outbox check (not duplicate)
+      .mockResolvedValueOnce(snap(false)) // Outbox check (not duplicate)
+      .mockResolvedValueOnce(threadSnap); // Thread read in transaction
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -743,23 +749,23 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
 
   beforeEach(() => {
     // Save original env
-    originalEnv = process.env.WHATSAPP_RAILWAY_BASE_URL;
-    originalEnv = originalEnv ? { WHATSAPP_RAILWAY_BASE_URL: originalEnv } : {};
+    originalEnv = process.env.WHATSAPP_BACKEND_BASE_URL;
+    originalEnv = originalEnv ? { WHATSAPP_BACKEND_BASE_URL: originalEnv } : {};
   });
 
   afterEach(() => {
     // Restore original env
-    if (originalEnv.WHATSAPP_RAILWAY_BASE_URL) {
-      process.env.WHATSAPP_RAILWAY_BASE_URL = originalEnv.WHATSAPP_RAILWAY_BASE_URL;
+    if (originalEnv.WHATSAPP_BACKEND_BASE_URL) {
+      process.env.WHATSAPP_BACKEND_BASE_URL = originalEnv.WHATSAPP_BACKEND_BASE_URL;
     } else {
-      delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+      delete process.env.WHATSAPP_BACKEND_BASE_URL;
     }
     jest.resetModules();
   });
 
-  it('should NOT throw when requiring index.js without WHATSAPP_RAILWAY_BASE_URL', () => {
+  it('should NOT throw when requiring index.js without WHATSAPP_BACKEND_BASE_URL', () => {
     // Unset env var
-    delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+    delete process.env.WHATSAPP_BACKEND_BASE_URL;
     delete process.env.FIREBASE_CONFIG; // Also unset to avoid production check
 
     // Should not throw during require
@@ -770,7 +776,7 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
 
   it('should return 500 error when getAccountsHandler called without base URL', async () => {
     // Unset env var
-    delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+    delete process.env.WHATSAPP_BACKEND_BASE_URL;
     delete process.env.FIREBASE_CONFIG;
 
     jest.resetModules();
@@ -801,13 +807,13 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
       expect.objectContaining({
         success: false,
         error: 'configuration_missing',
-        message: expect.stringContaining('WHATSAPP_RAILWAY_BASE_URL'),
+        message: expect.stringContaining('WHATSAPP_BACKEND_BASE_URL'),
       })
     );
   });
 
   it('should return 500 error when addAccountHandler called without base URL', async () => {
-    delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+    delete process.env.WHATSAPP_BACKEND_BASE_URL;
     delete process.env.FIREBASE_CONFIG;
 
     jest.resetModules();
@@ -842,13 +848,13 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
       expect.objectContaining({
         success: false,
         error: 'configuration_missing',
-        message: expect.stringContaining('WHATSAPP_RAILWAY_BASE_URL'),
+        message: expect.stringContaining('WHATSAPP_BACKEND_BASE_URL'),
       })
     );
   });
 
   it('should work correctly when base URL is set via process.env', async () => {
-    process.env.WHATSAPP_RAILWAY_BASE_URL = 'https://test-railway.example.com';
+    process.env.WHATSAPP_BACKEND_BASE_URL = 'https://test-backend.example.com';
 
     jest.resetModules();
     const whatsappProxy = require('../whatsappProxy');
@@ -880,7 +886,7 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
     await whatsappProxy.getAccountsHandler(req, res);
 
     expect(mockForwardRequest).toHaveBeenCalledWith(
-      'https://test-railway.example.com/api/whatsapp/accounts',
+      'https://test-backend.example.com/api/whatsapp/accounts',
       expect.any(Object)
     );
     expect(res.status).toHaveBeenCalledWith(200);
