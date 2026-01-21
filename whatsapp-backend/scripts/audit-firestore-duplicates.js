@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
 const crypto = require('crypto');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const admin = require('firebase-admin');
 const { normalizeMessageText, safeHash } = require('../lib/wa-message-identity');
 
@@ -18,6 +21,7 @@ const parseArgs = (argv) => {
     excludeMarked: true,
     includeMarked: false,
     keyMode: 'stable',
+    accountId: '',
   };
 
   for (const arg of argv) {
@@ -52,6 +56,9 @@ const parseArgs = (argv) => {
     if (arg.startsWith('--keyMode=')) {
       const val = arg.split('=')[1];
       if (val === 'stable' || val === 'fallback') opts.keyMode = val;
+    }
+    if (arg.startsWith('--accountId=')) {
+      opts.accountId = arg.split('=')[1] || '';
     }
   }
 
@@ -104,14 +111,36 @@ const buildLegacyFingerprint = ({ data, tsClientMs }) => {
   return toSha1(seed);
 };
 
+const getFirestoreEnvMeta = () => {
+  const gacPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || '';
+  const hasGac = gacPath.length > 0;
+  const gacFileExists = hasGac ? fs.existsSync(gacPath) : false;
+  const adcPath = path.join(os.homedir(), '.config', 'gcloud', 'application_default_credentials.json');
+  const hasAdc = fs.existsSync(adcPath);
+  const projectIdPresent = Boolean(
+    process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || process.env.PROJECT_ID
+  );
+
+  return {
+    has_GAC: hasGac,
+    gac_path_len: gacPath.length,
+    gac_file_exists: gacFileExists,
+    has_ADC: hasAdc,
+    projectId_present: projectIdPresent,
+  };
+};
+
 const initFirestore = () => {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (!raw) return { db: null, error: 'Firestore not available' };
 
   try {
     if (!admin.apps.length) {
-      const serviceAccount = JSON.parse(raw);
-      admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+      if (raw) {
+        const serviceAccount = JSON.parse(raw);
+        admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+      } else {
+        admin.initializeApp();
+      }
     }
     return { db: admin.firestore(), error: null };
   } catch (error) {
@@ -122,30 +151,50 @@ const initFirestore = () => {
 (async () => {
   const opts = parseArgs(process.argv.slice(2));
 
-  if (!opts.threadId) {
-    console.error('Missing --threadId');
-    process.exit(1);
-  }
-
   const { db, error } = initFirestore();
   if (!db) {
-    console.log(error);
+    console.log(
+      JSON.stringify(
+        {
+          error: 'firestore_unavailable',
+          message: 'Set GOOGLE_APPLICATION_CREDENTIALS or gcloud ADC',
+          env: getFirestoreEnvMeta(),
+        },
+        null,
+        2
+      )
+    );
     process.exit(1);
   }
 
   const nowMs = Date.now();
   const cutoffMs = nowMs - opts.windowHours * 60 * 60 * 1000;
 
-  const snapshot = await db
-    .collection('threads')
-    .doc(opts.threadId)
-    .collection('messages')
-    .orderBy('tsClient', 'desc')
-    .limit(opts.limit)
-    .get();
+  let query = null;
+  if (opts.threadId) {
+    query = db
+      .collection('threads')
+      .doc(opts.threadId)
+      .collection('messages')
+      .orderBy('tsClient', 'desc')
+      .limit(opts.limit);
+  } else {
+    query = db.collectionGroup('messages').orderBy('tsClient', 'desc').limit(opts.limit);
+  }
+
+  if (opts.accountId && !opts.threadId) {
+    query = query.where('accountId', '==', opts.accountId.trim());
+  }
+
+  const snapshot = await query.get();
 
   const activeGroups = new Map();
   const allGroups = new Map();
+  const keyStrategyUsedCounts = {
+    stableKeyHash: 0,
+    fingerprintHash: 0,
+    fallback: 0,
+  };
   let totalDocs = 0;
   let markedDocs = 0;
 
@@ -162,78 +211,47 @@ const initFirestore = () => {
       markedDocs += 1;
     }
 
-    const key =
-      opts.keyMode === 'fallback'
-        ? buildLegacyFingerprint({ data, tsClientMs })
-        : data.stableKeyHash ||
-          data.fingerprintHash ||
-          buildStableFallbackFingerprint({ data, tsClientMs });
+    let key = null;
+    if (opts.keyMode === 'fallback') {
+      key = buildLegacyFingerprint({ data, tsClientMs });
+      keyStrategyUsedCounts.fallback += 1;
+    } else if (data.stableKeyHash) {
+      key = data.stableKeyHash;
+      keyStrategyUsedCounts.stableKeyHash += 1;
+    } else if (data.fingerprintHash) {
+      key = data.fingerprintHash;
+      keyStrategyUsedCounts.fingerprintHash += 1;
+    } else {
+      key = buildStableFallbackFingerprint({ data, tsClientMs });
+      keyStrategyUsedCounts.fallback += 1;
+    }
 
-    const entry = {
-      key,
-      size: 0,
-      docIds: [],
-      minTs: null,
-      maxTs: null,
-    };
-
-    const targetGroups = data.isDuplicate === true && opts.excludeMarked ? null : activeGroups;
-
-    const addToGroup = (groups) => {
-      const existing = groups.get(key) || { ...entry };
-      existing.size += 1;
-      if (existing.docIds.length < 3) {
-        existing.docIds.push(shortHash(doc.id));
-      }
-      if (tsClientMs) {
-        existing.minTs = existing.minTs ? Math.min(existing.minTs, tsClientMs) : tsClientMs;
-        existing.maxTs = existing.maxTs ? Math.max(existing.maxTs, tsClientMs) : tsClientMs;
-      }
-      groups.set(key, existing);
-    };
-
-    if (targetGroups) addToGroup(targetGroups);
-    addToGroup(allGroups);
+    if (!(data.isDuplicate === true && opts.excludeMarked)) {
+      activeGroups.set(key, (activeGroups.get(key) || 0) + 1);
+    }
+    allGroups.set(key, (allGroups.get(key) || 0) + 1);
   }
 
   const activeEntries = Array.from(activeGroups.values());
   const allEntries = Array.from(allGroups.values());
   const duplicatesCountActive = activeEntries.reduce(
-    (sum, entry) => sum + (entry.size > 1 ? entry.size - 1 : 0),
+    (sum, count) => sum + (count > 1 ? count - 1 : 0),
     0
   );
   const duplicatesCountAll = allEntries.reduce(
-    (sum, entry) => sum + (entry.size > 1 ? entry.size - 1 : 0),
+    (sum, count) => sum + (count > 1 ? count - 1 : 0),
     0
   );
-
-  const selectedEntries = opts.includeMarked ? allEntries : activeEntries;
-  const topGroups = selectedEntries
-    .filter((entry) => entry.size > 1)
-    .sort((a, b) => b.size - a.size)
-    .slice(0, 10)
-    .map((entry) => ({
-      keyHash: shortHash(entry.key),
-      size: entry.size,
-      sampleDocIds: entry.docIds,
-      tsClientRange:
-        entry.minTs && entry.maxTs
-          ? {
-              min: new Date(entry.minTs).toISOString(),
-              max: new Date(entry.maxTs).toISOString(),
-            }
-          : 'unknown',
-    }));
 
   console.log(
     JSON.stringify({
       totalDocs,
       markedDocs,
       activeDocs: totalDocs - markedDocs,
-      uniqueKeys: selectedEntries.length,
+      uniqueKeys: opts.includeMarked ? allEntries.length : activeEntries.length,
       duplicatesCountActive,
       duplicatesCountAll: opts.includeMarked ? duplicatesCountAll : null,
-      topGroups,
+      keyStrategyUsedCounts,
       windowHours: opts.windowHours,
       limit: opts.limit,
       keyMode: opts.keyMode,
