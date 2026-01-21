@@ -41,6 +41,31 @@ npm run audit:dupes -- --threadId=<threadId> --limit=500 --windowHours=48
 ```
 - Verify UI: one thread per conversation, correct group name, timestamps correct.
 
+## Duplicate cleanup (soft-mark)
+Goal: mark legacy duplicate messages inside a thread without deleting data.
+
+Dry-run (default):
+```bash
+node scripts/cleanup-firestore-duplicates.js --threadId=<threadId> --windowHours=48 --limit=2000
+```
+
+Apply (gated):
+```bash
+node scripts/cleanup-firestore-duplicates.js --threadId=<threadId> --windowHours=48 --limit=2000 --apply
+```
+
+Output keys (sanitized):
+- `scannedMessages`
+- `groupsWithDuplicates`
+- `duplicatesToMark`
+- `duplicatesAlreadyMarked`
+- `threadsUpdated`
+- `sampleGroups` (hashes only)
+
+Notes:
+- No hard deletes; duplicates are **marked** `isDuplicate=true` with `duplicateOf`.
+- Thread `lastMessageAt` is recalculated from non-duplicate messages.
+
 ## Safety
 - Do not run concurrently with another writer instance.
 - Start with a limited `--days` window to reduce load.

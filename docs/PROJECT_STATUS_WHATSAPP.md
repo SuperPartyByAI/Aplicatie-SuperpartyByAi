@@ -14,16 +14,20 @@ Last updated: 2026-01-21
 - sessions path: `/var/lib/whatsapp-backend/sessions` (creds.json_count=1)
 
 ## Duplicate audit (sanitized)
-- window: `48h`, limit: `500`
-- duplicatesCount: `112`
-- uniqueFingerprints: `388`
-- totalDocs: `500`
+- BEFORE: window `48h`, limit `500` -> totalDocs=`500`, uniqueFingerprints=`388`, duplicatesCount=`112`
+- AFTER: window `48h`, limit `500` -> totalDocs=`500`, uniqueFingerprints=`388`, duplicatesCount=`112`
 
 ## Fast verification (1h window, restart x2)
-- before: totalDocs=`500`, uniqueFingerprints=`388`, duplicatesCount=`112`
-- after: totalDocs=`500`, uniqueFingerprints=`388`, duplicatesCount=`112`
+- before (1h/500): totalDocs=`500`, uniqueFingerprints=`388`, duplicatesCount=`112`
+- after (1h/500): totalDocs=`500`, uniqueFingerprints=`388`, duplicatesCount=`112`
 - dashboard dedupe/history: `wrote=0`, `skipped=0`, `strongSkipped=0`, `history.wrote=0`
 - verdict: `NO_NEW_DUPES_DETECTED` (counts stable), but legacy dupes remain
+
+## Duplicate cleanup (soft-mark)
+- threadId_hash: `3e8bfeaf`
+- dry-run: scannedMessages=`2000`, groupsWithDuplicates=`106`, duplicatesToMark=`487`
+- apply: duplicatesToMark=`487`, threadsUpdated=`1`
+- note: audit counts unchanged because audit script does not filter `isDuplicate=true`
 
 ## Production fixes in place
 - Stable message persist + dedupe (realtime/history/outbound).
@@ -32,7 +36,7 @@ Last updated: 2026-01-21
 - Sessions path set: `/var/lib/whatsapp-backend/sessions` (creds.json_count=1)
 
 ## TODO (next)
-- Wait 10–30 minutes of traffic and re-run dupes audit.
-- If duplicates persist, run cleanup tool to mark `isDuplicate=true` and recalc thread lastMessageAt.
-- Verify UI: no duplicate bubbles; timestamps correct.
-- Add pagination/alias filtering if still gaps.
+- Send 1 outbound + 1 inbound message (manual), then audit 15 min window.
+- Restart service once, re-audit 15 min window.
+- Expect duplicatesCount to stay at 0 for the new-message window.
+- Verify UI remains clean without relying solely on client filter.
