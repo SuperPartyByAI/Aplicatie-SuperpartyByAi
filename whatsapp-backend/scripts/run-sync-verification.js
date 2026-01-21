@@ -44,10 +44,16 @@ const fail = (payload, exitCode = 2) => {
       '--printIndexLink',
     ]);
     const before = parseJsonOutput('before', beforeRaw);
-    if (before?.error === 'firestore_index_required') {
+    if (before?.hint === 'missing_index') {
       fail({
         error: 'firestore_index_required',
         indexLink: before.indexLink,
+      });
+    }
+    if (before?.hint === 'missing_credentials') {
+      fail({
+        error: 'firestore_credentials_missing',
+        message: 'Set GOOGLE_APPLICATION_CREDENTIALS or gcloud ADC',
       });
     }
     if (before?.error) {
@@ -72,10 +78,16 @@ const fail = (payload, exitCode = 2) => {
       '--printIndexLink',
     ]);
     const after = parseJsonOutput('after', afterRaw);
-    if (after?.error === 'firestore_index_required') {
+    if (after?.hint === 'missing_index') {
       fail({
         error: 'firestore_index_required',
         indexLink: after.indexLink,
+      });
+    }
+    if (after?.hint === 'missing_credentials') {
+      fail({
+        error: 'firestore_credentials_missing',
+        message: 'Set GOOGLE_APPLICATION_CREDENTIALS or gcloud ADC',
       });
     }
     if (after?.error) {

@@ -70,6 +70,24 @@ node scripts/audit-threads-duplicates.js --limit=2000
 ```
 - Index requirement: collectionGroup `messages` ordered by `tsClient` (DESC)
 
+## Index Link (Debug Mode)
+```bash
+node scripts/audit-firestore-duplicates.js --windowHours=0.25 --limit=50 --debug=1
+```
+Expected JSON includes:
+- `hint: "missing_index"` and `indexLink` (open link and create index)
+
+## Firestore Credential Check (Local)
+```bash
+node - <<'NODE'
+const admin = require('firebase-admin');
+try { admin.initializeApp(); } catch (e) {}
+admin.firestore().doc('app_config/version').get()
+  .then(d => { console.log("FIRESTORE_OK exists=", d.exists); process.exit(0); })
+  .catch(e => { console.error("FIRESTORE_ERR", e.code || "", e.message || ""); process.exit(1); });
+NODE
+```
+
 ## Verdict: PROBLEMĂ
 Blocking reasons:
 - No disk sessions yet (`creds.json` count = 0) → accounts do not restore after restart.

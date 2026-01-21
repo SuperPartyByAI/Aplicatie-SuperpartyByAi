@@ -23,6 +23,7 @@ const parseArgs = (argv) => {
     keyMode: 'stable',
     accountId: '',
     printIndexLink: true,
+    debug: false,
   };
 
   for (const arg of argv) {
@@ -66,6 +67,10 @@ const parseArgs = (argv) => {
     }
     if (arg === '--no-printIndexLink') {
       opts.printIndexLink = false;
+    }
+    if (arg.startsWith('--debug=')) {
+      const val = arg.split('=')[1];
+      opts.debug = val === '1' || val === 'true';
     }
   }
 
@@ -157,7 +162,6 @@ const initFirestore = () => {
 
 const getIndexLink = (error) => {
   const raw = error?.message || '';
-  if (!raw.toLowerCase().includes('index')) return null;
   const match = raw.match(/https?:\/\/\S+/);
   if (!match) return null;
   const url = match[0];
@@ -165,6 +169,32 @@ const getIndexLink = (error) => {
     return url;
   }
   return null;
+};
+
+const getProjectId = () =>
+  process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || process.env.PROJECT_ID || null;
+
+const getHint = (error, message) => {
+  const code = error?.code || '';
+  const msg = message.toLowerCase();
+  if (code === 9 || msg.includes('requires an index') || msg.includes('index')) {
+    return 'missing_index';
+  }
+  if (code === 'unauthenticated' || msg.includes('default credentials')) {
+    return 'missing_credentials';
+  }
+  if (code === 'permission-denied' || msg.includes('permission_denied')) {
+    return 'permission_denied';
+  }
+  if (code === 'unavailable' || msg.includes('unavailable') || msg.includes('timeout')) {
+    return 'unavailable';
+  }
+  return 'unknown';
+};
+
+const hashStack = (stack) => {
+  if (!stack) return null;
+  return crypto.createHash('sha1').update(String(stack)).digest('hex').slice(0, 8);
 };
 
 (async () => {
@@ -190,6 +220,7 @@ const getIndexLink = (error) => {
   const cutoffMs = nowMs - opts.windowHours * 60 * 60 * 1000;
 
   let query = null;
+  let queryShape = 'collectionGroup:messages|orderBy:tsClient desc';
   if (opts.threadId) {
     query = db
       .collection('threads')
@@ -197,35 +228,41 @@ const getIndexLink = (error) => {
       .collection('messages')
       .orderBy('tsClient', 'desc')
       .limit(opts.limit);
+    queryShape = 'threads/{threadId}/messages|orderBy:tsClient desc';
   } else {
     query = db.collectionGroup('messages').orderBy('tsClient', 'desc').limit(opts.limit);
   }
 
   if (opts.accountId && !opts.threadId) {
     query = query.where('accountId', '==', opts.accountId.trim());
+    queryShape += '|where:accountId==';
   }
 
   let snapshot = null;
   try {
     snapshot = await query.get();
   } catch (error) {
+    const message = error?.message || 'Firestore query failed';
     const indexLink = getIndexLink(error);
-    if (indexLink && opts.printIndexLink) {
-      console.log(
-        JSON.stringify({
-          error: 'firestore_index_required',
-          message: 'Index required for messages collectionGroup orderBy tsClient',
-          indexLink,
-        })
-      );
-      process.exit(2);
+    const hint = getHint(error, message);
+
+    const payload = {
+      error: 'firestore_query_failed',
+      code: error?.code || null,
+      message,
+      hint,
+      indexLink: indexLink && opts.printIndexLink ? indexLink : null,
+      projectId: getProjectId(),
+      emulatorHost: process.env.FIRESTORE_EMULATOR_HOST || null,
+    };
+
+    if (opts.debug) {
+      payload.rawErrorName = error?.name || null;
+      payload.rawErrorStackSha8 = hashStack(error?.stack);
+      payload.queryShape = queryShape;
     }
-    console.log(
-      JSON.stringify({
-        error: 'firestore_query_failed',
-        message: 'Firestore query failed',
-      })
-    );
+
+    console.log(JSON.stringify(payload));
     process.exit(2);
   }
 
