@@ -301,7 +301,34 @@ const isMissingIndex = (error, message, indexLink) => {
           pageQuery = pageQuery.startAfter(lastDoc);
         }
 
-        const pageSnapshot = await pageQuery.get();
+        let pageSnapshot = null;
+        try {
+          pageSnapshot = await pageQuery.get();
+        } catch (pageError) {
+          const pageMessage = pageError?.message || 'Firestore query failed';
+          const pageIndexLink = getIndexLink(pageError);
+          const pageHint = getHint(pageError, pageMessage);
+          const payload = {
+            error: 'firestore_query_failed',
+            code: pageError?.code || null,
+            message: pageMessage,
+            hint: pageHint,
+            indexLink: pageIndexLink && opts.printIndexLink ? pageIndexLink : null,
+            projectId: getProjectId(),
+            emulatorHost: process.env.FIRESTORE_EMULATOR_HOST || null,
+            usedFallback,
+            modeUsed,
+          };
+
+          if (opts.debug) {
+            payload.rawErrorName = pageError?.name || null;
+            payload.rawErrorStackSha8 = hashStack(pageError?.stack);
+            payload.queryShape = fallbackQueryShape;
+          }
+
+          console.log(JSON.stringify(payload));
+          process.exit(2);
+        }
         if (pageSnapshot.empty) {
           break;
         }
