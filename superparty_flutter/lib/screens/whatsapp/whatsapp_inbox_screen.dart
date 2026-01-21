@@ -113,6 +113,18 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   }
 
   List<Map<String, dynamic>> _filterAndDedupeThreads(List<Map<String, dynamic>> allThreads) {
+    String readString(dynamic value, {List<String> mapKeys = const []}) {
+      if (value is String) return value;
+      if (value is Map) {
+        for (final key in mapKeys) {
+          final nested = value[key];
+          if (nested is String) return nested;
+        }
+      }
+      if (value is num) return value.toString();
+      return '';
+    }
+
     DateTime? resolveThreadTime(Map<String, dynamic> thread) {
       if (thread['lastMessageAtMs'] is int) {
         return DateTime.fromMillisecondsSinceEpoch(thread['lastMessageAtMs'] as int);
@@ -130,12 +142,15 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
 
     final visibleThreads = allThreads.where((thread) {
       final hidden = thread['hidden'] == true || thread['archived'] == true;
-      final redirectTo = (thread['redirectTo'] as String?)?.trim();
-      final clientJid = (thread['clientJid'] as String? ?? '').trim();
+      final redirectTo = readString(thread['redirectTo']).trim();
+      final clientJid = readString(
+        thread['clientJid'],
+        mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
+      ).trim();
       final isLid = clientJid.endsWith('@lid');
       final isBroadcast = clientJid.endsWith('@broadcast');
       if (hidden) return false;
-      if (redirectTo != null && redirectTo.isNotEmpty) return false;
+      if (redirectTo.isNotEmpty) return false;
       if (isLid) return false;
       if (isBroadcast) return false;
       return true;
@@ -152,11 +167,14 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
 
     final dedupedByPhone = <String, Map<String, dynamic>>{};
     for (final thread in visibleThreads) {
-      final normalizedPhone = (thread['normalizedPhone'] as String?)?.trim();
-      final clientJid = (thread['clientJid'] as String? ?? '').trim();
-      final threadId = (thread['id'] as String? ?? '').trim();
-      final key = normalizedPhone?.isNotEmpty == true
-          ? normalizedPhone!
+      final normalizedPhone = readString(thread['normalizedPhone']).trim();
+      final clientJid = readString(
+        thread['clientJid'],
+        mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
+      ).trim();
+      final threadId = readString(thread['id'], mapKeys: const ['threadId', 'id']).trim();
+      final key = normalizedPhone.isNotEmpty
+          ? normalizedPhone
           : (threadId.isNotEmpty ? threadId : clientJid);
       dedupedByPhone.putIfAbsent(key, () => thread);
     }
@@ -220,7 +238,8 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
             }).toList();
           }
         } catch (e) {
-          debugPrint('[WhatsAppInboxScreen] Error loading threads for account $accountId: $e');
+          final accountHash = accountId.hashCode.toRadixString(16);
+          debugPrint('[WhatsAppInboxScreen] Error loading threads for account $accountHash: $e');
         }
         return <Map<String, dynamic>>[];
       });
