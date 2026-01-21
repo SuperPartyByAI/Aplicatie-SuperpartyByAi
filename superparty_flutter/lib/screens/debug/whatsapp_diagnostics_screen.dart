@@ -31,6 +31,7 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
   bool _isLoading = false;
   int? _threadCount;
   String? _selectedAccountId;
+  String _clipboardTokenStatus = 'Not checked';
 
   Future<void> _copyAuthTokensToClipboard() async {
     if (!kDebugMode) return;
@@ -72,6 +73,56 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
         content: Text('Copied tokens'),
         duration: Duration(seconds: 2),
       ),
+    );
+  }
+
+  Future<void> _validateClipboardTokens() async {
+    if (!kDebugMode) return;
+    final data = await Clipboard.getData('text/plain');
+    final text = (data?.text ?? '').replaceAll('\r', '');
+    if (text.trim().isEmpty) {
+      setState(() {
+        _clipboardTokenStatus = 'No clipboard tokens';
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Token looks valid: no')),
+      );
+      return;
+    }
+
+    String idToken = '';
+    String appToken = '';
+    for (final line in text.split('\n')) {
+      if (line.startsWith('ID=')) {
+        idToken = line.substring(3).trim();
+      } else if (line.startsWith('APP=')) {
+        appToken = line.substring(4).trim();
+      }
+    }
+
+    final idLen = idToken.length;
+    final idDotCount = idToken.isEmpty ? 0 : '.'.allMatches(idToken).length;
+    final idHash = idToken.isEmpty
+        ? 'none'
+        : sha256.convert(utf8.encode(idToken)).toString().substring(0, 8);
+    final appLen = appToken.length;
+    final appHash = appToken.isEmpty
+        ? 'none'
+        : sha256.convert(utf8.encode(appToken)).toString().substring(0, 8);
+
+    debugPrint(
+      '[WhatsAppDebug] clipboard idLen=$idLen, idDotCount=$idDotCount, idHash=$idHash',
+    );
+    debugPrint('[WhatsAppDebug] clipboard appLen=$appLen, appHash=$appHash');
+
+    final looksValid = idDotCount == 2 && idLen > 500 && appLen > 100;
+    setState(() {
+      _clipboardTokenStatus = looksValid ? 'Valid' : 'Invalid';
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Token looks valid: ${looksValid ? 'yes' : 'no'}')),
     );
   }
 
@@ -158,6 +209,11 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
             onPressed: _copyAuthTokensToClipboard,
             tooltip: 'Copy Auth Tokens',
           ),
+          IconButton(
+            icon: const Icon(Icons.verified),
+            onPressed: _validateClipboardTokens,
+            tooltip: 'Validate Clipboard Tokens',
+          ),
         ],
       ),
       body: _isLoading
@@ -178,6 +234,10 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
                           snapshot.data ?? 'Checking...',
                         );
                       },
+                    ),
+                    _buildInfoRow(
+                      'Clipboard Token Valid',
+                      _clipboardTokenStatus,
                     ),
                   ]),
                   const SizedBox(height: 24),
