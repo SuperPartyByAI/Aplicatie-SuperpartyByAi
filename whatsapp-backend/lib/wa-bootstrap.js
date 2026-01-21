@@ -7,6 +7,7 @@
 
 const WAIntegration = require('./wa-integration');
 const crypto = require('crypto');
+const os = require('os');
 
 // Global state
 let waIntegration = null;
@@ -24,10 +25,17 @@ async function initializeWASystem(db) {
     return { mode: 'passive', reason: 'no_firestore' };
   }
 
-  // Generate instance ID
+  // Generate instance ID (deterministic on Ubuntu/systemd)
+  const hostFallback = process.env.HOSTNAME || os.hostname();
+  const normalizedHost =
+    typeof hostFallback === 'string' && hostFallback.trim()
+      ? hostFallback.trim().replace(/[^a-zA-Z0-9_-]/g, '_')
+      : null;
+
   instanceId =
     process.env.INSTANCE_ID ||
     process.env.RAILWAY_DEPLOYMENT_ID ||
+    (normalizedHost ? `host_${normalizedHost}` : null) ||
     `instance_${crypto.randomBytes(8).toString('hex')}`;
 
   console.log(`[WABootstrap] Initializing WA system for instance: ${instanceId}`);

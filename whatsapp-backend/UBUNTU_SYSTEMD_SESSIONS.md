@@ -11,9 +11,21 @@ Goal: keep WhatsApp sessions stable across restarts without QR re-pairing.
 ## Quick setup (Ubuntu)
 
 ```bash
-sudo mkdir -p /var/lib/whatsapp-backend/sessions
-sudo chown -R root:root /var/lib/whatsapp-backend/sessions
-sudo chmod 750 /var/lib/whatsapp-backend/sessions
+SVC="whatsapp-backend"
+SVC_USER="$(systemctl show "$SVC" -p User --value || true)"
+[ -z "$SVC_USER" ] && SVC_USER="root"
+SVC_GRP="$(id -gn "$SVC_USER" 2>/dev/null || echo "$SVC_USER")"
+
+sudo install -d -o "$SVC_USER" -g "$SVC_GRP" -m 750 /var/lib/whatsapp-backend/sessions
+
+sudo install -d /etc/systemd/system/${SVC}.service.d
+sudo tee /etc/systemd/system/${SVC}.service.d/override.conf >/dev/null <<'OVR'
+[Service]
+Environment="SESSIONS_PATH=/var/lib/whatsapp-backend/sessions"
+Environment="INSTANCE_ID=%H"
+TimeoutStopSec=30
+KillSignal=SIGINT
+OVR
 
 # /etc/whatsapp-backend/env
 SESSIONS_PATH=/var/lib/whatsapp-backend/sessions
@@ -22,12 +34,14 @@ SESSIONS_PATH=/var/lib/whatsapp-backend/sessions
 Restart:
 
 ```bash
+sudo systemctl daemon-reload
 sudo systemctl restart whatsapp-backend
 ```
 
 ## Health signals to watch
 
 - `/health` → `sessions_dir_writable=true` and HTTP 200  
+- `/health` → `waMode=active` and lock holder is this instance  
 - Logs should include:
   - `Session restored from disk` (normal restart)
   - `Session restored from Firestore` (after redeploy/crash)

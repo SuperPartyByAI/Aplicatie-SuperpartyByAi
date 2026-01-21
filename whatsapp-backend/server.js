@@ -202,6 +202,54 @@ const getCommitHash = () =>
   process.env.DEPLOY_COMMIT_SHA ||
   process.env.GIT_COMMIT_SHA ||
   null;
+const buildLockSummary = (lock) => {
+  if (!lock || lock.error) {
+    return {
+      lockStatus: 'unknown',
+      lockHolder: null,
+      lockRemainingSec: null,
+    };
+  }
+
+  if (!lock.exists) {
+    return {
+      lockStatus: 'not_held',
+      lockHolder: null,
+      lockRemainingSec: null,
+    };
+  }
+
+  return {
+    lockStatus: lock.isHolder ? 'held_by_this_instance' : 'held_by_other',
+    lockHolder: lock.holder || null,
+    lockRemainingSec:
+      typeof lock.remainingMs === 'number' ? Math.max(0, Math.ceil(lock.remainingMs / 1000)) : null,
+  };
+};
+
+const getWAModeSnapshot = async () => {
+  try {
+    const status = await waBootstrap.getWAStatus();
+    const isActive = waBootstrap.isActiveMode();
+    const lockSummary = buildLockSummary(status?.lock);
+
+    return {
+      waMode: status?.waMode || (isActive ? 'active' : 'passive'),
+      instanceId: status?.instanceId || getInstanceId(),
+      lockStatus: lockSummary.lockStatus,
+      lockHolder: lockSummary.lockHolder,
+      lockRemainingSec: lockSummary.lockRemainingSec,
+    };
+  } catch (error) {
+    return {
+      waMode: waBootstrap.isActiveMode() ? 'active' : 'passive',
+      instanceId: getInstanceId(),
+      lockStatus: 'unknown',
+      lockHolder: null,
+      lockRemainingSec: null,
+    };
+  }
+};
 const getVolumeMountPath = () => process.env.VOLUME_MOUNT_PATH || null;
 const MAX_ACCOUNTS = 30;
 
@@ -4591,8 +4639,8 @@ app.get('/health', async (req, res) => {
   // Get commit (cached, non-blocking)
   const commit = COMMIT_HASH || 'unknown';
   
-  // Get instance ID (non-blocking)
-  const instanceId = getInstanceId();
+  // Get WA mode/lock snapshot (best-effort)
+  const waSnapshot = await getWAModeSnapshot();
 
   // Return 503 if sessions dir is not writable (stability requires persistent auth state)
   const statusCode = sessionsDirWritable ? 200 : 503;
@@ -4602,7 +4650,11 @@ app.get('/health', async (req, res) => {
     service: 'whatsapp-backend',
     version: VERSION,
     commit: commit,
-    instanceId: instanceId,
+    instanceId: waSnapshot.instanceId,
+    waMode: waSnapshot.waMode,
+    lockStatus: waSnapshot.lockStatus,
+    lockHolder: waSnapshot.lockHolder,
+    lockRemainingSec: waSnapshot.lockRemainingSec,
     bootTimestamp: BOOT_TIMESTAMP,
     uptime: Math.floor((Date.now() - START_TIME) / 1000),
     timestamp: new Date().toISOString(),
@@ -8917,6 +8969,7 @@ app.post('/api/admin/accounts/:id/reset-session', requireAdmin, async (req, res)
 // Status dashboard endpoint - returns per-account status for all 30 accounts
 app.get('/api/status/dashboard', async (req, res) => {
   try {
+    const waSnapshot = await getWAModeSnapshot();
     const sanitizedBaseUrl = (() => {
       const raw =
         process.env.WHATSAPP_BACKEND_BASE_URL ||
@@ -9001,6 +9054,11 @@ app.get('/api/status/dashboard', async (req, res) => {
         historySyncEnabled: SYNC_FULL_HISTORY,
         historySyncDryRun: HISTORY_SYNC_DRY_RUN,
         backendBaseUrl: sanitizedBaseUrl,
+        waMode: waSnapshot.waMode,
+        instanceId: waSnapshot.instanceId,
+        lockStatus: waSnapshot.lockStatus,
+        lockHolder: waSnapshot.lockHolder,
+        lockRemainingSec: waSnapshot.lockRemainingSec,
       },
       storage: {
         path: authDir,

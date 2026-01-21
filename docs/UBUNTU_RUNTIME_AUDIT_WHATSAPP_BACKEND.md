@@ -6,6 +6,7 @@
 - After restart, `/health` and `/api/status/dashboard` still report zero accounts; no sessions are restored because disk is empty (no `creds.json` yet).
 - Health burst 30x returns HTTP 200 consistently (no 429).
 - Logs show PASSIVE mode due to lock not acquired, which can block restore until lock is available.
+- `INSTANCE_ID` should be set via systemd (e.g. `INSTANCE_ID=%H`) to avoid random IDs and lock churn after restart.
 
 ## Evidence (sanitized)
 - Service status: active/running, PID 15603, memory ~165MB.
@@ -15,7 +16,7 @@
 - Sessions path check:
   - `sessions_writable=YES`
 - Health (single):
-  - HTTP 200, `{ok:true, accounts_total:0, connected:0, sessions_dir_writable:true}`
+  - HTTP 200, `{ok:true, accounts_total:0, connected:0, sessions_dir_writable:true, waMode, lockStatus}`
 - Dashboard (single):
   - HTTP 200, `{service:"healthy", storageWritable:true, total:0, connected:0, needs_qr:0, accounts_count:0}`
 - Sessions files counters:
@@ -64,7 +65,10 @@ sudo install -d /etc/systemd/system/whatsapp-backend.service.d
 sudo tee /etc/systemd/system/whatsapp-backend.service.d/override.conf >/dev/null <<'OVR'
 [Service]
 Environment="SESSIONS_PATH=/var/lib/whatsapp-backend/sessions"
+Environment="INSTANCE_ID=%H"
 StateDirectory=whatsapp-backend
+TimeoutStopSec=30
+KillSignal=SIGINT
 OVR
 
 sudo systemctl daemon-reload
