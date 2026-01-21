@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const fs = require('fs');
+const { canonicalizeJid, buildCanonicalThreadId } = require('../lib/wa-canonical');
 
 const sha1 = (value) => crypto.createHash('sha1').update(String(value)).digest('hex');
 const shortHash = (value) => sha1(value).slice(0, 8);
@@ -74,21 +75,9 @@ const pickDestJid = async ({ baseUrl, account, accountId }) => {
   return normalizeJid(clientJid);
 };
 
-const findThreadHash = async ({ baseUrl, accountId, destJid }) => {
-  if (!destJid) return null;
-  const threadsRes = await jsonFetch(`${baseUrl}/api/whatsapp/threads/${accountId}`);
-  const threads = Array.isArray(threadsRes?.data?.threads)
-    ? threadsRes.data.threads
-    : Array.isArray(threadsRes?.data)
-      ? threadsRes.data
-      : [];
-  const match = threads.find(
-    (thread) =>
-      thread.clientJid === destJid ||
-      thread.jid === destJid ||
-      thread.remoteJid === destJid
-  );
-  const threadId = match?.threadId || match?.id || null;
+const getThreadHash = ({ accountId, destJid }) => {
+  const { canonicalJid } = canonicalizeJid(destJid);
+  const threadId = buildCanonicalThreadId(accountId, canonicalJid);
   return threadId ? shortHash(threadId) : null;
 };
 
@@ -128,7 +117,7 @@ const findThreadHash = async ({ baseUrl, accountId, destJid }) => {
 
   const resp = sendRes?.data || {};
   const messageId = resp.messageId || resp.requestId || resp.clientMessageId || null;
-  const threadHash = await findThreadHash({ baseUrl, accountId, destJid });
+  const threadHash = getThreadHash({ accountId, destJid });
 
   console.log(
     JSON.stringify({
