@@ -197,6 +197,16 @@ const hashStack = (stack) => {
   return crypto.createHash('sha1').update(String(stack)).digest('hex').slice(0, 8);
 };
 
+const isMissingIndex = (error, message, indexLink) => {
+  const code = error?.code;
+  const msg = message.toLowerCase();
+  if (indexLink) return true;
+  if (code === 3 || code === 9) {
+    return msg.includes('requires') && msg.includes('index');
+  }
+  return msg.includes('requires') && msg.includes('index');
+};
+
 (async () => {
   const opts = parseArgs(process.argv.slice(2));
 
@@ -216,11 +226,12 @@ const hashStack = (stack) => {
     process.exit(1);
   }
 
-  const nowMs = Date.now();
-  const cutoffMs = nowMs - opts.windowHours * 60 * 60 * 1000;
-
   let query = null;
   let queryShape = 'collectionGroup:messages|orderBy:tsClient desc';
+  const nowMs = Date.now();
+  const cutoffMs = nowMs - opts.windowHours * 60 * 60 * 1000;
+  const startTs = admin.firestore.Timestamp.fromMillis(cutoffMs);
+  const endTs = admin.firestore.Timestamp.fromMillis(nowMs);
   if (opts.threadId) {
     query = db
       .collection('threads')
@@ -239,31 +250,91 @@ const hashStack = (stack) => {
   }
 
   let snapshot = null;
+  let modeUsed = 'desc';
+  let usedFallback = false;
+  let fallbackIndexLink = null;
   try {
     snapshot = await query.get();
   } catch (error) {
     const message = error?.message || 'Firestore query failed';
     const indexLink = getIndexLink(error);
     const hint = getHint(error, message);
+    const missingIndex = isMissingIndex(error, message, indexLink);
 
-    const payload = {
-      error: 'firestore_query_failed',
-      code: error?.code || null,
-      message,
-      hint,
-      indexLink: indexLink && opts.printIndexLink ? indexLink : null,
-      projectId: getProjectId(),
-      emulatorHost: process.env.FIRESTORE_EMULATOR_HOST || null,
-    };
+    if (missingIndex) {
+      usedFallback = true;
+      modeUsed = 'asc_fallback';
+      fallbackIndexLink = indexLink;
+      let lastDoc = null;
+      const collected = [];
+      let remaining = opts.limit;
+      const pageSize = Math.min(250, opts.limit);
+      let fallbackQueryShape = queryShape;
 
-    if (opts.debug) {
-      payload.rawErrorName = error?.name || null;
-      payload.rawErrorStackSha8 = hashStack(error?.stack);
-      payload.queryShape = queryShape;
+      while (remaining > 0) {
+        let pageQuery = null;
+        if (opts.threadId) {
+          pageQuery = db
+            .collection('threads')
+            .doc(opts.threadId)
+            .collection('messages')
+            .where('tsClient', '>=', startTs)
+            .where('tsClient', '<=', endTs)
+            .orderBy('tsClient', 'asc')
+            .limit(Math.min(pageSize, remaining));
+          fallbackQueryShape = 'threads/{threadId}/messages|where:tsClient>=|where:tsClient<=|orderBy:tsClient asc';
+        } else {
+          pageQuery = db
+            .collectionGroup('messages')
+            .where('tsClient', '>=', startTs)
+            .where('tsClient', '<=', endTs)
+            .orderBy('tsClient', 'asc')
+            .limit(Math.min(pageSize, remaining));
+          fallbackQueryShape = 'collectionGroup:messages|where:tsClient>=|where:tsClient<=|orderBy:tsClient asc';
+          if (opts.accountId) {
+            pageQuery = pageQuery.where('accountId', '==', opts.accountId.trim());
+            fallbackQueryShape += '|where:accountId==';
+          }
+        }
+
+        if (lastDoc) {
+          pageQuery = pageQuery.startAfter(lastDoc);
+        }
+
+        const pageSnapshot = await pageQuery.get();
+        if (pageSnapshot.empty) {
+          break;
+        }
+
+        collected.push(...pageSnapshot.docs);
+        remaining = opts.limit - collected.length;
+        lastDoc = pageSnapshot.docs[pageSnapshot.docs.length - 1];
+      }
+
+      snapshot = { docs: collected };
+      queryShape = fallbackQueryShape;
+    } else {
+      const payload = {
+        error: 'firestore_query_failed',
+        code: error?.code || null,
+        message,
+        hint,
+        indexLink: indexLink && opts.printIndexLink ? indexLink : null,
+        projectId: getProjectId(),
+        emulatorHost: process.env.FIRESTORE_EMULATOR_HOST || null,
+        usedFallback,
+        modeUsed,
+      };
+
+      if (opts.debug) {
+        payload.rawErrorName = error?.name || null;
+        payload.rawErrorStackSha8 = hashStack(error?.stack);
+        payload.queryShape = queryShape;
+      }
+
+      console.log(JSON.stringify(payload));
+      process.exit(2);
     }
-
-    console.log(JSON.stringify(payload));
-    process.exit(2);
   }
 
   const activeGroups = new Map();
@@ -335,6 +406,10 @@ const hashStack = (stack) => {
       keyMode: opts.keyMode,
       excludeMarked: opts.excludeMarked,
       dryRun: opts.dryRun,
+      usedFallback,
+      modeUsed,
+      hint: null,
+      indexLink: usedFallback ? fallbackIndexLink : null,
     })
   );
 

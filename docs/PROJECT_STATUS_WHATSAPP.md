@@ -57,6 +57,11 @@ Last updated: 2026-01-21
 - Thread audit: `node scripts/audit-threads-duplicates.js --limit=2000`
 - Note: collectionGroup orderBy requires index on `messages.tsClient` (DESC)
 
+## Audit ASC fallback
+- If DESC index is missing, audit falls back to ASC with a time-window query.
+- Output includes `modeUsed` and `usedFallback`.
+- Verdict stays NOT READY unless `ALLOW_FALLBACK_READY=true`.
+
 ## Proxy sanity check
 - `curl` without tokens should return `401` (expected)
 
