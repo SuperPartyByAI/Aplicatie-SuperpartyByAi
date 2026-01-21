@@ -14,10 +14,12 @@ Last updated: 2026-01-21
 - SESSIONS_PATH: `/var/lib/whatsapp-backend/sessions`
 - creds.json_count: `1`
 
-## Duplicate audit (sanitized)
-- BEFORE 48h/500: totalDocs=`500`, uniqueFingerprints=`385`, duplicatesCount=`115`
-- AFTER 48h/500: totalDocs=`500`, uniqueFingerprints=`385`, duplicatesCount=`115`
-- legacy duplicates present; cleanup uses `isDuplicate=true` soft-mark (no deletes)
+## Duplicate audit (excludeMarked default)
+- BEFORE 48h/500: totalDocs=`500`, markedDocs=`82`, activeDocs=`418`, duplicatesCountActive=`28`
+- AFTER 48h/500: totalDocs=`500`, markedDocs=`82`, activeDocs=`418`, duplicatesCountActive=`28`
+- BEFORE 1h/500: totalDocs=`500`, markedDocs=`82`, activeDocs=`418`, duplicatesCountActive=`28`
+- AFTER 1h/500: totalDocs=`500`, markedDocs=`82`, activeDocs=`418`, duplicatesCountActive=`28`
+- legacy duplicates are soft-marked (`isDuplicate=true`), no deletes
 
 ## Fast verification (1h window, restart x2)
 - before (1h/500): totalDocs=`500`, uniqueFingerprints=`385`, duplicatesCount=`115`
@@ -32,14 +34,13 @@ Last updated: 2026-01-21
 - verdict: `CLEANUP_APPLIED` (audit counts unchanged because `isDuplicate` is not filtered in audit)
 
 ## Quick write test (15m window)
-- threadId_hash: `3e8bfeaf`
-- outbound send: status_code=`200`, messageId_hash=`81723b03`, queued=`false`
-- inbound received within 15m: `false`
-- audit BEFORE restart (15m/500): totalDocs=`500`, uniqueFingerprints=`388`, duplicatesCount=`112`
-- audit AFTER restart (15m/500): totalDocs=`500`, uniqueFingerprints=`388`, duplicatesCount=`112`
-- dashboard BEFORE: dedupe.wrote=`2`, dedupe.skipped=`1`, history.wrote=`0`, history.skipped=`0`
+- threadId_hash: `88e6afbd`
+- outbound send: status_code=`200`, messageId_hash=`e280ce1c`
+- audit BEFORE restart (15m/500): totalDocs=`500`, markedDocs=`82`, activeDocs=`418`, duplicatesCountActive=`28`
+- audit AFTER restart (15m/500): totalDocs=`500`, markedDocs=`82`, activeDocs=`418`, duplicatesCountActive=`28`
+- dashboard BEFORE: dedupe.wrote=`0`, dedupe.skipped=`0`, history.wrote=`0`, history.skipped=`0`
 - dashboard AFTER: dedupe.wrote=`0`, dedupe.skipped=`0`, history.wrote=`0`, history.skipped=`0`
-- verdict: `NO_NEW_DUPES` (no increase), inbound not observed in window
+- verdict: `NO_NEW_DUPES` (no increase in active dupes)
 
 ## Production fixes in place
 - Stable message persist + dedupe (realtime/history/outbound).

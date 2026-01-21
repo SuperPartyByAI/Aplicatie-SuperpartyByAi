@@ -134,12 +134,18 @@ Expected: `sessions_dir_writable=true` (after deploy with updated code) and acco
   - 1h/500: `totalDocs=500`, `uniqueFingerprints=385`, `duplicatesCount=115`
 - Note: audit counts unchanged because audit script does not filter `isDuplicate=true`.
 
-## Quick write test 15m window (sanitized)
+## Audit (excludeMarked default) 2026-01-21
 - Thread hash: `3e8bfeaf`
-- Outbound send: `status_code=200`, `messageId_hash=81723b03`, `queued=false`
-- Inbound received in 15m window: `false`
-- Audit BEFORE restart (15m/500): `totalDocs=500`, `uniqueFingerprints=388`, `duplicatesCount=112`
-- Audit AFTER restart (15m/500): `totalDocs=500`, `uniqueFingerprints=388`, `duplicatesCount=112`
-- Dashboard BEFORE: `dedupe.wrote=2`, `dedupe.skipped=1`, `history.wrote=0`, `history.skipped=0`
+- BEFORE 48h/500: `totalDocs=500`, `markedDocs=82`, `activeDocs=418`, `duplicatesCountActive=28`
+- AFTER 48h/500: `totalDocs=500`, `markedDocs=82`, `activeDocs=418`, `duplicatesCountActive=28`
+- BEFORE 1h/500: `totalDocs=500`, `markedDocs=82`, `activeDocs=418`, `duplicatesCountActive=28`
+- AFTER 1h/500: `totalDocs=500`, `markedDocs=82`, `activeDocs=418`, `duplicatesCountActive=28`
+
+## Quick write test 15m window (sanitized)
+- Thread hash: `88e6afbd`
+- Outbound send: `status_code=200`, `messageId_hash=e280ce1c`
+- Audit BEFORE restart (15m/500): `totalDocs=500`, `markedDocs=82`, `activeDocs=418`, `duplicatesCountActive=28`
+- Audit AFTER restart (15m/500): `totalDocs=500`, `markedDocs=82`, `activeDocs=418`, `duplicatesCountActive=28`
+- Dashboard BEFORE: `dedupe.wrote=0`, `dedupe.skipped=0`, `history.wrote=0`, `history.skipped=0`
 - Dashboard AFTER: `dedupe.wrote=0`, `dedupe.skipped=0`, `history.wrote=0`, `history.skipped=0`
-- Note: inbound not observed during window; dedupe metrics are per-process and reset on restart.
+- Note: quick write succeeded; no increase in active dupes after restart.
