@@ -935,6 +935,26 @@ exports.whatsappProxyRegenerateQr = onRequest(
   wrapWithSecrets(whatsappProxy.regenerateQrHandler, [whatsappBackendBaseUrl, whatsappBackendUrl])
 );
 
+exports.whatsappProxyGetThreads = onRequest(
+  {
+    region: 'us-central1',
+    cors: true,
+    maxInstances: 1,
+    secrets: [whatsappBackendBaseUrl, whatsappBackendUrl],
+  },
+  wrapWithSecrets(whatsappProxy.getThreadsHandler, [whatsappBackendBaseUrl, whatsappBackendUrl])
+);
+
+exports.whatsappProxyGetMessages = onRequest(
+  {
+    region: 'us-central1',
+    cors: true,
+    maxInstances: 1,
+    secrets: [whatsappBackendBaseUrl, whatsappBackendUrl],
+  },
+  wrapWithSecrets(whatsappProxy.getMessagesHandler, [whatsappBackendBaseUrl, whatsappBackendUrl])
+);
+
 // Keep other functions as-is (they may not need secrets or use different config)
 exports.whatsappProxyDeleteAccount = whatsappProxy.deleteAccount;
 exports.whatsappProxyBackfillAccount = whatsappProxy.backfillAccount;

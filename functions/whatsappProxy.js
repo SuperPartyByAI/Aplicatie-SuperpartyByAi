@@ -929,6 +929,77 @@ async function getThreadsHandler(req, res) {
   }
 }
 
+/**
+ * GET /whatsappProxyGetMessages handler
+ *
+ * Returns messages for a thread directly from Firestore.
+ * SECURITY: Employee-only.
+ */
+async function getMessagesHandler(req, res) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({
+      success: false,
+      error: 'method_not_allowed',
+      message: 'Only GET method is allowed',
+    });
+  }
+
+  try {
+    const employeeInfo = await requireEmployee(req, res);
+    if (!employeeInfo) return;
+
+    const accountId = (req.query.accountId || '').toString().trim();
+    const threadId = (req.query.threadId || '').toString().trim();
+    const limit = Math.min(parseInt(req.query.limit || '200', 10) || 200, 500);
+
+    if (!accountId || !threadId) {
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_request',
+        message: 'Missing required query params: accountId, threadId',
+      });
+    }
+
+    const db = admin.firestore();
+    const threadDoc = await db.collection('threads').doc(threadId).get();
+    if (!threadDoc.exists) {
+      return res.status(404).json({ success: false, error: 'thread_not_found' });
+    }
+
+    const threadData = threadDoc.data() || {};
+    if (threadData.accountId !== accountId) {
+      return res.status(403).json({ success: false, error: 'thread_account_mismatch' });
+    }
+
+    const messagesSnapshot = await db
+      .collection('threads')
+      .doc(threadId)
+      .collection('messages')
+      .orderBy('tsClient', 'desc')
+      .limit(limit)
+      .get();
+
+    const messages = messagesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    return res.status(200).json({
+      success: true,
+      thread: { id: threadId, ...threadData },
+      messages,
+      count: messages.length,
+    });
+  } catch (error) {
+    console.error('[whatsappProxy/getMessages] Error:', error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'internal_error',
+      message: 'Internal server error',
+    });
+  }
+}
+
 // Export handlers for use in index.js
 exports.getAccounts = onRequest(
   {
@@ -952,6 +1023,7 @@ exports.getThreads = onRequest(
 );
 
 exports.getThreadsHandler = getThreadsHandler;
+exports.getMessagesHandler = getMessagesHandler;
 
 exports.addAccount = onRequest(
   {
