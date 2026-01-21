@@ -107,3 +107,12 @@ Expected: `sessions_dir_writable=true` (after deploy with updated code) and acco
   - `duplicatesCount=112`
   - `uniqueFingerprints=388`
   - `totalDocs=500`
+
+## Fast verification 2026-01-21 (sanitized)
+- Restart x2, 1h audit window (limit 500):
+  - before: `totalDocs=500`, `uniqueFingerprints=388`, `duplicatesCount=112`
+  - after: `totalDocs=500`, `uniqueFingerprints=388`, `duplicatesCount=112`
+- Dashboard metrics:
+  - `dedupe.wrote=0`, `dedupe.skipped=0`, `dedupe.strongSkipped=0`
+  - `history.wrote=0`, `history.skipped=0`
+- Verdict: no increase in duplicates within 1h window (legacy dupes remain).

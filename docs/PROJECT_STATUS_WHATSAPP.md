@@ -19,6 +19,12 @@ Last updated: 2026-01-21
 - uniqueFingerprints: `388`
 - totalDocs: `500`
 
+## Fast verification (1h window, restart x2)
+- before: totalDocs=`500`, uniqueFingerprints=`388`, duplicatesCount=`112`
+- after: totalDocs=`500`, uniqueFingerprints=`388`, duplicatesCount=`112`
+- dashboard dedupe/history: `wrote=0`, `skipped=0`, `strongSkipped=0`, `history.wrote=0`
+- verdict: `NO_NEW_DUPES_DETECTED` (counts stable), but legacy dupes remain
+
 ## Production fixes in place
 - Stable message persist + dedupe (realtime/history/outbound).
 - Dashboard metrics fix: `d4dce26f`
