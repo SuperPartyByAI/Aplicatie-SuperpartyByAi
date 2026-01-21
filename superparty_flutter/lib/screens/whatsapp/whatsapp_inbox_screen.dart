@@ -112,18 +112,19 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     }
   }
 
-  List<Map<String, dynamic>> _filterAndDedupeThreads(List<Map<String, dynamic>> allThreads) {
-    String readString(dynamic value, {List<String> mapKeys = const []}) {
-      if (value is String) return value;
-      if (value is Map) {
-        for (final key in mapKeys) {
-          final nested = value[key];
-          if (nested is String) return nested;
-        }
+  String _readString(dynamic value, {List<String> mapKeys = const []}) {
+    if (value is String) return value;
+    if (value is Map) {
+      for (final key in mapKeys) {
+        final nested = value[key];
+        if (nested is String) return nested;
       }
-      if (value is num) return value.toString();
-      return '';
     }
+    if (value is num) return value.toString();
+    return '';
+  }
+
+  List<Map<String, dynamic>> _filterAndDedupeThreads(List<Map<String, dynamic>> allThreads) {
 
     DateTime? resolveThreadTime(Map<String, dynamic> thread) {
       if (thread['lastMessageAtMs'] is int) {
@@ -147,8 +148,8 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
 
     final visibleThreads = allThreads.where((thread) {
       final hidden = thread['hidden'] == true || thread['archived'] == true;
-      final redirectTo = readString(thread['redirectTo']).trim();
-      final clientJid = readString(
+      final redirectTo = _readString(thread['redirectTo']).trim();
+      final clientJid = _readString(
         thread['clientJid'],
         mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
       ).trim();
@@ -172,12 +173,13 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
 
     final dedupedByPhone = <String, Map<String, dynamic>>{};
     for (final thread in visibleThreads) {
-      final normalizedPhone = readString(thread['normalizedPhone']).trim();
-      final clientJid = readString(
+      final normalizedPhone = _readString(thread['normalizedPhone']).trim();
+      final clientJid = _readString(
         thread['clientJid'],
         mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
       ).trim();
-      final threadId = readString(thread['id'], mapKeys: const ['threadId', 'id']).trim();
+      final threadId =
+          _readString(thread['id'], mapKeys: const ['threadId', 'id']).trim();
       final key = normalizedPhone.isNotEmpty
           ? normalizedPhone
           : (threadId.isNotEmpty ? threadId : clientJid);
@@ -399,7 +401,13 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                     final normalizedPhone = (thread['normalizedPhone'] as String? ?? '').toLowerCase();
                                     final phone = normalizedPhone.isNotEmpty
                                         ? normalizedPhone
-                                        : (_extractPhoneFromJid(thread['clientJid'] as String?)?.toLowerCase() ?? '');
+                                        : (_extractPhoneFromJid(
+                                              _readString(
+                                                thread['clientJid'],
+                                                mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
+                                              ),
+                                            )?.toLowerCase() ??
+                                            '');
                                     return clientJid.contains(_searchQuery) ||
                                         displayName.contains(_searchQuery) ||
                                         lastMessageText.contains(_searchQuery) ||
@@ -418,23 +426,24 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                       itemCount: filteredThreads.length,
                                       itemBuilder: (context, index) {
                                         final thread = filteredThreads[index];
-                                        final threadId = thread['id'] as String? ?? '';
-                                        final redirectTo = thread['redirectTo'] as String?;
-                                        final accountId = thread['accountId'] as String? ?? '';
-                                        final accountName = thread['accountName'] as String? ?? '';
-                                        final clientJid = thread['clientJid'] as String? ?? '';
-                                        final rawDisplayName = thread['displayName'] as String? ?? '';
-                                        final lastMessageText = thread['lastMessageText'] as String? ?? '';
-                                        final normalizedPhone = thread['normalizedPhone'] as String?;
+                                        final threadId =
+                                            _readString(thread['id'], mapKeys: const ['threadId', 'id']);
+                                        final redirectTo = _readString(thread['redirectTo']);
+                                        final accountId = _readString(thread['accountId']);
+                                        final accountName = _readString(thread['accountName']);
+                                        final clientJid = _readString(
+                                          thread['clientJid'],
+                                          mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
+                                        );
+                                        final rawDisplayName = _readString(thread['displayName']);
+                                        final lastMessageText = _readString(thread['lastMessageText']);
+                                        final normalizedPhone = _readString(thread['normalizedPhone']);
                                         
                                         // Extract phone from clientJid
-                                        final phone = normalizedPhone ?? _extractPhoneFromJid(clientJid);
+                                        final phone = normalizedPhone.isNotEmpty
+                                            ? normalizedPhone
+                                            : _extractPhoneFromJid(clientJid);
                                         final isBroadcast = clientJid.endsWith('@broadcast');
-                                        
-                                        // DEBUG: Print raw data to see what we receive
-                                        if (index == 0) {
-                                          debugPrint('[Inbox] Sample thread data: clientJid=$clientJid, rawDisplayName=$rawDisplayName, phone=$phone');
-                                        }
                                         
                                         // Smart display name logic:
                                         // Always use formatted phone from clientJid for consistency
@@ -584,9 +593,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                           onTap: () {
                                             final encodedDisplayName = Uri.encodeComponent(displayName);
                                             final effectiveThreadId =
-                                                (redirectTo != null && redirectTo.isNotEmpty)
-                                                    ? redirectTo
-                                                    : threadId;
+                                                redirectTo.isNotEmpty ? redirectTo : threadId;
                                             context.go(
                                               '/whatsapp/chat?accountId=${Uri.encodeComponent(accountId)}'
                                               '&threadId=${Uri.encodeComponent(effectiveThreadId)}'
