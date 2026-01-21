@@ -27,6 +27,17 @@ class WhatsAppApiService {
     return Env.whatsappBackendUrl;
   }
 
+  String _maskId(String value) => value.hashCode.toRadixString(16);
+
+  Map<String, dynamic>? _safeDecodeMap(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   String _requireBackendUrl() {
     final backendUrl = _getBackendUrl();
     if (backendUrl.isEmpty) {
@@ -472,7 +483,7 @@ class WhatsAppApiService {
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
 
-      debugPrint('[WhatsAppApiService] getThreads: calling proxy (accountId=$accountId)');
+      debugPrint('[WhatsAppApiService] getThreads: calling proxy (accountId=${_maskId(accountId)})');
 
       final backendUrl = _getBackendUrl();
       final response = backendUrl.isEmpty
@@ -500,7 +511,7 @@ class WhatsAppApiService {
       debugPrint('[WhatsAppApiService] getThreads: status=${response.statusCode}');
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+        final errorBody = _safeDecodeMap(response.body);
         debugPrint('[WhatsAppApiService] getThreads: error=${errorBody?['error']}');
         throw ErrorMapper.fromHttpException(
           response.statusCode,
@@ -508,7 +519,13 @@ class WhatsAppApiService {
         );
       }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = _safeDecodeMap(response.body);
+      if (data == null) {
+        throw ErrorMapper.fromHttpException(
+          response.statusCode,
+          'invalid_json_response',
+        );
+      }
       debugPrint('[WhatsAppApiService] getThreads: success, threadsCount=${data['threads']?.length ?? 0}');
       return data;
     });
@@ -531,7 +548,7 @@ class WhatsAppApiService {
       final backendUrl = _requireBackendUrl();
       final requestId = _generateRequestId();
 
-      debugPrint('[WhatsAppApiService] getInbox: calling API (accountId=$accountId, limit=$limit, backendUrl=$backendUrl)');
+      debugPrint('[WhatsAppApiService] getInbox: calling API (accountId=${_maskId(accountId)}, limit=$limit, backendUrl=$backendUrl)');
 
       final response = await http
           .get(
