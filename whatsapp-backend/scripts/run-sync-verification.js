@@ -101,13 +101,21 @@ const fail = (payload, exitCode = 2) => {
     const afterMetrics = extractAuditMetrics(after);
     const beforeDupes = Number(beforeMetrics.duplicatesCountActive ?? 0);
     const afterDupes = Number(afterMetrics.duplicatesCountActive ?? 0);
+    const usedFallback = Boolean(before?.usedFallback || after?.usedFallback);
+    const modeUsed = before?.modeUsed || after?.modeUsed || null;
+    const allowFallbackReady = process.env.ALLOW_FALLBACK_READY === 'true';
+    const duplicatesDelta = afterDupes - beforeDupes;
 
     const result = {
+      duplicatesCountActiveBefore: beforeDupes,
+      duplicatesCountActiveAfter: afterDupes,
       before: beforeMetrics,
       after: afterMetrics,
       delta: {
-        duplicatesCountActive: afterDupes - beforeDupes,
+        duplicatesCountActive: duplicatesDelta,
       },
+      usedFallback,
+      modeUsed,
       restartPerformed: process.env.RUN_RESTART === 'true',
     };
 
@@ -116,6 +124,18 @@ const fail = (payload, exitCode = 2) => {
         ...result,
         error: 'duplicates_increased',
       }, 3);
+    }
+
+    let verdict = true;
+    let notReadyReason = null;
+    if (usedFallback && !allowFallbackReady) {
+      verdict = false;
+      notReadyReason = 'missing_desc_index';
+    }
+
+    result.verdict = verdict;
+    if (!verdict) {
+      result.not_ready_reason = notReadyReason;
     }
 
     console.log(JSON.stringify(result));
