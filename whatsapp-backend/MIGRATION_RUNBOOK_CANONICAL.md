@@ -54,6 +54,11 @@ Apply (gated):
 node scripts/cleanup-firestore-duplicates.js --threadId=<threadId> --windowHours=48 --limit=2000 --apply
 ```
 
+NPM convenience:
+```bash
+npm run cleanup:dupes -- --threadId=<threadId> --windowHours=48 --limit=2000 [--apply]
+```
+
 Output keys (sanitized):
 - `scannedMessages`
 - `groupsWithDuplicates`
