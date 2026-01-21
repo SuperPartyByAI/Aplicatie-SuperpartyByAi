@@ -485,19 +485,21 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                             }
                                             
                                             displayName = formatted;
-                                            debugPrint('[Inbox] Formatted displayName: $displayName (from phone: $phone)');
                                           }
                                         }
                                         
                                         // Parse lastMessageAt timestamp
                                         DateTime? lastMessageAt;
-                                        if (thread['lastMessageAt'] != null) {
-                                          final ts = thread['lastMessageAt'] as Map<String, dynamic>?;
-                                          if (ts?['_seconds'] != null) {
-                                            lastMessageAt = DateTime.fromMillisecondsSinceEpoch(
-                                              (ts!['_seconds'] as int) * 1000,
-                                            );
-                                          }
+                                        final lastMessageRaw = thread['lastMessageAt'];
+                                        if (lastMessageRaw is Timestamp) {
+                                          lastMessageAt = lastMessageRaw.toDate();
+                                        } else if (lastMessageRaw is Map &&
+                                            lastMessageRaw['_seconds'] is int) {
+                                          lastMessageAt = DateTime.fromMillisecondsSinceEpoch(
+                                            (lastMessageRaw['_seconds'] as int) * 1000,
+                                          );
+                                        } else if (lastMessageRaw is String) {
+                                          lastMessageAt = DateTime.tryParse(lastMessageRaw);
                                         }
                                         
                                         // Don't show phone in subtitle if it's already the displayName
