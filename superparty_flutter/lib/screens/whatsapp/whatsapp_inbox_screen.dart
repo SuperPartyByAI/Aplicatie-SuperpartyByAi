@@ -129,12 +129,17 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       if (thread['lastMessageAtMs'] is int) {
         return DateTime.fromMillisecondsSinceEpoch(thread['lastMessageAtMs'] as int);
       }
-      if (thread['lastMessageAt'] != null) {
-        final ts = thread['lastMessageAt'] as Map<String, dynamic>?;
-        if (ts?['_seconds'] != null) {
-          return DateTime.fromMillisecondsSinceEpoch((ts!['_seconds'] as int) * 1000);
-        }
-      } else if (thread['lastMessageTimestamp'] is int) {
+      final lastMessageAt = thread['lastMessageAt'];
+      if (lastMessageAt is Map && lastMessageAt['_seconds'] is int) {
+        return DateTime.fromMillisecondsSinceEpoch(
+          (lastMessageAt['_seconds'] as int) * 1000,
+        );
+      }
+      if (lastMessageAt is String) {
+        final parsed = DateTime.tryParse(lastMessageAt);
+        if (parsed != null) return parsed;
+      }
+      if (thread['lastMessageTimestamp'] is int) {
         return DateTime.fromMillisecondsSinceEpoch((thread['lastMessageTimestamp'] as int) * 1000);
       }
       return null;
