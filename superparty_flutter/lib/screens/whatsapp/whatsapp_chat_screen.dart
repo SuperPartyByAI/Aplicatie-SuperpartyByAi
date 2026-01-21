@@ -279,15 +279,24 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     }
     for (final doc in docs) {
       final data = doc.data() as Map<String, dynamic>;
+      if (data['isDuplicate'] == true) {
+        continue;
+      }
       final waMessageId = data['waMessageId'] as String?;
       final clientMessageId = data['clientMessageId'] as String?;
+      final stableKeyHash = data['stableKeyHash'] as String?;
+      final fingerprintHash = data['fingerprintHash'] as String?;
       final direction = data['direction'] as String? ?? 'inbound';
       final body = (data['body'] as String? ?? '').trim();
       final tsMillis = _extractTsMillis(data['tsClient']);
       final tsRounded = tsMillis != null ? (tsMillis / 1000).floor() : null;
       final fallbackKey = 'fallback:$direction|$body|$tsRounded';
 
-      final primaryKey = waMessageId?.isNotEmpty == true
+      final primaryKey = stableKeyHash?.isNotEmpty == true
+          ? 'stable:$stableKeyHash'
+          : fingerprintHash?.isNotEmpty == true
+              ? 'fp:$fingerprintHash'
+              : waMessageId?.isNotEmpty == true
           ? 'wa:$waMessageId'
           : (clientMessageId?.isNotEmpty == true ? 'client:$clientMessageId' : fallbackKey);
 
