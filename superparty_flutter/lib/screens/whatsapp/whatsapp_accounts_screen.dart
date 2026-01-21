@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:crypto/crypto.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:path/path.dart' as path;
@@ -57,6 +59,33 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   Timer? _qrPollingTimer; // Timer for polling QR code generation
   
   static const String _waUrl = 'https://web.whatsapp.com';
+  
+  Future<void> _copyFirebaseIdTokenToClipboard() async {
+    if (!kDebugMode) return;
+    final token = await FirebaseAuth.instance.currentUser!.getIdToken(true);
+    if (token == null || token.isEmpty) {
+      debugPrint('[WhatsAppDebug] tokenLen=0, tokenHash=none');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Firebase ID token unavailable'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: token));
+    final tokenHash = sha256.convert(utf8.encode(token)).toString().substring(0, 8);
+    debugPrint('[WhatsAppDebug] tokenLen=${token.length}, tokenHash=$tokenHash');
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Firebase ID token copied to clipboard'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
   
   /// Get path to firefox-container script
   /// 
@@ -1747,6 +1776,21 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
               onPressed: _runDoctor,
               tooltip: 'Diagnostics',
             ),
+            if (kDebugMode)
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                onSelected: (value) {
+                  if (value == 'copy_id_token') {
+                    _copyFirebaseIdTokenToClipboard();
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: 'copy_id_token',
+                    child: Text('Copy Firebase ID token'),
+                  ),
+                ],
+              ),
             if (Platform.isMacOS)
               IconButton(
                 icon: const Icon(Icons.science),
@@ -1778,6 +1822,21 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                 _checkBackendDiagnostics();
               },
               tooltip: 'Refresh',
+            ),
+          if (kDebugMode)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                if (value == 'copy_id_token') {
+                  _copyFirebaseIdTokenToClipboard();
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'copy_id_token',
+                  child: Text('Copy Firebase ID token'),
+                ),
+              ],
             ),
         ],
       ),

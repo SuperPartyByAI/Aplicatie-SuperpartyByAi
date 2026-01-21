@@ -79,6 +79,7 @@ dependencies:
   url_launcher: ^6.2.4
   qr_flutter: ^4.1.0
   uuid: ^4.5.2
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:
