@@ -157,8 +157,14 @@ const initFirestore = () => {
 
 const getIndexLink = (error) => {
   const raw = error?.message || '';
+  if (!raw.toLowerCase().includes('index')) return null;
   const match = raw.match(/https?:\/\/\S+/);
-  return match ? match[0] : null;
+  if (!match) return null;
+  const url = match[0];
+  if (url.includes('console.firebase.google.com') || url.includes('firebase.google.com')) {
+    return url;
+  }
+  return null;
 };
 
 (async () => {
