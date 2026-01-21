@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crypto/crypto.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 
 import '../../services/whatsapp_api_service.dart';
 
@@ -27,6 +31,49 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
   bool _isLoading = false;
   int? _threadCount;
   String? _selectedAccountId;
+
+  Future<void> _copyAuthTokensToClipboard() async {
+    if (!kDebugMode) return;
+    final idToken = await FirebaseAuth.instance.currentUser?.getIdToken(true);
+    final appCheckToken = await FirebaseAppCheck.instance.getToken(true);
+    final idTokenLen = idToken?.length ?? 0;
+    final idTokenDotCount = idToken == null ? 0 : '.'.allMatches(idToken).length;
+    final idTokenHash = idToken == null || idToken.isEmpty
+        ? 'none'
+        : sha256.convert(utf8.encode(idToken)).toString().substring(0, 8);
+    final appCheckLen = appCheckToken?.length ?? 0;
+    final appCheckHash = appCheckToken == null || appCheckToken.isEmpty
+        ? 'none'
+        : sha256.convert(utf8.encode(appCheckToken)).toString().substring(0, 8);
+
+    debugPrint(
+      '[WhatsAppDebug] idTokenLen=$idTokenLen, idTokenDotCount=$idTokenDotCount, idTokenHash=$idTokenHash',
+    );
+    debugPrint('[WhatsAppDebug] appCheckLen=$appCheckLen, appCheckHash=$appCheckHash');
+
+    if (idToken == null || idToken.isEmpty || appCheckToken == null || appCheckToken.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Auth tokens unavailable'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    await Clipboard.setData(
+      ClipboardData(text: 'ID=$idToken\nAPP=$appCheckToken\n'),
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Copied tokens'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -105,6 +152,11 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
             icon: const Icon(Icons.refresh),
             onPressed: _loadDiagnostics,
             tooltip: 'Refresh',
+          ),
+          IconButton(
+            icon: const Icon(Icons.copy),
+            onPressed: _copyAuthTokensToClipboard,
+            tooltip: 'Copy Auth Tokens',
           ),
         ],
       ),

@@ -45,7 +45,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     final idToken = await FirebaseAuth.instance.currentUser?.getIdToken(true);
     final appCheckToken = await FirebaseAppCheck.instance.getToken(true);
     final idTokenLen = idToken?.length ?? 0;
-    final idTokenDotCount = idToken?.split('.').length ?? 1;
+    final idTokenDotCount = idToken == null ? 0 : '.'.allMatches(idToken).length;
     final idTokenHash = idToken == null || idToken.isEmpty
         ? 'none'
         : sha256.convert(utf8.encode(idToken)).toString().substring(0, 8);
@@ -53,10 +53,8 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     final appCheckHash = appCheckToken == null || appCheckToken.isEmpty
         ? 'none'
         : sha256.convert(utf8.encode(appCheckToken)).toString().substring(0, 8);
-    final idTokenDotTotal = idTokenLen == 0 ? 0 : (idTokenDotCount - 1);
-
     debugPrint(
-      '[WhatsAppDebug] idTokenLen=$idTokenLen, idTokenDotCount=$idTokenDotTotal, idTokenHash=$idTokenHash',
+      '[WhatsAppDebug] idTokenLen=$idTokenLen, idTokenDotCount=$idTokenDotCount, idTokenHash=$idTokenHash',
     );
     debugPrint('[WhatsAppDebug] appCheckLen=$appCheckLen, appCheckHash=$appCheckHash');
 
