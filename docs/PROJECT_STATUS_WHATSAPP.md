@@ -14,6 +14,15 @@ Last updated: 2026-01-21
 - SESSIONS_PATH: `/var/lib/whatsapp-backend/sessions`
 - creds.json_count: `1`
 
+## Firestore mode (Flutter)
+- default: `prod` (emulator disabled unless `USE_FIREBASE_EMULATOR=true`)
+- emulator fallback: auto‑fallback to prod if emulator is unreachable
+
+## Inbound sync strategy (Flutter)
+- primary: Firestore stream `threads/{threadId}/messages`
+- fallback: proxy polling `whatsappProxyGetMessages` (every ~3s) if stream errors or times out
+- dedupe: skip `isDuplicate=true`, prefer `stableKeyHash` / `fingerprintHash`
+
 ## Duplicate audit (excludeMarked default)
 - BEFORE 48h/500: totalDocs=`500`, markedDocs=`82`, activeDocs=`418`, duplicatesCountActive=`28`
 - AFTER 48h/500: totalDocs=`500`, markedDocs=`82`, activeDocs=`418`, duplicatesCountActive=`28`
@@ -41,6 +50,15 @@ Last updated: 2026-01-21
 - dashboard BEFORE: dedupe.wrote=`0`, dedupe.skipped=`0`, history.wrote=`0`, history.skipped=`0`
 - dashboard AFTER: dedupe.wrote=`0`, dedupe.skipped=`0`, history.wrote=`0`, history.skipped=`0`
 - verdict: `NO_NEW_DUPES` (no increase in active dupes)
+
+## Audit commands (sanitized)
+- Global audit (48h/500): `node scripts/audit-firestore-duplicates.js --windowHours=48 --limit=500 --excludeMarked`
+- Global audit (15m/500): `node scripts/audit-firestore-duplicates.js --windowHours=0.25 --limit=500 --excludeMarked`
+- Thread audit: `node scripts/audit-threads-duplicates.js --limit=2000`
+- Note: collectionGroup orderBy requires index on `messages.tsClient` (DESC)
+
+## Proxy sanity check
+- `curl` without tokens should return `401` (expected)
 
 ## Production fixes in place
 - Stable message persist + dedupe (realtime/history/outbound).

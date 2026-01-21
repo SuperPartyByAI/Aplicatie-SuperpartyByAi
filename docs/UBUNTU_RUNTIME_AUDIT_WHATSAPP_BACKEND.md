@@ -51,7 +51,24 @@ Component | Base URL | Paths | Auth | Protocol
 Flutter (accounts/add/regenerate/send) | Firebase Functions | `whatsappProxyGetAccounts`, `whatsappProxyAddAccount`, `whatsappProxyRegenerateQr`, `whatsappProxySend` | Firebase ID token | https
 Flutter (threads) | Backend if `WHATSAPP_BACKEND_URL` set, else Functions proxy | `/api/whatsapp/threads/:accountId` or `whatsappProxyGetThreads` | Firebase ID token (proxy) | https (proxy) / http(s) backend
 Flutter (inbox) | Backend (requires `WHATSAPP_BACKEND_URL`) | `/api/whatsapp/inbox/:accountId` | Firebase ID token (direct) | http(s)
-Flutter (chat messages) | Firestore realtime | `threads/{threadId}/messages` | Firebase Auth | n/a
+Flutter (chat messages) | Firestore realtime + proxy polling fallback | `threads/{threadId}/messages`, `whatsappProxyGetMessages` | Firebase ID token + App Check (proxy) | https
+
+## Firestore Mode (Flutter)
+- Default: prod (emulator off unless `USE_FIREBASE_EMULATOR=true`)
+- Fallback: if emulator is unreachable, app logs `Firestore mode: prod` and proceeds
+
+## Inbound Fallback (Flutter)
+- Primary: Firestore stream
+- Fallback: proxy polling (every ~3s) with `after` cursor and local dedupe
+- Expected: `curl` without tokens to proxy returns `401`
+
+## Audit Commands (Sanitized)
+```bash
+node scripts/audit-firestore-duplicates.js --windowHours=48 --limit=500 --excludeMarked
+node scripts/audit-firestore-duplicates.js --windowHours=0.25 --limit=500 --excludeMarked
+node scripts/audit-threads-duplicates.js --limit=2000
+```
+- Index requirement: collectionGroup `messages` ordered by `tsClient` (DESC)
 
 ## Verdict: PROBLEMĂ
 Blocking reasons:
