@@ -9135,6 +9135,7 @@ app.post('/api/admin/accounts/:id/reset-session', requireAdmin, async (req, res)
 app.get('/api/status/dashboard', async (req, res) => {
   try {
     const waSnapshot = await getWAModeSnapshot();
+    const { dedupeTotals, historyTotals } = getMetricsSnapshot();
     const sanitizedBaseUrl = (() => {
       const raw =
         process.env.WHATSAPP_BACKEND_BASE_URL ||
