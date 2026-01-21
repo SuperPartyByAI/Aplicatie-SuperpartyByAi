@@ -35,6 +35,14 @@ function extractIdToken(req) {
   return authHeader.substring(7);
 }
 
+function extractAppCheckToken(req) {
+  const headerValue = req.headers['x-firebase-appcheck'];
+  if (!headerValue) {
+    return null;
+  }
+  return typeof headerValue === 'string' ? headerValue : headerValue[0];
+}
+
 // Verify Firebase ID token
 async function verifyIdToken(token) {
   if (!token) return null;
@@ -43,6 +51,18 @@ async function verifyIdToken(token) {
     return decoded;
   } catch (error) {
     console.error('[whatsappProxy] Token verification failed:', error.message);
+    return null;
+  }
+}
+
+// Verify Firebase App Check token
+async function verifyAppCheckToken(token) {
+  if (!token) return null;
+  try {
+    const appCheckResult = await admin.appCheck().verifyToken(token);
+    return appCheckResult;
+  } catch (error) {
+    console.error('[whatsappProxy] App Check verification failed:', error.message);
     return null;
   }
 }
@@ -134,6 +154,52 @@ async function requireAuth(req, res) {
     return null;
   }
   req.user = decoded;
+  return decoded;
+}
+
+async function requireProxyAuth(req, res) {
+  const idToken = extractIdToken(req);
+  if (!idToken) {
+    res.status(401).json({
+      success: false,
+      error: 'missing_id_token',
+      message: 'Missing Firebase ID token',
+    });
+    return null;
+  }
+
+  const decoded = await verifyIdToken(idToken);
+  if (!decoded) {
+    res.status(401).json({
+      success: false,
+      error: 'invalid_id_token',
+      message: 'Invalid Firebase ID token',
+    });
+    return null;
+  }
+
+  const appCheckToken = extractAppCheckToken(req);
+  if (!appCheckToken) {
+    res.status(401).json({
+      success: false,
+      error: 'missing_app_check',
+      message: 'Missing Firebase App Check token',
+    });
+    return null;
+  }
+
+  const appCheckResult = await verifyAppCheckToken(appCheckToken);
+  if (!appCheckResult) {
+    res.status(401).json({
+      success: false,
+      error: 'invalid_app_check',
+      message: 'Invalid Firebase App Check token',
+    });
+    return null;
+  }
+
+  req.user = decoded;
+  req.appCheck = appCheckResult;
   return decoded;
 }
 
@@ -241,6 +307,27 @@ function getForwardRequest() {
 async function requireEmployee(req, res) {
   const decoded = await requireAuth(req, res);
   if (!decoded) return null; // Response already sent
+
+  const uid = decoded.uid;
+  const email = decoded.email || '';
+  const employeeInfo = await isEmployee(uid, email);
+
+  if (!employeeInfo.isEmployee) {
+    res.status(403).json({
+      success: false,
+      error: 'employee_only',
+      message: 'Only employees can send messages',
+    });
+    return null;
+  }
+
+  req.employeeInfo = employeeInfo;
+  return employeeInfo;
+}
+
+async function requireProxyEmployee(req, res) {
+  const decoded = await requireProxyAuth(req, res);
+  if (!decoded) return null;
 
   const uid = decoded.uid;
   const email = decoded.email || '';
@@ -878,6 +965,10 @@ async function backfillAccountHandler(req, res) {
  * SECURITY: Employee-only.
  */
 async function getThreadsHandler(req, res) {
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send('');
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({
       success: false,
@@ -887,7 +978,7 @@ async function getThreadsHandler(req, res) {
   }
 
   try {
-    const employeeInfo = await requireEmployee(req, res);
+    const employeeInfo = await requireProxyEmployee(req, res);
     if (!employeeInfo) return;
 
     const accountId = (req.query.accountId || '').toString().trim();
@@ -936,27 +1027,34 @@ async function getThreadsHandler(req, res) {
  * SECURITY: Employee-only.
  */
 async function getMessagesHandler(req, res) {
-  if (req.method !== 'GET') {
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send('');
+  }
+
+  if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({
       success: false,
       error: 'method_not_allowed',
-      message: 'Only GET method is allowed',
+      message: 'Only GET or POST method is allowed',
     });
   }
 
   try {
-    const employeeInfo = await requireEmployee(req, res);
+    const employeeInfo = await requireProxyEmployee(req, res);
     if (!employeeInfo) return;
 
-    const accountId = (req.query.accountId || '').toString().trim();
-    const threadId = (req.query.threadId || '').toString().trim();
-    const limit = Math.min(parseInt(req.query.limit || '200', 10) || 200, 500);
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const query = req.query || {};
+    const accountId = (body.accountId || query.accountId || '').toString().trim();
+    const threadId = (body.threadId || query.threadId || '').toString().trim();
+    const rawLimit = (body.limit || query.limit || '200').toString();
+    const limit = Math.min(parseInt(rawLimit, 10) || 200, 500);
 
     if (!accountId || !threadId) {
       return res.status(400).json({
         success: false,
         error: 'invalid_request',
-        message: 'Missing required query params: accountId, threadId',
+        message: 'Missing required params: accountId, threadId',
       });
     }
 

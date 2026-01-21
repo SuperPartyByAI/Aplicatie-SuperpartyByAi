@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:crypto/crypto.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -60,28 +61,44 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   
   static const String _waUrl = 'https://web.whatsapp.com';
   
-  Future<void> _copyFirebaseIdTokenToClipboard() async {
+  Future<void> _copyAuthTokensToClipboard() async {
     if (!kDebugMode) return;
-    final token = await FirebaseAuth.instance.currentUser!.getIdToken(true);
-    if (token == null || token.isEmpty) {
-      debugPrint('[WhatsAppDebug] tokenLen=0, tokenHash=none');
+    final idToken = await FirebaseAuth.instance.currentUser?.getIdToken(true);
+    final appCheckToken = await FirebaseAppCheck.instance.getToken(true);
+    final idTokenLen = idToken?.length ?? 0;
+    final idTokenDotCount = idToken?.split('.').length ?? 1;
+    final idTokenHash = idToken == null || idToken.isEmpty
+        ? 'none'
+        : sha256.convert(utf8.encode(idToken)).toString().substring(0, 8);
+    final appCheckLen = appCheckToken?.length ?? 0;
+    final appCheckHash = appCheckToken == null || appCheckToken.isEmpty
+        ? 'none'
+        : sha256.convert(utf8.encode(appCheckToken)).toString().substring(0, 8);
+    final idTokenDotTotal = idTokenLen == 0 ? 0 : (idTokenDotCount - 1);
+
+    debugPrint(
+      '[WhatsAppDebug] idTokenLen=$idTokenLen, idTokenDotCount=$idTokenDotTotal, idTokenHash=$idTokenHash',
+    );
+    debugPrint('[WhatsAppDebug] appCheckLen=$appCheckLen, appCheckHash=$appCheckHash');
+
+    if (idToken == null || idToken.isEmpty || appCheckToken == null || appCheckToken.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Firebase ID token unavailable'),
+          content: Text('Auth tokens unavailable'),
           duration: Duration(seconds: 2),
         ),
       );
       return;
     }
-    await Clipboard.setData(ClipboardData(text: token));
-    final tokenHash = sha256.convert(utf8.encode(token)).toString().substring(0, 8);
-    debugPrint('[WhatsAppDebug] tokenLen=${token.length}, tokenHash=$tokenHash');
+    await Clipboard.setData(
+      ClipboardData(text: 'ID=$idToken\nAPP=$appCheckToken\n'),
+    );
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Firebase ID token copied to clipboard'),
+        content: Text('Copied tokens'),
         duration: Duration(seconds: 2),
       ),
     );
@@ -1780,14 +1797,14 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert),
                 onSelected: (value) {
-                  if (value == 'copy_id_token') {
-                    _copyFirebaseIdTokenToClipboard();
+                  if (value == 'copy_auth_tokens') {
+                    _copyAuthTokensToClipboard();
                   }
                 },
                 itemBuilder: (context) => const [
                   PopupMenuItem(
-                    value: 'copy_id_token',
-                    child: Text('Copy Firebase ID token'),
+                    value: 'copy_auth_tokens',
+                    child: Text('Copy Auth Tokens'),
                   ),
                 ],
               ),
@@ -1827,14 +1844,14 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert),
               onSelected: (value) {
-                if (value == 'copy_id_token') {
-                  _copyFirebaseIdTokenToClipboard();
+              if (value == 'copy_auth_tokens') {
+                _copyAuthTokensToClipboard();
                 }
               },
               itemBuilder: (context) => const [
                 PopupMenuItem(
-                  value: 'copy_id_token',
-                  child: Text('Copy Firebase ID token'),
+                value: 'copy_auth_tokens',
+                child: Text('Copy Auth Tokens'),
                 ),
               ],
             ),
