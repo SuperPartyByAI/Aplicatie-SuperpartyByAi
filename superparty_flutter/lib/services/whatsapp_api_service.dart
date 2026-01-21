@@ -19,6 +19,9 @@ class WhatsAppApiService {
   WhatsAppApiService._internal();
 
   static WhatsAppApiService get instance => _instance;
+  int? _lastGetMessagesStatus;
+
+  int? get lastGetMessagesStatus => _lastGetMessagesStatus;
 
   /// Request timeout (configurable)
   Duration requestTimeout = const Duration(seconds: 30);
@@ -596,6 +599,7 @@ class WhatsAppApiService {
           )
           .timeout(requestTimeout);
 
+      _lastGetMessagesStatus = response.statusCode;
       debugPrint(
         '[WhatsAppApiService] getMessages: status=${response.statusCode}, bodyLength=${response.body.length}',
       );

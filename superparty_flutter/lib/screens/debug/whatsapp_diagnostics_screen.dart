@@ -244,6 +244,10 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
                   _buildSection('API Status', [
                     if (_lastError != null)
                       _buildInfoRow('Last Error', _lastError!, isError: true),
+                    _buildInfoRow(
+                      'Last getMessages Status',
+                      _apiService.lastGetMessagesStatus?.toString() ?? 'N/A',
+                    ),
                     if (_lastAccountsResponse != null) ...[
                       _buildInfoRow(
                         'Accounts Count',
