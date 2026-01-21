@@ -22,6 +22,7 @@ const parseArgs = (argv) => {
     includeMarked: false,
     keyMode: 'stable',
     accountId: '',
+    printIndexLink: true,
   };
 
   for (const arg of argv) {
@@ -59,6 +60,12 @@ const parseArgs = (argv) => {
     }
     if (arg.startsWith('--accountId=')) {
       opts.accountId = arg.split('=')[1] || '';
+    }
+    if (arg === '--printIndexLink') {
+      opts.printIndexLink = true;
+    }
+    if (arg === '--no-printIndexLink') {
+      opts.printIndexLink = false;
     }
   }
 
@@ -148,6 +155,12 @@ const initFirestore = () => {
   }
 };
 
+const getIndexLink = (error) => {
+  const raw = error?.message || '';
+  const match = raw.match(/https?:\/\/\S+/);
+  return match ? match[0] : null;
+};
+
 (async () => {
   const opts = parseArgs(process.argv.slice(2));
 
@@ -186,7 +199,29 @@ const initFirestore = () => {
     query = query.where('accountId', '==', opts.accountId.trim());
   }
 
-  const snapshot = await query.get();
+  let snapshot = null;
+  try {
+    snapshot = await query.get();
+  } catch (error) {
+    const indexLink = getIndexLink(error);
+    if (indexLink && opts.printIndexLink) {
+      console.log(
+        JSON.stringify({
+          error: 'firestore_index_required',
+          message: 'Index required for messages collectionGroup orderBy tsClient',
+          indexLink,
+        })
+      );
+      process.exit(2);
+    }
+    console.log(
+      JSON.stringify({
+        error: 'firestore_query_failed',
+        message: 'Firestore query failed',
+      })
+    );
+    process.exit(2);
+  }
 
   const activeGroups = new Map();
   const allGroups = new Map();
