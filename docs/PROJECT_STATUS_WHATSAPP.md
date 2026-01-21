@@ -31,6 +31,16 @@ Last updated: 2026-01-21
 - apply: duplicatesToMark=`72`, threadsUpdated=`1`
 - verdict: `CLEANUP_APPLIED` (audit counts unchanged because `isDuplicate` is not filtered in audit)
 
+## Quick write test (15m window)
+- threadId_hash: `3e8bfeaf`
+- outbound send: status_code=`200`, messageId_hash=`81723b03`, queued=`false`
+- inbound received within 15m: `false`
+- audit BEFORE restart (15m/500): totalDocs=`500`, uniqueFingerprints=`388`, duplicatesCount=`112`
+- audit AFTER restart (15m/500): totalDocs=`500`, uniqueFingerprints=`388`, duplicatesCount=`112`
+- dashboard BEFORE: dedupe.wrote=`2`, dedupe.skipped=`1`, history.wrote=`0`, history.skipped=`0`
+- dashboard AFTER: dedupe.wrote=`0`, dedupe.skipped=`0`, history.wrote=`0`, history.skipped=`0`
+- verdict: `NO_NEW_DUPES` (no increase), inbound not observed in window
+
 ## Production fixes in place
 - Stable message persist + dedupe (realtime/history/outbound).
 - Dashboard metrics fix: `d4dce26f`
