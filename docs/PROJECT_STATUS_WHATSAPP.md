@@ -15,14 +15,21 @@ Last updated: 2026-01-21
 - creds.json_count: `1`
 
 ## Duplicate audit (sanitized)
-- window `48h`, limit `500` -> totalDocs=`500`, uniqueFingerprints=`388`, duplicatesCount=`112`
-- legacy duplicates present (cleanup planned, no deletes)
+- BEFORE 48h/500: totalDocs=`500`, uniqueFingerprints=`385`, duplicatesCount=`115`
+- AFTER 48h/500: totalDocs=`500`, uniqueFingerprints=`385`, duplicatesCount=`115`
+- legacy duplicates present; cleanup uses `isDuplicate=true` soft-mark (no deletes)
 
 ## Fast verification (1h window, restart x2)
-- before (1h/500): totalDocs=`500`, uniqueFingerprints=`388`, duplicatesCount=`112`
-- after (1h/500): totalDocs=`500`, uniqueFingerprints=`388`, duplicatesCount=`112`
+- before (1h/500): totalDocs=`500`, uniqueFingerprints=`385`, duplicatesCount=`115`
+- after (1h/500): totalDocs=`500`, uniqueFingerprints=`385`, duplicatesCount=`115`
 - dashboard dedupe/history: `wrote=0`, `skipped=0`, `strongSkipped=0`, `history.wrote=0`
 - verdict: `NO_NEW_DUPES_DETECTED` (counts stable), but legacy dupes remain
+
+## Duplicate cleanup (soft-mark)
+- threadId_hash: `ad7bd8a1`
+- dry-run: scannedMessages=`849`, groupsWithDuplicates=`50`, duplicatesToMark=`72`
+- apply: duplicatesToMark=`72`, threadsUpdated=`1`
+- verdict: `CLEANUP_APPLIED` (audit counts unchanged because `isDuplicate` is not filtered in audit)
 
 ## Production fixes in place
 - Stable message persist + dedupe (realtime/history/outbound).

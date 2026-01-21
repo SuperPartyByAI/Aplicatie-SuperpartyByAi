@@ -116,3 +116,20 @@ Expected: `sessions_dir_writable=true` (after deploy with updated code) and acco
   - `dedupe.wrote=0`, `dedupe.skipped=0`, `dedupe.strongSkipped=0`
   - `history.wrote=0`, `history.skipped=0`
 - Verdict: no increase in duplicates within 1h window (legacy dupes remain).
+
+## Duplicate cleanup run 2026-01-21 (sanitized)
+- `/health`: `waMode=active`, `lockStatus=held_by_this_instance`, `accounts_total=1`, `connected=1`, `needs_qr=0`, `sessions_dir_writable=true`
+- Sessions:
+  - `SESSIONS_PATH=/var/lib/whatsapp-backend/sessions`
+  - `creds.json_count=1`
+- Thread hash: `ad7bd8a1`
+- Audits BEFORE:
+  - 48h/500: `totalDocs=500`, `uniqueFingerprints=385`, `duplicatesCount=115`
+  - 1h/500: `totalDocs=500`, `uniqueFingerprints=385`, `duplicatesCount=115`
+- Cleanup:
+  - dry-run: `scannedMessages=849`, `groupsWithDuplicates=50`, `duplicatesToMark=72`
+  - apply: `duplicatesToMark=72`, `threadsUpdated=1`
+- Audits AFTER:
+  - 48h/500: `totalDocs=500`, `uniqueFingerprints=385`, `duplicatesCount=115`
+  - 1h/500: `totalDocs=500`, `uniqueFingerprints=385`, `duplicatesCount=115`
+- Note: audit counts unchanged because audit script does not filter `isDuplicate=true`.
