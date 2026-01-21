@@ -8,7 +8,7 @@ describe('LID canonicalization + outbound dedupe', () => {
   test('saveMessageToFirestore canonicalizes LID to canonicalJid', () => {
     expect(serverCode).toMatch(/resolveCanonicalJid/);
     expect(serverCode).toMatch(/canonicalJid/);
-    expect(serverCode).toMatch(/const threadId = `\$\{accountId}__\$\{canonicalJid}`/);
+    expect(serverCode).toMatch(/buildCanonicalThreadId/);
     expect(serverCode).toMatch(/clientJid:\s*canonicalJid/);
     expect(serverCode).toMatch(/rawJid/);
   });
