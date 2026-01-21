@@ -395,10 +395,15 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                   // Filter threads by search query
                                   final filteredThreads = _threads.where((thread) {
                                     if (_searchQuery.isEmpty) return true;
-                                    final clientJid = (thread['clientJid'] as String? ?? '').toLowerCase();
-                                    final displayName = (thread['displayName'] as String? ?? '').toLowerCase();
-                                    final lastMessageText = (thread['lastMessageText'] as String? ?? '').toLowerCase();
-                                    final normalizedPhone = (thread['normalizedPhone'] as String? ?? '').toLowerCase();
+                                    final clientJid = _readString(
+                                      thread['clientJid'],
+                                      mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
+                                    ).toLowerCase();
+                                    final displayName = _readString(thread['displayName']).toLowerCase();
+                                    final lastMessageText =
+                                        _readString(thread['lastMessageText']).toLowerCase();
+                                    final normalizedPhone =
+                                        _readString(thread['normalizedPhone']).toLowerCase();
                                     final phone = normalizedPhone.isNotEmpty
                                         ? normalizedPhone
                                         : (_extractPhoneFromJid(
