@@ -93,6 +93,7 @@ class WhatsAppApiService {
     required String text,
     required String clientMessageId,
   }) async {
+    final requestId = _generateRequestId();
     return retryWithBackoff(() async {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
@@ -102,7 +103,6 @@ class WhatsAppApiService {
       // Get Firebase ID token
       final token = await user.getIdToken();
       final functionsUrl = _getFunctionsUrl();
-      final requestId = _generateRequestId();
 
       // Call Functions proxy with timeout
       final response = await http
@@ -527,6 +527,62 @@ class WhatsAppApiService {
         );
       }
       debugPrint('[WhatsAppApiService] getThreads: success, threadsCount=${data['threads']?.length ?? 0}');
+      return data;
+    });
+  }
+
+  /// Get messages for a thread via Functions proxy (Firestore-backed).
+  ///
+  /// Returns: { success: bool, messages: List<Message>, count: int }
+  Future<Map<String, dynamic>> getMessages({
+    required String accountId,
+    required String threadId,
+    int limit = 200,
+  }) async {
+    return retryWithBackoff(() async {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw UnauthorizedException();
+      }
+
+      final token = await user.getIdToken();
+      final functionsUrl = _getFunctionsUrl();
+      final requestId = _generateRequestId();
+
+      debugPrint('[WhatsAppApiService] getMessages: calling proxy (accountId=${_maskId(accountId)})');
+
+      final response = await http
+          .get(
+            Uri.parse(
+              '$functionsUrl/whatsappProxyGetMessages?accountId=$accountId&threadId=$threadId&limit=$limit',
+            ),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+              'X-Request-ID': requestId,
+            },
+          )
+          .timeout(requestTimeout);
+
+      debugPrint('[WhatsAppApiService] getMessages: status=${response.statusCode}');
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final errorBody = _safeDecodeMap(response.body);
+        debugPrint('[WhatsAppApiService] getMessages: error=${errorBody?['error']}');
+        throw ErrorMapper.fromHttpException(
+          response.statusCode,
+          errorBody?['message'] as String?,
+        );
+      }
+
+      final data = _safeDecodeMap(response.body);
+      if (data == null) {
+        throw ErrorMapper.fromHttpException(
+          response.statusCode,
+          'invalid_json_response',
+        );
+      }
+      debugPrint('[WhatsAppApiService] getMessages: success, messagesCount=${data['messages']?.length ?? 0}');
       return data;
     });
   }

@@ -149,6 +149,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     final visibleThreads = allThreads.where((thread) {
       final hidden = thread['hidden'] == true || thread['archived'] == true;
       final redirectTo = _readString(thread['redirectTo']).trim();
+      final canonicalThreadId = _readString(thread['canonicalThreadId']).trim();
       final clientJid = _readString(
         thread['clientJid'],
         mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
@@ -157,7 +158,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       final isBroadcast = clientJid.endsWith('@broadcast');
       if (hidden) return false;
       if (redirectTo.isNotEmpty) return false;
-      if (isLid) return false;
+      if (isLid && canonicalThreadId.isNotEmpty) return false;
       if (isBroadcast) return false;
       return true;
     }).toList();
@@ -174,16 +175,66 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     final dedupedByPhone = <String, Map<String, dynamic>>{};
     for (final thread in visibleThreads) {
       final normalizedPhone = _readString(thread['normalizedPhone']).trim();
+      final canonicalThreadId = _readString(thread['canonicalThreadId']).trim();
       final clientJid = _readString(
         thread['clientJid'],
         mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
       ).trim();
       final threadId =
           _readString(thread['id'], mapKeys: const ['threadId', 'id']).trim();
-      final key = normalizedPhone.isNotEmpty
-          ? normalizedPhone
-          : (threadId.isNotEmpty ? threadId : clientJid);
-      dedupedByPhone.putIfAbsent(key, () => thread);
+      final jidPhone = _extractPhoneFromJid(clientJid);
+      final phoneKey =
+          (normalizedPhone.isNotEmpty && jidPhone != null && normalizedPhone == jidPhone)
+              ? normalizedPhone
+              : null;
+      final key = canonicalThreadId.isNotEmpty
+          ? canonicalThreadId
+          : (threadId.isNotEmpty ? threadId : (phoneKey ?? clientJid));
+      final existing = dedupedByPhone[key];
+      if (existing == null) {
+        dedupedByPhone[key] = thread;
+        continue;
+      }
+
+      int scoreThread(Map<String, dynamic> t) {
+        final jid = _readString(
+          t['clientJid'],
+          mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
+        ).trim();
+        final isLid = jid.endsWith('@lid');
+        final displayName = _readString(t['displayName']).trim();
+        final phone = _readString(t['normalizedPhone']).trim();
+        final inferredPhone = _extractPhoneFromJid(jid);
+        final hasName = displayName.isNotEmpty && !_looksLikePhone(displayName);
+        final hasPhone = phone.isNotEmpty || (inferredPhone != null && inferredPhone.isNotEmpty);
+        final hasLastMessage = _readString(t['lastMessageText']).trim().isNotEmpty;
+        final hasTimestamp = resolveThreadTime(t) != null;
+        var score = 0;
+        if (!isLid) score += 4;
+        if (hasName) score += 3;
+        if (hasPhone) score += 2;
+        if (hasTimestamp) score += 1;
+        if (hasLastMessage) score += 1;
+        return score;
+      }
+
+      final existingScore = scoreThread(existing);
+      final currentScore = scoreThread(thread);
+      if (currentScore > existingScore) {
+        dedupedByPhone[key] = thread;
+        continue;
+      }
+      if (currentScore == existingScore) {
+        final existingTime = resolveThreadTime(existing);
+        final currentTime = resolveThreadTime(thread);
+        if (existingTime == null && currentTime != null) {
+          dedupedByPhone[key] = thread;
+        } else if (existingTime != null &&
+            currentTime != null &&
+            currentTime.isAfter(existingTime)) {
+          dedupedByPhone[key] = thread;
+        }
+      }
     }
     return dedupedByPhone.values.toList();
   }
@@ -321,6 +372,13 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     return '+$digits';
   }
 
+  bool _looksLikePhone(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return false;
+    if (trimmed.contains('@')) return true;
+    return RegExp(r'^\+?[\d\s\-\(\)]{6,}$').hasMatch(trimmed);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -434,6 +492,8 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                         final threadId =
                                             _readString(thread['id'], mapKeys: const ['threadId', 'id']);
                                         final redirectTo = _readString(thread['redirectTo']);
+                                        final canonicalThreadId =
+                                            _readString(thread['canonicalThreadId']);
                                         final accountId = _readString(thread['accountId']);
                                         final accountName = _readString(thread['accountName']);
                                         final clientJid = _readString(
@@ -441,6 +501,8 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                           mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
                                         );
                                         final rawDisplayName = _readString(thread['displayName']);
+                                        final groupSubject = _readString(thread['groupSubject']);
+                                        final lastSenderName = _readString(thread['lastMessageSenderName']);
                                         final lastMessageText = _readString(thread['lastMessageText']);
                                         final normalizedPhone = _readString(thread['normalizedPhone']);
                                         
@@ -453,39 +515,43 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                         // Smart display name logic:
                                         // Always use formatted phone from clientJid for consistency
                                         String displayName = rawDisplayName.trim();
-                                        
-                                        // If displayName is empty or looks like a number/JID, use formatted phone
-                                        if (!isBroadcast && phone != null && phone.isNotEmpty) {
-                                          // Check if rawDisplayName is just a messy number or empty
-                                          final isMixedFormat = displayName.isEmpty ||
-                                              displayName.contains('@') ||
-                                              RegExp(r'^\+?[\d\s\-\(\)]{10,}$').hasMatch(displayName);
-                                          
-                                          if (isMixedFormat) {
-                                            // Use formatted phone number
-                                            // Try international format: +[country][area][number]
-                                            var formatted = phone.replaceAllMapped(
-                                              RegExp(r'^\+(\d{1,4})(\d{3})(\d{3})(\d{3,})$'),
-                                              (match) => '+${match[1]} ${match[2]} ${match[3]} ${match[4]}',
-                                            );
-                                            
-                                            // If regex didn't match (formatted == phone), try simpler split
-                                            if (formatted == phone && phone.length > 4) {
-                                              // Just split every 3 digits after country code
-                                              if (phone.startsWith('+')) {
-                                                final digits = phone.substring(1);
-                                                final parts = <String>[];
-                                                for (int i = 0; i < digits.length; i += 3) {
-                                                  parts.add(digits.substring(i, (i + 3).clamp(0, digits.length)));
-                                                }
-                                                formatted = '+${parts.join(' ')}';
-                                              } else {
-                                                formatted = phone;
-                                              }
-                                            }
-                                            
-                                            displayName = formatted;
+                                        final isMixedFormat =
+                                            displayName.isEmpty || _looksLikePhone(displayName);
+                                        if (isMixedFormat) {
+                                          final fallbackName = groupSubject.isNotEmpty &&
+                                                  !_looksLikePhone(groupSubject)
+                                              ? groupSubject
+                                              : (lastSenderName.isNotEmpty &&
+                                                      !_looksLikePhone(lastSenderName)
+                                                  ? lastSenderName
+                                                  : '');
+                                          if (fallbackName.isNotEmpty) {
+                                            displayName = fallbackName;
                                           }
+                                        }
+
+                                        // If still empty or numeric-like, use formatted phone
+                                        if (!isBroadcast &&
+                                            phone != null &&
+                                            phone.isNotEmpty &&
+                                            (displayName.isEmpty || _looksLikePhone(displayName))) {
+                                          var formatted = phone.replaceAllMapped(
+                                            RegExp(r'^\+(\d{1,4})(\d{3})(\d{3})(\d{3,})$'),
+                                            (match) => '+${match[1]} ${match[2]} ${match[3]} ${match[4]}',
+                                          );
+                                          if (formatted == phone && phone.length > 4) {
+                                            if (phone.startsWith('+')) {
+                                              final digits = phone.substring(1);
+                                              final parts = <String>[];
+                                              for (int i = 0; i < digits.length; i += 3) {
+                                                parts.add(digits.substring(i, (i + 3).clamp(0, digits.length)));
+                                              }
+                                              formatted = '+${parts.join(' ')}';
+                                            } else {
+                                              formatted = phone;
+                                            }
+                                          }
+                                          displayName = formatted;
                                         }
                                         
                                         // Parse lastMessageAt timestamp
@@ -505,7 +571,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                         // Don't show phone in subtitle if it's already the displayName
                                         String? displayPhone;
                                         if (phone != null &&
-                                            !displayName.contains(phone.replaceAll('+', '').replaceAll(' ', ''))) {
+                                            (displayName.isEmpty || _looksLikePhone(displayName))) {
                                           displayPhone = phone.replaceAllMapped(
                                             RegExp(r'^\+?(\d{1,3})(\d{3})(\d{3})(\d+)$'),
                                             (match) => '+${match[1]} ${match[2]} ${match[3]} ${match[4]}',
@@ -600,7 +666,11 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                           onTap: () {
                                             final encodedDisplayName = Uri.encodeComponent(displayName);
                                             final effectiveThreadId =
-                                                redirectTo.isNotEmpty ? redirectTo : threadId;
+                                                redirectTo.isNotEmpty
+                                                    ? redirectTo
+                                                    : (canonicalThreadId.isNotEmpty
+                                                        ? canonicalThreadId
+                                                        : threadId);
                                             context.go(
                                               '/whatsapp/chat?accountId=${Uri.encodeComponent(accountId)}'
                                               '&threadId=${Uri.encodeComponent(effectiveThreadId)}'
