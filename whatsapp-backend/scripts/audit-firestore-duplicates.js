@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const admin = require('firebase-admin');
+const { normalizeMessageText, safeHash } = require('../lib/wa-message-identity');
 
 const toSha1 = (value) =>
   crypto.createHash('sha1').update(String(value)).digest('hex');
@@ -14,6 +15,9 @@ const parseArgs = (argv) => {
     windowHours: 48,
     dryRun: false,
     threadId: '',
+    excludeMarked: true,
+    includeMarked: false,
+    keyMode: 'stable',
   };
 
   for (const arg of argv) {
@@ -33,6 +37,21 @@ const parseArgs = (argv) => {
     }
     if (arg === '--dryRun') {
       opts.dryRun = true;
+      continue;
+    }
+    if (arg === '--excludeMarked') {
+      opts.excludeMarked = true;
+      opts.includeMarked = false;
+      continue;
+    }
+    if (arg === '--includeMarked') {
+      opts.excludeMarked = false;
+      opts.includeMarked = true;
+      continue;
+    }
+    if (arg.startsWith('--keyMode=')) {
+      const val = arg.split('=')[1];
+      if (val === 'stable' || val === 'fallback') opts.keyMode = val;
     }
   }
 
@@ -50,6 +69,39 @@ const normalizeTs = (value) => {
     if (Number.isFinite(num)) return num < 1e12 ? num * 1000 : num;
   }
   return null;
+};
+
+const pickTimestampMs = (data) =>
+  normalizeTs(data.tsClientMs) ||
+  normalizeTs(data.tsClientAt) ||
+  normalizeTs(data.tsClient) ||
+  normalizeTs(data.ingestedAt) ||
+  null;
+
+const getDirection = (data) => {
+  if (data.direction) return data.direction;
+  if (data.fromMe === true) return 'outbound';
+  if (data.fromMe === false) return 'inbound';
+  return 'unknown';
+};
+
+const buildStableFallbackFingerprint = ({ data, tsClientMs }) => {
+  const direction = getDirection(data);
+  const senderJid = data.senderJid || data.participant || data.from || '';
+  const messageType = data.messageType || data.type || 'unknown';
+  const normalizedText = normalizeMessageText({ body: data.body, message: data.message || {} });
+  const textHash = safeHash(normalizedText || '');
+  const seed = `${direction}|${senderJid}|${tsClientMs || 'unknown'}|${messageType}|${textHash}`;
+  return toSha1(seed);
+};
+
+const buildLegacyFingerprint = ({ data, tsClientMs }) => {
+  const direction = getDirection(data);
+  const messageType = data.messageType || data.type || 'unknown';
+  const normalizedText = normalizeMessageText({ body: data.body, message: data.message || {} });
+  const bodyHash = safeHash(normalizedText || '');
+  const seed = `${direction}|${tsClientMs || 'unknown'}|${bodyHash}|${messageType}`;
+  return toSha1(seed);
 };
 
 const initFirestore = () => {
@@ -92,61 +144,76 @@ const initFirestore = () => {
     .limit(opts.limit)
     .get();
 
-  const groups = new Map();
+  const activeGroups = new Map();
+  const allGroups = new Map();
   let totalDocs = 0;
+  let markedDocs = 0;
 
   for (const doc of snapshot.docs) {
     const data = doc.data() || {};
-    const tsClientMs = normalizeTs(data.tsClient);
+    const tsClientMs = pickTimestampMs(data);
 
     if (tsClientMs && tsClientMs < cutoffMs) {
       continue;
     }
 
     totalDocs += 1;
+    if (data.isDuplicate === true) {
+      markedDocs += 1;
+    }
 
-    const direction =
-      data.direction ||
-      (data.fromMe === true ? 'outbound' : data.fromMe === false ? 'inbound' : 'unknown');
-    const body = data.body ?? data.message ?? '';
-    const bodyHash = shortHash(body || '');
-    const messageType = data.messageType || data.type || 'unknown';
+    const key =
+      opts.keyMode === 'fallback'
+        ? buildLegacyFingerprint({ data, tsClientMs })
+        : data.stableKeyHash ||
+          data.fingerprintHash ||
+          buildStableFallbackFingerprint({ data, tsClientMs });
 
-    const fingerprintSeed = `${direction}|${tsClientMs ?? 'unknown'}|${bodyHash}|${messageType}`;
-    const fp = toSha1(fingerprintSeed);
-
-    const entry = groups.get(fp) || {
-      fp,
+    const entry = {
+      key,
       size: 0,
       docIds: [],
       minTs: null,
       maxTs: null,
     };
 
-    entry.size += 1;
-    if (entry.docIds.length < 3) {
-      entry.docIds.push(shortHash(doc.id));
-    }
-    if (tsClientMs) {
-      entry.minTs = entry.minTs ? Math.min(entry.minTs, tsClientMs) : tsClientMs;
-      entry.maxTs = entry.maxTs ? Math.max(entry.maxTs, tsClientMs) : tsClientMs;
-    }
+    const targetGroups = data.isDuplicate === true && opts.excludeMarked ? null : activeGroups;
 
-    groups.set(fp, entry);
+    const addToGroup = (groups) => {
+      const existing = groups.get(key) || { ...entry };
+      existing.size += 1;
+      if (existing.docIds.length < 3) {
+        existing.docIds.push(shortHash(doc.id));
+      }
+      if (tsClientMs) {
+        existing.minTs = existing.minTs ? Math.min(existing.minTs, tsClientMs) : tsClientMs;
+        existing.maxTs = existing.maxTs ? Math.max(existing.maxTs, tsClientMs) : tsClientMs;
+      }
+      groups.set(key, existing);
+    };
+
+    if (targetGroups) addToGroup(targetGroups);
+    addToGroup(allGroups);
   }
 
-  const entries = Array.from(groups.values());
-  const duplicatesCount = entries.reduce(
+  const activeEntries = Array.from(activeGroups.values());
+  const allEntries = Array.from(allGroups.values());
+  const duplicatesCountActive = activeEntries.reduce(
+    (sum, entry) => sum + (entry.size > 1 ? entry.size - 1 : 0),
+    0
+  );
+  const duplicatesCountAll = allEntries.reduce(
     (sum, entry) => sum + (entry.size > 1 ? entry.size - 1 : 0),
     0
   );
 
-  const topGroups = entries
+  const selectedEntries = opts.includeMarked ? allEntries : activeEntries;
+  const topGroups = selectedEntries
     .filter((entry) => entry.size > 1)
     .sort((a, b) => b.size - a.size)
-    .slice(0, 20)
+    .slice(0, 10)
     .map((entry) => ({
-      fp: entry.fp,
+      keyHash: shortHash(entry.key),
       size: entry.size,
       sampleDocIds: entry.docIds,
       tsClientRange:
@@ -161,14 +228,19 @@ const initFirestore = () => {
   console.log(
     JSON.stringify({
       totalDocs,
-      uniqueFingerprints: entries.length,
-      duplicatesCount,
+      markedDocs,
+      activeDocs: totalDocs - markedDocs,
+      uniqueKeys: selectedEntries.length,
+      duplicatesCountActive,
+      duplicatesCountAll: opts.includeMarked ? duplicatesCountAll : null,
       topGroups,
       windowHours: opts.windowHours,
       limit: opts.limit,
+      keyMode: opts.keyMode,
+      excludeMarked: opts.excludeMarked,
       dryRun: opts.dryRun,
     })
   );
 
-  process.exit(duplicatesCount === 0 ? 0 : 2);
+  process.exit(duplicatesCountActive === 0 ? 0 : 2);
 })();
