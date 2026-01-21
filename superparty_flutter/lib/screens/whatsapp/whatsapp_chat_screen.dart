@@ -46,6 +46,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   bool _useApiMessages = false;
   bool _isLoadingMessages = false;
   Timer? _messagePoller;
+  Timer? _firestoreTimeoutTimer;
   int _previousMessageCount = 0; // Track message count to detect new messages
   DateTime? _lastSendAt;
   String? _lastSentText;
@@ -55,6 +56,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   String? _threadPhoneE164;
   String? _threadDisplayName;
   String? _effectiveThreadIdOverride;
+  bool _firestoreStreamHealthy = false;
+  int? _lastApiCursorMs;
+  int? _lastApiServerSeq;
 
   String? get _accountId => widget.accountId ?? _extractFromQuery('accountId');
   String? get _threadId => widget.threadId ?? _extractFromQuery('threadId');
@@ -89,16 +93,13 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   void initState() {
     super.initState();
     _ensureCanonicalThread();
-    Future.delayed(const Duration(seconds: 10), () {
-      if (mounted && !_useApiMessages && _apiMessages.isEmpty) {
-        _enableApiMessages();
-      }
-    });
+    _startFirestoreTimeoutWatchdog();
   }
 
   @override
   void dispose() {
     _messagePoller?.cancel();
+    _firestoreTimeoutTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -291,7 +292,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
   void _startApiPolling() {
     if (_messagePoller != null) return;
-    _messagePoller = Timer.periodic(const Duration(seconds: 5), (_) {
+    _messagePoller = Timer.periodic(const Duration(seconds: 3), (_) {
       _loadMessages();
     });
     _loadMessages();
@@ -302,14 +303,43 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     _messagePoller = null;
   }
 
-  void _enableApiMessages() {
+  void _enableApiMessages({String? reason}) {
     if (_useApiMessages) return;
     if (mounted) {
       setState(() {
         _useApiMessages = true;
       });
     }
+    debugPrint('[ChatScreen] Live sync fallback -> polling${reason != null ? " ($reason)" : ""}');
     _startApiPolling();
+  }
+
+  void _disableApiMessages() {
+    if (!_useApiMessages) return;
+    if (mounted) {
+      setState(() {
+        _useApiMessages = false;
+      });
+    }
+    _stopApiPolling();
+  }
+
+  void _markFirestoreHealthy() {
+    if (_firestoreStreamHealthy) return;
+    _firestoreStreamHealthy = true;
+    _firestoreTimeoutTimer?.cancel();
+    _disableApiMessages();
+    debugPrint('[ChatScreen] Firestore stream healthy');
+  }
+
+  void _startFirestoreTimeoutWatchdog() {
+    _firestoreTimeoutTimer?.cancel();
+    _firestoreTimeoutTimer = Timer(const Duration(seconds: 10), () {
+      if (!mounted) return;
+      if (!_firestoreStreamHealthy && !_useApiMessages) {
+        _enableApiMessages(reason: 'stream-timeout');
+      }
+    });
   }
 
   Future<void> _loadMessages() async {
@@ -323,15 +353,17 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       final response = await _apiService.getMessages(
         accountId: accountId,
         threadId: threadId,
-        limit: 500,
+        limit: _lastApiCursorMs == null ? 500 : 200,
+        afterMs: _lastApiCursorMs,
+        afterServerSeq: _lastApiServerSeq,
       );
       if (response['success'] == true) {
         final rawMessages = (response['messages'] as List<dynamic>? ?? [])
             .cast<Map<String, dynamic>>();
-        final deduped = _dedupeMessageMaps(rawMessages);
+        final merged = _mergeApiMessages(rawMessages);
         if (mounted) {
           setState(() {
-            _apiMessages = deduped;
+            _apiMessages = merged;
           });
         }
       }
@@ -378,6 +410,42 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         _extractTsMillis(data['createdAt']) ??
         _extractTsMillis(data['tsServer']) ??
         0;
+  }
+
+  int? _extractServerSeq(Map<String, dynamic> data) {
+    final raw = data['serverSeq'];
+    if (raw is int) return raw;
+    if (raw is String) {
+      final parsed = int.tryParse(raw);
+      return parsed;
+    }
+    return null;
+  }
+
+  void _updateApiCursor(List<Map<String, dynamic>> messages) {
+    int? maxTs;
+    int? maxSeq;
+    for (final msg in messages) {
+      final ts = _extractSortMillis(msg);
+      if (ts > 0) {
+        maxTs = maxTs == null ? ts : (ts > maxTs ? ts : maxTs);
+      }
+      final seq = _extractServerSeq(msg);
+      if (seq != null) {
+        maxSeq = maxSeq == null ? seq : (seq > maxSeq ? seq : maxSeq);
+      }
+    }
+    _lastApiCursorMs = maxTs ?? _lastApiCursorMs;
+    _lastApiServerSeq = maxSeq ?? _lastApiServerSeq;
+  }
+
+  List<Map<String, dynamic>> _mergeApiMessages(List<Map<String, dynamic>> incoming) {
+    final combined = <Map<String, dynamic>>[];
+    combined.addAll(_apiMessages);
+    combined.addAll(incoming);
+    final deduped = _dedupeMessageMaps(combined);
+    _updateApiCursor(deduped);
+    return deduped;
   }
 
   List<Map<String, dynamic>> _dedupeMessageMaps(List<Map<String, dynamic>> messages) {
@@ -937,10 +1005,6 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                   return const Center(child: Text('Missing thread data'));
                 }
 
-                if (_useApiMessages) {
-                  return _buildMessageListFromMaps(_apiMessages, effectiveThreadId);
-                }
-
                 return StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('threads')
@@ -952,19 +1016,30 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                   builder: (context, snapshot) {
                 
                 if (snapshot.connectionState == ConnectionState.waiting) {
+                  if (_useApiMessages) {
+                    return _buildMessageListFromMaps(_apiMessages, effectiveThreadId);
+                  }
                   return const Center(child: CircularProgressIndicator());
                 }
 
                 if (snapshot.hasError) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _enableApiMessages();
+                    _firestoreStreamHealthy = false;
+                    _enableApiMessages(reason: 'stream-error');
                   });
-                  return const Center(child: Text('Switching to live sync...'));
+                  return _buildMessageListFromMaps(_apiMessages, effectiveThreadId);
                 }
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  if (_useApiMessages) {
+                    return _buildMessageListFromMaps(_apiMessages, effectiveThreadId);
+                  }
                   return const Center(child: Text('No messages yet'));
                 }
+
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _markFirestoreHealthy();
+                });
 
                 final dedupedDocs = _dedupeMessageDocs(snapshot.data!.docs);
                 final currentMessageCount = dedupedDocs.length;

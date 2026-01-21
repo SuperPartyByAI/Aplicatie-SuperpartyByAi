@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
@@ -28,6 +29,7 @@ class WhatsAppApiService {
   }
 
   String _maskId(String value) => value.hashCode.toRadixString(16);
+  int _dotCount(String value) => '.'.allMatches(value).length;
 
   Map<String, dynamic>? _safeDecodeMap(String body) {
     try {
@@ -55,7 +57,7 @@ class WhatsAppApiService {
     const region = 'us-central1';
     
     // Check if using emulators
-    const useEmulators = bool.fromEnvironment('USE_EMULATORS', defaultValue: false);
+    const useEmulators = bool.fromEnvironment('USE_FIREBASE_EMULATOR', defaultValue: false);
     if (useEmulators && kDebugMode) {
       // Emulator Functions URL (from firebase.json: port 5002)
       return 'http://127.0.0.1:5002';
@@ -538,6 +540,9 @@ class WhatsAppApiService {
     required String accountId,
     required String threadId,
     int limit = 200,
+    int? afterMs,
+    int? beforeMs,
+    int? afterServerSeq,
   }) async {
     return retryWithBackoff(() async {
       final user = FirebaseAuth.instance.currentUser;
@@ -545,26 +550,55 @@ class WhatsAppApiService {
         throw UnauthorizedException();
       }
 
-      final token = await user.getIdToken();
+      final idToken = (await user.getIdToken(true)) ?? '';
+      if (idToken.isEmpty) {
+        throw UnauthorizedException();
+      }
+      String? appCheckToken;
+      try {
+        appCheckToken = await FirebaseAppCheck.instance.getToken(true);
+      } catch (_) {
+        appCheckToken = null;
+      }
+      final appCheckLen = appCheckToken == null ? 0 : appCheckToken.length;
+      final appCheckHeader =
+          appCheckToken != null && appCheckToken.isNotEmpty ? appCheckToken : null;
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
 
-      debugPrint('[WhatsAppApiService] getMessages: calling proxy (accountId=${_maskId(accountId)})');
+      debugPrint(
+        '[WhatsAppApiService] getMessages: authMeta idTokenLen=${idToken.length} idTokenDots=${_dotCount(idToken)} appCheckLen=$appCheckLen',
+      );
+      debugPrint(
+        '[WhatsAppApiService] getMessages: calling proxy (accountId=${_maskId(accountId)}, threadId=${_maskId(threadId)})',
+      );
+
+      final queryParams = <String, String>{
+        'accountId': accountId,
+        'threadId': threadId,
+        'limit': '$limit',
+      };
+      if (afterMs != null) queryParams['after'] = '$afterMs';
+      if (beforeMs != null) queryParams['before'] = '$beforeMs';
+      if (afterServerSeq != null) queryParams['afterSeq'] = '$afterServerSeq';
 
       final response = await http
           .get(
-            Uri.parse(
-              '$functionsUrl/whatsappProxyGetMessages?accountId=$accountId&threadId=$threadId&limit=$limit',
+            Uri.parse('$functionsUrl/whatsappProxyGetMessages').replace(
+              queryParameters: queryParams,
             ),
             headers: {
-              'Authorization': 'Bearer $token',
+              'Authorization': 'Bearer $idToken',
+              if (appCheckHeader != null) 'X-Firebase-AppCheck': appCheckHeader,
               'Content-Type': 'application/json',
               'X-Request-ID': requestId,
             },
           )
           .timeout(requestTimeout);
 
-      debugPrint('[WhatsAppApiService] getMessages: status=${response.statusCode}');
+      debugPrint(
+        '[WhatsAppApiService] getMessages: status=${response.statusCode}, bodyLength=${response.body.length}',
+      );
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final errorBody = _safeDecodeMap(response.body);
