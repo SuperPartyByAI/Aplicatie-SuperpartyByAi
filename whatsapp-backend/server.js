@@ -202,6 +202,125 @@ const getCommitHash = () =>
   process.env.DEPLOY_COMMIT_SHA ||
   process.env.GIT_COMMIT_SHA ||
   null;
+const canonicalizeJid = (jid) => {
+  if (!jid || typeof jid !== 'string') return null;
+  const trimmed = jid.trim().toLowerCase();
+  if (!trimmed) return null;
+
+  const parts = trimmed.split('@');
+  if (parts.length !== 2) return trimmed;
+
+  let [userPart, domain] = parts;
+  if (!userPart || !domain) return trimmed;
+
+  if (/^\+\d+$/.test(userPart)) {
+    userPart = userPart.slice(1);
+  }
+
+  if (userPart.includes(':')) {
+    const [base, suffix] = userPart.split(':');
+    if (/^\d+$/.test(suffix) || /^device$/i.test(suffix)) {
+      userPart = base;
+    }
+  }
+
+  return `${userPart}@${domain}`;
+};
+
+const resolveCanonicalPeerJid = async (accountId, remoteJid, sock = null) => {
+  const rawJid = typeof remoteJid === 'string' ? remoteJid.trim() : null;
+  if (!rawJid) {
+    return {
+      rawJid: null,
+      canonicalJid: null,
+      peerType: 'unknown',
+      resolvedContact: null,
+      aliasSource: null,
+    };
+  }
+
+  const isGroup = rawJid.endsWith('@g.us');
+  const isLid = rawJid.endsWith('@lid');
+  let canonicalJid = rawJid;
+  let resolvedContact = null;
+  let aliasSource = null;
+
+  if (isLid) {
+    if (firestoreAvailable && db) {
+      try {
+        const aliasRef = db.collection('jid_aliases').doc(`${accountId}__${rawJid}`);
+        const aliasDoc = await aliasRef.get();
+        if (aliasDoc.exists && aliasDoc.data()?.canonicalJid) {
+          canonicalJid = aliasDoc.data().canonicalJid;
+          aliasSource = 'firestore';
+        }
+      } catch (_error) {
+        // Best-effort only
+      }
+    }
+
+    if (canonicalJid === rawJid) {
+      const resolved = await resolveCanonicalJid(sock, rawJid);
+      canonicalJid = resolved.canonicalJid || rawJid;
+      resolvedContact = resolved.resolvedContact || null;
+      if (canonicalJid !== rawJid && firestoreAvailable && db) {
+        try {
+          await db
+            .collection('jid_aliases')
+            .doc(`${accountId}__${rawJid}`)
+            .set(
+              {
+                accountId,
+                rawJid,
+                canonicalJid,
+                source: resolvedContact ? 'sock_contact' : 'sock',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          aliasSource = aliasSource || 'sock';
+        } catch (_error) {
+          // Best-effort only
+        }
+      }
+    }
+  } else {
+    canonicalJid = canonicalizeJid(rawJid);
+  }
+
+  const normalizedCanonical = canonicalizeJid(canonicalJid) || canonicalJid;
+  const peerType = isGroup ? 'group' : isLid ? 'lid' : 'user';
+
+  return {
+    rawJid,
+    canonicalJid: normalizedCanonical,
+    peerType,
+    resolvedContact,
+    aliasSource,
+  };
+};
+
+const groupSubjectCache = new Map();
+const getGroupSubject = async (sock, groupJid) => {
+  if (!sock || !groupJid || !groupJid.endsWith('@g.us')) return null;
+
+  const cacheKey = groupJid;
+  const cached = groupSubjectCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < 5 * 60 * 1000) {
+    return cached.subject;
+  }
+
+  try {
+    const metadata = await sock.groupMetadata(groupJid);
+    const subject = metadata?.subject || null;
+    if (subject) {
+      groupSubjectCache.set(cacheKey, { subject, fetchedAt: Date.now() });
+    }
+    return subject;
+  } catch (_error) {
+    return null;
+  }
+};
 const buildLockSummary = (lock) => {
   if (!lock || lock.error) {
     return {
@@ -808,16 +927,27 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
     }
 
     const messageId = msg.key.id;
-    const { rawJid, canonicalJid, resolvedContact } = await resolveCanonicalJid(
-      sock,
-      msg.key.remoteJid
+    const { rawJid, canonicalJid, resolvedContact, peerType } = await resolveCanonicalPeerJid(
+      accountId,
+      msg.key.remoteJid,
+      sock
     );
+    const isGroup = peerType === 'group';
     const isFromMe = msg.key.fromMe || false;
     const { normalizedPhone } = normalizeJidToE164(canonicalJid);
-    const messageTimestamp =
+    const messageTimestampRaw =
       msg.messageTimestamp != null ? convertLongToNumber(msg.messageTimestamp) : null;
     const messageTimestampMs =
-      messageTimestamp != null ? messageTimestamp * 1000 : Date.now();
+      messageTimestampRaw != null
+        ? messageTimestampRaw > 1e12
+          ? messageTimestampRaw
+          : messageTimestampRaw * 1000
+        : null;
+    const tsClientAt =
+      messageTimestampMs != null
+        ? admin.firestore.Timestamp.fromMillis(messageTimestampMs)
+        : admin.firestore.FieldValue.serverTimestamp();
+    const tsClientFallback = messageTimestampMs == null;
 
     // Extract message body (text content)
     let body = '';
@@ -874,17 +1004,24 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
     const messageData = {
       accountId,
       clientJid: canonicalJid,
+      clientJidRaw: rawJid,
       rawJid,
       resolvedJid: canonicalJid !== rawJid ? canonicalJid : null,
       normalizedPhone: normalizedPhone || null,
       canonicalThreadId: threadId,
       isLidThread,
+      peerType,
+      isGroup,
       senderJid: msg.key.participant || msg.key.remoteJid,
+      senderName: msg.pushName || null,
       direction: isFromMe ? 'outbound' : 'inbound',
       body: body.substring(0, 10000), // Limit body size (Firestore limit)
       waMessageId: messageId,
       status: isFromMe ? 'sent' : 'delivered', // Default status
-      tsClient: messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString(),
+      tsClient: tsClientAt,
+      tsClientFallback,
+      tsClientReason: tsClientFallback ? 'missing_messageTimestamp' : null,
+      tsClientIso: messageTimestampMs ? new Date(messageTimestampMs).toISOString() : null,
       tsServer: admin.firestore.FieldValue.serverTimestamp(),
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       createdAtMs: messageTimestampMs,
@@ -1013,21 +1150,32 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
     const threadData = {
       accountId,
       clientJid: canonicalJid,
+      clientJidRaw: rawJid,
       rawJid,
       resolvedJid: canonicalJid !== rawJid ? canonicalJid : null,
       normalizedPhone: normalizedPhone || null,
       canonicalThreadId: finalThreadId,
       isLidThread,
+      peerType,
+      isGroup,
       lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-      lastMessageAtMs: messageTimestampMs,
+      lastMessageAtMs: messageTimestampMs || null,
       lastMessageText: body.substring(0, 100), // For display in inbox
       lastMessagePreview: body.substring(0, 100), // Legacy field (keep for compatibility)
     };
 
-    // Try to extract display name from message pushName or other sources
-    if (msg.pushName) {
+    // Try to extract display name from group subject or contact sources
+    if (isGroup) {
+      const groupSubject = await getGroupSubject(sock, rawJid);
+      if (groupSubject) {
+        threadData.displayName = groupSubject;
+        threadData.groupSubject = groupSubject;
+      }
+    } else if (msg.pushName) {
       threadData.displayName = msg.pushName;
-    } else {
+    }
+
+    if (!threadData.displayName) {
       // 📇 Try to find contact name from saved contacts
       try {
         const mappingRef = db
@@ -1072,9 +1220,9 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
         }
       }
       
-      // Final fallback: verifiedBizName or participant
+      // Final fallback: verifiedBizName or participant (non-group)
       if (!threadData.displayName) {
-        const contactName = msg.verifiedBizName || msg.key.participant || null;
+        const contactName = msg.verifiedBizName || (!isGroup ? msg.key.participant : null) || null;
         if (contactName && contactName !== rawJid) {
           threadData.displayName = contactName;
         }
@@ -1089,7 +1237,7 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       threadId: finalThreadId, 
       messageId,
       messageBody: body, // Add body for FCM notifications
-      displayName: msg.pushName || null,
+      displayName: threadData.displayName || null,
     };
   } catch (error) {
     console.error(`❌ [${accountId}] Error saving message:`, error.message);
@@ -1173,9 +1321,14 @@ async function saveMessagesBatch(accountId, messages, source = 'history', sock =
           continue;
         }
         const from = msg.key.remoteJid;
-        const { canonicalJid, rawJid } = await resolveCanonicalJid(sock, from);
+        const { canonicalJid, rawJid, peerType } = await resolveCanonicalPeerJid(
+          accountId,
+          from,
+          sock
+        );
         const { normalizedPhone } = normalizeJidToE164(canonicalJid);
         const isFromMe = msg.key.fromMe || false;
+        const isGroup = peerType === 'group';
 
         // Extract body
         let body = '';
@@ -1201,24 +1354,40 @@ async function saveMessagesBatch(accountId, messages, source = 'history', sock =
         const isLidThread = rawJid?.endsWith('@lid') || false;
         
         // Convert messageTimestamp from Long to Number (Firestore compatibility)
-        const messageTimestamp = convertLongToNumber(msg.messageTimestamp);
+        const messageTimestampRaw =
+          msg.messageTimestamp != null ? convertLongToNumber(msg.messageTimestamp) : null;
         const messageTimestampMs =
-          messageTimestamp && messageTimestamp > 0 ? messageTimestamp * 1000 : Date.now();
+          messageTimestampRaw && messageTimestampRaw > 0
+            ? messageTimestampRaw > 1e12
+              ? messageTimestampRaw
+              : messageTimestampRaw * 1000
+            : null;
+        const tsClientAt =
+          messageTimestampMs != null
+            ? admin.firestore.Timestamp.fromMillis(messageTimestampMs)
+            : admin.firestore.FieldValue.serverTimestamp();
+        const tsClientFallback = messageTimestampMs == null;
         
         const messageData = {
           accountId,
           clientJid: canonicalJid,
-          rawJid,
+          clientJidRaw: rawJid,
           resolvedJid: canonicalJid !== rawJid ? canonicalJid : null,
           normalizedPhone: normalizedPhone || null,
           canonicalThreadId: threadId,
           isLidThread,
+          peerType,
+          isGroup,
           senderJid: msg.key?.participant || msg.key?.remoteJid || from,
+          senderName: msg.pushName || null,
           direction: isFromMe ? 'outbound' : 'inbound',
           body: body.substring(0, 10000),
           waMessageId: messageId,
           status: isFromMe ? 'sent' : 'delivered',
-          tsClient: messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString(),
+          tsClient: tsClientAt,
+          tsClientFallback,
+          tsClientReason: tsClientFallback ? 'missing_messageTimestamp' : null,
+          tsClientIso: messageTimestampMs ? new Date(messageTimestampMs).toISOString() : null,
           tsServer: admin.firestore.FieldValue.serverTimestamp(),
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           createdAtMs: messageTimestampMs,
@@ -1265,35 +1434,51 @@ async function saveMessagesBatch(accountId, messages, source = 'history', sock =
         );
 
         // Track thread update (will apply after message batch)
-        const msgTime = convertLongToNumber(msg.messageTimestamp);
+        const msgTimeRaw =
+          msg.messageTimestamp != null ? convertLongToNumber(msg.messageTimestamp) : null;
+        const msgTimeSeconds =
+          msgTimeRaw && msgTimeRaw > 0
+            ? msgTimeRaw > 1e12
+              ? Math.floor(msgTimeRaw / 1000)
+              : msgTimeRaw
+            : null;
         if (!threadUpdates.has(threadId)) {
           threadUpdates.set(threadId, {
             accountId,
             clientJid: canonicalJid,
+            clientJidRaw: rawJid,
             rawJid,
             resolvedJid: canonicalJid !== rawJid ? canonicalJid : null,
             normalizedPhone: normalizedPhone || null,
             canonicalThreadId: threadId,
             isLidThread,
+            peerType,
+            isGroup,
             lastMessagePreview: body.substring(0, 100),
             lastMessageText: body.substring(0, 100),
             lastMessageDirection: msg.key?.fromMe ? 'outbound' : 'inbound',
-            lastMessageTimestamp: msgTime || 0,
-            lastMessageAtMs: msgTime && msgTime > 0 ? msgTime * 1000 : null,
+            lastMessageTimestamp: msgTimeSeconds || 0,
+            lastMessageAtMs: msgTimeSeconds ? msgTimeSeconds * 1000 : null,
           });
-          if (msg.pushName) {
+          if (isGroup) {
+            const groupSubject = await getGroupSubject(sock, rawJid);
+            if (groupSubject) {
+              threadUpdates.get(threadId).displayName = groupSubject;
+              threadUpdates.get(threadId).groupSubject = groupSubject;
+            }
+          } else if (msg.pushName) {
             threadUpdates.get(threadId).displayName = msg.pushName;
           }
         } else {
           // Update preview if this message is more recent
           const existing = threadUpdates.get(threadId);
           const existingTime = convertLongToNumber(existing.lastMessageTimestamp);
-          if (msgTime > existingTime) {
+          if (msgTimeSeconds && msgTimeSeconds > existingTime) {
             existing.lastMessagePreview = body.substring(0, 100);
             existing.lastMessageText = body.substring(0, 100);
             existing.lastMessageDirection = msg.key?.fromMe ? 'outbound' : 'inbound';
-            existing.lastMessageTimestamp = msgTime;
-            existing.lastMessageAtMs = msgTime && msgTime > 0 ? msgTime * 1000 : null;
+            existing.lastMessageTimestamp = msgTimeSeconds;
+            existing.lastMessageAtMs = msgTimeSeconds ? msgTimeSeconds * 1000 : null;
           }
         }
       } catch (error) {
@@ -3011,7 +3196,7 @@ async function createConnection(accountId, name, phone) {
 
             // Update message in Firestore if status changed
             if (status && remoteJid) {
-              const { canonicalJid } = await resolveCanonicalJid(sock, remoteJid);
+              const { canonicalJid } = await resolveCanonicalPeerJid(accountId, remoteJid, sock);
               const threadId = `${accountId}__${canonicalJid}`;
               const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
               
@@ -3057,7 +3242,7 @@ async function createConnection(accountId, name, phone) {
 
             // Extract read receipts
             if (receiptData.readTimestamp && remoteJid) {
-              const { canonicalJid } = await resolveCanonicalJid(sock, remoteJid);
+              const { canonicalJid } = await resolveCanonicalPeerJid(accountId, remoteJid, sock);
               const threadId = `${accountId}__${canonicalJid}`;
               const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
               
@@ -6210,7 +6395,7 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
       try {
         const requestIdHeader = req.headers['x-request-id'];
         const jid = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
-        const { canonicalJid } = await resolveCanonicalJid(null, jid);
+        const { canonicalJid } = await resolveCanonicalPeerJid(accountId, jid, null);
         const threadId = `${accountId}__${canonicalJid}`;
         const messageId =
           requestIdHeader ||
@@ -6267,7 +6452,7 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
     }
 
     const jid = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
-    const { canonicalJid } = await resolveCanonicalJid(account?.sock, jid);
+    const { canonicalJid } = await resolveCanonicalPeerJid(accountId, jid, account?.sock);
     const threadId = `${accountId}__${canonicalJid}`;
     const requestIdHeader = req.headers['x-request-id'];
     const idempotencyKey = requestIdHeader || clientMessageId || null;
@@ -9467,24 +9652,35 @@ app.listen(PORT, '0.0.0.0', async () => {
           // Also persist message to thread (if threadId exists in outbox doc)
           if (threadId && firestoreAvailable && db) {
             const waMessageId = result.key.id;
-            const { canonicalJid } = await resolveCanonicalJid(account?.sock, toJid);
+            const { canonicalJid, peerType } = await resolveCanonicalPeerJid(
+              accountId,
+              toJid,
+              account?.sock
+            );
             const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(requestId);
             const messageTimestampMs = Date.now();
+            const isGroup = peerType === 'group';
 
             await messageRef.set(
               {
                 accountId,
                 clientJid: canonicalJid,
+                clientJidRaw: toJid,
                 rawJid: toJid,
                 resolvedJid: canonicalJid !== toJid ? canonicalJid : null,
                 normalizedPhone: normalizeJidToE164(canonicalJid).normalizedPhone || null,
                 canonicalThreadId: threadId,
                 isLidThread: toJid.endsWith('@lid'),
+                peerType,
+                isGroup,
                 direction: 'outbound',
                 body: body || '',
                 waMessageId,
                 status: 'sent',
-                tsClient: new Date().toISOString(),
+                tsClient: admin.firestore.Timestamp.fromMillis(messageTimestampMs),
+                tsClientFallback: false,
+                tsClientReason: 'sent_time',
+                tsClientIso: new Date(messageTimestampMs).toISOString(),
                 tsServer: admin.firestore.FieldValue.serverTimestamp(),
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 createdAtMs: messageTimestampMs,
@@ -9501,11 +9697,14 @@ app.listen(PORT, '0.0.0.0', async () => {
               {
                 accountId,
                 clientJid: canonicalJid,
+                clientJidRaw: toJid,
                 rawJid: toJid,
                 resolvedJid: canonicalJid !== toJid ? canonicalJid : null,
                 normalizedPhone: normalizeJidToE164(canonicalJid).normalizedPhone || null,
                 canonicalThreadId: threadId,
                 isLidThread: toJid.endsWith('@lid'),
+                peerType,
+                isGroup,
                 lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
                 lastMessageAtMs: messageTimestampMs,
                 lastMessagePreview: (body || '').substring(0, 100),
