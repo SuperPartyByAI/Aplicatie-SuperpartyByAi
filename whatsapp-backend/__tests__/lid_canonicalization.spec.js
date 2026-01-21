@@ -6,15 +6,16 @@ describe('LID canonicalization + outbound dedupe', () => {
   const serverCode = fs.readFileSync(serverPath, 'utf8');
 
   test('saveMessageToFirestore canonicalizes LID to canonicalJid', () => {
-    expect(serverCode).toMatch(/resolveCanonicalJid/);
+    expect(serverCode).toMatch(/resolveCanonicalPeerJid/);
     expect(serverCode).toMatch(/canonicalJid/);
     expect(serverCode).toMatch(/buildCanonicalThreadId/);
     expect(serverCode).toMatch(/clientJid:\s*canonicalJid/);
     expect(serverCode).toMatch(/rawJid/);
   });
 
-  test('send-message uses requestId for messageDocId when present', () => {
-    expect(serverCode).toMatch(/const requestIdHeader = req\.headers\['x-request-id'\]/);
-    expect(serverCode).toMatch(/const messageDocId = requestIdHeader \|\| effectiveClientMessageId \|\| waMessageId/);
+  test('send-message uses persistMessage for outbound dedupe', () => {
+    expect(serverCode).toMatch(/statusOverride:\s*'queued'/);
+    expect(serverCode).toMatch(/statusOverride:\s*'sent'/);
+    expect(serverCode).toMatch(/persistMessage\(/);
   });
 });
