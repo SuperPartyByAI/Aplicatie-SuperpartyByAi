@@ -206,9 +206,11 @@ const getVolumeMountPath = () => process.env.VOLUME_MOUNT_PATH || null;
 const MAX_ACCOUNTS = 30;
 
 // Health monitoring and auto-recovery
-const connectionHealth = new Map(); // accountId -> { lastEventAt, lastMessageAt, reconnectCount, isStale }
+const connectionHealth = new Map(); // accountId -> { lastEventAt, lastMessageAt, reconnectCount, isStale, lastRecoverAt, staleRecoverCount }
 const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000; // 5 minutes without events = stale
 const HEALTH_CHECK_INTERVAL = 60 * 1000; // Check every 60 seconds
+const STALE_RECOVERY_COOLDOWN_MS = parseInt(process.env.STALE_RECOVERY_COOLDOWN_MS || '120000', 10);
+const MAX_STALE_RECOVERY_ATTEMPTS = parseInt(process.env.MAX_STALE_RECOVERY_ATTEMPTS || '5', 10);
 
 // Session stability tracking
 const sessionStability = new Map(); // accountId -> { lastRestoreAt, restoreCount, lastStableAt }
@@ -222,12 +224,12 @@ if (!ADMIN_TOKEN) {
   console.error('❌ ADMIN_TOKEN is required in production. Set it via env var.');
   process.exit(1);
 }
-console.log(`🔐 ADMIN_TOKEN configured: ${ADMIN_TOKEN.substring(0, 10)}...`);
+console.log('🔐 ADMIN_TOKEN configured: true');
 
 // ONE_TIME_TEST_TOKEN for orchestrator (30 min validity)
 const ONE_TIME_TEST_TOKEN = 'test-' + Math.random().toString(36).substring(2, 15);
 const TEST_TOKEN_EXPIRY = Date.now() + 30 * 60 * 1000;
-console.log(`🧪 ONE_TIME_TEST_TOKEN: ${ONE_TIME_TEST_TOKEN} (valid 30min)`);
+console.log('🧪 ONE_TIME_TEST_TOKEN enabled: true (valid 30min)');
 
 // Trust upstream proxy for rate limiting
 app.set('trust proxy', 1);
@@ -345,6 +347,25 @@ const globalLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: req =>
+    req.ip || (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown',
+  skip: req => {
+    if (req.method !== 'GET') return false;
+    const path = req.path || '';
+    const allowList = [
+      '/health',
+      '/healthz',
+      '/ready',
+      '/readyz',
+      '/api/status/dashboard',
+    ];
+    if (allowList.includes(path)) return true;
+    if (path.startsWith('/api/whatsapp/accounts')) return true;
+    if (path.startsWith('/api/whatsapp/threads')) return true;
+    if (path.startsWith('/api/whatsapp/messages')) return true;
+    if (path.startsWith('/api/whatsapp/inbox')) return true;
+    return false;
+  },
 });
 
 app.use(globalLimiter);
@@ -440,6 +461,32 @@ try {
   isWritable = true;
 } catch (error) {
   console.error(`❌ Auth directory not writable: ${error.message}`);
+}
+
+function getSessionPath(accountId) {
+  return path.join(authDir, accountId);
+}
+
+function getCredsPath(accountId) {
+  return path.join(getSessionPath(accountId), 'creds.json');
+}
+
+function hasDiskSession(accountId) {
+  try {
+    const credsPath = getCredsPath(accountId);
+    return fs.existsSync(credsPath) && fs.statSync(credsPath).isFile();
+  } catch (_) {
+    return false;
+  }
+}
+
+function isSessionsDirWritable() {
+  try {
+    fs.accessSync(authDir, fs.constants.W_OK);
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 // Log session path configuration (sanitized, safe for operators)
@@ -789,7 +836,7 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       body: body.substring(0, 10000), // Limit body size (Firestore limit)
       waMessageId: messageId,
       status: isFromMe ? 'sent' : 'delivered', // Default status
-      tsClient: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : new Date().toISOString(),
+      tsClient: messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString(),
       tsServer: admin.firestore.FieldValue.serverTimestamp(),
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       createdAtMs: messageTimestampMs,
@@ -1006,20 +1053,29 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
 // Helper: Convert Long (protobuf) to Number for Firestore compatibility
 // Baileys uses Long objects from protobuf which Firestore can't serialize
 function convertLongToNumber(value) {
-  if (!value) return 0;
+  if (value === null || value === undefined) return 0;
   // If it's already a number, return it
   if (typeof value === 'number') return value;
+  if (typeof value === 'bigint') {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
+  }
+  if (typeof value === 'string') {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
+  }
   // If it's a Long object (from protobuf), convert to number
   if (value && typeof value === 'object' && ('low' in value || 'high' in value || 'toNumber' in value)) {
     try {
       return typeof value.toNumber === 'function' ? value.toNumber() : Number(value);
     } catch (e) {
       // Fallback: try to extract numeric value
-      return value.low || value.high || 0;
+      return Number(value.low || value.high || 0);
     }
   }
   // Try to parse as number
-  return Number(value) || 0;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
 }
 
 // Helper: Process messages in batch (for history sync)
@@ -1038,6 +1094,7 @@ async function saveMessagesBatch(accountId, messages, source = 'history', sock =
   let saved = 0;
   let skipped = 0;
   let errors = 0;
+  const startTime = Date.now();
 
   // Process in batches
   for (let i = 0; i < messages.length; i += BATCH_SIZE) {
@@ -1235,7 +1292,11 @@ async function saveMessagesBatch(accountId, messages, source = 'history', sock =
     }
   }
 
-  return { saved, skipped, errors };
+  const durationMs = Date.now() - startTime;
+  console.log(
+    `📚 [${accountId}] History batch summary: source=${source}, total=${messages.length}, saved=${saved}, skipped=${skipped}, errors=${errors}, durationMs=${durationMs}`
+  );
+  return { saved, skipped, errors, durationMs };
 }
 
 // Helper: Save contacts to Firestore
@@ -1524,7 +1585,7 @@ async function backfillAccountMessages(accountId) {
  */
 async function clearAccountSession(accountId) {
   try {
-    const sessionPath = path.join(authDir, accountId);
+    const sessionPath = getSessionPath(accountId);
     
     // Delete disk session directory
     if (fs.existsSync(sessionPath)) {
@@ -1545,6 +1606,25 @@ async function clearAccountSession(accountId) {
     console.error(`❌ [${accountId}] Failed to clear session:`, error.message);
     throw error;
   }
+}
+
+async function markAccountNeedsQr(accountId, reason, extra = {}) {
+  const account = connections.get(accountId);
+  if (account) {
+    account.status = 'needs_qr';
+    account.requiresQR = true;
+    account.lastUpdate = new Date().toISOString();
+  }
+
+  await saveAccountToFirestore(accountId, {
+    status: 'needs_qr',
+    requiresQR: true,
+    lastError: reason || 'requires_qr',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    ...extra,
+  }).catch(err =>
+    console.error(`❌ [${accountId}] Failed to mark needs_qr in Firestore:`, err.message)
+  );
 }
 
 /**
@@ -1628,24 +1708,29 @@ async function createConnection(accountId, name, phone) {
   try {
     console.log(`\n🔌 [${accountId}] Creating connection...`);
 
-    const sessionPath = path.join(authDir, accountId);
+    const sessionPath = getSessionPath(accountId);
     if (!fs.existsSync(sessionPath)) {
       fs.mkdirSync(sessionPath, { recursive: true });
       console.log(`📁 [${accountId}] Created session directory: ${sessionPath}`);
     }
 
     // Check if session exists (creds.json)
-    const credsPath = path.join(sessionPath, 'creds.json');
-    const credsExists = fs.existsSync(credsPath);
+    const credsPath = getCredsPath(accountId);
+    const credsExists = hasDiskSession(accountId);
     console.log(`🔑 [${accountId}] Session path: ${sessionPath}`);
     console.log(`🔑 [${accountId}] Credentials exist: ${credsExists}`);
+    if (credsExists) {
+      console.log(`✅ [${accountId}] Session restored from disk`);
+    }
 
     // CRITICAL: Restore from Firestore if disk session is missing
     // This ensures session stability across redeploys and crashes
+    let sessionDocExists = false;
     if (!credsExists && USE_FIRESTORE_BACKUP && firestoreAvailable && db) {
       console.log(`🔄 [${accountId}] Disk session missing, attempting Firestore restore...`);
       try {
         const sessionDoc = await db.collection('wa_sessions').doc(accountId).get();
+        sessionDocExists = sessionDoc.exists;
         
         if (sessionDoc.exists) {
           const sessionData = sessionDoc.data();
@@ -1665,13 +1750,6 @@ async function createConnection(accountId, name, phone) {
             
             if (restoredCount > 0) {
               console.log(`✅ [${accountId}] Session restored from Firestore (${restoredCount} files)`);
-              // Verify creds.json was restored
-              const restoredCredsExists = fs.existsSync(credsPath);
-              if (restoredCredsExists) {
-                console.log(`✅ [${accountId}] Credentials restored successfully`);
-              } else {
-                console.warn(`⚠️  [${accountId}] Session files restored but creds.json missing`);
-              }
             } else {
               console.log(`⚠️  [${accountId}] Firestore backup exists but contains no files`);
             }
@@ -1685,6 +1763,17 @@ async function createConnection(accountId, name, phone) {
         console.error(`❌ [${accountId}] Firestore restore failed (non-fatal):`, restoreError.message);
         // Continue with fresh session - restore failure shouldn't block connection
       }
+    }
+
+    const restoredCredsExists = hasDiskSession(accountId);
+    if (!credsExists && restoredCredsExists) {
+      console.log(`✅ [${accountId}] Session restored from Firestore`);
+    }
+
+    if (!restoredCredsExists && sessionDocExists) {
+      console.warn(`⚠️  [${accountId}] Firestore session restore failed, marking needs_qr`);
+      await markAccountNeedsQr(accountId, 'session_restore_failed');
+      return;
     }
 
     // Fetch latest Baileys version (CRITICAL FIX)
@@ -2538,10 +2627,11 @@ async function createConnection(accountId, name, phone) {
             // Clear any reconnect timers
             reconnectAttempts.delete(accountId);
             
-            account.status = 'logged_out';
+            account.status = 'reconnecting';
             
             await saveAccountToFirestore(accountId, {
-              status: 'logged_out',
+              status: 'reconnecting',
+              requiresQR: false,
               logoutCount: logoutCount,
               lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
               lastDisconnectReason: `Terminal logout (retry ${logoutCount}/${MAX_LOGOUT_RETRIES})`,
@@ -2556,11 +2646,12 @@ async function createConnection(accountId, name, phone) {
               // At reconnect, restore from Firestore if disk session was cleared
               // The restore logic in createConnection() will handle this
               const acc = connections.get(accountId);
-              if (acc && acc.status === 'logged_out') {
+              if (acc && acc.status === 'reconnecting') {
                 console.log(`🔄 [${accountId}] Attempting reconnect with session restore (logout retry ${logoutCount})`);
                 createConnection(accountId, acc.name, acc.phone);
               }
             }, backoff);
+            return;
           } else {
             // Real logout - clear session after max retries
             console.log(`❌ [${accountId}] Terminal logout confirmed (${logoutCount} attempts), clearing session`);
@@ -2597,45 +2688,32 @@ async function createConnection(accountId, name, phone) {
               // #endregion
               // Continue anyway - account will be marked logged_out
             }
+            await markAccountNeedsQr(accountId, `logged_out (${reason}) - requires re-link`, {
+              lastDisconnectReason: reason,
+              lastDisconnectCode: reason,
+              logoutCount: logoutCount,
+              nextRetryAt: null,
+              retryCount: 0,
+            });
+
+            await logIncident(accountId, 'wa_logged_out_requires_pairing', {
+              reason: reason,
+              requiresQR: true,
+              traceId: `${accountId}_${Date.now()}`,
+              clearedSession: true,
+              connectingTimeoutCleared: true,
+              reconnectScheduled: false,
+            });
+
+            // Clean up in-memory connection and release lock
+            connections.delete(accountId);
+            connectionRegistry.release(accountId);
+
+            console.log(
+              `📋 [${accountId}] terminal logout complete: status=needs_qr, reconnectScheduled=false, timestamp=${logTimestamp}`
+            );
+            return;
           }
-
-          // CRITICAL: Set status to 'logged_out' (not 'needs_qr') to indicate session expired and re-link required
-          // 'needs_qr' is for expired QR during pairing, 'logged_out' is for invalid session credentials
-          await saveAccountToFirestore(accountId, {
-            status: 'logged_out',
-            lastError: `logged_out (${reason}) - requires re-link`,
-            requiresQR: true,
-            lastDisconnectReason: reason,
-            lastDisconnectCode: reason,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            // #region agent log
-            nextRetryAt: null, // Explicitly set to null to prevent auto-reconnect
-            retryCount: 0, // Reset retry count on terminal logout
-            // #endregion
-          });
-
-          await logIncident(accountId, 'wa_logged_out_requires_pairing', {
-            reason: reason,
-            requiresQR: true,
-            traceId: `${accountId}_${Date.now()}`,
-            // #region agent log
-            clearedSession: true,
-            connectingTimeoutCleared: true,
-            reconnectScheduled: false,
-            // #endregion
-          });
-
-          // Clean up in-memory connection and release lock
-          connections.delete(accountId);
-          connectionRegistry.release(accountId);
-
-          // #region agent log
-          console.log(`📋 [${accountId}] 401 handler complete: status=needs_qr, nextRetryAt=null, retryCount=0, reconnectScheduled=false, timestamp=${logTimestamp}`);
-          // #endregion
-
-          // CRITICAL: DO NOT schedule createConnection() for terminal logout
-          // User must explicitly request "Regenerate QR" to re-pair
-          // This prevents infinite reconnect loop with invalid credentials
         }
       }
     });
@@ -3157,6 +3235,8 @@ function updateConnectionHealth(accountId, eventType) {
       lastMessageAt: null,
       reconnectCount: 0,
       isStale: false,
+      lastRecoverAt: null,
+      staleRecoverCount: 0,
     });
   }
 
@@ -3168,6 +3248,9 @@ function updateConnectionHealth(accountId, eventType) {
   }
 
   health.isStale = false;
+  if (eventType === 'connection') {
+    health.staleRecoverCount = 0;
+  }
 }
 
 // Check session health and restore if needed
@@ -3183,9 +3266,8 @@ async function checkSessionHealth(accountId, account) {
       console.log(`⚠️  [${accountId}] Session health check: socket disconnected but status is connected`);
       
       // Verify disk session exists
-      const sessionPath = path.join(authDir, accountId);
-      const credsPath = path.join(sessionPath, 'creds.json');
-      const credsExists = fs.existsSync(credsPath);
+      const sessionPath = getSessionPath(accountId);
+      const credsExists = hasDiskSession(accountId);
       
       if (!credsExists && USE_FIRESTORE_BACKUP && firestoreAvailable && db) {
         // Restore from Firestore
@@ -3194,6 +3276,9 @@ async function checkSessionHealth(accountId, account) {
           const sessionDoc = await db.collection('wa_sessions').doc(accountId).get();
           if (sessionDoc.exists && sessionDoc.data().files) {
             const sessionData = sessionDoc.data().files;
+            if (!fs.existsSync(sessionPath)) {
+              fs.mkdirSync(sessionPath, { recursive: true });
+            }
             let restoredCount = 0;
             for (const [filename, content] of Object.entries(sessionData)) {
               const filePath = path.join(sessionPath, filename);
@@ -3209,10 +3294,15 @@ async function checkSessionHealth(accountId, account) {
               const stability = sessionStability.get(accountId);
               stability.restoreCount++;
               stability.lastRestoreAt = Date.now();
+            } else {
+              await markAccountNeedsQr(accountId, 'session_health_restore_empty');
             }
+          } else {
+            await markAccountNeedsQr(accountId, 'session_health_missing_backup');
           }
         } catch (restoreError) {
           console.error(`❌ [${accountId}] Session health restore failed:`, restoreError.message);
+          await markAccountNeedsQr(accountId, 'session_health_restore_failed');
         }
       }
     } else if (isConnected) {
@@ -3233,7 +3323,7 @@ function checkStaleConnections() {
   const staleAccounts = [];
 
   for (const [accountId, account] of connections.entries()) {
-    if (account.status !== 'connected') continue;
+    if (!['connected', 'connecting', 'reconnecting'].includes(account.status)) continue;
 
     // Check session health (restore if needed)
     checkSessionHealth(accountId, account).catch(err => 
@@ -3248,6 +3338,8 @@ function checkStaleConnections() {
         lastMessageAt: null,
         reconnectCount: 0,
         isStale: false,
+        lastRecoverAt: null,
+        staleRecoverCount: 0,
       });
       continue;
     }
@@ -3276,10 +3368,35 @@ async function recoverStaleConnection(accountId) {
   }
 
   try {
-    // Increment reconnect count
+    // Increment reconnect count + enforce cooldown/limits
+    const now = Date.now();
     const health = connectionHealth.get(accountId);
     if (health) {
+      if (health.lastRecoverAt && now - health.lastRecoverAt < STALE_RECOVERY_COOLDOWN_MS) {
+        console.log(
+          `⏸️  [${accountId}] Stale recovery cooldown active (${Math.round(
+            (STALE_RECOVERY_COOLDOWN_MS - (now - health.lastRecoverAt)) / 1000
+          )}s remaining)`
+        );
+        return;
+      }
+
+      if (health.staleRecoverCount >= MAX_STALE_RECOVERY_ATTEMPTS) {
+        console.log(
+          `❌ [${accountId}] Max stale recovery attempts reached (${MAX_STALE_RECOVERY_ATTEMPTS}), marking needs_qr`
+        );
+        await markAccountNeedsQr(accountId, 'stale_recovery_exhausted');
+        await logIncident(accountId, 'stale_recovery_exhausted', {
+          attempts: health.staleRecoverCount,
+          thresholdMs: STALE_CONNECTION_THRESHOLD,
+          cooldownMs: STALE_RECOVERY_COOLDOWN_MS,
+        });
+        return;
+      }
+
       health.reconnectCount++;
+      health.staleRecoverCount++;
+      health.lastRecoverAt = now;
     }
 
     // Close existing socket
@@ -4469,6 +4586,7 @@ app.get('/health', async (req, res) => {
   // Simple counters (non-blocking, no async dependencies)
   const connected = Array.from(connections.values()).filter(c => c.status === 'connected').length;
   const accountsTotal = connections.size;
+  const sessionsDirWritable = isSessionsDirWritable();
 
   // Get commit (cached, non-blocking)
   const commit = COMMIT_HASH || 'unknown';
@@ -4476,11 +4594,10 @@ app.get('/health', async (req, res) => {
   // Get instance ID (non-blocking)
   const instanceId = getInstanceId();
 
-  // ALWAYS return 200 - this is liveness check, not readiness
-  // Platform marks instance unhealthy if healthcheck returns non-200
-  // /ready endpoint handles readiness (active/passive mode)
-  res.status(200).json({
-    ok: true,
+  // Return 503 if sessions dir is not writable (stability requires persistent auth state)
+  const statusCode = sessionsDirWritable ? 200 : 503;
+  res.status(statusCode).json({
+    ok: sessionsDirWritable,
     status: 'healthy',
     service: 'whatsapp-backend',
     version: VERSION,
@@ -4492,6 +4609,7 @@ app.get('/health', async (req, res) => {
     requestId: requestId,
     accounts_total: accountsTotal,
     connected: connected,
+    sessions_dir_writable: sessionsDirWritable,
     // Note: Use /ready for mode (active/passive), /health/detailed for comprehensive status
   });
 });
@@ -4507,6 +4625,8 @@ app.get('/health/detailed', async (req, res) => {
       accountId,
       status: account.status,
       phoneNumber: account.phoneNumber,
+      hasDiskSession: hasDiskSession(accountId),
+      needs_qr: account.status === 'needs_qr' || account.requiresQR === true,
       lastEventAt: health?.lastEventAt ? new Date(health.lastEventAt).toISOString() : null,
       lastMessageAt: health?.lastMessageAt ? new Date(health.lastMessageAt).toISOString() : null,
       timeSinceLastEvent: health?.lastEventAt
@@ -4517,6 +4637,7 @@ app.get('/health/detailed', async (req, res) => {
         : null,
       reconnectCount: health?.reconnectCount || 0,
       isStale: health?.isStale || false,
+      leaseUntil: account.leaseUntil || null,
     });
   }
 
@@ -4524,6 +4645,7 @@ app.get('/health/detailed', async (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: Math.floor((Date.now() - START_TIME) / 1000),
+    sessions_dir_writable: isSessionsDirWritable(),
     monitoring: {
       staleThreshold: STALE_CONNECTION_THRESHOLD / 1000,
       checkInterval: HEALTH_CHECK_INTERVAL / 1000,
@@ -7666,13 +7788,17 @@ async function restoreAccount(accountId, data) {
       `BOOT [${accountId}] Starting restore... (status: ${data.status}, USE_FIRESTORE_BACKUP: ${USE_FIRESTORE_BACKUP})`
     );
 
-    const sessionPath = path.join(authDir, accountId);
+    const sessionPath = getSessionPath(accountId);
+    const credsPath = getCredsPath(accountId);
+    const hasSessionOnDisk = hasDiskSession(accountId);
 
     // Try restore from Firestore if disk session missing
-    if (!fs.existsSync(sessionPath) && USE_FIRESTORE_BACKUP && firestoreAvailable) {
+    let sessionDocExists = false;
+    if (!hasSessionOnDisk && USE_FIRESTORE_BACKUP && firestoreAvailable) {
       console.log(`BOOT [${accountId}] No disk session, attempting Firestore restore...`);
 
       const sessionDoc = await db.collection('wa_sessions').doc(accountId).get();
+      sessionDocExists = sessionDoc.exists;
       if (sessionDoc.exists) {
         const sessionData = sessionDoc.data();
 
@@ -7690,22 +7816,39 @@ async function restoreAccount(accountId, data) {
           );
         } else {
           console.log(`⚠️  [${accountId}] Session doc exists but no files, skipping`);
+          await markAccountNeedsQr(accountId, 'session_restore_empty');
           return;
         }
       } else {
         console.log(`⚠️  [${accountId}] No session in Firestore, skipping`);
+        await markAccountNeedsQr(accountId, 'session_missing');
         return;
       }
     } else if (!fs.existsSync(sessionPath)) {
       console.log(
         `⚠️  [${accountId}] No disk session and Firestore restore not available (USE_FIRESTORE_BACKUP: ${USE_FIRESTORE_BACKUP}, firestoreAvailable: ${firestoreAvailable}), skipping`
       );
+      await markAccountNeedsQr(accountId, 'session_missing');
       return;
     }
 
     // Check disk session exists now
+    const restoredCredsExists = hasDiskSession(accountId);
+    if (!restoredCredsExists && sessionDocExists) {
+      console.warn(`⚠️  [${accountId}] Firestore restore completed but creds.json missing`);
+      await markAccountNeedsQr(accountId, 'session_restore_incomplete');
+      return;
+    }
+
+    if (restoredCredsExists) {
+      console.log(
+        `✅ [${accountId}] Session restored from ${hasSessionOnDisk ? 'disk' : 'Firestore'}`
+      );
+    }
+
     if (!fs.existsSync(sessionPath)) {
       console.log(`⚠️  [${accountId}] No session available, skipping`);
+      await markAccountNeedsQr(accountId, 'session_missing');
       return;
     }
 
@@ -8149,7 +8292,7 @@ async function restoreAccountsFromFirestore() {
 
     // Clean up disk sessions that are NOT in Firestore (SAFE: move to orphaned folder, don't delete)
     const allAccountIds = new Set(snapshot.docs.map(doc => doc.id));
-    const sessionsDir = path.join(__dirname, 'sessions');
+    const sessionsDir = authDir;
     const orphanedDir = path.join(sessionsDir, '_orphaned');
 
     if (fs.existsSync(sessionsDir)) {
@@ -8801,10 +8944,11 @@ app.get('/api/status/dashboard', async (req, res) => {
       if (status === 'connected') connectedCount++;
       else if (status === 'disconnected') disconnectedCount++;
       else if (status === 'connecting') connectingCount++;
-      else if (status === 'needs_qr' || account.qr) needsQRCount++;
+      else if (status === 'needs_qr' || account.requiresQR === true) needsQRCount++;
 
       // Get reconnectAttempts from Map (current active reconnection attempts)
       const reconnectAttemptsCount = reconnectAttempts.get(accountId) || 0;
+      const health = connectionHealth.get(accountId);
       
       // Get lastSeen from lastEventAt or lastMessageAt (most recent activity)
       const lastSeen = account.lastEventAt || account.lastMessageAt || null;
@@ -8812,6 +8956,7 @@ app.get('/api/status/dashboard', async (req, res) => {
       // Get backfill info from Firestore (if available)
       let lastBackfillAt = null;
       let lastHistorySyncAt = null;
+      let leaseUntil = null;
       if (firestoreAvailable && db) {
         try {
           const accountDoc = await db.collection('accounts').doc(accountId).get();
@@ -8819,6 +8964,7 @@ app.get('/api/status/dashboard', async (req, res) => {
             const accountData = accountDoc.data();
             lastBackfillAt = accountData.lastBackfillAt?.toDate?.()?.toISOString() || null;
             lastHistorySyncAt = accountData.lastHistorySyncAt?.toDate?.()?.toISOString() || null;
+            leaseUntil = accountData.leaseUntil?.toDate?.()?.toISOString() || null;
           }
         } catch (error) {
           // Ignore errors when fetching backfill info
@@ -8832,21 +8978,15 @@ app.get('/api/status/dashboard', async (req, res) => {
         lastEventAt: account.lastEventAt ? new Date(account.lastEventAt).toISOString() : null,
         lastMessageAt: account.lastMessageAt ? new Date(account.lastMessageAt).toISOString() : null,
         lastSeen: lastSeen ? new Date(lastSeen).toISOString() : null,
-        reconnectCount: account.reconnectCount || 0,
+        reconnectCount: health?.reconnectCount || account.reconnectCount || 0,
         reconnectAttempts: reconnectAttemptsCount,
-        needsQR: !!account.qr,
+        needs_qr: status === 'needs_qr' || account.requiresQR === true,
+        hasDiskSession: hasDiskSession(accountId),
+        isStale: health?.isStale || false,
+        leaseUntil,
         lastBackfillAt,
         lastHistorySyncAt,
       };
-
-      // Include QR code only if needsQR is true (and qr is not null/empty)
-      if (account.qr && typeof account.qr === 'string' && account.qr.length > 0) {
-        try {
-          accountData.qrCode = await QRCode.toDataURL(account.qr);
-        } catch (err) {
-          console.error(`❌ [${accountId}] QR code generation failed:`, err.message);
-        }
-      }
 
       accounts.push(accountData);
     }
@@ -8864,7 +9004,7 @@ app.get('/api/status/dashboard', async (req, res) => {
       },
       storage: {
         path: authDir,
-        writable: isWritable,
+        writable: isSessionsDirWritable(),
         totalAccounts: connections.size,
       },
       accounts: accounts.sort((a, b) => a.accountId.localeCompare(b.accountId)),

@@ -55,7 +55,7 @@ async function testWAStatus() {
   console.log('WA STATUS TEST');
   console.log('========================================');
   console.log(`Base URL: ${BASE_URL}`);
-  console.log(`Token: ${ADMIN_TOKEN.substring(0, 10)}...`);
+  console.log(`Token configured: ${Boolean(ADMIN_TOKEN)}`);
   console.log('');
 
   try {

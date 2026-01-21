@@ -96,9 +96,10 @@ Railway → Variables:
 ### 3.3 Verificări în logs (după redeploy)
 Caută:
 - ✅ `"sessions dir ... writable"` / `"write-test"` (startup fail-fast indică să verifici `SESSIONS_PATH` și volume)
+- ✅ `"Session restored from disk"` / `"Session restored from Firestore"` (după redeploy)
 - ✅ `"messaging-history.set"` (history sync)
 - ❌ `"needs_qr"` (dacă apare după scanare = problemă)
-- ✅ `/health 200`
+- ✅ `/health 200` + `sessions_dir_writable=true`
 
 ### 3.4 Constrângere producție
 **1 singură instanță Railway** (fără scale-out) până când ownership/lease e implementat complet.
@@ -119,6 +120,7 @@ BASE="https://<railway-domain>"
 ```bash
 curl -sS "$BASE/health"
 ```
+Expected: `sessions_dir_writable=true` și status 200. Dacă e `false`, /health va răspunde 503.
 
 ### 4.2 List accounts
 ```bash
