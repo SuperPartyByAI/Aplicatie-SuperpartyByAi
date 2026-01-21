@@ -38,6 +38,43 @@ sudo systemctl daemon-reload
 sudo systemctl restart whatsapp-backend
 ```
 
+## Existing sessions migration (fallback → persistent)
+
+If the backend previously used the fallback `.baileys_auth` directory, move sessions into the
+persistent `SESSIONS_PATH` to avoid QR re-pairing after restart:
+
+```bash
+SVC="whatsapp-backend"
+NEW="/var/lib/whatsapp-backend/sessions"
+U="$(systemctl show "$SVC" -p User --value || true)"
+[ -z "$U" ] && U=root
+WD="$(systemctl show "$SVC" -p WorkingDirectory --value || true)"
+[ -z "$WD" ] && WD="/opt/whatsapp/Aplicatie-SuperpartyByAi/whatsapp-backend"
+OLD="$WD/.baileys_auth"
+
+sudo install -d -o "$U" -g "$U" -m 750 "$NEW"
+if [ -d "$OLD" ]; then
+  sudo rsync -a "$OLD"/ "$NEW"/
+  sudo chown -R "$U":"$U" "$NEW"
+fi
+
+sudo install -d /etc/systemd/system/${SVC}.service.d
+sudo tee /etc/systemd/system/${SVC}.service.d/20-sessions.conf >/dev/null <<'OVR'
+[Service]
+Environment="SESSIONS_PATH=/var/lib/whatsapp-backend/sessions"
+OVR
+
+sudo systemctl daemon-reload
+sudo systemctl restart whatsapp-backend
+```
+
+Verification (metadata only):
+
+```bash
+SESS="/var/lib/whatsapp-backend/sessions"
+echo "creds.json_count=$(find "$SESS" -maxdepth 3 -name creds.json 2>/dev/null | wc -l | tr -d ' ')"
+```
+
 ## Health signals to watch
 
 - `/health` → `sessions_dir_writable=true` and HTTP 200  

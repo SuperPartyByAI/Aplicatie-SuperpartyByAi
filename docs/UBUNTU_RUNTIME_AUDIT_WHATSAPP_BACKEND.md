@@ -94,3 +94,16 @@ Expected: `sessions_dir_writable=true` (after deploy with updated code) and acco
 4) Re‑run health burst test (30x) after sessions fix to confirm no 429.
 
 5) Deploy current branch to server so `/health` includes `sessions_dir_writable` and dashboard fields (hasDiskSession, needs_qr, isStale, leaseUntil).
+
+## Re-Audit 2026-01-21 (sanitized)
+- `/health`: `waMode=active`, `lockStatus=held_by_this_instance`, `accounts_total=1`, `connected=1`, `needs_qr=0`, `sessions_dir_writable=true`
+- Runtime path:
+  - `WorkingDirectory=/opt/whatsapp/Aplicatie-SuperpartyByAi/whatsapp-backend`
+  - `ExecStart=/usr/bin/node /opt/whatsapp/Aplicatie-SuperpartyByAi/whatsapp-backend/server.js`
+- Sessions:
+  - `SESSIONS_PATH=/var/lib/whatsapp-backend/sessions`
+  - `creds.json_count=1`
+- Duplicates audit (48h/500):
+  - `duplicatesCount=112`
+  - `uniqueFingerprints=388`
+  - `totalDocs=500`
