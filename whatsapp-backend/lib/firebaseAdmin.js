@@ -4,6 +4,41 @@ const path = require('path');
 
 const SERVICE_ACCOUNT_ENV = 'FIREBASE_SERVICE_ACCOUNT_JSON';
 
+const decodeSystemdValue = (value) => {
+  let raw = String(value || '').trim();
+  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+    raw = raw.slice(1, -1);
+  }
+  raw = raw.replace(/\\\\/g, '\\');
+  raw = raw.replace(/\\n/g, '\n');
+  raw = raw.replace(/\\"/g, '"');
+  return raw.trim();
+};
+
+const readSystemdEnv = () => {
+  const candidates = [
+    '/etc/systemd/system/whatsapp-backend.service.d/10-firebase-creds.conf',
+    '/etc/systemd/system/whatsapp-backend.service.d/15-firebase-env.conf',
+    '/etc/systemd/system/whatsapp-backend.service.d/override.conf',
+  ];
+
+  for (const filePath of candidates) {
+    if (!fs.existsSync(filePath)) continue;
+    const data = fs.readFileSync(filePath, 'utf8');
+    const lines = data.split(/\r?\n/);
+    for (const line of lines) {
+      if (!line.includes(SERVICE_ACCOUNT_ENV)) continue;
+      const idx = line.indexOf(`${SERVICE_ACCOUNT_ENV}=`);
+      if (idx === -1) continue;
+      const rawValue = line.slice(idx + SERVICE_ACCOUNT_ENV.length + 1);
+      const decoded = decodeSystemdValue(rawValue);
+      if (decoded) return decoded;
+    }
+  }
+
+  return '';
+};
+
 const loadServiceAccount = () => {
   const raw = process.env[SERVICE_ACCOUNT_ENV];
   if (raw && raw.trim().length > 0) {
@@ -14,6 +49,11 @@ const loadServiceAccount = () => {
   if (fs.existsSync(localPath)) {
     const rawFile = fs.readFileSync(localPath, 'utf8');
     return JSON.parse(rawFile);
+  }
+
+  const systemdRaw = readSystemdEnv();
+  if (systemdRaw) {
+    return JSON.parse(systemdRaw);
   }
 
   return null;
