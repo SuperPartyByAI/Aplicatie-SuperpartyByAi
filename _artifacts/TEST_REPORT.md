@@ -1,7 +1,7 @@
 # Test Report
-- Timestamp: 2026-01-22T08:34:33.767730Z
+- Timestamp: 2026-01-22T08:37:54.830219Z
 - Branch: cursor/baileys-fix
-- Head: 0bc004b6 chore: cloud run restart discovery + reporting
+- Head: a8870182 chore: update restart verification artifacts
 - REAL_SYNC_READY: true
 ## Runner
 ```json
