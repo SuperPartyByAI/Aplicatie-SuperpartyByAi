@@ -1,7 +1,7 @@
 # Test Report
-- Timestamp: 2026-01-22T11:41:20.000000Z
+- Timestamp: 2026-01-22T11:43:08.000000Z
 - Branch: cursor/baileys-fix
-- Head: 4ac9140c chore: verify recent inbound no-duplication (sanitized)
+- Head: 3684ac07 chore: triage recent inbound ingestion (sanitized)
 - REAL_SYNC_READY: false
 ## Probe tsClient
 ```json
