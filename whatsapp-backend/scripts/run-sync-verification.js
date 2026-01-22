@@ -2,6 +2,7 @@
 
 const { execFileSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 const runNode = (script, args = []) => {
   const scriptPath = path.join(__dirname, script);
@@ -37,10 +38,18 @@ const extractAuditMetrics = (payload) => ({
   activeDocs: payload?.activeDocs ?? null,
 });
 
-const runShell = (command) => {
-  execFileSync('bash', ['-lc', command], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+const runShellOutput = (command) => {
+  try {
+    const stdout = execFileSync('bash', ['-lc', command], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return stdout.trim();
+  } catch (error) {
+    const stdout = error?.stdout ? String(error.stdout).trim() : '';
+    const stderr = error?.stderr ? String(error.stderr).trim() : '';
+    return stdout || stderr || '';
+  }
 };
 
 const performRestart = () => {
@@ -54,8 +63,20 @@ const performRestart = () => {
 
   try {
     if (restartCmd && restartCmd.trim().length > 0) {
-      runShell(restartCmd);
-      return { restartRequested: true, restartPerformed: true };
+      const raw = runShellOutput(restartCmd);
+      const parsed = parseJsonOutput('restart', raw);
+      const ok = parsed?.ok === true;
+      const result = {
+        restartRequested: true,
+        restartPerformed: ok,
+        restartVerified: ok,
+        restartRaw: parsed,
+      };
+      if (!ok) {
+        result.restartError =
+          parsed?.lastError || parsed?.reason || parsed?.error || 'restart_failed';
+      }
+      return result;
     }
 
     if (process.platform !== 'linux') {
@@ -65,7 +86,7 @@ const performRestart = () => {
         restartSkippedReason: 'non_linux_no_systemctl',
       };
     } else if (restartSsh && restartSsh.trim().length > 0) {
-      runShell(
+      runShellOutput(
         `ssh -o StrictHostKeyChecking=no ${restartSsh} 'sudo systemctl restart whatsapp-backend'`,
       );
     } else {
@@ -73,7 +94,7 @@ const performRestart = () => {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
     }
-    return { restartRequested: true, restartPerformed: true };
+    return { restartRequested: true, restartPerformed: true, restartVerified: true };
   } catch (error) {
     return {
       restartRequested: true,
@@ -175,7 +196,20 @@ const fail = (payload, exitCode = 2) => {
     if (restartInfo.restartError) {
       result.restartError = restartInfo.restartError;
     }
-    result.restartVerified = restartInfo.restartPerformed === true;
+    result.restartVerified = restartInfo.restartVerified === true;
+
+    if (restartInfo.restartRaw) {
+      try {
+        const artifactsDir = path.join(__dirname, '..', '..', '_artifacts');
+        fs.mkdirSync(artifactsDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(artifactsDir, 'restart_result.json'),
+          JSON.stringify(restartInfo.restartRaw),
+        );
+      } catch (_) {
+        // Ignore artifact write errors.
+      }
+    }
 
     if (afterDupes > beforeDupes) {
       fail({
@@ -190,7 +224,7 @@ const fail = (payload, exitCode = 2) => {
       verdict = false;
       notReadyReason = 'missing_desc_index';
     }
-    if (restartInfo.restartError) {
+    if (restartInfo.restartRequested && result.restartVerified !== true) {
       verdict = false;
       notReadyReason = 'restart_failed';
     }
@@ -198,6 +232,10 @@ const fail = (payload, exitCode = 2) => {
     result.verdict = verdict;
     if (!verdict) {
       result.not_ready_reason = notReadyReason;
+    }
+
+    if (restartInfo.restartRequested && result.restartVerified !== true) {
+      fail(result, 2);
     }
 
     console.log(JSON.stringify(result));

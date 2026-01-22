@@ -117,6 +117,27 @@ sudo systemctl daemon-reload
 sudo systemctl restart whatsapp-backend
 ```
 
+## Restart verification without SSH (Cloud Run)
+Use the gcloud control plane to trigger a new Cloud Run revision by bumping a
+dummy env var (no `systemctl`, no SSH).
+
+```bash
+cd ~/Aplicatie-SuperpartyByAi/whatsapp-backend
+export RESTART_CMD="./scripts/restart-backend-gcloud.sh"
+RUN_RESTART=true node scripts/run-sync-verification.js
+```
+
+Environment knobs:
+- `GCLOUD_PROJECT` / `GCP_PROJECT`: override project (defaults to gcloud config).
+- `RUN_SERVICE_NAME`: exact Cloud Run service name (skip auto-detect).
+- `RUN_REGION`: single region to search (skip auto-detect).
+- `RUN_SERVICE_MATCH`: regex/substring (default `whatsapp|baileys|backend`).
+- `RUN_REGIONS`: comma-separated region list for auto-detect.
+
+The restart script prints strict JSON on stdout:
+- success: `{"ok":true,"service":"...","region":"...","beforeRevision":"...","afterRevision":"..."}`
+- failure: `{"ok":false,"reason":"...","lastError":"...","tried":[...]}`.
+
 2) Verify:
 ```bash
 curl -sS http://127.0.0.1:8080/health
