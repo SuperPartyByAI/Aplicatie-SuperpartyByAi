@@ -1,16 +1,15 @@
 # Test Report
-- Timestamp: 2026-01-22T07:52:25.780744Z
+- Timestamp: 2026-01-22T08:34:33.767730Z
 - Branch: cursor/baileys-fix
-- Head: ed9ce85b chore: refresh test report head
-- REAL_SYNC_READY: false
-- REAL_SYNC_READY_reason: restart_not_verified
+- Head: 0bc004b6 chore: cloud run restart discovery + reporting
+- REAL_SYNC_READY: true
 ## Runner
 ```json
 {"duplicatesCountActiveBefore": 70, "duplicatesCountActiveAfter": 70, "before": {"duplicatesCountActive": 70, "markedDocs": 2, "activeDocs": 498}, "after": {"duplicatesCountActive": 70, "markedDocs": 2, "activeDocs": 498}, "delta": {"duplicatesCountActive": 0}, "usedFallback": false, "modeUsed": "desc", "restartRequested": false, "restartPerformed": false, "restartVerified": false, "verdict": true}
 ```
 ## Runner Restart
 ```json
-{"duplicatesCountActiveBefore": 70, "duplicatesCountActiveAfter": 70, "before": {"duplicatesCountActive": 70, "markedDocs": 2, "activeDocs": 498}, "after": {"duplicatesCountActive": 70, "markedDocs": 2, "activeDocs": 498}, "delta": {"duplicatesCountActive": 0}, "usedFallback": false, "modeUsed": "desc", "restartRequested": true, "restartPerformed": false, "restartError": "no_candidate", "restartVerified": false, "verdict": false, "not_ready_reason": "restart_failed"}
+{"duplicatesCountActiveBefore": 70, "duplicatesCountActiveAfter": 70, "before": {"duplicatesCountActive": 70, "markedDocs": 2, "activeDocs": 498}, "after": {"duplicatesCountActive": 70, "markedDocs": 2, "activeDocs": 498}, "delta": {"duplicatesCountActive": 0}, "usedFallback": false, "modeUsed": "desc", "restartRequested": true, "restartPerformed": true, "restartVerified": true, "verdict": true}
 ```
 ## Restart Result
 ```json
