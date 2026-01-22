@@ -26,6 +26,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   final WhatsAppApiService _apiService = WhatsAppApiService.instance;
   
   List<Map<String, dynamic>> _accounts = [];
+  // ignore: unused_field  // reserved for accounts loading state
   bool _isLoadingAccounts = true;
   bool _isLoadingThreads = false;
   String _searchQuery = '';
@@ -140,7 +141,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
           final threads = snapshot.docs.map((doc) {
             return {
               'id': doc.id,
-              ...doc.data() as Map<String, dynamic>,
+              ...doc.data(),
               'accountId': accountId,
               'accountName': accountName,
             };

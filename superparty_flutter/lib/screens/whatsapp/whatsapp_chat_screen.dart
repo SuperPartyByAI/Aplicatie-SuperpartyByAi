@@ -244,6 +244,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       }
 
       if (_threadClientJid == null || _threadClientJid!.isEmpty) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Missing canonical clientJid for thread')),
         );

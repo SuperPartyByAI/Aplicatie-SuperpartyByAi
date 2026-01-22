@@ -205,12 +205,6 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     });
   }
   
-  /// Stop polling for QR codes (when all accounts have QR or are connected)
-  void _stopQrPolling() {
-    _qrPollingTimer?.cancel();
-    _qrPollingTimer = null;
-  }
-  
   Future<void> _checkBackendDiagnostics() async {
     try {
       final diagnostics = await _diagnosticsService.checkReady();
@@ -609,10 +603,12 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           
           // Reload immediately to show account with 'connecting' status
           await _loadAccounts();
-          
+
+          if (!mounted) return;
+
           // Polling timer will automatically refresh accounts every 2 seconds
           // No need for manual delays - polling handles it
-          
+
           // Show message that QR code will appear automatically
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -748,23 +744,6 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           SnackBar(
             content: Text('Delete failed: ${e.toString()}'),
             backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _openQrPage(String accountId) async {
-    final url = _apiService.qrPageUrl(accountId);
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not open QR page: $url'),
-            backgroundColor: Colors.orange,
           ),
         );
       }
