@@ -841,6 +841,8 @@ if (require.main === module) {
     keyStrategyUsedCounts,
     windowModeUsed,
     parseFailures,
+    newestDocAgeSeconds: scannedMaxMs ? Math.max(0, Math.floor((nowMs - scannedMaxMs) / 1000)) : null,
+    oldestDocAgeSeconds: scannedMinMs ? Math.max(0, Math.floor((nowMs - scannedMinMs) / 1000)) : null,
     earliestAgeBucket: scannedMinMs ? ageBucketFromMs(nowMs - scannedMinMs) : 'unknown',
     latestAgeBucket: scannedMaxMs ? ageBucketFromMs(nowMs - scannedMaxMs) : 'unknown',
     windowHours: opts.windowHours,

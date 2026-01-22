@@ -1,7 +1,7 @@
 # Test Report
-- Timestamp: 2026-01-22T11:23:47.000000Z
+- Timestamp: 2026-01-22T11:41:20.000000Z
 - Branch: cursor/baileys-fix
-- Head: 91e27931 fix(audit): support tsClient string window filtering + probe
+- Head: 4ac9140c chore: verify recent inbound no-duplication (sanitized)
 - REAL_SYNC_READY: false
 ## Probe tsClient
 ```json
@@ -13,7 +13,11 @@
 ```
 ## Audit 15m
 ```json
-{"totalDocs":0,"markedDocs":0,"activeDocs":0,"uniqueKeys":0,"duplicatesCountActive":0,"duplicatesCountAll":null,"keyStrategyUsedCounts":{"stableKeyHash":0,"fingerprintHash":0,"fallback":0},"windowModeUsed":"clientSideWindow","parseFailures":0,"earliestAgeBucket":"ge48h","latestAgeBucket":"lt48h","windowHours":0.25,"limit":500,"keyMode":"stable","excludeMarked":true,"dryRun":false,"usedFallback":false,"modeUsed":"desc","hint":null,"indexLink":null,"duplicateGroupsCount":0,"topDuplicateGroups":[]}
+{"totalDocs":0,"markedDocs":0,"activeDocs":0,"uniqueKeys":0,"duplicatesCountActive":0,"duplicatesCountAll":null,"keyStrategyUsedCounts":{"stableKeyHash":0,"fingerprintHash":0,"fallback":0},"windowModeUsed":"clientSideWindow","parseFailures":0,"newestDocAgeSeconds":87293,"oldestDocAgeSeconds":240727,"earliestAgeBucket":"ge48h","latestAgeBucket":"lt48h","windowHours":0.25,"limit":500,"keyMode":"stable","excludeMarked":true,"dryRun":false,"usedFallback":false,"modeUsed":"desc","hint":null,"indexLink":null,"duplicateGroupsCount":0,"topDuplicateGroups":[]}
+```
+## Recent Inbound Triage
+```json
+{"newestDocAgeSeconds":87292,"oldestDocAgeSeconds":88054,"logCounts":{"inbound":0,"upsert":0,"message":0,"error":4},"quickWrite":{"ran":true,"sent":false,"statusCode":404}}
 ```
 ## Audit 1h
 ```json
