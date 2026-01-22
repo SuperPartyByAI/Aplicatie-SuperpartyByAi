@@ -1,0 +1,1 @@
+{"error":"firestore_credentials_missing","message":"Set GOOGLE_APPLICATION_CREDENTIALS or gcloud ADC"}

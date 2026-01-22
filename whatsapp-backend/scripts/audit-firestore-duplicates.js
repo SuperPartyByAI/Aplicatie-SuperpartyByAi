@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const admin = require('firebase-admin');
+const { admin, initFirebaseAdmin } = require('../lib/firebaseAdmin');
 const { normalizeMessageText, safeHash } = require('../lib/wa-message-identity');
 
 const toSha1 = (value) =>
@@ -287,21 +287,15 @@ const getFirestoreEnvMeta = () => {
   };
 };
 
-const initFirestore = () => {
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+let detectedProjectId = null;
 
+const initFirestore = () => {
   try {
-    if (!admin.apps.length) {
-      if (raw) {
-        const serviceAccount = JSON.parse(raw);
-        admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-      } else {
-        admin.initializeApp();
-      }
-    }
-    return { db: admin.firestore(), error: null };
+    const { db, projectId } = initFirebaseAdmin();
+    detectedProjectId = projectId || detectedProjectId;
+    return { db, error: null };
   } catch (error) {
-    return { db: null, error: 'Firestore not available' };
+    return { db: null, error: error?.message || 'FIRESTORE_DISABLED' };
   }
 };
 
@@ -317,7 +311,11 @@ const getIndexLink = (error) => {
 };
 
 const getProjectId = () =>
-  process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || process.env.PROJECT_ID || null;
+  detectedProjectId ||
+  process.env.GCLOUD_PROJECT ||
+  process.env.GOOGLE_CLOUD_PROJECT ||
+  process.env.PROJECT_ID ||
+  null;
 
 const getHint = (error, message) => {
   const code = error?.code || '';
@@ -439,11 +437,17 @@ if (require.main === module) {
 
   const { db, error } = initFirestore();
   if (!db) {
+    const hint = error === 'FIRESTORE_DISABLED_MISSING_CREDENTIALS'
+      ? 'missing_credentials'
+      : error === 'FIRESTORE_DISABLED_MISSING_PROJECT_ID'
+        ? 'missing_project_id'
+        : 'unknown';
     console.log(
       JSON.stringify(
         {
           error: 'firestore_unavailable',
-          message: 'Set GOOGLE_APPLICATION_CREDENTIALS or gcloud ADC',
+          message: error || 'FIRESTORE_DISABLED',
+          hint,
           env: getFirestoreEnvMeta(),
         },
         null,

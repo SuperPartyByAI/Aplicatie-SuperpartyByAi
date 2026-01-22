@@ -1,0 +1,12 @@
+{
+  "error": "firestore_unavailable",
+  "message": "FIRESTORE_DISABLED_MISSING_CREDENTIALS",
+  "hint": "missing_credentials",
+  "env": {
+    "has_GAC": false,
+    "gac_path_len": 0,
+    "gac_file_exists": false,
+    "has_ADC": false,
+    "projectId_present": false
+  }
+}

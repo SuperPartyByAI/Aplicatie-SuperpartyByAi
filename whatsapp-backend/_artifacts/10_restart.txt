@@ -1,0 +1,15 @@
+systemctl restart whatsapp-backend.service
+systemctl status --no-pager whatsapp-backend.service
+● whatsapp-backend.service - WhatsApp Backend (Baileys)
+     Loaded: loaded (/etc/systemd/system/whatsapp-backend.service; enabled; preset: enabled)
+    Drop-In: /etc/systemd/system/whatsapp-backend.service.d
+             └─10-firebase-creds.conf, 15-firebase-env.conf, 20-instance-id.conf, 20-sessions.conf, override.conf
+     Active: active (running) since Thu 2026-01-22 17:41:32 UTC; 16ms ago
+   Main PID: 347989 (node)
+      Tasks: 1 (limit: 9251)
+     Memory: 924.0K (peak: 1.1M)
+        CPU: 6ms
+     CGroup: /system.slice/whatsapp-backend.service
+             └─347989 /usr/bin/node /opt/whatsapp/Aplicatie-SuperpartyByAi/whatsapp-backend/server.js
+
+Jan 22 17:41:32 ubuntu-8gb-hel1-2 systemd[1]: Started whatsapp-backend.service - WhatsApp Backend (Baileys).

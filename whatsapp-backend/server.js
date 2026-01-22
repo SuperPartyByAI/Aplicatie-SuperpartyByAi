@@ -9323,6 +9323,12 @@ app.get('/api/status/dashboard', async (req, res) => {
   }
 });
 
+// Backward-compatible alias for older tooling
+app.get('/api/status-now', (req, res, next) => {
+  req.url = '/api/status/dashboard';
+  return app._router.handle(req, res, next);
+});
+
 // Start server
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n✅ Server running on port ${PORT}`);
