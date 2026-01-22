@@ -91,6 +91,11 @@ Expected fields:
 - `last_firestore_write_at_ms`
 - `last_error_sha8`
 
+Optional endpoint (requires DIAG_TOKEN):
+```
+http://127.0.0.1:8080/diag/status?token=YOUR_TOKEN
+```
+
 ## Server Update (Safe)
 One command to update server repo safely:
 ```bash

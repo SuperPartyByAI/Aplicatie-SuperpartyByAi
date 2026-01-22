@@ -36,6 +36,8 @@ const extractAuditMetrics = (payload) => ({
   duplicatesCountActive: payload?.duplicatesCountActive ?? null,
   markedDocs: payload?.markedDocs ?? null,
   activeDocs: payload?.activeDocs ?? null,
+  totalDocs: payload?.totalDocs ?? null,
+  newestDocAgeSeconds: payload?.newestDocAgeSeconds ?? null,
 });
 
 const runShellOutput = (command) => {
@@ -111,6 +113,16 @@ const fail = (payload, exitCode = 2) => {
 
 (async () => {
   try {
+    const statusRaw = runNode('wa-status-json.js', []);
+    const status = parseJsonOutput('status', statusRaw);
+    const connectedCount = Number(status?.connected ?? 0);
+    if (status?.error) {
+      fail({ error: 'status_check_failed', details: status });
+    }
+    if (!Number.isFinite(connectedCount) || connectedCount < 1) {
+      fail({ error: 'not_connected', status });
+    }
+
     const beforeRaw = runNode('audit-firestore-duplicates.js', [
       '--windowHours=0.25',
       '--limit=500',
@@ -175,8 +187,12 @@ const fail = (payload, exitCode = 2) => {
     const modeUsed = before?.modeUsed || after?.modeUsed || null;
     const allowFallbackReady = process.env.ALLOW_FALLBACK_READY === 'true';
     const duplicatesDelta = afterDupes - beforeDupes;
+    const recentDocAgeSeconds = Number(afterMetrics.newestDocAgeSeconds ?? NaN);
+    const recentDocMissing =
+      !Number.isFinite(recentDocAgeSeconds) || recentDocAgeSeconds > 120 || (afterMetrics.totalDocs ?? 0) < 1;
 
     const result = {
+      status,
       duplicatesCountActiveBefore: beforeDupes,
       duplicatesCountActiveAfter: afterDupes,
       before: beforeMetrics,
@@ -184,6 +200,7 @@ const fail = (payload, exitCode = 2) => {
       delta: {
         duplicatesCountActive: duplicatesDelta,
       },
+      recentDocAgeSeconds: Number.isFinite(recentDocAgeSeconds) ? recentDocAgeSeconds : null,
       usedFallback,
       modeUsed,
       restartRequested: restartInfo.restartRequested,
@@ -224,6 +241,10 @@ const fail = (payload, exitCode = 2) => {
       verdict = false;
       notReadyReason = 'missing_desc_index';
     }
+    if (recentDocMissing) {
+      verdict = false;
+      notReadyReason = 'recent_doc_missing';
+    }
     if (restartInfo.restartRequested && result.restartVerified !== true) {
       verdict = false;
       notReadyReason = 'restart_failed';
@@ -236,6 +257,16 @@ const fail = (payload, exitCode = 2) => {
 
     if (restartInfo.restartRequested && result.restartVerified !== true) {
       fail(result, 2);
+    }
+
+    if (recentDocMissing) {
+      fail(
+        {
+          ...result,
+          error: 'recent_doc_missing',
+        },
+        4,
+      );
     }
 
     console.log(JSON.stringify(result));
