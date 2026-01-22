@@ -83,6 +83,23 @@ Verify connection state (sanitized JSON):
 ```bash
 node scripts/wa-status-json.js
 ```
+Expected fields:
+- `accounts_total`
+- `connected`
+- `session_present`
+- `last_inbound_at_ms`
+- `last_firestore_write_at_ms`
+- `last_error_sha8`
+
+## Server Update (Safe)
+One command to update server repo safely:
+```bash
+bash scripts/server-update-safe.sh
+```
+Optional restart after update:
+```bash
+RESTART_AFTER_UPDATE=true bash scripts/server-update-safe.sh
+```
 
 ## Audit Commands (Sanitized)
 ```bash

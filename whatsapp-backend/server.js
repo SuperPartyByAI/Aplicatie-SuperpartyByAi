@@ -632,6 +632,19 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function requireDiagToken(req, res, next) {
+  if (!DIAG_TOKEN) {
+    res.status(401).end();
+    return;
+  }
+  const token = req.query?.token || req.headers['x-diag-token'];
+  if (!token || token !== DIAG_TOKEN) {
+    res.status(401).end();
+    return;
+  }
+  next();
+}
+
 // Test runs storage
 const testRuns = new Map();
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -681,6 +694,20 @@ function hasDiskSession(accountId) {
   }
 }
 
+function hasAnyDiskSession() {
+  try {
+    const entries = fs.readdirSync(authDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const credsPath = path.join(authDir, entry.name, 'creds.json');
+      if (fs.existsSync(credsPath)) return true;
+    }
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
 function isSessionsDirWritable() {
   try {
     fs.accessSync(authDir, fs.constants.W_OK);
@@ -721,6 +748,20 @@ const DeployGuard = require('./lib/deploy-guard');
 const waBootstrap = require('./lib/wa-bootstrap');
 const LONGRUN_ADMIN_TOKEN = process.env.LONGRUN_ADMIN_TOKEN || ADMIN_TOKEN;
 const START_TIME = Date.now();
+const DIAG_TOKEN = process.env.DIAG_TOKEN || null;
+
+const diagStatus = {
+  lastInboundAtMs: null,
+  lastFirestoreWriteAtMs: null,
+  lastErrorSha8: null,
+};
+
+const setDiagError = (error) => {
+  if (!error) return;
+  const msg = error?.message || String(error);
+  if (!msg) return;
+  diagStatus.lastErrorSha8 = crypto.createHash('sha1').update(msg).digest('hex').slice(0, 8);
+};
 
 console.log(`🚀 SuperParty WhatsApp Backend v${VERSION} (${COMMIT_HASH})`);
 console.log(`📍 PORT: ${PORT}`);
@@ -1004,7 +1045,9 @@ async function persistMessage({ accountId, sock, msg, source = 'realtime' }) {
     msg,
     tsClientMs: messageTimestampMs,
   });
-  const docId = chooseDocId({ stableKey, strongFingerprint });
+  const inboundDocId =
+    !isFromMe && msg.key?.id ? sha1(`${accountId}|${msg.key.id}`).slice(0, 24) : null;
+  const docId = inboundDocId || chooseDocId({ stableKey, strongFingerprint });
   const stableKeyHash = stableKey ? safeHashMessage(stableKey) : null;
   const fingerprintHash = strongFingerprint ? safeHashMessage(strongFingerprint) : null;
 
@@ -1031,6 +1074,7 @@ async function persistMessage({ accountId, sock, msg, source = 'realtime' }) {
     direction: isFromMe ? 'outbound' : 'inbound',
     body: body.substring(0, 10000),
     waMessageIdRaw: msg.key.id || null,
+    providerMessageId: msg.key.id || null,
     status: statusOverride || (isFromMe ? 'sent' : 'delivered'),
     tsClient: tsClientAt,
     tsClientMs: messageTimestampMs,
@@ -1039,6 +1083,7 @@ async function persistMessage({ accountId, sock, msg, source = 'realtime' }) {
     tsClientIso: messageTimestampMs ? new Date(messageTimestampMs).toISOString() : null,
     tsServer: admin.firestore.FieldValue.serverTimestamp(),
     ingestedAt: admin.firestore.FieldValue.serverTimestamp(),
+    schemaVersion: 1,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     createdAtMs: messageTimestampMs,
     messageType,
@@ -1128,6 +1173,13 @@ async function persistMessage({ accountId, sock, msg, source = 'realtime' }) {
       tsClientMs: messageTimestampMs,
     };
   });
+
+  if (!txResult?.skipped) {
+    diagStatus.lastFirestoreWriteAtMs = Date.now();
+    if (!isFromMe && source === 'realtime') {
+      diagStatus.lastInboundAtMs = Date.now();
+    }
+  }
 
   if (!txResult?.skipped) {
     try {
@@ -1228,6 +1280,7 @@ async function saveMessageToFirestoreLegacy(accountId, msg, isFromHistory = fals
   } catch (error) {
     console.error(`❌ [${accountId}] Error saving message:`, error.message);
     console.error(`❌ [${accountId}] Stack:`, error.stack?.substring(0, 300));
+    setDiagError(error);
     return null;
   }
 }
@@ -3134,6 +3187,9 @@ async function createConnection(accountId, name, phone) {
             const messageId = msg.key.id;
             const from = msg.key.remoteJid;
             const isFromMe = msg.key.fromMe;
+            if (!isFromMe) {
+              diagStatus.lastInboundAtMs = Date.now();
+            }
 
             console.log(
               `📨 [${accountId}] PROCESSING: ${isFromMe ? 'OUTBOUND' : 'INBOUND'} message ${messageId} from ${from}`
@@ -3199,11 +3255,13 @@ async function createConnection(accountId, name, phone) {
           } catch (msgError) {
             console.error(`❌ [${accountId}] Error processing message:`, msgError.message);
             console.error(`❌ [${accountId}] Stack:`, msgError.stack);
+            setDiagError(msgError);
           }
         }
       } catch (eventError) {
         console.error(`❌ [${accountId}] Error in messages.upsert handler:`, eventError.message);
         console.error(`❌ [${accountId}] Stack:`, eventError.stack);
+        setDiagError(eventError);
       }
     });
 
@@ -4857,6 +4915,22 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
 // Health endpoint - SIMPLE liveness check (ALWAYS returns 200)
 // Platform/K8s healthcheck uses this - MUST be fast and never fail
 // Use /ready for readiness (active/passive mode), /health/detailed for comprehensive status
+app.get('/diag/status', requireDiagToken, async (req, res) => {
+  const accountsTotal = connections.size;
+  const connected = Array.from(connections.values()).filter(c => c.status === 'connected').length;
+  const sessionPresent = accountsTotal > 0 || hasAnyDiskSession();
+
+  res.json({
+    accounts_total: accountsTotal,
+    connected,
+    session_present: sessionPresent,
+    last_inbound_at_ms: diagStatus.lastInboundAtMs,
+    last_firestore_write_at_ms: diagStatus.lastFirestoreWriteAtMs,
+    last_error_sha8: diagStatus.lastErrorSha8,
+    ts: new Date().toISOString(),
+  });
+});
+
 app.get('/health', async (req, res) => {
   const requestId = req.headers['x-request-id'] || `health_${Date.now()}`;
   
