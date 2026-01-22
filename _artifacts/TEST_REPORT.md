@@ -1,7 +1,7 @@
 # Test Report
-- Timestamp: 2026-01-22T01:50:36.628222Z
+- Timestamp: 2026-01-22T01:52:43.387817Z
 - Branch: cursor/baileys-fix
-- Head: cd54afa9 chore: enable tsClient indexes + capture sync checks
+- Head: 7e953b91 chore: full sync verification + gcloud restart support
 - REAL_SYNC_READY: false
 - REAL_SYNC_READY_reason: restart_not_verified
 ## Runner
