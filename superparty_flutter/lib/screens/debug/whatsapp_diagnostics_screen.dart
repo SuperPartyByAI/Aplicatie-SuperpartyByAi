@@ -32,6 +32,8 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
   int? _threadCount;
   String? _selectedAccountId;
   String _clipboardTokenStatus = 'Not checked';
+  int? _connectedCount;
+  int? _lastInboundAgeSec;
 
   Future<void> _copyAuthTokensToClipboard() async {
     if (!kDebugMode) return;
@@ -167,6 +169,9 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
         if (accounts.isNotEmpty) {
           _selectedAccountId = accounts.first['id'] as String?;
         }
+        _connectedCount = accounts
+            .where((acc) => (acc as Map<String, dynamic>)['status'] == 'connected')
+            .length;
       });
 
       // Count threads if account selected
@@ -179,6 +184,38 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
         setState(() {
           _threadCount = threadsSnapshot.size;
         });
+
+        try {
+          final baseQuery = FirebaseFirestore.instance
+              .collectionGroup('messages')
+              .where('accountId', isEqualTo: _selectedAccountId)
+              .where('direction', isEqualTo: 'inbound');
+          QuerySnapshot<Map<String, dynamic>> inboundSnapshot;
+          try {
+            inboundSnapshot =
+                await baseQuery.orderBy('tsClientMs', descending: true).limit(1).get();
+          } catch (_) {
+            inboundSnapshot =
+                await baseQuery.orderBy('tsClient', descending: true).limit(1).get();
+          }
+          if (inboundSnapshot.docs.isNotEmpty) {
+            final data = inboundSnapshot.docs.first.data();
+            final tsMs = _extractMillis(
+              data['tsClientMs'] ?? data['createdAtMs'] ?? data['tsClient'] ?? data['createdAt'],
+            );
+            if (tsMs != null) {
+              final ageSec =
+                  ((DateTime.now().millisecondsSinceEpoch - tsMs) / 1000).round();
+              setState(() {
+                _lastInboundAgeSec = ageSec;
+              });
+            }
+          }
+        } catch (e) {
+          setState(() {
+            _lastError = 'Inbound age query failed';
+          });
+        }
       }
     } catch (e) {
       setState(() {
@@ -200,6 +237,21 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
     } catch (e) {
       return 'Error: $e';
     }
+  }
+
+  int? _extractMillis(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is int) return raw;
+    if (raw is Timestamp) return raw.millisecondsSinceEpoch;
+    if (raw is String) {
+      final parsed = int.tryParse(raw);
+      if (parsed != null) {
+        return parsed < 1000000000000 ? parsed * 1000 : parsed;
+      }
+      final dt = DateTime.tryParse(raw);
+      return dt?.millisecondsSinceEpoch;
+    }
+    return null;
   }
 
   @override
@@ -263,8 +315,16 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
                     if (_lastError != null)
                       _buildInfoRow('Last Error', _lastError!, isError: true),
                     _buildInfoRow(
+                      'Connected Accounts',
+                      _connectedCount?.toString() ?? 'N/A',
+                    ),
+                    _buildInfoRow(
                       'Last getMessages Status',
                       _apiService.lastGetMessagesStatus?.toString() ?? 'N/A',
+                    ),
+                    _buildInfoRow(
+                      'Last inbound age (sec)',
+                      _lastInboundAgeSec?.toString() ?? 'N/A',
                     ),
                     if (_lastAccountsResponse != null) ...[
                       _buildInfoRow(

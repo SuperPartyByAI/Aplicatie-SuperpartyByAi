@@ -483,6 +483,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     final byKey = <String, Map<String, dynamic>>{};
     int scoreMap(Map<String, dynamic> data) {
       int score = 0;
+      if ((data['providerMessageId'] as String?)?.isNotEmpty == true) score += 4;
       if ((data['waMessageId'] as String?)?.isNotEmpty == true) score += 3;
       final status = data['status'] as String? ?? '';
       if (status == 'sent' || status == 'delivered' || status == 'read') score += 2;
@@ -495,6 +496,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       if (data['isDuplicate'] == true) {
         continue;
       }
+      final providerMessageId = data['providerMessageId'] as String?;
       final waMessageId = data['waMessageId'] as String?;
       final clientMessageId = data['clientMessageId'] as String?;
       final stableKeyHash = data['stableKeyHash'] as String?;
@@ -509,9 +511,11 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
           ? 'stable:$stableKeyHash'
           : fingerprintHash?.isNotEmpty == true
               ? 'fp:$fingerprintHash'
-              : waMessageId?.isNotEmpty == true
-                  ? 'wa:$waMessageId'
-                  : (clientMessageId?.isNotEmpty == true ? 'client:$clientMessageId' : fallbackKey);
+              : providerMessageId?.isNotEmpty == true
+                  ? 'provider:$providerMessageId'
+                  : waMessageId?.isNotEmpty == true
+                      ? 'wa:$waMessageId'
+                      : (clientMessageId?.isNotEmpty == true ? 'client:$clientMessageId' : fallbackKey);
 
       if (byKey.containsKey(primaryKey)) {
         final existing = byKey[primaryKey]!;
@@ -542,6 +546,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     int scoreDoc(QueryDocumentSnapshot doc) {
       final data = doc.data() as Map<String, dynamic>;
       int score = 0;
+      if ((data['providerMessageId'] as String?)?.isNotEmpty == true) score += 4;
       if ((data['waMessageId'] as String?)?.isNotEmpty == true) score += 3;
       final status = data['status'] as String? ?? '';
       if (status == 'sent' || status == 'delivered' || status == 'read') score += 2;
@@ -554,6 +559,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       if (data['isDuplicate'] == true) {
         continue;
       }
+      final providerMessageId = data['providerMessageId'] as String?;
       final waMessageId = data['waMessageId'] as String?;
       final clientMessageId = data['clientMessageId'] as String?;
       final stableKeyHash = data['stableKeyHash'] as String?;
@@ -568,9 +574,11 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
           ? 'stable:$stableKeyHash'
           : fingerprintHash?.isNotEmpty == true
               ? 'fp:$fingerprintHash'
-              : waMessageId?.isNotEmpty == true
-          ? 'wa:$waMessageId'
-          : (clientMessageId?.isNotEmpty == true ? 'client:$clientMessageId' : fallbackKey);
+              : providerMessageId?.isNotEmpty == true
+                  ? 'provider:$providerMessageId'
+                  : waMessageId?.isNotEmpty == true
+                      ? 'wa:$waMessageId'
+                      : (clientMessageId?.isNotEmpty == true ? 'client:$clientMessageId' : fallbackKey);
 
       if (byKey.containsKey(primaryKey)) {
         final existing = byKey[primaryKey]!;
