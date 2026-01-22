@@ -7,6 +7,7 @@ const {
   useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
+  makeInMemoryStore,
 } = require('@whiskeysockets/baileys');
 const { useFirestoreAuthState } = require('./lib/persistence/firestore-auth');
 const QRCode = require('qrcode');
@@ -408,6 +409,266 @@ const setHistoryMetric = (accountId, next) => {
   historyMetrics.set(accountId, { ...current, ...next });
 };
 
+const resolveMessageRef = async ({ accountId, messageId, fallbackThreadId }) => {
+  if (!firestoreAvailable || !db || !messageId) return null;
+  try {
+    const mappingId = `${accountId}__${messageId}`;
+    const mappingDoc = await db.collection('message_ids').doc(mappingId).get();
+    if (mappingDoc.exists) {
+      const data = mappingDoc.data() || {};
+      const threadId = data.threadId || fallbackThreadId;
+      const docId = data.docId || null;
+      if (threadId && docId) {
+        return db.collection('threads').doc(threadId).collection('messages').doc(docId);
+      }
+    }
+  } catch (error) {
+    console.error(`⚠️  [${accountId}] resolveMessageRef failed:`, error.message);
+  }
+
+  if (fallbackThreadId) {
+    const fallbackDocId = sha1(`${accountId}|${messageId}`).slice(0, 24);
+    return db.collection('threads').doc(fallbackThreadId).collection('messages').doc(fallbackDocId);
+  }
+
+  return null;
+};
+
+const registerRealtimeHandlers = ({ accountId, sock, saveCreds }) => {
+  if (!sock?.ev) return;
+
+  sock.ev.on('creds.update', () => {
+    updateConnectionHealth(accountId, 'event');
+    return saveCreds();
+  });
+
+  sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
+    try {
+      updateConnectionHealth(accountId, 'message');
+      // #region agent log
+      debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:3193',message:'messages_upsert_received',data:{accountHash:sha1(accountId).slice(0,8),type,count:Array.isArray(newMessages)?newMessages.length:0,firestoreAvailable,hasDb:Boolean(db)},timestamp:Date.now()});
+      // #endregion
+      console.log(
+        `🔔🔔🔔 [${accountId}] messages.upsert EVENT TRIGGERED: type=${type}, count=${newMessages.length}, timestamp=${new Date().toISOString()}`
+      );
+      console.log(
+        `🔔 [${accountId}] Firestore available: ${firestoreAvailable}, DB exists: ${!!db}`
+      );
+
+      for (const msg of newMessages) {
+        try {
+          // #region agent log
+          debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'server.js:3207',message:'messages_upsert_message',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null,fromMe:msg?.key?.fromMe===true,hasMessage:Boolean(msg?.message)},timestamp:Date.now()});
+          // #endregion
+          console.log(
+            `📩 [${accountId}] RAW MESSAGE:`,
+            JSON.stringify({
+              messageId: msg.key.id,
+              from: msg.key.remoteJid,
+              fromMe: msg.key.fromMe,
+              hasMessage: !!msg.message,
+              messageType: msg.message ? Object.keys(msg.message)[0] : null,
+            })
+          );
+
+          if (!msg.message) {
+            // #region agent log
+            debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'server.js:3220',message:'messages_upsert_skip_no_message',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null},timestamp:Date.now()});
+            // #endregion
+            console.log(`⚠️  [${accountId}] Skipping message ${msg.key.id} - no message content`);
+            continue;
+          }
+
+          // Dedupe check for inbound messages
+          let shouldSkip = false;
+          if (!msg.key.fromMe && firestoreAvailable && db) {
+            const { canonicalJid } = await resolveCanonicalPeerJid(accountId, msg.key.remoteJid, sock);
+            const dedupeKey = `${accountId}__${msg.key.id}`;
+            const dedupeRef = db.collection('inboundDedupe').doc(dedupeKey);
+            const dedupeSnap = await dedupeRef.get();
+
+            if (dedupeSnap.exists) {
+              console.log(`🔁 [${accountId}] Duplicate inbound message skipped: ${msg.key.id}`);
+              shouldSkip = true;
+            } else {
+              const ttlTimestamp = admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000);
+              await dedupeRef.set({
+                accountId,
+                threadId: buildCanonicalThreadId(accountId, canonicalJid),
+                messageId: msg.key.id,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                expiresAt: ttlTimestamp,
+              }, { merge: true });
+            }
+          }
+
+          if (shouldSkip) {
+            // #region agent log
+            debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'server.js:3264',message:'messages_upsert_dedupe_skip',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null},timestamp:Date.now()});
+            // #endregion
+            continue;
+          }
+
+          const saved = await saveMessageToFirestore(accountId, msg, false, sock);
+          // #region agent log
+          debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H4',location:'server.js:3270',message:'messages_upsert_saved',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null,saved:Boolean(saved),savedMessageIdHash:saved?.messageId?sha1(saved.messageId).slice(0,8):null},timestamp:Date.now()});
+          // #endregion
+          if (saved) {
+            console.log(`💾 [${accountId}] Message saved to Firestore: ${saved.messageId} in thread ${saved.threadId}, body length: ${saved.messageBody?.length || 0}`);
+
+            // Send FCM notification for inbound messages (not from me)
+            if (!msg.key.fromMe && firestoreAvailable && db) {
+              const { canonicalJid } = await resolveCanonicalPeerJid(accountId, msg.key.remoteJid, sock);
+              const threadId = buildCanonicalThreadId(accountId, canonicalJid);
+              const from = msg.pushName || 'Unknown';
+              const messageBody = saved.messageBody || '';
+              const messageType = getMessageType(msg);
+
+              console.log(`📱 [${accountId}] Sending FCM notification for inbound message from ${from}`);
+              sendFCMNotification({
+                threadId,
+                senderName: from,
+                message: messageBody,
+                messageType,
+              }).catch(err => console.error(`❌ [${accountId}] Failed to send FCM notification:`, err.message));
+            }
+          } else {
+            console.log(`⚠️  [${accountId}] saveMessageToFirestore returned null for message ${msg.key.id} from ${msg.key.remoteJid}`);
+          }
+        } catch (msgError) {
+          console.error(`❌ [${accountId}] Error processing message:`, msgError.message);
+          console.error(`❌ [${accountId}] Stack:`, msgError.stack);
+          setDiagError(msgError);
+        }
+      }
+    } catch (eventError) {
+      console.error(`❌ [${accountId}] Error in messages.upsert handler:`, eventError.message);
+      console.error(`❌ [${accountId}] Stack:`, eventError.stack);
+      setDiagError(eventError);
+    }
+  });
+
+  // #region agent log
+  debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:3302',message:'messages_upsert_listener_registered',data:{accountHash:sha1(accountId).slice(0,8),listenerCount:sock?.ev?.listenerCount?sock.ev.listenerCount('messages.upsert'):null},timestamp:Date.now()});
+  // #endregion
+
+  // Messages update handler (for status updates: delivered/read receipts)
+  sock.ev.on('messages.update', async (updates) => {
+    try {
+      updateConnectionHealth(accountId, 'event');
+      console.log(`🔄 [${accountId}] messages.update EVENT: ${updates.length} updates`);
+
+      if (!firestoreAvailable || !db) {
+        return;
+      }
+
+      for (const update of updates) {
+        try {
+          const messageKey = update.key;
+          const messageId = messageKey.id;
+          const remoteJid = messageKey.remoteJid;
+          const updateData = update.update || {};
+
+          // Extract status from update (status: 2 = delivered, 3 = read)
+          let status = null;
+          let deliveredAt = null;
+          let readAt = null;
+
+          if (updateData.status !== undefined) {
+            if (updateData.status === 2) {
+              status = 'delivered';
+              deliveredAt = admin.firestore.FieldValue.serverTimestamp();
+            } else if (updateData.status === 3) {
+              status = 'read';
+              readAt = admin.firestore.FieldValue.serverTimestamp();
+            }
+          }
+
+          // Update message in Firestore if status changed
+          if (status && remoteJid) {
+            const { canonicalJid } = await resolveCanonicalPeerJid(accountId, remoteJid, sock);
+            const threadId = buildCanonicalThreadId(accountId, canonicalJid);
+            const messageRef = await resolveMessageRef({
+              accountId,
+              messageId,
+              fallbackThreadId: threadId,
+            });
+            if (!messageRef) {
+              continue;
+            }
+
+            const updateFields = {
+              status,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+
+            if (deliveredAt) {
+              updateFields.deliveredAt = deliveredAt;
+            }
+            if (readAt) {
+              updateFields.readAt = readAt;
+            }
+
+            await messageRef.set(updateFields, { merge: true });
+            console.log(`✅ [${accountId}] Updated message ${messageId} status to ${status}`);
+          }
+        } catch (updateError) {
+          console.error(`❌ [${accountId}] Error updating message receipt:`, updateError.message);
+        }
+      }
+    } catch (error) {
+      console.error(`❌ [${accountId}] Error in messages.update handler:`, error.message);
+    }
+  });
+
+  // Message receipt handler (complementary to messages.update)
+  sock.ev.on('message-receipt.update', async (receipts) => {
+    try {
+      updateConnectionHealth(accountId, 'event');
+      console.log(`📬 [${accountId}] message-receipt.update EVENT: ${receipts.length} receipts`);
+
+      if (!firestoreAvailable || !db) {
+        return;
+      }
+
+      for (const receipt of receipts) {
+        try {
+          const receiptKey = receipt.key;
+          const messageId = receiptKey.id;
+          const remoteJid = receiptKey.remoteJid;
+          const receiptData = receipt.receipt || {};
+
+          // Extract read receipts
+          if (receiptData.readTimestamp && remoteJid) {
+            const { canonicalJid } = await resolveCanonicalPeerJid(accountId, remoteJid, sock);
+            const threadId = buildCanonicalThreadId(accountId, canonicalJid);
+            const messageRef = await resolveMessageRef({
+              accountId,
+              messageId,
+              fallbackThreadId: threadId,
+            });
+            if (!messageRef) {
+              continue;
+            }
+
+            await messageRef.set({
+              status: 'read',
+              readAt: admin.firestore.Timestamp.fromMillis(receiptData.readTimestamp * 1000),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+
+            console.log(`✅ [${accountId}] Updated message ${messageId} receipt: read`);
+          }
+        } catch (receiptError) {
+          console.error(`❌ [${accountId}] Error updating receipt:`, receiptError.message);
+        }
+      }
+    } catch (error) {
+      console.error(`❌ [${accountId}] Error in message-receipt.update handler:`, error.message);
+    }
+  });
+};
+
 const getMetricsSnapshot = () => {
   let dedupeTotals = { wrote: 0, skipped: 0, strongSkipped: 0 };
   let historyTotals = { wrote: 0, skipped: 0, lastRunAt: null, lastBatchCount: 0 };
@@ -438,6 +699,12 @@ const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000; // 5 minutes without events = 
 const HEALTH_CHECK_INTERVAL = 60 * 1000; // Check every 60 seconds
 const STALE_RECOVERY_COOLDOWN_MS = parseInt(process.env.STALE_RECOVERY_COOLDOWN_MS || '120000', 10);
 const MAX_STALE_RECOVERY_ATTEMPTS = parseInt(process.env.MAX_STALE_RECOVERY_ATTEMPTS || '5', 10);
+const BACKFILL_MIN_INTERVAL_MS = parseInt(process.env.BACKFILL_MIN_INTERVAL_MS || '900000', 10);
+const BACKFILL_LOCK_TTL_MS = parseInt(process.env.BACKFILL_LOCK_TTL_MS || '600000', 10);
+const BACKFILL_TIMEOUT_MS = parseInt(process.env.BACKFILL_TIMEOUT_MS || '300000', 10);
+const BACKFILL_SCHEDULE_INTERVAL_MS = parseInt(process.env.BACKFILL_SCHEDULE_INTERVAL_MS || '900000', 10);
+
+const backfillState = new Map(); // accountId -> { running, startedAt, lastRunAt, lastResult }
 
 // Session stability tracking
 const sessionStability = new Map(); // accountId -> { lastRestoreAt, restoreCount, lastStableAt }
@@ -1071,9 +1338,9 @@ async function persistMessage({ accountId, sock, msg, source = 'realtime' }) {
     msg,
     tsClientMs: messageTimestampMs,
   });
-  const inboundDocId =
-    !isFromMe && msg.key?.id ? sha1(`${accountId}|${msg.key.id}`).slice(0, 24) : null;
-  const docId = inboundDocId || chooseDocId({ stableKey, strongFingerprint });
+  const messageKeyId = msg.key?.id || null;
+  const deterministicDocId = messageKeyId ? sha1(`${accountId}|${messageKeyId}`).slice(0, 24) : null;
+  const docId = deterministicDocId || chooseDocId({ stableKey, strongFingerprint });
   const stableKeyHash = stableKey ? safeHashMessage(stableKey) : null;
   const fingerprintHash = strongFingerprint ? safeHashMessage(strongFingerprint) : null;
 
@@ -1127,7 +1394,7 @@ async function persistMessage({ accountId, sock, msg, source = 'realtime' }) {
   else if (msg.message?.audioMessage) messageData.mediaType = 'audio';
   else if (msg.message?.documentMessage) messageData.mediaType = 'document';
 
-  const mappingId = msg.key.id ? `${accountId}__${msg.key.id}` : null;
+  const mappingId = messageKeyId ? `${accountId}__${messageKeyId}` : null;
   const mappingTtl = admin.firestore.Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   const txResult = await db.runTransaction(async (transaction) => {
@@ -1826,7 +2093,7 @@ async function saveContactsBatch(accountId, contacts) {
 
 // Helper: Backfill messages for an account (best-effort gap filling after reconnect)
 // Fetches recent messages from active threads to fill gaps
-async function backfillAccountMessages(accountId) {
+async function backfillAccountMessages(accountId, options = {}) {
   if (!firestoreAvailable || !db) {
     console.log(`⚠️  [${accountId}] Firestore not available, skipping backfill`);
     return { success: false, reason: 'firestore_unavailable' };
@@ -1838,8 +2105,16 @@ async function backfillAccountMessages(accountId) {
     return { success: false, reason: 'not_connected' };
   }
 
+  const lock = acquireBackfillLock(accountId);
+  if (!lock.ok) {
+    console.log(`⏸️  [${accountId}] Backfill skipped (${lock.reason})`);
+    return { success: false, reason: lock.reason };
+  }
+
   try {
-    console.log(`📚 [${accountId}] Starting backfill for recent threads...`);
+    const reason = options.reason || 'manual';
+    const startedAt = Date.now();
+    console.log(`📚 [${accountId}] Starting backfill for recent threads (reason=${reason})...`);
 
     // Get recent active threads for this account (ordered by lastMessageAt desc)
     const threadsSnapshot = await db
@@ -1851,6 +2126,11 @@ async function backfillAccountMessages(accountId) {
 
     if (threadsSnapshot.empty) {
       console.log(`📚 [${accountId}] No threads found for backfill`);
+      setHistoryMetric(accountId, {
+        lastRunAt: new Date().toISOString(),
+        lastBatchCount: 0,
+      });
+      releaseBackfillLock(accountId, { success: true, threads: 0, messages: 0 });
       return { success: true, threads: 0, messages: 0 };
     }
 
@@ -1863,6 +2143,10 @@ async function backfillAccountMessages(accountId) {
     // Process threads with concurrency limit (1-2 at a time)
     const CONCURRENCY = 2;
     for (let i = 0; i < threadsSnapshot.docs.length; i += CONCURRENCY) {
+      if (Date.now() - startedAt > BACKFILL_TIMEOUT_MS) {
+        console.warn(`⏰ [${accountId}] Backfill timeout exceeded, stopping early`);
+        break;
+      }
       const batchThreads = threadsSnapshot.docs.slice(i, i + CONCURRENCY);
       
       await Promise.all(batchThreads.map(async (threadDoc) => {
@@ -1875,6 +2159,10 @@ async function backfillAccountMessages(accountId) {
         }
 
         try {
+          if (Date.now() - startedAt > BACKFILL_TIMEOUT_MS) {
+            threadResults.push({ threadId, status: 'skipped_timeout' });
+            return;
+          }
           // Get last stored message timestamp for this thread
           const messagesSnapshot = await db
             .collection('threads')
@@ -1929,16 +2217,29 @@ async function backfillAccountMessages(accountId) {
 
     console.log(`✅ [${accountId}] Backfill complete: ${threadsSnapshot.size} threads, ${totalMessages} messages, ${totalErrors} errors`);
 
-    return {
+    setHistoryMetric(accountId, {
+      lastRunAt: new Date().toISOString(),
+      lastBatchCount: threadsSnapshot.size,
+    });
+
+    const result = {
       success: true,
       threads: threadsSnapshot.size,
       messages: totalMessages,
       errors: totalErrors,
     };
+    releaseBackfillLock(accountId, result);
+    return result;
   } catch (error) {
     console.error(`❌ [${accountId}] Backfill error:`, error.message);
     await logIncident(accountId, 'backfill_failed', { error: error.message });
+    releaseBackfillLock(accountId, { success: false, error: error.message });
     return { success: false, error: error.message };
+  } finally {
+    const state = backfillState.get(accountId);
+    if (state?.running && state.startedAt && Date.now() - state.startedAt > BACKFILL_LOCK_TTL_MS) {
+      releaseBackfillLock(accountId, { success: false, reason: 'lock_ttl_expired' });
+    }
   }
 }
 
@@ -2205,6 +2506,11 @@ async function createConnection(accountId, name, phone) {
     const currentSessionId = (connectionSessionIds.get(accountId) || 0) + 1;
     connectionSessionIds.set(accountId, currentSessionId);
 
+    const store = createSocketStore();
+    if (store) {
+      store.bind(sock.ev);
+    }
+
     const account = {
       id: accountId,
       name,
@@ -2213,6 +2519,7 @@ async function createConnection(accountId, name, phone) {
       qrCode: null,
       pairingCode: null,
       sock,
+      store,
       sessionId: currentSessionId, // Debugging: unique ID for this connection attempt
       createdAt: new Date().toISOString(),
       lastUpdate: new Date().toISOString(),
@@ -2337,6 +2644,7 @@ async function createConnection(accountId, name, phone) {
     // Connection update handler
     sock.ev.on('connection.update', async update => {
       const { connection, lastDisconnect, qr } = update;
+      updateConnectionHealth(accountId, 'connection');
 
       // #region agent log
       debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:2341',message:'connection_update',data:{accountHash:sha1(accountId).slice(0,8),connection:connection||'null',hasQr:Boolean(qr),hasLastDisconnect:Boolean(lastDisconnect),listenerCount:sock?.ev?.listenerCount?sock.ev.listenerCount('messages.upsert'):null},timestamp:Date.now()});
@@ -2633,7 +2941,7 @@ async function createConnection(accountId, name, phone) {
           if (connections.has(accountId) && connections.get(accountId).status === 'connected') {
             console.log(`📚 [${accountId}] Scheduling backfill after connect (delay: ${backfillDelay}ms)`);
             try {
-              await backfillAccountMessages(accountId);
+              await backfillAccountMessages(accountId, { reason: 'connect' });
             } catch (error) {
               console.error(`❌ [${accountId}] Backfill after connect failed:`, error.message);
             }
@@ -3084,7 +3392,7 @@ async function createConnection(accountId, name, phone) {
     });
 
     // Creds update handler
-    sock.ev.on('creds.update', saveCreds);
+    registerRealtimeHandlers({ accountId, sock, saveCreds });
 
     // REMOVED: Flush outbox on connect handler
     // Single sending path: only outbox worker loop handles queued messages
@@ -3321,6 +3629,7 @@ async function createConnection(accountId, name, phone) {
     // Messages update handler (for status updates: delivered/read receipts)
     sock.ev.on('messages.update', async (updates) => {
       try {
+        updateConnectionHealth(accountId, 'event');
         console.log(`🔄 [${accountId}] messages.update EVENT: ${updates.length} updates`);
         
         if (!firestoreAvailable || !db) {
@@ -3353,7 +3662,14 @@ async function createConnection(accountId, name, phone) {
             if (status && remoteJid) {
               const { canonicalJid } = await resolveCanonicalPeerJid(accountId, remoteJid, sock);
               const threadId = buildCanonicalThreadId(accountId, canonicalJid);
-              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
+            const messageRef = await resolveMessageRef({
+              accountId,
+              messageId,
+              fallbackThreadId: threadId,
+            });
+            if (!messageRef) {
+              continue;
+            }
               
               const updateFields = {
                 status,
@@ -3382,6 +3698,7 @@ async function createConnection(accountId, name, phone) {
     // Message receipt handler (complementary to messages.update)
     sock.ev.on('message-receipt.update', async (receipts) => {
       try {
+        updateConnectionHealth(accountId, 'event');
         console.log(`📬 [${accountId}] message-receipt.update EVENT: ${receipts.length} receipts`);
         
         if (!firestoreAvailable || !db) {
@@ -3399,7 +3716,14 @@ async function createConnection(accountId, name, phone) {
             if (receiptData.readTimestamp && remoteJid) {
               const { canonicalJid } = await resolveCanonicalPeerJid(accountId, remoteJid, sock);
               const threadId = buildCanonicalThreadId(accountId, canonicalJid);
-              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
+            const messageRef = await resolveMessageRef({
+              accountId,
+              messageId,
+              fallbackThreadId: threadId,
+            });
+            if (!messageRef) {
+              continue;
+            }
               
               await messageRef.set({
                 status: 'read',
@@ -3639,6 +3963,48 @@ function updateConnectionHealth(accountId, eventType) {
   if (eventType === 'connection') {
     health.staleRecoverCount = 0;
   }
+
+  const account = connections.get(accountId);
+  if (account) {
+    account.lastEventAt = health.lastEventAt;
+    if (eventType === 'message') {
+      account.lastMessageAt = health.lastMessageAt;
+    }
+  }
+}
+
+function createSocketStore() {
+  if (typeof makeInMemoryStore !== 'function') return null;
+  try {
+    return makeInMemoryStore({ logger: pino({ level: 'silent' }) });
+  } catch (error) {
+    console.warn('⚠️  Failed to initialize Baileys store:', error.message);
+    return null;
+  }
+}
+
+function acquireBackfillLock(accountId) {
+  const now = Date.now();
+  const current = backfillState.get(accountId);
+  if (current?.running && current.startedAt && now - current.startedAt < BACKFILL_LOCK_TTL_MS) {
+    return { ok: false, reason: 'backfill_in_progress', startedAt: current.startedAt };
+  }
+  if (current?.lastRunAt && now - current.lastRunAt < BACKFILL_MIN_INTERVAL_MS) {
+    return { ok: false, reason: 'backfill_recent', lastRunAt: current.lastRunAt };
+  }
+  backfillState.set(accountId, { running: true, startedAt: now, lastRunAt: current?.lastRunAt || null });
+  return { ok: true };
+}
+
+function releaseBackfillLock(accountId, result) {
+  const current = backfillState.get(accountId) || {};
+  backfillState.set(accountId, {
+    ...current,
+    running: false,
+    startedAt: null,
+    lastRunAt: Date.now(),
+    lastResult: result || null,
+  });
 }
 
 // Check session health and restore if needed
@@ -6463,7 +6829,7 @@ app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) =
     }
 
     // Trigger backfill (async, don't wait for completion)
-    backfillAccountMessages(accountId)
+    backfillAccountMessages(accountId, { reason: 'manual' })
       .then(result => {
         console.log(`✅ [${accountId}] Backfill completed:`, result);
       })
@@ -6491,6 +6857,52 @@ app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) =
       // Ignore send_requests update errors
     }
 
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin-only: backfill messages for an account
+app.post('/api/admin/backfill/:accountId', requireAdmin, accountLimiter, async (req, res) => {
+  const passiveGuard = await checkPassiveModeGuard(req, res);
+  if (passiveGuard) return;
+
+  try {
+    const { accountId } = req.params;
+    const account = connections.get(accountId);
+
+    if (!account) {
+      return res.status(404).json({
+        success: false,
+        error: 'account_not_found',
+        message: 'Account not found',
+        accountId,
+      });
+    }
+
+    if (account.status !== 'connected') {
+      return res.status(409).json({
+        success: false,
+        error: 'invalid_state',
+        message: 'Account must be connected to backfill messages',
+        currentStatus: account.status,
+        accountId,
+      });
+    }
+
+    backfillAccountMessages(accountId, { reason: 'admin' })
+      .then(result => {
+        console.log(`✅ [${accountId}] Admin backfill completed:`, result);
+      })
+      .catch(error => {
+        console.error(`❌ [${accountId}] Admin backfill failed:`, error.message);
+      });
+
+    res.json({
+      success: true,
+      message: 'Backfill started (runs asynchronously)',
+      accountId,
+    });
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -6834,17 +7246,36 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
     for (const doc of threadsSnapshot.docs) {
       const threadId = doc.id;
       const threadData = doc.data();
+      const clientJid = typeof threadData.clientJid === 'string' ? threadData.clientJid : null;
       
       // Skip self-conversation (conversation with own phone number)
-      if (accountPhone && threadData.clientJid === accountPhone) {
-        console.log(`📋 [${accountId}] Inbox filter: Skipping self-conversation ${threadData.clientJid}`);
+      if (accountPhone && clientJid && clientJid === accountPhone) {
+        console.log(`📋 [${accountId}] Inbox filter: Skipping self-conversation ${clientJid}`);
         continue; // Skip this thread
       }
       
+      if (!threadId || typeof threadId !== 'string') {
+        console.warn(`⚠️  [${accountId}] Skipping thread with invalid id`);
+        continue;
+      }
+      if (threadId.includes('[object Object]') || threadId.includes('undefined')) {
+        console.warn(`⚠️  [${accountId}] Skipping thread with malformed id`);
+        continue;
+      }
+
+      if (!threadId.startsWith(`${accountId}__`) && !clientJid) {
+        console.warn(`⚠️  [${accountId}] Skipping thread with invalid clientJid`);
+        continue;
+      }
+
       // Check if thread uses old format (doesn't start with accountId__)
-      if (!threadId.startsWith(`${accountId}__`) && threadData.clientJid) {
+      if (!threadId.startsWith(`${accountId}__`) && clientJid) {
         // Old format detected - migrate to new format
-        const newThreadId = `${accountId}__${threadData.clientJid}`;
+        if (clientJid.includes('/')) {
+          console.warn(`⚠️  [${accountId}] Skipping thread migration with invalid clientJid`);
+          continue;
+        }
+        const newThreadId = `${accountId}__${clientJid}`;
         console.log(`🔄 [${accountId}] Migrating thread from old format: ${threadId} → ${newThreadId}`);
         
         // Migrate messages from old thread to new thread
@@ -7081,7 +7512,8 @@ async function attachThreadInfo(accountId, threads) {
 
   const jids = new Set();
   for (const thread of threads) {
-    if (thread.clientJid) jids.add(thread.clientJid);
+    const clientJid = typeof thread.clientJid === 'string' ? thread.clientJid : null;
+    if (clientJid) jids.add(clientJid);
   }
 
   if (jids.size === 0) {
@@ -7100,12 +7532,13 @@ async function attachThreadInfo(accountId, threads) {
   });
 
   return threads.map(thread => {
-    const contact = thread.clientJid ? contactMap.get(thread.clientJid) : null;
+    const clientJid = typeof thread.clientJid === 'string' ? thread.clientJid : null;
+    const contact = clientJid ? contactMap.get(clientJid) : null;
     const resolvedJid = thread.resolvedJid || null;
     const normalizedPhone =
       thread.normalizedPhone ||
       contact?.normalizedPhone ||
-      normalizeJidToE164(resolvedJid || thread.clientJid).normalizedPhone ||
+      normalizeJidToE164(resolvedJid || clientJid).normalizedPhone ||
       null;
     const displayName =
       thread.displayName ||
@@ -7147,7 +7580,8 @@ function dedupeThreads(threads) {
   for (const thread of threads) {
     const normalizedPhone = thread?.normalizedPhone;
     const displayName = (thread?.displayName || '').trim().toLowerCase();
-    const clientJid = thread?.clientJid || '';
+    const clientJidRaw = thread?.clientJid;
+    const clientJid = typeof clientJidRaw === 'string' ? clientJidRaw : '';
     const isLid = clientJid.includes('@lid');
 
     const key =
@@ -8246,12 +8680,18 @@ async function restoreAccount(accountId, data) {
       },
     });
 
+    const store = createSocketStore();
+    if (store) {
+      store.bind(sock.ev);
+    }
+
     const account = {
       id: accountId,
       name: data.name || accountId,
       phone: data.phoneE164 || data.phone,
       phoneNumber: data.phoneE164 || data.phone,
       sock,
+      store,
       status: 'connecting',
       qrCode: null,
       pairingCode: null,
@@ -8395,7 +8835,7 @@ async function restoreAccount(accountId, data) {
           if (connections.has(accountId) && connections.get(accountId).status === 'connected') {
             console.log(`📚 [${accountId}] Scheduling backfill after restore (delay: ${backfillDelay}ms)`);
             try {
-              await backfillAccountMessages(accountId);
+              await backfillAccountMessages(accountId, { reason: 'restore' });
             } catch (error) {
               console.error(`❌ [${accountId}] Backfill after restore failed:`, error.message);
             }
@@ -8524,7 +8964,10 @@ async function restoreAccount(accountId, data) {
       }
     });
 
-    sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', () => {
+      updateConnectionHealth(accountId, 'event');
+      return saveCreds();
+    });
 
     // REMOVED: Flush outbox on connect handler
     // Single sending path: only outbox worker loop handles queued messages
@@ -9300,8 +9743,15 @@ app.get('/api/status/dashboard', async (req, res) => {
       const reconnectAttemptsCount = reconnectAttempts.get(accountId) || 0;
       const health = connectionHealth.get(accountId);
       
+      const lastEventAtMs = health?.lastEventAt || account.lastEventAt || null;
+      const lastMessageAtMs = health?.lastMessageAt || account.lastMessageAt || null;
+      const lastEventAgeSec = lastEventAtMs ? Math.floor((Date.now() - lastEventAtMs) / 1000) : null;
+      const lastMessageAgeSec = lastMessageAtMs
+        ? Math.floor((Date.now() - lastMessageAtMs) / 1000)
+        : null;
+      const ingestLagSec = lastEventAgeSec;
       // Get lastSeen from lastEventAt or lastMessageAt (most recent activity)
-      const lastSeen = account.lastEventAt || account.lastMessageAt || null;
+      const lastSeen = lastEventAtMs || lastMessageAtMs || null;
 
       // Get backfill info from Firestore (if available)
       let lastBackfillAt = null;
@@ -9325,8 +9775,11 @@ app.get('/api/status/dashboard', async (req, res) => {
         accountId,
         phone: account.phone ? maskPhone(account.phone) : null,
         status,
-        lastEventAt: account.lastEventAt ? new Date(account.lastEventAt).toISOString() : null,
-        lastMessageAt: account.lastMessageAt ? new Date(account.lastMessageAt).toISOString() : null,
+        lastEventAt: lastEventAtMs ? new Date(lastEventAtMs).toISOString() : null,
+        lastMessageAt: lastMessageAtMs ? new Date(lastMessageAtMs).toISOString() : null,
+        lastEventAgeSec,
+        lastMessageAgeSec,
+        ingestLagSec,
         lastSeen: lastSeen ? new Date(lastSeen).toISOString() : null,
         reconnectCount: health?.reconnectCount || account.reconnectCount || 0,
         reconnectAttempts: reconnectAttemptsCount,
@@ -9549,6 +10002,31 @@ app.listen(PORT, '0.0.0.0', async () => {
   console.log(
     `🏥 Health monitoring watchdog started (check every ${HEALTH_CHECK_INTERVAL / 1000}s)`
   );
+
+  // Start heartbeat metrics (sanitized) every 60s
+  setInterval(() => {
+    const now = Date.now();
+    for (const [accountId, account] of connections.entries()) {
+      const health = connectionHealth.get(accountId);
+      const lastEventAgeSec = health?.lastEventAt
+        ? Math.floor((now - health.lastEventAt) / 1000)
+        : null;
+      const reconnectCount = health?.reconnectCount || account.reconnectCount || 0;
+      console.log(
+        `💓 [${sha1(accountId).slice(0, 8)}] heartbeat connected=${account.status === 'connected'} lastEventAgeSec=${lastEventAgeSec ?? 'null'} reconnectCount=${reconnectCount}`
+      );
+    }
+  }, HEALTH_CHECK_INTERVAL);
+
+  // Start periodic backfill scheduler (best-effort, one per account)
+  setInterval(() => {
+    for (const [accountId, account] of connections.entries()) {
+      if (account.status !== 'connected') continue;
+      backfillAccountMessages(accountId, { reason: 'scheduled' }).catch((err) => {
+        console.error(`❌ [${accountId}] Scheduled backfill failed:`, err.message);
+      });
+    }
+  }, BACKFILL_SCHEDULE_INTERVAL_MS);
 
   // Start lease refresh
   startLeaseRefresh();
