@@ -18,29 +18,7 @@ const admin = require('firebase-admin');
 const crypto = require('crypto');
 const http = require('http');
 const https = require('https');
-const debugLog = (payload) => {
-  try {
-    if (typeof fetch === 'function') {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>{});
-      // #endregion
-      return;
-    }
-  } catch (_) {}
-
-  try {
-    const data = Buffer.from(JSON.stringify(payload));
-    const req = http.request(
-      'http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',
-      { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': data.length } }
-    );
-    req.on('error', () => {});
-    req.write(data);
-    req.end();
-  } catch (_) {
-    // ignore
-  }
-};
+const debugLog = () => {};
 
 const { normalizeJidToE164, resolveDisplayName } = require('./lib/phone-utils');
 const { resolveCanonicalJid } = require('./lib/jid-utils');
@@ -2538,10 +2516,6 @@ async function createConnection(accountId, name, phone) {
       const timeoutSeconds = Math.floor(CONNECTING_TIMEOUT / 1000);
       const acc = connections.get(accountId);
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1175',message:'Timeout handler entry',data:{accountId,hasAccount:!!acc,accountStatus:acc?.status,accountConnectingTimeout:acc?.connectingTimeout},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      
       // CRITICAL FIX: Don't timeout if status is pairing phase (qr_ready, awaiting_scan, pairing, connecting)
       // NOTE: 'connecting' is included because during pairing phase close (reason 515), status may be set to 'connecting'
       // but we still want to preserve the account and not timeout it
@@ -2549,29 +2523,14 @@ async function createConnection(accountId, name, phone) {
       // This prevents timeout from transitioning to disconnected while waiting for QR scan
       const isPairingPhase = acc && ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'].includes(acc.status);
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1183',message:'Timeout pairing phase check',data:{accountId,hasAccount:!!acc,accountStatus:acc?.status,isPairingPhase,pairingPhaseList:['qr_ready','awaiting_scan','pairing','connecting']},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      
       if (isPairingPhase) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1187',message:'Timeout skipped - pairing phase',data:{accountId,status:acc.status,timeoutId:account.connectingTimeout},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         console.log(`⏰ [${accountId}] Connecting timeout skipped (status: ${acc.status} - pairing phase uses QR_SCAN_TIMEOUT)`);
         return; // Don't timeout pairing phase - QR scan timeout handles expiration
       }
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1193',message:'Timeout firing - not pairing phase',data:{accountId,status:acc?.status,hasAccount:!!acc,isPairingPhase},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      
+
       // CRITICAL FIX: Get fresh account state BEFORE logging - might have been cleaned up or preserved during timeout
       const currentAcc = connections.get(accountId);
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1199',message:'Timeout fresh account check',data:{accountId,hasCurrentAcc:!!currentAcc,currentAccStatus:currentAcc?.status,currentAccTimeout:currentAcc?.connectingTimeout},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      
+
       if (!currentAcc) {
         console.log(`⏰ [${accountId}] Timeout fired but account already removed, ignoring`);
         return; // Account already cleaned up (e.g., 401 cleanup)
@@ -3157,9 +3116,6 @@ async function createConnection(accountId, name, phone) {
           if (account.connectingTimeout) {
             clearTimeout(account.connectingTimeout);
             account.connectingTimeout = null;
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1588-1591',message:'Cleared connectingTimeout during pairing phase close',data:{accountId,reason,oldStatus:account.status,newStatus:account.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
             console.log(`⏱️  [${accountId}] Cleared connectingTimeout during pairing phase close (reason: ${reason}, status: ${account.status})`);
           }
           

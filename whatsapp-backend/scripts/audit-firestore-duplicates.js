@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 const crypto = require('crypto');
-const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -13,29 +12,7 @@ const toSha1 = (value) =>
 
 const shortHash = (value) => toSha1(value).slice(0, 8);
 
-const debugLog = (payload) => {
-  try {
-    if (typeof fetch === 'function') {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>{});
-      // #endregion
-      return;
-    }
-  } catch (_) {}
-
-  try {
-    const data = Buffer.from(JSON.stringify(payload));
-    const req = http.request(
-      'http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',
-      { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': data.length } }
-    );
-    req.on('error', () => {});
-    req.write(data);
-    req.end();
-  } catch (_) {
-    // ignore
-  }
-};
+const debugLog = () => {};
 
 const coerceToMs = (value) => {
   if (value === null || value === undefined) return null;
@@ -406,7 +383,7 @@ const collectWindowDocs = async ({
     const threadLimit = Math.min(perThreadLimit, remaining);
     const messagesSnapshot = await threadDoc.ref
       .collection('messages')
-      .orderBy('tsServer', 'desc')
+      .orderBy('createdAt', 'desc')
       .limit(threadLimit)
       .get();
 
@@ -499,17 +476,14 @@ if (require.main === module) {
     process.exit(1);
   }
 
-  // #region agent log
-  debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'audit-firestore-duplicates.js:455',message:'audit_start',data:{windowHours:opts.windowHours,limit:opts.limit,threadId:Boolean(opts.threadId),accountId:Boolean(opts.accountId),projectIdPresent:Boolean(getProjectId())},timestamp:Date.now()});
-  // #endregion
-
   let query = null;
-  let queryShape = 'threads/*/messages|orderBy:tsServer desc';
+  let queryShape = 'threads/*/messages|orderBy:createdAt desc';
+  const orderBy = 'createdAt desc';
   const nowMs = Date.now();
   const cutoffMs = nowMs - opts.windowHours * 60 * 60 * 1000;
   if (opts.threadId) {
     query = db.collection('threads');
-    queryShape = 'threads/{threadId}/messages|orderBy:tsServer desc';
+    queryShape = 'threads/{threadId}/messages|orderBy:createdAt desc';
   } else {
     query = db.collection('threads');
   }
@@ -625,10 +599,6 @@ if (require.main === module) {
     minTsMs: null,
     maxTsMs: null,
   };
-
-  // #region agent log
-  debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H4',location:'audit-firestore-duplicates.js:671',message:'audit_snapshot',data:{docsCount:snapshot?.docs?.length||0,windowModeUsed,usedFallback,modeUsed,parseFailures,cutoffMs,nowMs,parsedMinMs,parsedMaxMs,queryShape},timestamp:Date.now()});
-  // #endregion
 
   for (const doc of snapshot.docs) {
     const data = doc.data() || {};
@@ -814,6 +784,8 @@ if (require.main === module) {
     dryRun: opts.dryRun,
     usedFallback,
     modeUsed,
+    queryShape,
+    orderBy,
     hint: null,
     indexLink: usedFallback ? fallbackIndexLink : null,
     collection: 'threads/*/messages',

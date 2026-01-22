@@ -38,6 +38,12 @@ const extractAuditMetrics = (payload) => ({
   activeDocs: payload?.activeDocs ?? null,
   totalDocs: payload?.totalDocs ?? null,
   newestDocAgeSeconds: payload?.newestDocAgeSeconds ?? null,
+  collection: payload?.collection ?? null,
+  queryShape: payload?.queryShape ?? null,
+  orderBy: payload?.orderBy ?? null,
+  windowHours: payload?.windowHours ?? null,
+  limit: payload?.limit ?? null,
+  excludeMarked: payload?.excludeMarked ?? null,
 });
 
 const runShellOutput = (command) => {
