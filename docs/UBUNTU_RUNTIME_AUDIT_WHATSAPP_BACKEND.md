@@ -70,6 +70,22 @@ node scripts/audit-threads-duplicates.js --limit=2000
 ```
 - Index requirement: collectionGroup `messages` ordered by `tsClient` (DESC)
 
+## tsClient Probe (Sanitized)
+If audit windows return `totalDocs=0`, probe the `tsClient` format safely:
+```bash
+node scripts/probe-tsclient.js
+```
+Expected output JSON includes:
+- `categories` (digits/iso/other)
+- `parseOk` vs `parseFail`
+- `ageBucket` summaries (no timestamps or values)
+
+## Audit Window Mode
+When `tsClient` is stored as a string, audit uses `clientSideWindow` and reports:
+- `windowModeUsed`
+- `parseFailures`
+- `earliestAgeBucket` / `latestAgeBucket`
+
 ## Index Link (Debug Mode)
 ```bash
 node scripts/audit-firestore-duplicates.js --windowHours=0.25 --limit=50 --debug=1

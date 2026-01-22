@@ -25,6 +25,12 @@ describe('audit-firestore-duplicates helpers', () => {
     expect(coerceToMs(restObj)).toBe(date.getTime());
   });
 
+  test('coerceToMs handles ISO strings and invalid strings', () => {
+    const iso = '2024-01-01T00:00:00.000Z';
+    expect(coerceToMs(iso)).toBe(Date.parse(iso));
+    expect(coerceToMs('not-a-date')).toBeNull();
+  });
+
   test('extract helpers find nested ids', () => {
     const payload = {
       raw: { key: { id: 'msg-123', remoteJid: 'jid-1', participant: 'user-1' } },

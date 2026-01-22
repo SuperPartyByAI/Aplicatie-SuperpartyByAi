@@ -43,6 +43,22 @@ const coerceToMs = (value) => {
   return null;
 };
 
+const ageBucketFromMs = (ageMs) => {
+  if (!Number.isFinite(ageMs)) return 'unknown';
+  if (ageMs < 15 * 60 * 1000) return 'lt15m';
+  if (ageMs < 6 * 60 * 60 * 1000) return 'lt6h';
+  if (ageMs < 48 * 60 * 60 * 1000) return 'lt48h';
+  return 'ge48h';
+};
+
+const detectTsClientType = (value) => {
+  if (value === null || value === undefined) return 'missing';
+  if (typeof value?.toMillis === 'function') return 'timestamp';
+  if (value instanceof Date) return 'date';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+};
+
 const getPathValue = (root, path) => {
   if (!root) return undefined;
   const parts = path.split('.');
@@ -337,6 +353,65 @@ const topEntries = (map, limit = 10) =>
     .slice(0, limit)
     .map(([key, count]) => ({ key, count }));
 
+const collectWindowDocs = async ({
+  baseQuery,
+  pageSize,
+  cutoffMs,
+  limit,
+  nowMs,
+}) => {
+  const collected = [];
+  let parseFailures = 0;
+  let parsedMinMs = null;
+  let parsedMaxMs = null;
+  let lastDoc = null;
+  let pages = 0;
+  const maxPages = 10;
+
+  while (collected.length < limit && pages < maxPages) {
+    let pageQuery = baseQuery.limit(pageSize);
+    if (lastDoc) pageQuery = pageQuery.startAfter(lastDoc);
+
+    const pageSnapshot = await pageQuery.get();
+    if (pageSnapshot.empty) break;
+
+    pages += 1;
+    let oldestParsedMs = null;
+
+    for (const doc of pageSnapshot.docs) {
+      const data = doc.data() || {};
+      const tsClientMs = pickTimestampMs(data);
+      if (!tsClientMs) {
+        parseFailures += 1;
+        continue;
+      }
+
+      parsedMinMs = parsedMinMs === null ? tsClientMs : Math.min(parsedMinMs, tsClientMs);
+      parsedMaxMs = parsedMaxMs === null ? tsClientMs : Math.max(parsedMaxMs, tsClientMs);
+      oldestParsedMs = oldestParsedMs === null ? tsClientMs : Math.min(oldestParsedMs, tsClientMs);
+
+      if (tsClientMs >= cutoffMs) {
+        collected.push(doc);
+        if (collected.length >= limit) break;
+      }
+    }
+
+    lastDoc = pageSnapshot.docs[pageSnapshot.docs.length - 1];
+
+    if (pages >= 2 && oldestParsedMs !== null && oldestParsedMs < cutoffMs) {
+      break;
+    }
+  }
+
+  return {
+    docs: collected,
+    parseFailures,
+    parsedMinMs,
+    parsedMaxMs,
+    windowModeUsed: 'clientSideWindow',
+  };
+};
+
 const isMissingIndex = (error, message, indexLink) => {
   const code = error?.code;
   const msg = message.toLowerCase();
@@ -405,8 +480,34 @@ if (require.main === module) {
   let modeUsed = 'desc';
   let usedFallback = false;
   let fallbackIndexLink = null;
+  let windowModeUsed = 'firestoreWhere';
+  let parseFailures = 0;
+  let parsedMinMs = null;
+  let parsedMaxMs = null;
+  const pageSize = Math.min(500, opts.limit);
   try {
-    snapshot = await query.get();
+    const firstSnapshot = await query.limit(pageSize).get();
+    const firstDoc = firstSnapshot.docs[0];
+    const tsClientType = firstDoc ? detectTsClientType(firstDoc.get('tsClient')) : 'missing';
+    const shouldClientSideWindow = tsClientType === 'string';
+
+    if (shouldClientSideWindow && opts.windowHours > 0) {
+      const windowResult = await collectWindowDocs({
+        baseQuery: query,
+        pageSize,
+        cutoffMs,
+        limit: opts.limit,
+        nowMs,
+      });
+      snapshot = { docs: windowResult.docs };
+      parseFailures = windowResult.parseFailures;
+      parsedMinMs = windowResult.parsedMinMs;
+      parsedMaxMs = windowResult.parsedMaxMs;
+      windowModeUsed = windowResult.windowModeUsed;
+    } else {
+      snapshot = firstSnapshot;
+      windowModeUsed = 'firestoreWhere';
+    }
   } catch (error) {
     const message = error?.message || 'Firestore query failed';
     const indexLink = getIndexLink(error);
@@ -417,81 +518,98 @@ if (require.main === module) {
       usedFallback = true;
       modeUsed = 'asc_fallback';
       fallbackIndexLink = indexLink;
-      let lastDoc = null;
-      const collected = [];
-      let remaining = opts.limit;
-      const pageSize = Math.min(250, opts.limit);
       let fallbackQueryShape = queryShape;
 
-      while (remaining > 0) {
-        let pageQuery = null;
-        if (opts.threadId) {
-          pageQuery = db
-            .collection('threads')
-            .doc(opts.threadId)
-            .collection('messages')
-            .where('tsClient', '>=', startTs)
-            .where('tsClient', '<=', endTs)
-            .orderBy('tsClient', 'asc')
-            .limit(Math.min(pageSize, remaining));
-          fallbackQueryShape = 'threads/{threadId}/messages|where:tsClient>=|where:tsClient<=|orderBy:tsClient asc';
-        } else {
-          pageQuery = db
-            .collectionGroup('messages')
-            .where('tsClient', '>=', startTs)
-            .where('tsClient', '<=', endTs)
-            .orderBy('tsClient', 'asc')
-            .limit(Math.min(pageSize, remaining));
-          fallbackQueryShape = 'collectionGroup:messages|where:tsClient>=|where:tsClient<=|orderBy:tsClient asc';
-          if (opts.accountId) {
-            pageQuery = pageQuery.where('accountId', '==', opts.accountId.trim());
-            fallbackQueryShape += '|where:accountId==';
-          }
-        }
+      if (opts.windowHours > 0) {
+        const windowResult = await collectWindowDocs({
+          baseQuery: query,
+          pageSize,
+          cutoffMs,
+          limit: opts.limit,
+          nowMs,
+        });
+        snapshot = { docs: windowResult.docs };
+        parseFailures = windowResult.parseFailures;
+        parsedMinMs = windowResult.parsedMinMs;
+        parsedMaxMs = windowResult.parsedMaxMs;
+        windowModeUsed = windowResult.windowModeUsed;
+        queryShape += '|clientSideWindow';
+      } else {
+        let lastDoc = null;
+        const collected = [];
+        let remaining = opts.limit;
+        let fallbackQueryShape = queryShape;
 
-        if (lastDoc) {
-          pageQuery = pageQuery.startAfter(lastDoc);
-        }
-
-        let pageSnapshot = null;
-        try {
-          pageSnapshot = await pageQuery.get();
-        } catch (pageError) {
-          const pageMessage = pageError?.message || 'Firestore query failed';
-          const pageIndexLink = getIndexLink(pageError);
-          const pageHint = getHint(pageError, pageMessage);
-          const payload = {
-            error: 'firestore_query_failed',
-            code: pageError?.code || null,
-            message: pageMessage,
-            hint: pageHint,
-            indexLink: pageIndexLink && opts.printIndexLink ? pageIndexLink : null,
-            projectId: getProjectId(),
-            emulatorHost: process.env.FIRESTORE_EMULATOR_HOST || null,
-            usedFallback,
-            modeUsed,
-          };
-
-          if (opts.debug) {
-            payload.rawErrorName = pageError?.name || null;
-            payload.rawErrorStackSha8 = hashStack(pageError?.stack);
-            payload.queryShape = fallbackQueryShape;
+        while (remaining > 0) {
+          let pageQuery = null;
+          if (opts.threadId) {
+            pageQuery = db
+              .collection('threads')
+              .doc(opts.threadId)
+              .collection('messages')
+              .where('tsClient', '>=', startTs)
+              .where('tsClient', '<=', endTs)
+              .orderBy('tsClient', 'asc')
+              .limit(Math.min(pageSize, remaining));
+            fallbackQueryShape = 'threads/{threadId}/messages|where:tsClient>=|where:tsClient<=|orderBy:tsClient asc';
+          } else {
+            pageQuery = db
+              .collectionGroup('messages')
+              .where('tsClient', '>=', startTs)
+              .where('tsClient', '<=', endTs)
+              .orderBy('tsClient', 'asc')
+              .limit(Math.min(pageSize, remaining));
+            fallbackQueryShape = 'collectionGroup:messages|where:tsClient>=|where:tsClient<=|orderBy:tsClient asc';
+            if (opts.accountId) {
+              pageQuery = pageQuery.where('accountId', '==', opts.accountId.trim());
+              fallbackQueryShape += '|where:accountId==';
+            }
           }
 
-          console.log(JSON.stringify(payload));
-          process.exit(2);
-        }
-        if (pageSnapshot.empty) {
-          break;
+          if (lastDoc) {
+            pageQuery = pageQuery.startAfter(lastDoc);
+          }
+
+          let pageSnapshot = null;
+          try {
+            pageSnapshot = await pageQuery.get();
+          } catch (pageError) {
+            const pageMessage = pageError?.message || 'Firestore query failed';
+            const pageIndexLink = getIndexLink(pageError);
+            const pageHint = getHint(pageError, pageMessage);
+            const payload = {
+              error: 'firestore_query_failed',
+              code: pageError?.code || null,
+              message: pageMessage,
+              hint: pageHint,
+              indexLink: pageIndexLink && opts.printIndexLink ? pageIndexLink : null,
+              projectId: getProjectId(),
+              emulatorHost: process.env.FIRESTORE_EMULATOR_HOST || null,
+              usedFallback,
+              modeUsed,
+            };
+
+            if (opts.debug) {
+              payload.rawErrorName = pageError?.name || null;
+              payload.rawErrorStackSha8 = hashStack(pageError?.stack);
+              payload.queryShape = fallbackQueryShape;
+            }
+
+            console.log(JSON.stringify(payload));
+            process.exit(2);
+          }
+          if (pageSnapshot.empty) {
+            break;
+          }
+
+          collected.push(...pageSnapshot.docs);
+          remaining = opts.limit - collected.length;
+          lastDoc = pageSnapshot.docs[pageSnapshot.docs.length - 1];
         }
 
-        collected.push(...pageSnapshot.docs);
-        remaining = opts.limit - collected.length;
-        lastDoc = pageSnapshot.docs[pageSnapshot.docs.length - 1];
+        snapshot = { docs: collected };
+        queryShape = fallbackQueryShape;
       }
-
-      snapshot = { docs: collected };
-      queryShape = fallbackQueryShape;
     } else {
       const payload = {
         error: 'firestore_query_failed',
@@ -525,6 +643,8 @@ if (require.main === module) {
   };
   let totalDocs = 0;
   let markedDocs = 0;
+  let scannedMinMs = parsedMinMs;
+  let scannedMaxMs = parsedMaxMs;
   const drilldownEnabled = Boolean(opts.keyHash);
   const schemaProbeEnabled = Boolean(opts.schema);
   const schemaProbe = {
@@ -551,6 +671,11 @@ if (require.main === module) {
   for (const doc of snapshot.docs) {
     const data = doc.data() || {};
     const tsClientMs = pickTimestampMs(data);
+
+    if (tsClientMs) {
+      scannedMinMs = scannedMinMs === null ? tsClientMs : Math.min(scannedMinMs, tsClientMs);
+      scannedMaxMs = scannedMaxMs === null ? tsClientMs : Math.max(scannedMaxMs, tsClientMs);
+    }
 
     if (tsClientMs && tsClientMs < cutoffMs) {
       continue;
@@ -714,6 +839,10 @@ if (require.main === module) {
     duplicatesCountActive,
     duplicatesCountAll: opts.includeMarked ? duplicatesCountAll : null,
     keyStrategyUsedCounts,
+    windowModeUsed,
+    parseFailures,
+    earliestAgeBucket: scannedMinMs ? ageBucketFromMs(nowMs - scannedMinMs) : 'unknown',
+    latestAgeBucket: scannedMaxMs ? ageBucketFromMs(nowMs - scannedMaxMs) : 'unknown',
     windowHours: opts.windowHours,
     limit: opts.limit,
     keyMode: opts.keyMode,
