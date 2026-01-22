@@ -43,13 +43,12 @@ class Env {
     defaultValue: false,
   );
 
-  static const String _defaultWhatsAppBackendUrl =
-      'https://whats-upp-production.up.railway.app';
+  static const String _defaultWhatsAppBackendUrl = '';
 
-  /// Base URL for Railway `whatsapp-backend`.
+  /// Base URL for WhatsApp backend.
   ///
   /// Configure via:
-  /// `--dart-define=WHATSAPP_BACKEND_URL=https://your-service.up.railway.app`
+  /// `--dart-define=WHATSAPP_BACKEND_URL=https://your-backend-host`
   static final String whatsappBackendUrl = _normalizeBaseUrl(
     const String.fromEnvironment(
       'WHATSAPP_BACKEND_URL',
@@ -59,6 +58,9 @@ class Env {
 
   static String _normalizeBaseUrl(String raw) {
     var url = raw.trim();
+    if (url.isEmpty) {
+      return url;
+    }
     while (url.endsWith('/')) {
       url = url.substring(0, url.length - 1);
     }

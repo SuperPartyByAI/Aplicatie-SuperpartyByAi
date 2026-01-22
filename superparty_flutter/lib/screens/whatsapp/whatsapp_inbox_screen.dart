@@ -1,15 +1,20 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:crypto/crypto.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../services/whatsapp_api_service.dart';
+import '../debug/whatsapp_diagnostics_screen.dart';
 
 /// WhatsApp Inbox Screen - List threads per accountId
-/// Updated: Auto-refresh every 10s for real-time sync!
+/// Uses Firestore streams for real-time updates, with manual refresh fallback.
 class WhatsAppInboxScreen extends StatefulWidget {
   const WhatsAppInboxScreen({super.key});
 
@@ -21,6 +26,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   final WhatsAppApiService _apiService = WhatsAppApiService.instance;
   
   List<Map<String, dynamic>> _accounts = [];
+  // ignore: unused_field  // reserved for accounts loading state
   bool _isLoadingAccounts = true;
   bool _isLoadingThreads = false;
   String _searchQuery = '';
@@ -30,28 +36,267 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   // Cache to prevent duplicate loads
   DateTime? _lastLoadTime;
   bool _isCurrentlyLoading = false;
+  static const Duration _minRefreshInterval = Duration(seconds: 30);
   
-  // Auto-refresh timer
-  Timer? _autoRefreshTimer;
+  // Firestore thread streams (per account)
+  final Map<String, StreamSubscription<QuerySnapshot>> _threadSubscriptions = {};
+  final Map<String, List<Map<String, dynamic>>> _threadsByAccount = {};
+
+  Future<void> _copyAuthTokensToClipboard() async {
+    if (!kDebugMode) return;
+    final idToken = await FirebaseAuth.instance.currentUser?.getIdToken(true);
+    String? appCheckToken;
+    try {
+      appCheckToken = await FirebaseAppCheck.instance.getToken(true);
+    } catch (e) {
+      appCheckToken = null;
+      debugPrint('[WhatsAppDebug] appCheckToken error: ${e.runtimeType}');
+    }
+    final idTokenLen = idToken?.length ?? 0;
+    final idTokenDotCount = idToken == null ? 0 : '.'.allMatches(idToken).length;
+    final idTokenHash = idToken == null || idToken.isEmpty
+        ? 'none'
+        : sha256.convert(utf8.encode(idToken)).toString().substring(0, 8);
+    final appCheckLen = appCheckToken?.length ?? 0;
+    final appCheckHash = appCheckToken == null || appCheckToken.isEmpty
+        ? 'none'
+        : sha256.convert(utf8.encode(appCheckToken)).toString().substring(0, 8);
+    debugPrint(
+      '[WhatsAppDebug] idTokenLen=$idTokenLen, idTokenDotCount=$idTokenDotCount, idTokenHash=$idTokenHash',
+    );
+    debugPrint('[WhatsAppDebug] appCheckLen=$appCheckLen, appCheckHash=$appCheckHash');
+
+    if (idToken == null || idToken.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ID token unavailable'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    await Clipboard.setData(
+      ClipboardData(text: 'ID=$idToken\nAPP=${appCheckToken ?? ''}\n'),
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          appCheckToken == null || appCheckToken.isEmpty
+              ? 'Copied ID token (AppCheck unavailable)'
+              : 'Copied tokens',
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 
   @override
   void initState() {
     super.initState();
     _loadAccounts();
-    
-    // Auto-refresh threads every 10 seconds
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (mounted && !_isCurrentlyLoading) {
-        debugPrint('[WhatsAppInboxScreen] Auto-refresh triggered');
-        _loadThreads();
-      }
-    });
   }
   
   @override
   void dispose() {
-    _autoRefreshTimer?.cancel();
+    for (final subscription in _threadSubscriptions.values) {
+      subscription.cancel();
+    }
+    _threadSubscriptions.clear();
     super.dispose();
+  }
+
+  void _startThreadListeners() {
+    final accountIds = _accounts
+        .map((account) => account['id'])
+        .whereType<String>()
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    final staleIds = _threadSubscriptions.keys.where((id) => !accountIds.contains(id)).toList();
+    for (final accountId in staleIds) {
+      _threadSubscriptions[accountId]?.cancel();
+      _threadSubscriptions.remove(accountId);
+      _threadsByAccount.remove(accountId);
+    }
+
+    for (final accountId in accountIds) {
+      if (_threadSubscriptions.containsKey(accountId)) continue;
+
+      final subscription = FirebaseFirestore.instance
+          .collection('threads')
+          .where('accountId', isEqualTo: accountId)
+          .orderBy('lastMessageAt', descending: true)
+          .snapshots()
+          .listen(
+        (snapshot) {
+          final accountName = _accounts
+                  .firstWhere(
+                    (account) => account['id'] == accountId,
+                    orElse: () => <String, dynamic>{},
+                  )['name'] as String? ??
+              accountId;
+          final threads = snapshot.docs.map((doc) {
+            return {
+              'id': doc.id,
+              ...doc.data(),
+              'accountId': accountId,
+              'accountName': accountName,
+            };
+          }).toList();
+          _threadsByAccount[accountId] = threads;
+          _rebuildThreadsFromCache();
+        },
+        onError: (error) {
+          debugPrint('[WhatsAppInboxScreen] Thread stream error ($accountId): $error');
+        },
+      );
+
+      _threadSubscriptions[accountId] = subscription;
+    }
+  }
+
+  void _rebuildThreadsFromCache() {
+    final allThreads = _threadsByAccount.values.expand((list) => list).toList();
+    final dedupedThreads = _filterAndDedupeThreads(allThreads);
+
+    if (mounted) {
+      setState(() {
+        _threads = dedupedThreads;
+        _isLoadingThreads = false;
+        _isCurrentlyLoading = false;
+      });
+    }
+  }
+
+  String _readString(dynamic value, {List<String> mapKeys = const []}) {
+    if (value is String) return value;
+    if (value is Map) {
+      for (final key in mapKeys) {
+        final nested = value[key];
+        if (nested is String) return nested;
+      }
+    }
+    if (value is num) return value.toString();
+    return '';
+  }
+
+  List<Map<String, dynamic>> _filterAndDedupeThreads(List<Map<String, dynamic>> allThreads) {
+
+    DateTime? resolveThreadTime(Map<String, dynamic> thread) {
+      if (thread['lastMessageAtMs'] is int) {
+        return DateTime.fromMillisecondsSinceEpoch(thread['lastMessageAtMs'] as int);
+      }
+      final lastMessageAt = thread['lastMessageAt'];
+      if (lastMessageAt is Map && lastMessageAt['_seconds'] is int) {
+        return DateTime.fromMillisecondsSinceEpoch(
+          (lastMessageAt['_seconds'] as int) * 1000,
+        );
+      }
+      if (lastMessageAt is String) {
+        final parsed = DateTime.tryParse(lastMessageAt);
+        if (parsed != null) return parsed;
+      }
+      if (thread['lastMessageTimestamp'] is int) {
+        return DateTime.fromMillisecondsSinceEpoch((thread['lastMessageTimestamp'] as int) * 1000);
+      }
+      return null;
+    }
+
+    final visibleThreads = allThreads.where((thread) {
+      final hidden = thread['hidden'] == true || thread['archived'] == true;
+      final redirectTo = _readString(thread['redirectTo']).trim();
+      final canonicalThreadId = _readString(thread['canonicalThreadId']).trim();
+      final clientJid = _readString(
+        thread['clientJid'],
+        mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
+      ).trim();
+      final isLid = clientJid.endsWith('@lid');
+      final isBroadcast = clientJid.endsWith('@broadcast');
+      if (hidden) return false;
+      if (redirectTo.isNotEmpty) return false;
+      if (isLid && canonicalThreadId.isNotEmpty) return false;
+      if (isBroadcast) return false;
+      return true;
+    }).toList();
+
+    visibleThreads.sort((a, b) {
+      final timeA = resolveThreadTime(a);
+      final timeB = resolveThreadTime(b);
+      if (timeA == null && timeB == null) return 0;
+      if (timeA == null) return 1;
+      if (timeB == null) return -1;
+      return timeB.compareTo(timeA);
+    });
+
+    final dedupedByPhone = <String, Map<String, dynamic>>{};
+    for (final thread in visibleThreads) {
+      final normalizedPhone = _readString(thread['normalizedPhone']).trim();
+      final canonicalThreadId = _readString(thread['canonicalThreadId']).trim();
+      final clientJid = _readString(
+        thread['clientJid'],
+        mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
+      ).trim();
+      final threadId =
+          _readString(thread['id'], mapKeys: const ['threadId', 'id']).trim();
+      final jidPhone = _extractPhoneFromJid(clientJid);
+      final phoneKey =
+          (normalizedPhone.isNotEmpty && jidPhone != null && normalizedPhone == jidPhone)
+              ? normalizedPhone
+              : null;
+      final key = canonicalThreadId.isNotEmpty
+          ? canonicalThreadId
+          : (threadId.isNotEmpty ? threadId : (phoneKey ?? clientJid));
+      final existing = dedupedByPhone[key];
+      if (existing == null) {
+        dedupedByPhone[key] = thread;
+        continue;
+      }
+
+      int scoreThread(Map<String, dynamic> t) {
+        final jid = _readString(
+          t['clientJid'],
+          mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
+        ).trim();
+        final isLid = jid.endsWith('@lid');
+        final displayName = _readString(t['displayName']).trim();
+        final phone = _readString(t['normalizedPhone']).trim();
+        final inferredPhone = _extractPhoneFromJid(jid);
+        final hasName = displayName.isNotEmpty && !_looksLikePhone(displayName);
+        final hasPhone = phone.isNotEmpty || (inferredPhone != null && inferredPhone.isNotEmpty);
+        final hasLastMessage = _readString(t['lastMessageText']).trim().isNotEmpty;
+        final hasTimestamp = resolveThreadTime(t) != null;
+        var score = 0;
+        if (!isLid) score += 4;
+        if (hasName) score += 3;
+        if (hasPhone) score += 2;
+        if (hasTimestamp) score += 1;
+        if (hasLastMessage) score += 1;
+        return score;
+      }
+
+      final existingScore = scoreThread(existing);
+      final currentScore = scoreThread(thread);
+      if (currentScore > existingScore) {
+        dedupedByPhone[key] = thread;
+        continue;
+      }
+      if (currentScore == existingScore) {
+        final existingTime = resolveThreadTime(existing);
+        final currentTime = resolveThreadTime(thread);
+        if (existingTime == null && currentTime != null) {
+          dedupedByPhone[key] = thread;
+        } else if (existingTime != null &&
+            currentTime != null &&
+            currentTime.isAfter(existingTime)) {
+          dedupedByPhone[key] = thread;
+        }
+      }
+    }
+    return dedupedByPhone.values.toList();
   }
 
   Future<void> _loadThreads() async {
@@ -62,7 +307,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     }
     
     final now = DateTime.now();
-    if (_lastLoadTime != null && now.difference(_lastLoadTime!) < const Duration(seconds: 2)) {
+    if (_lastLoadTime != null && now.difference(_lastLoadTime!) < _minRefreshInterval) {
       debugPrint('[WhatsAppInboxScreen] Too soon since last load, skipping');
       return;
     }
@@ -70,35 +315,14 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     _isCurrentlyLoading = true;
     _lastLoadTime = now;
     
-    // Get all connected accounts
-    final connectedAccounts = _accounts.where((a) => a['status'] == 'connected').toList();
+    final availableAccounts = _accounts.toList();
     
-    // #region agent log
-    try {
-      final http = await HttpClient().postUrl(Uri.parse('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591'));
-      http.headers.set('Content-Type', 'application/json');
-      http.write(jsonEncode({
-        'location': 'whatsapp_inbox_screen.dart:54',
-        'message': '_loadThreads called',
-        'data': {
-          'totalAccounts': _accounts.length,
-          'connectedAccounts': connectedAccounts.length,
-          'accountStatuses': _accounts.map((a) => {'id': (a['id'] as String?)?.substring(0, 20), 'status': a['status']}).toList()
-        },
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-        'sessionId': 'debug-session',
-        'hypothesisId': 'H3'
-      }));
-      await http.close();
-    } catch (_) {}
-    // #endregion
-    
-    if (connectedAccounts.isEmpty) {
+    if (availableAccounts.isEmpty) {
       if (mounted) {
         setState(() {
           _threads = [];
           _isLoadingThreads = false;
-          _errorMessage = 'No connected accounts found';
+          _errorMessage = 'No available accounts found';
           _isCurrentlyLoading = false;
         });
       }
@@ -111,34 +335,13 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     });
 
     try {
-      // Load threads from all connected accounts in parallel
-      final futures = connectedAccounts.map((account) async {
+      // Load threads from all available accounts in parallel
+      final futures = availableAccounts.map((account) async {
         final accountId = account['id'] as String?;
         if (accountId == null) return <Map<String, dynamic>>[];
         
         try {
           final response = await _apiService.getThreads(accountId: accountId);
-          
-          // #region agent log
-          try {
-            final http = await HttpClient().postUrl(Uri.parse('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591'));
-            http.headers.set('Content-Type', 'application/json');
-            http.write(jsonEncode({
-              'location': 'whatsapp_inbox_screen.dart:120',
-              'message': 'getThreads response',
-              'data': {
-                'accountId': accountId.substring(0, 30),
-                'success': response['success'],
-                'threadsCount': (response['threads'] as List<dynamic>?)?.length ?? 0,
-                'hasError': response['error'] != null
-              },
-              'timestamp': DateTime.now().millisecondsSinceEpoch,
-              'sessionId': 'debug-session',
-              'hypothesisId': 'H7-H8'
-            }));
-            await http.close();
-          } catch (_) {}
-          // #endregion
           
           if (response['success'] == true) {
             final threads = (response['threads'] as List<dynamic>? ?? [])
@@ -153,7 +356,8 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
             }).toList();
           }
         } catch (e) {
-          debugPrint('[WhatsAppInboxScreen] Error loading threads for account $accountId: $e');
+          final accountHash = accountId.hashCode.toRadixString(16);
+          debugPrint('[WhatsAppInboxScreen] Error loading threads for account $accountHash: $e');
         }
         return <Map<String, dynamic>>[];
       });
@@ -161,56 +365,11 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       final allThreadsLists = await Future.wait(futures);
       final allThreads = allThreadsLists.expand((list) => list).toList();
       
-      // #region agent log
-      try {
-        final http = await HttpClient().postUrl(Uri.parse('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591'));
-        http.headers.set('Content-Type', 'application/json');
-        http.write(jsonEncode({
-          'location': 'whatsapp_inbox_screen.dart:140',
-          'message': '_loadThreads got threads',
-          'data': {
-            'connectedAccountsCount': connectedAccounts.length,
-            'threadsListsCount': allThreadsLists.length,
-            'totalThreads': allThreads.length,
-            'accountIds': connectedAccounts.map((a) => (a['id'] as String?)?.substring(0, 30)).toList(),
-            'threadsPerAccount': allThreadsLists.map((list) => list.length).toList()
-          },
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-          'sessionId': 'debug-session',
-          'hypothesisId': 'H7-H8-H10'
-        }));
-        await http.close();
-      } catch (_) {}
-      // #endregion
-      
-      // Sort by lastMessageAt (most recent first)
-      allThreads.sort((a, b) {
-        DateTime? timeA;
-        DateTime? timeB;
-        
-        if (a['lastMessageAt'] != null) {
-          final ts = a['lastMessageAt'] as Map<String, dynamic>?;
-          if (ts?['_seconds'] != null) {
-            timeA = DateTime.fromMillisecondsSinceEpoch((ts!['_seconds'] as int) * 1000);
-          }
-        }
-        
-        if (b['lastMessageAt'] != null) {
-          final ts = b['lastMessageAt'] as Map<String, dynamic>?;
-          if (ts?['_seconds'] != null) {
-            timeB = DateTime.fromMillisecondsSinceEpoch((ts!['_seconds'] as int) * 1000);
-          }
-        }
-        
-        if (timeA == null && timeB == null) return 0;
-        if (timeA == null) return 1;
-        if (timeB == null) return -1;
-        return timeB.compareTo(timeA); // Most recent first
-      });
+      final dedupedThreads = _filterAndDedupeThreads(allThreads);
       
       if (mounted) {
         setState(() {
-          _threads = allThreads;
+          _threads = dedupedThreads;
           _isLoadingThreads = false;
           _isCurrentlyLoading = false;
         });
@@ -246,7 +405,9 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
           setState(() {
             _accounts = accounts;
             _isLoadingAccounts = false;
-            // Load threads from all connected accounts
+            // Start Firestore listeners for real-time updates
+            _startThreadListeners();
+            // Manual refresh fallback (uses Functions proxy)
             _loadThreads();
           });
         }
@@ -263,10 +424,58 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
 
   String? _extractPhoneFromJid(String? jid) {
     if (jid == null) return null;
+    if (jid.contains('@lid') || jid.contains('@broadcast')) return null;
     final parts = jid.split('@');
     if (parts.isEmpty) return null;
     final digits = parts[0];
-    return digits.startsWith('+') ? digits : '+$digits';
+    if (digits.length > 15 || !RegExp(r'^\d{6,15}$').hasMatch(digits)) return null;
+    return '+$digits';
+  }
+
+  bool _looksLikePhone(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return false;
+    if (trimmed.contains('@')) return true;
+    return RegExp(r'^\+?[\d\s\-\(\)]{6,}$').hasMatch(trimmed);
+  }
+
+  Widget _buildFirestoreEnvBanner() {
+    final settings = FirebaseFirestore.instance.settings;
+    const useEmulators = bool.fromEnvironment('USE_EMULATORS', defaultValue: false);
+    final rawHost = settings.host ?? '';
+    final host = rawHost.isEmpty ? 'default' : rawHost;
+    final sslEnabled = settings.sslEnabled ?? true;
+    final isEmulator = rawHost.contains('localhost') ||
+        rawHost.startsWith('127.0.0.1') ||
+        rawHost.startsWith('10.0.2.2') ||
+        useEmulators;
+    final label = isEmulator ? 'EMULATOR MODE' : 'PROD';
+    return Container(
+      width: double.infinity,
+      color: isEmulator ? Colors.orange.shade100 : Colors.green.shade100,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        children: [
+          Icon(
+            isEmulator ? Icons.memory : Icons.cloud_done,
+            size: 16,
+            color: isEmulator ? Colors.orange.shade800 : Colors.green.shade800,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '$label • host=$host • ssl=${sslEnabled ? "on" : "off"}',
+              style: TextStyle(
+                fontSize: 11,
+                color: isEmulator ? Colors.orange.shade800 : Colors.green.shade800,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -284,10 +493,36 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
             },
             tooltip: 'Refresh',
           ),
+          if (kDebugMode)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                if (value == 'copy_auth_tokens') {
+                  _copyAuthTokensToClipboard();
+                } else if (value == 'diagnostics') {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const WhatsAppDiagnosticsScreen(),
+                    ),
+                  );
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'copy_auth_tokens',
+                  child: Text('Copy Auth Tokens'),
+                ),
+                PopupMenuItem(
+                  value: 'diagnostics',
+                  child: Text('Diagnostics'),
+                ),
+              ],
+            ),
         ],
       ),
       body: Column(
         children: [
+          if (kDebugMode) _buildFirestoreEnvBanner(),
           // Search bar
           Padding(
             padding: const EdgeInsets.all(16),
@@ -305,7 +540,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
 
           // Threads list - all conversations from all accounts
           Expanded(
-            child: _isLoadingThreads
+            child: (_isLoadingThreads && _threads.isEmpty)
                     ? const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -334,7 +569,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                               ],
                             ),
                           )
-                        : _threads.isEmpty
+                            : _threads.isEmpty
                             ? const Center(
                                 child: Text('No conversations found'),
                               )
@@ -343,10 +578,24 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                   // Filter threads by search query
                                   final filteredThreads = _threads.where((thread) {
                                     if (_searchQuery.isEmpty) return true;
-                                    final clientJid = (thread['clientJid'] as String? ?? '').toLowerCase();
-                                    final displayName = (thread['displayName'] as String? ?? '').toLowerCase();
-                                    final lastMessageText = (thread['lastMessageText'] as String? ?? '').toLowerCase();
-                                    final phone = _extractPhoneFromJid(thread['clientJid'] as String?)?.toLowerCase() ?? '';
+                                    final clientJid = _readString(
+                                      thread['clientJid'],
+                                      mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
+                                    ).toLowerCase();
+                                    final displayName = _readString(thread['displayName']).toLowerCase();
+                                    final lastMessageText =
+                                        _readString(thread['lastMessageText']).toLowerCase();
+                                    final normalizedPhone =
+                                        _readString(thread['normalizedPhone']).toLowerCase();
+                                    final phone = normalizedPhone.isNotEmpty
+                                        ? normalizedPhone
+                                        : (_extractPhoneFromJid(
+                                              _readString(
+                                                thread['clientJid'],
+                                                mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
+                                              ),
+                                            )?.toLowerCase() ??
+                                            '');
                                     return clientJid.contains(_searchQuery) ||
                                         displayName.contains(_searchQuery) ||
                                         lastMessageText.contains(_searchQuery) ||
@@ -365,74 +614,89 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                       itemCount: filteredThreads.length,
                                       itemBuilder: (context, index) {
                                         final thread = filteredThreads[index];
-                                        final threadId = thread['id'] as String? ?? '';
-                                        final accountId = thread['accountId'] as String? ?? '';
-                                        final accountName = thread['accountName'] as String? ?? '';
-                                        final clientJid = thread['clientJid'] as String? ?? '';
-                                        final rawDisplayName = thread['displayName'] as String? ?? '';
-                                        final lastMessageText = thread['lastMessageText'] as String? ?? '';
+                                        final threadId =
+                                            _readString(thread['id'], mapKeys: const ['threadId', 'id']);
+                                        final redirectTo = _readString(thread['redirectTo']);
+                                        final canonicalThreadId =
+                                            _readString(thread['canonicalThreadId']);
+                                        final accountId = _readString(thread['accountId']);
+                                        final accountName = _readString(thread['accountName']);
+                                        final clientJid = _readString(
+                                          thread['clientJid'],
+                                          mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
+                                        );
+                                        final rawDisplayName = _readString(thread['displayName']);
+                                        final groupSubject = _readString(thread['groupSubject']);
+                                        final lastSenderName = _readString(thread['lastMessageSenderName']);
+                                        final lastMessageText = _readString(thread['lastMessageText']);
+                                        final normalizedPhone = _readString(thread['normalizedPhone']);
                                         
                                         // Extract phone from clientJid
-                                        final phone = _extractPhoneFromJid(clientJid);
-                                        
-                                        // DEBUG: Print raw data to see what we receive
-                                        if (index == 0) {
-                                          debugPrint('[Inbox] Sample thread data: clientJid=$clientJid, rawDisplayName=$rawDisplayName, phone=$phone');
-                                        }
+                                        final phone = normalizedPhone.isNotEmpty
+                                            ? normalizedPhone
+                                            : _extractPhoneFromJid(clientJid);
+                                        final isBroadcast = clientJid.endsWith('@broadcast');
                                         
                                         // Smart display name logic:
                                         // Always use formatted phone from clientJid for consistency
                                         String displayName = rawDisplayName.trim();
-                                        
-                                        // If displayName is empty or looks like a number/JID, use formatted phone
-                                        if (phone != null && phone.isNotEmpty) {
-                                          // Check if rawDisplayName is just a messy number or empty
-                                          final isMixedFormat = displayName.isEmpty ||
-                                              displayName.contains('@') ||
-                                              RegExp(r'^\+?[\d\s\-\(\)]{10,}$').hasMatch(displayName);
-                                          
-                                          if (isMixedFormat) {
-                                            // Use formatted phone number
-                                            // Try international format: +[country][area][number]
-                                            var formatted = phone.replaceAllMapped(
-                                              RegExp(r'^\+(\d{1,4})(\d{3})(\d{3})(\d{3,})$'),
-                                              (match) => '+${match[1]} ${match[2]} ${match[3]} ${match[4]}',
-                                            );
-                                            
-                                            // If regex didn't match (formatted == phone), try simpler split
-                                            if (formatted == phone && phone.length > 4) {
-                                              // Just split every 3 digits after country code
-                                              if (phone.startsWith('+')) {
-                                                final digits = phone.substring(1);
-                                                final parts = <String>[];
-                                                for (int i = 0; i < digits.length; i += 3) {
-                                                  parts.add(digits.substring(i, (i + 3).clamp(0, digits.length)));
-                                                }
-                                                formatted = '+${parts.join(' ')}';
-                                              } else {
-                                                formatted = phone;
-                                              }
-                                            }
-                                            
-                                            displayName = formatted;
-                                            debugPrint('[Inbox] Formatted displayName: $displayName (from phone: $phone)');
+                                        final isMixedFormat =
+                                            displayName.isEmpty || _looksLikePhone(displayName);
+                                        if (isMixedFormat) {
+                                          final fallbackName = groupSubject.isNotEmpty &&
+                                                  !_looksLikePhone(groupSubject)
+                                              ? groupSubject
+                                              : (lastSenderName.isNotEmpty &&
+                                                      !_looksLikePhone(lastSenderName)
+                                                  ? lastSenderName
+                                                  : '');
+                                          if (fallbackName.isNotEmpty) {
+                                            displayName = fallbackName;
                                           }
+                                        }
+
+                                        // If still empty or numeric-like, use formatted phone
+                                        if (!isBroadcast &&
+                                            phone != null &&
+                                            phone.isNotEmpty &&
+                                            (displayName.isEmpty || _looksLikePhone(displayName))) {
+                                          var formatted = phone.replaceAllMapped(
+                                            RegExp(r'^\+(\d{1,4})(\d{3})(\d{3})(\d{3,})$'),
+                                            (match) => '+${match[1]} ${match[2]} ${match[3]} ${match[4]}',
+                                          );
+                                          if (formatted == phone && phone.length > 4) {
+                                            if (phone.startsWith('+')) {
+                                              final digits = phone.substring(1);
+                                              final parts = <String>[];
+                                              for (int i = 0; i < digits.length; i += 3) {
+                                                parts.add(digits.substring(i, (i + 3).clamp(0, digits.length)));
+                                              }
+                                              formatted = '+${parts.join(' ')}';
+                                            } else {
+                                              formatted = phone;
+                                            }
+                                          }
+                                          displayName = formatted;
                                         }
                                         
                                         // Parse lastMessageAt timestamp
                                         DateTime? lastMessageAt;
-                                        if (thread['lastMessageAt'] != null) {
-                                          final ts = thread['lastMessageAt'] as Map<String, dynamic>?;
-                                          if (ts?['_seconds'] != null) {
-                                            lastMessageAt = DateTime.fromMillisecondsSinceEpoch(
-                                              (ts!['_seconds'] as int) * 1000,
-                                            );
-                                          }
+                                        final lastMessageRaw = thread['lastMessageAt'];
+                                        if (lastMessageRaw is Timestamp) {
+                                          lastMessageAt = lastMessageRaw.toDate();
+                                        } else if (lastMessageRaw is Map &&
+                                            lastMessageRaw['_seconds'] is int) {
+                                          lastMessageAt = DateTime.fromMillisecondsSinceEpoch(
+                                            (lastMessageRaw['_seconds'] as int) * 1000,
+                                          );
+                                        } else if (lastMessageRaw is String) {
+                                          lastMessageAt = DateTime.tryParse(lastMessageRaw);
                                         }
                                         
                                         // Don't show phone in subtitle if it's already the displayName
                                         String? displayPhone;
-                                        if (phone != null && !displayName.contains(phone.replaceAll('+', '').replaceAll(' ', ''))) {
+                                        if (phone != null &&
+                                            (displayName.isEmpty || _looksLikePhone(displayName))) {
                                           displayPhone = phone.replaceAllMapped(
                                             RegExp(r'^\+?(\d{1,3})(\d{3})(\d{3})(\d+)$'),
                                             (match) => '+${match[1]} ${match[2]} ${match[3]} ${match[4]}',
@@ -525,7 +789,20 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                                 )
                                               : null,
                                           onTap: () {
-                                            context.go('/whatsapp/chat?accountId=${Uri.encodeComponent(accountId)}&threadId=${Uri.encodeComponent(threadId)}&clientJid=${Uri.encodeComponent(clientJid)}&phoneE164=${Uri.encodeComponent(phone ?? '')}');
+                                            final encodedDisplayName = Uri.encodeComponent(displayName);
+                                            final effectiveThreadId =
+                                                redirectTo.isNotEmpty
+                                                    ? redirectTo
+                                                    : (canonicalThreadId.isNotEmpty
+                                                        ? canonicalThreadId
+                                                        : threadId);
+                                            context.go(
+                                              '/whatsapp/chat?accountId=${Uri.encodeComponent(accountId)}'
+                                              '&threadId=${Uri.encodeComponent(effectiveThreadId)}'
+                                              '&clientJid=${Uri.encodeComponent(clientJid)}'
+                                              '&phoneE164=${Uri.encodeComponent(phone ?? '')}'
+                                              '&displayName=$encodedDisplayName',
+                                            );
                                           },
                                         );
                                       },

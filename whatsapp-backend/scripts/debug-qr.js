@@ -1,29 +1,16 @@
 #!/usr/bin/env node
 
-const makeWASocket = require('@whiskeysockets/baileys').default;
-const {
-  useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestBaileysVersion,
-} = require('@whiskeysockets/baileys');
+const { DisconnectReason } = require('@whiskeysockets/baileys');
 const QRCode = require('qrcode');
-const pino = require('pino');
-const fs = require('fs');
-const path = require('path');
+const { createQrSocket, getSessionPath } = require('./wa-qr-helper');
 
 const ACCOUNT_ID = 'debug_test_' + Date.now();
-const AUTH_DIR = path.join(__dirname, '..', '.baileys_auth', ACCOUNT_ID);
+const AUTH_DIR = getSessionPath(ACCOUNT_ID);
 
 console.log('=== DEBUG QR GENERATION ===');
 console.log(`BOOT: ${new Date().toISOString()}`);
 console.log(`ACCOUNT_ID: ${ACCOUNT_ID}`);
 console.log(`AUTH_DIR: ${AUTH_DIR}`);
-
-// Ensure auth directory exists
-if (!fs.existsSync(AUTH_DIR)) {
-  fs.mkdirSync(AUTH_DIR, { recursive: true });
-  console.log(`✅ Created auth directory`);
-}
 
 let qrEmitted = false;
 const pairingEmitted = false;
@@ -31,24 +18,8 @@ let connected = false;
 
 async function startDebug() {
   try {
-    console.log('\n--- PHASE 1: Loading auth state ---');
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-    console.log(`✅ Auth state loaded`);
-    console.log(`   Has creds: ${!!state.creds}`);
-    console.log(`   Has keys: ${!!state.keys}`);
-
-    console.log('\n--- PHASE 2: Fetching latest Baileys version ---');
-    const { version, isLatest } = await fetchLatestBaileysVersion();
-    console.log(`✅ Baileys version: ${version.join('.')}, isLatest: ${isLatest}`);
-
-    console.log('\n--- PHASE 3: Creating socket ---');
-    const sock = makeWASocket({
-      auth: state,
-      printQRInTerminal: false,
-      logger: pino({ level: 'silent' }),
-      browser: ['SuperParty', 'Chrome', '1.0.0'],
-      version,
-    });
+    console.log('\n--- PHASE 1: Creating socket ---');
+    const { sock } = await createQrSocket({ accountId: ACCOUNT_ID, loggerLevel: 'silent' });
     console.log(`✅ SOCKET_CREATED: ${new Date().toISOString()}`);
 
     // Heartbeat
@@ -58,7 +29,7 @@ async function startDebug() {
       );
     }, 5000);
 
-    console.log('\n--- PHASE 4: Attaching handlers ---');
+    console.log('\n--- PHASE 2: Attaching handlers ---');
 
     // QR handler
     sock.ev.on('connection.update', async update => {
@@ -121,11 +92,9 @@ async function startDebug() {
       }
     });
 
-    // Creds update
-    sock.ev.on('creds.update', saveCreds);
     console.log(`✅ Handlers attached`);
 
-    console.log('\n--- PHASE 5: Waiting for events (60 seconds max) ---');
+    console.log('\n--- PHASE 3: Waiting for events (60 seconds max) ---');
 
     // Timeout after 60 seconds
     setTimeout(() => {

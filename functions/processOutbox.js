@@ -3,7 +3,7 @@
 /**
  * Process Outbox - Firestore Trigger
  * 
- * Monitors outbox collection and sends WhatsApp messages via Railway backend.
+ * Monitors outbox collection and sends WhatsApp messages via backend.
  * Triggered when outbox document is created with status='queued'.
  */
 
@@ -11,32 +11,12 @@ const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 const https = require('https');
 const http = require('http');
-
-// Railway backend base URL
-function getRailwayBaseUrl() {
-  // Try v2 process.env first
-  if (process.env.WHATSAPP_RAILWAY_BASE_URL) {
-    return process.env.WHATSAPP_RAILWAY_BASE_URL;
-  }
-
-  // Try v1 functions.config()
-  try {
-    const functions = require('firebase-functions');
-    const config = functions.config();
-    if (config?.whatsapp?.railway_base_url) {
-      return config.whatsapp.railway_base_url;
-    }
-  } catch (e) {
-    // Ignore
-  }
-
-  return null;
-}
+const { getBackendBaseUrl } = require('./lib/backend-url');
 
 const REQUEST_TIMEOUT_MS = 30000; // 30 seconds
 
 /**
- * Forward HTTP request to Railway backend
+ * Forward HTTP request to backend
  */
 function forwardRequest(url, options, body = null) {
   return new Promise((resolve, reject) => {
@@ -102,6 +82,11 @@ async function processOutboxHandler(event) {
     return;
   }
 
+  if (process.env.OUTBOX_PROCESSOR_ENABLED === 'false') {
+    console.log('[processOutbox] OUTBOX_PROCESSOR_ENABLED=false, skipping');
+    return;
+  }
+
   const outboxDoc = snapshot.data();
   const requestId = event.params.requestId || snapshot.id;
 
@@ -121,24 +106,39 @@ async function processOutboxHandler(event) {
 
   console.log(`[processOutbox] Processing outbox doc: ${requestId}, status=${outboxDoc.status}`);
 
-  // Only process queued messages
-  if (outboxDoc.status !== 'queued') {
-    console.log(`[processOutbox] Skipping doc with status=${outboxDoc.status}`);
-    return;
-  }
-
   const db = admin.firestore();
   const outboxRef = db.collection('outbox').doc(requestId);
 
   try {
-    // Get Railway backend URL
-    const railwayBaseUrl = getRailwayBaseUrl();
-    if (!railwayBaseUrl) {
-      throw new Error('WHATSAPP_RAILWAY_BASE_URL not configured');
+    // Acquire single-processing lock: transition queued -> sending atomically
+    const claimed = await db.runTransaction(async tx => {
+      const doc = await tx.get(outboxRef);
+      if (!doc.exists) return null;
+      const data = doc.data();
+      if (!data || data.status !== 'queued') {
+        return null;
+      }
+      tx.update(outboxRef, {
+        status: 'sending',
+        attemptCount: admin.firestore.FieldValue.increment(1),
+        lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return data;
+    });
+
+    if (!claimed) {
+      console.log(`[processOutbox] Skipping doc (already processed): ${requestId}`);
+      return;
+    }
+
+    // Get backend URL
+    const backendBaseUrl = getBackendBaseUrl();
+    if (!backendBaseUrl) {
+      throw new Error('WHATSAPP_BACKEND_BASE_URL/WHATSAPP_BACKEND_URL not configured');
     }
 
     // Extract message data
-    const { threadId, accountId, toJid, body, payload } = outboxDoc;
+    const { threadId, accountId, toJid, body, payload } = claimed;
 
     if (!threadId || !accountId || !toJid || !body) {
       throw new Error('Missing required fields in outbox document');
@@ -146,16 +146,9 @@ async function processOutboxHandler(event) {
 
     console.log(`[processOutbox] Sending message: threadId=${threadId}, accountId=${accountId}, toJid=${toJid}`);
 
-    // Update status to 'sending'
-    await outboxRef.update({
-      status: 'sending',
-      attemptCount: admin.firestore.FieldValue.increment(1),
-      lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    // Send message to Railway backend
-    const railwayUrl = `${railwayBaseUrl}/api/whatsapp/send`;
-    const response = await forwardRequest(railwayUrl, {
+    // Send message to backend
+    const backendUrl = `${backendBaseUrl}/api/whatsapp/send-message`;
+    const response = await forwardRequest(backendUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -164,18 +157,17 @@ async function processOutboxHandler(event) {
     }, {
       threadId,
       accountId,
-      toJid,
-      text: body,
-      ...payload,
+      to: toJid,
+      message: body,
     });
 
-    console.log(`[processOutbox] Railway response: status=${response.statusCode}`);
+    console.log(`[processOutbox] Backend response: status=${response.statusCode}`);
 
     // #region agent log
     try {
       fs.appendFileSync('/Users/universparty/.cursor/debug.log', JSON.stringify({
         location: 'processOutbox.js:172',
-        message: 'Railway backend response',
+        message: 'Backend response',
         data: {requestId, statusCode: response.statusCode, body: response.body},
         timestamp: Date.now(),
         sessionId: 'debug-session',
@@ -189,7 +181,7 @@ async function processOutboxHandler(event) {
       await outboxRef.update({
         status: 'sent',
         sentAt: admin.firestore.FieldValue.serverTimestamp(),
-        railwayResponse: response.body,
+        backendResponse: response.body,
       });
 
       console.log(`[processOutbox] ✅ Message sent successfully: ${requestId}`);
@@ -199,7 +191,7 @@ async function processOutboxHandler(event) {
         status: 'failed',
         error: response.body?.error || `HTTP ${response.statusCode}`,
         errorMessage: response.body?.message || 'Backend returned error',
-        railwayResponse: response.body,
+        backendResponse: response.body,
       });
 
       console.error(`[processOutbox] ❌ Message failed: ${requestId}, status=${response.statusCode}`);
@@ -222,12 +214,18 @@ async function processOutboxHandler(event) {
   }
 }
 
+// Define secrets for backend URL resolution
+const { defineSecret } = require('firebase-functions/params');
+const whatsappBackendBaseUrl = defineSecret('WHATSAPP_BACKEND_BASE_URL');
+const whatsappBackendUrl = defineSecret('WHATSAPP_BACKEND_URL');
+
 // Export Firestore trigger
 exports.processOutbox = onDocumentCreated(
   {
     document: 'outbox/{requestId}',
     region: 'us-central1',
     maxInstances: 3,
+    secrets: [whatsappBackendBaseUrl, whatsappBackendUrl], // Add secret dependency
   },
   processOutboxHandler
 );

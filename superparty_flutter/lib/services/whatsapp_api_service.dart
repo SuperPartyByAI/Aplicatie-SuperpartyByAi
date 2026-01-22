@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
@@ -11,20 +12,47 @@ import '../core/config/env.dart';
 import '../core/errors/app_exception.dart';
 import '../core/utils/retry.dart';
 
-/// Service for interacting with Railway WhatsApp backend directly.
+/// Service for interacting with WhatsApp backend directly.
 class WhatsAppApiService {
   static final WhatsAppApiService _instance = WhatsAppApiService._internal();
   factory WhatsAppApiService() => _instance;
   WhatsAppApiService._internal();
 
   static WhatsAppApiService get instance => _instance;
+  int? _lastGetMessagesStatus;
+
+  int? get lastGetMessagesStatus => _lastGetMessagesStatus;
 
   /// Request timeout (configurable)
   Duration requestTimeout = const Duration(seconds: 30);
 
-  /// Get Railway backend base URL
+  /// Get backend base URL
   String _getBackendUrl() {
     return Env.whatsappBackendUrl;
+  }
+
+  String _maskId(String value) => value.hashCode.toRadixString(16);
+  int _dotCount(String value) => '.'.allMatches(value).length;
+
+  Map<String, dynamic>? _safeDecodeMap(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _requireBackendUrl() {
+    final backendUrl = _getBackendUrl();
+    if (backendUrl.isEmpty) {
+      throw DomainFailure(
+        'WHATSAPP_BACKEND_URL is not configured. '
+        'Set --dart-define=WHATSAPP_BACKEND_URL=https://<backend-host>.',
+        code: 'backend_url_missing',
+      );
+    }
+    return backendUrl;
   }
 
   /// Get Functions URL (for proxy calls)
@@ -32,7 +60,7 @@ class WhatsAppApiService {
     const region = 'us-central1';
     
     // Check if using emulators
-    const useEmulators = bool.fromEnvironment('USE_EMULATORS', defaultValue: false);
+    const useEmulators = bool.fromEnvironment('USE_FIREBASE_EMULATOR', defaultValue: false);
     if (useEmulators && kDebugMode) {
       // Emulator Functions URL (from firebase.json: port 5002)
       return 'http://127.0.0.1:5002';
@@ -70,6 +98,7 @@ class WhatsAppApiService {
     required String text,
     required String clientMessageId,
   }) async {
+    final requestId = _generateRequestId();
     return retryWithBackoff(() async {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
@@ -79,7 +108,6 @@ class WhatsAppApiService {
       // Get Firebase ID token
       final token = await user.getIdToken();
       final functionsUrl = _getFunctionsUrl();
-      final requestId = _generateRequestId();
 
       // Call Functions proxy with timeout
       final response = await http
@@ -116,7 +144,7 @@ class WhatsAppApiService {
   /// Get list of WhatsApp accounts via Functions proxy.
   /// 
   /// CRITICAL FIX: Uses proxy with Authorization header (Firebase ID token).
-  /// Previously called Railway directly without auth, causing 401 errors.
+  /// Previously called backend directly without auth, causing 401 errors.
   /// 
   /// Returns: { success: bool, accounts: List<Account> }
   /// Account: { id, name, phone, status, qrCode?, pairingCode?, ... }
@@ -166,7 +194,7 @@ class WhatsAppApiService {
   /// Add a new WhatsApp account via Functions proxy.
   /// 
   /// CRITICAL FIX: Uses proxy with Authorization header (Firebase ID token).
-  /// Previously called Railway directly without auth, causing 401 errors.
+  /// Previously called backend directly without auth, causing 401 errors.
   /// 
   /// NOTE: Backend requires phone (QR-only without phone is not supported).
   /// 
@@ -224,7 +252,7 @@ class WhatsAppApiService {
   /// Regenerate QR code for a WhatsApp account via Functions proxy.
   /// 
   /// CRITICAL FIX: Uses proxy with Authorization header (Firebase ID token).
-  /// Previously called Railway directly without auth, causing 401 errors.
+  /// Previously called backend directly without auth, causing 401 errors.
   /// 
   /// Returns: { success: bool, message?: string, ... }
   Future<Map<String, dynamic>> regenerateQr({
@@ -341,9 +369,9 @@ class WhatsAppApiService {
 
   /// Get QR page URL for an account (fallback: open in browser).
   /// 
-  /// Returns: Full URL to Railway QR endpoint (HTML page).
+  /// Returns: Full URL to QR endpoint (HTML page).
   String qrPageUrl(String accountId) {
-    final backendUrl = _getBackendUrl();
+    final backendUrl = _requireBackendUrl();
     return '$backendUrl/api/whatsapp/qr/$accountId';
   }
 
@@ -460,26 +488,35 @@ class WhatsAppApiService {
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
 
-      debugPrint('[WhatsAppApiService] getThreads: calling proxy (accountId=$accountId)');
+      debugPrint('[WhatsAppApiService] getThreads: calling proxy (accountId=${_maskId(accountId)})');
 
-      // Call Functions proxy - need to create proxy function or call Railway directly
-      // For now, call Railway directly with token
       final backendUrl = _getBackendUrl();
-      final response = await http
-          .get(
-            Uri.parse('$backendUrl/api/whatsapp/threads/$accountId'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-              'X-Request-ID': requestId,
-            },
-          )
-          .timeout(requestTimeout);
+      final response = backendUrl.isEmpty
+          ? await http
+              .get(
+                Uri.parse('$functionsUrl/whatsappProxyGetThreads?accountId=$accountId&limit=500'),
+                headers: {
+                  'Authorization': 'Bearer $token',
+                  'Content-Type': 'application/json',
+                  'X-Request-ID': requestId,
+                },
+              )
+              .timeout(requestTimeout)
+          : await http
+              .get(
+                Uri.parse('$backendUrl/api/whatsapp/threads/$accountId?limit=500&orderBy=lastMessageAt'),
+                headers: {
+                  'Authorization': 'Bearer $token',
+                  'Content-Type': 'application/json',
+                  'X-Request-ID': requestId,
+                },
+              )
+              .timeout(requestTimeout);
 
       debugPrint('[WhatsAppApiService] getThreads: status=${response.statusCode}');
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+        final errorBody = _safeDecodeMap(response.body);
         debugPrint('[WhatsAppApiService] getThreads: error=${errorBody?['error']}');
         throw ErrorMapper.fromHttpException(
           response.statusCode,
@@ -487,8 +524,103 @@ class WhatsAppApiService {
         );
       }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = _safeDecodeMap(response.body);
+      if (data == null) {
+        throw ErrorMapper.fromHttpException(
+          response.statusCode,
+          'invalid_json_response',
+        );
+      }
       debugPrint('[WhatsAppApiService] getThreads: success, threadsCount=${data['threads']?.length ?? 0}');
+      return data;
+    });
+  }
+
+  /// Get messages for a thread via Functions proxy (Firestore-backed).
+  ///
+  /// Returns: { success: bool, messages: List<Message>, count: int }
+  Future<Map<String, dynamic>> getMessages({
+    required String accountId,
+    required String threadId,
+    int limit = 200,
+    int? afterMs,
+    int? beforeMs,
+    int? afterServerSeq,
+  }) async {
+    return retryWithBackoff(() async {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw UnauthorizedException();
+      }
+
+      final idToken = (await user.getIdToken(true)) ?? '';
+      if (idToken.isEmpty) {
+        throw UnauthorizedException();
+      }
+      String? appCheckToken;
+      try {
+        appCheckToken = await FirebaseAppCheck.instance.getToken(true);
+      } catch (_) {
+        appCheckToken = null;
+      }
+      final appCheckLen = appCheckToken == null ? 0 : appCheckToken.length;
+      final appCheckHeader =
+          appCheckToken != null && appCheckToken.isNotEmpty ? appCheckToken : null;
+      final functionsUrl = _getFunctionsUrl();
+      final requestId = _generateRequestId();
+
+      debugPrint(
+        '[WhatsAppApiService] getMessages: authMeta idTokenLen=${idToken.length} idTokenDots=${_dotCount(idToken)} appCheckLen=$appCheckLen',
+      );
+      debugPrint(
+        '[WhatsAppApiService] getMessages: calling proxy (accountId=${_maskId(accountId)}, threadId=${_maskId(threadId)})',
+      );
+
+      final queryParams = <String, String>{
+        'accountId': accountId,
+        'threadId': threadId,
+        'limit': '$limit',
+      };
+      if (afterMs != null) queryParams['after'] = '$afterMs';
+      if (beforeMs != null) queryParams['before'] = '$beforeMs';
+      if (afterServerSeq != null) queryParams['afterSeq'] = '$afterServerSeq';
+
+      final response = await http
+          .get(
+            Uri.parse('$functionsUrl/whatsappProxyGetMessages').replace(
+              queryParameters: queryParams,
+            ),
+            headers: {
+              'Authorization': 'Bearer $idToken',
+              if (appCheckHeader != null) 'X-Firebase-AppCheck': appCheckHeader,
+              'Content-Type': 'application/json',
+              'X-Request-ID': requestId,
+            },
+          )
+          .timeout(requestTimeout);
+
+      _lastGetMessagesStatus = response.statusCode;
+      debugPrint(
+        '[WhatsAppApiService] getMessages: status=${response.statusCode}, bodyLength=${response.body.length}',
+      );
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final errorBody = _safeDecodeMap(response.body);
+        debugPrint('[WhatsAppApiService] getMessages: error=${errorBody?['error']}');
+        throw ErrorMapper.fromHttpException(
+          response.statusCode,
+          errorBody?['message'] as String?,
+        );
+      }
+
+      final data = _safeDecodeMap(response.body);
+      if (data == null) {
+        throw ErrorMapper.fromHttpException(
+          response.statusCode,
+          'invalid_json_response',
+        );
+      }
+      debugPrint('[WhatsAppApiService] getMessages: success, messagesCount=${data['messages']?.length ?? 0}');
       return data;
     });
   }
@@ -507,10 +639,10 @@ class WhatsAppApiService {
       }
 
       final token = await user.getIdToken();
-      final backendUrl = _getBackendUrl();
+      final backendUrl = _requireBackendUrl();
       final requestId = _generateRequestId();
 
-      debugPrint('[WhatsAppApiService] getInbox: calling API (accountId=$accountId, limit=$limit, backendUrl=$backendUrl)');
+      debugPrint('[WhatsAppApiService] getInbox: calling API (accountId=${_maskId(accountId)}, limit=$limit, backendUrl=$backendUrl)');
 
       final response = await http
           .get(

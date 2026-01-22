@@ -4,38 +4,20 @@
  * WhatsApp Outbox Processor
  * 
  * Processes outbox messages created by whatsappProxySend and sends them
- * to Railway WhatsApp backend for actual delivery.
+ * to WhatsApp backend for actual delivery.
  */
 
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const admin = require('firebase-admin');
 const https = require('https');
 const http = require('http');
+const { getBackendBaseUrl } = require('./lib/backend-url');
 
 const REQUEST_TIMEOUT_MS = 30000; // 30 seconds
 const MAX_RETRY_ATTEMPTS = 3;
 
-// Get Railway backend URL
-function getRailwayBaseUrl() {
-  if (process.env.WHATSAPP_RAILWAY_BASE_URL) {
-    return process.env.WHATSAPP_RAILWAY_BASE_URL;
-  }
-
-  try {
-    const functions = require('firebase-functions');
-    const config = functions.config();
-    if (config?.whatsapp?.railway_base_url) {
-      return config.whatsapp.railway_base_url;
-    }
-  } catch (e) {
-    // Ignore
-  }
-
-  return null;
-}
-
 /**
- * Forward HTTP request to Railway backend
+ * Forward HTTP request to backend
  */
 function forwardRequest(url, options, body = null) {
   return new Promise((resolve, reject) => {
@@ -92,9 +74,14 @@ function forwardRequest(url, options, body = null) {
 }
 
 /**
- * Process outbox document and send message to Railway
+ * Process outbox document and send message to backend
  */
 async function processOutboxDocument(snapshot, context) {
+  if (process.env.OUTBOX_PROCESSOR_ENABLED === 'false') {
+    console.log('[OutboxProcessor] OUTBOX_PROCESSOR_ENABLED=false, skipping');
+    return null;
+  }
+
   const outboxId = context.params.outboxId;
   const data = snapshot.data();
   
@@ -126,10 +113,10 @@ async function processOutboxDocument(snapshot, context) {
     return null;
   }
 
-  // Get Railway backend URL
-  const railwayBaseUrl = getRailwayBaseUrl();
-  if (!railwayBaseUrl) {
-    console.error('[OutboxProcessor] WHATSAPP_RAILWAY_BASE_URL not configured');
+  // Get backend URL
+  const backendBaseUrl = getBackendBaseUrl();
+  if (!backendBaseUrl) {
+    console.error('[OutboxProcessor] Backend URL not configured');
     await snapshot.ref.update({
       status: 'failed',
       error: 'Backend URL not configured',
@@ -146,11 +133,11 @@ async function processOutboxDocument(snapshot, context) {
       lastAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Send message to Railway backend
-    const railwayUrl = `${railwayBaseUrl}/api/whatsapp/send`;
-    console.log(`[OutboxProcessor] Sending to Railway: ${railwayUrl}`);
+    // Send message to backend
+    const backendUrl = `${backendBaseUrl}/api/whatsapp/send-message`;
+    console.log(`[OutboxProcessor] Sending to backend: ${backendUrl}`);
     
-    const response = await forwardRequest(railwayUrl, {
+    const response = await forwardRequest(backendUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -159,8 +146,8 @@ async function processOutboxDocument(snapshot, context) {
     }, {
       threadId,
       accountId,
-      toJid,
-      text: messageText,
+      to: toJid,
+      message: messageText,
       clientMessageId: requestId,
     });
 
@@ -172,13 +159,13 @@ async function processOutboxDocument(snapshot, context) {
       await snapshot.ref.update({
         status: 'sent',
         sentAt: admin.firestore.FieldValue.serverTimestamp(),
-        railwayResponse: response.body,
+        backendResponse: response.body,
       });
 
       return { success: true, outboxId };
     } else {
-      // Railway returned error
-      console.error(`[OutboxProcessor] Railway error: status=${response.statusCode}, body=${JSON.stringify(response.body)}`);
+      // Backend returned error
+      console.error(`[OutboxProcessor] Backend error: status=${response.statusCode}, body=${JSON.stringify(response.body)}`);
       
       // Retry if temporary error
       if (response.statusCode >= 500 || response.statusCode === 429) {
@@ -186,7 +173,7 @@ async function processOutboxDocument(snapshot, context) {
         const nextAttemptDelay = Math.pow(2, attemptCount) * 5000; // Exponential backoff: 5s, 10s, 20s
         await snapshot.ref.update({
           status: 'queued',
-          error: `Railway error: ${response.statusCode}`,
+          error: `Backend error: ${response.statusCode}`,
           nextAttemptAt: admin.firestore.Timestamp.fromMillis(Date.now() + nextAttemptDelay),
         });
         console.log(`[OutboxProcessor] Scheduled retry for ${outboxId} in ${nextAttemptDelay}ms`);
@@ -194,13 +181,13 @@ async function processOutboxDocument(snapshot, context) {
         // Permanent error
         await snapshot.ref.update({
           status: 'failed',
-          error: `Railway error: ${response.statusCode} - ${response.body?.message || response.body?.error || 'Unknown error'}`,
+          error: `Backend error: ${response.statusCode} - ${response.body?.message || response.body?.error || 'Unknown error'}`,
           failedAt: admin.firestore.FieldValue.serverTimestamp(),
-          railwayResponse: response.body,
+          backendResponse: response.body,
         });
       }
       
-      return { success: false, error: `Railway error: ${response.statusCode}` };
+      return { success: false, error: `Backend error: ${response.statusCode}` };
     }
   } catch (error) {
     console.error(`[OutboxProcessor] Error processing ${outboxId}:`, error.message);

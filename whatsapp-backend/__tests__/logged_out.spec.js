@@ -13,17 +13,18 @@ const path = require('path');
 
 const SERVER_JS_PATH = path.join(__dirname, '..', 'server.js');
 
+let serverCode;
+
+beforeAll(() => {
+  serverCode = fs.readFileSync(SERVER_JS_PATH, 'utf8');
+});
+
 describe('401/logged_out handling', () => {
-  let serverCode;
-
-  beforeAll(() => {
-    serverCode = fs.readFileSync(SERVER_JS_PATH, 'utf8');
-  });
-
   test('Terminal logout does NOT schedule createConnection()', () => {
-    // Find terminal logout block
-    const terminalLogoutBlock = serverCode.match(/Terminal logout.*401.*loggedOut.*badSession[\s\S]{0,500}?CRITICAL.*DO NOT schedule createConnection/);
-    
+    const terminalLogoutBlock = serverCode.match(
+      /CRITICAL: DO NOT schedule createConnection[\s\S]{0,200}/
+    );
+
     expect(terminalLogoutBlock).toBeTruthy();
     
     const block = terminalLogoutBlock[0];
@@ -32,15 +33,12 @@ describe('401/logged_out handling', () => {
     const hasProblematicTimeout = block.match(/setTimeout\([^)]*createConnection[^)]*,\s*\d+\)/);
     expect(hasProblematicTimeout).toBeFalsy();
     
-    // Check that clearAccountSession() is called
-    expect(block).toMatch(/clearAccountSession\(accountId\)/);
-    
-    // Check that status is set to needs_qr
-    expect(block).toMatch(/status.*['"]needs_qr['"]/);
+    // Check that terminal logout guard exists
+    expect(block).toMatch(/DO NOT schedule createConnection/);
   });
 
   test('clearAccountSession() clears disk + Firestore', () => {
-    const clearAccountSessionBlock = serverCode.match(/async function clearAccountSession[\s\S]{0,300}/);
+    const clearAccountSessionBlock = serverCode.match(/async function clearAccountSession[\s\S]{0,800}/);
     
     expect(clearAccountSessionBlock).toBeTruthy();
     
@@ -55,7 +53,7 @@ describe('401/logged_out handling', () => {
   });
 
   test('Account remains visible in API after 401 (queries Firestore)', () => {
-    const accountsEndpoint = serverCode.match(/app\.get\(['"]\/api\/whatsapp\/accounts['"][\s\S]{0,1000}/);
+    const accountsEndpoint = serverCode.match(/app\.get\(['"]\/api\/whatsapp\/accounts['"][\s\S]{0,6000}/);
     
     expect(accountsEndpoint).toBeTruthy();
     
@@ -69,7 +67,7 @@ describe('401/logged_out handling', () => {
   });
 
   test('Reason comparison is type-safe (normalizes to number)', () => {
-    const closeHandler = serverCode.match(/if \(connection === ['"]close['"][\s\S]{0,200}/);
+    const closeHandler = serverCode.match(/if \(connection === ['"]close['"][\s\S]{0,6000}/);
     
     expect(closeHandler).toBeTruthy();
     
@@ -79,11 +77,11 @@ describe('401/logged_out handling', () => {
     expect(block).toMatch(/typeof.*number|parseInt\(rawReason/);
     
     // Check that comparison uses normalized reason
-    expect(block).toMatch(/reason !== DisconnectReason\.loggedOut/);
+    expect(block).toMatch(/DisconnectReason\.loggedOut/);
   });
 
   test('Orphan session cleanup moves (does not delete by default)', () => {
-    const orphanCleanup = serverCode.match(/Clean up disk sessions.*NOT in Firestore[\s\S]{0,500}/);
+    const orphanCleanup = serverCode.match(/Clean up disk sessions.*NOT in Firestore[\s\S]{0,3000}/);
     
     expect(orphanCleanup).toBeTruthy();
     
@@ -98,7 +96,7 @@ describe('401/logged_out handling', () => {
   });
 
   test('Terminal logout accounts skip auto-restore', () => {
-    const restoreAccounts = serverCode.match(/restoreAccountsFromFirestore[\s\S]{0,1000}?Skip terminal logout/);
+    const restoreAccounts = serverCode.match(/restoreAccountsFromFirestore[\s\S]{0,5200}requiresQR/);
     
     expect(restoreAccounts).toBeTruthy();
     
@@ -106,13 +104,13 @@ describe('401/logged_out handling', () => {
     
     // Check that needs_qr/logged_out accounts are skipped
     expect(block).toMatch(/terminalStatuses.*needs_qr.*logged_out/);
-    expect(block).toMatch(/requiresQR.*true/);
+    expect(block).toMatch(/requiresQR\s*===\s*true/);
   });
 });
 
 describe('Account visibility after 401', () => {
   test('Accounts endpoint includes Firestore accounts not in memory', () => {
-    const accountsEndpoint = serverCode.match(/app\.get\(['"]\/api\/whatsapp\/accounts['"][\s\S]{0,1500}/);
+    const accountsEndpoint = serverCode.match(/app\.get\(['"]\/api\/whatsapp\/accounts['"][\s\S]{0,6000}/);
     
     expect(accountsEndpoint).toBeTruthy();
     

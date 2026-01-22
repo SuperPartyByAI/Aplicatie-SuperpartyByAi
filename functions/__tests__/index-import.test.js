@@ -27,7 +27,7 @@ describe('index.js Module Import', () => {
   beforeEach(() => {
     // Save original env vars
     originalEnv = {
-      WHATSAPP_RAILWAY_BASE_URL: process.env.WHATSAPP_RAILWAY_BASE_URL,
+      WHATSAPP_BACKEND_BASE_URL: process.env.WHATSAPP_BACKEND_BASE_URL,
       FIREBASE_CONFIG: process.env.FIREBASE_CONFIG,
       NODE_ENV: process.env.NODE_ENV,
     };
@@ -45,9 +45,9 @@ describe('index.js Module Import', () => {
     jest.resetModules();
   });
 
-  it('should NOT throw when requiring index.js without WHATSAPP_RAILWAY_BASE_URL', () => {
+  it('should NOT throw when requiring index.js without WHATSAPP_BACKEND_BASE_URL', () => {
     // Unset env vars that could cause import-time errors
-    delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+    delete process.env.WHATSAPP_BACKEND_BASE_URL;
     delete process.env.FIREBASE_CONFIG;
     process.env.NODE_ENV = 'test';
 
@@ -59,7 +59,7 @@ describe('index.js Module Import', () => {
 
   it('should NOT throw when requiring index.js with FIREBASE_CONFIG set (emulator scenario)', () => {
     // Simulate Firebase emulator environment
-    delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+    delete process.env.WHATSAPP_BACKEND_BASE_URL;
     process.env.FIREBASE_CONFIG = JSON.stringify({ projectId: 'test-project' });
     process.env.NODE_ENV = 'development';
 
@@ -69,9 +69,9 @@ describe('index.js Module Import', () => {
     }).not.toThrow();
   });
 
-  it('should NOT throw when requiring whatsappProxy.js without WHATSAPP_RAILWAY_BASE_URL', () => {
+  it('should NOT throw when requiring whatsappProxy.js without WHATSAPP_BACKEND_BASE_URL', () => {
     // Unset env vars
-    delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+    delete process.env.WHATSAPP_BACKEND_BASE_URL;
     delete process.env.FIREBASE_CONFIG;
     process.env.NODE_ENV = 'test';
 
