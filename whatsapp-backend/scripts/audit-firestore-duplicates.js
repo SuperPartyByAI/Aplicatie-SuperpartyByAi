@@ -12,6 +12,107 @@ const toSha1 = (value) =>
 
 const shortHash = (value) => toSha1(value).slice(0, 8);
 
+const coerceToMs = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value?.toMillis === 'function') return value.toMillis();
+  if (value instanceof Date) {
+    const ms = value.getTime();
+    return Number.isFinite(ms) ? ms : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value < 1e12 ? value * 1000 : value;
+  }
+  if (typeof value === 'string') {
+    const num = Number(value);
+    if (Number.isFinite(num)) return num < 1e12 ? num * 1000 : num;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (typeof value === 'object') {
+    const seconds = value.seconds ?? value._seconds;
+    const nanos = value.nanoseconds ?? value._nanoseconds;
+    if (Number.isFinite(seconds)) {
+      const ms = seconds * 1000 + (Number.isFinite(nanos) ? Math.floor(nanos / 1e6) : 0);
+      return ms;
+    }
+    if (value.timestampValue) return coerceToMs(value.timestampValue);
+    if (value.integerValue) return coerceToMs(Number(value.integerValue));
+    if (value.doubleValue) return coerceToMs(Number(value.doubleValue));
+    if (value.stringValue) return coerceToMs(String(value.stringValue));
+  }
+  return null;
+};
+
+const getPathValue = (root, path) => {
+  if (!root) return undefined;
+  const parts = path.split('.');
+  let node = root;
+  for (const part of parts) {
+    if (node === null || node === undefined) return undefined;
+    if (Array.isArray(node)) {
+      const idx = Number(part);
+      if (!Number.isFinite(idx)) return undefined;
+      node = node[idx];
+      continue;
+    }
+    node = node[part];
+  }
+  return node;
+};
+
+const extractFirstValue = (data, paths) => {
+  for (const path of paths) {
+    const value = getPathValue(data, path);
+    if (value !== undefined && value !== null && String(value).length > 0) {
+      return { value, path };
+    }
+  }
+  return { value: null, path: null };
+};
+
+const providerIdPaths = [
+  'providerMessageId',
+  'providerMsgId',
+  'messageId',
+  'waMessageId',
+  'id',
+  'raw.key.id',
+  'raw.message.key.id',
+  'raw.messages.0.key.id',
+  'payload.messages.0.id',
+  'payload.entry.0.changes.0.value.messages.0.id',
+  'message.key.id',
+  'key.id',
+];
+
+const threadIdPaths = [
+  'threadId',
+  'canonicalThreadId',
+  'chatId',
+  'jid',
+  'remoteJid',
+  'raw.key.remoteJid',
+  'message.key.remoteJid',
+  'key.remoteJid',
+];
+
+const fromPaths = [
+  'from',
+  'sender',
+  'participant',
+  'senderJid',
+  'raw.key.participant',
+  'message.key.participant',
+  'key.participant',
+];
+
+const contentPaths = ['body', 'text', 'message.text', 'message.conversation'];
+
+const extractProviderMessageId = (data) => extractFirstValue(data, providerIdPaths);
+const extractThreadId = (data) => extractFirstValue(data, threadIdPaths);
+const extractFrom = (data) => extractFirstValue(data, fromPaths);
+const extractContent = (data) => extractFirstValue(data, contentPaths);
+
 const parseArgs = (argv) => {
   const opts = {
     limit: 500,
@@ -23,7 +124,11 @@ const parseArgs = (argv) => {
     keyMode: 'stable',
     accountId: '',
     printIndexLink: true,
-    debug: false,
+    debug: 0,
+    keyHash: '',
+    schema: false,
+    schemaSamples: 1,
+    schemaKeyHash: '',
   };
 
   for (const arg of argv) {
@@ -70,31 +175,40 @@ const parseArgs = (argv) => {
     }
     if (arg.startsWith('--debug=')) {
       const val = arg.split('=')[1];
-      opts.debug = val === '1' || val === 'true';
+      if (val === 'true') {
+        opts.debug = 1;
+      } else if (val === 'false') {
+        opts.debug = 0;
+      } else {
+        const num = Number(val);
+        opts.debug = Number.isFinite(num) ? Math.max(0, Math.floor(num)) : 0;
+      }
+    }
+    if (arg.startsWith('--keyHash=')) {
+      opts.keyHash = (arg.split('=')[1] || '').trim();
+    }
+    if (arg.startsWith('--schema=')) {
+      const val = arg.split('=')[1];
+      opts.schema = val === '1' || val === 'true';
+    }
+    if (arg.startsWith('--schemaSamples=')) {
+      const val = Number(arg.split('=')[1]);
+      if (Number.isFinite(val) && val > 0) opts.schemaSamples = Math.min(10, Math.floor(val));
+    }
+    if (arg.startsWith('--schemaKeyHash=')) {
+      opts.schemaKeyHash = (arg.split('=')[1] || '').trim();
     }
   }
 
   return opts;
 };
 
-const normalizeTs = (value) => {
-  if (!value) return null;
-  if (typeof value?.toMillis === 'function') return value.toMillis();
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value < 1e12 ? value * 1000 : value;
-  }
-  if (typeof value === 'string') {
-    const num = Number(value);
-    if (Number.isFinite(num)) return num < 1e12 ? num * 1000 : num;
-  }
-  return null;
-};
-
 const pickTimestampMs = (data) =>
-  normalizeTs(data.tsClientMs) ||
-  normalizeTs(data.tsClientAt) ||
-  normalizeTs(data.tsClient) ||
-  normalizeTs(data.ingestedAt) ||
+  coerceToMs(data.tsClientMs) ||
+  coerceToMs(data.tsClientAt) ||
+  coerceToMs(data.tsClient) ||
+  coerceToMs(data.ingestedAt) ||
+  coerceToMs(data.createdAt) ||
   null;
 
 const getDirection = (data) => {
@@ -120,6 +234,21 @@ const buildLegacyFingerprint = ({ data, tsClientMs }) => {
   const normalizedText = normalizeMessageText({ body: data.body, message: data.message || {} });
   const bodyHash = safeHash(normalizedText || '');
   const seed = `${direction}|${tsClientMs || 'unknown'}|${bodyHash}|${messageType}`;
+  return toSha1(seed);
+};
+
+const buildStableKeyHash = ({ data, accountId, tsClientMs }) => {
+  const { value: providerMessageId } = extractProviderMessageId(data);
+  if (providerMessageId) {
+    return toSha1(`${accountId || 'unknown'}|${providerMessageId}`);
+  }
+
+  const { value: threadId } = extractThreadId(data);
+  const { value: from } = extractFrom(data);
+  const { value: content } = extractContent(data);
+  const minuteBucket = tsClientMs ? Math.floor(tsClientMs / 60000) * 60000 : 'unknown';
+  const contentHash = safeHash(content || '');
+  const seed = `${accountId || 'unknown'}|${threadId || 'unknown'}|${from || 'unknown'}|${minuteBucket}|${contentHash}`;
   return toSha1(seed);
 };
 
@@ -197,6 +326,17 @@ const hashStack = (stack) => {
   return crypto.createHash('sha1').update(String(stack)).digest('hex').slice(0, 8);
 };
 
+const bumpCount = (map, key, delta = 1) => {
+  if (!key) return;
+  map.set(key, (map.get(key) || 0) + delta);
+};
+
+const topEntries = (map, limit = 10) =>
+  Array.from(map.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([key, count]) => ({ key, count }));
+
 const isMissingIndex = (error, message, indexLink) => {
   const code = error?.code;
   const msg = message.toLowerCase();
@@ -207,7 +347,19 @@ const isMissingIndex = (error, message, indexLink) => {
   return msg.includes('requires') && msg.includes('index');
 };
 
-(async () => {
+module.exports = {
+  coerceToMs,
+  getPathValue,
+  extractFirstValue,
+  extractProviderMessageId,
+  extractThreadId,
+  extractFrom,
+  extractContent,
+  buildStableKeyHash,
+};
+
+if (require.main === module) {
+  (async () => {
   const opts = parseArgs(process.argv.slice(2));
 
   const { db, error } = initFirestore();
@@ -373,6 +525,28 @@ const isMissingIndex = (error, message, indexLink) => {
   };
   let totalDocs = 0;
   let markedDocs = 0;
+  const drilldownEnabled = Boolean(opts.keyHash);
+  const schemaProbeEnabled = Boolean(opts.schema);
+  const schemaProbe = {
+    schemaKeyHash: opts.schemaKeyHash || null,
+    samples: [],
+  };
+  const drilldown = {
+    directionCounts: new Map(),
+    messageTypeCounts: new Map(),
+    statusCounts: new Map(),
+    collectionCounts: new Map(),
+    sourceCounts: new Map(),
+    minuteBuckets: new Map(),
+    accountIdHashes: new Map(),
+    providerMessageIdHashes: new Map(),
+    requestIdHashes: new Map(),
+    threadIdHashes: new Map(),
+    hasFieldCounts: new Map(),
+    missingFieldCounts: new Map(),
+    minTsMs: null,
+    maxTsMs: null,
+  };
 
   for (const doc of snapshot.docs) {
     const data = doc.data() || {};
@@ -387,6 +561,8 @@ const isMissingIndex = (error, message, indexLink) => {
       markedDocs += 1;
     }
 
+    const accountId =
+      data.accountId || data.accountID || data.account_id || data.account || data.account_id_hash || '';
     let key = null;
     if (opts.keyMode === 'fallback') {
       key = buildLegacyFingerprint({ data, tsClientMs });
@@ -398,14 +574,119 @@ const isMissingIndex = (error, message, indexLink) => {
       key = data.fingerprintHash;
       keyStrategyUsedCounts.fingerprintHash += 1;
     } else {
-      key = buildStableFallbackFingerprint({ data, tsClientMs });
-      keyStrategyUsedCounts.fallback += 1;
+      key = buildStableKeyHash({ data, accountId, tsClientMs });
+      keyStrategyUsedCounts.stableKeyHash += 1;
     }
 
     if (!(data.isDuplicate === true && opts.excludeMarked)) {
       activeGroups.set(key, (activeGroups.get(key) || 0) + 1);
     }
     allGroups.set(key, (allGroups.get(key) || 0) + 1);
+
+    const matchesDrilldown = drilldownEnabled && shortHash(key) === opts.keyHash;
+    if (matchesDrilldown) {
+      const direction = getDirection(data);
+      const messageType = data.messageType || data.type || 'unknown';
+      const status = data.status || data.sendStatus || data.queueStatus || data.deliveryStatus || 'unknown';
+      const source =
+        data.source || data.origin || data.writer || data.ingestSource || data.sendSource || 'unknown';
+      const path = doc.ref?.path || '';
+      let collectionHint = 'other';
+      if (path.includes('/outbox/')) collectionHint = 'outbox';
+      else if (path.includes('/messages/')) collectionHint = 'messages';
+
+      bumpCount(drilldown.directionCounts, String(direction));
+      bumpCount(drilldown.messageTypeCounts, String(messageType));
+      bumpCount(drilldown.statusCounts, String(status));
+      bumpCount(drilldown.collectionCounts, collectionHint);
+      bumpCount(drilldown.sourceCounts, shortHash(String(source)));
+
+      const minuteBucket = tsClientMs ? Math.floor(tsClientMs / 60000) * 60000 : null;
+      if (minuteBucket) {
+        bumpCount(drilldown.minuteBuckets, String(minuteBucket));
+      }
+      if (tsClientMs) {
+        drilldown.minTsMs = drilldown.minTsMs === null ? tsClientMs : Math.min(drilldown.minTsMs, tsClientMs);
+        drilldown.maxTsMs = drilldown.maxTsMs === null ? tsClientMs : Math.max(drilldown.maxTsMs, tsClientMs);
+      }
+
+      const { value: providerMessageId } = extractProviderMessageId(data);
+      const { value: threadId } = extractThreadId(data);
+      const { value: requestId } = extractFirstValue(data, ['requestId', 'clientRequestId', 'sendRequestId']);
+      if (accountId) bumpCount(drilldown.accountIdHashes, shortHash(String(accountId)));
+      if (providerMessageId) bumpCount(drilldown.providerMessageIdHashes, shortHash(String(providerMessageId)));
+      if (requestId) bumpCount(drilldown.requestIdHashes, shortHash(String(requestId)));
+      if (threadId) bumpCount(drilldown.threadIdHashes, shortHash(String(threadId)));
+
+      if (opts.debug >= 2) {
+        const hasField = (field, present) => {
+          bumpCount(present ? drilldown.hasFieldCounts : drilldown.missingFieldCounts, field);
+        };
+        const hasVal = (val) => val !== undefined && val !== null && String(val).length > 0;
+        hasField('tsClient', hasVal(data.tsClient));
+        hasField('tsClientMs', hasVal(data.tsClientMs));
+        hasField('tsClientAt', hasVal(data.tsClientAt));
+        hasField('ingestedAt', hasVal(data.ingestedAt));
+        hasField('createdAt', hasVal(data.createdAt));
+        hasField('updatedAt', hasVal(data.updatedAt));
+        hasField('messageId', hasVal(getPathValue(data, 'messageId') || getPathValue(data, 'id')));
+        hasField('providerMessageId', hasVal(extractProviderMessageId(data).value));
+        hasField('requestId', hasVal(extractFirstValue(data, ['requestId', 'clientRequestId', 'sendRequestId']).value));
+        hasField('threadId', hasVal(extractThreadId(data).value));
+        hasField('from', hasVal(extractFrom(data).value));
+        hasField('to', hasVal(getPathValue(data, 'to')));
+        hasField('type', hasVal(getPathValue(data, 'messageType') || getPathValue(data, 'type')));
+      }
+    }
+
+    if (schemaProbeEnabled && schemaProbe.samples.length < opts.schemaSamples) {
+      if (!opts.schemaKeyHash || shortHash(key) === opts.schemaKeyHash) {
+        const topLevelKeys = Object.keys(data || {}).sort();
+        const candidatePaths = [
+          'tsClient',
+          'tsClientMs',
+          'tsClientAt',
+          'ingestedAt',
+          'createdAt',
+          'updatedAt',
+          'messageId',
+          'providerMessageId',
+          'providerMsgId',
+          'requestId',
+          'threadId',
+          'canonicalThreadId',
+          'jid',
+          'remoteJid',
+          'from',
+          'to',
+          'messageType',
+          'type',
+          ...providerIdPaths,
+          ...threadIdPaths,
+          ...fromPaths,
+          ...contentPaths,
+        ];
+        const uniquePaths = Array.from(new Set(candidatePaths));
+        const pathsPresent = {};
+        const typesByPath = {};
+        for (const path of uniquePaths) {
+          const value = getPathValue(data, path);
+          if (value !== undefined) {
+            pathsPresent[path] = true;
+            let type = typeof value;
+            if (value === null) type = 'null';
+            if (Array.isArray(value)) type = 'array';
+            if (type === 'object') {
+              if (typeof value?.toMillis === 'function' || value?.seconds || value?._seconds) {
+                type = 'timestamp';
+              }
+            }
+            typesByPath[path] = type;
+          }
+        }
+        schemaProbe.samples.push({ topLevelKeys, pathsPresent, typesByPath });
+      }
+    }
   }
 
   const activeEntries = Array.from(activeGroups.values());
@@ -418,27 +699,64 @@ const isMissingIndex = (error, message, indexLink) => {
     (sum, count) => sum + (count > 1 ? count - 1 : 0),
     0
   );
+  const duplicateGroupsCount = Array.from(activeGroups.values()).filter((count) => count > 1).length;
+  const topDuplicateGroups = Array.from(activeGroups.entries())
+    .filter(([, count]) => count > 1)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([key, count]) => ({ keyHash: shortHash(key), count }));
 
-  console.log(
-    JSON.stringify({
-      totalDocs,
-      markedDocs,
-      activeDocs: totalDocs - markedDocs,
-      uniqueKeys: opts.includeMarked ? allEntries.length : activeEntries.length,
-      duplicatesCountActive,
-      duplicatesCountAll: opts.includeMarked ? duplicatesCountAll : null,
-      keyStrategyUsedCounts,
-      windowHours: opts.windowHours,
-      limit: opts.limit,
-      keyMode: opts.keyMode,
-      excludeMarked: opts.excludeMarked,
-      dryRun: opts.dryRun,
-      usedFallback,
-      modeUsed,
-      hint: null,
-      indexLink: usedFallback ? fallbackIndexLink : null,
-    })
-  );
+  const payload = {
+    totalDocs,
+    markedDocs,
+    activeDocs: totalDocs - markedDocs,
+    uniqueKeys: opts.includeMarked ? allEntries.length : activeEntries.length,
+    duplicatesCountActive,
+    duplicatesCountAll: opts.includeMarked ? duplicatesCountAll : null,
+    keyStrategyUsedCounts,
+    windowHours: opts.windowHours,
+    limit: opts.limit,
+    keyMode: opts.keyMode,
+    excludeMarked: opts.excludeMarked,
+    dryRun: opts.dryRun,
+    usedFallback,
+    modeUsed,
+    hint: null,
+    indexLink: usedFallback ? fallbackIndexLink : null,
+  };
 
-  process.exit(duplicatesCountActive === 0 ? 0 : 2);
-})();
+  if (opts.debug) {
+    payload.duplicateGroupsCount = duplicateGroupsCount;
+    payload.topDuplicateGroups = topDuplicateGroups;
+    if (drilldownEnabled) {
+      payload.drilldown = {
+        keyHash: opts.keyHash,
+        directionCounts: topEntries(drilldown.directionCounts, 10),
+        messageTypeCounts: topEntries(drilldown.messageTypeCounts, 10),
+        statusCounts: topEntries(drilldown.statusCounts, 10),
+        collectionCounts: topEntries(drilldown.collectionCounts, 10),
+        sourceCounts: topEntries(drilldown.sourceCounts, 10),
+        minuteBuckets: topEntries(drilldown.minuteBuckets, 15),
+        accountIdHashes: topEntries(drilldown.accountIdHashes, 10),
+        providerMessageIdHashes: topEntries(drilldown.providerMessageIdHashes, 10),
+        requestIdHashes: topEntries(drilldown.requestIdHashes, 10),
+        threadIdHashes: topEntries(drilldown.threadIdHashes, 10),
+      };
+      if (opts.debug >= 2) {
+        payload.drilldown.minTsMs = drilldown.minTsMs;
+        payload.drilldown.maxTsMs = drilldown.maxTsMs;
+        payload.drilldown.hasFieldCounts = topEntries(drilldown.hasFieldCounts, 50);
+        payload.drilldown.missingFieldCounts = topEntries(drilldown.missingFieldCounts, 50);
+      }
+    }
+  }
+
+  if (schemaProbeEnabled) {
+    payload.schemaProbe = schemaProbe;
+  }
+
+  console.log(JSON.stringify(payload));
+
+    process.exit(duplicatesCountActive === 0 ? 0 : 2);
+  })();
+}
