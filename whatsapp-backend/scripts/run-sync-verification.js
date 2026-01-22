@@ -37,6 +37,52 @@ const extractAuditMetrics = (payload) => ({
   activeDocs: payload?.activeDocs ?? null,
 });
 
+const runShell = (command) => {
+  execFileSync('bash', ['-lc', command], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+};
+
+const performRestart = () => {
+  const restartRequested = process.env.RUN_RESTART === 'true';
+  if (!restartRequested) {
+    return { restartRequested: false, restartPerformed: false };
+  }
+
+  const restartCmd = process.env.RESTART_CMD;
+  const restartSsh = process.env.RESTART_SSH;
+
+  try {
+    if (restartCmd && restartCmd.trim().length > 0) {
+      runShell(restartCmd);
+      return { restartRequested: true, restartPerformed: true };
+    }
+
+    if (process.platform !== 'linux') {
+      return {
+        restartRequested: true,
+        restartPerformed: false,
+        restartSkippedReason: 'non_linux_no_systemctl',
+      };
+    } else if (restartSsh && restartSsh.trim().length > 0) {
+      runShell(
+        `ssh -o StrictHostKeyChecking=no ${restartSsh} 'sudo systemctl restart whatsapp-backend'`,
+      );
+    } else {
+      execFileSync('systemctl', ['restart', 'whatsapp-backend'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    }
+    return { restartRequested: true, restartPerformed: true };
+  } catch (error) {
+    return {
+      restartRequested: true,
+      restartPerformed: false,
+      restartError: error?.message || 'restart_failed',
+    };
+  }
+};
+
 const fail = (payload, exitCode = 2) => {
   console.log(JSON.stringify(payload));
   process.exit(exitCode);
@@ -72,11 +118,7 @@ const fail = (payload, exitCode = 2) => {
 
     runNode('quick-write-test.js', []);
 
-    if (process.env.RUN_RESTART === 'true') {
-      execFileSync('systemctl', ['restart', 'whatsapp-backend'], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-    }
+    const restartInfo = performRestart();
 
     const afterRaw = runNode('audit-firestore-duplicates.js', [
       '--windowHours=0.25',
@@ -123,8 +165,17 @@ const fail = (payload, exitCode = 2) => {
       },
       usedFallback,
       modeUsed,
-      restartPerformed: process.env.RUN_RESTART === 'true',
+      restartRequested: restartInfo.restartRequested,
+      restartPerformed: restartInfo.restartPerformed,
     };
+
+    if (restartInfo.restartSkippedReason) {
+      result.restartSkippedReason = restartInfo.restartSkippedReason;
+    }
+    if (restartInfo.restartError) {
+      result.restartError = restartInfo.restartError;
+    }
+    result.restartVerified = restartInfo.restartPerformed === true;
 
     if (afterDupes > beforeDupes) {
       fail({
@@ -138,6 +189,10 @@ const fail = (payload, exitCode = 2) => {
     if (usedFallback && !allowFallbackReady) {
       verdict = false;
       notReadyReason = 'missing_desc_index';
+    }
+    if (restartInfo.restartError) {
+      verdict = false;
+      notReadyReason = 'restart_failed';
     }
 
     result.verdict = verdict;
