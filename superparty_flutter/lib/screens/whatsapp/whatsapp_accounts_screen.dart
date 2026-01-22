@@ -16,6 +16,7 @@ import '../../services/whatsapp_web_launcher.dart';
 import '../../services/whatsapp_manual_accounts_service.dart';
 import '../../core/config/env.dart';
 import '../../core/errors/app_exception.dart';
+import '../debug/whatsapp_diagnostics_screen.dart';
 
 /// WhatsApp Accounts Management Screen
 /// 
@@ -64,7 +65,13 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   Future<void> _copyAuthTokensToClipboard() async {
     if (!kDebugMode) return;
     final idToken = await FirebaseAuth.instance.currentUser?.getIdToken(true);
-    final appCheckToken = await FirebaseAppCheck.instance.getToken(true);
+    String? appCheckToken;
+    try {
+      appCheckToken = await FirebaseAppCheck.instance.getToken(true);
+    } catch (e) {
+      appCheckToken = null;
+      debugPrint('[WhatsAppDebug] appCheckToken error: ${e.runtimeType}');
+    }
     final idTokenLen = idToken?.length ?? 0;
     final idTokenDotCount = idToken == null ? 0 : '.'.allMatches(idToken).length;
     final idTokenHash = idToken == null || idToken.isEmpty
@@ -79,25 +86,29 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     );
     debugPrint('[WhatsAppDebug] appCheckLen=$appCheckLen, appCheckHash=$appCheckHash');
 
-    if (idToken == null || idToken.isEmpty || appCheckToken == null || appCheckToken.isEmpty) {
+    if (idToken == null || idToken.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Auth tokens unavailable'),
+          content: Text('ID token unavailable'),
           duration: Duration(seconds: 2),
         ),
       );
       return;
     }
     await Clipboard.setData(
-      ClipboardData(text: 'ID=$idToken\nAPP=$appCheckToken\n'),
+      ClipboardData(text: 'ID=$idToken\nAPP=${appCheckToken ?? ''}\n'),
     );
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Copied tokens'),
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: Text(
+          appCheckToken == null || appCheckToken.isEmpty
+              ? 'Copied ID token (AppCheck unavailable)'
+              : 'Copied tokens',
+        ),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -1797,12 +1808,22 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                 onSelected: (value) {
                   if (value == 'copy_auth_tokens') {
                     _copyAuthTokensToClipboard();
+                  } else if (value == 'diagnostics') {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const WhatsAppDiagnosticsScreen(),
+                      ),
+                    );
                   }
                 },
                 itemBuilder: (context) => const [
                   PopupMenuItem(
                     value: 'copy_auth_tokens',
                     child: Text('Copy Auth Tokens'),
+                  ),
+                  PopupMenuItem(
+                    value: 'diagnostics',
+                    child: Text('Diagnostics'),
                   ),
                 ],
               ),
@@ -1844,12 +1865,22 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
               onSelected: (value) {
               if (value == 'copy_auth_tokens') {
                 _copyAuthTokensToClipboard();
+              } else if (value == 'diagnostics') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const WhatsAppDiagnosticsScreen(),
+                  ),
+                );
                 }
               },
               itemBuilder: (context) => const [
                 PopupMenuItem(
                 value: 'copy_auth_tokens',
                 child: Text('Copy Auth Tokens'),
+                ),
+                PopupMenuItem(
+                value: 'diagnostics',
+                child: Text('Diagnostics'),
                 ),
               ],
             ),

@@ -36,7 +36,13 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
   Future<void> _copyAuthTokensToClipboard() async {
     if (!kDebugMode) return;
     final idToken = await FirebaseAuth.instance.currentUser?.getIdToken(true);
-    final appCheckToken = await FirebaseAppCheck.instance.getToken(true);
+    String? appCheckToken;
+    try {
+      appCheckToken = await FirebaseAppCheck.instance.getToken(true);
+    } catch (e) {
+      appCheckToken = null;
+      debugPrint('[WhatsAppDebug] appCheckToken error: ${e.runtimeType}');
+    }
     final idTokenLen = idToken?.length ?? 0;
     final idTokenDotCount = idToken == null ? 0 : '.'.allMatches(idToken).length;
     final idTokenHash = idToken == null || idToken.isEmpty
@@ -52,11 +58,11 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
     );
     debugPrint('[WhatsAppDebug] appCheckLen=$appCheckLen, appCheckHash=$appCheckHash');
 
-    if (idToken == null || idToken.isEmpty || appCheckToken == null || appCheckToken.isEmpty) {
+    if (idToken == null || idToken.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Auth tokens unavailable'),
+          content: Text('ID token unavailable'),
           duration: Duration(seconds: 2),
         ),
       );
@@ -64,14 +70,18 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
     }
 
     await Clipboard.setData(
-      ClipboardData(text: 'ID=$idToken\nAPP=$appCheckToken\n'),
+      ClipboardData(text: 'ID=$idToken\nAPP=${appCheckToken ?? ''}\n'),
     );
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Copied tokens'),
-        duration: Duration(seconds: 2),
+      SnackBar(
+        content: Text(
+          appCheckToken == null || appCheckToken.isEmpty
+              ? 'Copied ID token (AppCheck unavailable)'
+              : 'Copied tokens',
+        ),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -116,9 +126,17 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
     );
     debugPrint('[WhatsAppDebug] clipboard appLen=$appLen, appHash=$appHash');
 
-    final looksValid = idDotCount == 2 && idLen > 500 && appLen > 100;
+    final looksValidId = idDotCount == 2 && idLen > 500;
+    final looksValidApp = appLen > 100;
+    final looksValid = looksValidId && (looksValidApp || appLen == 0);
     setState(() {
-      _clipboardTokenStatus = looksValid ? 'Valid' : 'Invalid';
+      if (looksValidId && looksValidApp) {
+        _clipboardTokenStatus = 'Valid';
+      } else if (looksValidId && appLen == 0) {
+        _clipboardTokenStatus = 'Valid (AppCheck missing)';
+      } else {
+        _clipboardTokenStatus = 'Invalid';
+      }
     });
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

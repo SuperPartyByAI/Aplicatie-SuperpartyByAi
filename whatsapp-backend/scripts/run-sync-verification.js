@@ -5,11 +5,17 @@ const path = require('path');
 
 const runNode = (script, args = []) => {
   const scriptPath = path.join(__dirname, script);
-  const stdout = execFileSync('node', [scriptPath, ...args], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  return stdout.trim();
+  try {
+    const stdout = execFileSync('node', [scriptPath, ...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return stdout.trim();
+  } catch (error) {
+    const stdout = error?.stdout ? String(error.stdout).trim() : '';
+    const stderr = error?.stderr ? String(error.stderr).trim() : '';
+    return stdout || stderr || '';
+  }
 };
 
 const parseJsonOutput = (label, raw) => {
@@ -20,6 +26,7 @@ const parseJsonOutput = (label, raw) => {
     return {
       error: 'invalid_json_output',
       label,
+      rawLen: raw ? raw.length : 0,
     };
   }
 };
@@ -140,8 +147,10 @@ const fail = (payload, exitCode = 2) => {
 
     console.log(JSON.stringify(result));
   } catch (error) {
+    const message = error?.message || 'runner_failed';
     fail({
       error: 'runner_failed',
+      message,
     });
   }
 })();

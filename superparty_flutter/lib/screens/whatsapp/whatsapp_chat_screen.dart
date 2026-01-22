@@ -47,6 +47,8 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   bool _isLoadingMessages = false;
   Timer? _messagePoller;
   Timer? _firestoreTimeoutTimer;
+  Timer? _firestoreIdleTimer;
+  Timer? _apiProbeTimer;
   int _previousMessageCount = 0; // Track message count to detect new messages
   DateTime? _lastSendAt;
   String? _lastSentText;
@@ -57,6 +59,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   String? _threadDisplayName;
   String? _effectiveThreadIdOverride;
   bool _firestoreStreamHealthy = false;
+  DateTime? _lastFirestoreSnapshotAt;
   int? _lastApiCursorMs;
   int? _lastApiServerSeq;
 
@@ -94,12 +97,16 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     super.initState();
     _ensureCanonicalThread();
     _startFirestoreTimeoutWatchdog();
+    _startFirestoreIdleWatchdog();
+    _scheduleApiProbe();
   }
 
   @override
   void dispose() {
     _messagePoller?.cancel();
     _firestoreTimeoutTimer?.cancel();
+    _firestoreIdleTimer?.cancel();
+    _apiProbeTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -339,6 +346,30 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       if (!_firestoreStreamHealthy && !_useApiMessages) {
         _enableApiMessages(reason: 'stream-timeout');
       }
+    });
+  }
+
+  void _startFirestoreIdleWatchdog() {
+    _firestoreIdleTimer?.cancel();
+    _firestoreIdleTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!mounted) return;
+      if (_useApiMessages) return;
+      if (!_firestoreStreamHealthy) return;
+      final last = _lastFirestoreSnapshotAt;
+      if (last == null) return;
+      final elapsed = DateTime.now().difference(last);
+      if (elapsed.inSeconds >= 20) {
+        _enableApiMessages(reason: 'stream-idle');
+      }
+    });
+  }
+
+  void _scheduleApiProbe() {
+    _apiProbeTimer?.cancel();
+    _apiProbeTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      if (_useApiMessages) return;
+      _loadMessages();
     });
   }
 
@@ -1038,6 +1069,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                 }
 
                 WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _lastFirestoreSnapshotAt = DateTime.now();
                   _markFirestoreHealthy();
                 });
 
