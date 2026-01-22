@@ -129,6 +129,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       final subscription = FirebaseFirestore.instance
           .collection('threads')
           .where('accountId', isEqualTo: accountId)
+          .orderBy('lastMessageAt', descending: true)
           .snapshots()
           .listen(
         (snapshot) {
@@ -440,12 +441,14 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
 
   Widget _buildFirestoreEnvBanner() {
     final settings = FirebaseFirestore.instance.settings;
+    const useEmulators = bool.fromEnvironment('USE_EMULATORS', defaultValue: false);
     final rawHost = settings.host ?? '';
     final host = rawHost.isEmpty ? 'default' : rawHost;
     final sslEnabled = settings.sslEnabled ?? true;
     final isEmulator = rawHost.contains('localhost') ||
         rawHost.startsWith('127.0.0.1') ||
-        rawHost.startsWith('10.0.2.2');
+        rawHost.startsWith('10.0.2.2') ||
+        useEmulators;
     final label = isEmulator ? 'EMULATOR MODE' : 'PROD';
     return Container(
       width: double.infinity,
