@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
@@ -434,6 +435,34 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     return null;
   }
 
+  Timestamp? _extractTimestamp(dynamic raw) {
+    if (raw is Timestamp) {
+      return raw;
+    }
+    if (raw is String) {
+      try {
+        final parsed = DateTime.parse(raw);
+        return Timestamp.fromDate(parsed);
+      } catch (_) {
+        return null;
+      }
+    }
+    if (raw is int) {
+      return Timestamp.fromMillisecondsSinceEpoch(raw);
+    }
+    return null;
+  }
+
+  Timestamp? _extractDisplayTimestamp(Map<String, dynamic> data) {
+    if (data['createdAt'] != null) {
+      return _extractTimestamp(data['createdAt']);
+    }
+    if (data['createdAtMs'] is int) {
+      return Timestamp.fromMillisecondsSinceEpoch(data['createdAtMs'] as int);
+    }
+    return _extractTimestamp(data['tsClient']) ?? _extractTimestamp(data['tsServer']);
+  }
+
   int _extractSortMillis(Map<String, dynamic> data) {
     if (data['createdAtMs'] is int) {
       return data['createdAtMs'] as int;
@@ -658,27 +687,14 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         final body = data['body'] as String? ?? '';
         final status = data['status'] as String?;
 
-        Timestamp? tsClient;
-        final tsClientRaw = data['tsClient'];
-        if (tsClientRaw is Timestamp) {
-          tsClient = tsClientRaw;
-        } else if (tsClientRaw is String) {
-          try {
-            final dateTime = DateTime.parse(tsClientRaw);
-            tsClient = Timestamp.fromDate(dateTime);
-          } catch (_) {
-            tsClient = null;
-          }
-        } else if (tsClientRaw is int) {
-          tsClient = Timestamp.fromMillisecondsSinceEpoch(tsClientRaw);
-        }
+        final displayTimestamp = _extractDisplayTimestamp(data);
 
         final isOutbound = direction == 'outbound';
 
         String timeText = '';
-        if (tsClient != null) {
+        if (displayTimestamp != null) {
           final now = DateTime.now();
-          final msgTime = tsClient.toDate();
+          final msgTime = displayTimestamp.toDate();
           final diff = now.difference(msgTime);
 
           if (diff.inDays == 0) {
@@ -1001,6 +1017,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       ),
       body: Column(
         children: [
+          if (kDebugMode) _buildFirestoreEnvBanner(),
           // CRM Panel (collapsible)
           if (_showCrmPanel)
             Container(
@@ -1116,32 +1133,15 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                     final body = data['body'] as String? ?? '';
                     final status = data['status'] as String?;
                     
-                    // Handle tsClient - it might be a Timestamp, String, or int
-                    Timestamp? tsClient;
-                    final tsClientRaw = data['tsClient'];
-                    if (tsClientRaw is Timestamp) {
-                      tsClient = tsClientRaw;
-                    } else if (tsClientRaw is String) {
-                      try {
-                        // Try parsing ISO8601 string
-                        final dateTime = DateTime.parse(tsClientRaw);
-                        tsClient = Timestamp.fromDate(dateTime);
-                      } catch (e) {
-                        // If parsing fails, tsClient remains null
-                        tsClient = null;
-                      }
-                    } else if (tsClientRaw is int) {
-                      // Unix timestamp in milliseconds
-                      tsClient = Timestamp.fromMillisecondsSinceEpoch(tsClientRaw);
-                    }
+                    final displayTimestamp = _extractDisplayTimestamp(data);
 
                     final isOutbound = direction == 'outbound';
 
                     // Format timestamp
                     String timeText = '';
-                    if (tsClient != null) {
+                    if (displayTimestamp != null) {
                       final now = DateTime.now();
-                      final msgTime = tsClient.toDate();
+                      final msgTime = displayTimestamp.toDate();
                       final diff = now.difference(msgTime);
                       
                       if (diff.inDays == 0) {
@@ -1292,6 +1292,43 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                       : const Icon(Icons.send, color: Colors.white),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFirestoreEnvBanner() {
+    final settings = FirebaseFirestore.instance.settings;
+    final rawHost = settings.host ?? '';
+    final host = rawHost.isEmpty ? 'default' : rawHost;
+    final sslEnabled = settings.sslEnabled ?? true;
+    final isEmulator = rawHost.contains('localhost') ||
+        rawHost.startsWith('127.0.0.1') ||
+        rawHost.startsWith('10.0.2.2');
+    final label = isEmulator ? 'EMULATOR MODE' : 'PROD';
+    return Container(
+      width: double.infinity,
+      color: isEmulator ? Colors.orange.shade100 : Colors.green.shade100,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        children: [
+          Icon(
+            isEmulator ? Icons.memory : Icons.cloud_done,
+            size: 16,
+            color: isEmulator ? Colors.orange.shade800 : Colors.green.shade800,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '$label • host=$host • ssl=${sslEnabled ? "on" : "off"}',
+              style: TextStyle(
+                fontSize: 11,
+                color: isEmulator ? Colors.orange.shade800 : Colors.green.shade800,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

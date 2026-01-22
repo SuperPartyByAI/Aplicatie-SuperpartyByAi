@@ -438,6 +438,43 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     return RegExp(r'^\+?[\d\s\-\(\)]{6,}$').hasMatch(trimmed);
   }
 
+  Widget _buildFirestoreEnvBanner() {
+    final settings = FirebaseFirestore.instance.settings;
+    final rawHost = settings.host ?? '';
+    final host = rawHost.isEmpty ? 'default' : rawHost;
+    final sslEnabled = settings.sslEnabled ?? true;
+    final isEmulator = rawHost.contains('localhost') ||
+        rawHost.startsWith('127.0.0.1') ||
+        rawHost.startsWith('10.0.2.2');
+    final label = isEmulator ? 'EMULATOR MODE' : 'PROD';
+    return Container(
+      width: double.infinity,
+      color: isEmulator ? Colors.orange.shade100 : Colors.green.shade100,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        children: [
+          Icon(
+            isEmulator ? Icons.memory : Icons.cloud_done,
+            size: 16,
+            color: isEmulator ? Colors.orange.shade800 : Colors.green.shade800,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '$label • host=$host • ssl=${sslEnabled ? "on" : "off"}',
+              style: TextStyle(
+                fontSize: 11,
+                color: isEmulator ? Colors.orange.shade800 : Colors.green.shade800,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -482,6 +519,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       ),
       body: Column(
         children: [
+          if (kDebugMode) _buildFirestoreEnvBanner(),
           // Search bar
           Padding(
             padding: const EdgeInsets.all(16),
