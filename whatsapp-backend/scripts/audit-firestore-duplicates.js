@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const crypto = require('crypto');
+const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -11,6 +12,30 @@ const toSha1 = (value) =>
   crypto.createHash('sha1').update(String(value)).digest('hex');
 
 const shortHash = (value) => toSha1(value).slice(0, 8);
+
+const debugLog = (payload) => {
+  try {
+    if (typeof fetch === 'function') {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>{});
+      // #endregion
+      return;
+    }
+  } catch (_) {}
+
+  try {
+    const data = Buffer.from(JSON.stringify(payload));
+    const req = http.request(
+      'http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': data.length } }
+    );
+    req.on('error', () => {});
+    req.write(data);
+    req.end();
+  } catch (_) {
+    // ignore
+  }
+};
 
 const coerceToMs = (value) => {
   if (value === null || value === undefined) return null;
@@ -223,6 +248,7 @@ const pickTimestampMs = (data) =>
   coerceToMs(data.tsClientMs) ||
   coerceToMs(data.tsClientAt) ||
   coerceToMs(data.tsClient) ||
+  coerceToMs(data.tsServer) ||
   coerceToMs(data.ingestedAt) ||
   coerceToMs(data.createdAt) ||
   null;
@@ -354,52 +380,70 @@ const topEntries = (map, limit = 10) =>
     .map(([key, count]) => ({ key, count }));
 
 const collectWindowDocs = async ({
-  baseQuery,
-  pageSize,
-  cutoffMs,
+  threadsQuery,
+  threadId,
   limit,
+  cutoffMs,
   nowMs,
+  perThreadLimit = 50,
 }) => {
   const collected = [];
   let parseFailures = 0;
   let parsedMinMs = null;
   let parsedMaxMs = null;
-  let lastDoc = null;
+  let lastThreadDoc = null;
   let pages = 0;
+  let threadsScanned = 0;
+  let messagesScanned = 0;
   const maxPages = 10;
+  const pageSize = 50;
 
-  while (collected.length < limit && pages < maxPages) {
-    let pageQuery = baseQuery.limit(pageSize);
-    if (lastDoc) pageQuery = pageQuery.startAfter(lastDoc);
+  const processThread = async (threadDoc) => {
+    if (!threadDoc?.ref) return;
+    threadsScanned += 1;
+    const remaining = limit - collected.length;
+    if (remaining <= 0) return;
+    const threadLimit = Math.min(perThreadLimit, remaining);
+    const messagesSnapshot = await threadDoc.ref
+      .collection('messages')
+      .orderBy('tsServer', 'desc')
+      .limit(threadLimit)
+      .get();
 
-    const pageSnapshot = await pageQuery.get();
-    if (pageSnapshot.empty) break;
-
-    pages += 1;
-    let oldestParsedMs = null;
-
-    for (const doc of pageSnapshot.docs) {
+    for (const doc of messagesSnapshot.docs) {
+      messagesScanned += 1;
       const data = doc.data() || {};
       const tsClientMs = pickTimestampMs(data);
       if (!tsClientMs) {
         parseFailures += 1;
         continue;
       }
-
       parsedMinMs = parsedMinMs === null ? tsClientMs : Math.min(parsedMinMs, tsClientMs);
       parsedMaxMs = parsedMaxMs === null ? tsClientMs : Math.max(parsedMaxMs, tsClientMs);
-      oldestParsedMs = oldestParsedMs === null ? tsClientMs : Math.min(oldestParsedMs, tsClientMs);
-
       if (tsClientMs >= cutoffMs) {
         collected.push(doc);
         if (collected.length >= limit) break;
       }
     }
+  };
 
-    lastDoc = pageSnapshot.docs[pageSnapshot.docs.length - 1];
-
-    if (pages >= 2 && oldestParsedMs !== null && oldestParsedMs < cutoffMs) {
-      break;
+  if (threadId) {
+    const threadDoc = await threadsQuery.doc(threadId).get();
+    if (threadDoc.exists) {
+      await processThread(threadDoc);
+    }
+  } else {
+    while (collected.length < limit && pages < maxPages) {
+      let pageQuery = threadsQuery.limit(pageSize);
+      if (lastThreadDoc) pageQuery = pageQuery.startAfter(lastThreadDoc);
+      const pageSnapshot = await pageQuery.get();
+      if (pageSnapshot.empty) break;
+      pages += 1;
+      for (const threadDoc of pageSnapshot.docs) {
+        await processThread(threadDoc);
+        if (collected.length >= limit) break;
+      }
+      lastThreadDoc = pageSnapshot.docs[pageSnapshot.docs.length - 1];
     }
   }
 
@@ -409,6 +453,8 @@ const collectWindowDocs = async ({
     parsedMinMs,
     parsedMaxMs,
     windowModeUsed: 'clientSideWindow',
+    threadsScanned,
+    messagesScanned,
   };
 };
 
@@ -453,22 +499,19 @@ if (require.main === module) {
     process.exit(1);
   }
 
+  // #region agent log
+  debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'audit-firestore-duplicates.js:455',message:'audit_start',data:{windowHours:opts.windowHours,limit:opts.limit,threadId:Boolean(opts.threadId),accountId:Boolean(opts.accountId),projectIdPresent:Boolean(getProjectId())},timestamp:Date.now()});
+  // #endregion
+
   let query = null;
-  let queryShape = 'collectionGroup:messages|orderBy:tsClient desc';
+  let queryShape = 'threads/*/messages|orderBy:tsServer desc';
   const nowMs = Date.now();
   const cutoffMs = nowMs - opts.windowHours * 60 * 60 * 1000;
-  const startTs = admin.firestore.Timestamp.fromMillis(cutoffMs);
-  const endTs = admin.firestore.Timestamp.fromMillis(nowMs);
   if (opts.threadId) {
-    query = db
-      .collection('threads')
-      .doc(opts.threadId)
-      .collection('messages')
-      .orderBy('tsClient', 'desc')
-      .limit(opts.limit);
-    queryShape = 'threads/{threadId}/messages|orderBy:tsClient desc';
+    query = db.collection('threads');
+    queryShape = 'threads/{threadId}/messages|orderBy:tsServer desc';
   } else {
-    query = db.collectionGroup('messages').orderBy('tsClient', 'desc').limit(opts.limit);
+    query = db.collection('threads');
   }
 
   if (opts.accountId && !opts.threadId) {
@@ -486,15 +529,33 @@ if (require.main === module) {
   let parsedMaxMs = null;
   const pageSize = Math.min(500, opts.limit);
   try {
-    const firstSnapshot = await query.limit(pageSize).get();
-    const firstDoc = firstSnapshot.docs[0];
-    const tsClientType = firstDoc ? detectTsClientType(firstDoc.get('tsClient')) : 'missing';
-    const shouldClientSideWindow = tsClientType === 'string';
+    const windowResult = await collectWindowDocs({
+      threadsQuery: query,
+      threadId: opts.threadId,
+      cutoffMs,
+      limit: opts.limit,
+      nowMs,
+    });
+    snapshot = { docs: windowResult.docs };
+    parseFailures = windowResult.parseFailures;
+    parsedMinMs = windowResult.parsedMinMs;
+    parsedMaxMs = windowResult.parsedMaxMs;
+    windowModeUsed = windowResult.windowModeUsed;
+    snapshot.threadsScanned = windowResult.threadsScanned;
+    snapshot.messagesScanned = windowResult.messagesScanned;
+  } catch (error) {
+    const message = error?.message || 'Firestore query failed';
+    const indexLink = getIndexLink(error);
+    const hint = getHint(error, message);
+    const missingIndex = isMissingIndex(error, message, indexLink);
 
-    if (shouldClientSideWindow && opts.windowHours > 0) {
+    if (missingIndex) {
+      usedFallback = true;
+      modeUsed = 'desc_fallback';
+      fallbackIndexLink = indexLink;
       const windowResult = await collectWindowDocs({
-        baseQuery: query,
-        pageSize,
+        threadsQuery: query,
+        threadId: opts.threadId,
         cutoffMs,
         limit: opts.limit,
         nowMs,
@@ -504,112 +565,9 @@ if (require.main === module) {
       parsedMinMs = windowResult.parsedMinMs;
       parsedMaxMs = windowResult.parsedMaxMs;
       windowModeUsed = windowResult.windowModeUsed;
-    } else {
-      snapshot = firstSnapshot;
-      windowModeUsed = 'firestoreWhere';
-    }
-  } catch (error) {
-    const message = error?.message || 'Firestore query failed';
-    const indexLink = getIndexLink(error);
-    const hint = getHint(error, message);
-    const missingIndex = isMissingIndex(error, message, indexLink);
-
-    if (missingIndex) {
-      usedFallback = true;
-      modeUsed = 'asc_fallback';
-      fallbackIndexLink = indexLink;
-      let fallbackQueryShape = queryShape;
-
-      if (opts.windowHours > 0) {
-        const windowResult = await collectWindowDocs({
-          baseQuery: query,
-          pageSize,
-          cutoffMs,
-          limit: opts.limit,
-          nowMs,
-        });
-        snapshot = { docs: windowResult.docs };
-        parseFailures = windowResult.parseFailures;
-        parsedMinMs = windowResult.parsedMinMs;
-        parsedMaxMs = windowResult.parsedMaxMs;
-        windowModeUsed = windowResult.windowModeUsed;
-        queryShape += '|clientSideWindow';
-      } else {
-        let lastDoc = null;
-        const collected = [];
-        let remaining = opts.limit;
-        let fallbackQueryShape = queryShape;
-
-        while (remaining > 0) {
-          let pageQuery = null;
-          if (opts.threadId) {
-            pageQuery = db
-              .collection('threads')
-              .doc(opts.threadId)
-              .collection('messages')
-              .where('tsClient', '>=', startTs)
-              .where('tsClient', '<=', endTs)
-              .orderBy('tsClient', 'asc')
-              .limit(Math.min(pageSize, remaining));
-            fallbackQueryShape = 'threads/{threadId}/messages|where:tsClient>=|where:tsClient<=|orderBy:tsClient asc';
-          } else {
-            pageQuery = db
-              .collectionGroup('messages')
-              .where('tsClient', '>=', startTs)
-              .where('tsClient', '<=', endTs)
-              .orderBy('tsClient', 'asc')
-              .limit(Math.min(pageSize, remaining));
-            fallbackQueryShape = 'collectionGroup:messages|where:tsClient>=|where:tsClient<=|orderBy:tsClient asc';
-            if (opts.accountId) {
-              pageQuery = pageQuery.where('accountId', '==', opts.accountId.trim());
-              fallbackQueryShape += '|where:accountId==';
-            }
-          }
-
-          if (lastDoc) {
-            pageQuery = pageQuery.startAfter(lastDoc);
-          }
-
-          let pageSnapshot = null;
-          try {
-            pageSnapshot = await pageQuery.get();
-          } catch (pageError) {
-            const pageMessage = pageError?.message || 'Firestore query failed';
-            const pageIndexLink = getIndexLink(pageError);
-            const pageHint = getHint(pageError, pageMessage);
-            const payload = {
-              error: 'firestore_query_failed',
-              code: pageError?.code || null,
-              message: pageMessage,
-              hint: pageHint,
-              indexLink: pageIndexLink && opts.printIndexLink ? pageIndexLink : null,
-              projectId: getProjectId(),
-              emulatorHost: process.env.FIRESTORE_EMULATOR_HOST || null,
-              usedFallback,
-              modeUsed,
-            };
-
-            if (opts.debug) {
-              payload.rawErrorName = pageError?.name || null;
-              payload.rawErrorStackSha8 = hashStack(pageError?.stack);
-              payload.queryShape = fallbackQueryShape;
-            }
-
-            console.log(JSON.stringify(payload));
-            process.exit(2);
-          }
-          if (pageSnapshot.empty) {
-            break;
-          }
-
-          collected.push(...pageSnapshot.docs);
-          remaining = opts.limit - collected.length;
-          lastDoc = pageSnapshot.docs[pageSnapshot.docs.length - 1];
-        }
-
-        snapshot = { docs: collected };
-        queryShape = fallbackQueryShape;
-      }
+      snapshot.threadsScanned = windowResult.threadsScanned;
+      snapshot.messagesScanned = windowResult.messagesScanned;
+      queryShape += '|clientSideWindow';
     } else {
       const payload = {
         error: 'firestore_query_failed',
@@ -667,6 +625,10 @@ if (require.main === module) {
     minTsMs: null,
     maxTsMs: null,
   };
+
+  // #region agent log
+  debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H4',location:'audit-firestore-duplicates.js:671',message:'audit_snapshot',data:{docsCount:snapshot?.docs?.length||0,windowModeUsed,usedFallback,modeUsed,parseFailures,cutoffMs,nowMs,parsedMinMs,parsedMaxMs,queryShape},timestamp:Date.now()});
+  // #endregion
 
   for (const doc of snapshot.docs) {
     const data = doc.data() || {};
@@ -854,6 +816,9 @@ if (require.main === module) {
     modeUsed,
     hint: null,
     indexLink: usedFallback ? fallbackIndexLink : null,
+    collection: 'threads/*/messages',
+    threadsScanned: snapshot?.threadsScanned ?? null,
+    messagesScanned: snapshot?.messagesScanned ?? null,
   };
 
   if (opts.debug) {

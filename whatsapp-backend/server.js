@@ -15,6 +15,32 @@ const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
+const http = require('http');
+const https = require('https');
+const debugLog = (payload) => {
+  try {
+    if (typeof fetch === 'function') {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>{});
+      // #endregion
+      return;
+    }
+  } catch (_) {}
+
+  try {
+    const data = Buffer.from(JSON.stringify(payload));
+    const req = http.request(
+      'http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': data.length } }
+    );
+    req.on('error', () => {});
+    req.write(data);
+    req.end();
+  } catch (_) {
+    // ignore
+  }
+};
+
 const { normalizeJidToE164, resolveDisplayName } = require('./lib/phone-utils');
 const { resolveCanonicalJid } = require('./lib/jid-utils');
 const {
@@ -1051,6 +1077,10 @@ async function persistMessage({ accountId, sock, msg, source = 'realtime' }) {
   const stableKeyHash = stableKey ? safeHashMessage(stableKey) : null;
   const fingerprintHash = strongFingerprint ? safeHashMessage(strongFingerprint) : null;
 
+  // #region agent log
+  debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:1053',message:'persistMessage_start',data:{accountHash:sha1(accountId).slice(0,8),threadHash:sha1(threadId).slice(0,8),docHash:sha1(docId).slice(0,8),isFromMe,source,tsClientMs:messageTimestampMs,tsClientAgeSec:messageTimestampMs?Math.floor((Date.now()-messageTimestampMs)/1000):null,firestoreAvailable,hasDb:Boolean(db)},timestamp:Date.now()});
+  // #endregion
+
   const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(docId);
   const stableDedupeRef = stableKey
     ? db.collection('threads').doc(threadId).collection('dedupe').doc(sha1(stableKey))
@@ -1173,6 +1203,10 @@ async function persistMessage({ accountId, sock, msg, source = 'realtime' }) {
       tsClientMs: messageTimestampMs,
     };
   });
+
+  // #region agent log
+  debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'server.js:1177',message:'persistMessage_txResult',data:{accountHash:sha1(accountId).slice(0,8),threadHash:sha1(threadId).slice(0,8),docHash:sha1(docId).slice(0,8),skipped:Boolean(txResult?.skipped),skipReason:txResult?.reason||null,isFromMe,source,tsClientMs:messageTimestampMs,tsClientAgeSec:messageTimestampMs?Math.floor((Date.now()-messageTimestampMs)/1000):null},timestamp:Date.now()});
+  // #endregion
 
   if (!txResult?.skipped) {
     diagStatus.lastFirestoreWriteAtMs = Date.now();
@@ -2305,14 +2339,14 @@ async function createConnection(accountId, name, phone) {
       const { connection, lastDisconnect, qr } = update;
 
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1353',message:'connection.update event received',data:{accountId,connection:connection||'null',hasQr:!!qr,hasLastDisconnect:!!lastDisconnect,updateKeys:Object.keys(update)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:2341',message:'connection_update',data:{accountHash:sha1(accountId).slice(0,8),connection:connection||'null',hasQr:Boolean(qr),hasLastDisconnect:Boolean(lastDisconnect),listenerCount:sock?.ev?.listenerCount?sock.ev.listenerCount('messages.upsert'):null},timestamp:Date.now()});
       // #endregion
 
       console.log(`🔔 [${accountId}] Connection update: ${connection || 'qr'}`);
 
       if (qr && typeof qr === 'string' && qr.length > 0) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1358',message:'QR code detected in update',data:{accountId,qrLength:qr.length,currentStatus:account.status,sessionId:account.sessionId||'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:2348',message:'connection_update_qr',data:{accountHash:sha1(accountId).slice(0,8),qrLen:qr.length,currentStatus:account.status},timestamp:Date.now()});
         // #endregion
         
         console.log(`📱 [${accountId}] QR Code generated (length: ${qr.length}, sessionId: ${account.sessionId || 'unknown'})`);
@@ -2404,7 +2438,7 @@ async function createConnection(accountId, name, phone) {
 
       if (connection === 'open') {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1446',message:'connection.open handler ENTRY',data:{accountId,currentStatus:account.status,hasSock:!!account.sock,hasUser:!!account.sock?.user,userId:account.sock?.user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:2441',message:'connection_open_entry',data:{accountHash:sha1(accountId).slice(0,8),currentStatus:account.status,hasSock:Boolean(account.sock),hasUser:Boolean(account.sock?.user),userIdHash:account.sock?.user?.id?sha1(account.sock.user.id).slice(0,8):null},timestamp:Date.now()});
         // #endregion
 
         console.log(`✅ [${accountId}] connection.update: open (sessionId: ${account.sessionId || 'unknown'})`);
@@ -2430,7 +2464,8 @@ async function createConnection(accountId, name, phone) {
         connectionRegistry.markConnected(accountId);
         
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1467',message:'BEFORE status change to connected',data:{accountId,oldStatus:account.status,hasSock:!!account.sock,hasUser:!!account.sock?.user,userId:account.sock?.user?.id,phoneFromSock:sock.user?.id?.split(':')[0]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        const sockUserId = sock.user?.id || null;
+        debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:2467',message:'connection_open_before_connected',data:{accountHash:sha1(accountId).slice(0,8),oldStatus:account.status,hasSock:Boolean(account.sock),hasUser:Boolean(account.sock?.user),userIdHash:sockUserId?sha1(sockUserId).slice(0,8):null},timestamp:Date.now()});
         // #endregion
         
         account.status = 'connected';
@@ -2440,7 +2475,7 @@ async function createConnection(accountId, name, phone) {
         account.lastUpdate = new Date().toISOString();
         
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1473',message:'AFTER status change to connected',data:{accountId,newStatus:account.status,phone:account.phone,waJid:account.waJid,lastUpdate:account.lastUpdate},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:2477',message:'connection_open_after_connected',data:{accountHash:sha1(accountId).slice(0,8),newStatus:account.status,waJidHash:account.waJid?sha1(account.waJid).slice(0,8):null,phoneHash:account.phone?sha1(account.phone).slice(0,8):null,lastUpdate:account.lastUpdate},timestamp:Date.now()});
         // #endregion
 
         // Reset reconnect attempts
@@ -2454,7 +2489,7 @@ async function createConnection(accountId, name, phone) {
 
         // Save to Firestore
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1484',message:'BEFORE Firestore save',data:{accountId,status:account.status,waJid:account.waJid,phone:account.phone},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:2491',message:'connection_open_before_firestore',data:{accountHash:sha1(accountId).slice(0,8),status:account.status,waJidHash:account.waJid?sha1(account.waJid).slice(0,8):null,phoneHash:account.phone?sha1(account.phone).slice(0,8):null},timestamp:Date.now()});
         // #endregion
         
         await saveAccountToFirestore(accountId, {
@@ -2466,7 +2501,7 @@ async function createConnection(accountId, name, phone) {
         });
         
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1490',message:'AFTER Firestore save',data:{accountId,status:account.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:2503',message:'connection_open_after_firestore',data:{accountHash:sha1(accountId).slice(0,8),status:account.status},timestamp:Date.now()});
         // #endregion
 
         // 🔄 AUTO-CLEANUP: Disconnect old accounts with same phone number
@@ -3155,6 +3190,9 @@ async function createConnection(accountId, name, phone) {
     sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
       try {
         updateConnectionHealth(accountId, 'message');
+        // #region agent log
+        debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:3193',message:'messages_upsert_received',data:{accountHash:sha1(accountId).slice(0,8),type,count:Array.isArray(newMessages)?newMessages.length:0,firestoreAvailable,hasDb:Boolean(db)},timestamp:Date.now()});
+        // #endregion
         console.log(
           `🔔🔔🔔 [${accountId}] messages.upsert EVENT TRIGGERED: type=${type}, count=${newMessages.length}, timestamp=${new Date().toISOString()}`
         );
@@ -3167,6 +3205,9 @@ async function createConnection(accountId, name, phone) {
 
         for (const msg of newMessages) {
           try {
+            // #region agent log
+            debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'server.js:3207',message:'messages_upsert_message',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null,fromMe:msg?.key?.fromMe===true,hasMessage:Boolean(msg?.message)},timestamp:Date.now()});
+            // #endregion
             console.log(
               `📩 [${accountId}] RAW MESSAGE:`,
               JSON.stringify({
@@ -3180,6 +3221,9 @@ async function createConnection(accountId, name, phone) {
             );
 
             if (!msg.message) {
+              // #region agent log
+              debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'server.js:3220',message:'messages_upsert_skip_no_message',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null},timestamp:Date.now()});
+              // #endregion
               console.log(`⚠️  [${accountId}] Skipping message ${msg.key.id} - no message content`);
               continue;
             }
@@ -3227,11 +3271,17 @@ async function createConnection(accountId, name, phone) {
             }
             
             if (shouldSkip) {
+              // #region agent log
+              debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'server.js:3264',message:'messages_upsert_dedupe_skip',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null},timestamp:Date.now()});
+              // #endregion
               continue; // Skip duplicate message
             }
 
             // Save to Firestore (use helper function for consistency)
             const saved = await saveMessageToFirestore(accountId, msg, false, sock);
+            // #region agent log
+            debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H4',location:'server.js:3270',message:'messages_upsert_saved',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null,saved:Boolean(saved),savedMessageIdHash:saved?.messageId?sha1(saved.messageId).slice(0,8):null},timestamp:Date.now()});
+            // #endregion
             if (saved) {
               console.log(`💾 [${accountId}] Message saved to Firestore: ${saved.messageId} in thread ${saved.threadId}, body length: ${saved.messageBody?.length || 0}`);
               
@@ -3264,6 +3314,9 @@ async function createConnection(accountId, name, phone) {
         setDiagError(eventError);
       }
     });
+    // #region agent log
+    debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:3302',message:'messages_upsert_listener_registered',data:{accountHash:sha1(accountId).slice(0,8),listenerCount:sock?.ev?.listenerCount?sock.ev.listenerCount('messages.upsert'):null},timestamp:Date.now()});
+    // #endregion
 
     // Messages update handler (for status updates: delivered/read receipts)
     sock.ev.on('messages.update', async (updates) => {
@@ -5015,8 +5068,6 @@ app.get('/health/detailed', async (req, res) => {
 // ============================================================================
 // AI ENDPOINTS
 // ============================================================================
-
-const https = require('https');
 
 // Rate limiter for AI endpoints
 const aiLimiter = rateLimit({
@@ -7141,10 +7192,14 @@ function dedupeThreads(threads) {
 app.get('/api/whatsapp/messages/:accountId/:threadId', async (req, res) => {
   try {
     const { accountId, threadId } = req.params;
-    const { limit = 50, orderBy = 'createdAt' } = req.query;
+    const { limit = 50, orderBy = 'tsServer' } = req.query;
 
     if (!firestoreAvailable || !db) {
       return res.status(503).json({ success: false, error: 'Firestore not available' });
+    }
+
+    if (!threadId || !threadId.startsWith(`${accountId}__`)) {
+      return res.status(400).json({ success: false, error: 'Invalid threadId for account' });
     }
 
     // Verify thread belongs to accountId
@@ -7164,10 +7219,12 @@ app.get('/api/whatsapp/messages/:accountId/:threadId', async (req, res) => {
       .doc(threadId)
       .collection('messages');
 
-    if (orderBy === 'createdAt' || orderBy === 'tsClient') {
+    if (orderBy === 'tsClient') {
       messagesQuery = messagesQuery.orderBy('tsClient', 'desc');
-    } else {
+    } else if (orderBy === 'createdAt') {
       messagesQuery = messagesQuery.orderBy('createdAt', 'desc');
+    } else {
+      messagesQuery = messagesQuery.orderBy('tsServer', 'desc');
     }
 
     const messagesSnapshot = await messagesQuery.limit(parseInt(limit)).get();
