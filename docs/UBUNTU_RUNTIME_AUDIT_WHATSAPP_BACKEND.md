@@ -62,6 +62,28 @@ Flutter (chat messages) | Firestore realtime + proxy polling fallback | `threads
 - Fallback: proxy polling (every ~3s) with `after` cursor and local dedupe
 - Expected: `curl` without tokens to proxy returns `401`
 
+## QR Pairing (SSH Tunnel Only)
+Start the QR diagnostics page on the server (binds to `127.0.0.1:8787`):
+```bash
+export DIAG_TOKEN="your_long_token"
+node scripts/qr-web.js
+```
+
+Create the SSH tunnel from your Mac:
+```bash
+ssh -L 8787:127.0.0.1:8787 root@<IP_SERVER>
+```
+
+Open in browser (local only):
+```
+http://localhost:8787/qr?token=your_long_token
+```
+
+Verify connection state (sanitized JSON):
+```bash
+node scripts/wa-status-json.js
+```
+
 ## Audit Commands (Sanitized)
 ```bash
 node scripts/audit-firestore-duplicates.js --windowHours=48 --limit=500 --excludeMarked
