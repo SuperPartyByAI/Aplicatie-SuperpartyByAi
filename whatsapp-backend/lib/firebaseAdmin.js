@@ -1,8 +1,13 @@
 const admin = require('firebase-admin');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
 const SERVICE_ACCOUNT_ENV = 'FIREBASE_SERVICE_ACCOUNT_JSON';
+const BACKEND_CMD_MATCH = '/opt/whatsapp/Aplicatie-SuperpartyByAi/whatsapp-backend/server.js';
+
+const sha8 = (value) =>
+  crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 8);
 
 const decodeSystemdValue = (value) => {
   let raw = String(value || '').trim();
@@ -39,6 +44,54 @@ const readSystemdEnv = () => {
   return '';
 };
 
+const findBackendPid = () => {
+  try {
+    const entries = fs.readdirSync('/proc');
+    for (const name of entries) {
+      if (!/^\d+$/.test(name)) continue;
+      const cmdlinePath = path.join('/proc', name, 'cmdline');
+      let cmdline = '';
+      try {
+        cmdline = fs.readFileSync(cmdlinePath, 'utf8');
+      } catch (_) {
+        continue;
+      }
+      if (cmdline.includes(BACKEND_CMD_MATCH)) {
+        return name;
+      }
+    }
+  } catch (_) {
+    // ignore
+  }
+  return null;
+};
+
+const readBackendEnv = () => {
+  const pid = findBackendPid();
+  if (!pid) {
+    return { value: '', found: false, len: 0, sha: null };
+  }
+  const envPath = path.join('/proc', pid, 'environ');
+  try {
+    const raw = fs.readFileSync(envPath);
+    const entries = raw.toString('utf8').split('\0');
+    for (const entry of entries) {
+      if (!entry.startsWith(`${SERVICE_ACCOUNT_ENV}=`)) continue;
+      const value = entry.slice(SERVICE_ACCOUNT_ENV.length + 1);
+      const trimmed = String(value || '');
+      return {
+        value: trimmed,
+        found: trimmed.length > 0,
+        len: trimmed.length,
+        sha: trimmed.length > 0 ? sha8(trimmed) : null,
+      };
+    }
+  } catch (_) {
+    // ignore
+  }
+  return { value: '', found: false, len: 0, sha: null };
+};
+
 const loadServiceAccount = () => {
   const raw = process.env[SERVICE_ACCOUNT_ENV];
   if (raw && raw.trim().length > 0) {
@@ -56,28 +109,49 @@ const loadServiceAccount = () => {
     return JSON.parse(systemdRaw);
   }
 
+  const backendEnv = readBackendEnv();
+  if (backendEnv.found) {
+    process.env[SERVICE_ACCOUNT_ENV] = backendEnv.value;
+    return JSON.parse(backendEnv.value);
+  }
+
   return null;
 };
 
 const initFirebaseAdmin = () => {
   const serviceAccount = loadServiceAccount();
-  if (!serviceAccount) {
+  if (serviceAccount) {
+    const projectId = serviceAccount.project_id || serviceAccount.projectId || null;
+    if (!projectId) {
+      throw new Error('FIRESTORE_DISABLED_MISSING_PROJECT_ID');
+    }
+
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId,
+      });
+    }
+
+    return { admin, db: admin.firestore(), projectId };
+  }
+
+  try {
+    if (!admin.apps.length) {
+      admin.initializeApp({ credential: admin.credential.applicationDefault() });
+    }
+    const projectId =
+      process.env.GCLOUD_PROJECT ||
+      process.env.GOOGLE_CLOUD_PROJECT ||
+      process.env.PROJECT_ID ||
+      null;
+    if (!projectId) {
+      throw new Error('FIRESTORE_DISABLED_MISSING_PROJECT_ID');
+    }
+    return { admin, db: admin.firestore(), projectId };
+  } catch (_) {
     throw new Error('FIRESTORE_DISABLED_MISSING_CREDENTIALS');
   }
-
-  const projectId = serviceAccount.project_id || serviceAccount.projectId || null;
-  if (!projectId) {
-    throw new Error('FIRESTORE_DISABLED_MISSING_PROJECT_ID');
-  }
-
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      projectId,
-    });
-  }
-
-  return { admin, db: admin.firestore(), projectId };
 };
 
 module.exports = {
