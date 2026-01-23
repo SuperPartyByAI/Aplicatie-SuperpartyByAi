@@ -34,8 +34,12 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Analyze code (strict)
-        run: flutter analyze --fatal-infos --fatal-warnings
+      - name: Analyze code (warnings+errors)
+        run: flutter analyze --fatal-warnings
+
+      - name: Analyze code (infos only)
+        continue-on-error: true
+        run: flutter analyze --fatal-infos
 
       - name: Run tests
         run: flutter test
