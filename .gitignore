@@ -15,7 +15,6 @@ FINAL-ENV-VARS.txt
 firebase-adminsdk*.json
 google-services.json
 GoogleService-Info.plist
-firebase_options.dart
 *.key
 *.pem
 *.p12
