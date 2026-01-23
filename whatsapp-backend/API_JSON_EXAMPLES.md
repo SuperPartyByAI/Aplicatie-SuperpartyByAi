@@ -8,7 +8,7 @@
 ## 1. GET /api/whatsapp/accounts
 
 **Method:** `GET`  
-**Auth:** None required  
+**Auth:** Firebase ID token required (`Authorization: Bearer $TOKEN`)  
 **Response:**
 
 ```json
@@ -141,10 +141,78 @@ class WhatsAppAccount {
 
 ---
 
-## 2. POST /api/whatsapp/add-account
+## 2. POST /api/whatsapp/accounts
 
 **Method:** `POST`  
-**Auth:** None required (rate limited)  
+**Auth:** Firebase ID token required  
+**Request:**
+```json
+{
+  "name": "WA-01"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "account": {
+    "id": "account_prod_abc123",
+    "name": "WA-01",
+    "status": "created",
+    "createdAt": "2026-01-17T20:30:00.000Z"
+  }
+}
+```
+
+---
+
+## 3. POST /api/whatsapp/accounts/:accountId/connect
+
+**Method:** `POST`  
+**Auth:** Firebase ID token required (**admin only**)  
+**Response:**
+```json
+{
+  "success": true,
+  "status": "connecting",
+  "accountId": "account_prod_abc123"
+}
+```
+
+---
+
+## 4. GET /api/whatsapp/accounts/:accountId/qr
+
+**Method:** `GET`  
+**Auth:** Firebase ID token required (**admin only**)  
+**Response (ready):**
+```json
+{
+  "success": true,
+  "accountId": "account_prod_abc123",
+  "status": "qr_ready",
+  "qrDataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
+  "qrPngBase64": "iVBORw0KGgoAAAANSUhEUgAA..."
+}
+```
+
+**Response (not ready, 202):**
+```json
+{
+  "success": false,
+  "accountId": "account_prod_abc123",
+  "status": "connecting",
+  "message": "QR not ready"
+}
+```
+
+---
+
+## 5. POST /api/whatsapp/add-account (legacy)
+
+**Method:** `POST`  
+**Auth:** Firebase ID token required (rate limited)  
 **Request:**
 ```json
 {
@@ -172,10 +240,10 @@ class WhatsAppAccount {
 
 ---
 
-## 3. GET /api/whatsapp/qr/:accountId
+## 6. GET /api/whatsapp/qr/:accountId (legacy)
 
 **Method:** `GET`  
-**Auth:** None required  
+**Auth:** Firebase ID token required (**admin only**)  
 **Response:**
 ```json
 {
@@ -186,14 +254,14 @@ class WhatsAppAccount {
 }
 ```
 
-**Alternative:** Returns HTML page if accessed directly (for browser display).
+**Note:** Legacy JSON only; HTML responses removed.
 
 ---
 
-## 4. GET /api/whatsapp/threads/:accountId
+## 7. GET /api/whatsapp/threads/:accountId
 
 **Method:** `GET`  
-**Auth:** None required  
+**Auth:** Firebase ID token required  
 **Query Params:** `limit` (default: 50), `orderBy` (default: 'lastMessageAt')  
 **Response:**
 
@@ -264,10 +332,10 @@ class WhatsAppThread {
 
 ---
 
-## 5. GET /api/whatsapp/messages/:accountId/:threadId
+## 8. GET /api/whatsapp/messages/:accountId/:threadId
 
 **Method:** `GET`  
-**Auth:** None required  
+**Auth:** Firebase ID token required  
 **Query Params:** `limit` (default: 50), `orderBy` (default: 'createdAt')  
 **Response:**
 
@@ -424,10 +492,10 @@ class WhatsAppMessage {
 
 ---
 
-## 6. POST /api/whatsapp/send-message
+## 9. POST /api/whatsapp/send-message
 
 **Method:** `POST`  
-**Auth:** None required (rate limited)  
+**Auth:** Firebase ID token required (rate limited)  
 **Request:**
 ```json
 {
@@ -458,10 +526,10 @@ class WhatsAppMessage {
 
 ---
 
-## 7. POST /api/whatsapp/regenerate-qr/:accountId
+## 10. POST /api/whatsapp/regenerate-qr/:accountId (legacy)
 
 **Method:** `POST`  
-**Auth:** None required (rate limited)  
+**Auth:** Firebase ID token required (**admin only**, rate limited)  
 **Response:**
 ```json
 {
@@ -472,10 +540,10 @@ class WhatsAppMessage {
 
 ---
 
-## 8. POST /api/whatsapp/backfill/:accountId
+## 11. POST /api/whatsapp/backfill/:accountId
 
 **Method:** `POST`  
-**Auth:** None required (rate limited)  
+**Auth:** Firebase ID token required (**admin only**, rate limited)  
 **Response:**
 ```json
 {
@@ -487,7 +555,7 @@ class WhatsAppMessage {
 
 ---
 
-## 9. GET /api/status/dashboard
+## 12. GET /api/status/dashboard
 
 **Method:** `GET`  
 **Auth:** None required  
@@ -535,22 +603,24 @@ class WhatsAppMessage {
 
 ## Flutter Integration Summary
 
-### Endpoints Available (No Auth Required)
+### Endpoints Available (Firebase ID token required)
 - ✅ `GET /api/whatsapp/accounts` → `List<WhatsAppAccount>`
-- ✅ `POST /api/whatsapp/add-account` → `WhatsAppAccount`
-- ✅ `GET /api/whatsapp/qr/:accountId` → `{ qrCode: string }`
+- ✅ `POST /api/whatsapp/accounts` → `WhatsAppAccount`
+- ✅ `POST /api/whatsapp/accounts/:id/connect` → `{ success, status }` (**admin**)
+- ✅ `GET /api/whatsapp/accounts/:id/qr` → `{ qrDataUrl, qrPngBase64 }` (**admin**)
 - ✅ `GET /api/whatsapp/threads/:accountId` → `List<WhatsAppThread>`
 - ✅ `GET /api/whatsapp/messages/:accountId/:threadId` → `List<WhatsAppMessage>`
 - ✅ `POST /api/whatsapp/send-message` → `{ success, messageId, status }`
-- ✅ `POST /api/whatsapp/regenerate-qr/:accountId` → `{ success }`
-- ✅ `POST /api/whatsapp/backfill/:accountId` → `{ success }`
+- ✅ `POST /api/whatsapp/regenerate-qr/:accountId` → `{ success }` (**admin**, legacy)
+- ✅ `POST /api/whatsapp/backfill/:accountId` → `{ success }` (**admin**)
 - ✅ `GET /api/status/dashboard` → Dashboard summary
 
 ### Flow "Cap-Coadă" în Flutter
 
 1. **Pair Account (QR)**
-   - `POST /api/whatsapp/add-account` → obții `accountId`
-   - `GET /api/whatsapp/qr/:accountId` sau folosești `qrCode` din list
+   - `POST /api/whatsapp/accounts` → obții `accountId`
+   - `POST /api/whatsapp/accounts/:id/connect` (admin)
+   - `GET /api/whatsapp/accounts/:id/qr` (admin) → `qrDataUrl`
    - Afișezi QR în Flutter (data URL base64)
    - Pollezi `GET /api/whatsapp/accounts` până `status = "connected"`
 

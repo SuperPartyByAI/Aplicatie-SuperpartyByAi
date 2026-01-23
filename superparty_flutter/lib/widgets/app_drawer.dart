@@ -51,7 +51,7 @@ class AppDrawer extends StatelessWidget {
           _buildDrawerItem(context, Icons.calendar_today, 'Disponibilitate', '/disponibilitate'),
           _buildDrawerItem(context, Icons.attach_money, 'Salarii', '/salarizare'),
           _buildDrawerItem(context, Icons.phone, 'Centrala', '/centrala'),
-          _buildDrawerItem(context, Icons.chat, 'WhatsApp', '/whatsapp'),
+          _buildDrawerItem(context, Icons.chat, 'Inbox intern', '/whatsapp'),
           _buildDrawerItem(context, Icons.people, 'Echipă', '/team'),
           _buildDrawerItem(context, Icons.admin_panel_settings, 'Admin', '/admin'),
           _buildDrawerItem(context, Icons.smart_toy, 'AI Chat', '/ai-chat'),

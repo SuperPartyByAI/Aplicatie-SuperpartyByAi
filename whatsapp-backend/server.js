@@ -124,9 +124,15 @@ async function findAccountIdByPhone(phone) {
  * @param {string} phone - Phone number
  * @returns {string} - Masked phone (e.g., +407****97)
  */
+function hashSensitive(value) {
+  if (!value) return '[REDACTED]';
+  const str = String(value);
+  const hash = crypto.createHash('sha256').update(str).digest('hex').substring(0, 8);
+  return `${hash}:${str.length}`;
+}
+
 function maskPhone(phone) {
-  if (!phone || phone.length < 6) return '[REDACTED]';
-  return phone.substring(0, 4) + '****' + phone.substring(phone.length - 2);
+  return hashSensitive(phone);
 }
 
 // ============================================================================
@@ -377,15 +383,98 @@ console.log('📦 Baileys initialized (store not required)');
 function requireAdmin(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Unauthorized: Missing token' });
+    return res.status(401).json({ success: false, message: 'Missing or invalid admin token' });
   }
 
   const token = authHeader.substring(7);
   if (token !== ADMIN_TOKEN) {
-    return res.status(403).json({ error: 'Forbidden: Invalid token' });
+    return res.status(403).json({ success: false, message: 'Forbidden: Invalid admin token' });
   }
 
   next();
+}
+
+const ADMIN_EMAIL_ALLOWLIST = [
+  'superpartybyai@gmail.com',
+  'ursache.andrei1995@gmail.com',
+];
+
+function _normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+async function requireFirebaseAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, message: 'Missing or invalid Firebase ID token' });
+  }
+
+  if (!admin.apps.length) {
+    return res.status(503).json({ success: false, message: 'Auth unavailable' });
+  }
+
+  const token = authHeader.substring(7);
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ success: false, message: 'Missing or invalid Firebase ID token' });
+  }
+}
+
+async function isAdmin(req) {
+  const user = req.user;
+  if (!user) return false;
+
+  if (user.admin === true) return true;
+  if (String(user.role || '').toLowerCase() === 'admin') return true;
+
+  const email = _normalizeEmail(user.email);
+  if (email && ADMIN_EMAIL_ALLOWLIST.includes(email)) return true;
+
+  if (!firestoreAvailable || !db) return false;
+
+  try {
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    if (userDoc.exists) {
+      const role = String(userDoc.data()?.role || '').toLowerCase();
+      if (role === 'admin') return true;
+    }
+  } catch (error) {
+    console.error(`⚠️  [auth] Failed to check admin role:`, error.message);
+  }
+
+  return false;
+}
+
+async function isEmployee(req) {
+  if (await isAdmin(req)) return true;
+  if (!firestoreAvailable || !db) return false;
+
+  try {
+    const user = req.user;
+    if (!user?.uid) return false;
+    const staffDoc = await db.collection('staffProfiles').doc(user.uid).get();
+    return staffDoc.exists;
+  } catch (error) {
+    console.error(`⚠️  [auth] Failed to check staffProfiles:`, error.message);
+    return false;
+  }
+}
+
+async function requireAdminRole(req, res, next) {
+  if (await isAdmin(req)) {
+    return next();
+  }
+  return res.status(403).json({ success: false, message: 'Forbidden: Admin role required' });
+}
+
+async function requireEmployeeRole(req, res, next) {
+  if (await isEmployee(req)) {
+    return next();
+  }
+  return res.status(403).json({ success: false, message: 'Forbidden: Employee role required' });
 }
 
 // Test runs storage
@@ -827,7 +916,7 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
           } else if (contact?.jid && contact.jid !== from) {
             // Sometimes onWhatsApp returns the real JID
             threadData.displayName = contact.jid.split('@')[0];
-            console.log(`✅ [${accountId}] Using JID as display name: ${contact.jid}`);
+            console.log(`✅ [${accountId}] Using JID as display name: ${hashSensitive(contact.jid)}`);
           }
         } catch (e) {
           console.log(`⚠️  [${accountId}] Could not fetch contact info for LID: ${e.message}`);
@@ -1762,7 +1851,7 @@ async function createConnection(accountId, name, phone) {
             const currentPhone = account.phone;
             if (!currentPhone) return;
 
-            console.log(`🔍 [${accountId}] Checking for duplicate accounts with phone: ${currentPhone}`);
+            console.log(`🔍 [${accountId}] Checking for duplicate accounts with phone: ${hashSensitive(currentPhone)}`);
 
             // Find other connected accounts with same phone
             const duplicateAccounts = Array.from(connections.entries())
@@ -1773,7 +1862,7 @@ async function createConnection(accountId, name, phone) {
               );
 
             if (duplicateAccounts.length > 0) {
-              console.log(`🗑️  [${accountId}] Found ${duplicateAccounts.length} duplicate account(s) with phone ${currentPhone}, cleaning up...`);
+              console.log(`🗑️  [${accountId}] Found ${duplicateAccounts.length} duplicate account(s) with phone ${hashSensitive(currentPhone)}, cleaning up...`);
 
               for (const [oldAccountId, oldAccount] of duplicateAccounts) {
                 console.log(`  ❌ Disconnecting OLD account: ${oldAccountId}`);
@@ -3637,12 +3726,12 @@ app.post('/admin/sync-messages', async (req, res) => {
       const jid = thread.clientJid;
 
       try {
-        console.log(`📥 Fetching messages for ${jid.substring(0, 25)}...`);
+        console.log(`📥 Fetching messages for ${hashSensitive(jid)}...`);
 
         // Fetch last 20 messages from WhatsApp
         const messages = await account.sock.fetchMessagesFromWA(jid, 20, undefined, undefined);
         
-        console.log(`  ✅ Fetched ${messages.length} messages for ${jid.substring(0, 25)}`);
+        console.log(`  ✅ Fetched ${messages.length} messages for ${hashSensitive(jid)}`);
 
         if (messages.length > 0) {
           // Save messages to Firestore
@@ -3656,7 +3745,7 @@ app.post('/admin/sync-messages', async (req, res) => {
           });
         }
       } catch (error) {
-        console.error(`❌ Error syncing ${jid.substring(0, 25)}:`, error.message);
+        console.error(`❌ Error syncing ${hashSensitive(jid)}:`, error.message);
         errors++;
       }
     }
@@ -3741,7 +3830,7 @@ app.post('/admin/deduplicate-threads', async (req, res) => {
       }
 
       processed++;
-      console.log(`🔍 [${accountId}] Found ${threads.length} duplicates for ${jid.substring(0, 25)}`);
+      console.log(`🔍 [${accountId}] Found ${threads.length} duplicates for ${hashSensitive(jid)}`);
 
       // Sort threads to pick the best one:
       // 1. Has displayName (prefer non-null, non-empty)
@@ -4157,7 +4246,7 @@ async function saveMessageToFirestore(phoneNumber, role, content, metadata = {})
         ...metadata, // model, tokensUsed, etc.
       });
 
-    console.log(`[WhatsApp] Saved ${role} message for ${phoneNumber} (important: ${isImportant})`);
+    console.log(`[WhatsApp] Saved ${role} message for ${hashSensitive(phoneNumber)} (important: ${isImportant})`);
   } catch (error) {
     console.error(`[WhatsApp] Failed to save message:`, error.message);
   }
@@ -4529,110 +4618,63 @@ app.post('/api/ai/analyze-text', aiLimiter, async (req, res) => {
   }
 });
 
-// QR Display endpoint (HTML for easy scanning)
-app.get('/api/whatsapp/qr/:accountId', async (req, res) => {
+// Legacy QR endpoint (JSON only)
+app.get('/api/whatsapp/qr/:accountId', requireFirebaseAuth, requireAdminRole, async (req, res) => {
+  const { accountId } = req.params;
+  const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+
   try {
-    const { accountId } = req.params;
-
-    // Try in-memory first
     let account = connections.get(accountId);
-
-    // If not in memory, try Firestore
-    if (!account) {
+    if (!account && firestoreAvailable && db) {
       const doc = await db.collection('accounts').doc(accountId).get();
       if (doc.exists) {
-        account = doc.data();
+        account = { id: accountId, ...doc.data() };
       }
     }
 
     if (!account) {
-      return res.status(404).send(`
-        <html>
-          <body style="font-family: Arial; padding: 20px;">
-            <h2>❌ Account Not Found</h2>
-            <p>Account ID: ${accountId}</p>
-          </body>
-        </html>
-      `);
+      return res.status(404).json({
+        success: false,
+        accountId,
+        status: 'not_found',
+        message: 'Account not found',
+        requestId,
+      });
     }
 
-    const qrCode = account.qrCode || account.qr_code;
-
-    if (!qrCode) {
-      return res.status(404).send(`
-        <html>
-          <body style="font-family: Arial; padding: 20px;">
-            <h2>⏳ QR Code Not Ready</h2>
-            <p>Account ID: ${accountId}</p>
-            <p>Status: ${account.status}</p>
-            <p>Refresh this page in a few seconds...</p>
-            <script>setTimeout(() => location.reload(), 5000);</script>
-          </body>
-        </html>
-      `);
+    const qrDataUrl = account.qrCode || account.qr_code || null;
+    if (!qrDataUrl) {
+      return res.status(202).json({
+        success: false,
+        accountId,
+        status: account.status || 'pending',
+        message: 'QR not ready',
+        requestId,
+      });
     }
 
-    res.send(`
-      <html>
-        <head>
-          <title>WhatsApp QR Code - ${accountId}</title>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              min-height: 100vh;
-              margin: 0;
-              background: #f5f5f5;
-            }
-            .container {
-              background: white;
-              padding: 30px;
-              border-radius: 10px;
-              box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-              text-align: center;
-            }
-            img {
-              max-width: 400px;
-              border: 2px solid #25D366;
-              border-radius: 10px;
-            }
-            .instructions {
-              margin-top: 20px;
-              color: #666;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1>📱 WhatsApp QR Code</h1>
-            <p><strong>Account ID:</strong> ${accountId}</p>
-            <img src="${qrCode}" alt="QR Code" />
-            <div class="instructions">
-              <h3>How to scan:</h3>
-              <ol style="text-align: left; display: inline-block;">
-                <li>Open WhatsApp on your phone</li>
-                <li>Go to Settings → Linked Devices</li>
-                <li>Tap "Link a Device"</li>
-                <li>Scan this QR code</li>
-              </ol>
-            </div>
-          </div>
-        </body>
-      </html>
-    `);
+    const base64Prefix = 'data:image/png;base64,';
+    const qrPngBase64 = qrDataUrl.startsWith(base64Prefix)
+      ? qrDataUrl.substring(base64Prefix.length)
+      : null;
+
+    return res.json({
+      success: true,
+      accountId,
+      status: account.status || 'qr_ready',
+      qrDataUrl,
+      qrPngBase64,
+      requestId,
+    });
   } catch (error) {
-    console.error('❌ Error displaying QR:', error);
-    res.status(500).send(`
-      <html>
-        <body style="font-family: Arial; padding: 20px;">
-          <h2>❌ Error</h2>
-          <p>${error.message}</p>
-        </body>
-      </html>
-    `);
+    console.error('❌ Error fetching QR:', error.message);
+    return res.status(500).json({
+      success: false,
+      accountId,
+      status: 'error',
+      message: error.message,
+      requestId,
+    });
   }
 });
 
@@ -4660,7 +4702,7 @@ app.get('/api/whatsapp/qr/:accountId', async (req, res) => {
  *                 cached:
  *                   type: boolean
  */
-app.get('/api/whatsapp/accounts', async (req, res) => {
+app.get('/api/whatsapp/accounts', requireFirebaseAuth, async (req, res) => {
   const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
   
   // Get WA status and mode (non-blocking, best-effort)
@@ -4783,31 +4825,6 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
       await cache.set('whatsapp:accounts', accounts, ttl);
     }
 
-    // Response includes mode info for debugging
-    // #region agent log
-    const fs = require('fs');
-    const logPath = '/Users/universparty/.cursor/debug.log';
-    const logEntry = JSON.stringify({
-      location: 'server.js:4787',
-      message: 'GET /accounts response',
-      data: {
-        accountsCount: accounts.length,
-        accountStatuses: accounts.map(a => ({
-          id: a.id.substring(0, 30),
-          status: a.status,
-          hasQR: !!a.qrCode,
-          phone: a.phone
-        })),
-        waMode: isActive ? 'active' : 'passive',
-        inMemory: accountIdsInMemory.size
-      },
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      hypothesisId: 'H2'
-    }) + '\n';
-    try { fs.appendFileSync(logPath, logEntry); } catch (e) {}
-    // #endregion
-    
     res.json({ 
       success: true, 
       accounts, 
@@ -4830,8 +4847,159 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
   }
 });
 
-// Visual QR endpoint (temporary for testing)
-app.get('/api/whatsapp/qr-visual', async (req, res) => {
+// Connect account (start session / generate QR if needed)
+app.post('/api/whatsapp/accounts/:accountId/connect', accountLimiter, requireFirebaseAuth, requireAdminRole, async (req, res) => {
+  // HARD GATE: PASSIVE mode - do NOT start Baileys connections
+  const passiveGuard = await checkPassiveModeGuard(req, res);
+  if (passiveGuard) return; // Response already sent
+
+  const { accountId } = req.params;
+  const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+
+  try {
+    let account = connections.get(accountId);
+
+    if (!account && firestoreAvailable && db) {
+      const accountDoc = await db.collection('accounts').doc(accountId).get();
+      if (accountDoc.exists) {
+        account = { id: accountId, ...accountDoc.data() };
+      }
+    }
+
+    if (!account) {
+      return res.status(404).json({
+        success: false,
+        error: 'account_not_found',
+        message: 'Account not found',
+        accountId,
+        requestId,
+      });
+    }
+
+    const terminalStatuses = ['needs_qr', 'logged_out'];
+    const requiresQr = account.requiresQR === true || terminalStatuses.includes(account.status);
+    if (requiresQr) {
+      // Clear session to force re-pairing, then mark as connecting
+      await clearAccountSession(accountId).catch(() => {});
+      if (firestoreAvailable && db) {
+        await db.collection('accounts').doc(accountId).set({
+          status: 'connecting',
+          requiresQR: false,
+          qrCode: null,
+          lastError: null,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+      if (connections.has(accountId)) {
+        const inMemory = connections.get(accountId);
+        inMemory.status = 'connecting';
+        inMemory.requiresQR = false;
+        inMemory.qrCode = null;
+      }
+    }
+
+    createConnection(accountId, account.name, account.phone).catch(err => {
+      console.error(`❌ [${accountId}] Connect failed:`, err.message);
+    });
+
+    return res.json({
+      success: true,
+      status: 'connecting',
+      accountId,
+      requestId,
+    });
+  } catch (error) {
+    console.error(`❌ [${accountId}/${requestId}] Connect error:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'internal_error',
+      message: error.message,
+      accountId,
+      requestId,
+    });
+  }
+});
+
+// Get QR for account (JSON, no auto-refresh)
+app.get('/api/whatsapp/accounts/:accountId/qr', requireFirebaseAuth, requireAdminRole, async (req, res) => {
+  const { accountId } = req.params;
+  const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+
+  try {
+    const hasInMemoryAccounts = connections.size > 0;
+    let hasFirestoreAccounts = false;
+
+    if (!hasInMemoryAccounts && firestoreAvailable && db) {
+      const snapshot = await db.collection('accounts').limit(1).get();
+      hasFirestoreAccounts = !snapshot.empty;
+    }
+
+    if (!hasInMemoryAccounts && !hasFirestoreAccounts) {
+      return res.json({
+        success: true,
+        status: 'no_accounts',
+        accountId,
+        requestId,
+      });
+    }
+
+    let account = connections.get(accountId);
+    if (!account && firestoreAvailable && db) {
+      const accountDoc = await db.collection('accounts').doc(accountId).get();
+      if (accountDoc.exists) {
+        account = { id: accountId, ...accountDoc.data() };
+      }
+    }
+
+    if (!account) {
+      return res.status(404).json({
+        success: false,
+        status: 'not_found',
+        error: 'account_not_found',
+        message: 'Account not found',
+        accountId,
+        requestId,
+      });
+    }
+
+    const qrDataUrl = account.qrCode || account.qr_code || null;
+    if (!qrDataUrl) {
+      return res.status(202).json({
+        success: false,
+        accountId,
+        status: account.status || 'pending',
+        message: 'QR not ready',
+        requestId,
+      });
+    }
+
+    const base64Prefix = 'data:image/png;base64,';
+    const qrPngBase64 = qrDataUrl.startsWith(base64Prefix)
+      ? qrDataUrl.substring(base64Prefix.length)
+      : null;
+
+    return res.json({
+      success: true,
+      accountId,
+      status: 'qr_ready',
+      qrDataUrl,
+      qrPngBase64,
+      requestId,
+    });
+  } catch (error) {
+    console.error(`❌ [${accountId}/${requestId}] QR fetch error:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'internal_error',
+      message: error.message,
+      accountId,
+      requestId,
+    });
+  }
+});
+
+// QR list endpoint (JSON)
+app.get('/api/whatsapp/qr-visual', requireFirebaseAuth, requireAdminRole, async (req, res) => {
   try {
     const accounts = [];
     connections.forEach((conn, id) => {
@@ -4839,227 +5007,135 @@ app.get('/api/whatsapp/qr-visual', async (req, res) => {
         accounts.push({
           id,
           name: conn.name,
-          phone: conn.phone,
           status: conn.status,
-          qrCode: conn.qrCode,
+          qrDataUrl: conn.qrCode,
         });
       }
     });
 
-    if (accounts.length === 0) {
-      return res.send(
-        '<html><body><h1>No QR codes available</h1><p>Create an account first using POST /api/whatsapp/add-account</p></body></html>'
-      );
-    }
-
-    const html = `
-      <html>
-      <head>
-        <title>WhatsApp QR Codes</title>
-        <style>
-          body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
-          .qr-container { background: white; padding: 20px; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-          .qr-container h2 { margin-top: 0; color: #25D366; }
-          .qr-container img { max-width: 400px; border: 2px solid #25D366; border-radius: 8px; }
-          .info { color: #666; margin: 10px 0; }
-          .status { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; }
-          .status.qr_ready { background: #FFF3CD; color: #856404; }
-          .status.connecting { background: #D1ECF1; color: #0C5460; }
-          .status.connected { background: #D4EDDA; color: #155724; }
-        </style>
-      </head>
-      <body>
-        <h1>📱 WhatsApp QR Codes</h1>
-        ${accounts
-          .map(
-            acc => `
-          <div class="qr-container">
-            <h2>${acc.name || acc.id}</h2>
-            <div class="info">
-              <strong>Phone:</strong> ${acc.phone || 'N/A'}<br>
-              <strong>Status:</strong> <span class="status ${acc.status}">${acc.status}</span><br>
-              <strong>Account ID:</strong> ${acc.id}
-            </div>
-            <img src="${acc.qrCode}" alt="QR Code">
-            <p style="color: #666; font-size: 14px;">Scan this QR code with WhatsApp: Settings → Linked Devices → Link a Device</p>
-          </div>
-        `
-          )
-          .join('')}
-        <script>
-          // Auto-refresh every 5 seconds
-          setTimeout(() => location.reload(), 5000);
-        </script>
-      </body>
-      </html>
-    `;
-
-    res.send(html);
+    return res.json({
+      success: true,
+      accounts,
+      count: accounts.length,
+    });
   } catch (error) {
-    res.status(500).send(`<html><body><h1>Error</h1><pre>${error.message}</pre></body></html>`);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// Add new account
-app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
+async function createAccountRecord({ name, phone, requestId }) {
+  if (connections.size >= MAX_ACCOUNTS) {
+    throw Object.assign(new Error(`Maximum ${MAX_ACCOUNTS} accounts reached`), { statusCode: 429 });
+  }
+
+  let accountId;
+  let canonicalPhoneNum = null;
+
+  if (phone) {
+    canonicalPhoneNum = canonicalPhone(phone);
+    accountId = generateAccountId(canonicalPhoneNum);
+  } else {
+    const randomId = crypto.randomBytes(16).toString('hex');
+    const namespace = process.env.ACCOUNT_NAMESPACE || 'prod';
+    accountId = `account_${namespace}_${randomId}`;
+  }
+
+  if (name && typeof name !== 'string') {
+    throw Object.assign(new Error('Invalid name'), { statusCode: 400 });
+  }
+
+  const accountPayload = {
+    id: accountId,
+    name: (name || '').trim() || accountId,
+    phone: phone || null,
+    phoneE164: canonicalPhoneNum || null,
+    status: 'created',
+    qrCode: null,
+    pairingCode: null,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  if (firestoreAvailable && db) {
+    await db.collection('accounts').doc(accountId).set(accountPayload, { merge: true });
+  }
+
+  if (featureFlags.isEnabled('API_CACHING')) {
+    await cache.delete('whatsapp:accounts');
+  }
+
+  console.log(`🧾 [${requestId}] Created account record: ${accountId}`);
+  return { accountId, accountPayload };
+}
+
+async function handleCreateAccount(req, res) {
+  const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+  try {
+    const { name } = req.body || {};
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ success: false, message: 'Name is required', requestId });
+    }
+    const { accountId, accountPayload } = await createAccountRecord({ name, phone: null, requestId });
+
+    return res.json({
+      success: true,
+      account: {
+        id: accountId,
+        name: accountPayload.name,
+        status: accountPayload.status,
+        createdAt: new Date().toISOString(),
+      },
+      requestId,
+    });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    const message = error.message || 'Internal error';
+    res.status(statusCode).json({ success: false, message, requestId });
+  }
+}
+
+async function handleLegacyAddAccount(req, res) {
   // HARD GATE: PASSIVE mode - do NOT create new Baileys connections
   const passiveGuard = await checkPassiveModeGuard(req, res);
   if (passiveGuard) return; // Response already sent
 
+  const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
   try {
-    const { name, phone } = req.body;
+    const { name, phone } = req.body || {};
+    const { accountId } = await createAccountRecord({ name, phone, requestId });
 
-    if (connections.size >= MAX_ACCOUNTS) {
-      return res.status(429).json({
-        success: false,
-        error: 'rate_limited',
-        message: `Maximum ${MAX_ACCOUNTS} accounts reached`,
-        maxAccounts: MAX_ACCOUNTS,
-        currentAccounts: connections.size,
-      });
-    }
-
-    // Generate deterministic accountId based on canonicalized phone number
-    // If no phone provided, generate random ID
-    let accountId;
-    let canonicalPhoneNum = null;
-    
-    if (phone) {
-      canonicalPhoneNum = canonicalPhone(phone);
-      accountId = generateAccountId(canonicalPhoneNum);
-    } else {
-      // No phone provided - generate random ID for QR-only accounts
-      const randomId = crypto.randomBytes(16).toString('hex');
-      const namespace = process.env.ACCOUNT_NAMESPACE || 'prod';
-      accountId = `account_${namespace}_${randomId}`;
-    }
-
-    // Check for duplicate phone number and disconnect old session
-    if (phone) {
-      const normalizedPhone = phone.replace(/\D/g, ''); // Remove non-digits
-
-      // Check in active connections (memory)
-      for (const [existingId, conn] of connections.entries()) {
-        const existingPhone = conn.phone?.replace(/\D/g, '');
-        if (existingPhone && existingPhone === normalizedPhone) {
-          console.log(
-            `🔄 [${existingId}] Disconnecting old session for phone ${maskPhone(normalizedPhone)}`
-          );
-
-          // Disconnect old session
-          if (conn.sock) {
-            try {
-              conn.sock.end();
-            } catch (e) {
-              console.error(`❌ [${existingId}] Error ending socket:`, e.message);
-            }
-          }
-
-          // Remove from connections
-          connections.delete(existingId);
-          reconnectAttempts.delete(existingId);
-          connectionRegistry.release(existingId);
-
-          // Update Firestore status
-          if (firestoreAvailable && db) {
-            await saveAccountToFirestore(existingId, {
-              status: 'disconnected',
-              lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
-              lastDisconnectReason: 'replaced_by_new_session',
-            }).catch(err => console.error(`❌ [${existingId}] Failed to update Firestore:`, err));
-          }
-
-          console.log(`✅ [${existingId}] Old session disconnected`);
-        }
-      }
-
-      // Check in Firestore for any other accounts with same phone
-      if (firestoreAvailable && db) {
-        try {
-          const accountsSnapshot = await db.collection('accounts').get();
-          for (const doc of accountsSnapshot.docs) {
-            const data = doc.data();
-            const existingPhone =
-              data.phoneE164?.replace(/\D/g, '') || data.phone?.replace(/\D/g, '');
-            if (existingPhone && existingPhone === normalizedPhone && doc.id !== accountId) {
-              console.log(`🗑️ [${doc.id}] Marking old Firestore account as disconnected`);
-              await db.collection('accounts').doc(doc.id).update({
-                status: 'disconnected',
-                lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
-                lastDisconnectReason: 'replaced_by_new_session',
-              });
-            }
-          }
-        } catch (error) {
-          console.error('❌ Error checking Firestore for duplicates:', error.message);
-        }
-      }
-    }
-
-    console.log(`📞 [${accountId}] Canonical phone: ${maskPhone(canonicalPhoneNum)}`);
-
-    // Invalidate accounts cache
-    if (featureFlags.isEnabled('API_CACHING')) {
-      await cache.delete('whatsapp:accounts');
-    }
-
-    // HARD GATE: PASSIVE mode - do NOT create connection (requires Baileys)
-    if (!waBootstrap.canStartBaileys()) {
-      const status = await waBootstrap.getWAStatus();
-      const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
-      console.log(`⏸️  [${accountId}] Add account blocked: PASSIVE mode (instanceId: ${instanceId})`);
-      return res.status(503).json({
-        success: false,
-        error: 'PASSIVE mode: another instance holds lock; retry shortly',
-        message: `Backend in PASSIVE mode: ${status.reason || 'lock not acquired'}`,
-        mode: 'passive',
-        instanceId: instanceId,
-        waMode: 'passive',
-        requestId: req.headers['x-request-id'] || `req_${Date.now()}`,
-      });
-    }
-
-    // Get instance info for response
-    const status = await waBootstrap.getWAStatus();
-    const instanceId = status.instanceId || process.env.RAILWAY_DEPLOYMENT_ID || 'unknown';
-    const isActive = waBootstrap.isActiveMode();
-    const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
-
-    console.log(`[${requestId}] Add account: accountId=${accountId}, instanceId=${instanceId}, waMode=${isActive ? 'active' : 'passive'}`);
-
-    // Create connection (async, will emit QR later)
     createConnection(accountId, name, phone).catch(err => {
-      console.error(`❌ [${accountId}] Failed to create:`, err.message);
+      console.error(`❌ [${accountId}] Failed to connect:`, err.message);
       Sentry.captureException(err, {
         tags: { accountId, operation: 'create_connection', requestId },
-        extra: { name, phone: maskPhone(canonicalPhoneNum) },
+        extra: { name, phone: phone ? maskPhone(phone) : null },
       });
     });
 
-    // Return immediately with connecting status + instance info
-    res.json({
+    return res.json({
       success: true,
       account: {
         id: accountId,
-        name,
-        phone,
+        name: name || accountId,
+        phone: phone || null,
         status: 'connecting',
         qrCode: null,
         pairingCode: null,
-        createdAt: new Date().toISOString(),
       },
-      instanceId: instanceId,
-      waMode: isActive ? 'active' : 'passive',
-      requestId: requestId,
+      requestId,
     });
   } catch (error) {
-    Sentry.captureException(error, {
-      tags: { endpoint: 'add-account' },
-      extra: { body: req.body },
-    });
-    res.status(500).json({ success: false, error: error.message });
+    const statusCode = error.statusCode || 500;
+    const message = error.message || 'Internal error';
+    res.status(statusCode).json({ success: false, message, requestId });
   }
-});
+}
+
+// Add new account (legacy)
+app.post('/api/whatsapp/add-account', accountLimiter, requireFirebaseAuth, asyncHandler(handleLegacyAddAccount));
+
+// Add new account (canonical)
+app.post('/api/whatsapp/accounts', accountLimiter, requireFirebaseAuth, asyncHandler(handleCreateAccount));
 
 // Clean up duplicate accounts (public endpoint - temporary)
 app.post('/api/cleanup-duplicates', async (req, res) => {
@@ -5116,7 +5192,7 @@ app.post('/api/cleanup-duplicates', async (req, res) => {
 
         // Disconnect and mark duplicates
         for (const acc of toRemove) {
-          console.log(`🗑️ [${acc.id}] Removing duplicate for phone ${phone}`);
+          console.log(`🗑️ [${acc.id}] Removing duplicate for phone ${hashSensitive(phone)}`);
 
           // Disconnect if in memory
           if (connections.has(acc.id)) {
@@ -5159,7 +5235,7 @@ app.post('/api/cleanup-duplicates', async (req, res) => {
 });
 
 // Update account name
-app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req, res) => {
+app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, requireFirebaseAuth, async (req, res) => {
   // HARD GATE: PASSIVE mode - do NOT mutate account state
   const passiveGuard = await checkPassiveModeGuard(req, res);
   if (passiveGuard) return; // Response already sent
@@ -5215,7 +5291,7 @@ app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req, 
 });
 
 // Regenerate QR
-app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (req, res) => {
+app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, requireFirebaseAuth, requireAdminRole, async (req, res) => {
   // DEBUG: Log incoming request
   const accountId = req.params.accountId;
   const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
@@ -5488,7 +5564,7 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
 });
 
 // Backfill messages for an account (admin endpoint)
-app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) => {
+app.post('/api/whatsapp/backfill/:accountId', accountLimiter, requireFirebaseAuth, requireAdminRole, async (req, res) => {
   // HARD GATE: PASSIVE mode - do NOT process backfill (mutates state)
   const passiveGuard = await checkPassiveModeGuard(req, res);
   if (passiveGuard) return; // Response already sent
@@ -5536,7 +5612,7 @@ app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) =
 });
 
 // Send message
-app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
+app.post('/api/whatsapp/send-message', messageLimiter, requireFirebaseAuth, async (req, res) => {
   // HARD GATE: PASSIVE mode - do NOT process outbox (messages queued but not sent immediately)
   const passiveGuard = await checkPassiveModeGuard(req, res);
   if (passiveGuard) return; // Response already sent
@@ -5703,7 +5779,7 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
 
 // Get messages
 // Get threads for an account
-app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
+app.get('/api/whatsapp/threads/:accountId', requireFirebaseAuth, async (req, res) => {
   try {
     const { accountId } = req.params;
     const { limit = 50, orderBy = 'lastMessageAt' } = req.query;
@@ -5746,7 +5822,7 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
     const account = connections.get(accountId);
     if (account && account.phone) {
       accountPhone = account.phone.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
-      console.log(`📋 [${accountId}] Inbox filter: Found phone in memory: ${accountPhone}`);
+      console.log(`📋 [${accountId}] Inbox filter: Found phone in memory: ${hashSensitive(accountPhone)}`);
     } else if (firestoreAvailable && db) {
       // Try to get from Firestore if not in memory
       try {
@@ -5755,7 +5831,7 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
           const accountData = accountDoc.data();
           if (accountData.phone) {
             accountPhone = accountData.phone.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
-            console.log(`📋 [${accountId}] Inbox filter: Found phone in Firestore: ${accountPhone}`);
+            console.log(`📋 [${accountId}] Inbox filter: Found phone in Firestore: ${hashSensitive(accountPhone)}`);
           }
         }
       } catch (err) {
@@ -5875,7 +5951,7 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
 });
 
 // Get unified inbox - all messages from all threads in chronological order
-app.get('/api/whatsapp/inbox/:accountId', async (req, res) => {
+app.get('/api/whatsapp/inbox/:accountId', requireFirebaseAuth, async (req, res) => {
   try {
     const { accountId } = req.params;
     const { limit = 100 } = req.query;
@@ -5968,7 +6044,7 @@ app.get('/api/whatsapp/inbox/:accountId', async (req, res) => {
 });
 
 // Get messages for a specific thread
-app.get('/api/whatsapp/messages/:accountId/:threadId', async (req, res) => {
+app.get('/api/whatsapp/messages/:accountId/:threadId', requireFirebaseAuth, async (req, res) => {
   try {
     const { accountId, threadId } = req.params;
     const { limit = 50, orderBy = 'createdAt' } = req.query;
@@ -6021,7 +6097,7 @@ app.get('/api/whatsapp/messages/:accountId/:threadId', async (req, res) => {
 });
 
 // Get messages (legacy endpoint - supports old query format)
-app.get('/api/whatsapp/messages', async (req, res) => {
+app.get('/api/whatsapp/messages', requireFirebaseAuth, async (req, res) => {
   try {
     const { accountId, threadId, limit = 50 } = req.query;
 
@@ -6093,7 +6169,7 @@ app.get('/api/whatsapp/messages', async (req, res) => {
 });
 
 // Delete account
-app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
+app.delete('/api/whatsapp/accounts/:id', accountLimiter, requireFirebaseAuth, requireAdminRole, async (req, res) => {
   const accountId = req.params?.id;
   if (!accountId) {
     return res.status(400).json({ success: false, error: 'Account ID is required' });
@@ -6241,7 +6317,7 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
 });
 
 // Reset account session (wipe auth and set to needs_qr)
-app.post('/api/whatsapp/accounts/:id/reset', accountLimiter, async (req, res) => {
+app.post('/api/whatsapp/accounts/:id/reset', accountLimiter, requireFirebaseAuth, requireAdminRole, async (req, res) => {
   // HARD GATE: PASSIVE mode - do NOT mutate account state
   const passiveGuard = await checkPassiveModeGuard(req, res);
   if (passiveGuard) return; // Response already sent
@@ -6349,7 +6425,7 @@ app.post('/api/whatsapp/accounts/:id/reset', accountLimiter, async (req, res) =>
 
 // POST /api/admin/account/:id/disconnect
 // Public disconnect endpoint for UI
-app.post('/api/whatsapp/disconnect/:id', accountLimiter, async (req, res) => {
+app.post('/api/whatsapp/disconnect/:id', accountLimiter, requireFirebaseAuth, requireAdminRole, async (req, res) => {
   try {
     const { id } = req.params;
     const account = connections.get(id);

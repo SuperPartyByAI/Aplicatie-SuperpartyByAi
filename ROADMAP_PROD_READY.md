@@ -110,34 +110,43 @@ curl https://your-service.railway.app/health
 
 **Status:** ✅ All endpoints exist in code, needs testing
 
-**Endpoints disponibile:**
-- ✅ `POST /api/whatsapp/add-account` (linia 2691)
-- ✅ `GET /api/whatsapp/accounts` (linia 2582)
-- ✅ `GET /api/whatsapp/qr/:accountId` (linia 2452)
-- ✅ `GET /api/status/dashboard` (linia 5044)
-- ✅ `POST /api/whatsapp/regenerate-qr/:accountId` (linia 2946)
-- ✅ `POST /api/whatsapp/backfill/:accountId` (linia 2977) **[NEW]**
-- ✅ `POST /api/whatsapp/disconnect/:id` (linia 3322)
-- ✅ `DELETE /api/whatsapp/accounts/:id` (linia 3283)
+**Endpoints disponibile (Auth: Firebase ID token):**
+- ✅ `POST /api/whatsapp/accounts` (create)
+- ✅ `POST /api/whatsapp/accounts/:id/connect` (**admin**)
+- ✅ `GET /api/whatsapp/accounts/:id/qr` (**admin**)
+- ✅ `GET /api/whatsapp/accounts`
+- ✅ `GET /api/whatsapp/threads/:accountId`
+- ✅ `GET /api/whatsapp/messages/:accountId/:threadId`
+- ✅ `POST /api/whatsapp/send-message`
+- ✅ `POST /api/whatsapp/regenerate-qr/:accountId` (**admin**, legacy)
+- ✅ `POST /api/whatsapp/backfill/:accountId` (**admin**)
+- ✅ `POST /api/whatsapp/disconnect/:id` (**admin**)
+- ✅ `DELETE /api/whatsapp/accounts/:id` (**admin**)
 
 **Teste cu curl:**
 ```bash
+# 0. Firebase ID token (ex: from client)
+TOKEN="eyJhbGciOi..."
+
 # 1. Health
 curl https://your-service.railway.app/health
 
-# 2. Add account
-curl -X POST https://your-service.railway.app/api/whatsapp/add-account \
+# 2. Create account
+curl -X POST https://your-service.railway.app/api/whatsapp/accounts \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d '{"name":"WA-01","phone":"+40712345678"}'
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"WA-01"}'
 
 # 3. Get accounts
 curl https://your-service.railway.app/api/whatsapp/accounts \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
+  -H "Authorization: Bearer $TOKEN"
 
-# 4. Get QR
-curl https://your-service.railway.app/api/whatsapp/qr/{accountId} \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
+# 4. Connect + Get QR (admin)
+curl -X POST https://your-service.railway.app/api/whatsapp/accounts/{accountId}/connect \
+  -H "Authorization: Bearer $TOKEN"
+
+curl https://your-service.railway.app/api/whatsapp/accounts/{accountId}/qr \
+  -H "Authorization: Bearer $TOKEN"
 
 # 5. Dashboard
 curl https://your-service.railway.app/api/status/dashboard
@@ -150,7 +159,7 @@ curl https://your-service.railway.app/api/status/dashboard
 
 ## ✅ **5. Flutter Integration (VERIFIED)**
 
-**Status:** ✅ Code exists and verified, backend endpoints don't require auth
+**Status:** ✅ Code exists and verified, backend endpoints require Firebase auth
 
 **Fișiere existente:**
 - ✅ `lib/services/whatsapp_api_service.dart` (259 lines, API client) - VERIFIED
@@ -170,42 +179,36 @@ static final String whatsappBackendUrl = _normalizeBaseUrl(
 );
 ```
 
-**Auth mechanism (✅ VERIFIED - No auth required):**
-- ✅ **Backend endpoints NU cer auth:** 
-  - `GET /api/whatsapp/accounts` (linia 2582) - NO auth ✅
-  - `POST /api/whatsapp/add-account` (linia 2691) - NO auth ✅
-  - `GET /api/whatsapp/qr/:accountId` (linia 2452) - NO auth ✅
-  - `POST /api/whatsapp/regenerate-qr/:accountId` (linia 2946) - NO auth ✅
-  - `DELETE /api/whatsapp/accounts/:id` (linia 3283) - NO auth ✅
-  - `GET /api/status/dashboard` (linia 5044) - NO auth ✅
-
-- ✅ **Flutter nu trimite auth headers** (corect, backend nu cere) ✅
-- ✅ **Functions proxy folosește Firebase Auth token** (linia 87 în `whatsapp_api_service.dart`) - OK pentru send-message ✅
+**Auth mechanism (✅ REQUIRED):**
+- ✅ **Backend endpoints cer Firebase ID token** (Authorization: Bearer)
+- ✅ **Admin-only:** connect/qr/backfill/delete/disconnect
+- ✅ **Flutter trimite auth headers** pentru apelurile directe la backend
 
 ### 5.2 Ecrane/Flow (✅ VERIFIED)
 
 **Ecrane existente:**
-- ✅ `whatsapp_screen.dart` (main screen - opens WhatsApp app)
+- ✅ `whatsapp_screen.dart` (main screen - inbox intern)
 - ✅ `whatsapp_accounts_screen.dart` (accounts management)
 
 **Endpoints implementate în Flutter (✅ VERIFIED):**
-- ✅ `getAccounts()` → `GET /api/whatsapp/accounts` (linia 118-144 în `whatsapp_api_service.dart`)
-- ✅ `addAccount()` → `POST /api/whatsapp/add-account` (linia 151-184)
-- ✅ `regenerateQr()` → `POST /api/whatsapp/regenerate-qr/:accountId` (linia 189-217)
-- ✅ `deleteAccount()` → `DELETE /api/whatsapp/accounts/:id` (linia 222-250)
-- ✅ `qrPageUrl()` → `GET /api/whatsapp/qr/:accountId` (linia 255-258)
-- ⚠️ **MISSING:** `POST /api/whatsapp/backfill/:accountId` (nou endpoint, nu e în service)
+- ✅ `getAccounts()` → `GET /api/whatsapp/accounts`
+- ✅ `createAccount()` → `POST /api/whatsapp/accounts`
+- ✅ `connectAccount()` → `POST /api/whatsapp/accounts/:id/connect`
+- ✅ `getAccountQr()` → `GET /api/whatsapp/accounts/:id/qr`
+- ✅ `regenerateQr()` → `POST /api/whatsapp/regenerate-qr/:accountId` (legacy)
+- ✅ `deleteAccount()` → `DELETE /api/whatsapp/accounts/:id` (admin)
+- ⚠️ **MISSING:** `POST /api/whatsapp/backfill/:accountId` (optional)
 
 **QR Display:**
-- ✅ `whatsapp_accounts_screen.dart` folosește `qr_flutter` package (linia 2)
-- ✅ QR code afișat din `account['qrCode']` (data-url din response)
+- ✅ `whatsapp_accounts_screen.dart` folosește `qr_flutter` package
+- ✅ QR code afișat din `GET /api/whatsapp/accounts/:id/qr` (data-url base64)
 
 **Status Updates:**
 - ✅ `whatsapp_accounts_screen.dart` actualizează lista via `_loadAccounts()` (linia 35-76)
 - ✅ Status afișat din `account['status']` (connected/disconnected/qr_ready)
 
 **Actions (Finalizare):**
-1. ✅ Backend endpoints verified - no auth required ✅
+1. ✅ Backend endpoints verified - Firebase auth required ✅
 2. ⚠️ **ADD:** `backfillAccount()` method în `whatsapp_api_service.dart` pentru endpoint nou
 3. ⚠️ **VERIFY:** Config `whatsappBackendUrl` în Flutter matches Railway domain
 

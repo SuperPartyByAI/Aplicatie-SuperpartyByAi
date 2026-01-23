@@ -53,6 +53,9 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   final Set<String> _deletingAccount = {}; // accountId -> in-flight
   final Set<String> _openingFirefox = {}; // accountId -> in-flight
   final Set<String> _autoOpenedFirefox = {}; // accountId -> auto-opened Firefox (prevent duplicates)
+  final Set<String> _qrPollingAccounts = {}; // accountId -> polling in-flight
+  final Map<String, String> _qrOverrides = {}; // accountId -> qrDataUrl
+  final Map<String, int> _qrPollAttempts = {}; // accountId -> attempts
   int _loadRequestToken = 0;
   Timer? _qrPollingTimer; // Timer for polling QR code generation
   
@@ -144,6 +147,17 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
             debugPrint('[WhatsAppAccountsScreen] Polling refresh error: $error');
           }
         });
+
+        for (final account in _accounts) {
+          final accountId = account['id'] as String? ?? '';
+          if (accountId.isEmpty) continue;
+          final status = account['status'] as String? ?? '';
+          final qrCode = account['qrCode'] as String?;
+          final hasQr = (qrCode != null && qrCode.isNotEmpty) || _qrOverrides.containsKey(accountId);
+          if ((status == 'connecting' || status == 'qr_ready') && !hasQr) {
+            _pollQrForAccount(accountId);
+          }
+        }
       } else {
         // No accounts waiting - keep timer running (might add new account later)
       }
@@ -154,6 +168,36 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   void _stopQrPolling() {
     _qrPollingTimer?.cancel();
     _qrPollingTimer = null;
+  }
+
+  Future<void> _pollQrForAccount(String accountId) async {
+    if (_qrPollingAccounts.contains(accountId)) return;
+    _qrPollingAccounts.add(accountId);
+
+    try {
+      final attempts = (_qrPollAttempts[accountId] ?? 0) + 1;
+      _qrPollAttempts[accountId] = attempts;
+      if (attempts > 60) {
+        _qrPollingAccounts.remove(accountId);
+        return;
+      }
+
+      final response = await _apiService.getAccountQr(accountId: accountId);
+      if (response['success'] == true) {
+        final qrDataUrl = response['qrDataUrl'] as String?;
+        if (qrDataUrl != null && qrDataUrl.isNotEmpty) {
+          if (mounted) {
+            setState(() {
+              _qrOverrides[accountId] = qrDataUrl;
+            });
+          }
+        }
+      }
+    } catch (_) {
+      // Ignore transient errors during polling
+    } finally {
+      _qrPollingAccounts.remove(accountId);
+    }
   }
   
   Future<void> _checkBackendDiagnostics() async {
@@ -214,7 +258,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
         if (result.success) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Opened WhatsApp Web for ${account.label}'),
+              content: Text('Am deschis web inbox pentru ${account.label}'),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 3),
             ),
@@ -227,7 +271,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to open Firefox: $trimmedError'),
+              content: Text('Nu am putut deschide Firefox: $trimmedError'),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 5),
             ),
@@ -238,7 +282,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
+            content: Text('Eroare: ${e.toString()}'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),
           ),
@@ -256,7 +300,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Phone number copied to clipboard'),
+          content: Text('Număr copiat'),
           duration: Duration(seconds: 2),
         ),
       );
@@ -354,37 +398,27 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
       // Ignore late responses (if another load started)
       if (myToken != _loadRequestToken) return;
       
-          if (response['success'] == true) {
+      if (response['success'] == true) {
         final accounts = response['accounts'] as List<dynamic>? ?? [];
-        
-        // #region agent log
-        try {
-          final http = await HttpClient().postUrl(Uri.parse('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591'));
-          http.headers.set('Content-Type', 'application/json');
-          http.write(jsonEncode({
-            'location': 'whatsapp_accounts_screen.dart:359',
-            'message': '_loadAccounts got response',
-            'data': {
-              'accountsCount': accounts.length,
-              'accountStatuses': accounts.map((a) => {
-                'id': (a['id'] as String?)?.substring(0, 20),
-                'status': a['status'],
-                'hasQR': a['qrCode'] != null
-              }).toList()
-            },
-            'timestamp': DateTime.now().millisecondsSinceEpoch,
-            'sessionId': 'debug-session',
-            'hypothesisId': 'H1-H2'
-          }));
-          await http.close();
-        } catch (_) {}
-        // #endregion
         
         if (mounted && myToken == _loadRequestToken) {
           setState(() {
             _accounts = accounts.cast<Map<String, dynamic>>();
             _isLoading = false;
             _error = null;
+          });
+
+          final accountIds = _accounts
+              .map((account) => account['id'] as String? ?? '')
+              .where((id) => id.isNotEmpty)
+              .toSet();
+          _qrOverrides.removeWhere((id, _) {
+            final account = _accounts.firstWhere(
+              (a) => a['id'] == id,
+              orElse: () => {},
+            );
+            final status = account['status'] as String? ?? '';
+            return !accountIds.contains(id) || status == 'connected';
           });
           
           // Auto-open Firefox containers for new QR codes (if enabled)
@@ -486,45 +520,35 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
 
   Future<void> _addAccount() async {
     final nameController = TextEditingController();
-    final phoneController = TextEditingController();
 
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add WhatsApp Account'),
+        title: const Text('Adaugă cont inbox'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameController,
               decoration: const InputDecoration(
-                labelText: 'Account Name',
-                hintText: 'e.g., Main Account',
+                labelText: 'Nume cont',
+                hintText: 'ex: Cont principal',
               ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: phoneController,
-              decoration: const InputDecoration(
-                labelText: 'Phone Number',
-                hintText: 'e.g., +407123456789',
-              ),
-              keyboardType: TextInputType.phone,
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const Text('Renunță'),
           ),
           TextButton(
             onPressed: () {
-              if (nameController.text.isNotEmpty && phoneController.text.isNotEmpty) {
+              if (nameController.text.isNotEmpty) {
                 Navigator.pop(context, true);
               }
             },
-            child: const Text('Add'),
+            child: const Text('Adaugă'),
           ),
         ],
       ),
@@ -537,16 +561,18 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     setState(() => _isAddingAccount = true);
 
     try {
-      final response = await _apiService.addAccount(
+      final response = await _apiService.createAccount(
         name: nameController.text.trim(),
-        phone: phoneController.text.trim(),
       );
 
       if (mounted) {
         if (response['success'] == true) {
+          final accountId = response['account']?['id'] as String? ??
+              response['accountId'] as String? ??
+              '';
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Account added successfully. QR code generating...'),
+              content: Text('Cont creat. Se generează codul QR...'),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 3),
             ),
@@ -554,6 +580,11 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           
           // Reload immediately to show account with 'connecting' status
           await _loadAccounts();
+
+          if (accountId.isNotEmpty) {
+            await _apiService.connectAccount(accountId: accountId);
+            _pollQrForAccount(accountId);
+          }
           
           // Polling timer will automatically refresh accounts every 2 seconds
           // No need for manual delays - polling handles it
@@ -561,7 +592,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           // Show message that QR code will appear automatically
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Account added. QR code will appear automatically when ready...'),
+              content: Text('Cont creat. Codul QR va apărea când este gata.'),
               backgroundColor: Colors.blue,
               duration: Duration(seconds: 3),
             ),
@@ -569,7 +600,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(response['message'] ?? 'Failed to add account'),
+              content: Text(response['message'] ?? 'Nu am putut crea contul'),
               backgroundColor: Colors.red,
             ),
           );
@@ -591,30 +622,31 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     }
   }
 
-  Future<void> _regenerateQr(String accountId) async {
+  Future<void> _connectAccount(String accountId) async {
     // Guard: prevent double-tap
     if (_regeneratingQr.contains(accountId)) return;
     
     setState(() => _regeneratingQr.add(accountId));
 
     try {
-      final response = await _apiService.regenerateQr(accountId: accountId);
+      final response = await _apiService.connectAccount(accountId: accountId);
 
       if (mounted) {
         if (response['success'] == true) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('QR regeneration started'),
+              content: Text('Conectarea a început'),
               backgroundColor: Colors.green,
             ),
           );
           // Reload accounts to get new QR code
           await Future.delayed(const Duration(seconds: 2));
           await _loadAccounts();
+          _pollQrForAccount(accountId);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(response['message'] ?? 'Failed to regenerate QR'),
+              content: Text(response['message'] ?? 'Nu am putut porni conectarea'),
               backgroundColor: Colors.red,
             ),
           );
@@ -627,7 +659,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           final retryAfterSeconds = (e.originalError as Map<String, dynamic>?)?['retryAfterSeconds'] as int? ?? 10;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${e.message}\nPlease wait ${retryAfterSeconds}s before regenerating QR again'),
+              content: Text('${e.message}\nAșteaptă ${retryAfterSeconds}s înainte de a reîncerca'),
               backgroundColor: Colors.orange,
               duration: Duration(seconds: retryAfterSeconds),
             ),
@@ -635,7 +667,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error: ${e.toString()}'),
+              content: Text('Eroare: ${e.toString()}'),
               backgroundColor: Colors.red,
             ),
           );
@@ -699,25 +731,8 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     }
   }
 
-  Future<void> _openQrPage(String accountId) async {
-    final url = _apiService.qrPageUrl(accountId);
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not open QR page: $url'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    }
-  }
-
-  /// Open WhatsApp Web in Firefox with a container
-  /// Uses the firefox-container script to open WhatsApp Web in a named container
+  /// Open web inbox in Firefox with a container
+  /// Uses the firefox-container script to open the web UI in a named container
   Future<void> _openInFirefoxContainer(
     String accountId,
     String accountName,
@@ -869,8 +884,8 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Opening WhatsApp Web in Firefox container: $containerName\n'
-                'Please scan the QR code with your WhatsApp app.',
+                'Se deschide web inbox în containerul Firefox: $containerName\n'
+                'Scanează codul QR în aplicația ta.',
               ),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 3),
@@ -881,7 +896,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Failed to open Firefox:\n${errorMsg.isNotEmpty ? errorMsg : result.stdout.toString()}',
+                'Nu am putut deschide Firefox:\n${errorMsg.isNotEmpty ? errorMsg : result.stdout.toString()}',
               ),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 5),
@@ -894,12 +909,12 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Error opening Firefox: ${e.toString()}\n\n'
-              'Make sure:\n'
-              '1. Firefox is installed\n'
-              '2. Script exists at: $scriptPath\n'
-              '3. Script is executable (chmod +x)\n'
-              '4. OPEN_URL_IN_CONTAINER_SIGNING_KEY is set (optional)',
+              'Eroare la deschiderea Firefox: ${e.toString()}\n\n'
+              'Verifică:\n'
+              '1. Firefox este instalat\n'
+              '2. Scriptul există la: $scriptPath\n'
+              '3. Scriptul are execuție (chmod +x)\n'
+              '4. OPEN_URL_IN_CONTAINER_SIGNING_KEY este setat (opțional)',
             ),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),
@@ -918,7 +933,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     final name = account['name'] as String? ?? 'Unnamed';
     final phone = account['phone'] as String? ?? '';
     final status = account['status'] as String? ?? 'unknown';
-    final qrCode = account['qrCode'] as String?;
+    final qrCode = _qrOverrides[id] ?? (account['qrCode'] as String?);
     final pairingCode = account['pairingCode'] as String?;
 
     final statusColor = _getStatusColor(status);
@@ -993,7 +1008,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
               const SizedBox(height: 8),
               const Center(
                 child: Text(
-                  'Scan this QR code with WhatsApp',
+                  'Scanează codul QR pentru conectare',
                   style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ),
@@ -1002,7 +1017,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
               const SizedBox(height: 8),
               Center(
                 child: Text(
-                  'Pairing Code: $pairingCode',
+                  'Cod de conectare: $pairingCode',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -1025,7 +1040,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                         ),
                         const SizedBox(width: 8),
                         const Text(
-                          'Generating QR code...',
+                          'Se generează codul QR...',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey,
@@ -1050,7 +1065,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                 child: TextButton.icon(
                   onPressed: () => _loadAccounts(),
                   icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('Refresh Now'),
+                  label: const Text('Reîncarcă'),
                   style: TextButton.styleFrom(
                     textStyle: const TextStyle(fontSize: 12),
                   ),
@@ -1074,7 +1089,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.open_in_browser, size: 18),
-                    label: Text(_openingFirefox.contains(id) ? 'Opening...' : 'Open in Firefox'),
+                    label: Text(_openingFirefox.contains(id) ? 'Se deschide...' : 'Deschide în Firefox'),
                   )
                 else if (!Platform.isMacOS && showQr)
                   // Show info for non-macOS
@@ -1085,7 +1100,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Text(
-                      'Firefox only on macOS',
+                      'Firefox doar pe macOS',
                       style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   )
@@ -1097,9 +1112,9 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                     TextButton.icon(
                       onPressed: _regeneratingQr.contains(id) || _isAddingAccount
                           ? null
-                          : () => _regenerateQr(id),
+                          : () => _connectAccount(id),
                       icon: const Icon(Icons.refresh, size: 18),
-                      label: const Text('Regenerate QR'),
+                      label: const Text('Conectează (QR)'),
                     ),
                     const SizedBox(width: 8),
                     IconButton(
@@ -1108,7 +1123,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                           : () => _deleteAccount(id, name),
                       icon: const Icon(Icons.delete_outline, size: 20),
                       color: Colors.red,
-                      tooltip: 'Delete account',
+                      tooltip: 'Șterge cont',
                     ),
                   ],
                 ),
@@ -1276,7 +1291,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
         children: [
           const CircularProgressIndicator(),
           const SizedBox(height: 16),
-          const Text('Loading WhatsApp accounts...'),
+          const Text('Se încarcă conturile...'),
           const SizedBox(height: 8),
           Text(
             'This may take a few seconds',
@@ -1435,7 +1450,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                       border: Border.all(color: Colors.orange.withOpacity(0.3)),
                     ),
                     child: const Text(
-                      'Firefox WhatsApp Web sessions are separate from backend accounts.\n'
+                      'Sesiunile web din Firefox sunt separate de conturile backend.\n'
                       'However, you can open Firefox containers directly from backend accounts using the "Open in Firefox" button.',
                       style: TextStyle(
                         fontSize: 12,
@@ -1456,7 +1471,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'This opens WhatsApp Web in a Firefox container for manual scanning.',
+                      'Deschide interfața web într-un container Firefox pentru scanare manuală.',
                       style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                     ),
                   ],
@@ -1600,7 +1615,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.open_in_browser, size: 18),
-                    label: Text(isOpening ? 'Opening...' : 'Open WhatsApp Web'),
+                    label: Text(isOpening ? 'Se deschide...' : 'Deschide web'),
                   ),
                   OutlinedButton.icon(
                     onPressed: () => _openManualQr(account),
@@ -1734,7 +1749,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     if (_isManualOnly) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('WhatsApp Web (Manual)'),
+          title: const Text('Web inbox (manual)'),
           backgroundColor: const Color(0xFF25D366),
           actions: [
             IconButton(
@@ -1767,7 +1782,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('WhatsApp Accounts'),
+        title: const Text('Inbox intern'),
         backgroundColor: const Color(0xFF25D366),
         actions: [
           if (!_isLoading && _error == null)
