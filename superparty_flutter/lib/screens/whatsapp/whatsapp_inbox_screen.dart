@@ -273,7 +273,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('WhatsApp Inbox'),
+        title: const Text('Inbox intern'),
         backgroundColor: const Color(0xFF25D366),
         actions: [
           IconButton(

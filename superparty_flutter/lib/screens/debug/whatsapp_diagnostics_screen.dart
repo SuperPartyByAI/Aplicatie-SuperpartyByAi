@@ -98,7 +98,7 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('WhatsApp Diagnostics'),
+        title: const Text('Diag inbox intern'),
         backgroundColor: Colors.orange,
         actions: [
           IconButton(
