@@ -301,7 +301,7 @@ async function fetchProfilePhotoUrl(accountId, clientJid) {
 }
 
 const AI_REPLY_COOLDOWN_MS = 10 * 1000;
-const AI_REPLY_MAX_CHARS = 500;
+const AI_REPLY_MAX_CHARS = 150; // Mesaje scurte și concise
 const AI_REPLY_DEDUPE_TTL_MS = 10 * 60 * 1000;
 const AI_FRESH_WINDOW_MS = 2 * 60 * 1000;
 const aiReplyDedupe = new Map();
@@ -486,7 +486,7 @@ async function generateAutoReplyText(groqKey, messages) {
   const completion = await groq.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
     temperature: 0.2,
-    max_tokens: 200,
+    max_tokens: 100, // Mesaje scurte (reduc de la 200 la 100)
     messages,
   });
   const raw = completion?.choices?.[0]?.message?.content || '';
@@ -733,7 +733,7 @@ async function maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType }
     const systemPrompt = threadPrompt ||
       accountPrompt ||
       (process.env.AI_DEFAULT_SYSTEM_PROMPT ||
-        'Ești un asistent WhatsApp. Răspunzi politicos, scurt și clar în română. Nu inventezi informații. Dacă nu știi ceva, spui clar că nu știi.');
+        'Ești un asistent WhatsApp. Răspunzi politicos, FOARTE SCURT (max 2-3 propoziții) și clar în română. Folosește emoji-uri relevante pentru a fi prietenos. Nu inventezi informații. Dacă nu știi ceva, spui clar că nu știi.');
 
     const messages = buildAiContextMessages(systemPrompt, history);
     const aiStart = Date.now();
@@ -6805,7 +6805,7 @@ app.get('/api/whatsapp/auto-reply-settings/:accountId', requireFirebaseAuth, asy
 app.post('/api/whatsapp/activate-auto-reply-now', async (req, res) => {
   try {
     const ACCOUNT_ID = 'account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443';
-    const PROMPT = 'Ești un asistent WhatsApp. Răspunzi politicos, scurt și clar în română. Nu inventezi informații. Dacă nu știi ceva, spui clar că nu știi.';
+    const PROMPT = 'Ești un asistent WhatsApp. Răspunzi politicos, FOARTE SCURT (max 2-3 propoziții) și clar în română. Folosește emoji-uri relevante pentru a fi prietenos. Nu inventezi informații. Dacă nu știi ceva, spui clar că nu știi.';
     
     if (!firestoreAvailable || !db) {
       return res.status(503).json({ success: false, error: 'Firestore not available' });
