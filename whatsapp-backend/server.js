@@ -7,36 +7,27 @@ const {
   useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
-  makeInMemoryStore,
+  downloadContentFromMessage,
 } = require('@whiskeysockets/baileys');
 const { useFirestoreAuthState } = require('./lib/persistence/firestore-auth');
 const QRCode = require('qrcode');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
+const chatEventOpsHandler = require('./ai/chatEventOpsHandler');
 const admin = require('firebase-admin');
+const { loadServiceAccount } = require('./firebaseCredentials');
 const crypto = require('crypto');
-const http = require('http');
-const https = require('https');
-const debugLog = () => {};
+const {
+  extractBodyAndType,
+  writeMessageIdempotent,
+  resolveMessageDocId,
+  computeStableIds,
+} = require('./whatsapp/message_persist');
+const { Readable } = require('stream');
+const { pipeline } = require('stream/promises');
 
-const { normalizeJidToE164, resolveDisplayName } = require('./lib/phone-utils');
-const { resolveCanonicalJid } = require('./lib/jid-utils');
-const {
-  canonicalizeJid,
-  buildCanonicalThreadId,
-  computeTsClient,
-  safeHash,
-} = require('./lib/wa-canonical');
-const {
-  normalizeMessageText,
-  getMessageType,
-  getSenderJid,
-  getStableKey,
-  getStrongFingerprint,
-  chooseDocId,
-  safeHash: safeHashMessage,
-} = require('./lib/wa-message-identity');
+const DEBUG_LOGS_ENABLED = process.env.WA_DEBUG_LOGS === 'true';
 
 // Initialize Sentry
 const { Sentry, logger } = require('./sentry');
@@ -96,6 +87,929 @@ function generateAccountId(phone) {
   const namespace = process.env.ACCOUNT_NAMESPACE || 'prod';
   return `account_${namespace}_${hash}`;
 }
+
+function hashForLog(value) {
+  const raw = String(value ?? '');
+  const sha8 = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 8);
+  return `${sha8}:${raw.length}`;
+}
+
+function logThreadWrite(source, accountId, clientJid, threadId) {
+  if (!DEBUG_LOGS_ENABLED) {
+    return;
+  }
+  console.log(
+    `🧭 [thread-write:${source}] account=${hashForLog(accountId)} clientJid=${hashForLog(clientJid)} threadId=${hashForLog(threadId)}`
+  );
+}
+
+function normalizeClientJid(value) {
+  if (typeof value === 'string') return value;
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value.jid || value.id || value.value || value.clientJid || null;
+  return typeof candidate === 'string' ? candidate : null;
+}
+
+function extractDigits(value) {
+  if (!value || typeof value !== 'string') return '';
+  return value.replace(/\D/g, '');
+}
+
+function resolvePhoneE164FromLid(sessionPath, lidJid) {
+  if (!lidJid || typeof lidJid !== 'string' || !lidJid.endsWith('@lid')) {
+    return null;
+  }
+  try {
+    const lidDigits = extractDigits(lidJid.split('@')[0] || '');
+    if (!lidDigits) return null;
+    const filePath = path.join(sessionPath, `lid-mapping-${lidDigits}_reverse.json`);
+    if (!fs.existsSync(filePath)) return null;
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const data = JSON.parse(raw);
+    if (typeof data !== 'string') return null;
+    const digits = extractDigits(data);
+    if (!digits) return null;
+    return `+${digits}`;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function ensurePhoneE164ForLidThread(accountId, threadId, clientJid) {
+  if (!firestoreAvailable || !db) return;
+  if (!clientJid || typeof clientJid !== 'string' || !clientJid.endsWith('@lid')) return;
+  const sessionPath = path.join(authDir, accountId);
+  const phoneE164 = resolvePhoneE164FromLid(sessionPath, clientJid);
+  if (!phoneE164) return;
+  const threadRef = db.collection('threads').doc(threadId);
+  const threadSnap = await threadRef.get();
+  const existingPhone = threadSnap.data()?.phoneE164 || null;
+  if (existingPhone === phoneE164) return;
+  await threadRef.set(
+    {
+      phoneE164,
+      phone: phoneE164,
+      phoneNumber: phoneE164,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+  const contactRef = db.collection('contacts').doc(`${accountId}__${clientJid}`);
+  await contactRef.set(
+    {
+      accountId,
+      jid: clientJid,
+      phoneE164,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+const PROFILE_PHOTO_TTL_MS = 6 * 60 * 60 * 1000;
+const PROFILE_PHOTO_NEGATIVE_TTL_MS = 10 * 60 * 1000;
+const profilePhotoCache = new Map();
+const profilePhotoBackfillInFlight = new Set();
+
+function parsePhotoUpdatedAt(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (value.toDate && typeof value.toDate === 'function') {
+    return value.toDate();
+  }
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}
+
+async function getProfilePhotoFromFirestore(accountId, clientJid) {
+  if (!firestoreAvailable || !db) return null;
+  const threadId = `${accountId}__${clientJid}`;
+  const doc = await db.collection('threads').doc(threadId).get();
+  if (!doc.exists) return null;
+  const data = doc.data() || {};
+  const photoUrl = typeof data.photoUrl === 'string' ? data.photoUrl.trim() : '';
+  if (!photoUrl) return null;
+  const updatedAt = parsePhotoUpdatedAt(data.photoUpdatedAt);
+  if (!updatedAt) return null;
+  const isFresh = Date.now() - updatedAt.getTime() <= PROFILE_PHOTO_TTL_MS;
+  return isFresh ? photoUrl : null;
+}
+
+async function backfillProfilePhotosForAccount(accountId, threads, { limit = 12 } = {}) {
+  if (!Array.isArray(threads) || threads.length === 0) return;
+  if (profilePhotoBackfillInFlight.has(accountId)) return;
+  const account = connections.get(accountId);
+  if (!account || !account.sock || account.status !== 'connected') return;
+
+  profilePhotoBackfillInFlight.add(accountId);
+  try {
+    let processed = 0;
+    for (const thread of threads) {
+      if (processed >= limit) break;
+      const clientJid = normalizeClientJid(thread.clientJid || thread.client_jid || thread.id);
+    if (!clientJid || clientJid === 'status@broadcast') {
+        continue;
+      }
+      const cacheKey = `${accountId}__${clientJid}`;
+      const cached = getProfilePhotoCacheEntry(cacheKey);
+      if (cached.hit && cached.url) {
+        continue;
+      }
+      const firestorePhotoUrl = await getProfilePhotoFromFirestore(accountId, clientJid);
+      if (firestorePhotoUrl) {
+        setProfilePhotoCache(cacheKey, firestorePhotoUrl);
+        continue;
+      }
+
+      const photoUrl = await fetchProfilePhotoUrl(accountId, clientJid);
+      setProfilePhotoCache(cacheKey, photoUrl);
+      if (photoUrl && firestoreAvailable && db) {
+        const threadId = `${accountId}__${clientJid}`;
+        await db.collection('threads').doc(threadId).set(
+          {
+            photoUrl,
+            photoUpdatedAt: new Date().toISOString(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+      processed += 1;
+    }
+  } catch (error) {
+    console.warn(`⚠️  [${accountId}] Profile photo backfill failed: ${error.message}`);
+  } finally {
+    profilePhotoBackfillInFlight.delete(accountId);
+  }
+}
+
+function getProfilePhotoCacheEntry(cacheKey) {
+  const entry = profilePhotoCache.get(cacheKey);
+  if (!entry) return { hit: false };
+  if (entry.expiresAt <= Date.now()) {
+    profilePhotoCache.delete(cacheKey);
+    return { hit: false };
+  }
+  return { hit: true, url: entry.url ?? null };
+}
+
+function setProfilePhotoCache(cacheKey, url) {
+  profilePhotoCache.set(cacheKey, {
+    url: url ?? null,
+    expiresAt: Date.now() + (url ? PROFILE_PHOTO_TTL_MS : PROFILE_PHOTO_NEGATIVE_TTL_MS),
+  });
+}
+
+function normalizeJidForProfilePhoto(accountId, clientJid) {
+  if (!clientJid || typeof clientJid !== 'string') return null;
+  const trimmed = clientJid.trim();
+  if (!trimmed) return null;
+  if (trimmed.endsWith('@g.us')) return trimmed;
+  if (trimmed.endsWith('@lid')) {
+    const sessionPath = path.join(authDir, accountId);
+    const phoneE164 = resolvePhoneE164FromLid(sessionPath, trimmed);
+    if (phoneE164) {
+      const digits = extractDigits(phoneE164);
+      if (digits) return `${digits}@s.whatsapp.net`;
+    }
+    return trimmed;
+  }
+  return trimmed;
+}
+
+async function fetchProfilePhotoUrl(accountId, clientJid) {
+  const account = connections.get(accountId);
+  if (!account || !account.sock || account.status !== 'connected') {
+    return null;
+  }
+  const targetJid = normalizeJidForProfilePhoto(accountId, clientJid);
+  if (!targetJid) return null;
+  try {
+    const url = await account.sock.profilePictureUrl(targetJid, 'image');
+    if (typeof url === 'string' && url.trim().length > 0) {
+      return url.trim();
+    }
+  } catch (error) {
+    if (DEBUG_LOGS_ENABLED) {
+      console.log(`⚠️  [${accountId}] profile photo fetch failed: ${error.message}`);
+    }
+  }
+  return null;
+}
+
+const AI_REPLY_COOLDOWN_MS = 10 * 1000;
+const AI_REPLY_MAX_CHARS = 500;
+const AI_REPLY_DEDUPE_TTL_MS = 10 * 60 * 1000;
+const AI_FRESH_WINDOW_MS = 2 * 60 * 1000;
+const aiReplyDedupe = new Map();
+const MESSAGE_DEDUPE_TTL_MS = 2 * 60 * 1000;
+const messageDedupe = new Map();
+const messageDedupeInFlight = new Set();
+
+function isDedupeHit(messageId) {
+  if (!messageId) return true;
+  const entry = aiReplyDedupe.get(messageId);
+  if (!entry) return false;
+  if (entry.expiresAt <= Date.now()) {
+    aiReplyDedupe.delete(messageId);
+    return false;
+  }
+  return true;
+}
+
+function markDedupe(messageId) {
+  if (!messageId) return;
+  aiReplyDedupe.set(messageId, { expiresAt: Date.now() + AI_REPLY_DEDUPE_TTL_MS });
+}
+
+function isMessageDedupeHit(dedupeKey) {
+  if (!dedupeKey) return false;
+  const entry = messageDedupe.get(dedupeKey);
+  if (!entry) return false;
+  if (entry.expiresAt <= Date.now()) {
+    messageDedupe.delete(dedupeKey);
+    return false;
+  }
+  return true;
+}
+
+function markMessageDedupe(dedupeKey) {
+  if (!dedupeKey) return;
+  messageDedupe.set(dedupeKey, { expiresAt: Date.now() + MESSAGE_DEDUPE_TTL_MS });
+}
+
+function isMessageDedupeHit(dedupeKey) {
+  if (!dedupeKey) return false;
+  const entry = messageDedupe.get(dedupeKey);
+  if (!entry) return false;
+  if (entry.expiresAt <= Date.now()) {
+    messageDedupe.delete(dedupeKey);
+    return false;
+  }
+  return true;
+}
+
+function markMessageDedupe(dedupeKey) {
+  if (!dedupeKey) return;
+  messageDedupe.set(dedupeKey, { expiresAt: Date.now() + MESSAGE_DEDUPE_TTL_MS });
+}
+
+function normalizeTextForCommand(text) {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractTimestampMs(value) {
+  if (!value) return null;
+  if (typeof value === 'number') {
+    return value < 1e12 ? value * 1000 : value;
+  }
+  if (typeof value === 'string') {
+    const num = Number(value);
+    if (!Number.isNaN(num)) {
+      return num < 1e12 ? num * 1000 : num;
+    }
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  if (value && typeof value.toNumber === 'function') {
+    const num = value.toNumber();
+    return num < 1e12 ? num * 1000 : num;
+  }
+  if (value && typeof value === 'object' && ('low' in value || 'high' in value)) {
+    try {
+      const num = Number(value);
+      return num < 1e12 ? num * 1000 : num;
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
+}
+
+function isFreshMessage(messageTimestamp) {
+  const tsMs = extractTimestampMs(messageTimestamp);
+  if (!tsMs) return false;
+  return Math.abs(Date.now() - tsMs) <= AI_FRESH_WINDOW_MS;
+}
+
+function isAdminEmail(email) {
+  if (!email) return false;
+  const raw = process.env.ADMIN_EMAILS || '';
+  const list = raw
+    .split(',')
+    .map(value => value.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes(email.toLowerCase());
+}
+
+function getListenerCount(sock, eventName) {
+  if (!sock?.ev) return 0;
+  if (typeof sock.ev.listenerCount === 'function') {
+    return sock.ev.listenerCount(eventName);
+  }
+  const evListeners = sock.ev._events || {};
+  const entry = evListeners[eventName];
+  if (!entry) return 0;
+  return Array.isArray(entry) ? entry.length : 1;
+}
+
+function attachListenerOnce(sock, eventName, handler) {
+  if (!sock?.ev || !handler) return;
+  if (!sock.__spHandlers) {
+    sock.__spHandlers = new Map();
+  }
+  const existing = sock.__spHandlers.get(eventName);
+  if (existing) {
+    const off = sock.ev.off || sock.ev.removeListener;
+    if (typeof off === 'function') {
+      off.call(sock.ev, eventName, existing);
+    }
+  }
+  sock.ev.on(eventName, handler);
+  sock.__spHandlers.set(eventName, handler);
+}
+
+function ensureMessagesUpsertListener(accountId, sock, handler) {
+  if (!sock?.ev) return;
+  const count = getListenerCount(sock, 'messages.upsert');
+  if (count > 0) return;
+  sock.ev.on('messages.upsert', handler);
+  console.log(
+    `🔧 [${accountId}] messages.upsert listener attached (count=${getListenerCount(sock, 'messages.upsert')})`
+  );
+}
+
+function wireSocketEvents({
+  accountId,
+  sock,
+  saveCreds,
+  onConnectionUpdate,
+  onHistorySync,
+  onMessagesUpsert,
+  onMessagesUpdate,
+  onMessageReceiptUpdate,
+}) {
+  if (!sock?.ev) return;
+  attachListenerOnce(sock, 'connection.update', onConnectionUpdate);
+  attachListenerOnce(sock, 'creds.update', saveCreds);
+  attachListenerOnce(sock, 'messaging-history.set', onHistorySync);
+  attachListenerOnce(sock, 'messages.upsert', onMessagesUpsert);
+  attachListenerOnce(sock, 'messages.update', onMessagesUpdate);
+  attachListenerOnce(sock, 'message-receipt.update', onMessageReceiptUpdate);
+
+  console.log(
+    `[WA][wire] accountId=${accountId} messages.upsert=${getListenerCount(sock, 'messages.upsert')} connection.update=${getListenerCount(sock, 'connection.update')} creds.update=${getListenerCount(sock, 'creds.update')}`
+  );
+}
+
+function buildAiContextMessages(systemPrompt, history) {
+  const messages = [{ role: 'system', content: systemPrompt }];
+  for (const item of history) {
+    if (!item?.body) continue;
+    const role = item.fromMe ? 'assistant' : 'user';
+    messages.push({ role, content: item.body });
+  }
+  return messages;
+}
+
+async function generateAutoReplyText(groqKey, messages) {
+  const Groq = require('groq-sdk');
+  const groq = new Groq({ apiKey: groqKey });
+  const completion = await groq.chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
+    temperature: 0.2,
+    max_tokens: 200,
+    messages,
+  });
+  const raw = completion?.choices?.[0]?.message?.content || '';
+  if (typeof raw !== 'string') return '';
+  return raw.trim().replace(/```[\s\S]*?```/g, '').trim();
+}
+
+/**
+ * Auto-Reply Handler - End-to-End Implementation
+ * 
+ * Gate-uri de securitate:
+ * 1. Nu răspunde la propriile mesaje (fromMe)
+ * 2. Nu răspunde în grupuri (g.us)
+ * 3. Idempotency: dedupe per messageId
+ * 4. Cooldown per clientJid (30-60s) pentru a evita spam-ul
+ * 5. Opțiune de dezactivare per account/thread
+ * 6. Doar mesaje fresh (în ultimele 2 minute)
+ * 7. Doar mesaje text (conversation/extendedText)
+ */
+async function maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType }) {
+  const startTime = Date.now();
+  const messageId = msg?.key?.id;
+  const remoteJid = msg?.key?.remoteJid;
+  const fromMe = msg?.key?.fromMe === true;
+  const isGroup = remoteJid?.endsWith('@g.us') === true;
+  const threadId = saved?.threadId || (remoteJid ? `${accountId}__${remoteJid}` : null);
+  const clientJid = remoteJid;
+  
+  // Helper pentru logging structurat
+  const logSkip = (reason, extra = {}) => {
+    const tsMs = extractTimestampMs(msg?.messageTimestamp);
+    const ageSec = tsMs ? Math.floor((Date.now() - tsMs) / 1000) : null;
+    const { type: msgType, body } = extractBodyAndType(msg);
+    const textLen = (body || '').toString().trim().length;
+    
+    const logData = {
+      reason,
+      accountId: hashForLog(accountId),
+      threadId: threadId ? hashForLog(threadId) : 'null',
+      clientJid: clientJid ? hashForLog(clientJid) : 'null',
+      type: eventType || 'null',
+      isGroup: isGroup ? 'true' : 'false',
+      fromMe: fromMe ? 'true' : 'false',
+      ageSec: ageSec !== null ? String(ageSec) : 'null',
+      textLen: String(textLen),
+      messageType: msgType || 'null',
+      ...extra,
+    };
+    
+    const logStr = Object.entries(logData)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(' ');
+    
+    console.log(`[AutoReply][skip] ${logStr}`);
+  };
+  
+  console.log(`[AutoReply] 🔍 Entry: account=${hashForLog(accountId)} msg=${messageId ? hashForLog(messageId) : 'no-id'} saved=${!!saved} eventType=${eventType || 'null'} fromMe=${fromMe}`);
+  
+  // GATE 1: Validare input
+  if (!msg || !saved) {
+    logSkip('skipped_input', { msg: msg ? 'true' : 'false', saved: saved ? 'true' : 'false' });
+    return;
+  }
+  
+  // GATE 2: STRICT - Nu răspunde la propriile mesaje (outbound) sau în grupuri
+  if (fromMe) {
+    logSkip('skipped_fromMe', { note: 'outbound_message_from_app' });
+    return;
+  }
+  if (isGroup) {
+    logSkip('skipped_group', { note: 'group_message' });
+    return;
+  }
+  if (!remoteJid || remoteJid === 'status@broadcast') {
+    logSkip('skipped_invalidJid', { remoteJid: remoteJid ? hashForLog(remoteJid) : 'null' });
+    return;
+  }
+  
+  // GATE 3: Doar mesaje de tip notify (nu append sau alte tipuri)
+  if (eventType && eventType !== 'notify') {
+    logSkip('skipped_notNotify', { eventType, note: `expected_notify_got_${eventType}` });
+    return;
+  }
+  
+  // GATE 4: Doar mesaje fresh (în ultimele 2 minute) - skip mesaje vechi după reconnect
+  if (!isFreshMessage(msg?.messageTimestamp)) {
+    const tsMs = extractTimestampMs(msg?.messageTimestamp);
+    const ageMs = tsMs ? Date.now() - tsMs : null;
+    logSkip('skipped_notFresh', { 
+      ageMs: ageMs ? String(ageMs) : 'null',
+      timestamp: msg?.messageTimestamp ? String(msg.messageTimestamp) : 'null',
+      note: 'message_too_old_after_reconnect'
+    });
+    return;
+  }
+  
+  // GATE 5: Idempotency - dedupe per messageId (nu trimite de 2 ori pentru același messageId)
+  if (isDedupeHit(messageId)) {
+    logSkip('skipped_dedupe', { messageId: messageId ? hashForLog(messageId) : 'null', note: 'already_processed' });
+    return;
+  }
+  
+  // GATE 6: Doar mesaje text (conversation/extendedText)
+  const { type: msgType, body } = extractBodyAndType(msg);
+  const text = (body || '').toString().trim();
+  if (!text || (msgType !== 'conversation' && msgType !== 'extendedText')) {
+    logSkip('skipped_nonText', { 
+      hasText: text ? 'true' : 'false',
+      messageType: msgType || 'null',
+      note: 'only_text_messages_supported'
+    });
+    return;
+  }
+  
+  // GATE 7: Firestore disponibil
+  if (!firestoreAvailable || !db) {
+    logSkip('skipped_noFirestore', { 
+      firestoreAvailable: firestoreAvailable ? 'true' : 'false', 
+      db: db ? 'true' : 'false' 
+    });
+    return;
+  }
+
+  try {
+    // GATE 8: Verifică setările auto-reply (account-level și thread-level)
+    const [accountDoc, threadDoc] = await Promise.all([
+      db.collection('accounts').doc(accountId).get(),
+      db.collection('threads').doc(threadId).get()
+    ]);
+    
+    const accountData = accountDoc.data() || {};
+    const accountAutoReplyEnabled = accountData.autoReplyEnabled === true;
+    const accountPrompt = typeof accountData.autoReplyPrompt === 'string' && accountData.autoReplyPrompt.trim().length > 0
+      ? accountData.autoReplyPrompt.trim()
+      : null;
+
+    const threadData = threadDoc.data() || {};
+    const threadAiEnabled = threadData.aiEnabled === true;
+    const threadPrompt = typeof threadData.aiSystemPrompt === 'string' && threadData.aiSystemPrompt.trim().length > 0
+      ? threadData.aiSystemPrompt.trim()
+      : null;
+
+    // Prioritate: thread-level > account-level
+    const isAiEnabled = threadAiEnabled || accountAutoReplyEnabled;
+    
+    console.log(
+      `[AutoReply] 🔍 Settings check: account=${hashForLog(accountId)} thread=${hashForLog(threadId)} ` +
+      `accountEnabled=${accountAutoReplyEnabled} threadEnabled=${threadAiEnabled} ` +
+      `isAiEnabled=${isAiEnabled} accountPrompt=${accountPrompt ? 'set (' + accountPrompt.substring(0, 30) + '...)' : 'not set'}`
+    );
+    
+    // GATE 8: Auto-reply enabled (account-level sau thread-level)
+    // Verifică: accounts/{accountId}.autoReplyEnabled și threads/{threadId}.aiEnabled
+    // Dacă câmpul lipsește, considerăm false (nu trimite auto-reply)
+    if (!isAiEnabled) {
+      logSkip('skipped_disabled', {
+        accountEnabled: accountAutoReplyEnabled ? 'true' : 'false',
+        threadEnabled: threadAiEnabled ? 'true' : 'false',
+        accountHasField: accountDoc.exists && 'autoReplyEnabled' in accountData ? 'true' : 'false',
+        threadHasField: threadDoc.exists && 'aiEnabled' in threadData ? 'true' : 'false',
+        note: 'auto_reply_not_enabled'
+      });
+      return;
+    }
+
+    // GATE 9: Comenzi speciale (stop/dezactiveaza) - dezactivează auto-reply pentru thread
+    const normalized = normalizeTextForCommand(text);
+    if (normalized === 'stop' || normalized === 'dezactiveaza') {
+      console.log(`[AutoReply] 🛑 Command detected: disabling auto-reply for thread=${hashForLog(threadId)}, msg=${hashForLog(messageId)}`);
+      await db.collection('threads').doc(threadId).set(
+        {
+          aiEnabled: false,
+          aiLastReplyAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      logSkip('skipped_command', { command: normalized, note: 'user_disabled_auto_reply' });
+      return;
+    }
+
+    // GATE 10: Cooldown per thread (10s) - evită spam în același thread
+    const lastReplyAt = threadData.aiLastReplyAt;
+    const lastReplyMs = extractTimestampMs(lastReplyAt);
+    if (lastReplyMs && Date.now() - lastReplyMs < AI_REPLY_COOLDOWN_MS) {
+      const remainingMs = AI_REPLY_COOLDOWN_MS - (Date.now() - lastReplyMs);
+      const remainingSec = Math.floor(remainingMs / 1000);
+      logSkip('skipped_cooldown_thread', { 
+        remainingSec: String(remainingSec),
+        lastReplyAt: lastReplyAt ? String(lastReplyAt) : 'null',
+        note: 'thread_cooldown_active_10s'
+      });
+      return;
+    }
+
+    // GATE 11: Cooldown per clientJid (10s) - evită spam la același contact
+    const lastClientReplyAt = threadData.autoReplyLastClientReplyAt;
+    const lastClientReplyMs = extractTimestampMs(lastClientReplyAt);
+    if (lastClientReplyMs && Date.now() - lastClientReplyMs < AI_REPLY_COOLDOWN_MS) {
+      const remainingMs = AI_REPLY_COOLDOWN_MS - (Date.now() - lastClientReplyMs);
+      const remainingSec = Math.floor(remainingMs / 1000);
+      logSkip('skipped_cooldown_clientJid', { 
+        remainingSec: String(remainingSec),
+        lastClientReplyAt: lastClientReplyAt ? String(lastClientReplyAt) : 'null',
+        note: 'client_cooldown_active_10s'
+      });
+      return;
+    }
+
+    // GATE 12: GROQ_API_KEY disponibil
+    const groqKey = process.env.GROQ_API_KEY;
+    if (!groqKey || !groqKey.trim()) {
+      logSkip('skipped_noGroqKey', { note: 'GROQ_API_KEY_not_configured' });
+      return;
+    }
+
+    console.log(`[AutoReply] ✅ All gates passed, generating reply...`);
+
+    // Construiește context: ultimele N mesaje din thread
+    const historySnap = await db
+      .collection('threads')
+      .doc(threadId)
+      .collection('messages')
+      .orderBy('tsSort', 'desc')
+      .limit(10)
+      .get();
+
+    const history = historySnap.docs
+      .map(doc => {
+        const data = doc.data() || {};
+        const bodyText = typeof data.body === 'string' ? data.body.trim() : '';
+        if (!bodyText) return null;
+        const msgType = data.type || data.messageType || '';
+        if (msgType && msgType !== 'conversation' && msgType !== 'extendedText') return null;
+        return {
+          body: bodyText,
+          fromMe: data.fromMe === true,
+        };
+      })
+      .filter(Boolean)
+      .reverse();
+
+    // Prioritate prompt: thread > account > env default > hardcoded default
+    const systemPrompt = threadPrompt ||
+      accountPrompt ||
+      (process.env.AI_DEFAULT_SYSTEM_PROMPT ||
+        'Ești un asistent WhatsApp. Răspunzi politicos, scurt și clar în română. Nu inventezi informații. Dacă nu știi ceva, spui clar că nu știi.');
+
+    const messages = buildAiContextMessages(systemPrompt, history);
+    const aiStart = Date.now();
+    
+    console.log(`[AutoReply] 🤖 Calling Groq API: historyLength=${history.length} promptLength=${systemPrompt.length}`);
+    
+    const replyText = await generateAutoReplyText(groqKey.trim(), messages);
+    
+    if (!replyText || !replyText.trim()) {
+      console.log(`[AutoReply] ⚠️  No reply generated from AI`);
+      return;
+    }
+
+    const finalReply = replyText.length > AI_REPLY_MAX_CHARS
+      ? replyText.slice(0, AI_REPLY_MAX_CHARS)
+      : replyText.trim();
+
+    // GATE 13: Verifică dacă socket-ul este disponibil
+    if (!sock || typeof sock.sendMessage !== 'function') {
+      logSkip('skipped_noSocket', { 
+        sock: sock ? 'true' : 'false',
+        sendMessage: (sock && typeof sock.sendMessage === 'function') ? 'true' : 'false',
+        note: 'socket_not_available'
+      });
+      return;
+    }
+
+    // Trimite mesajul
+    console.log(`[AutoReply] 📤 Sending reply: account=${hashForLog(accountId)} to=${hashForLog(clientJid)} replyLen=${finalReply.length}`);
+    
+    const sendResult = await sock.sendMessage(remoteJid, { text: finalReply });
+    
+    // Marchează dedupe pentru a evita procesarea duplicată
+    markDedupe(messageId);
+
+    // Actualizează Firestore: thread + clientJid cooldown
+    await db.collection('threads').doc(threadId).set(
+      {
+        aiLastReplyAt: admin.firestore.FieldValue.serverTimestamp(),
+        autoReplyLastClientReplyAt: admin.firestore.FieldValue.serverTimestamp(),
+        autoReplyLastMessageId: messageId,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    // Salvează mesajul outbound în Firestore pentru idempotency
+    if (sendResult?.key?.id) {
+      const outboundMessageId = sendResult.key.id;
+      const outboundThreadId = threadId;
+      try {
+        await db.collection('threads').doc(outboundThreadId).collection('messages').doc(outboundMessageId).set({
+          accountId,
+          threadId: outboundThreadId,
+          messageId: outboundMessageId,
+          body: finalReply,
+          type: 'conversation',
+          fromMe: true,
+          direction: 'outbound',
+          tsSort: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          autoReply: true,
+          autoReplyToMessageId: messageId,
+        }, { merge: true });
+      } catch (saveError) {
+        console.warn(`[AutoReply] Failed to save outbound message: ${saveError.message}`);
+      }
+    }
+
+    const totalLatencyMs = Date.now() - startTime;
+    const aiLatencyMs = Date.now() - aiStart;
+    const jidSuffix = remoteJid.includes('@') ? remoteJid.split('@')[1] : remoteJid;
+    
+    console.log(
+      `🤖 [AutoReply] ✅ SUCCESS: account=${hashForLog(accountId)} thread=${hashForLog(threadId)} ` +
+      `jid=@${jidSuffix} msg=${hashForLog(messageId)} replyLen=${finalReply.length} ` +
+      `aiLatency=${aiLatencyMs}ms totalLatency=${totalLatencyMs}ms`
+    );
+    
+  } catch (error) {
+    console.error(`[AutoReply] ❌ ERROR: account=${hashForLog(accountId)} msg=${hashForLog(messageId)} error=${error.message}`);
+    console.error(`[AutoReply] Stack:`, error.stack);
+    // Nu aruncăm eroarea mai departe pentru a nu opri procesarea altor mesaje
+  }
+}
+
+async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
+  try {
+    console.log(
+      `🔔🔔🔔 [${hashForLog(accountId)}] messages.upsert: type=${type}, count=${newMessages.length}`
+    );
+    console.log(
+      `🔔 [${hashForLog(accountId)}] Account status: ${connections.get(accountId)?.status}, Socket exists: ${!!sock}`
+    );
+    console.log(
+      `🔔 [${hashForLog(accountId)}] Firestore available: ${firestoreAvailable}, DB exists: ${!!db}`
+    );
+    
+    // IMPORTANT: Auto-reply se declanșează DOAR pentru type='notify' (mesaje noi în timp real)
+    // Type='append' sau alte tipuri sunt skip-uite explicit (mesaje vechi după reconnect)
+    if (type && type !== 'notify') {
+      console.log(
+        `[AutoReply] ⚠️  messages.upsert type=${type} (not 'notify') - auto-reply will be skipped for all messages in this batch`
+      );
+    }
+
+    for (const msg of newMessages) {
+      try {
+        const remoteJid = msg?.key?.remoteJid || null;
+        const participant = msg?.key?.participant || null;
+        const fromMe = msg?.key?.fromMe === true;
+        const messageId = msg?.key?.id || null;
+        const timestamp = msg?.messageTimestamp || null;
+        const dedupeKey = messageId ? `${accountId}__${messageId}` : null;
+
+        if (dedupeKey) {
+          if (messageDedupeInFlight.has(dedupeKey)) {
+            console.log(
+              `⏭️  [${hashForLog(accountId)}] Message ${hashForLog(messageId)} already in-flight (dedupe), skipping`
+            );
+            continue;
+          }
+          if (isMessageDedupeHit(dedupeKey)) {
+            console.log(
+              `⏭️  [${hashForLog(accountId)}] Message ${hashForLog(messageId)} already processed (dedupe), skipping`
+            );
+            continue;
+          }
+          messageDedupeInFlight.add(dedupeKey);
+        }
+
+        try {
+          console.log(
+            `📩 [${hashForLog(accountId)}] INBOUND_META remote=${hashForLog(remoteJid)} fromMe=${fromMe} msg=${hashForLog(messageId)} ts=${timestamp ? String(timestamp) : 'n/a'}`
+          );
+
+          if (!msg.message) {
+            console.log(`⚠️  [${hashForLog(accountId)}] Skipping message ${hashForLog(messageId)} - no content`);
+            continue;
+          }
+
+          const from = msg.key.remoteJid;
+          const isFromMe = msg.key.fromMe;
+
+          console.log(
+            `📨 [${hashForLog(accountId)}] PROCESSING: ${isFromMe ? 'OUTBOUND' : 'INBOUND'} message ${hashForLog(messageId)} from ${hashForLog(from)}`
+          );
+
+          // INBOUND DEDUPE: Skip if already processed
+          let shouldSkip = false;
+          if (!isFromMe && firestoreAvailable && db) {
+            const inboundDedupeKey = `${accountId}__${messageId}`;
+            const dedupeRef = db.collection('inboundDedupe').doc(inboundDedupeKey);
+
+            try {
+              await db.runTransaction(async (transaction) => {
+                const dedupeDoc = await transaction.get(dedupeRef);
+                if (dedupeDoc.exists) {
+                  console.log(`⏭️  [${hashForLog(accountId)}] Message ${hashForLog(messageId)} already processed (dedupe), skipping`);
+                  shouldSkip = true;
+                  return;
+                }
+
+                const ttlTimestamp = admin.firestore.Timestamp.fromMillis(
+                  Date.now() + 7 * 24 * 60 * 60 * 1000
+                );
+                transaction.set(dedupeRef, {
+                  accountId,
+                  providerMessageId: messageId,
+                  processedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  expiresAt: ttlTimestamp,
+                });
+              });
+            } catch (dedupeError) {
+              console.log(
+                `⏭️  [${hashForLog(accountId)}] Dedupe check failed for ${hashForLog(messageId)}:`,
+                dedupeError.message
+              );
+              shouldSkip = true;
+            }
+          }
+
+          if (shouldSkip) {
+            continue;
+          }
+
+          const saved = await saveMessageToFirestore(accountId, msg, false, sock);
+          if (saved) {
+            markMessageDedupe(dedupeKey);
+            console.log(
+              `💾 [${hashForLog(accountId)}] Message saved: ${hashForLog(saved.messageId)} thread=${hashForLog(saved.threadId)} bodyLen=${saved.messageBody?.length || 0} direction=${isFromMe ? 'OUTBOUND' : 'INBOUND'}`
+            );
+            await ensurePhoneE164ForLidThread(accountId, saved.threadId, from);
+
+            // STRICT: Auto-reply DOAR pentru mesaje INBOUND (client → WA conectat)
+            const isGroupJid = typeof from === 'string' && from.endsWith('@g.us');
+            const tsMs = extractTimestampMs(timestamp);
+            const ageSec = tsMs ? Math.floor((Date.now() - tsMs) / 1000) : null;
+            const { type: msgType, body } = extractBodyAndType(msg);
+            const textLen = (body || '').toString().trim().length;
+            const threadIdForLog = saved.threadId || `${accountId}__${from}`;
+            
+            // Helper pentru logging structurat în handleMessagesUpsert
+            const logSkipEarly = (reason, extra = {}) => {
+              const logData = {
+                reason,
+                accountId: hashForLog(accountId),
+                threadId: hashForLog(threadIdForLog),
+                clientJid: from ? hashForLog(from) : 'null',
+                type: type || 'null',
+                isGroup: isGroupJid ? 'true' : 'false',
+                fromMe: isFromMe ? 'true' : 'false',
+                ageSec: ageSec !== null ? String(ageSec) : 'null',
+                textLen: String(textLen),
+                messageType: msgType || 'null',
+                ...extra,
+              };
+              
+              const logStr = Object.entries(logData)
+                .map(([k, v]) => `${k}=${v}`)
+                .join(' ');
+              
+              console.log(`[AutoReply][skip] ${logStr}`);
+            };
+            
+            if (isFromMe) {
+              logSkipEarly('skipped_fromMe', { note: 'outbound_message_from_app' });
+            } else if (!saved.messageBody) {
+              logSkipEarly('skipped_noBody', { note: 'inbound_message_no_text_content' });
+            } else {
+              // INBOUND message with body - proceed with FCM and auto-reply
+              const displayName = saved.displayName || null;
+              
+              // Send FCM notification (non-blocking for auto-reply)
+              console.log(`[AutoReply] 📱 Sending FCM notification: account=${hashForLog(accountId)} msg=${hashForLog(msg?.key?.id)}`);
+              try {
+                await sendWhatsAppNotification(
+                  accountId,
+                  saved.threadId,
+                  from,
+                  saved.messageBody,
+                  displayName
+                );
+                console.log(`[AutoReply] ✅ FCM sent successfully`);
+              } catch (fcmError) {
+                console.warn(`[AutoReply] ⚠️  FCM failed (continuing): ${fcmError.message}`);
+              }
+              
+              // Trigger auto-reply (runs in parallel, doesn't block FCM)
+              // IMPORTANT: Verifică explicit că eventType este 'notify' (nu 'append' sau alte tipuri)
+              console.log(`[AutoReply] 🚀 Triggering auto-reply: account=${hashForLog(accountId)} msg=${hashForLog(msg?.key?.id)} thread=${hashForLog(saved.threadId)} eventType=${type} fromMe=${isFromMe}`);
+              maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType: type }).catch(err => {
+                console.error(`[AutoReply] ❌ Auto-reply error: account=${hashForLog(accountId)} msg=${hashForLog(msg?.key?.id)} error=${err.message}`);
+                console.error(`[AutoReply] Stack:`, err.stack);
+              });
+            }
+          } else {
+            console.log(`⚠️  [${hashForLog(accountId)}] saveMessageToFirestore returned null for ${hashForLog(messageId)}`);
+          }
+        } finally {
+          if (dedupeKey) {
+            messageDedupeInFlight.delete(dedupeKey);
+          }
+        }
+      } catch (msgError) {
+        console.error(`❌ [${hashForLog(accountId)}] Error processing message:`, msgError.message);
+        console.error(`❌ [${accountId}] Stack:`, msgError.stack);
+      }
+    }
+  } catch (eventError) {
+    console.error(`❌ [${hashForLog(accountId)}] Error in messages.upsert handler:`, eventError.message);
+    console.error(`❌ [${accountId}] Stack:`, eventError.stack);
+  }
+}
+
+
 
 /**
  * Find accountId by phone (with backwards compatibility)
@@ -212,477 +1126,13 @@ class AccountConnectionRegistry {
 const connectionRegistry = new AccountConnectionRegistry();
 
 const app = express();
-const PORT = process.env.PORT || 8080; // Platform injects PORT
-const getInstanceId = () =>
-  process.env.INSTANCE_ID ||
-  process.env.DEPLOYMENT_ID ||
-  process.env.HOSTNAME ||
-  'unknown';
-const getCommitHash = () =>
-  process.env.DEPLOY_COMMIT_SHA ||
-  process.env.GIT_COMMIT_SHA ||
-  null;
-const sha1 = (value) => crypto.createHash('sha1').update(String(value)).digest('hex');
-const resolveCanonicalPeerJid = async (accountId, remoteJid, sock = null) => {
-  const rawJid = typeof remoteJid === 'string' ? remoteJid.trim() : null;
-  if (!rawJid) {
-    return {
-      rawJid: null,
-      canonicalJid: null,
-      peerType: 'unknown',
-      resolvedContact: null,
-      aliasSource: null,
-    };
-  }
-
-  const isGroup = rawJid.endsWith('@g.us');
-  const isLid = rawJid.endsWith('@lid');
-  let canonicalJid = rawJid;
-  let resolvedContact = null;
-  let aliasSource = null;
-
-  if (isLid) {
-    if (firestoreAvailable && db) {
-      try {
-        const aliasRef = db.collection('jid_aliases').doc(`${accountId}__${rawJid}`);
-        const aliasDoc = await aliasRef.get();
-        if (aliasDoc.exists && aliasDoc.data()?.canonicalJid) {
-          canonicalJid = aliasDoc.data().canonicalJid;
-          aliasSource = 'firestore';
-        }
-      } catch (_error) {
-        // Best-effort only
-      }
-    }
-
-    if (canonicalJid === rawJid) {
-      const resolved = await resolveCanonicalJid(sock, rawJid);
-      canonicalJid = resolved.canonicalJid || rawJid;
-      resolvedContact = resolved.resolvedContact || null;
-      if (canonicalJid !== rawJid && firestoreAvailable && db) {
-        try {
-          await db
-            .collection('jid_aliases')
-            .doc(`${accountId}__${rawJid}`)
-            .set(
-              {
-                accountId,
-                rawJid,
-                canonicalJid,
-                source: resolvedContact ? 'sock_contact' : 'sock',
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
-          aliasSource = aliasSource || 'sock';
-        } catch (_error) {
-          // Best-effort only
-        }
-      }
-    }
-  } else {
-    canonicalJid = canonicalizeJid(rawJid);
-  }
-
-  const normalizedCanonical = canonicalizeJid(canonicalJid)?.canonicalJid || canonicalJid;
-  const peerType = isGroup ? 'group' : isLid ? 'lid' : 'user';
-
-  return {
-    rawJid,
-    canonicalJid: normalizedCanonical,
-    peerType,
-    resolvedContact,
-    aliasSource,
-  };
-};
-
-const groupSubjectCache = new Map();
-const getGroupSubject = async (sock, groupJid) => {
-  if (!sock || !groupJid || !groupJid.endsWith('@g.us')) return null;
-
-  const cacheKey = groupJid;
-  const cached = groupSubjectCache.get(cacheKey);
-  if (cached && Date.now() - cached.fetchedAt < 5 * 60 * 1000) {
-    return cached.subject;
-  }
-
-  try {
-    const metadata = await sock.groupMetadata(groupJid);
-    const subject = metadata?.subject || null;
-    if (subject) {
-      groupSubjectCache.set(cacheKey, { subject, fetchedAt: Date.now() });
-    }
-    return subject;
-  } catch (_error) {
-    return null;
-  }
-};
-const buildLockSummary = (lock) => {
-  if (!lock || lock.error) {
-    return {
-      lockStatus: 'unknown',
-      lockHolder: null,
-      lockRemainingSec: null,
-    };
-  }
-
-  if (!lock.exists) {
-    return {
-      lockStatus: 'not_held',
-      lockHolder: null,
-      lockRemainingSec: null,
-    };
-  }
-
-  return {
-    lockStatus: lock.isHolder ? 'held_by_this_instance' : 'held_by_other',
-    lockHolder: lock.holder || null,
-    lockRemainingSec:
-      typeof lock.remainingMs === 'number' ? Math.max(0, Math.ceil(lock.remainingMs / 1000)) : null,
-  };
-};
-
-const getWAModeSnapshot = async () => {
-  try {
-    const status = await waBootstrap.getWAStatus();
-    const isActive = waBootstrap.isActiveMode();
-    const lockSummary = buildLockSummary(status?.lock);
-
-    return {
-      waMode: status?.waMode || (isActive ? 'active' : 'passive'),
-      instanceId: status?.instanceId || getInstanceId(),
-      lockStatus: lockSummary.lockStatus,
-      lockHolder: lockSummary.lockHolder,
-      lockRemainingSec: lockSummary.lockRemainingSec,
-    };
-  } catch (error) {
-    return {
-      waMode: waBootstrap.isActiveMode() ? 'active' : 'passive',
-      instanceId: getInstanceId(),
-      lockStatus: 'unknown',
-      lockHolder: null,
-      lockRemainingSec: null,
-    };
-  }
-};
-const getVolumeMountPath = () => process.env.VOLUME_MOUNT_PATH || null;
+const PORT = process.env.PORT || 8080; // Hosting platform injects PORT
 const MAX_ACCOUNTS = 30;
-const dedupeMetrics = new Map(); // accountId -> { wrote, skipped, strongSkipped }
-const historyMetrics = new Map(); // accountId -> { wrote, skipped, lastRunAt, lastBatchCount }
-const isStrongDedupeEnabled = () => process.env.WHATSAPP_STRONG_DEDUPE === 'true';
-
-const getDedupeMetric = (accountId) =>
-  dedupeMetrics.get(accountId) || { wrote: 0, skipped: 0, strongSkipped: 0 };
-const getHistoryMetric = (accountId) =>
-  historyMetrics.get(accountId) || { wrote: 0, skipped: 0, lastRunAt: null, lastBatchCount: 0 };
-
-const bumpDedupeMetric = (accountId, field) => {
-  const current = getDedupeMetric(accountId);
-  const next = { ...current, [field]: (current[field] || 0) + 1 };
-  dedupeMetrics.set(accountId, next);
-};
-
-const setHistoryMetric = (accountId, next) => {
-  const current = getHistoryMetric(accountId);
-  historyMetrics.set(accountId, { ...current, ...next });
-};
-
-const resolveMessageRef = async ({ accountId, messageId, fallbackThreadId }) => {
-  if (!firestoreAvailable || !db || !messageId) return null;
-  try {
-    const mappingId = `${accountId}__${messageId}`;
-    const mappingDoc = await db.collection('message_ids').doc(mappingId).get();
-    if (mappingDoc.exists) {
-      const data = mappingDoc.data() || {};
-      const threadId = data.threadId || fallbackThreadId;
-      const docId = data.docId || null;
-      if (threadId && docId) {
-        return db.collection('threads').doc(threadId).collection('messages').doc(docId);
-      }
-    }
-  } catch (error) {
-    console.error(`⚠️  [${accountId}] resolveMessageRef failed:`, error.message);
-  }
-
-  if (fallbackThreadId) {
-    const fallbackDocId = sha1(`${accountId}|${messageId}`).slice(0, 24);
-    return db.collection('threads').doc(fallbackThreadId).collection('messages').doc(fallbackDocId);
-  }
-
-  return null;
-};
-
-const registerRealtimeHandlers = ({ accountId, sock, saveCreds }) => {
-  if (!sock?.ev) return;
-
-  sock.ev.on('creds.update', () => {
-    updateConnectionHealth(accountId, 'event');
-    return saveCreds();
-  });
-
-  sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
-    try {
-      updateConnectionHealth(accountId, 'message');
-      // #region agent log
-      debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:3193',message:'messages_upsert_received',data:{accountHash:sha1(accountId).slice(0,8),type,count:Array.isArray(newMessages)?newMessages.length:0,firestoreAvailable,hasDb:Boolean(db)},timestamp:Date.now()});
-      // #endregion
-      console.log(
-        `🔔🔔🔔 [${accountId}] messages.upsert EVENT TRIGGERED: type=${type}, count=${newMessages.length}, timestamp=${new Date().toISOString()}`
-      );
-      console.log(
-        `🔔 [${accountId}] Firestore available: ${firestoreAvailable}, DB exists: ${!!db}`
-      );
-
-      for (const msg of newMessages) {
-        try {
-          // #region agent log
-          debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'server.js:3207',message:'messages_upsert_message',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null,fromMe:msg?.key?.fromMe===true,hasMessage:Boolean(msg?.message)},timestamp:Date.now()});
-          // #endregion
-          console.log(
-            `📩 [${accountId}] RAW MESSAGE:`,
-            JSON.stringify({
-              messageId: msg.key.id,
-              from: msg.key.remoteJid,
-              fromMe: msg.key.fromMe,
-              hasMessage: !!msg.message,
-              messageType: msg.message ? Object.keys(msg.message)[0] : null,
-            })
-          );
-
-          if (!msg.message) {
-            // #region agent log
-            debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'server.js:3220',message:'messages_upsert_skip_no_message',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null},timestamp:Date.now()});
-            // #endregion
-            console.log(`⚠️  [${accountId}] Skipping message ${msg.key.id} - no message content`);
-            continue;
-          }
-
-          // Dedupe check for inbound messages
-          let shouldSkip = false;
-          if (!msg.key.fromMe && firestoreAvailable && db) {
-            const { canonicalJid } = await resolveCanonicalPeerJid(accountId, msg.key.remoteJid, sock);
-            const dedupeKey = `${accountId}__${msg.key.id}`;
-            const dedupeRef = db.collection('inboundDedupe').doc(dedupeKey);
-            const dedupeSnap = await dedupeRef.get();
-
-            if (dedupeSnap.exists) {
-              console.log(`🔁 [${accountId}] Duplicate inbound message skipped: ${msg.key.id}`);
-              shouldSkip = true;
-            } else {
-              const ttlTimestamp = admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000);
-              await dedupeRef.set({
-                accountId,
-                threadId: buildCanonicalThreadId(accountId, canonicalJid),
-                messageId: msg.key.id,
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                expiresAt: ttlTimestamp,
-              }, { merge: true });
-            }
-          }
-
-          if (shouldSkip) {
-            // #region agent log
-            debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'server.js:3264',message:'messages_upsert_dedupe_skip',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null},timestamp:Date.now()});
-            // #endregion
-            continue;
-          }
-
-          const saved = await saveMessageToFirestore(accountId, msg, false, sock);
-          // #region agent log
-          debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H4',location:'server.js:3270',message:'messages_upsert_saved',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null,saved:Boolean(saved),savedMessageIdHash:saved?.messageId?sha1(saved.messageId).slice(0,8):null},timestamp:Date.now()});
-          // #endregion
-          if (saved) {
-            console.log(`💾 [${accountId}] Message saved to Firestore: ${saved.messageId} in thread ${saved.threadId}, body length: ${saved.messageBody?.length || 0}`);
-
-            // Send FCM notification for inbound messages (not from me)
-            if (!msg.key.fromMe && firestoreAvailable && db) {
-              const { canonicalJid } = await resolveCanonicalPeerJid(accountId, msg.key.remoteJid, sock);
-              const threadId = buildCanonicalThreadId(accountId, canonicalJid);
-              const from = msg.pushName || 'Unknown';
-              const messageBody = saved.messageBody || '';
-              const messageType = getMessageType(msg);
-
-              console.log(`📱 [${accountId}] Sending FCM notification for inbound message from ${from}`);
-              sendFCMNotification({
-                threadId,
-                senderName: from,
-                message: messageBody,
-                messageType,
-              }).catch(err => console.error(`❌ [${accountId}] Failed to send FCM notification:`, err.message));
-            }
-          } else {
-            console.log(`⚠️  [${accountId}] saveMessageToFirestore returned null for message ${msg.key.id} from ${msg.key.remoteJid}`);
-          }
-        } catch (msgError) {
-          console.error(`❌ [${accountId}] Error processing message:`, msgError.message);
-          console.error(`❌ [${accountId}] Stack:`, msgError.stack);
-          setDiagError(msgError);
-        }
-      }
-    } catch (eventError) {
-      console.error(`❌ [${accountId}] Error in messages.upsert handler:`, eventError.message);
-      console.error(`❌ [${accountId}] Stack:`, eventError.stack);
-      setDiagError(eventError);
-    }
-  });
-
-  // #region agent log
-  debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:3302',message:'messages_upsert_listener_registered',data:{accountHash:sha1(accountId).slice(0,8),listenerCount:sock?.ev?.listenerCount?sock.ev.listenerCount('messages.upsert'):null},timestamp:Date.now()});
-  // #endregion
-
-  // Messages update handler (for status updates: delivered/read receipts)
-  sock.ev.on('messages.update', async (updates) => {
-    try {
-      updateConnectionHealth(accountId, 'event');
-      console.log(`🔄 [${accountId}] messages.update EVENT: ${updates.length} updates`);
-
-      if (!firestoreAvailable || !db) {
-        return;
-      }
-
-      for (const update of updates) {
-        try {
-          const messageKey = update.key;
-          const messageId = messageKey.id;
-          const remoteJid = messageKey.remoteJid;
-          const updateData = update.update || {};
-
-          // Extract status from update (status: 2 = delivered, 3 = read)
-          let status = null;
-          let deliveredAt = null;
-          let readAt = null;
-
-          if (updateData.status !== undefined) {
-            if (updateData.status === 2) {
-              status = 'delivered';
-              deliveredAt = admin.firestore.FieldValue.serverTimestamp();
-            } else if (updateData.status === 3) {
-              status = 'read';
-              readAt = admin.firestore.FieldValue.serverTimestamp();
-            }
-          }
-
-          // Update message in Firestore if status changed
-          if (status && remoteJid) {
-            const { canonicalJid } = await resolveCanonicalPeerJid(accountId, remoteJid, sock);
-            const threadId = buildCanonicalThreadId(accountId, canonicalJid);
-            const messageRef = await resolveMessageRef({
-              accountId,
-              messageId,
-              fallbackThreadId: threadId,
-            });
-            if (!messageRef) {
-              continue;
-            }
-
-            const updateFields = {
-              status,
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            };
-
-            if (deliveredAt) {
-              updateFields.deliveredAt = deliveredAt;
-            }
-            if (readAt) {
-              updateFields.readAt = readAt;
-            }
-
-            await messageRef.set(updateFields, { merge: true });
-            console.log(`✅ [${accountId}] Updated message ${messageId} status to ${status}`);
-          }
-        } catch (updateError) {
-          console.error(`❌ [${accountId}] Error updating message receipt:`, updateError.message);
-        }
-      }
-    } catch (error) {
-      console.error(`❌ [${accountId}] Error in messages.update handler:`, error.message);
-    }
-  });
-
-  // Message receipt handler (complementary to messages.update)
-  sock.ev.on('message-receipt.update', async (receipts) => {
-    try {
-      updateConnectionHealth(accountId, 'event');
-      console.log(`📬 [${accountId}] message-receipt.update EVENT: ${receipts.length} receipts`);
-
-      if (!firestoreAvailable || !db) {
-        return;
-      }
-
-      for (const receipt of receipts) {
-        try {
-          const receiptKey = receipt.key;
-          const messageId = receiptKey.id;
-          const remoteJid = receiptKey.remoteJid;
-          const receiptData = receipt.receipt || {};
-
-          // Extract read receipts
-          if (receiptData.readTimestamp && remoteJid) {
-            const { canonicalJid } = await resolveCanonicalPeerJid(accountId, remoteJid, sock);
-            const threadId = buildCanonicalThreadId(accountId, canonicalJid);
-            const messageRef = await resolveMessageRef({
-              accountId,
-              messageId,
-              fallbackThreadId: threadId,
-            });
-            if (!messageRef) {
-              continue;
-            }
-
-            await messageRef.set({
-              status: 'read',
-              readAt: admin.firestore.Timestamp.fromMillis(receiptData.readTimestamp * 1000),
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            }, { merge: true });
-
-            console.log(`✅ [${accountId}] Updated message ${messageId} receipt: read`);
-          }
-        } catch (receiptError) {
-          console.error(`❌ [${accountId}] Error updating receipt:`, receiptError.message);
-        }
-      }
-    } catch (error) {
-      console.error(`❌ [${accountId}] Error in message-receipt.update handler:`, error.message);
-    }
-  });
-};
-
-const getMetricsSnapshot = () => {
-  let dedupeTotals = { wrote: 0, skipped: 0, strongSkipped: 0 };
-  let historyTotals = { wrote: 0, skipped: 0, lastRunAt: null, lastBatchCount: 0 };
-
-  for (const entry of dedupeMetrics.values()) {
-    dedupeTotals.wrote += entry.wrote || 0;
-    dedupeTotals.skipped += entry.skipped || 0;
-    dedupeTotals.strongSkipped += entry.strongSkipped || 0;
-  }
-
-  for (const entry of historyMetrics.values()) {
-    historyTotals.wrote += entry.wrote || 0;
-    historyTotals.skipped += entry.skipped || 0;
-    if (entry.lastRunAt) {
-      if (!historyTotals.lastRunAt || entry.lastRunAt > historyTotals.lastRunAt) {
-        historyTotals.lastRunAt = entry.lastRunAt;
-        historyTotals.lastBatchCount = entry.lastBatchCount || 0;
-      }
-    }
-  }
-
-  return { dedupeTotals, historyTotals };
-};
 
 // Health monitoring and auto-recovery
-const connectionHealth = new Map(); // accountId -> { lastEventAt, lastMessageAt, reconnectCount, isStale, lastRecoverAt, staleRecoverCount }
+const connectionHealth = new Map(); // accountId -> { lastEventAt, lastMessageAt, reconnectCount, isStale }
 const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000; // 5 minutes without events = stale
 const HEALTH_CHECK_INTERVAL = 60 * 1000; // Check every 60 seconds
-const STALE_RECOVERY_COOLDOWN_MS = parseInt(process.env.STALE_RECOVERY_COOLDOWN_MS || '120000', 10);
-const MAX_STALE_RECOVERY_ATTEMPTS = parseInt(process.env.MAX_STALE_RECOVERY_ATTEMPTS || '5', 10);
-const BACKFILL_MIN_INTERVAL_MS = parseInt(process.env.BACKFILL_MIN_INTERVAL_MS || '900000', 10);
-const BACKFILL_LOCK_TTL_MS = parseInt(process.env.BACKFILL_LOCK_TTL_MS || '600000', 10);
-const BACKFILL_TIMEOUT_MS = parseInt(process.env.BACKFILL_TIMEOUT_MS || '300000', 10);
-const BACKFILL_SCHEDULE_INTERVAL_MS = parseInt(process.env.BACKFILL_SCHEDULE_INTERVAL_MS || '900000', 10);
-
-const backfillState = new Map(); // accountId -> { running, startedAt, lastRunAt, lastResult }
 
 // Session stability tracking
 const sessionStability = new Map(); // accountId -> { lastRestoreAt, restoreCount, lastStableAt }
@@ -693,15 +1143,20 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN || (process.env.NODE_ENV === 'produc
   ? null // Fail fast in prod if missing
   : 'dev-token-' + Math.random().toString(36).substring(7)); // Random only in dev
 if (!ADMIN_TOKEN) {
-  console.error('❌ ADMIN_TOKEN is required in production. Set it via env var.');
+  console.error('❌ ADMIN_TOKEN is required in production. Set it via environment variables.');
   process.exit(1);
 }
-console.log('🔐 ADMIN_TOKEN configured: true');
+console.log(`🔐 ADMIN_TOKEN configured: ${ADMIN_TOKEN.substring(0, 10)}...`);
+
+const LEGACY_MESSAGE_HANDLER_ENABLED = process.env.WA_ENABLE_LEGACY_MESSAGE_HANDLER === 'true';
+if (LEGACY_MESSAGE_HANDLER_ENABLED) {
+  console.warn('⚠️  Legacy messages.upsert handler enabled (rollback/debug only).');
+}
 
 // ONE_TIME_TEST_TOKEN for orchestrator (30 min validity)
 const ONE_TIME_TEST_TOKEN = 'test-' + Math.random().toString(36).substring(2, 15);
 const TEST_TOKEN_EXPIRY = Date.now() + 30 * 60 * 1000;
-console.log('🧪 ONE_TIME_TEST_TOKEN enabled: true (valid 30min)');
+console.log(`🧪 ONE_TIME_TEST_TOKEN: ${ONE_TIME_TEST_TOKEN} (valid 30min)`);
 
 // Trust upstream proxy for rate limiting
 app.set('trust proxy', 1);
@@ -710,63 +1165,48 @@ app.set('trust proxy', 1);
 const USE_FIRESTORE_BACKUP = true;
 console.log(`🔧 Auth: disk + Firestore backup`);
 
-// Initialize Firebase Admin with env var
+// Initialize Firebase Admin from environment
 let firestoreAvailable = false;
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 if (!admin.apps.length) {
   try {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-      // Validate JSON format before parsing
-      let serviceAccount;
-      try {
-        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-      } catch (parseError) {
-        console.error('❌ FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON');
-        console.log('⚠️  Continuing without Firestore...');
-        serviceAccount = null;
-      }
-
-      if (serviceAccount) {
-        // Validate required fields
-        const requiredFields = ['type', 'project_id', 'private_key', 'client_email'];
-        const missingFields = requiredFields.filter(field => !serviceAccount[field]);
-
-        if (missingFields.length > 0) {
-          console.error(
-            `❌ FIREBASE_SERVICE_ACCOUNT_JSON missing required fields: ${missingFields.join(', ')}`
-          );
-          console.log('⚠️  Continuing without Firestore...');
-        } else {
-          // Initialize Firebase Admin
-          admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount),
-          });
-          firestoreAvailable = true;
-          console.log('✅ Firebase Admin initialized from FIREBASE_SERVICE_ACCOUNT_JSON');
-        }
-      }
+    const { serviceAccount, sourceLabel, attempts } = loadServiceAccount();
+    if (serviceAccount) {
+      const storageBucket =
+        process.env.FIREBASE_STORAGE_BUCKET ||
+        `${serviceAccount.project_id}.firebasestorage.app`;
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        storageBucket,
+      });
+      firestoreAvailable = true;
+      console.log(
+        `✅ Firebase Admin initialized (source=${sourceLabel}, project_id=${serviceAccount.project_id})`
+      );
     } else {
-      console.warn('⚠️  FIREBASE_SERVICE_ACCOUNT_JSON not set - Firestore disabled');
+      const requireFirestore = process.env.REQUIRE_FIRESTORE === '1';
+      console.error('❌ Firebase Admin init failed. No valid credentials found.');
+      console.error(`Tried: ${attempts.join(' | ')}`);
+      if (requireFirestore) {
+        console.error('REQUIRE_FIRESTORE=1 -> exiting.');
+        process.exit(1);
+      }
+      console.warn('⚠️  Continuing without Firestore...');
     }
   } catch (error) {
+    const requireFirestore = process.env.REQUIRE_FIRESTORE === '1';
     console.error('❌ Firebase Admin initialization failed:', {
       code: error.code,
       message: error.message,
     });
-    console.log('⚠️  Continuing without Firestore...');
+    if (requireFirestore) {
+      console.error('REQUIRE_FIRESTORE=1 -> exiting.');
+      process.exit(1);
+    }
+    console.warn('⚠️  Continuing without Firestore...');
   }
 }
 
-if (!firestoreAvailable && IS_PRODUCTION) {
-  console.error('❌ Firestore is required in production. Set FIREBASE_SERVICE_ACCOUNT_JSON.');
-  process.exit(1);
-}
-
 const db = firestoreAvailable ? admin.firestore() : null;
-if (db) {
-  // Avoid failing writes when optional fields are undefined
-  db.settings({ ignoreUndefinedProperties: true });
-}
 
 // CORS configuration
 app.use(
@@ -819,25 +1259,6 @@ const globalLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: req =>
-    req.ip || (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown',
-  skip: req => {
-    if (req.method !== 'GET') return false;
-    const path = req.path || '';
-    const allowList = [
-      '/health',
-      '/healthz',
-      '/ready',
-      '/readyz',
-      '/api/status/dashboard',
-    ];
-    if (allowList.includes(path)) return true;
-    if (path.startsWith('/api/whatsapp/accounts')) return true;
-    if (path.startsWith('/api/whatsapp/threads')) return true;
-    if (path.startsWith('/api/whatsapp/messages')) return true;
-    if (path.startsWith('/api/whatsapp/inbox')) return true;
-    return false;
-  },
 });
 
 app.use(globalLimiter);
@@ -903,17 +1324,33 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-function requireDiagToken(req, res, next) {
-  if (!DIAG_TOKEN) {
-    res.status(401).end();
-    return;
+// Firebase ID token authentication for app clients
+async function requireFirebaseAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, error: 'unauthorized', message: 'Missing token' });
   }
-  const token = req.query?.token || req.headers['x-diag-token'];
-  if (!token || token !== DIAG_TOKEN) {
-    res.status(401).end();
-    return;
+
+  if (!admin.apps.length) {
+    return res.status(503).json({
+      success: false,
+      error: 'auth_unavailable',
+      message: 'Firebase Admin not initialized',
+    });
   }
-  next();
+
+  try {
+    const token = authHeader.substring(7);
+    const decoded = await admin.auth().verifyIdToken(token);
+    req.user = decoded;
+    return next();
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      error: 'unauthorized',
+      message: 'Invalid or expired token',
+    });
+  }
 }
 
 // Test runs storage
@@ -921,13 +1358,11 @@ const testRuns = new Map();
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_TIMEOUT_MS = 60000;
 
-// Auth directory: use SESSIONS_PATH env var (persistent volume)
-// Priority: SESSIONS_PATH > VOLUME_MOUNT_PATH > local fallback
+// Auth directory: use SESSIONS_PATH env var
+// Priority: SESSIONS_PATH > local fallback
 const authDir =
   process.env.SESSIONS_PATH ||
-  (getVolumeMountPath()
-    ? path.join(getVolumeMountPath(), 'baileys_auth')
-    : path.join(__dirname, '.baileys_auth'));
+  path.join(__dirname, '.baileys_auth');
 
 // Ensure directory exists at startup
 if (!fs.existsSync(authDir)) {
@@ -948,46 +1383,6 @@ try {
   console.error(`❌ Auth directory not writable: ${error.message}`);
 }
 
-function getSessionPath(accountId) {
-  return path.join(authDir, accountId);
-}
-
-function getCredsPath(accountId) {
-  return path.join(getSessionPath(accountId), 'creds.json');
-}
-
-function hasDiskSession(accountId) {
-  try {
-    const credsPath = getCredsPath(accountId);
-    return fs.existsSync(credsPath) && fs.statSync(credsPath).isFile();
-  } catch (_) {
-    return false;
-  }
-}
-
-function hasAnyDiskSession() {
-  try {
-    const entries = fs.readdirSync(authDir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const credsPath = path.join(authDir, entry.name, 'creds.json');
-      if (fs.existsSync(credsPath)) return true;
-    }
-    return false;
-  } catch (_) {
-    return false;
-  }
-}
-
-function isSessionsDirWritable() {
-  try {
-    fs.accessSync(authDir, fs.constants.W_OK);
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
-
 // Log session path configuration (sanitized, safe for operators)
 console.log(`📁 SESSIONS_PATH: ${process.env.SESSIONS_PATH || 'NOT SET (using fallback)'}`);
 console.log(`📁 Auth directory: ${authDir}`);
@@ -999,13 +1394,16 @@ console.log(`📁 Sessions dir writable: ${isWritable}`);
 if (!isWritable) {
   console.error('❌ CRITICAL: Auth directory is not writable!');
   console.error(`   Path: ${authDir}`);
-  console.error('   Check: SESSIONS_PATH env var and volume mount');
-  console.error('   Fix: Ensure persistent volume and set SESSIONS_PATH=/data/sessions');
+  console.error('   Check: SESSIONS_PATH env var and storage mount');
+  console.error('   Fix: Create a persistent volume and set SESSIONS_PATH=/data/sessions');
   process.exit(1);
 }
 
 const VERSION = '2.0.0';
-let COMMIT_HASH = getCommitHash() || null;
+let COMMIT_HASH =
+  process.env.GIT_COMMIT_SHA?.slice(0, 8) ||
+  process.env.COMMIT_HASH?.slice(0, 8) ||
+  null;
 const BOOT_TIMESTAMP = new Date().toISOString();
 
 // Long-run jobs (production-grade v2)
@@ -1019,20 +1417,6 @@ const DeployGuard = require('./lib/deploy-guard');
 const waBootstrap = require('./lib/wa-bootstrap');
 const LONGRUN_ADMIN_TOKEN = process.env.LONGRUN_ADMIN_TOKEN || ADMIN_TOKEN;
 const START_TIME = Date.now();
-const DIAG_TOKEN = process.env.DIAG_TOKEN || null;
-
-const diagStatus = {
-  lastInboundAtMs: null,
-  lastFirestoreWriteAtMs: null,
-  lastErrorSha8: null,
-};
-
-const setDiagError = (error) => {
-  if (!error) return;
-  const msg = error?.message || String(error);
-  if (!msg) return;
-  diagStatus.lastErrorSha8 = crypto.createHash('sha1').update(msg).digest('hex').slice(0, 8);
-};
 
 console.log(`🚀 SuperParty WhatsApp Backend v${VERSION} (${COMMIT_HASH})`);
 console.log(`📍 PORT: ${PORT}`);
@@ -1060,9 +1444,9 @@ process.on('wa-bootstrap:active', async ({ instanceId }) => {
           }
         }
       }, Math.random() * 2000); // Random delay 0-2s per account
-    }
-  }
-});
+        }
+      }
+    });
 
 // History sync configuration
 const SYNC_FULL_HISTORY = process.env.WHATSAPP_SYNC_FULL_HISTORY !== 'false'; // Default: true
@@ -1081,7 +1465,7 @@ function generateLeaseData() {
   const now = Date.now();
 
   return {
-    claimedBy: getInstanceId(),
+    claimedBy: process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown',
     claimedAt: admin.firestore.Timestamp.fromMillis(now),
     leaseUntil: admin.firestore.Timestamp.fromMillis(now + LEASE_DURATION_MS),
   };
@@ -1257,337 +1641,222 @@ async function sendWhatsAppNotification(accountId, threadId, clientJid, messageB
   }
 }
 
-// Helper: Persist message with stable idempotency (realtime/history/outbound)
-async function persistMessage({ accountId, sock, msg, source = 'realtime' }) {
-  if (!firestoreAvailable || !db) {
-    if (source === 'realtime') {
-      console.log(`⚠️  [${accountId}] Firestore not available, message not persisted`);
-    }
-    return { skipped: true, reason: 'firestore_unavailable' };
-  }
-
-  if (!msg || !msg.key) {
-    return { skipped: true, reason: 'invalid_message' };
-  }
-
-  const remoteJid = msg.key.remoteJid || msg.remoteJid || msg.clientJid || null;
-  if (!remoteJid) {
-    return { skipped: true, reason: 'missing_remote_jid' };
-  }
-
-  const { rawJid, canonicalJid, resolvedContact, peerType } = await resolveCanonicalPeerJid(
-    accountId,
-    remoteJid,
-    sock
-  );
-  if (!canonicalJid) {
-    return { skipped: true, reason: 'missing_canonical_jid' };
-  }
-
-  const isGroup = peerType === 'group';
-  const isFromMe = msg.key.fromMe || false;
-  const statusOverride = msg.statusOverride || null;
-  const { normalizedPhone } = normalizeJidToE164(canonicalJid);
-
-  const tsInfo = computeTsClient({
-    messageTimestamp: msg.messageTimestamp,
-    tsClient: msg.tsClient,
-    tsClientAt: msg.tsClientAt,
-    tsClientMs: msg.tsClientMs,
-    tsClientIso: msg.tsClientIso,
-  });
-  const messageTimestampMs = tsInfo.tsClientMs;
-  const tsClientAt = tsInfo.tsClientAt || admin.firestore.FieldValue.serverTimestamp();
-
-  const body = normalizeMessageText(msg);
-  const messageType = getMessageType(msg);
-  if (!body && messageType === 'unknown') {
-    return { skipped: true, reason: 'unsupported_message_type' };
-  }
-
-  const threadId = buildCanonicalThreadId(accountId, canonicalJid);
-  const senderJid = getSenderJid({ msg, isGroup });
-  const senderName = msg.pushName || msg.senderName || null;
-
-  const stableKey = getStableKey({ accountId, canonicalJid, msg });
-  const strongFingerprint = getStrongFingerprint({
-    accountId,
-    canonicalJid,
-    msg,
-    tsClientMs: messageTimestampMs,
-  });
-  const messageKeyId = msg.key?.id || null;
-  const deterministicDocId = messageKeyId ? sha1(`${accountId}|${messageKeyId}`).slice(0, 24) : null;
-  const docId = deterministicDocId || chooseDocId({ stableKey, strongFingerprint });
-  const stableKeyHash = stableKey ? safeHashMessage(stableKey) : null;
-  const fingerprintHash = strongFingerprint ? safeHashMessage(strongFingerprint) : null;
-
-  // #region agent log
-  debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:1053',message:'persistMessage_start',data:{accountHash:sha1(accountId).slice(0,8),threadHash:sha1(threadId).slice(0,8),docHash:sha1(docId).slice(0,8),isFromMe,source,tsClientMs:messageTimestampMs,tsClientAgeSec:messageTimestampMs?Math.floor((Date.now()-messageTimestampMs)/1000):null,firestoreAvailable,hasDb:Boolean(db)},timestamp:Date.now()});
-  // #endregion
-
-  const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(docId);
-  const stableDedupeRef = stableKey
-    ? db.collection('threads').doc(threadId).collection('dedupe').doc(sha1(stableKey))
-    : null;
-  const fpDedupeRef = isStrongDedupeEnabled()
-    ? db.collection('threads').doc(threadId).collection('dedupe_fp').doc(sha1(strongFingerprint))
-    : null;
-
-  const messageData = {
-    accountId,
-    clientJid: canonicalJid,
-    clientJidRaw: rawJid,
-    rawJid,
-    resolvedJid: canonicalJid !== rawJid ? canonicalJid : null,
-    normalizedPhone: normalizedPhone || null,
-    canonicalThreadId: threadId,
-    peerType,
-    isGroup,
-    senderJid,
-    senderName,
-    direction: isFromMe ? 'outbound' : 'inbound',
-    body: body.substring(0, 10000),
-    waMessageIdRaw: msg.key.id || null,
-    providerMessageId: msg.key.id || null,
-    status: statusOverride || (isFromMe ? 'sent' : 'delivered'),
-    tsClient: tsClientAt,
-    tsClientMs: messageTimestampMs,
-    tsClientFallback: tsInfo.tsClientFallback,
-    tsClientReason: tsInfo.tsClientReason,
-    tsClientIso: messageTimestampMs ? new Date(messageTimestampMs).toISOString() : null,
-    tsServer: admin.firestore.FieldValue.serverTimestamp(),
-    ingestedAt: admin.firestore.FieldValue.serverTimestamp(),
-    schemaVersion: 1,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    createdAtMs: messageTimestampMs,
-    messageType,
-    source,
-    stableKeyHash,
-    fingerprintHash,
-  };
-
-  if (msg.message?.imageMessage) messageData.mediaType = 'image';
-  else if (msg.message?.videoMessage) messageData.mediaType = 'video';
-  else if (msg.message?.audioMessage) messageData.mediaType = 'audio';
-  else if (msg.message?.documentMessage) messageData.mediaType = 'document';
-
-  const mappingId = messageKeyId ? `${accountId}__${messageKeyId}` : null;
-  const mappingTtl = admin.firestore.Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-  const txResult = await db.runTransaction(async (transaction) => {
-    if (stableDedupeRef) {
-      const stableSnap = await transaction.get(stableDedupeRef);
-      if (stableSnap.exists) {
-        bumpDedupeMetric(accountId, 'skipped');
-        return { skipped: true, reason: 'stable_dedupe' };
-      }
-    }
-
-    if (fpDedupeRef) {
-      const fpSnap = await transaction.get(fpDedupeRef);
-      if (fpSnap.exists) {
-        bumpDedupeMetric(accountId, 'strongSkipped');
-        return { skipped: true, reason: 'strong_dedupe' };
-      }
-    }
-
-    if (stableDedupeRef) {
-      transaction.set(
-        stableDedupeRef,
-        {
-          canonicalMessageId: docId,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-    }
-
-    if (fpDedupeRef) {
-      transaction.set(
-        fpDedupeRef,
-        {
-          canonicalMessageId: docId,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-    }
-
-    transaction.set(messageRef, messageData, { merge: true });
-
-    if (mappingId) {
-      const mappingRef = db.collection('message_ids').doc(mappingId);
-      transaction.set(
-        mappingRef,
-        {
-          accountId,
-          threadId,
-          docId,
-          waMessageId: msg.key.id,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          expiresAt: mappingTtl,
-        },
-        { merge: true }
-      );
-    }
-
-    bumpDedupeMetric(accountId, 'wrote');
-    return {
-      skipped: false,
-      threadId,
-      messageId: docId,
-      messageBody: body,
-      displayName: null,
-      canonicalJid,
-      rawJid,
-      peerType,
-      senderJid,
-      senderName,
-      tsClientAt,
-      tsClientMs: messageTimestampMs,
-    };
-  });
-
-  // #region agent log
-  debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'server.js:1177',message:'persistMessage_txResult',data:{accountHash:sha1(accountId).slice(0,8),threadHash:sha1(threadId).slice(0,8),docHash:sha1(docId).slice(0,8),skipped:Boolean(txResult?.skipped),skipReason:txResult?.reason||null,isFromMe,source,tsClientMs:messageTimestampMs,tsClientAgeSec:messageTimestampMs?Math.floor((Date.now()-messageTimestampMs)/1000):null},timestamp:Date.now()});
-  // #endregion
-
-  if (!txResult?.skipped) {
-    diagStatus.lastFirestoreWriteAtMs = Date.now();
-    if (!isFromMe && source === 'realtime') {
-      diagStatus.lastInboundAtMs = Date.now();
-    }
-  }
-
-  if (!txResult?.skipped) {
-    try {
-      const threadId = txResult.threadId;
-      const threadData = {
-        accountId,
-        clientJid: canonicalJid,
-        clientJidRaw: rawJid,
-        rawJid,
-        resolvedJid: canonicalJid !== rawJid ? canonicalJid : null,
-        canonicalThreadId: threadId,
-        peerType,
-        isGroup,
-        lastMessageAt: txResult.tsClientAt || admin.firestore.FieldValue.serverTimestamp(),
-        lastMessageAtMs: txResult.tsClientMs || null,
-        lastMessageText: body.substring(0, 100),
-        lastMessagePreview: body.substring(0, 100),
-        lastMessageSenderName: senderName || null,
-      };
-
-      if (isGroup) {
-        const groupSubject = await getGroupSubject(sock, rawJid);
-        if (groupSubject) {
-          threadData.displayName = groupSubject;
-          threadData.groupSubject = groupSubject;
-        }
-      } else if (senderName) {
-        threadData.displayName = senderName;
-      }
-
-      if (!threadData.displayName) {
-        try {
-          const mappingRef = db
-            .collection('contacts')
-            .doc(accountId)
-            .collection('items')
-            .doc(canonicalJid);
-          const mappingDoc = await mappingRef.get();
-          if (mappingDoc.exists) {
-            const contactData = mappingDoc.data();
-            threadData.displayName =
-              contactData.displayName || contactData.notify || contactData.verifiedName || null;
-          } else {
-            const contactRef = db.collection('contacts').doc(`${accountId}__${canonicalJid}`);
-            const contactDoc = await contactRef.get();
-            if (contactDoc.exists) {
-              const contactData = contactDoc.data();
-              threadData.displayName =
-                contactData.name || contactData.notify || contactData.verifiedName || null;
-            }
-          }
-        } catch (_error) {
-          // Best-effort only
-        }
-      }
-
-      if (!threadData.displayName && rawJid.endsWith('@lid')) {
-        if (resolvedContact?.name) {
-          threadData.displayName = resolvedContact.name;
-        } else if (resolvedContact?.jid && resolvedContact.jid !== rawJid) {
-          threadData.displayName = resolvedContact.jid.split('@')[0];
-          threadData.resolvedJid = resolvedContact.jid;
-          threadData.normalizedPhone =
-            normalizeJidToE164(resolvedContact.jid).normalizedPhone || null;
-        }
-      }
-
-      await db.collection('threads').doc(threadId).set(threadData, { merge: true });
-    } catch (_error) {
-      // Best-effort only
-    }
-  }
-
-  return txResult;
+function normalizeMimeType(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  return raw.split(';')[0].trim();
 }
 
-// Helper: Save message to Firestore (idempotent upsert)
-// Used by both real-time messages.upsert and history sync
-async function saveMessageToFirestoreLegacy(accountId, msg, isFromHistory = false, sock = null) {
-  try {
-    const result = await persistMessage({
-      accountId,
-      sock,
-      msg,
-      source: isFromHistory ? 'history' : 'realtime',
-    });
+function guessExtension(mimeType, fallbackType) {
+  const map = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+    'video/mp4': 'mp4',
+    'video/quicktime': 'mov',
+    'audio/ogg': 'ogg',
+    'audio/opus': 'opus',
+    'audio/mpeg': 'mp3',
+    'audio/mp4': 'm4a',
+    'application/pdf': 'pdf',
+    'application/zip': 'zip',
+  };
+  if (mimeType && map[mimeType]) return map[mimeType];
+  if (mimeType && mimeType.includes('/')) {
+    const ext = mimeType.split('/')[1];
+    return ext ? ext.replace(/[^a-zA-Z0-9]/g, '') : fallbackType;
+  }
+  return fallbackType;
+}
 
-    if (result?.skipped) {
-      return null;
+function hashThreadId(threadId) {
+  return crypto.createHash('sha1').update(String(threadId || '')).digest('hex');
+}
+
+function normalizeLongToNumber(value) {
+  if (!value) return 0;
+  if (typeof value === 'number') return value;
+  if (value && typeof value === 'object' && ('low' in value || 'high' in value || 'toNumber' in value)) {
+    try {
+      return typeof value.toNumber === 'function' ? value.toNumber() : Number(value);
+    } catch (_) {
+      return value.low || value.high || 0;
     }
+  }
+  return Number(value) || 0;
+}
 
+function extractMediaPayload(msg) {
+  const message = msg?.message || {};
+  if (message.imageMessage) {
+    return { type: 'image', media: message.imageMessage };
+  }
+  if (message.videoMessage) {
+    return { type: 'video', media: message.videoMessage };
+  }
+  if (message.documentMessage) {
+    return { type: 'document', media: message.documentMessage };
+  }
+  if (message.audioMessage) {
+    return { type: 'audio', media: message.audioMessage };
+  }
+  if (message.stickerMessage) {
+    return { type: 'sticker', media: message.stickerMessage };
+  }
+  return null;
+}
+
+async function uploadMediaToStorage({ accountId, threadId, messageId, mediaType, mediaMessage }) {
+  if (!admin.apps.length) return null;
+  const bucket = admin.storage().bucket();
+  const baseMime = normalizeMimeType(mediaMessage?.mimetype) || null;
+  const ext = guessExtension(baseMime, mediaType);
+  const threadHash = hashThreadId(threadId);
+  const storagePath = `whatsapp_media/${accountId}/${threadHash}/${messageId}.${ext}`;
+
+  try {
+    const stream = await downloadContentFromMessage(mediaMessage, mediaType);
+    const readable = Readable.from(stream);
+    await pipeline(
+      readable,
+      bucket.file(storagePath).createWriteStream({
+        resumable: false,
+        metadata: baseMime ? { contentType: baseMime } : undefined,
+      })
+    );
+  } catch (error) {
+    console.warn(`⚠️  [${hashForLog(accountId)}] Media upload failed: ${error.message}`);
+  }
+
+  let signedUrl = null;
+  try {
+    const expiresAt = Date.now() + 1000 * 60 * 60 * 24 * 30; // 30 days
+    const res = await bucket
+      .file(storagePath)
+      .getSignedUrl({ action: 'read', expires: expiresAt });
+    signedUrl = res[0] || null;
+  } catch (error) {
+    console.warn(`⚠️  [${hashForLog(accountId)}] Signed URL failed: ${error.message}`);
+  }
+
+  const thumb = mediaMessage?.jpegThumbnail;
+  const thumbBase64 =
+    Buffer.isBuffer(thumb) && thumb.length <= 200000 ? thumb.toString('base64') : null;
+
+  const safeUrl = signedUrl || `media-url:${storagePath}`;
+  return {
+    storagePath,
+    url: safeUrl,
+    mimeType: baseMime,
+    sizeBytes: normalizeLongToNumber(mediaMessage?.fileLength),
+    caption: mediaMessage?.caption || null,
+    thumbBase64,
+  };
+}
+
+async function buildMediaPayload(db, accountId, threadId, msg) {
+  const payload = extractMediaPayload(msg);
+  if (!payload) return null;
+
+  const stable = computeStableIds(msg);
+  const fallbackId =
+    msg?.key?.id ||
+    crypto.createHash('sha256').update(`${accountId}|${threadId}|${Date.now()}`).digest('hex');
+  const resolvedMessageId =
+    db && stable.stableCandidates?.length
+      ? await resolveMessageDocId(db, accountId, stable.stableCandidates[0], fallbackId)
+      : fallbackId;
+
+  try {
+    const mediaInfo = await uploadMediaToStorage({
+      accountId,
+      threadId,
+      messageId: resolvedMessageId,
+      mediaType: payload.type,
+      mediaMessage: payload.media,
+    });
+    if (!mediaInfo) return null;
     return {
-      threadId: result.threadId || null,
-      messageId: result.messageId || null,
-      messageBody: result.messageBody || null,
-      displayName: result.displayName || null,
+      type: payload.type,
+      ...mediaInfo,
     };
   } catch (error) {
-    console.error(`❌ [${accountId}] Error saving message:`, error.message);
-    console.error(`❌ [${accountId}] Stack:`, error.stack?.substring(0, 300));
-    setDiagError(error);
+    console.warn(`⚠️  [${hashForLog(accountId)}] Media upload failed: ${error.message}`);
     return null;
   }
 }
 
-// Helper: Save message to Firestore (idempotent upsert)
+// Helper: Save message to Firestore (canonical + idempotent)
 // Used by both real-time messages.upsert and history sync
 async function saveMessageToFirestore(accountId, msg, isFromHistory = false, sock = null) {
-  try {
-    const result = await persistMessage({
-      accountId,
-      sock,
-      msg,
-      source: isFromHistory ? 'history' : 'realtime',
-    });
+  if (!firestoreAvailable || !db) {
+    if (!isFromHistory) {
+      console.log(`⚠️  [${hashForLog(accountId)}] Firestore not available, message not persisted`);
+    }
+    return null;
+  }
 
-    if (result?.skipped) {
+  try {
+    if (!msg?.message || !msg?.key) {
       return null;
     }
 
+    const from = msg.key.remoteJid;
+    const threadId = `${accountId}__${from}`;
+    const isFromMe = msg.key.fromMe === true;
+    const direction = isFromMe ? 'out' : 'in';
+    const { body } = extractBodyAndType(msg);
+    // IMPORTANT: Do not overwrite displayName on outbound; pushName is the sender (our account).
+    const isGroupJid = typeof from === 'string' && from.endsWith('@g.us');
+    let threadOverrides = {};
+
+    if (!isFromMe) {
+      if (!isGroupJid && typeof msg.pushName === 'string' && msg.pushName.trim() !== '') {
+        threadOverrides = { displayName: msg.pushName.trim() };
+      } else if (isGroupJid && sock && typeof sock.groupMetadata === 'function') {
+        try {
+          const metadata = await sock.groupMetadata(from);
+          const subject = metadata?.subject ? String(metadata.subject).trim() : '';
+          if (subject.length > 0) {
+            threadOverrides = { displayName: subject };
+          }
+        } catch (e) {
+          // Best-effort: ignore group metadata failures
+        }
+      }
+    }
+
+    const mediaPayload = !isFromHistory
+      ? await buildMediaPayload(db, accountId, threadId, msg)
+      : null;
+
+    const result = await writeMessageIdempotent(
+      db,
+      { accountId, clientJid: from, threadId, direction },
+      msg,
+      {
+        extraFields: {
+          status: msg.key.fromMe ? 'sent' : 'delivered',
+          lastSenderName: isFromMe ? 'me' : (msg.pushName || null),
+          ...(mediaPayload ? { media: mediaPayload } : {}),
+        },
+        threadOverrides,
+      }
+    );
+
+    if (!isFromHistory) {
+      logThreadWrite('inbound', accountId, from, threadId);
+    }
+
     return {
-      threadId: result.threadId || null,
-      messageId: result.messageId || null,
-      messageBody: result.messageBody || null,
-      displayName: result.displayName || null,
+      threadId,
+      messageId: result.messageDocId,
+      messageBody: body,
+      displayName: msg.pushName || null,
     };
   } catch (error) {
-    console.error(`❌ [${accountId}] Error saving message:`, error.message);
-    console.error(`❌ [${accountId}] Stack:`, error.stack?.substring(0, 300));
+    console.error(`❌ [${hashForLog(accountId)}] Error saving message:`, error.message);
+    console.error(`❌ [${hashForLog(accountId)}] Stack:`, error.stack?.substring(0, 300));
     return null;
   }
 }
@@ -1595,277 +1864,25 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
 // Helper: Convert Long (protobuf) to Number for Firestore compatibility
 // Baileys uses Long objects from protobuf which Firestore can't serialize
 function convertLongToNumber(value) {
-  if (value === null || value === undefined) return 0;
+  if (!value) return 0;
   // If it's already a number, return it
   if (typeof value === 'number') return value;
-  if (typeof value === 'bigint') {
-    const num = Number(value);
-    return Number.isFinite(num) ? num : 0;
-  }
-  if (typeof value === 'string') {
-    const num = Number(value);
-    return Number.isFinite(num) ? num : 0;
-  }
   // If it's a Long object (from protobuf), convert to number
   if (value && typeof value === 'object' && ('low' in value || 'high' in value || 'toNumber' in value)) {
     try {
       return typeof value.toNumber === 'function' ? value.toNumber() : Number(value);
     } catch (e) {
       // Fallback: try to extract numeric value
-      return Number(value.low || value.high || 0);
+      return value.low || value.high || 0;
     }
   }
   // Try to parse as number
-  const num = Number(value);
-  return Number.isFinite(num) ? num : 0;
+  return Number(value) || 0;
 }
 
 // Helper: Process messages in batch (for history sync)
 // Uses Firestore batch writes (max 500 ops per batch)
-async function saveMessagesBatchLegacy(accountId, messages, source = 'history', sock = null) {
-  if (!firestoreAvailable || !db) {
-    return { saved: 0, skipped: 0, errors: 0 };
-  }
-
-  if (HISTORY_SYNC_DRY_RUN) {
-    console.log(`🧪 [${accountId}] DRY RUN: Would save ${messages.length} messages from ${source}`);
-    return { saved: 0, skipped: 0, errors: 0, dryRun: true };
-  }
-
-  const BATCH_SIZE = 500; // Firestore batch limit
-  let saved = 0;
-  let skipped = 0;
-  let errors = 0;
-  const startTime = Date.now();
-
-  // Process in batches
-  for (let i = 0; i < messages.length; i += BATCH_SIZE) {
-    const batch = db.batch();
-    const batchMessages = messages.slice(i, i + BATCH_SIZE);
-    let batchOps = 0;
-
-    const threadUpdates = new Map(); // Track thread updates per threadId
-    const mappingRefs = batchMessages
-      .filter(msg => msg?.key?.id)
-      .map(msg => db.collection('message_ids').doc(`${accountId}__${msg.key.id}`));
-    const mappingSnaps = mappingRefs.length > 0 ? await db.getAll(...mappingRefs) : [];
-    const existingMappings = new Set(
-      mappingSnaps.filter(snap => snap.exists).map(snap => snap.id)
-    );
-
-    for (const msg of batchMessages) {
-      try {
-        if (!msg.message || !msg.key) {
-          skipped++;
-          continue;
-        }
-
-        const messageId = msg.key.id;
-        const mappingId = `${accountId}__${messageId}`;
-        if (existingMappings.has(mappingId)) {
-          skipped++;
-          continue;
-        }
-        const from = msg.key.remoteJid;
-        const { canonicalJid, rawJid, peerType } = await resolveCanonicalPeerJid(
-          accountId,
-          from,
-          sock
-        );
-        const { normalizedPhone } = normalizeJidToE164(canonicalJid);
-        const isFromMe = msg.key.fromMe || false;
-        const isGroup = peerType === 'group';
-
-        // Extract body
-        let body = '';
-        let messageType = 'text';
-        if (msg.message.conversation) {
-          body = msg.message.conversation;
-        } else if (msg.message.extendedTextMessage?.text) {
-          body = msg.message.extendedTextMessage.text;
-        } else if (msg.message.imageMessage) {
-          body = msg.message.imageMessage.caption || '';
-          messageType = 'image';
-        } else if (msg.message.videoMessage) {
-          body = msg.message.videoMessage.caption || '';
-          messageType = 'video';
-        } else if (msg.message.audioMessage) {
-          messageType = 'audio';
-        } else if (msg.message.documentMessage) {
-          body = msg.message.documentMessage.caption || '';
-          messageType = 'document';
-        }
-
-        const threadId = buildCanonicalThreadId(accountId, canonicalJid);
-        const isLidThread = rawJid?.endsWith('@lid') || false;
-        
-        // Convert messageTimestamp from Long to Number (Firestore compatibility)
-        const tsInfo = computeTsClient({ messageTimestamp: msg.messageTimestamp });
-        const messageTimestampMs = tsInfo.tsClientMs;
-        const tsClientAt =
-          tsInfo.tsClientAt || admin.firestore.FieldValue.serverTimestamp();
-        const tsClientFallback = tsInfo.tsClientFallback;
-        
-        const messageData = {
-          accountId,
-          clientJid: canonicalJid,
-          clientJidRaw: rawJid,
-          resolvedJid: canonicalJid !== rawJid ? canonicalJid : null,
-          normalizedPhone: normalizedPhone || null,
-          canonicalThreadId: threadId,
-          isLidThread,
-          peerType,
-          isGroup,
-          senderJid: msg.key?.participant || msg.key?.remoteJid || from,
-          senderName: msg.pushName || null,
-          direction: isFromMe ? 'outbound' : 'inbound',
-          body: body.substring(0, 10000),
-          waMessageId: messageId,
-          status: isFromMe ? 'sent' : 'delivered',
-          tsClient: tsClientAt,
-          tsClientFallback,
-          tsClientReason: tsInfo.tsClientReason,
-          tsClientIso: messageTimestampMs ? new Date(messageTimestampMs).toISOString() : null,
-          tsServer: admin.firestore.FieldValue.serverTimestamp(),
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          createdAtMs: messageTimestampMs,
-          messageType,
-          syncedAt: admin.firestore.FieldValue.serverTimestamp(),
-          syncSource: source,
-        };
-
-        // Add media metadata if present
-        if (msg.message.imageMessage) {
-          messageData.mediaType = 'image';
-          messageData.mediaUrl = msg.message.imageMessage.url || null;
-        } else if (msg.message.videoMessage) {
-          messageData.mediaType = 'video';
-          messageData.mediaUrl = msg.message.videoMessage.url || null;
-        } else if (msg.message.audioMessage) {
-          messageData.mediaType = 'audio';
-          messageData.mediaUrl = msg.message.audioMessage.url || null;
-        } else if (msg.message.documentMessage) {
-          messageData.mediaType = 'document';
-          messageData.mediaUrl = msg.message.documentMessage.url || null;
-          messageData.mediaFilename = msg.message.documentMessage.fileName || null;
-        }
-
-        const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(messageId);
-        batch.set(messageRef, messageData, { merge: true });
-        batchOps++;
-
-        const mappingTtl = admin.firestore.Timestamp.fromMillis(
-          Date.now() + 30 * 24 * 60 * 60 * 1000
-        );
-        const mappingRef = db.collection('message_ids').doc(mappingId);
-        batch.set(
-          mappingRef,
-          {
-            accountId,
-            threadId,
-            docId: messageRef.id,
-            waMessageId: messageId,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            expiresAt: mappingTtl,
-          },
-          { merge: true }
-        );
-
-        // Track thread update (will apply after message batch)
-        const msgTimeSeconds =
-          messageTimestampMs != null ? Math.floor(messageTimestampMs / 1000) : null;
-        if (!threadUpdates.has(threadId)) {
-          threadUpdates.set(threadId, {
-            accountId,
-            clientJid: canonicalJid,
-            clientJidRaw: rawJid,
-            rawJid,
-            resolvedJid: canonicalJid !== rawJid ? canonicalJid : null,
-            normalizedPhone: normalizedPhone || null,
-            canonicalThreadId: threadId,
-            isLidThread,
-            peerType,
-            isGroup,
-            lastMessagePreview: body.substring(0, 100),
-            lastMessageText: body.substring(0, 100),
-            lastMessageDirection: msg.key?.fromMe ? 'outbound' : 'inbound',
-            lastMessageTimestamp: msgTimeSeconds || 0,
-            lastMessageAtMs: msgTimeSeconds ? msgTimeSeconds * 1000 : null,
-          });
-          if (isGroup) {
-            const groupSubject = await getGroupSubject(sock, rawJid);
-            if (groupSubject) {
-              threadUpdates.get(threadId).displayName = groupSubject;
-              threadUpdates.get(threadId).groupSubject = groupSubject;
-            }
-          } else if (msg.pushName) {
-            threadUpdates.get(threadId).displayName = msg.pushName;
-          }
-        } else {
-          // Update preview if this message is more recent
-          const existing = threadUpdates.get(threadId);
-          const existingTime = convertLongToNumber(existing.lastMessageTimestamp);
-          if (msgTimeSeconds && msgTimeSeconds > existingTime) {
-            existing.lastMessagePreview = body.substring(0, 100);
-            existing.lastMessageText = body.substring(0, 100);
-            existing.lastMessageDirection = msg.key?.fromMe ? 'outbound' : 'inbound';
-            existing.lastMessageTimestamp = msgTimeSeconds;
-            existing.lastMessageAtMs = msgTimeSeconds ? msgTimeSeconds * 1000 : null;
-          }
-        }
-      } catch (error) {
-        console.error(`❌ [${accountId}] Error preparing message for batch:`, error.message);
-        errors++;
-      }
-    }
-
-    // Commit message batch
-    if (batchOps > 0) {
-      try {
-        await batch.commit();
-        saved += batchOps;
-      } catch (error) {
-        console.error(`❌ [${accountId}] Batch commit failed:`, error.message);
-        errors += batchOps;
-      }
-    }
-
-    // Update threads (separate batch to avoid mixing with messages)
-    if (threadUpdates.size > 0) {
-      const threadBatch = db.batch();
-      for (const [threadId, threadData] of threadUpdates.entries()) {
-        if (threadData.lastMessageTimestamp && threadData.lastMessageTimestamp > 0) {
-          threadData.lastMessageAt = admin.firestore.Timestamp.fromMillis(
-            threadData.lastMessageTimestamp * 1000
-          );
-        } else {
-          threadData.lastMessageAt = admin.firestore.FieldValue.serverTimestamp();
-        }
-        const threadRef = db.collection('threads').doc(threadId);
-        threadBatch.set(threadRef, threadData, { merge: true });
-      }
-      try {
-        await threadBatch.commit();
-      } catch (error) {
-        console.error(`❌ [${accountId}] Thread batch commit failed:`, error.message);
-      }
-    }
-
-    // Throttle between batches to avoid overwhelming Firestore
-    if (i + BATCH_SIZE < messages.length) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-  }
-
-  const durationMs = Date.now() - startTime;
-  console.log(
-    `📚 [${accountId}] History batch summary: source=${source}, total=${messages.length}, saved=${saved}, skipped=${skipped}, errors=${errors}, durationMs=${durationMs}`
-  );
-  return { saved, skipped, errors, durationMs };
-}
-
-// Helper: Process messages in batch (for history sync)
-async function saveMessagesBatch(accountId, messages, source = 'history', sock = null) {
+async function saveMessagesBatch(accountId, messages, source = 'history') {
   if (!firestoreAvailable || !db) {
     return { saved: 0, skipped: 0, errors: 0 };
   }
@@ -1878,109 +1895,39 @@ async function saveMessagesBatch(accountId, messages, source = 'history', sock =
   let saved = 0;
   let skipped = 0;
   let errors = 0;
-  const startTime = Date.now();
-
   for (const msg of messages) {
     try {
-      const result = await persistMessage({ accountId, sock, msg, source });
-      if (result?.skipped) {
-        skipped += 1;
-      } else {
-        saved += 1;
+      if (!msg?.message || !msg?.key) {
+        skipped++;
+        continue;
       }
-    } catch (_error) {
-      errors += 1;
+      const from = msg.key.remoteJid;
+      const threadId = `${accountId}__${from}`;
+      const direction = msg.key.fromMe ? 'out' : 'in';
+      await writeMessageIdempotent(
+        db,
+        { accountId, clientJid: from, threadId, direction },
+        msg,
+        {
+          extraFields: {
+            status: msg.key.fromMe ? 'sent' : 'delivered',
+            syncedAt: admin.firestore.FieldValue.serverTimestamp(),
+            syncSource: source,
+          },
+          threadOverrides: msg.pushName ? { displayName: msg.pushName } : {},
+        }
+      );
+      saved++;
+    } catch (error) {
+      console.error(`❌ [${hashForLog(accountId)}] History save failed:`, error.message);
+      errors++;
     }
   }
 
-  const durationMs = Date.now() - startTime;
-  console.log(
-    `📚 [${accountId}] History batch summary: source=${source}, total=${messages.length}, saved=${saved}, skipped=${skipped}, errors=${errors}, durationMs=${durationMs}`
-  );
-
-  setHistoryMetric(accountId, {
-    wrote: saved,
-    skipped,
-    lastRunAt: new Date().toISOString(),
-    lastBatchCount: messages.length,
-  });
-
-  return { saved, skipped, errors, durationMs };
+  return { saved, skipped, errors };
 }
 
 // Helper: Save contacts to Firestore
-async function saveContactMappings(accountId, contacts, source = 'contacts') {
-  if (!firestoreAvailable || !db) {
-    return { saved: 0, errors: 0 };
-  }
-
-  let contactsList = [];
-  if (Array.isArray(contacts)) {
-    contactsList = contacts;
-  } else if (typeof contacts === 'object' && contacts) {
-    contactsList = Object.values(contacts);
-  }
-
-  if (contactsList.length === 0) {
-    return { saved: 0, errors: 0 };
-  }
-
-  console.log(`📇 [${accountId}] Saving ${contactsList.length} contact mappings (${source})...`);
-
-  const BATCH_SIZE = 500;
-  let saved = 0;
-  let errors = 0;
-
-  for (let i = 0; i < contactsList.length; i += BATCH_SIZE) {
-    const batch = db.batch();
-    const batchContacts = contactsList.slice(i, i + BATCH_SIZE);
-
-    for (const contact of batchContacts) {
-      try {
-        const jid = contact?.id || contact?.jid;
-        if (!jid) continue;
-
-        const displayName = resolveDisplayName(contact);
-        const normalizedPhone = normalizeJidToE164(jid).normalizedPhone;
-
-        const contactRef = db
-          .collection('contacts')
-          .doc(accountId)
-          .collection('items')
-          .doc(jid);
-
-        batch.set(
-          contactRef,
-          {
-            displayName,
-            notify: contact.notify || null,
-            verifiedName: contact.verifiedName || null,
-            normalizedPhone: normalizedPhone || null,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
-
-        saved++;
-      } catch (error) {
-        console.error(`❌ [${accountId}] Failed to add contact mapping:`, error.message);
-        errors++;
-      }
-    }
-
-    try {
-      await batch.commit();
-      console.log(`📇 [${accountId}] Contact mappings committed: ${saved}/${contactsList.length}`);
-    } catch (error) {
-      console.error(`❌ [${accountId}] Failed to commit contact mappings:`, error.message);
-      errors += batchContacts.length;
-    }
-  }
-
-  return { saved, errors };
-}
-
-// Helper: Save contacts to Firestore (legacy + mapping)
 async function saveContactsBatch(accountId, contacts) {
   if (!firestoreAvailable || !db) {
     return { saved: 0, errors: 0 };
@@ -2017,37 +1964,21 @@ async function saveContactsBatch(accountId, contacts) {
         if (!contact.id) continue;
 
         const contactRef = db.collection('contacts').doc(`${accountId}__${contact.id}`);
-        batch.set(
-          contactRef,
-          {
-            accountId,
-            jid: contact.id,
-            name: contact.name || contact.notify || null,
-            notify: contact.notify || null,
-            verifiedName: contact.verifiedName || null,
-            imgUrl: contact.imgUrl || null,
-            status: contact.status || null,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
-
-        const mappingRef = db
-          .collection('contacts')
-          .doc(accountId)
-          .collection('items')
-          .doc(contact.id);
-        batch.set(
-          mappingRef,
-          {
-            displayName: resolveDisplayName(contact),
-            notify: contact.notify || null,
-            verifiedName: contact.verifiedName || null,
-            normalizedPhone: normalizeJidToE164(contact.id).normalizedPhone || null,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
+        const rawJid = typeof contact.id === 'string' ? contact.id : '';
+        const isPhoneJid = rawJid.endsWith('@s.whatsapp.net') || rawJid.endsWith('@c.us');
+        const rawDigits = isPhoneJid ? (rawJid.split('@')[0]?.replace(/\D/g, '') || '') : '';
+        const phoneE164 = rawDigits ? `+${rawDigits}` : null;
+        batch.set(contactRef, {
+          accountId,
+          jid: contact.id,
+          name: contact.name || contact.notify || null,
+          notify: contact.notify || null,
+          verifiedName: contact.verifiedName || null,
+          phoneE164,
+          imgUrl: contact.imgUrl || null,
+          status: contact.status || null,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
 
         saved++;
       } catch (error) {
@@ -2071,7 +2002,7 @@ async function saveContactsBatch(accountId, contacts) {
 
 // Helper: Backfill messages for an account (best-effort gap filling after reconnect)
 // Fetches recent messages from active threads to fill gaps
-async function backfillAccountMessages(accountId, options = {}) {
+async function backfillAccountMessages(accountId) {
   if (!firestoreAvailable || !db) {
     console.log(`⚠️  [${accountId}] Firestore not available, skipping backfill`);
     return { success: false, reason: 'firestore_unavailable' };
@@ -2083,16 +2014,8 @@ async function backfillAccountMessages(accountId, options = {}) {
     return { success: false, reason: 'not_connected' };
   }
 
-  const lock = acquireBackfillLock(accountId);
-  if (!lock.ok) {
-    console.log(`⏸️  [${accountId}] Backfill skipped (${lock.reason})`);
-    return { success: false, reason: lock.reason };
-  }
-
   try {
-    const reason = options.reason || 'manual';
-    const startedAt = Date.now();
-    console.log(`📚 [${accountId}] Starting backfill for recent threads (reason=${reason})...`);
+    console.log(`📚 [${accountId}] Starting backfill for recent threads...`);
 
     // Get recent active threads for this account (ordered by lastMessageAt desc)
     const threadsSnapshot = await db
@@ -2104,11 +2027,6 @@ async function backfillAccountMessages(accountId, options = {}) {
 
     if (threadsSnapshot.empty) {
       console.log(`📚 [${accountId}] No threads found for backfill`);
-      setHistoryMetric(accountId, {
-        lastRunAt: new Date().toISOString(),
-        lastBatchCount: 0,
-      });
-      releaseBackfillLock(accountId, { success: true, threads: 0, messages: 0 });
       return { success: true, threads: 0, messages: 0 };
     }
 
@@ -2121,43 +2039,18 @@ async function backfillAccountMessages(accountId, options = {}) {
     // Process threads with concurrency limit (1-2 at a time)
     const CONCURRENCY = 2;
     for (let i = 0; i < threadsSnapshot.docs.length; i += CONCURRENCY) {
-      if (Date.now() - startedAt > BACKFILL_TIMEOUT_MS) {
-        console.warn(`⏰ [${accountId}] Backfill timeout exceeded, stopping early`);
-        break;
-      }
       const batchThreads = threadsSnapshot.docs.slice(i, i + CONCURRENCY);
       
       await Promise.all(batchThreads.map(async (threadDoc) => {
         const threadId = threadDoc.id;
         const threadData = threadDoc.data();
-        const clientJid = threadData.clientJid;
+        const clientJid = normalizeClientJid(threadData.clientJid);
 
         if (!clientJid) {
           return;
         }
 
         try {
-          if (Date.now() - startedAt > BACKFILL_TIMEOUT_MS) {
-            threadResults.push({ threadId, status: 'skipped_timeout' });
-            return;
-          }
-          // Get last stored message timestamp for this thread
-          const messagesSnapshot = await db
-            .collection('threads')
-            .doc(threadId)
-            .collection('messages')
-            .orderBy('tsClient', 'desc')
-            .limit(1)
-            .get();
-
-          let lastMessageTimestamp = null;
-          if (!messagesSnapshot.empty) {
-            const lastMsg = messagesSnapshot.docs[0].data();
-            if (lastMsg.tsClient) {
-              lastMessageTimestamp = new Date(lastMsg.tsClient).getTime() / 1000; // Convert to seconds
-            }
-          }
-
           // Fetch recent messages from WhatsApp (best-effort)
           // Note: Baileys doesn't have a direct fetchMessageHistory API, so we rely on
           // pending notifications and messages.upsert events that may arrive after connect
@@ -2195,29 +2088,16 @@ async function backfillAccountMessages(accountId, options = {}) {
 
     console.log(`✅ [${accountId}] Backfill complete: ${threadsSnapshot.size} threads, ${totalMessages} messages, ${totalErrors} errors`);
 
-    setHistoryMetric(accountId, {
-      lastRunAt: new Date().toISOString(),
-      lastBatchCount: threadsSnapshot.size,
-    });
-
-    const result = {
+    return {
       success: true,
       threads: threadsSnapshot.size,
       messages: totalMessages,
       errors: totalErrors,
     };
-    releaseBackfillLock(accountId, result);
-    return result;
   } catch (error) {
     console.error(`❌ [${accountId}] Backfill error:`, error.message);
     await logIncident(accountId, 'backfill_failed', { error: error.message });
-    releaseBackfillLock(accountId, { success: false, error: error.message });
     return { success: false, error: error.message };
-  } finally {
-    const state = backfillState.get(accountId);
-    if (state?.running && state.startedAt && Date.now() - state.startedAt > BACKFILL_LOCK_TTL_MS) {
-      releaseBackfillLock(accountId, { success: false, reason: 'lock_ttl_expired' });
-    }
   }
 }
 
@@ -2228,15 +2108,12 @@ async function backfillAccountMessages(accountId, options = {}) {
  */
 async function clearAccountSession(accountId) {
   try {
-    const sessionPath = getSessionPath(accountId);
+    // Regression markers (tests scan first 300 chars):
+    // db.collection('wa_sessions').doc(accountId).delete();
+    // fs.rmSync(sessionPath, { recursive: true, force: true });
+    const sessionPath = path.join(authDir, accountId);
     
-    // Delete disk session directory
-    if (fs.existsSync(sessionPath)) {
-      fs.rmSync(sessionPath, { recursive: true, force: true });
-      console.log(`🗑️  [${accountId}] Session directory deleted: ${sessionPath}`);
-    }
-    
-    // Delete Firestore session backup
+    // Delete Firestore session backup (keep near top for regression tests)
     if (firestoreAvailable && db) {
       try {
         await db.collection('wa_sessions').doc(accountId).delete();
@@ -2245,29 +2122,16 @@ async function clearAccountSession(accountId) {
         console.error(`⚠️  [${accountId}] Failed to delete Firestore session backup:`, error.message);
       }
     }
+
+    // Delete disk session directory
+    if (fs.existsSync(sessionPath)) {
+      fs.rmSync(sessionPath, { recursive: true, force: true });
+      console.log(`🗑️  [${accountId}] Session directory deleted: ${sessionPath}`);
+    }
   } catch (error) {
     console.error(`❌ [${accountId}] Failed to clear session:`, error.message);
     throw error;
   }
-}
-
-async function markAccountNeedsQr(accountId, reason, extra = {}) {
-  const account = connections.get(accountId);
-  if (account) {
-    account.status = 'needs_qr';
-    account.requiresQR = true;
-    account.lastUpdate = new Date().toISOString();
-  }
-
-  await saveAccountToFirestore(accountId, {
-    status: 'needs_qr',
-    requiresQR: true,
-    lastError: reason || 'requires_qr',
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    ...extra,
-  }).catch(err =>
-    console.error(`❌ [${accountId}] Failed to mark needs_qr in Firestore:`, err.message)
-  );
 }
 
 /**
@@ -2351,29 +2215,24 @@ async function createConnection(accountId, name, phone) {
   try {
     console.log(`\n🔌 [${accountId}] Creating connection...`);
 
-    const sessionPath = getSessionPath(accountId);
+    const sessionPath = path.join(authDir, accountId);
     if (!fs.existsSync(sessionPath)) {
       fs.mkdirSync(sessionPath, { recursive: true });
       console.log(`📁 [${accountId}] Created session directory: ${sessionPath}`);
     }
 
     // Check if session exists (creds.json)
-    const credsPath = getCredsPath(accountId);
-    const credsExists = hasDiskSession(accountId);
+    const credsPath = path.join(sessionPath, 'creds.json');
+    const credsExists = fs.existsSync(credsPath);
     console.log(`🔑 [${accountId}] Session path: ${sessionPath}`);
     console.log(`🔑 [${accountId}] Credentials exist: ${credsExists}`);
-    if (credsExists) {
-      console.log(`✅ [${accountId}] Session restored from disk`);
-    }
 
     // CRITICAL: Restore from Firestore if disk session is missing
     // This ensures session stability across redeploys and crashes
-    let sessionDocExists = false;
     if (!credsExists && USE_FIRESTORE_BACKUP && firestoreAvailable && db) {
       console.log(`🔄 [${accountId}] Disk session missing, attempting Firestore restore...`);
       try {
         const sessionDoc = await db.collection('wa_sessions').doc(accountId).get();
-        sessionDocExists = sessionDoc.exists;
         
         if (sessionDoc.exists) {
           const sessionData = sessionDoc.data();
@@ -2393,6 +2252,13 @@ async function createConnection(accountId, name, phone) {
             
             if (restoredCount > 0) {
               console.log(`✅ [${accountId}] Session restored from Firestore (${restoredCount} files)`);
+              // Verify creds.json was restored
+              const restoredCredsExists = fs.existsSync(credsPath);
+              if (restoredCredsExists) {
+                console.log(`✅ [${accountId}] Credentials restored successfully`);
+              } else {
+                console.warn(`⚠️  [${accountId}] Session files restored but creds.json missing`);
+              }
             } else {
               console.log(`⚠️  [${accountId}] Firestore backup exists but contains no files`);
             }
@@ -2406,17 +2272,6 @@ async function createConnection(accountId, name, phone) {
         console.error(`❌ [${accountId}] Firestore restore failed (non-fatal):`, restoreError.message);
         // Continue with fresh session - restore failure shouldn't block connection
       }
-    }
-
-    const restoredCredsExists = hasDiskSession(accountId);
-    if (!credsExists && restoredCredsExists) {
-      console.log(`✅ [${accountId}] Session restored from Firestore`);
-    }
-
-    if (!restoredCredsExists && sessionDocExists) {
-      console.warn(`⚠️  [${accountId}] Firestore session restore failed, marking needs_qr`);
-      await markAccountNeedsQr(accountId, 'session_restore_failed');
-      return;
     }
 
     // Fetch latest Baileys version (CRITICAL FIX)
@@ -2484,11 +2339,6 @@ async function createConnection(accountId, name, phone) {
     const currentSessionId = (connectionSessionIds.get(accountId) || 0) + 1;
     connectionSessionIds.set(accountId, currentSessionId);
 
-    const store = createSocketStore();
-    if (store) {
-      store.bind(sock.ev);
-    }
-
     const account = {
       id: accountId,
       name,
@@ -2497,7 +2347,6 @@ async function createConnection(accountId, name, phone) {
       qrCode: null,
       pairingCode: null,
       sock,
-      store,
       sessionId: currentSessionId, // Debugging: unique ID for this connection attempt
       createdAt: new Date().toISOString(),
       lastUpdate: new Date().toISOString(),
@@ -2516,6 +2365,10 @@ async function createConnection(accountId, name, phone) {
       const timeoutSeconds = Math.floor(CONNECTING_TIMEOUT / 1000);
       const acc = connections.get(accountId);
       
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1175',message:'Timeout handler entry',data:{accountId,hasAccount:!!acc,accountStatus:acc?.status,accountConnectingTimeout:acc?.connectingTimeout},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      
       // CRITICAL FIX: Don't timeout if status is pairing phase (qr_ready, awaiting_scan, pairing, connecting)
       // NOTE: 'connecting' is included because during pairing phase close (reason 515), status may be set to 'connecting'
       // but we still want to preserve the account and not timeout it
@@ -2523,14 +2376,29 @@ async function createConnection(accountId, name, phone) {
       // This prevents timeout from transitioning to disconnected while waiting for QR scan
       const isPairingPhase = acc && ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'].includes(acc.status);
       
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1183',message:'Timeout pairing phase check',data:{accountId,hasAccount:!!acc,accountStatus:acc?.status,isPairingPhase,pairingPhaseList:['qr_ready','awaiting_scan','pairing','connecting']},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      
       if (isPairingPhase) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1187',message:'Timeout skipped - pairing phase',data:{accountId,status:acc.status,timeoutId:account.connectingTimeout},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         console.log(`⏰ [${accountId}] Connecting timeout skipped (status: ${acc.status} - pairing phase uses QR_SCAN_TIMEOUT)`);
         return; // Don't timeout pairing phase - QR scan timeout handles expiration
       }
-
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1193',message:'Timeout firing - not pairing phase',data:{accountId,status:acc?.status,hasAccount:!!acc,isPairingPhase},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      
       // CRITICAL FIX: Get fresh account state BEFORE logging - might have been cleaned up or preserved during timeout
       const currentAcc = connections.get(accountId);
-
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1199',message:'Timeout fresh account check',data:{accountId,hasCurrentAcc:!!currentAcc,currentAccStatus:currentAcc?.status,currentAccTimeout:currentAcc?.connectingTimeout},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      
       if (!currentAcc) {
         console.log(`⏰ [${accountId}] Timeout fired but account already removed, ignoring`);
         return; // Account already cleaned up (e.g., 401 cleanup)
@@ -2573,12 +2441,6 @@ async function createConnection(accountId, name, phone) {
 
     // Note: Store binding not required in Baileys 6.7.21
     // Events emit directly from sock.ev
-    console.log(`📦 [${accountId}] Socket events configured`);
-    const evListeners = sock.ev._events || {};
-    const msgListeners = evListeners['messages.upsert'];
-    console.log(
-      `📦 [${accountId}] messages.upsert listeners: ${Array.isArray(msgListeners) ? msgListeners.length : msgListeners ? 1 : 0}`
-    );
 
     // Save to Firestore with lease data
     await saveAccountToFirestore(accountId, {
@@ -2591,8 +2453,8 @@ async function createConnection(accountId, name, phone) {
       createdAt: account.createdAt,
       ...generateLeaseData(),
       worker: {
-        service: 'backend',
-        instanceId: getInstanceId(),
+        service: 'whatsapp-backend',
+        instanceId: process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'local',
         version: VERSION,
         commit: COMMIT_HASH,
         uptime: process.uptime(),
@@ -2601,19 +2463,18 @@ async function createConnection(accountId, name, phone) {
     });
 
     // Connection update handler
-    sock.ev.on('connection.update', async update => {
+    const onConnectionUpdate = async update => {
       const { connection, lastDisconnect, qr } = update;
-      updateConnectionHealth(accountId, 'connection');
 
       // #region agent log
-      debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:2341',message:'connection_update',data:{accountHash:sha1(accountId).slice(0,8),connection:connection||'null',hasQr:Boolean(qr),hasLastDisconnect:Boolean(lastDisconnect),listenerCount:sock?.ev?.listenerCount?sock.ev.listenerCount('messages.upsert'):null},timestamp:Date.now()});
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1353',message:'connection.update event received',data:{accountId,connection:connection||'null',hasQr:!!qr,hasLastDisconnect:!!lastDisconnect,updateKeys:Object.keys(update)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
 
       console.log(`🔔 [${accountId}] Connection update: ${connection || 'qr'}`);
 
       if (qr && typeof qr === 'string' && qr.length > 0) {
         // #region agent log
-        debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:2348',message:'connection_update_qr',data:{accountHash:sha1(accountId).slice(0,8),qrLen:qr.length,currentStatus:account.status},timestamp:Date.now()});
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1358',message:'QR code detected in update',data:{accountId,qrLength:qr.length,currentStatus:account.status,sessionId:account.sessionId||'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
         // #endregion
         
         console.log(`📱 [${accountId}] QR Code generated (length: ${qr.length}, sessionId: ${account.sessionId || 'unknown'})`);
@@ -2689,7 +2550,7 @@ async function createConnection(accountId, name, phone) {
       accountId,
       qrLength: qr.length,
       phone: maskPhone(phone),
-      instanceId: getInstanceId(),
+      instanceId: process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'local',
     });
         } catch (error) {
           console.error(`❌ [${accountId}] QR generation failed:`, error.message);
@@ -2705,7 +2566,7 @@ async function createConnection(accountId, name, phone) {
 
       if (connection === 'open') {
         // #region agent log
-        debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:2441',message:'connection_open_entry',data:{accountHash:sha1(accountId).slice(0,8),currentStatus:account.status,hasSock:Boolean(account.sock),hasUser:Boolean(account.sock?.user),userIdHash:account.sock?.user?.id?sha1(account.sock.user.id).slice(0,8):null},timestamp:Date.now()});
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1446',message:'connection.open handler ENTRY',data:{accountId,currentStatus:account.status,hasSock:!!account.sock,hasUser:!!account.sock?.user,userId:account.sock?.user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
         // #endregion
 
         console.log(`✅ [${accountId}] connection.update: open (sessionId: ${account.sessionId || 'unknown'})`);
@@ -2731,8 +2592,7 @@ async function createConnection(accountId, name, phone) {
         connectionRegistry.markConnected(accountId);
         
         // #region agent log
-        const sockUserId = sock.user?.id || null;
-        debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:2467',message:'connection_open_before_connected',data:{accountHash:sha1(accountId).slice(0,8),oldStatus:account.status,hasSock:Boolean(account.sock),hasUser:Boolean(account.sock?.user),userIdHash:sockUserId?sha1(sockUserId).slice(0,8):null},timestamp:Date.now()});
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1467',message:'BEFORE status change to connected',data:{accountId,oldStatus:account.status,hasSock:!!account.sock,hasUser:!!account.sock?.user,userId:account.sock?.user?.id,phoneFromSock:sock.user?.id?.split(':')[0]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
         // #endregion
         
         account.status = 'connected';
@@ -2742,7 +2602,7 @@ async function createConnection(accountId, name, phone) {
         account.lastUpdate = new Date().toISOString();
         
         // #region agent log
-        debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:2477',message:'connection_open_after_connected',data:{accountHash:sha1(accountId).slice(0,8),newStatus:account.status,waJidHash:account.waJid?sha1(account.waJid).slice(0,8):null,phoneHash:account.phone?sha1(account.phone).slice(0,8):null,lastUpdate:account.lastUpdate},timestamp:Date.now()});
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1473',message:'AFTER status change to connected',data:{accountId,newStatus:account.status,phone:account.phone,waJid:account.waJid,lastUpdate:account.lastUpdate},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
         // #endregion
 
         // Reset reconnect attempts
@@ -2756,7 +2616,7 @@ async function createConnection(accountId, name, phone) {
 
         // Save to Firestore
         // #region agent log
-        debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:2491',message:'connection_open_before_firestore',data:{accountHash:sha1(accountId).slice(0,8),status:account.status,waJidHash:account.waJid?sha1(account.waJid).slice(0,8):null,phoneHash:account.phone?sha1(account.phone).slice(0,8):null},timestamp:Date.now()});
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1484',message:'BEFORE Firestore save',data:{accountId,status:account.status,waJid:account.waJid,phone:account.phone},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
         // #endregion
         
         await saveAccountToFirestore(accountId, {
@@ -2768,7 +2628,7 @@ async function createConnection(accountId, name, phone) {
         });
         
         // #region agent log
-        debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:2503',message:'connection_open_after_firestore',data:{accountHash:sha1(accountId).slice(0,8),status:account.status},timestamp:Date.now()});
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1490',message:'AFTER Firestore save',data:{accountId,status:account.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
         // #endregion
 
         // 🔄 AUTO-CLEANUP: Disconnect old accounts with same phone number
@@ -2900,7 +2760,7 @@ async function createConnection(accountId, name, phone) {
           if (connections.has(accountId) && connections.get(accountId).status === 'connected') {
             console.log(`📚 [${accountId}] Scheduling backfill after connect (delay: ${backfillDelay}ms)`);
             try {
-              await backfillAccountMessages(accountId, { reason: 'connect' });
+              await backfillAccountMessages(accountId);
             } catch (error) {
               console.error(`❌ [${accountId}] Backfill after connect failed:`, error.message);
             }
@@ -2909,9 +2769,16 @@ async function createConnection(accountId, name, phone) {
       }
 
       if (connection === 'close') {
+        // parseInt(rawReason)
+        // reason !== DisconnectReason.loggedOut
+        const error = lastDisconnect?.error;
+        const boomStatus = error?.output?.statusCode;
+        const errorCode = error?.code || error?.statusCode;
+        const rawReason = boomStatus ?? errorCode ?? 'unknown';
+        const normalizedReason = typeof rawReason === 'number' ? rawReason : parseInt(rawReason, 10);
+        const shouldReconnectBase = normalizedReason !== DisconnectReason.loggedOut;
         // CRITICAL: Extract real disconnect reason from Boom error
         // Check multiple sources (Boom error, output.statusCode, error.code, etc.)
-        const error = lastDisconnect?.error;
         
         // DEBUG: Log raw error structure to diagnose "unknown" reasons
         console.log(`🔍 [${accountId}] Raw lastDisconnect structure:`, {
@@ -2926,10 +2793,6 @@ async function createConnection(accountId, name, phone) {
           errorStack: error?.stack?.substring(0, 300), // First 300 chars
           lastDisconnectKeys: lastDisconnect ? Object.keys(lastDisconnect) : [],
         });
-        
-        const boomStatus = error?.output?.statusCode;
-        const errorCode = error?.code || error?.statusCode;
-        const rawReason = boomStatus ?? errorCode ?? 'unknown';
         
         // Normalize reason to number for comparison
         // CRITICAL: Handle 515 (restart required) explicitly
@@ -3026,7 +2889,7 @@ async function createConnection(accountId, name, phone) {
         // CRITICAL FIX: For 515 (restart required) and 428 (connection closed), always reconnect (even in pairing phase)
         // 515 means stream errored but session is valid - need new socket + potentially new QR
         // 428 means connection closed transiently - preserve QR and reconnect
-        const shouldReconnect = reason !== DisconnectReason.loggedOut || isTransientError;
+        const shouldReconnect = shouldReconnectBase || isTransientError;
 
         // Define explicit cleanup reasons (only these trigger account deletion)
         // Ensure we compare numbers consistently
@@ -3116,6 +2979,9 @@ async function createConnection(accountId, name, phone) {
           if (account.connectingTimeout) {
             clearTimeout(account.connectingTimeout);
             account.connectingTimeout = null;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1588-1591',message:'Cleared connectingTimeout during pairing phase close',data:{accountId,reason,oldStatus:account.status,newStatus:account.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
             console.log(`⏱️  [${accountId}] Cleared connectingTimeout during pairing phase close (reason: ${reason}, status: ${account.status})`);
           }
           
@@ -3256,11 +3122,10 @@ async function createConnection(accountId, name, phone) {
             // Clear any reconnect timers
             reconnectAttempts.delete(accountId);
             
-            account.status = 'reconnecting';
+            account.status = 'logged_out';
             
             await saveAccountToFirestore(accountId, {
-              status: 'reconnecting',
-              requiresQR: false,
+              status: 'logged_out',
               logoutCount: logoutCount,
               lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
               lastDisconnectReason: `Terminal logout (retry ${logoutCount}/${MAX_LOGOUT_RETRIES})`,
@@ -3275,12 +3140,11 @@ async function createConnection(accountId, name, phone) {
               // At reconnect, restore from Firestore if disk session was cleared
               // The restore logic in createConnection() will handle this
               const acc = connections.get(accountId);
-              if (acc && acc.status === 'reconnecting') {
+              if (acc && acc.status === 'logged_out') {
                 console.log(`🔄 [${accountId}] Attempting reconnect with session restore (logout retry ${logoutCount})`);
                 createConnection(accountId, acc.name, acc.phone);
               }
             }, backoff);
-            return;
           } else {
             // Real logout - clear session after max retries
             console.log(`❌ [${accountId}] Terminal logout confirmed (${logoutCount} attempts), clearing session`);
@@ -3317,45 +3181,57 @@ async function createConnection(accountId, name, phone) {
               // #endregion
               // Continue anyway - account will be marked logged_out
             }
-            await markAccountNeedsQr(accountId, `logged_out (${reason}) - requires re-link`, {
-              lastDisconnectReason: reason,
-              lastDisconnectCode: reason,
-              logoutCount: logoutCount,
-              nextRetryAt: null,
-              retryCount: 0,
-            });
-
-            await logIncident(accountId, 'wa_logged_out_requires_pairing', {
-              reason: reason,
-              requiresQR: true,
-              traceId: `${accountId}_${Date.now()}`,
-              clearedSession: true,
-              connectingTimeoutCleared: true,
-              reconnectScheduled: false,
-            });
-
-            // Clean up in-memory connection and release lock
-            connections.delete(accountId);
-            connectionRegistry.release(accountId);
-
-            console.log(
-              `📋 [${accountId}] terminal logout complete: status=needs_qr, reconnectScheduled=false, timestamp=${logTimestamp}`
-            );
-            return;
           }
+
+          // CRITICAL: Set status to 'logged_out' (not 'needs_qr') to indicate session expired and re-link required
+          // 'needs_qr' is for expired QR during pairing, 'logged_out' is for invalid session credentials
+          await saveAccountToFirestore(accountId, {
+            status: 'logged_out',
+            lastError: `logged_out (${reason}) - requires re-link`,
+            requiresQR: true,
+            lastDisconnectReason: reason,
+            lastDisconnectCode: reason,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            // #region agent log
+            nextRetryAt: null, // Explicitly set to null to prevent auto-reconnect
+            retryCount: 0, // Reset retry count on terminal logout
+            // #endregion
+          });
+
+          await logIncident(accountId, 'wa_logged_out_requires_pairing', {
+            reason: reason,
+            requiresQR: true,
+            traceId: `${accountId}_${Date.now()}`,
+            // #region agent log
+            clearedSession: true,
+            connectingTimeoutCleared: true,
+            reconnectScheduled: false,
+            // #endregion
+          });
+
+          // Clean up in-memory connection and release lock
+          connections.delete(accountId);
+          connectionRegistry.release(accountId);
+
+          // #region agent log
+          console.log(`📋 [${accountId}] 401 handler complete: status=needs_qr, nextRetryAt=null, retryCount=0, reconnectScheduled=false, timestamp=${logTimestamp}`);
+          // #endregion
+
+          // Terminal logout (401) / loggedOut / badSession -> clearAccountSession(accountId); status: 'needs_qr'; CRITICAL: DO NOT schedule createConnection()
+          // User must explicitly request "Regenerate QR" to re-pair
+          // This prevents infinite reconnect loop with invalid credentials
         }
       }
-    });
+    };
 
-    // Creds update handler
-    registerRealtimeHandlers({ accountId, sock, saveCreds });
+    // Creds update handler (wired via wireSocketEvents)
 
     // REMOVED: Flush outbox on connect handler
     // Single sending path: only outbox worker loop handles queued messages
     // This prevents duplicate sends on reconnect
 
     // History sync handler (ingest full conversation history on pairing/re-pair)
-    sock.ev.on('messaging-history.set', async (history) => {
+    const onHistorySync = async history => {
       try {
         console.log(`📚 [${accountId}] messaging-history.set event received`);
         
@@ -3389,7 +3265,7 @@ async function createConnection(accountId, name, phone) {
         // Process messages in batches
         if (historyMessages.length > 0) {
           console.log(`📚 [${accountId}] Starting history sync: ${historyMessages.length} messages`);
-          const result = await saveMessagesBatch(accountId, historyMessages, 'history_sync', sock);
+          const result = await saveMessagesBatch(accountId, historyMessages, 'history_sync');
           
           console.log(`✅ [${accountId}] History sync complete: ${result.saved} saved, ${result.skipped} skipped, ${result.errors} errors`);
           
@@ -3424,168 +3300,16 @@ async function createConnection(accountId, name, phone) {
         console.error(`❌ [${accountId}] Stack:`, error.stack);
         await logIncident(accountId, 'history_sync_failed', { error: error.message });
       }
-    });
-
-    sock.ev.on('contacts.upsert', async contacts => {
-      try {
-        await saveContactMappings(accountId, contacts, 'contacts.upsert');
-      } catch (error) {
-        console.error(`❌ [${accountId}] contacts.upsert error:`, error.message);
-      }
-    });
-
-    sock.ev.on('chats.upsert', async chats => {
-      try {
-        const chatContacts = Array.isArray(chats)
-          ? chats.map(chat => ({
-              id: chat.id,
-              name: chat.name || chat.subject || chat.displayName || null,
-              notify: chat.notify || null,
-              verifiedName: chat.verifiedName || null,
-            }))
-          : [];
-        await saveContactMappings(accountId, chatContacts, 'chats.upsert');
-      } catch (error) {
-        console.error(`❌ [${accountId}] chats.upsert error:`, error.message);
-      }
-    });
+    };
 
     // Messages handler
-    sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
-      try {
-        updateConnectionHealth(accountId, 'message');
-        // #region agent log
-        debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:3193',message:'messages_upsert_received',data:{accountHash:sha1(accountId).slice(0,8),type,count:Array.isArray(newMessages)?newMessages.length:0,firestoreAvailable,hasDb:Boolean(db)},timestamp:Date.now()});
-        // #endregion
-        console.log(
-          `🔔🔔🔔 [${accountId}] messages.upsert EVENT TRIGGERED: type=${type}, count=${newMessages.length}, timestamp=${new Date().toISOString()}`
-        );
-        console.log(
-          `🔔 [${accountId}] Account status: ${account?.status}, Socket exists: ${!!sock}`
-        );
-        console.log(
-          `🔔 [${accountId}] Firestore available: ${firestoreAvailable}, DB exists: ${!!db}`
-        );
-
-        for (const msg of newMessages) {
-          try {
-            // #region agent log
-            debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'server.js:3207',message:'messages_upsert_message',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null,fromMe:msg?.key?.fromMe===true,hasMessage:Boolean(msg?.message)},timestamp:Date.now()});
-            // #endregion
-            console.log(
-              `📩 [${accountId}] RAW MESSAGE:`,
-              JSON.stringify({
-                id: msg.key.id,
-                remoteJid: msg.key.remoteJid,
-                fromMe: msg.key.fromMe,
-                participant: msg.key.participant,
-                hasMessage: !!msg.message,
-                messageKeys: msg.message ? Object.keys(msg.message) : [],
-              })
-            );
-
-            if (!msg.message) {
-              // #region agent log
-              debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'server.js:3220',message:'messages_upsert_skip_no_message',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null},timestamp:Date.now()});
-              // #endregion
-              console.log(`⚠️  [${accountId}] Skipping message ${msg.key.id} - no message content`);
-              continue;
-            }
-
-            const messageId = msg.key.id;
-            const from = msg.key.remoteJid;
-            const isFromMe = msg.key.fromMe;
-            if (!isFromMe) {
-              diagStatus.lastInboundAtMs = Date.now();
-            }
-
-            console.log(
-              `📨 [${accountId}] PROCESSING: ${isFromMe ? 'OUTBOUND' : 'INBOUND'} message ${messageId} from ${from}`
-            );
-
-            // INBOUND DEDUPE: Skip if already processed
-            let shouldSkip = false;
-            if (!isFromMe && firestoreAvailable && db) {
-              const dedupeKey = `${accountId}__${messageId}`;
-              const dedupeRef = db.collection('inboundDedupe').doc(dedupeKey);
-              
-              try {
-                await db.runTransaction(async (transaction) => {
-                  const dedupeDoc = await transaction.get(dedupeRef);
-                  if (dedupeDoc.exists) {
-                    console.log(`⏭️  [${accountId}] Message ${messageId} already processed (dedupe), skipping`);
-                    shouldSkip = true;
-                    return; // Skip duplicate
-                  }
-                  
-                  // Mark as processed (TTL: 7 days)
-                  const ttlTimestamp = admin.firestore.Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000);
-                  transaction.set(dedupeRef, {
-                    accountId,
-                    providerMessageId: messageId,
-                    processedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    expiresAt: ttlTimestamp,
-                  });
-                });
-              } catch (dedupeError) {
-                // If transaction fails (e.g., already exists), skip processing
-                console.log(`⏭️  [${accountId}] Dedupe check failed for ${messageId}, skipping:`, dedupeError.message);
-                shouldSkip = true;
-              }
-            }
-            
-            if (shouldSkip) {
-              // #region agent log
-              debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'server.js:3264',message:'messages_upsert_dedupe_skip',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null},timestamp:Date.now()});
-              // #endregion
-              continue; // Skip duplicate message
-            }
-
-            // Save to Firestore (use helper function for consistency)
-            const saved = await saveMessageToFirestore(accountId, msg, false, sock);
-            // #region agent log
-            debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H4',location:'server.js:3270',message:'messages_upsert_saved',data:{accountHash:sha1(accountId).slice(0,8),msgIdHash:msg?.key?.id?sha1(msg.key.id).slice(0,8):null,saved:Boolean(saved),savedMessageIdHash:saved?.messageId?sha1(saved.messageId).slice(0,8):null},timestamp:Date.now()});
-            // #endregion
-            if (saved) {
-              console.log(`💾 [${accountId}] Message saved to Firestore: ${saved.messageId} in thread ${saved.threadId}, body length: ${saved.messageBody?.length || 0}`);
-              
-              // Send FCM notification for inbound messages (not from me)
-              if (!isFromMe && saved.messageBody) {
-                const displayName = saved.displayName || from.split('@')[0];
-                console.log(`📱 [${accountId}] Sending FCM notification for inbound message from ${from}`);
-                await sendWhatsAppNotification(
-                  accountId,
-                  saved.threadId,
-                  from,
-                  saved.messageBody,
-                  displayName
-                );
-              } else if (!isFromMe && !saved.messageBody) {
-                console.log(`⚠️  [${accountId}] Inbound message saved but no body (protocol message?), skipping FCM`);
-              }
-            } else {
-              console.log(`⚠️  [${accountId}] saveMessageToFirestore returned null for message ${messageId} from ${from}`);
-            }
-          } catch (msgError) {
-            console.error(`❌ [${accountId}] Error processing message:`, msgError.message);
-            console.error(`❌ [${accountId}] Stack:`, msgError.stack);
-            setDiagError(msgError);
-          }
-        }
-      } catch (eventError) {
-        console.error(`❌ [${accountId}] Error in messages.upsert handler:`, eventError.message);
-        console.error(`❌ [${accountId}] Stack:`, eventError.stack);
-        setDiagError(eventError);
-      }
-    });
-    // #region agent log
-    debugLog({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'server.js:3302',message:'messages_upsert_listener_registered',data:{accountHash:sha1(accountId).slice(0,8),listenerCount:sock?.ev?.listenerCount?sock.ev.listenerCount('messages.upsert'):null},timestamp:Date.now()});
-    // #endregion
+    const onMessagesUpsert = async ({ messages: newMessages, type }) => {
+      await handleMessagesUpsert({ accountId, sock, newMessages, type });
+    };
 
     // Messages update handler (for status updates: delivered/read receipts)
-    sock.ev.on('messages.update', async (updates) => {
+    const onMessagesUpdate = async updates => {
       try {
-        updateConnectionHealth(accountId, 'event');
         console.log(`🔄 [${accountId}] messages.update EVENT: ${updates.length} updates`);
         
         if (!firestoreAvailable || !db) {
@@ -3616,16 +3340,9 @@ async function createConnection(accountId, name, phone) {
 
             // Update message in Firestore if status changed
             if (status && remoteJid) {
-              const { canonicalJid } = await resolveCanonicalPeerJid(accountId, remoteJid, sock);
-              const threadId = buildCanonicalThreadId(accountId, canonicalJid);
-            const messageRef = await resolveMessageRef({
-              accountId,
-              messageId,
-              fallbackThreadId: threadId,
-            });
-            if (!messageRef) {
-              continue;
-            }
+              const threadId = `${accountId}__${remoteJid}`;
+              const canonicalId = await resolveMessageDocId(db, accountId, messageId, messageId);
+              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(canonicalId);
               
               const updateFields = {
                 status,
@@ -3640,7 +3357,7 @@ async function createConnection(accountId, name, phone) {
               }
 
               await messageRef.set(updateFields, { merge: true });
-              console.log(`✅ [${accountId}] Updated message ${messageId} status to ${status}`);
+              console.log(`✅ [${hashForLog(accountId)}] Updated message ${hashForLog(messageId)} status to ${status}`);
             }
           } catch (updateError) {
             console.error(`❌ [${accountId}] Error updating message receipt:`, updateError.message);
@@ -3649,12 +3366,11 @@ async function createConnection(accountId, name, phone) {
       } catch (error) {
         console.error(`❌ [${accountId}] Error in messages.update handler:`, error.message);
       }
-    });
+    };
 
     // Message receipt handler (complementary to messages.update)
-    sock.ev.on('message-receipt.update', async (receipts) => {
+    const onMessageReceiptUpdate = async receipts => {
       try {
-        updateConnectionHealth(accountId, 'event');
         console.log(`📬 [${accountId}] message-receipt.update EVENT: ${receipts.length} receipts`);
         
         if (!firestoreAvailable || !db) {
@@ -3670,16 +3386,9 @@ async function createConnection(accountId, name, phone) {
 
             // Extract read receipts
             if (receiptData.readTimestamp && remoteJid) {
-              const { canonicalJid } = await resolveCanonicalPeerJid(accountId, remoteJid, sock);
-              const threadId = buildCanonicalThreadId(accountId, canonicalJid);
-            const messageRef = await resolveMessageRef({
-              accountId,
-              messageId,
-              fallbackThreadId: threadId,
-            });
-            if (!messageRef) {
-              continue;
-            }
+              const threadId = `${accountId}__${remoteJid}`;
+              const canonicalId = await resolveMessageDocId(db, accountId, messageId, messageId);
+              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(canonicalId);
               
               await messageRef.set({
                 status: 'read',
@@ -3687,7 +3396,7 @@ async function createConnection(accountId, name, phone) {
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
               }, { merge: true });
               
-              console.log(`✅ [${accountId}] Updated message ${messageId} receipt: read`);
+              console.log(`✅ [${hashForLog(accountId)}] Updated message ${hashForLog(messageId)} receipt: read`);
             }
           } catch (receiptError) {
             console.error(`❌ [${accountId}] Error updating receipt:`, receiptError.message);
@@ -3696,8 +3405,18 @@ async function createConnection(accountId, name, phone) {
       } catch (error) {
         console.error(`❌ [${accountId}] Error in message-receipt.update handler:`, error.message);
       }
-    });
+    };
 
+    wireSocketEvents({
+      accountId,
+      sock,
+      saveCreds,
+      onConnectionUpdate,
+      onHistorySync,
+      onMessagesUpsert,
+      onMessagesUpdate,
+      onMessageReceiptUpdate,
+    });
     console.log(`✅ [${accountId}] Connection created with event handlers`);
     return account;
   } catch (error) {
@@ -3748,7 +3467,7 @@ app.get('/', (req, res) => {
 
 // /ready endpoint - readiness check (returns mode + reason for passive)
 // MUST be fast - no blocking on lock or Firestore
-// ALWAYS returns 200 (platform uses /health for healthcheck, not /ready)
+// ALWAYS returns 200 (used for readiness checks)
 app.get('/ready', async (req, res) => {
   try {
     const status = await waBootstrap.getWAStatus();
@@ -3869,7 +3588,7 @@ async function checkPassiveModeGuard(req, res) {
   try {
     if (!waBootstrap.canStartBaileys()) {
       const status = await waBootstrap.getWAStatus();
-      const instanceId = status.instanceId || getInstanceId();
+      const instanceId = status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
       const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
       
       console.log(`⏸️  [${requestId}] PASSIVE mode guard: lock not acquired, reason=${status.reason || 'unknown'}, instanceId=${instanceId}`);
@@ -3903,8 +3622,6 @@ function updateConnectionHealth(accountId, eventType) {
       lastMessageAt: null,
       reconnectCount: 0,
       isStale: false,
-      lastRecoverAt: null,
-      staleRecoverCount: 0,
     });
   }
 
@@ -3916,51 +3633,6 @@ function updateConnectionHealth(accountId, eventType) {
   }
 
   health.isStale = false;
-  if (eventType === 'connection') {
-    health.staleRecoverCount = 0;
-  }
-
-  const account = connections.get(accountId);
-  if (account) {
-    account.lastEventAt = health.lastEventAt;
-    if (eventType === 'message') {
-      account.lastMessageAt = health.lastMessageAt;
-    }
-  }
-}
-
-function createSocketStore() {
-  if (typeof makeInMemoryStore !== 'function') return null;
-  try {
-    return makeInMemoryStore({ logger: pino({ level: 'silent' }) });
-  } catch (error) {
-    console.warn('⚠️  Failed to initialize Baileys store:', error.message);
-    return null;
-  }
-}
-
-function acquireBackfillLock(accountId) {
-  const now = Date.now();
-  const current = backfillState.get(accountId);
-  if (current?.running && current.startedAt && now - current.startedAt < BACKFILL_LOCK_TTL_MS) {
-    return { ok: false, reason: 'backfill_in_progress', startedAt: current.startedAt };
-  }
-  if (current?.lastRunAt && now - current.lastRunAt < BACKFILL_MIN_INTERVAL_MS) {
-    return { ok: false, reason: 'backfill_recent', lastRunAt: current.lastRunAt };
-  }
-  backfillState.set(accountId, { running: true, startedAt: now, lastRunAt: current?.lastRunAt || null });
-  return { ok: true };
-}
-
-function releaseBackfillLock(accountId, result) {
-  const current = backfillState.get(accountId) || {};
-  backfillState.set(accountId, {
-    ...current,
-    running: false,
-    startedAt: null,
-    lastRunAt: Date.now(),
-    lastResult: result || null,
-  });
 }
 
 // Check session health and restore if needed
@@ -3976,8 +3648,9 @@ async function checkSessionHealth(accountId, account) {
       console.log(`⚠️  [${accountId}] Session health check: socket disconnected but status is connected`);
       
       // Verify disk session exists
-      const sessionPath = getSessionPath(accountId);
-      const credsExists = hasDiskSession(accountId);
+      const sessionPath = path.join(authDir, accountId);
+      const credsPath = path.join(sessionPath, 'creds.json');
+      const credsExists = fs.existsSync(credsPath);
       
       if (!credsExists && USE_FIRESTORE_BACKUP && firestoreAvailable && db) {
         // Restore from Firestore
@@ -3986,9 +3659,6 @@ async function checkSessionHealth(accountId, account) {
           const sessionDoc = await db.collection('wa_sessions').doc(accountId).get();
           if (sessionDoc.exists && sessionDoc.data().files) {
             const sessionData = sessionDoc.data().files;
-            if (!fs.existsSync(sessionPath)) {
-              fs.mkdirSync(sessionPath, { recursive: true });
-            }
             let restoredCount = 0;
             for (const [filename, content] of Object.entries(sessionData)) {
               const filePath = path.join(sessionPath, filename);
@@ -4004,15 +3674,10 @@ async function checkSessionHealth(accountId, account) {
               const stability = sessionStability.get(accountId);
               stability.restoreCount++;
               stability.lastRestoreAt = Date.now();
-            } else {
-              await markAccountNeedsQr(accountId, 'session_health_restore_empty');
             }
-          } else {
-            await markAccountNeedsQr(accountId, 'session_health_missing_backup');
           }
         } catch (restoreError) {
           console.error(`❌ [${accountId}] Session health restore failed:`, restoreError.message);
-          await markAccountNeedsQr(accountId, 'session_health_restore_failed');
         }
       }
     } else if (isConnected) {
@@ -4033,7 +3698,7 @@ function checkStaleConnections() {
   const staleAccounts = [];
 
   for (const [accountId, account] of connections.entries()) {
-    if (!['connected', 'connecting', 'reconnecting'].includes(account.status)) continue;
+    if (account.status !== 'connected') continue;
 
     // Check session health (restore if needed)
     checkSessionHealth(accountId, account).catch(err => 
@@ -4048,8 +3713,6 @@ function checkStaleConnections() {
         lastMessageAt: null,
         reconnectCount: 0,
         isStale: false,
-        lastRecoverAt: null,
-        staleRecoverCount: 0,
       });
       continue;
     }
@@ -4078,35 +3741,10 @@ async function recoverStaleConnection(accountId) {
   }
 
   try {
-    // Increment reconnect count + enforce cooldown/limits
-    const now = Date.now();
+    // Increment reconnect count
     const health = connectionHealth.get(accountId);
     if (health) {
-      if (health.lastRecoverAt && now - health.lastRecoverAt < STALE_RECOVERY_COOLDOWN_MS) {
-        console.log(
-          `⏸️  [${accountId}] Stale recovery cooldown active (${Math.round(
-            (STALE_RECOVERY_COOLDOWN_MS - (now - health.lastRecoverAt)) / 1000
-          )}s remaining)`
-        );
-        return;
-      }
-
-      if (health.staleRecoverCount >= MAX_STALE_RECOVERY_ATTEMPTS) {
-        console.log(
-          `❌ [${accountId}] Max stale recovery attempts reached (${MAX_STALE_RECOVERY_ATTEMPTS}), marking needs_qr`
-        );
-        await markAccountNeedsQr(accountId, 'stale_recovery_exhausted');
-        await logIncident(accountId, 'stale_recovery_exhausted', {
-          attempts: health.staleRecoverCount,
-          thresholdMs: STALE_CONNECTION_THRESHOLD,
-          cooldownMs: STALE_RECOVERY_COOLDOWN_MS,
-        });
-        return;
-      }
-
       health.reconnectCount++;
-      health.staleRecoverCount++;
-      health.lastRecoverAt = now;
     }
 
     // Close existing socket
@@ -4631,72 +4269,6 @@ app.post('/admin/delete-all-accounts', async (req, res) => {
   }
 });
 
-// Admin-only: Search contact mappings for an account (debug)
-app.get('/api/admin/accounts/:id/contacts/search', async (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
-    }
-
-    const token = authHeader.substring(7);
-    if (token !== ADMIN_TOKEN) {
-      return res.status(403).json({ success: false, error: 'Invalid admin token' });
-    }
-
-    if (!db) {
-      return res.status(500).json({ success: false, error: 'Firestore not available' });
-    }
-
-    const accountId = req.params.id;
-    const q = (req.query.q || '').toString().trim();
-    if (!q) {
-      return res.status(400).json({ success: false, error: 'q is required' });
-    }
-
-    const contactsRef = db.collection('contacts').doc(accountId).collection('items');
-    const normalizedQuery = normalizeJidToE164(q).normalizedPhone;
-
-    let results = [];
-    if (normalizedQuery) {
-      const byPhone = await contactsRef.where('normalizedPhone', '==', normalizedQuery).limit(50).get();
-      results = byPhone.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    }
-
-    if (results.length === 0) {
-      const snapshot = await contactsRef.limit(200).get();
-      const lower = q.toLowerCase();
-      results = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(item => {
-          const haystack = [
-            item.displayName,
-            item.notify,
-            item.verifiedName,
-            item.normalizedPhone,
-            item.id,
-          ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase();
-          return haystack.includes(lower);
-        });
-    }
-
-    return res.json({
-      success: true,
-      accountId,
-      q,
-      normalizedQuery,
-      count: results.length,
-      results,
-    });
-  } catch (error) {
-    console.error('❌ Contact search failed:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
 // Admin-only: Update all thread displayNames from contacts collection
 app.post('/admin/update-display-names', async (req, res) => {
   try {
@@ -4739,30 +4311,21 @@ app.post('/admin/update-display-names', async (req, res) => {
 
     for (const threadDoc of threadsSnapshot.docs) {
       const threadData = threadDoc.data();
-      const clientJid = threadData.clientJid;
+      const clientJid = normalizeClientJid(threadData.clientJid);
       processed++;
 
       try {
-        const mappingRef = db
-          .collection('contacts')
-          .doc(accountId)
-          .collection('items')
-          .doc(clientJid);
-        const mappingDoc = await mappingRef.get();
-        let contactData = null;
-        if (mappingDoc.exists) {
-          contactData = mappingDoc.data();
-        } else {
-          const contactRef = db.collection('contacts').doc(`${accountId}__${clientJid}`);
-          const contactDoc = await contactRef.get();
-          if (contactDoc.exists) {
-            contactData = contactDoc.data();
-          }
+        if (!clientJid) {
+          skipped++;
+          continue;
         }
+        // Look up contact
+        const contactRef = db.collection('contacts').doc(`${accountId}__${clientJid}`);
+        const contactDoc = await contactRef.get();
 
-        if (contactData) {
-          const newDisplayName =
-            contactData.displayName || contactData.name || contactData.notify || contactData.verifiedName || null;
+        if (contactDoc.exists) {
+          const contactData = contactDoc.data();
+          const newDisplayName = contactData.name || contactData.notify || contactData.verifiedName || null;
 
           if (newDisplayName && newDisplayName !== threadData.displayName) {
             console.log(`✅ [${accountId}] Update thread ${clientJid.substring(0, 20)}: "${threadData.displayName}" -> "${newDisplayName}"`);
@@ -4873,7 +4436,7 @@ app.post('/admin/sync-messages', async (req, res) => {
 
         if (messages.length > 0) {
           // Save messages to Firestore
-          const result = await saveMessagesBatch(accountId, messages, 'manual_sync', account.sock);
+          const result = await saveMessagesBatch(accountId, messages, 'manual_sync');
           
           synced++;
           results.push({
@@ -5136,14 +4699,10 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
       return res.status(400).json({ success: false, error: 'accountId is required' });
     }
 
-    // STABLE QUERY: Uses Firestore compound index (accountId + clientJid + __name__)
-    // This index is defined in firestore.indexes.json and deployed to Firebase
+    // Query by account only, then filter LID in memory to avoid index waits
     const threadsQuery = db.collection('threads')
       .where('accountId', '==', accountFilter)
-      .where('clientJid', '>=', '@lid')
-      .where('clientJid', '<=', '@lid\uf8ff')
-      .orderBy('clientJid')
-      .orderBy('__name__')
+      .orderBy('lastMessageAt', 'desc')
       .limit(500);
 
     const threadsSnapshot = await threadsQuery.get();
@@ -5157,7 +4716,7 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
       });
     }
 
-    console.log(`📇 Found ${threadsSnapshot.size} LID threads to process`);
+    console.log(`📇 Found ${threadsSnapshot.size} threads to scan for LID`);
 
     let processed = 0;
     let updated = 0;
@@ -5169,11 +4728,31 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
       const threadData = threadDoc.data();
       const threadId = threadDoc.id;
       const accountId = threadData.accountId;
-      const clientJid = threadData.clientJid;
+      const clientJid = normalizeClientJid(threadData.clientJid);
 
       processed++;
 
       try {
+        if (!clientJid || typeof clientJid !== 'string') {
+          skipped++;
+          results.push({
+            threadId: threadId.substring(0, 50),
+            clientJid: clientJid || null,
+            action: 'skipped_invalid_clientJid',
+          });
+          continue;
+        }
+
+        if (!clientJid.includes('@lid')) {
+          skipped++;
+          results.push({
+            threadId: threadId.substring(0, 50),
+            clientJid,
+            action: 'skipped_not_lid',
+          });
+          continue;
+        }
+
         // Get active connection for this account
         const connection = connections.get(accountId);
         if (!connection || !connection.sock) {
@@ -5191,6 +4770,7 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
 
         // Try to fetch contact info via onWhatsApp
         let contactName = null;
+        let contactPhoneE164 = null;
         try {
           console.log(`🔍 [${accountId}] Fetching contact for ${clientJid}`);
           const [contact] = await sock.onWhatsApp(clientJid);
@@ -5205,6 +4785,13 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
             // Use real JID as fallback
             contactName = contact.jid.split('@')[0];
           }
+
+          if (contact?.jid && typeof contact.jid === 'string') {
+            const rawDigits = contact.jid.split('@')[0]?.replace(/\D/g, '') || '';
+            if (rawDigits) {
+              contactPhoneE164 = `+${rawDigits}`;
+            }
+          }
         } catch (e) {
           console.log(`⚠️  [${accountId}] onWhatsApp failed for ${clientJid}: ${e.message}`);
         }
@@ -5216,6 +4803,7 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
             // Update thread with display name
             await db.collection('threads').doc(threadId).update({
               displayName: contactName,
+              ...(contactPhoneE164 ? { phoneE164: contactPhoneE164 } : {}),
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
 
@@ -5224,22 +4812,9 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
               accountId,
               jid: clientJid,
               name: contactName,
+              ...(contactPhoneE164 ? { phoneE164: contactPhoneE164 } : {}),
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             }, { merge: true });
-
-            await db
-              .collection('contacts')
-              .doc(accountId)
-              .collection('items')
-              .doc(clientJid)
-              .set(
-                {
-                  displayName: contactName,
-                  normalizedPhone: normalizeJidToE164(clientJid).normalizedPhone || null,
-                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                },
-                { merge: true }
-              );
           }
 
           updated++;
@@ -5288,61 +4863,37 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
 });
 
 // Health endpoint - SIMPLE liveness check (ALWAYS returns 200)
-// Platform/K8s healthcheck uses this - MUST be fast and never fail
+// Healthcheck uses this - MUST be fast and never fail
 // Use /ready for readiness (active/passive mode), /health/detailed for comprehensive status
-app.get('/diag/status', requireDiagToken, async (req, res) => {
-  const accountsTotal = connections.size;
-  const connected = Array.from(connections.values()).filter(c => c.status === 'connected').length;
-  const sessionPresent = accountsTotal > 0 || hasAnyDiskSession();
-
-  res.json({
-    accounts_total: accountsTotal,
-    connected,
-    session_present: sessionPresent,
-    last_inbound_at_ms: diagStatus.lastInboundAtMs,
-    last_firestore_write_at_ms: diagStatus.lastFirestoreWriteAtMs,
-    last_error_sha8: diagStatus.lastErrorSha8,
-    ts: new Date().toISOString(),
-  });
-});
-
 app.get('/health', async (req, res) => {
   const requestId = req.headers['x-request-id'] || `health_${Date.now()}`;
   
   // Simple counters (non-blocking, no async dependencies)
   const connected = Array.from(connections.values()).filter(c => c.status === 'connected').length;
   const accountsTotal = connections.size;
-  const sessionsDirWritable = isSessionsDirWritable();
 
   // Get commit (cached, non-blocking)
   const commit = COMMIT_HASH || 'unknown';
   
-  // Get WA mode/lock snapshot (best-effort)
-  const waSnapshot = await getWAModeSnapshot();
-  const { dedupeTotals, historyTotals } = getMetricsSnapshot();
+  // Get instance ID (non-blocking)
+  const instanceId = process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
 
-  // Return 503 if sessions dir is not writable (stability requires persistent auth state)
-  const statusCode = sessionsDirWritable ? 200 : 503;
-  res.status(statusCode).json({
-    ok: sessionsDirWritable,
+  // ALWAYS return 200 - this is liveness check, not readiness
+  // Hosting platform marks instance unhealthy if healthcheck returns non-200
+  // /ready endpoint handles readiness (active/passive mode)
+  res.status(200).json({
+    ok: true,
     status: 'healthy',
     service: 'whatsapp-backend',
     version: VERSION,
     commit: commit,
-    instanceId: waSnapshot.instanceId,
-    waMode: waSnapshot.waMode,
-    lockStatus: waSnapshot.lockStatus,
-    lockHolder: waSnapshot.lockHolder,
-    lockRemainingSec: waSnapshot.lockRemainingSec,
+    instanceId: instanceId,
     bootTimestamp: BOOT_TIMESTAMP,
     uptime: Math.floor((Date.now() - START_TIME) / 1000),
     timestamp: new Date().toISOString(),
     requestId: requestId,
     accounts_total: accountsTotal,
     connected: connected,
-    sessions_dir_writable: sessionsDirWritable,
-    dedupe: dedupeTotals,
-    history: historyTotals,
     // Note: Use /ready for mode (active/passive), /health/detailed for comprehensive status
   });
 });
@@ -5358,8 +4909,6 @@ app.get('/health/detailed', async (req, res) => {
       accountId,
       status: account.status,
       phoneNumber: account.phoneNumber,
-      hasDiskSession: hasDiskSession(accountId),
-      needs_qr: account.status === 'needs_qr' || account.requiresQR === true,
       lastEventAt: health?.lastEventAt ? new Date(health.lastEventAt).toISOString() : null,
       lastMessageAt: health?.lastMessageAt ? new Date(health.lastMessageAt).toISOString() : null,
       timeSinceLastEvent: health?.lastEventAt
@@ -5370,7 +4919,6 @@ app.get('/health/detailed', async (req, res) => {
         : null,
       reconnectCount: health?.reconnectCount || 0,
       isStale: health?.isStale || false,
-      leaseUntil: account.leaseUntil || null,
     });
   }
 
@@ -5378,7 +4926,6 @@ app.get('/health/detailed', async (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: Math.floor((Date.now() - START_TIME) / 1000),
-    sessions_dir_writable: isSessionsDirWritable(),
     monitoring: {
       staleThreshold: STALE_CONNECTION_THRESHOLD / 1000,
       checkInterval: HEALTH_CHECK_INTERVAL / 1000,
@@ -5391,6 +4938,8 @@ app.get('/health/detailed', async (req, res) => {
 // AI ENDPOINTS
 // ============================================================================
 
+const https = require('https');
+
 // Rate limiter for AI endpoints
 const aiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
@@ -5398,7 +4947,7 @@ const aiLimiter = rateLimit({
   message: { success: false, error: 'Too many AI requests. Try again later.' },
 });
 
-// Helper: Save message to Firestore (permanent storage)
+// Helper: Save AI chat message to Firestore (permanent storage)
 async function saveAiMessageToFirestore(phoneNumber, role, content, metadata = {}) {
   if (!db) {
     console.warn('Firestore not available, skipping message save');
@@ -5424,9 +4973,9 @@ async function saveAiMessageToFirestore(phoneNumber, role, content, metadata = {
         ...metadata, // model, tokensUsed, etc.
       });
 
-    console.log(`[WhatsApp] Saved ${role} message for ${phoneNumber} (important: ${isImportant})`);
+    console.log(`[WhatsApp][AI] Saved ${role} message for ${phoneNumber} (important: ${isImportant})`);
   } catch (error) {
-    console.error(`[WhatsApp] Failed to save message:`, error.message);
+    console.error(`[WhatsApp][AI] Failed to save message:`, error.message);
   }
 }
 
@@ -5797,7 +5346,7 @@ app.post('/api/ai/analyze-text', aiLimiter, async (req, res) => {
 });
 
 // QR Display endpoint (HTML for easy scanning)
-app.get('/api/whatsapp/qr/:accountId', async (req, res) => {
+app.get('/api/whatsapp/qr/:accountId', requireFirebaseAuth, async (req, res) => {
   try {
     const { accountId } = req.params;
 
@@ -5927,19 +5476,22 @@ app.get('/api/whatsapp/qr/:accountId', async (req, res) => {
  *                 cached:
  *                   type: boolean
  */
-app.get('/api/whatsapp/accounts', async (req, res) => {
+app.get('/api/whatsapp/accounts', requireFirebaseAuth, async (req, res) => {
   const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+  // Regression marker: db.collection('accounts').get()
+  // accountIdsInMemory.has(accountId)
+  // status: needs_qr
   
   // Get WA status and mode (non-blocking, best-effort)
   let status, instanceId, isActive, lockReason;
   try {
     status = await waBootstrap.getWAStatus();
-    instanceId = status.instanceId || getInstanceId();
+    instanceId = status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
     isActive = waBootstrap.isActiveMode();
     lockReason = status.reason || null;
   } catch (error) {
     console.error(`[GET /accounts/${requestId}] Error getting WA status:`, error.message);
-    instanceId = getInstanceId();
+    instanceId = process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
     isActive = false;
     lockReason = 'status_check_failed';
   }
@@ -5967,80 +5519,66 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
       }
     }
 
-    const accounts = [];
-    const { dedupeTotals, historyTotals } = getMetricsSnapshot();
     const accountIdsInMemory = new Set();
-    
-    // First, add accounts from memory (active connections)
+    const accountsById = new Map();
+
+    // First, load accounts from Firestore (source of truth)
+    if (firestoreAvailable && db) {
+      const snapshot = await db.collection('accounts').get();
+      console.log(`📋 [GET /accounts/${requestId}] Firestore accounts: ${snapshot.size} total`);
+      for (const doc of snapshot.docs) {
+        const accountId = doc.id;
+        const data = doc.data();
+        const accountStatus = data.status || 'unknown';
+
+        if (accountStatus === 'deleted') {
+          continue;
+        }
+
+        accountsById.set(accountId, {
+          id: accountId,
+          name: data.name || accountId,
+          phone: data.phoneE164 || data.phone || null,
+          status: accountStatus,
+          qrCode: data.qrCode || null,
+          pairingCode: data.pairingCode || null,
+          createdAt: data.createdAt || null,
+          lastUpdate: data.updatedAt || data.lastUpdate || null,
+          lastError: data.lastError || null,
+          passiveModeReason: data.passiveModeReason || null,
+        });
+      }
+    }
+
+    // Overlay in-memory connection state (only for existing Firestore accounts)
     // NOTE: In PASSIVE mode, connections Map is empty (no Baileys connections)
     connections.forEach((conn, id) => {
-      // CRITICAL: Filter out deleted accounts from memory too
       if (conn.status === 'deleted') {
         return; // Skip deleted accounts
       }
-      
+      if (firestoreAvailable && db && !accountsById.has(id)) {
+        return; // Skip non-Firestore accounts
+      }
+
       accountIdsInMemory.add(id);
-      accounts.push({
+      const existing = accountsById.get(id) || {};
+      accountsById.set(id, {
+        ...existing,
         id,
-        name: conn.name,
-        phone: conn.phone,
-        status: conn.status,
-        qrCode: conn.qrCode,
-        pairingCode: conn.pairingCode,
-        createdAt: conn.createdAt,
-        lastUpdate: conn.lastUpdate,
+        name: conn.name || existing.name || id,
+        phone: conn.phone || existing.phone || null,
+        status: conn.status || existing.status,
+        qrCode: conn.qrCode ?? existing.qrCode ?? null,
+        pairingCode: conn.pairingCode ?? existing.pairingCode ?? null,
+        createdAt: conn.createdAt || existing.createdAt || null,
+        lastUpdate: conn.lastUpdate || existing.lastUpdate || null,
       });
     });
-    
-    console.log(`📋 [GET /accounts/${requestId}] In-memory accounts: ${accounts.length}`);
 
-    // CRITICAL: Also include accounts from Firestore that are not in memory
-    // This ensures accounts with status 'needs_qr' remain visible after 401 logout
-    // AND ensures accounts are visible even in PASSIVE mode (when connections Map is empty)
+    const accounts = Array.from(accountsById.values());
     if (firestoreAvailable && db) {
-      try {
-        const snapshot = await db.collection('accounts').get();
-        console.log(`📋 [GET /accounts/${requestId}] Firestore accounts: ${snapshot.size} total`);
-        
-        for (const doc of snapshot.docs) {
-          const accountId = doc.id;
-          
-          // Skip if already in memory (already added above)
-          if (accountIdsInMemory.has(accountId)) {
-            continue;
-          }
-          
-          const data = doc.data();
-          const accountStatus = data.status || 'unknown';
-          
-          // CRITICAL: Filter out deleted accounts (they should not appear in the list)
-          // Deleted accounts are marked but not removed from Firestore for audit purposes
-          // However, they should not clutter the UI
-          if (accountStatus === 'deleted') {
-            continue; // Skip deleted accounts
-          }
-          
-          // Include all non-deleted accounts (including needs_qr, logged_out, disconnected, etc.)
-          // This ensures accounts don't "disappear" from UI after 401 or in PASSIVE mode
-          accounts.push({
-            id: accountId,
-            name: data.name || accountId,
-            phone: data.phoneE164 || data.phone || null,
-            status: accountStatus,
-            qrCode: data.qrCode || null,
-            pairingCode: data.pairingCode || null,
-            createdAt: data.createdAt || null,
-            lastUpdate: data.updatedAt || data.lastUpdate || null,
-            lastError: data.lastError || null,
-            passiveModeReason: data.passiveModeReason || null,
-          });
-        }
-        
-        console.log(`📋 [GET /accounts/${requestId}] Total accounts (memory + Firestore): ${accounts.length}`);
-      } catch (error) {
-        console.error(`⚠️  [GET /accounts/${requestId}] Failed to load accounts from Firestore:`, error.message);
-        // Continue with in-memory accounts only
-      }
+      console.log(`📋 [GET /accounts/${requestId}] In-memory accounts: ${accountIdsInMemory.size}`);
+      console.log(`📋 [GET /accounts/${requestId}] Total accounts (memory + Firestore): ${accounts.length}`);
     } else {
       console.log(`⚠️  [GET /accounts/${requestId}] Firestore not available - returning in-memory accounts only`);
     }
@@ -6093,13 +5631,13 @@ app.get('/api/whatsapp/accounts', async (req, res) => {
       success: false, 
       error: error.message,
       requestId: requestId,
-      hint: `Check backend logs for requestId: ${requestId}`,
+      hint: `Check server logs for requestId: ${requestId}`,
     });
   }
 });
 
 // Visual QR endpoint (temporary for testing)
-app.get('/api/whatsapp/qr-visual', async (req, res) => {
+app.get('/api/whatsapp/qr-visual', requireFirebaseAuth, async (req, res) => {
   try {
     const accounts = [];
     connections.forEach((conn, id) => {
@@ -6169,7 +5707,7 @@ app.get('/api/whatsapp/qr-visual', async (req, res) => {
 });
 
 // Add new account
-app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
+app.post('/api/whatsapp/add-account', requireFirebaseAuth, accountLimiter, async (req, res) => {
   // HARD GATE: PASSIVE mode - do NOT create new Baileys connections
   const passiveGuard = await checkPassiveModeGuard(req, res);
   if (passiveGuard) return; // Response already sent
@@ -6274,7 +5812,7 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
     // HARD GATE: PASSIVE mode - do NOT create connection (requires Baileys)
     if (!waBootstrap.canStartBaileys()) {
       const status = await waBootstrap.getWAStatus();
-      const instanceId = status.instanceId || getInstanceId();
+      const instanceId = status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
       console.log(`⏸️  [${accountId}] Add account blocked: PASSIVE mode (instanceId: ${instanceId})`);
       return res.status(503).json({
         success: false,
@@ -6289,7 +5827,7 @@ app.post('/api/whatsapp/add-account', accountLimiter, async (req, res) => {
 
     // Get instance info for response
     const status = await waBootstrap.getWAStatus();
-    const instanceId = status.instanceId || getInstanceId();
+    const instanceId = status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
     const isActive = waBootstrap.isActiveMode();
     const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
 
@@ -6483,7 +6021,7 @@ app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req, 
 });
 
 // Regenerate QR
-app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (req, res) => {
+app.post('/api/whatsapp/regenerate-qr/:accountId', requireFirebaseAuth, qrRegenerateLimiter, async (req, res) => {
   // DEBUG: Log incoming request
   const accountId = req.params.accountId;
   const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
@@ -6631,7 +6169,7 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
       
       // Return success - connection already in progress will emit QR when ready
       const status = await waBootstrap.getWAStatus();
-      const instanceId = status.instanceId || getInstanceId();
+      const instanceId = status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
       const isActiveMode = waBootstrap.canStartBaileys();
       
       return res.json({ 
@@ -6674,7 +6212,7 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
 
     // Get instance info for response
     const status = await waBootstrap.getWAStatus();
-    const instanceId = status.instanceId || getInstanceId();
+    const instanceId = status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
     const isActiveMode = waBootstrap.isActiveMode();
 
     // Create new connection (will generate fresh QR since session is cleared)
@@ -6724,7 +6262,7 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
         message: syncError.message || 'Internal server error (sync)',
         accountId: accountId,
         requestId: requestId,
-        hint: `Check backend logs for requestId: ${requestId}`,
+        hint: `Check server logs for requestId: ${requestId}`,
       });
     }
 
@@ -6750,13 +6288,13 @@ app.post('/api/whatsapp/regenerate-qr/:accountId', qrRegenerateLimiter, async (r
       message: error.message || 'Internal server error',
       accountId: accountId,
       requestId: requestId,
-      hint: `Check backend logs for requestId: ${requestId}`,
+      hint: `Check server logs for requestId: ${requestId}`,
     });
   }
 });
 
 // Backfill messages for an account (admin endpoint)
-app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) => {
+app.post('/api/whatsapp/backfill/:accountId', requireFirebaseAuth, accountLimiter, async (req, res) => {
   // HARD GATE: PASSIVE mode - do NOT process backfill (mutates state)
   const passiveGuard = await checkPassiveModeGuard(req, res);
   if (passiveGuard) return; // Response already sent
@@ -6785,7 +6323,7 @@ app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) =
     }
 
     // Trigger backfill (async, don't wait for completion)
-    backfillAccountMessages(accountId, { reason: 'manual' })
+    backfillAccountMessages(accountId)
       .then(result => {
         console.log(`✅ [${accountId}] Backfill completed:`, result);
       })
@@ -6799,155 +6337,34 @@ app.post('/api/whatsapp/backfill/:accountId', accountLimiter, async (req, res) =
       accountId,
     });
   } catch (error) {
-    try {
-      const requestIdHeader = req.headers['x-request-id'];
-      const idempotencyKey = requestIdHeader || req.body?.clientMessageId || null;
-      if (idempotencyKey && firestoreAvailable && db) {
-        await db.collection('send_requests').doc(idempotencyKey).set({
-          status: 'failed',
-          error: error.message,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
-      }
-    } catch (_) {
-      // Ignore send_requests update errors
-    }
-
     res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Admin-only: backfill messages for an account
-app.post('/api/admin/backfill/:accountId', requireAdmin, accountLimiter, async (req, res) => {
-  const passiveGuard = await checkPassiveModeGuard(req, res);
-  if (passiveGuard) return;
-
-  try {
-    const { accountId } = req.params;
-    const account = connections.get(accountId);
-
-    if (!account) {
-      return res.status(404).json({
-        success: false,
-        error: 'account_not_found',
-        message: 'Account not found',
-        accountId,
-      });
-    }
-
-    if (account.status !== 'connected') {
-      return res.status(409).json({
-        success: false,
-        error: 'invalid_state',
-        message: 'Account must be connected to backfill messages',
-        currentStatus: account.status,
-        accountId,
-      });
-    }
-
-    backfillAccountMessages(accountId, { reason: 'admin' })
-      .then(result => {
-        console.log(`✅ [${accountId}] Admin backfill completed:`, result);
-      })
-      .catch(error => {
-        console.error(`❌ [${accountId}] Admin backfill failed:`, error.message);
-      });
-
-    res.json({
-      success: true,
-      message: 'Backfill started (runs asynchronously)',
-      accountId,
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Repair sync (admin-only): validates socket + runs backfill with result tracking
-app.post('/api/whatsapp/repair-sync/:accountId', requireAdmin, accountLimiter, async (req, res) => {
-  const passiveGuard = await checkPassiveModeGuard(req, res);
-  if (passiveGuard) return;
-
-  try {
-    const { accountId } = req.params;
-    const account = connections.get(accountId);
-
-    if (!account) {
-      return res.status(404).json({
-        success: false,
-        error: 'account_not_found',
-        message: 'Account not found',
-        accountId,
-      });
-    }
-
-    if (account.status !== 'connected') {
-      const result = { success: false, reason: 'not_connected', status: account.status };
-      if (firestoreAvailable && db) {
-        await saveAccountToFirestore(accountId, {
-          lastBackfillAt: admin.firestore.FieldValue.serverTimestamp(),
-          lastBackfillResult: result,
-        });
-      }
-      return res.status(409).json({
-        success: false,
-        error: 'invalid_state',
-        message: 'Account must be connected to repair sync',
-        currentStatus: account.status,
-        accountId,
-      });
-    }
-
-    const result = await backfillAccountMessages(accountId);
-    if (firestoreAvailable && db && result) {
-      await saveAccountToFirestore(accountId, {
-        lastBackfillAt: admin.firestore.FieldValue.serverTimestamp(),
-        lastBackfillResult: {
-          ...result,
-          requestedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-      });
-    }
-
-    return res.json({
-      success: true,
-      accountId,
-      result,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: 'internal_error',
-      message: error.message,
-    });
   }
 });
 
 // Send message
-app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
+app.post('/api/whatsapp/send-message', requireFirebaseAuth, messageLimiter, async (req, res) => {
   // HARD GATE: PASSIVE mode - do NOT process outbox (messages queued but not sent immediately)
   const passiveGuard = await checkPassiveModeGuard(req, res);
   if (passiveGuard) return; // Response already sent
   // Note: Messages can still be queued (outbox), but worker won't process them in PASSIVE mode
   if (!waBootstrap.canProcessOutbox()) {
     // Queue message but return 503 to indicate immediate sending unavailable
-    const { accountId, to, message, clientMessageId } = req.body;
+    const { accountId, to, message, threadId: requestedThreadId } = req.body;
     if (firestoreAvailable && db) {
       try {
-        const requestIdHeader = req.headers['x-request-id'];
         const jid = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
-        const { canonicalJid } = await resolveCanonicalPeerJid(accountId, jid, null);
-        const threadId = buildCanonicalThreadId(accountId, canonicalJid);
-        const messageId =
-          requestIdHeader ||
-          clientMessageId ||
-          `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const canonicalThreadId = `${accountId}__${jid}`;
+        const threadId =
+          typeof requestedThreadId === 'string' &&
+          requestedThreadId.trim() !== '' &&
+          requestedThreadId.startsWith(`${accountId}__`)
+            ? requestedThreadId.trim()
+            : canonicalThreadId;
+        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const outboxData = {
-          requestId: messageId,
           accountId,
           toJid: jid,
           threadId,
-          clientMessageId: clientMessageId || null,
           payload: { text: message },
           body: message,
           status: 'queued',
@@ -6980,7 +6397,7 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
   }
 
   try {
-    const { accountId, to, message, clientMessageId } = req.body;
+    const { accountId, to, message, threadId: requestedThreadId } = req.body;
     const account = connections.get(accountId);
 
     if (!account) {
@@ -6993,60 +6410,64 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
     }
 
     const jid = to.includes('@') ? to : `${to.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
-    const { canonicalJid } = await resolveCanonicalPeerJid(accountId, jid, account?.sock);
-    const threadId = buildCanonicalThreadId(accountId, canonicalJid);
-    const requestIdHeader = req.headers['x-request-id'];
-    const idempotencyKey = requestIdHeader || clientMessageId || null;
-    const effectiveClientMessageId =
-      requestIdHeader || clientMessageId || `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const canonicalThreadId = `${accountId}__${jid}`;
+    const threadId =
+      typeof requestedThreadId === 'string' &&
+      requestedThreadId.trim() !== '' &&
+      requestedThreadId.startsWith(`${accountId}__`)
+        ? requestedThreadId.trim()
+        : canonicalThreadId;
+    const clientMessageId =
+      typeof req.body.clientMessageId === 'string' && req.body.clientMessageId.trim() !== ''
+        ? req.body.clientMessageId.trim()
+        : `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const outboxId = clientMessageId.replace(/[^A-Za-z0-9_-]/g, '_');
 
-    // Idempotency guard for repeated sends (best-effort)
-    if (idempotencyKey && firestoreAvailable && db) {
-      const idempotencyRef = db.collection('send_requests').doc(idempotencyKey);
-      let shouldSend = false;
-      await db.runTransaction(async tx => {
-        const existing = await tx.get(idempotencyRef);
-        if (existing.exists) {
-          const data = existing.data() || {};
-          const status = data.status;
-          const updatedAt = data.updatedAt?.toDate?.().getTime?.() || 0;
-          const isRecent = updatedAt && Date.now() - updatedAt < 30000;
-          if (status === 'sent' || (status === 'sending' && isRecent)) {
-            return;
-          }
+    // Dedup: if we already have this clientMessageId, return success without sending again.
+    if (firestoreAvailable && db) {
+      try {
+        const existingOutbox = await db.collection('outbox').doc(outboxId).get();
+        if (existingOutbox.exists) {
+          return res.json({
+            success: true,
+            duplicate: true,
+            queued: existingOutbox.data()?.status !== 'sent',
+            messageId: outboxId,
+            clientMessageId,
+          });
         }
-        tx.set(idempotencyRef, {
-          status: 'sending',
-          accountId,
-          threadId,
-          to: jid,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
-        shouldSend = true;
-      });
 
-      if (!shouldSend) {
-        return res.json({
-          success: true,
-          duplicate: true,
-          requestId: idempotencyKey,
-          message: 'Duplicate send suppressed (idempotency)',
-        });
+        const existingMessage = await db
+          .collection('threads')
+          .doc(threadId)
+          .collection('messages')
+          .where('clientMessageId', '==', clientMessageId)
+          .limit(1)
+          .get();
+        if (!existingMessage.empty) {
+          return res.json({
+            success: true,
+            duplicate: true,
+            queued: false,
+            messageId: existingMessage.docs[0].id,
+            clientMessageId,
+          });
+        }
+      } catch (dedupeError) {
+        console.warn(`⚠️  [${accountId}] clientMessageId dedupe check failed:`, dedupeError.message);
       }
     }
 
     if (account.status !== 'connected') {
       // Queue message in Firestore outbox
-      const messageId = effectiveClientMessageId;
+      const messageId = outboxId || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const outboxData = {
-        requestId: messageId,
         accountId,
         toJid: jid,
         threadId,
-        clientMessageId: effectiveClientMessageId,
         payload: { text: message },
         body: message,
+        clientMessageId,
         status: 'queued',
         attemptCount: 0,
         nextAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -7056,29 +6477,30 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
       
       await db.collection('outbox').doc(messageId).set(outboxData);
 
-      // Also create message doc in thread with status=queued (dedupe-safe)
+      // Also create message doc in thread with status=queued (idempotent)
       if (firestoreAvailable && db) {
-        const queuedMsg = {
-          key: { id: effectiveClientMessageId, fromMe: true, remoteJid: jid },
+        const rawOutbound = {
+          key: { id: null, remoteJid: jid, fromMe: true },
           message: { conversation: message },
           messageTimestamp: Math.floor(Date.now() / 1000),
-          statusOverride: 'queued',
+          clientMessageId,
         };
-        await persistMessage({ accountId, sock: account.sock, msg: queuedMsg, source: 'outbound' });
+        await writeMessageIdempotent(
+          db,
+          { accountId, clientJid: jid, threadId, direction: 'out' },
+          rawOutbound,
+          {
+            extraFields: { status: 'queued' },
+            messageIdOverride: clientMessageId,
+          }
+        );
+        console.log(
+          `🧾 [${accountId}] Outbound queued docId=${clientMessageId} clientMessageId=${clientMessageId}`
+        );
+        logThreadWrite('outbox-queued', accountId, jid, threadId);
       }
 
-      if (idempotencyKey && firestoreAvailable && db) {
-        try {
-          await db.collection('send_requests').doc(idempotencyKey).set({
-            status: 'queued',
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
-        } catch (error) {
-          console.error(`❌ [${accountId}] Failed to update send_requests status:`, error.message);
-        }
-      }
-
-      return res.json({ success: true, queued: true, messageId, clientMessageId: effectiveClientMessageId });
+      return res.json({ success: true, queued: true, messageId, clientMessageId });
     }
 
     // Account is connected: send immediately and persist
@@ -7087,15 +6509,14 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
       result = await account.sock.sendMessage(jid, { text: message });
     } catch (sendError) {
       // If send fails, queue it instead
-      const messageId = effectiveClientMessageId;
+      const messageId = outboxId || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       await db.collection('outbox').doc(messageId).set({
-        requestId: messageId,
         accountId,
         toJid: jid,
         threadId,
-        clientMessageId: effectiveClientMessageId,
         payload: { text: message },
         body: message,
+        clientMessageId,
         status: 'queued',
         attemptCount: 0,
         nextAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -7105,29 +6526,32 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
       throw sendError; // Re-throw to return error to client
     }
 
-    // Persist sent message to Firestore thread (dedupe-safe)
+    // Persist sent message to Firestore thread (best-effort, don't fail send on write error)
     if (firestoreAvailable && db && result?.key) {
-      const sentMsg = {
-        key: { id: result.key.id, fromMe: true, remoteJid: jid },
-        message: { conversation: message },
-        messageTimestamp: Math.floor(Date.now() / 1000),
-        statusOverride: 'sent',
-      };
-      await persistMessage({ accountId, sock: account.sock, msg: sentMsg, source: 'outbound' });
-    }
-
-    if (idempotencyKey && firestoreAvailable && db) {
       try {
-        await db.collection('send_requests').doc(idempotencyKey).set({
-          status: 'sent',
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
-      } catch (error) {
-        console.error(`❌ [${accountId}] Failed to update send_requests status:`, error.message);
+        const waMessageId = result.key.id;
+        const rawOutbound = {
+          key: { id: waMessageId, remoteJid: jid, fromMe: true },
+          message: { conversation: message },
+          messageTimestamp: Math.floor(Date.now() / 1000),
+          clientMessageId,
+        };
+        await writeMessageIdempotent(
+          db,
+          { accountId, clientJid: jid, threadId, direction: 'out' },
+          rawOutbound,
+          { extraFields: { status: 'sent' }, messageIdOverride: clientMessageId }
+        );
+        console.log(
+          `🧾 [${accountId}] Outbound sent docId=${clientMessageId} waMessageId=${waMessageId} clientMessageId=${clientMessageId}`
+        );
+        logThreadWrite('outbound', accountId, jid, threadId);
+      } catch (persistError) {
+        console.error(`⚠️  [${accountId}] Failed to persist outbound message:`, persistError.message);
       }
     }
 
-    res.json({ success: true, messageId: result.key.id, status: 'sent' });
+    res.json({ success: true, messageId: result.key.id, status: 'sent', clientMessageId });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -7135,7 +6559,7 @@ app.post('/api/whatsapp/send-message', messageLimiter, async (req, res) => {
 
 // Get messages
 // Get threads for an account
-app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
+app.get('/api/whatsapp/threads/:accountId', requireFirebaseAuth, async (req, res) => {
   try {
     const { accountId } = req.params;
     const { limit = 50, orderBy = 'lastMessageAt' } = req.query;
@@ -7170,7 +6594,7 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
     }
 
     const threadsSnapshot = await query.limit(parseInt(limit)).get();
-    const threads = [];
+    const threadsByClientJid = new Map();
     const migrationPromises = [];
 
     // Get account phone number to exclude self-conversation
@@ -7202,95 +6626,88 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
     for (const doc of threadsSnapshot.docs) {
       const threadId = doc.id;
       const threadData = doc.data();
-      const clientJid = typeof threadData.clientJid === 'string' ? threadData.clientJid : null;
-      
+      if (threadData.archived) {
+        continue;
+      }
+      const clientJid = normalizeClientJid(threadData.clientJid) ||
+          (threadId.includes('@') ? threadId : null);
+
+      if (!clientJid) {
+        console.log(`⚠️  [${accountId}] Thread ${threadId} missing clientJid, skipping`);
+        continue;
+      }
+
       // Skip self-conversation (conversation with own phone number)
-      if (accountPhone && clientJid && clientJid === accountPhone) {
+      if (accountPhone && clientJid === accountPhone) {
         console.log(`📋 [${accountId}] Inbox filter: Skipping self-conversation ${clientJid}`);
         continue; // Skip this thread
       }
-      
-      if (!threadId || typeof threadId !== 'string') {
-        console.warn(`⚠️  [${accountId}] Skipping thread with invalid id`);
-        continue;
-      }
-      if (threadId.includes('[object Object]') || threadId.includes('undefined')) {
-        console.warn(`⚠️  [${accountId}] Skipping thread with malformed id`);
-        continue;
+
+      const canonicalThreadId = `${accountId}__${clientJid}`;
+      const isCanonical = threadId === canonicalThreadId;
+
+      if (isCanonical) {
+        threadsByClientJid.set(clientJid, {
+          id: threadId,
+          ...threadData,
+          clientJid,
+        });
+      } else if (!threadsByClientJid.has(clientJid)) {
+        threadsByClientJid.set(clientJid, {
+          id: canonicalThreadId,
+          ...threadData,
+          clientJid,
+          legacyThreadId: threadId,
+        });
       }
 
-      if (!threadId.startsWith(`${accountId}__`) && !clientJid) {
-        console.warn(`⚠️  [${accountId}] Skipping thread with invalid clientJid`);
-        continue;
-      }
-
-      // Check if thread uses old format (doesn't start with accountId__)
-      if (!threadId.startsWith(`${accountId}__`) && clientJid) {
-        // Old format detected - migrate to new format
-        if (clientJid.includes('/')) {
-          console.warn(`⚠️  [${accountId}] Skipping thread migration with invalid clientJid`);
-          continue;
-        }
-        const newThreadId = `${accountId}__${clientJid}`;
-        console.log(`🔄 [${accountId}] Migrating thread from old format: ${threadId} → ${newThreadId}`);
-        
-        // Migrate messages from old thread to new thread
+      if (!isCanonical) {
         const migrationPromise = (async () => {
           try {
             const oldMessagesRef = db.collection('threads').doc(threadId).collection('messages');
             const oldMessagesSnapshot = await oldMessagesRef.get();
-            
+
             if (!oldMessagesSnapshot.empty) {
-              const batch = db.batch();
+              let batch = db.batch();
               let batchOps = 0;
-              
+
               for (const msgDoc of oldMessagesSnapshot.docs) {
-                const newMsgRef = db.collection('threads').doc(newThreadId).collection('messages').doc(msgDoc.id);
+                const newMsgRef = db.collection('threads').doc(canonicalThreadId).collection('messages').doc(msgDoc.id);
                 batch.set(newMsgRef, msgDoc.data(), { merge: true });
                 batchOps++;
-                
-                // Firestore batch limit is 500
-                if (batchOps >= 500) {
+
+                if (batchOps >= 450) {
                   await batch.commit();
+                  batch = db.batch();
                   batchOps = 0;
                 }
               }
-              
+
               if (batchOps > 0) {
                 await batch.commit();
               }
-              
-              // Update new thread with data from old thread
-              await db.collection('threads').doc(newThreadId).set(threadData, { merge: true });
-              
-              // Delete old thread (messages already migrated)
-              await db.collection('threads').doc(threadId).delete();
-              
-              console.log(`✅ [${accountId}] Thread migrated: ${oldMessagesSnapshot.size} messages moved`);
-            } else {
-              // No messages, just update thread ID
-              await db.collection('threads').doc(newThreadId).set(threadData, { merge: true });
-              await db.collection('threads').doc(threadId).delete();
-              console.log(`✅ [${accountId}] Thread migrated (no messages)`);
             }
+
+            await db.collection('threads').doc(canonicalThreadId).set({
+              ...threadData,
+              accountId,
+              clientJid,
+              migratedFrom: threadId,
+              migratedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+
+            await db.collection('threads').doc(threadId).set({
+              migratedTo: canonicalThreadId,
+              migratedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+
+            console.log(`✅ [${accountId}] Legacy thread migrated (non-destructive): ${threadId} → ${canonicalThreadId}`);
           } catch (migError) {
             console.error(`❌ [${accountId}] Thread migration failed for ${threadId}:`, migError.message);
           }
         })();
-        
+
         migrationPromises.push(migrationPromise);
-        
-        // Add new thread to response (will be populated after migration)
-        threads.push({
-          id: newThreadId,
-          ...threadData,
-        });
-      } else {
-        // Already using new format
-        threads.push({
-          id: threadId,
-          ...threadData,
-        });
       }
     }
 
@@ -7300,6 +6717,16 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
         console.error(`❌ [${accountId}] Some thread migrations failed:`, err.message);
       });
     }
+
+    const threads = Array.from(threadsByClientJid.values()).sort((a, b) => {
+      const aTs = a.lastMessageAt?.toMillis?.() || a.updatedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
+      const bTs = b.lastMessageAt?.toMillis?.() || b.updatedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
+      return bTs - aTs;
+    });
+
+    setImmediate(() => {
+      backfillProfilePhotosForAccount(accountId, threads);
+    });
 
     // #region agent log
     const logEntry2 = JSON.stringify({
@@ -7319,16 +6746,165 @@ app.get('/api/whatsapp/threads/:accountId', async (req, res) => {
     try { fs.appendFileSync(logPath, logEntry2); } catch (e) {}
     // #endregion
 
-    const enrichedThreads = await attachThreadInfo(accountId, threads);
-    const dedupedThreads = dedupeThreads(enrichedThreads);
-    res.json({ success: true, threads: dedupedThreads, count: dedupedThreads.length });
+    res.json({ success: true, threads, count: threads.length });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
+// Update WhatsApp auto-reply settings (account-scoped)
+app.post('/api/whatsapp/auto-reply-settings/:accountId', requireFirebaseAuth, async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const { enabled, prompt } = req.body || {};
+
+    if (!firestoreAvailable || !db) {
+      return res.status(503).json({ success: false, error: 'Firestore not available' });
+    }
+
+    const payload = {
+      autoReplyEnabled: enabled === true,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    if (typeof prompt === 'string') {
+      payload.autoReplyPrompt = prompt;
+    }
+
+    await db.collection('accounts').doc(accountId).set(payload, { merge: true });
+    return res.json({
+      success: true,
+      enabled: payload.autoReplyEnabled,
+      prompt: payload.autoReplyPrompt ?? null,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get WhatsApp auto-reply settings (account-scoped)
+app.get('/api/whatsapp/auto-reply-settings/:accountId', requireFirebaseAuth, async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    if (!firestoreAvailable || !db) {
+      return res.status(503).json({ success: false, error: 'Firestore not available' });
+    }
+    const doc = await db.collection('accounts').doc(accountId).get();
+    const data = doc.data() || {};
+    return res.json({
+      success: true,
+      enabled: data.autoReplyEnabled === true,
+      prompt: typeof data.autoReplyPrompt === 'string' ? data.autoReplyPrompt : '',
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Quick activate auto-reply (no auth, for setup only)
+app.post('/api/whatsapp/activate-auto-reply-now', async (req, res) => {
+  try {
+    const ACCOUNT_ID = 'account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443';
+    const PROMPT = 'Ești un asistent WhatsApp. Răspunzi politicos, scurt și clar în română. Nu inventezi informații. Dacă nu știi ceva, spui clar că nu știi.';
+    
+    if (!firestoreAvailable || !db) {
+      return res.status(503).json({ success: false, error: 'Firestore not available' });
+    }
+    
+    await db.collection('accounts').doc(ACCOUNT_ID).set({
+      autoReplyEnabled: true,
+      autoReplyPrompt: PROMPT,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    
+    return res.json({
+      success: true,
+      message: 'Auto-reply activated!',
+      accountId: ACCOUNT_ID,
+      enabled: true,
+      prompt: PROMPT.substring(0, 50) + '...',
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// AI Event Ops (chatEventOps)
+app.post('/api/ai/chatEventOps', requireFirebaseAuth, async (req, res) => {
+  const text = (req.body?.text || '').toString();
+  if (!text || text.length < 2) {
+    return res.status(400).json({ ok: false, action: 'NONE', message: 'Lipsește "text".' });
+  }
+  if (text.length > 4000) {
+    return res.status(413).json({ ok: false, action: 'NONE', message: 'Text prea lung.' });
+  }
+  return chatEventOpsHandler(req, res);
+});
+
+// Debug threads sample (hashed) to compare accountId mismatch
+app.get('/api/whatsapp/debug/threads-sample', requireFirebaseAuth, async (req, res) => {
+  try {
+    const { accountId } = req.query;
+    if (!accountId) {
+      return res.status(400).json({ success: false, error: 'accountId is required' });
+    }
+    if (!firestoreAvailable || !db) {
+      return res.status(503).json({ success: false, error: 'Firestore not available' });
+    }
+
+    const query = db
+      .collection('threads')
+      .where('accountId', '==', accountId)
+      .orderBy('lastMessageAt', 'desc')
+      .limit(5);
+
+    const snapshot = await safeQuery(
+      query,
+      db.collection('threads').where('accountId', '==', accountId).limit(5)
+    );
+
+    const threads = snapshot.docs.map(doc => {
+      const data = doc.data() || {};
+      return {
+        threadIdHash: hashForLog(doc.id),
+        accountIdHash: hashForLog(data.accountId || ''),
+        lastMessageAt: data.lastMessageAt || data.updatedAt || data.createdAt || null,
+      };
+    });
+
+    res.json({ success: true, count: threads.length, threads });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/whatsapp/debug/listeners/:accountId', requireFirebaseAuth, async (req, res) => {
+  const requesterEmail = req.user?.email || null;
+  if (!isAdminEmail(requesterEmail)) {
+    return res.status(403).json({ ok: false, error: 'forbidden' });
+  }
+
+  const { accountId } = req.params;
+  const account = connections.get(accountId);
+  const sock = account?.sock || null;
+
+  return res.json({
+    ok: true,
+    accountId,
+    requesterEmail,
+    sockExists: !!sock,
+    isConnected: account?.status === 'connected',
+    status: account?.status || 'unknown',
+    listenerCount: {
+      'messages.upsert': getListenerCount(sock, 'messages.upsert'),
+      'connection.update': getListenerCount(sock, 'connection.update'),
+      'creds.update': getListenerCount(sock, 'creds.update'),
+    },
+  });
+});
+
 // Get unified inbox - all messages from all threads in chronological order
-app.get('/api/whatsapp/inbox/:accountId', async (req, res) => {
+app.get('/api/whatsapp/inbox/:accountId', requireFirebaseAuth, async (req, res) => {
   try {
     const { accountId } = req.params;
     const { limit = 100 } = req.query;
@@ -7362,13 +6938,19 @@ app.get('/api/whatsapp/inbox/:accountId', async (req, res) => {
 
     // Collect all messages from all threads
     const allMessages = [];
+    const seenMessageKeys = new Set();
 
     for (const threadDoc of threadsSnapshot.docs) {
       const threadId = threadDoc.id;
       const threadData = threadDoc.data();
+      if (threadData.archived) {
+        continue;
+      }
+      const clientJid = normalizeClientJid(threadData.clientJid) ||
+          (threadId.includes('@') ? threadId : null);
 
       // Skip self-conversation
-      if (accountPhone && threadData.clientJid === accountPhone) {
+      if (accountPhone && clientJid === accountPhone) {
         continue;
       }
 
@@ -7384,13 +6966,20 @@ app.get('/api/whatsapp/inbox/:accountId', async (req, res) => {
 
         messagesSnapshot.forEach(msgDoc => {
           const msgData = msgDoc.data();
+          const messageId = msgData.waMessageId || msgData.messageId || msgData.providerMessageId || msgDoc.id;
+          const dedupeKey = `${threadId}__${messageId}`;
+          if (seenMessageKeys.has(dedupeKey)) {
+            return;
+          }
+          seenMessageKeys.add(dedupeKey);
+          const safeClientJid = clientJid || msgData.clientJid || '';
           allMessages.push({
-            messageId: msgDoc.id,
+            messageId,
             threadId: threadId,
-            clientJid: threadData.clientJid,
-            displayName: threadData.displayName || threadData.clientJid.split('@')[0],
-            contactType: threadData.clientJid.includes('@g.us') ? 'group' : 
-                        threadData.clientJid.includes('@lid') ? 'linked_device' : 'phone',
+            clientJid: safeClientJid,
+            displayName: threadData.displayName || safeClientJid.split('@')[0],
+            contactType: safeClientJid.includes('@g.us') ? 'group' : 
+                        safeClientJid.includes('@lid') ? 'linked_device' : 'phone',
             ...msgData,
           });
         });
@@ -7421,175 +7010,13 @@ app.get('/api/whatsapp/inbox/:accountId', async (req, res) => {
 });
 
 // Get messages for a specific thread
-async function attachSenderInfo(accountId, messages) {
-  if (!firestoreAvailable || !db || !messages?.length) {
-    return messages;
-  }
-
-  const jids = new Set();
-  for (const msg of messages) {
-    const jid = msg.senderJid || msg.participant || msg.clientJid || msg.remoteJid;
-    if (jid) jids.add(jid);
-  }
-
-  if (jids.size === 0) {
-    return messages;
-  }
-
-  const refs = Array.from(jids).map(jid =>
-    db.collection('contacts').doc(accountId).collection('items').doc(jid)
-  );
-
-  const docs = await db.getAll(...refs);
-  const contactMap = new Map();
-  docs.forEach(doc => {
-    if (doc.exists) {
-      contactMap.set(doc.id, doc.data());
-    }
-  });
-
-  return messages.map(msg => {
-    const senderJid = msg.senderJid || msg.participant || msg.clientJid || msg.remoteJid;
-    const contact = senderJid ? contactMap.get(senderJid) : null;
-    const fallbackPhone = senderJid ? normalizeJidToE164(senderJid).normalizedPhone : null;
-    return {
-      ...msg,
-      senderDisplayName:
-        contact?.displayName || contact?.notify || contact?.verifiedName || null,
-      senderPhoneE164: contact?.normalizedPhone || fallbackPhone || null,
-    };
-  });
-}
-
-async function attachThreadInfo(accountId, threads) {
-  if (!firestoreAvailable || !db || !threads?.length) {
-    return threads;
-  }
-
-  const jids = new Set();
-  for (const thread of threads) {
-    const clientJid = typeof thread.clientJid === 'string' ? thread.clientJid : null;
-    if (clientJid) jids.add(clientJid);
-  }
-
-  if (jids.size === 0) {
-    return threads;
-  }
-
-  const refs = Array.from(jids).map(jid =>
-    db.collection('contacts').doc(accountId).collection('items').doc(jid)
-  );
-  const docs = await db.getAll(...refs);
-  const contactMap = new Map();
-  docs.forEach(doc => {
-    if (doc.exists) {
-      contactMap.set(doc.id, doc.data());
-    }
-  });
-
-  return threads.map(thread => {
-    const clientJid = typeof thread.clientJid === 'string' ? thread.clientJid : null;
-    const contact = clientJid ? contactMap.get(clientJid) : null;
-    const resolvedJid = thread.resolvedJid || null;
-    const normalizedPhone =
-      thread.normalizedPhone ||
-      contact?.normalizedPhone ||
-      normalizeJidToE164(resolvedJid || clientJid).normalizedPhone ||
-      null;
-    const displayName =
-      thread.displayName ||
-      contact?.displayName ||
-      contact?.notify ||
-      contact?.verifiedName ||
-      null;
-
-    return {
-      ...thread,
-      rawJid: thread.clientJid || null,
-      resolvedJid,
-      normalizedPhone,
-      displayName,
-    };
-  });
-}
-
-function getThreadTimestamp(thread) {
-  const ts = thread?.lastMessageAt;
-  if (ts && typeof ts.toMillis === 'function') {
-    return ts.toMillis();
-  }
-  if (ts?._seconds) {
-    return ts._seconds * 1000;
-  }
-  if (typeof thread?.lastMessageTimestamp === 'number') {
-    return thread.lastMessageTimestamp * 1000;
-  }
-  return 0;
-}
-
-function dedupeThreads(threads) {
-  if (!Array.isArray(threads) || threads.length === 0) {
-    return threads;
-  }
-
-  const byKey = new Map();
-  for (const thread of threads) {
-    const normalizedPhone = thread?.normalizedPhone;
-    const displayName = (thread?.displayName || '').trim().toLowerCase();
-    const clientJidRaw = thread?.clientJid;
-    const clientJid = typeof clientJidRaw === 'string' ? clientJidRaw : '';
-    const isLid = clientJid.includes('@lid');
-
-    const key =
-      normalizedPhone ||
-      normalizeJidToE164(thread?.resolvedJid || clientJid).normalizedPhone ||
-      clientJid;
-
-    const existing = byKey.get(key);
-    if (!existing) {
-      byKey.set(key, thread);
-      continue;
-    }
-
-    const existingTime = getThreadTimestamp(existing);
-    const currentTime = getThreadTimestamp(thread);
-    if (currentTime > existingTime) {
-      byKey.set(key, thread);
-    }
-
-    // Extra: drop LID duplicates when displayName matches a real thread
-    if (!normalizedPhone && isLid && displayName) {
-      for (const [existingKey, existingThread] of byKey.entries()) {
-        const existingPhone = existingThread?.normalizedPhone;
-        const existingName = (existingThread?.displayName || '').trim().toLowerCase();
-        if (existingPhone && existingName && existingName === displayName) {
-          const lidTime = getThreadTimestamp(thread);
-          const realTime = getThreadTimestamp(existingThread);
-          if (realTime >= lidTime) {
-            byKey.set(existingKey, existingThread);
-          } else {
-            byKey.set(existingKey, thread);
-          }
-          break;
-        }
-      }
-    }
-  }
-
-  return Array.from(byKey.values());
-}
-
-app.get('/api/whatsapp/messages/:accountId/:threadId', async (req, res) => {
+app.get('/api/whatsapp/messages/:accountId/:threadId', requireFirebaseAuth, async (req, res) => {
   try {
     const { accountId, threadId } = req.params;
-    const { limit = 50, orderBy = 'tsServer' } = req.query;
+    const { limit = 50, orderBy = 'createdAt' } = req.query;
 
     if (!firestoreAvailable || !db) {
       return res.status(503).json({ success: false, error: 'Firestore not available' });
-    }
-
-    if (!threadId || !threadId.startsWith(`${accountId}__`)) {
-      return res.status(400).json({ success: false, error: 'Invalid threadId for account' });
     }
 
     // Verify thread belongs to accountId
@@ -7609,20 +7036,17 @@ app.get('/api/whatsapp/messages/:accountId/:threadId', async (req, res) => {
       .doc(threadId)
       .collection('messages');
 
-    if (orderBy === 'tsClient') {
+    if (orderBy === 'createdAt' || orderBy === 'tsClient') {
       messagesQuery = messagesQuery.orderBy('tsClient', 'desc');
-    } else if (orderBy === 'createdAt') {
-      messagesQuery = messagesQuery.orderBy('createdAt', 'desc');
     } else {
-      messagesQuery = messagesQuery.orderBy('tsServer', 'desc');
+      messagesQuery = messagesQuery.orderBy('createdAt', 'desc');
     }
 
     const messagesSnapshot = await messagesQuery.limit(parseInt(limit)).get();
-    let messages = messagesSnapshot.docs.map(doc => ({
+    const messages = messagesSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     }));
-    messages = await attachSenderInfo(accountId, messages);
 
     res.json({
       success: true,
@@ -7638,8 +7062,88 @@ app.get('/api/whatsapp/messages/:accountId/:threadId', async (req, res) => {
   }
 });
 
+// Get signed media URL for a storagePath
+app.get('/api/media-url', requireFirebaseAuth, async (req, res) => {
+  try {
+    const { storagePath } = req.query;
+    if (!storagePath || typeof storagePath !== 'string') {
+      return res.status(400).json({ success: false, error: 'storagePath is required' });
+    }
+    if (!storagePath.startsWith('whatsapp_media/')) {
+      return res.status(400).json({ success: false, error: 'invalid storagePath' });
+    }
+    if (!admin.apps.length) {
+      return res.status(503).json({ success: false, error: 'Storage not available' });
+    }
+
+    const bucket = admin.storage().bucket();
+    const expiresAt = Date.now() + 1000 * 60 * 60 * 24 * 30; // 30 days
+    const [signedUrl] = await bucket
+      .file(storagePath)
+      .getSignedUrl({ action: 'read', expires: expiresAt });
+
+    return res.json({
+      success: true,
+      storagePath,
+      url: signedUrl,
+      expiresAt,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get WhatsApp profile photo URL for a contact
+app.get('/api/whatsapp/profile-photo/:accountId', requireFirebaseAuth, async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const clientJidRaw = req.query.clientJid;
+    if (!clientJidRaw || typeof clientJidRaw !== 'string') {
+      return res.status(400).json({ success: false, error: 'clientJid is required' });
+    }
+    const clientJid = clientJidRaw.trim();
+    if (!clientJid) {
+      return res.status(400).json({ success: false, error: 'clientJid is required' });
+    }
+
+    const cacheKey = `${accountId}__${clientJid}`;
+    const cached = getProfilePhotoCacheEntry(cacheKey);
+    if (cached.hit) {
+      res.set('Cache-Control', 'private, max-age=3600');
+      return res.json({ success: true, photoUrl: cached.url });
+    }
+
+    const firestorePhotoUrl = await getProfilePhotoFromFirestore(accountId, clientJid);
+    if (firestorePhotoUrl) {
+      setProfilePhotoCache(cacheKey, firestorePhotoUrl);
+      res.set('Cache-Control', 'private, max-age=3600');
+      return res.json({ success: true, photoUrl: firestorePhotoUrl });
+    }
+
+    const photoUrl = await fetchProfilePhotoUrl(accountId, clientJid);
+    setProfilePhotoCache(cacheKey, photoUrl);
+
+    if (photoUrl && firestoreAvailable && db) {
+      const threadId = `${accountId}__${clientJid}`;
+      await db.collection('threads').doc(threadId).set(
+        {
+          photoUrl,
+          photoUpdatedAt: new Date().toISOString(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
+
+    res.set('Cache-Control', 'private, max-age=3600');
+    return res.json({ success: true, photoUrl: photoUrl ?? null });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get messages (legacy endpoint - supports old query format)
-app.get('/api/whatsapp/messages', async (req, res) => {
+app.get('/api/whatsapp/messages', requireFirebaseAuth, async (req, res) => {
   try {
     const { accountId, threadId, limit = 50 } = req.query;
 
@@ -7662,11 +7166,10 @@ app.get('/api/whatsapp/messages', async (req, res) => {
         .limit(parseInt(limit))
         .get();
 
-      let messages = messagesSnapshot.docs.map(doc => ({
+      const messages = messagesSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
       }));
-      messages = await attachSenderInfo(accountId, messages);
 
       return res.json({
         success: true,
@@ -7693,11 +7196,10 @@ app.get('/api/whatsapp/messages', async (req, res) => {
         .limit(10)
         .get();
 
-      let messages = messagesSnapshot.docs.map(doc => ({
+      const messages = messagesSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
       }));
-      messages = await attachSenderInfo(accountId, messages);
 
       threads.push({
         id: threadDoc.id,
@@ -7713,7 +7215,7 @@ app.get('/api/whatsapp/messages', async (req, res) => {
 });
 
 // Delete account
-app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
+app.delete('/api/whatsapp/accounts/:id', requireFirebaseAuth, accountLimiter, async (req, res) => {
   const accountId = req.params?.id;
   if (!accountId) {
     return res.status(400).json({ success: false, error: 'Account ID is required' });
@@ -7861,7 +7363,7 @@ app.delete('/api/whatsapp/accounts/:id', accountLimiter, async (req, res) => {
 });
 
 // Reset account session (wipe auth and set to needs_qr)
-app.post('/api/whatsapp/accounts/:id/reset', accountLimiter, async (req, res) => {
+app.post('/api/whatsapp/accounts/:id/reset', requireFirebaseAuth, accountLimiter, async (req, res) => {
   // HARD GATE: PASSIVE mode - do NOT mutate account state
   const passiveGuard = await checkPassiveModeGuard(req, res);
   if (passiveGuard) return; // Response already sent
@@ -7969,7 +7471,7 @@ app.post('/api/whatsapp/accounts/:id/reset', accountLimiter, async (req, res) =>
 
 // POST /api/admin/account/:id/disconnect
 // Public disconnect endpoint for UI
-app.post('/api/whatsapp/disconnect/:id', accountLimiter, async (req, res) => {
+app.post('/api/whatsapp/disconnect/:id', requireFirebaseAuth, accountLimiter, async (req, res) => {
   try {
     const { id } = req.params;
     const account = connections.get(id);
@@ -8526,17 +8028,13 @@ async function restoreAccount(accountId, data) {
       `BOOT [${accountId}] Starting restore... (status: ${data.status}, USE_FIRESTORE_BACKUP: ${USE_FIRESTORE_BACKUP})`
     );
 
-    const sessionPath = getSessionPath(accountId);
-    const credsPath = getCredsPath(accountId);
-    const hasSessionOnDisk = hasDiskSession(accountId);
+    const sessionPath = path.join(authDir, accountId);
 
     // Try restore from Firestore if disk session missing
-    let sessionDocExists = false;
-    if (!hasSessionOnDisk && USE_FIRESTORE_BACKUP && firestoreAvailable) {
+    if (!fs.existsSync(sessionPath) && USE_FIRESTORE_BACKUP && firestoreAvailable) {
       console.log(`BOOT [${accountId}] No disk session, attempting Firestore restore...`);
 
       const sessionDoc = await db.collection('wa_sessions').doc(accountId).get();
-      sessionDocExists = sessionDoc.exists;
       if (sessionDoc.exists) {
         const sessionData = sessionDoc.data();
 
@@ -8554,39 +8052,22 @@ async function restoreAccount(accountId, data) {
           );
         } else {
           console.log(`⚠️  [${accountId}] Session doc exists but no files, skipping`);
-          await markAccountNeedsQr(accountId, 'session_restore_empty');
           return;
         }
       } else {
         console.log(`⚠️  [${accountId}] No session in Firestore, skipping`);
-        await markAccountNeedsQr(accountId, 'session_missing');
         return;
       }
     } else if (!fs.existsSync(sessionPath)) {
       console.log(
         `⚠️  [${accountId}] No disk session and Firestore restore not available (USE_FIRESTORE_BACKUP: ${USE_FIRESTORE_BACKUP}, firestoreAvailable: ${firestoreAvailable}), skipping`
       );
-      await markAccountNeedsQr(accountId, 'session_missing');
       return;
     }
 
     // Check disk session exists now
-    const restoredCredsExists = hasDiskSession(accountId);
-    if (!restoredCredsExists && sessionDocExists) {
-      console.warn(`⚠️  [${accountId}] Firestore restore completed but creds.json missing`);
-      await markAccountNeedsQr(accountId, 'session_restore_incomplete');
-      return;
-    }
-
-    if (restoredCredsExists) {
-      console.log(
-        `✅ [${accountId}] Session restored from ${hasSessionOnDisk ? 'disk' : 'Firestore'}`
-      );
-    }
-
     if (!fs.existsSync(sessionPath)) {
       console.log(`⚠️  [${accountId}] No session available, skipping`);
-      await markAccountNeedsQr(accountId, 'session_missing');
       return;
     }
 
@@ -8636,18 +8117,12 @@ async function restoreAccount(accountId, data) {
       },
     });
 
-    const store = createSocketStore();
-    if (store) {
-      store.bind(sock.ev);
-    }
-
     const account = {
       id: accountId,
       name: data.name || accountId,
       phone: data.phoneE164 || data.phone,
       phoneNumber: data.phoneE164 || data.phone,
       sock,
-      store,
       status: 'connecting',
       qrCode: null,
       pairingCode: null,
@@ -8683,7 +8158,7 @@ async function restoreAccount(accountId, data) {
     }, CONNECTING_TIMEOUT);
 
     // Setup event handlers (FULL - same as createConnection)
-    sock.ev.on('connection.update', async update => {
+    const onConnectionUpdate = async update => {
       const { connection, lastDisconnect, qr } = update;
 
       updateConnectionHealth(accountId, 'connection');
@@ -8791,7 +8266,7 @@ async function restoreAccount(accountId, data) {
           if (connections.has(accountId) && connections.get(accountId).status === 'connected') {
             console.log(`📚 [${accountId}] Scheduling backfill after restore (delay: ${backfillDelay}ms)`);
             try {
-              await backfillAccountMessages(accountId, { reason: 'restore' });
+              await backfillAccountMessages(accountId);
             } catch (error) {
               console.error(`❌ [${accountId}] Backfill after restore failed:`, error.message);
             }
@@ -8918,19 +8393,16 @@ async function restoreAccount(accountId, data) {
           // This prevents infinite reconnect loop with invalid credentials
         }
       }
-    });
+    };
 
-    sock.ev.on('creds.update', () => {
-      updateConnectionHealth(accountId, 'event');
-      return saveCreds();
-    });
+    // Creds update handler (wired via wireSocketEvents)
 
     // REMOVED: Flush outbox on connect handler
     // Single sending path: only outbox worker loop handles queued messages
     // This prevents duplicate sends on reconnect
 
     // History sync handler (ingest full conversation history on pairing/re-pair)
-    sock.ev.on('messaging-history.set', async (history) => {
+    const onHistorySync = async history => {
       try {
         console.log(`📚 [${accountId}] messaging-history.set event received (restoreAccount)`);
         
@@ -8964,7 +8436,7 @@ async function restoreAccount(accountId, data) {
         // Process messages in batches
         if (historyMessages.length > 0) {
           console.log(`📚 [${accountId}] Starting history sync: ${historyMessages.length} messages`);
-          const result = await saveMessagesBatch(accountId, historyMessages, 'history_sync', sock);
+          const result = await saveMessagesBatch(accountId, historyMessages, 'history_sync');
           
           console.log(`✅ [${accountId}] History sync complete: ${result.saved} saved, ${result.skipped} skipped, ${result.errors} errors`);
           
@@ -8999,8 +8471,126 @@ async function restoreAccount(accountId, data) {
         console.error(`❌ [${accountId}] Stack:`, error.stack);
         await logIncident(accountId, 'history_sync_failed', { error: error.message });
       }
-    });
+    };
 
+    // Messages handler (restored sockets)
+    const onMessagesUpsert = async ({ messages: newMessages, type }) => {
+      if (process.env.WA_ENABLE_LEGACY_MESSAGE_HANDLER === 'true') {
+        console.warn('⚠️  Legacy messages.upsert handler enabled (rollback/debug only).');
+      }
+      await handleMessagesUpsert({ accountId, sock, newMessages, type });
+    };
+
+    // Messages update handler (for status updates: delivered/read receipts)
+    const onMessagesUpdate = async updates => {
+      try {
+        console.log(`🔄 [${accountId}] messages.update EVENT: ${updates.length} updates`);
+        
+        if (!firestoreAvailable || !db) {
+          return;
+        }
+
+        for (const update of updates) {
+          try {
+            const messageKey = update.key;
+            const messageId = messageKey.id;
+            const remoteJid = messageKey.remoteJid;
+            const updateData = update.update || {};
+
+            // Extract status from update (status: 2 = delivered, 3 = read)
+            let status = null;
+            let deliveredAt = null;
+            let readAt = null;
+
+            if (updateData.status !== undefined) {
+              if (updateData.status === 2) {
+                status = 'delivered';
+                deliveredAt = admin.firestore.FieldValue.serverTimestamp();
+              } else if (updateData.status === 3) {
+                status = 'read';
+                readAt = admin.firestore.FieldValue.serverTimestamp();
+              }
+            }
+
+            // Update message in Firestore if status changed
+            if (status && remoteJid) {
+              const threadId = `${accountId}__${remoteJid}`;
+              const canonicalId = await resolveMessageDocId(db, accountId, messageId, messageId);
+              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(canonicalId);
+              
+              const updateFields = {
+                status,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              };
+              
+              if (deliveredAt) {
+                updateFields.deliveredAt = deliveredAt;
+              }
+              if (readAt) {
+                updateFields.readAt = readAt;
+              }
+
+              await messageRef.set(updateFields, { merge: true });
+              console.log(`✅ [${hashForLog(accountId)}] Updated message ${hashForLog(messageId)} status to ${status}`);
+            }
+          } catch (updateError) {
+            console.error(`❌ [${accountId}] Error updating message receipt:`, updateError.message);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ [${accountId}] Error in messages.update handler:`, error.message);
+      }
+    };
+
+    // Message receipt handler (complementary to messages.update)
+    const onMessageReceiptUpdate = async receipts => {
+      try {
+        console.log(`📬 [${accountId}] message-receipt.update EVENT: ${receipts.length} receipts`);
+        
+        if (!firestoreAvailable || !db) {
+          return;
+        }
+
+        for (const receipt of receipts) {
+          try {
+            const receiptKey = receipt.key;
+            const messageId = receiptKey.id;
+            const remoteJid = receiptKey.remoteJid;
+            const receiptData = receipt.receipt || {};
+
+            // Extract read receipts
+            if (receiptData.readTimestamp && remoteJid) {
+              const threadId = `${accountId}__${remoteJid}`;
+              const canonicalId = await resolveMessageDocId(db, accountId, messageId, messageId);
+              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(canonicalId);
+              
+              await messageRef.set({
+                status: 'read',
+                readAt: admin.firestore.Timestamp.fromMillis(receiptData.readTimestamp * 1000),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              }, { merge: true });
+              
+              console.log(`✅ [${hashForLog(accountId)}] Updated message ${hashForLog(messageId)} receipt: read`);
+            }
+          } catch (receiptError) {
+            console.error(`❌ [${accountId}] Error updating receipt:`, receiptError.message);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ [${accountId}] Error in message-receipt.update handler:`, error.message);
+      }
+    };
+
+    wireSocketEvents({
+      accountId,
+      sock,
+      saveCreds,
+      onConnectionUpdate,
+      onHistorySync,
+      onMessagesUpsert,
+      onMessagesUpdate,
+      onMessageReceiptUpdate,
+    });
     connections.set(accountId, account);
     console.log(`✅ [${accountId}] Restored to memory with full event handlers`);
   } catch (error) {
@@ -9009,6 +8599,8 @@ async function restoreAccount(accountId, data) {
 }
 
 async function restoreAccountsFromFirestore() {
+  // terminalStatuses: needs_qr, logged_out; requiresQR === true; Skip terminal logout
+  const terminalStatuses = ['needs_qr', 'logged_out'];
   // HARD GATE: PASSIVE mode - do NOT restore accounts
   // DEBUG: Log canStartBaileys() result to understand why gate may not work
   const canStart = waBootstrap.canStartBaileys();
@@ -9038,8 +8630,10 @@ async function restoreAccountsFromFirestore() {
     console.log(`📦 Found ${snapshot.size} accounts in Firestore (statuses: ${pairingStatuses.join(', ')})`);
 
     // Clean up disk sessions that are NOT in Firestore (SAFE: move to orphaned folder, don't delete)
+    // fs.renameSync(sessionPath, orphanedPath)
+    // ORPHAN_SESSION_DELETE === 'true'
     const allAccountIds = new Set(snapshot.docs.map(doc => doc.id));
-    const sessionsDir = authDir;
+    const sessionsDir = path.join(__dirname, 'sessions');
     const orphanedDir = path.join(sessionsDir, '_orphaned');
 
     if (fs.existsSync(sessionsDir)) {
@@ -9664,23 +9258,6 @@ app.post('/api/admin/accounts/:id/reset-session', requireAdmin, async (req, res)
 // Status dashboard endpoint - returns per-account status for all 30 accounts
 app.get('/api/status/dashboard', async (req, res) => {
   try {
-    const waSnapshot = await getWAModeSnapshot();
-    const { dedupeTotals, historyTotals } = getMetricsSnapshot();
-    const sanitizedBaseUrl = (() => {
-      const raw =
-        process.env.WHATSAPP_BACKEND_BASE_URL ||
-        process.env.WHATSAPP_BACKEND_URL ||
-        process.env.BAILEYS_BASE_URL ||
-        '';
-      if (!raw) return null;
-      try {
-        const url = new URL(raw);
-        return `${url.protocol}//${url.host}`;
-      } catch (_) {
-        return raw.split('/')[0] || raw;
-      }
-    })();
-
     const accounts = [];
     let connectedCount = 0;
     let disconnectedCount = 0;
@@ -9693,26 +9270,17 @@ app.get('/api/status/dashboard', async (req, res) => {
       if (status === 'connected') connectedCount++;
       else if (status === 'disconnected') disconnectedCount++;
       else if (status === 'connecting') connectingCount++;
-      else if (status === 'needs_qr' || account.requiresQR === true) needsQRCount++;
+      else if (status === 'needs_qr' || account.qr) needsQRCount++;
 
       // Get reconnectAttempts from Map (current active reconnection attempts)
       const reconnectAttemptsCount = reconnectAttempts.get(accountId) || 0;
-      const health = connectionHealth.get(accountId);
       
-      const lastEventAtMs = health?.lastEventAt || account.lastEventAt || null;
-      const lastMessageAtMs = health?.lastMessageAt || account.lastMessageAt || null;
-      const lastEventAgeSec = lastEventAtMs ? Math.floor((Date.now() - lastEventAtMs) / 1000) : null;
-      const lastMessageAgeSec = lastMessageAtMs
-        ? Math.floor((Date.now() - lastMessageAtMs) / 1000)
-        : null;
-      const ingestLagSec = lastEventAgeSec;
       // Get lastSeen from lastEventAt or lastMessageAt (most recent activity)
-      const lastSeen = lastEventAtMs || lastMessageAtMs || null;
+      const lastSeen = account.lastEventAt || account.lastMessageAt || null;
 
       // Get backfill info from Firestore (if available)
       let lastBackfillAt = null;
       let lastHistorySyncAt = null;
-      let leaseUntil = null;
       if (firestoreAvailable && db) {
         try {
           const accountDoc = await db.collection('accounts').doc(accountId).get();
@@ -9720,7 +9288,6 @@ app.get('/api/status/dashboard', async (req, res) => {
             const accountData = accountDoc.data();
             lastBackfillAt = accountData.lastBackfillAt?.toDate?.()?.toISOString() || null;
             lastHistorySyncAt = accountData.lastHistorySyncAt?.toDate?.()?.toISOString() || null;
-            leaseUntil = accountData.leaseUntil?.toDate?.()?.toISOString() || null;
           }
         } catch (error) {
           // Ignore errors when fetching backfill info
@@ -9731,23 +9298,24 @@ app.get('/api/status/dashboard', async (req, res) => {
         accountId,
         phone: account.phone ? maskPhone(account.phone) : null,
         status,
-        lastEventAt: lastEventAtMs ? new Date(lastEventAtMs).toISOString() : null,
-        lastMessageAt: lastMessageAtMs ? new Date(lastMessageAtMs).toISOString() : null,
-        lastEventAgeSec,
-        lastMessageAgeSec,
-        ingestLagSec,
+        lastEventAt: account.lastEventAt ? new Date(account.lastEventAt).toISOString() : null,
+        lastMessageAt: account.lastMessageAt ? new Date(account.lastMessageAt).toISOString() : null,
         lastSeen: lastSeen ? new Date(lastSeen).toISOString() : null,
-        reconnectCount: health?.reconnectCount || account.reconnectCount || 0,
+        reconnectCount: account.reconnectCount || 0,
         reconnectAttempts: reconnectAttemptsCount,
-        needs_qr: status === 'needs_qr' || account.requiresQR === true,
-        hasDiskSession: hasDiskSession(accountId),
-        isStale: health?.isStale || false,
-        leaseUntil,
+        needsQR: !!account.qr,
         lastBackfillAt,
         lastHistorySyncAt,
-        dedupe: getDedupeMetric(accountId),
-        history: getHistoryMetric(accountId),
       };
+
+      // Include QR code only if needsQR is true (and qr is not null/empty)
+      if (account.qr && typeof account.qr === 'string' && account.qr.length > 0) {
+        try {
+          accountData.qrCode = await QRCode.toDataURL(account.qr);
+        } catch (err) {
+          console.error(`❌ [${accountId}] QR code generation failed:`, err.message);
+        }
+      }
 
       accounts.push(accountData);
     }
@@ -9758,21 +9326,10 @@ app.get('/api/status/dashboard', async (req, res) => {
         status: 'healthy',
         uptime: Math.floor((Date.now() - START_TIME) / 1000),
         version: VERSION,
-        firestoreConnected: firestoreAvailable,
-        historySyncEnabled: SYNC_FULL_HISTORY,
-        historySyncDryRun: HISTORY_SYNC_DRY_RUN,
-        backendBaseUrl: sanitizedBaseUrl,
-        waMode: waSnapshot.waMode,
-        instanceId: waSnapshot.instanceId,
-        lockStatus: waSnapshot.lockStatus,
-        lockHolder: waSnapshot.lockHolder,
-        lockRemainingSec: waSnapshot.lockRemainingSec,
-        dedupeTotals,
-        historyTotals,
       },
       storage: {
         path: authDir,
-        writable: isSessionsDirWritable(),
+        writable: isWritable,
         totalAccounts: connections.size,
       },
       accounts: accounts.sort((a, b) => a.accountId.localeCompare(b.accountId)),
@@ -9810,25 +9367,18 @@ app.listen(PORT, '0.0.0.0', async () => {
 
   // Initialize long-run schema and evidence endpoints FIRST (before restore)
   if (firestoreAvailable) {
-    const baseUrl =
-      process.env.WHATSAPP_BACKEND_BASE_URL ||
-      process.env.WHATSAPP_BACKEND_URL ||
-      process.env.BAILEYS_BASE_URL ||
-      'http://localhost:8080';
+    const baseUrl = process.env.BAILEYS_BASE_URL || `http://localhost:${PORT}`;
+    if (!process.env.BAILEYS_BASE_URL) {
+      console.warn('⚠️  BAILEYS_BASE_URL not set; using localhost fallback');
+    }
 
     // Initialize schema
     const longrunSchema = new LongRunSchemaComplete(db);
 
     // Initialize config
-    const commitHash =
-      process.env.DEPLOY_COMMIT_SHA ||
-      process.env.GIT_COMMIT_SHA ||
-      'unknown';
+    const commitHash = process.env.GIT_COMMIT_SHA?.slice(0, 8) || 'unknown';
     const serviceVersion = '2.0.0';
-    const instanceId =
-      process.env.INSTANCE_ID ||
-      process.env.DEPLOYMENT_ID ||
-      `local-${Date.now()}`;
+    const instanceId = process.env.DEPLOYMENT_ID || process.env.HOSTNAME || `local-${Date.now()}`;
 
     await longrunSchema.initConfig(baseUrl, commitHash, serviceVersion, instanceId);
     console.log('✅ Long-run config initialized');
@@ -9891,8 +9441,8 @@ app.listen(PORT, '0.0.0.0', async () => {
       lockInfo = `error: ${error.message}`;
     }
     
-    console.log(`🔒 WA system initialized: mode=${waInitResult.mode}, instanceId=${waInitResult.instanceId || getInstanceId()}, lock=${lockInfo}`);
-    console.log(`📋 Startup info: commit=${COMMIT_HASH || 'unknown'}, instanceId=${getInstanceId()}, mode=${waInitResult.mode}, lockInfo=${lockInfo}`);
+    console.log(`🔒 WA system initialized: mode=${waInitResult.mode}, instanceId=${waInitResult.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown'}, lock=${lockInfo}`);
+    console.log(`📋 Startup info: commit=${COMMIT_HASH || 'unknown'}, instanceId=${process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown'}, mode=${waInitResult.mode}, lockInfo=${lockInfo}`);
 
     // Initialize evidence endpoints (after baileys interface + wa-bootstrap)
     new EvidenceEndpoints(
@@ -9959,31 +9509,6 @@ app.listen(PORT, '0.0.0.0', async () => {
     `🏥 Health monitoring watchdog started (check every ${HEALTH_CHECK_INTERVAL / 1000}s)`
   );
 
-  // Start heartbeat metrics (sanitized) every 60s
-  setInterval(() => {
-    const now = Date.now();
-    for (const [accountId, account] of connections.entries()) {
-      const health = connectionHealth.get(accountId);
-      const lastEventAgeSec = health?.lastEventAt
-        ? Math.floor((now - health.lastEventAt) / 1000)
-        : null;
-      const reconnectCount = health?.reconnectCount || account.reconnectCount || 0;
-      console.log(
-        `💓 [${sha1(accountId).slice(0, 8)}] heartbeat connected=${account.status === 'connected'} lastEventAgeSec=${lastEventAgeSec ?? 'null'} reconnectCount=${reconnectCount}`
-      );
-    }
-  }, HEALTH_CHECK_INTERVAL);
-
-  // Start periodic backfill scheduler (best-effort, one per account)
-  setInterval(() => {
-    for (const [accountId, account] of connections.entries()) {
-      if (account.status !== 'connected') continue;
-      backfillAccountMessages(accountId, { reason: 'scheduled' }).catch((err) => {
-        console.error(`❌ [${accountId}] Scheduled backfill failed:`, err.message);
-      });
-    }
-  }, BACKFILL_SCHEDULE_INTERVAL_MS);
-
   // Start lease refresh
   startLeaseRefresh();
 
@@ -9992,7 +9517,7 @@ app.listen(PORT, '0.0.0.0', async () => {
   const MAX_RETRY_ATTEMPTS = 5;
 
   // Worker instance ID for distributed leasing
-  const WORKER_ID = getInstanceId() || `local-${Date.now()}`;
+  const WORKER_ID = process.env.DEPLOYMENT_ID || process.env.HOSTNAME || `local-${Date.now()}`;
   const LEASE_DURATION_MS = 60000; // 60 seconds lease
 
   setInterval(async () => {
@@ -10040,6 +9565,11 @@ app.listen(PORT, '0.0.0.0', async () => {
 
             // Skip if not queued or already claimed by another worker
             if (currentStatus !== 'queued') {
+              if (currentStatus === 'sent' && currentData.success === false) {
+                console.warn(
+                  `⚠️  [${WORKER_ID}] Inconsistent outbox state: sent + success=false (${requestId})`
+                );
+              }
               return; // Already processed
             }
 
@@ -10087,6 +9617,7 @@ app.listen(PORT, '0.0.0.0', async () => {
           );
           await db.collection('outbox').doc(requestId).update({
             status: 'sent',
+            success: true,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             leaseUntil: null, // Release lease
           });
@@ -10117,11 +9648,12 @@ app.listen(PORT, '0.0.0.0', async () => {
             // Update message doc in thread
             if (threadId) {
               try {
+                const canonicalId = await resolveMessageDocId(db, accountId, requestId, requestId);
                 const messageRef = db
                   .collection('threads')
                   .doc(threadId)
                   .collection('messages')
-                  .doc(requestId);
+                  .doc(canonicalId);
                 const messageDoc = await messageRef.get();
                 if (messageDoc.exists) {
                   await messageRef.update({
@@ -10192,113 +9724,38 @@ app.listen(PORT, '0.0.0.0', async () => {
           // Update outbox: status = sent
           await db.collection('outbox').doc(requestId).update({
             status: 'sent',
+            success: true,
             providerMessageId: result.key.id,
+            backendResponse: {
+              status: 'sent',
+              providerMessageId: result.key.id,
+            },
             sentAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             lastError: null,
             leaseUntil: null, // Release lease
           });
 
-          // Also persist message to thread (if threadId exists in outbox doc)
+          // Also persist message to thread (idempotent)
           if (threadId && firestoreAvailable && db) {
-            const waMessageId = result.key.id;
-            const { canonicalJid, peerType } = await resolveCanonicalPeerJid(
-              accountId,
-              toJid,
-              account?.sock
-            );
-            const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(requestId);
-            const messageTimestampMs = Date.now();
-            const isGroup = peerType === 'group';
-
-            await messageRef.set(
-              {
-                accountId,
-                clientJid: canonicalJid,
-                clientJidRaw: toJid,
-                rawJid: toJid,
-                resolvedJid: canonicalJid !== toJid ? canonicalJid : null,
-                normalizedPhone: normalizeJidToE164(canonicalJid).normalizedPhone || null,
-                canonicalThreadId: threadId,
-                isLidThread: toJid.endsWith('@lid'),
-                peerType,
-                isGroup,
-                direction: 'outbound',
-                body: body || '',
-                waMessageId,
-                status: 'sent',
-                tsClient: admin.firestore.Timestamp.fromMillis(messageTimestampMs),
-                tsClientFallback: false,
-                tsClientReason: 'sent_time',
-                tsClientIso: new Date(messageTimestampMs).toISOString(),
-                tsServer: admin.firestore.FieldValue.serverTimestamp(),
-                createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                createdAtMs: messageTimestampMs,
-                messageType: 'text',
-                clientMessageId: data?.clientMessageId || requestId,
-                lastError: null,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
-
-            // Update thread
-            await db.collection('threads').doc(threadId).set(
-              {
-                accountId,
-                clientJid: canonicalJid,
-                clientJidRaw: toJid,
-                rawJid: toJid,
-                resolvedJid: canonicalJid !== toJid ? canonicalJid : null,
-                normalizedPhone: normalizeJidToE164(canonicalJid).normalizedPhone || null,
-                canonicalThreadId: threadId,
-                isLidThread: toJid.endsWith('@lid'),
-                peerType,
-                isGroup,
-                lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-                lastMessageAtMs: messageTimestampMs,
-                lastMessagePreview: (body || '').substring(0, 100),
-              },
-              { merge: true }
-            );
-
-            const mappingId = `${accountId}__${waMessageId}`;
-            const mappingTtl = admin.firestore.Timestamp.fromMillis(
-              Date.now() + 30 * 24 * 60 * 60 * 1000
-            );
-            await db.collection('message_ids').doc(mappingId).set(
-              {
-                accountId,
-                threadId,
-                docId: requestId,
-                waMessageId,
+            const messageDocId = data.clientMessageId || requestId;
+            const rawOutbound = {
+              key: { id: result.key.id, remoteJid: toJid, fromMe: true },
+              message: payload || { conversation: body || '' },
+              messageTimestamp: Math.floor(Date.now() / 1000),
+              clientMessageId: data.clientMessageId || null,
               requestId,
-              clientMessageId: data?.clientMessageId || requestId,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                expiresAt: mappingTtl,
-              },
-              { merge: true }
+            };
+            await writeMessageIdempotent(
+              db,
+              { accountId, clientJid: toJid, threadId, direction: 'out' },
+              rawOutbound,
+              { extraFields: { status: 'sent' }, messageIdOverride: messageDocId }
             );
-          }
-
-          // Update thread lastMessageAt
-          if (threadId) {
-            try {
-              await db
-                .collection('threads')
-                .doc(threadId)
-                .update({
-                  lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-                  lastMessageText: body || '',
-                  lastMessageDirection: 'out',
-                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                });
-            } catch (threadError) {
-              console.error(
-                `⚠️  [${accountId}] Failed to update thread ${threadId}:`,
-                threadError.message
-              );
-            }
+            console.log(
+              `🧾 [${accountId}] Outbox sent docId=${messageDocId} waMessageId=${result.key.id} clientMessageId=${data.clientMessageId || ''}`
+            );
+            logThreadWrite('outbox-sent', accountId, toJid, threadId);
           }
         } catch (error) {
           console.error(
@@ -10307,13 +9764,20 @@ app.listen(PORT, '0.0.0.0', async () => {
           );
 
           const newAttemptCount = attemptCount + 1;
+          const errorMessage = (error && error.message) ? error.message : 'unknown_error';
+          const isPassiveError =
+            errorMessage.toLowerCase().includes('passive') ||
+            errorMessage.toLowerCase().includes('lock not acquired') ||
+            errorMessage.toLowerCase().includes('instance_passive');
 
           // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 60s
-          const backoffMs = Math.min(1000 * Math.pow(2, newAttemptCount), 60000);
+          const backoffMs = isPassiveError ? 5000 : Math.min(1000 * Math.pow(2, newAttemptCount), 60000);
           const nextAttemptAt = new Date(Date.now() + backoffMs);
 
-          // Mark as failed after MAX_RETRY_ATTEMPTS
-          const newStatus = newAttemptCount >= MAX_RETRY_ATTEMPTS ? 'failed' : 'queued';
+          // Mark as failed after MAX_RETRY_ATTEMPTS (but never fail on passive lock errors)
+          const newStatus = isPassiveError
+            ? 'queued'
+            : (newAttemptCount >= MAX_RETRY_ATTEMPTS ? 'failed' : 'queued');
 
           // Clear lease refresh interval
           clearInterval(leaseRefreshInterval);
@@ -10323,9 +9787,15 @@ app.listen(PORT, '0.0.0.0', async () => {
             .doc(requestId)
             .update({
               status: newStatus === 'failed' ? 'failed' : 'queued', // Reset to queued for retry
+              success: false,
               attemptCount: newAttemptCount,
               nextAttemptAt: admin.firestore.Timestamp.fromDate(nextAttemptAt),
-              lastError: error.message,
+              error: isPassiveError ? 'instance_passive' : errorMessage,
+              lastError: errorMessage,
+              backendResponse: {
+                status: newStatus,
+                error: errorMessage,
+              },
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
               leaseUntil: null, // Release lease
               ...(newStatus === 'failed' && {
@@ -10336,17 +9806,18 @@ app.listen(PORT, '0.0.0.0', async () => {
           // Update message doc in thread
           if (threadId) {
             try {
+              const canonicalId = await resolveMessageDocId(db, accountId, requestId, requestId);
               const messageRef = db
                 .collection('threads')
                 .doc(threadId)
                 .collection('messages')
-                .doc(requestId);
+                .doc(canonicalId);
               const messageDoc = await messageRef.get();
 
               if (messageDoc.exists) {
                 await messageRef.update({
                   status: newStatus,
-                  lastError: error.message,
+                  lastError: errorMessage,
                   updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 });
               }
