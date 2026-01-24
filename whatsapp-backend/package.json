@@ -11,6 +11,13 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "audit:dupes": "node scripts/audit-firestore-duplicates.js",
+    "cleanup:dupes": "node scripts/cleanup-firestore-duplicates.js",
+    "quick:write-test": "node scripts/quick-write-test.js",
+    "qr:web": "node scripts/qr-web.js",
+    "migrate:canonical": "node scripts/migrate-firestore-canonical.js",
+    "wa:status": "node scripts/wa-status-json.js",
+    "check:secret-logs": "node scripts/check-secret-logs.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"

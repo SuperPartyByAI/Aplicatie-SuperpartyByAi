@@ -17,6 +17,7 @@
 | 0.1.3 | Env var: `FIREBASE_SERVICE_ACCOUNT_JSON=...` | Railway → Service → Variables → `FIREBASE_SERVICE_ACCOUNT_JSON` | ✅ JSON valid (nu `null`) |
 | 0.1.4 | (Opțional) Env var: `ADMIN_TOKEN=...` | Railway → Service → Variables → `ADMIN_TOKEN` | ✅ Token setat dacă e folosit |
 | 0.1.5 | Deploy Railway → verifică logs: `sessions dir exists/writable true` | Railway → Deployments → Latest → Logs | ✅ `sessions dir exists/writable true` |
+| 0.1.6 | Health check | `GET /health` | ✅ `sessions_dir_writable=true`, status 200 |
 
 **Railway Domain:** `whats-upp-production.up.railway.app` (sau domeniul tău real)
 
@@ -39,7 +40,7 @@
 | 0.3.1 | Login în app (Firebase Auth) | App → Login screen → autentificare | ✅ `Authorization: Bearer <token>` e trimis la backend |
 | 0.3.2 | (Opțional) Verifică backend URL | App → Settings / Config → `WHATSAPP_BACKEND_URL` | ✅ `https://whats-upp-production.up.railway.app` (sau domeniul real) |
 
-**⚠️ Note:** Dacă **Inbox/Chat screens nu există încă în UI**, testează doar Accounts (Test 1-2) și CRM backend (Test 7-10). Test 3-6 necesită Inbox/Chat implementat.
+**⚠️ Note:** Dacă Inbox/Chat lipsesc din UI, actualizează app la versiunea care include WhatsApp Inbox/Chat/Client Profile înainte de Testele 3-6.
 
 ---
 

@@ -11,7 +11,7 @@ class RetryConfig {
   final bool Function(dynamic)? shouldRetry;
 
   const RetryConfig({
-    this.maxAttempts = 4,
+    this.maxAttempts = 3,
     this.initialDelay = const Duration(milliseconds: 400),
     this.backoffMultiplier = 2.0,
     this.maxDelay = const Duration(seconds: 4),
