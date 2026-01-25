@@ -68,6 +68,13 @@
 **Firestore:**
 - Read: `threads/{threadId}/messages` (realtime stream)
 - Write: None from client (server-only via proxy)
+- We do **not** use `whatsappProxyGetMessages`. Messages come only from Firestore.
+
+**Rules & deploy:**
+- `outbox` has `allow create, update, delete: if false` (server-only). Client cannot write.
+- Send **must** go via `sendViaProxy()` → `whatsappProxySend` (Functions) → proxy creates outbox server-side.
+- If Flutter wrote directly to `outbox`, it would get permission denied. Deploy `whatsappProxySend` and set Functions secrets (`WHATSAPP_BACKEND_URL` or `WHATSAPP_BACKEND_BASE_URL`) so the proxy works.
+- **404/HTML** on proxy endpoints = function not deployed in the project/region you call, or wrong Firebase project. Fix: `firebase use <alias>`, `firebase deploy --only functions:whatsappProxySend,...`, `firebase functions:list | grep whatsappProxySend`.
 
 ---
 
@@ -231,7 +238,7 @@ FirebaseFirestore.instance
   .collection('threads')
   .doc(threadId)
   .collection('messages')
-  .orderBy('tsClient', descending: false)
+  .orderBy('tsClient', descending: true)
   .limit(200)
 ```
 

@@ -6,6 +6,21 @@
 
 ---
 
+## ✅ **Migration – WhatsApp CRM (GetMessages removed, Send via proxy)**
+
+Use this **before** full CRM tests to confirm the migrated flow.
+
+| Step | Action | Success |
+|------|--------|---------|
+| **Inbox refresh** | App → WhatsApp → Inbox → pull-to-refresh | Threads refresh from Firestore; no HTTP error |
+| **Chat stream Firestore** | Inbox → tap thread → Chat | Messages load from `threads/{threadId}/messages` stream; "No messages yet" if empty |
+| **Send via proxy** | Chat → type message → Send | Logs: `sendViaProxy` / `whatsappProxySend`; 2xx JSON response; "Message sent!" snackbar |
+| **No GetMessages** | Check debug logs while using Inbox/Chat | Zero requests to `whatsappProxyGetMessages` |
+
+**Config:** `WHATSAPP_BACKEND_URL` (or `WHATSAPP_BACKEND_BASE_URL`) set in Functions secrets; `whatsappProxySend` deployed.
+
+---
+
 ## 🔧 **0. Precondiții (Obligatoriu Înainte de Orice)**
 
 ### **0.1 Railway (Backend WhatsApp)**

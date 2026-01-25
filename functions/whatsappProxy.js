@@ -580,117 +580,101 @@ exports.sendHandler = sendHandler;
 
 /**
  * GET /whatsappProxyGetAccounts handler
- * 
+ *
  * Get list of WhatsApp accounts from backend.
- * SECURITY: Super-admin only (QR codes are sensitive).
+ * RBAC: Employee-only (Inbox/Accounts screens). Super-admin required for add/regenerate/delete.
+ * Always returns JSON (res.status(...).json(...)); never HTML or redirect.
  */
 async function getAccountsHandler(req, res) {
-    if (req.method !== 'GET') {
-      return res.status(405).json({
-        success: false,
-        error: 'method_not_allowed',
-        message: 'Only GET method is allowed',
-      });
-    }
+  if (req.method !== 'GET') {
+    return res.status(405).json({
+      success: false,
+      error: 'method_not_allowed',
+      message: 'Only GET method is allowed',
+    });
+  }
 
-    try {
-      // Require super-admin auth (QR codes are sensitive)
-      const isSuperAdmin = await requireSuperAdmin(req, res);
-      if (!isSuperAdmin) return; // Response already sent (401/403)
+  try {
+    const employeeInfo = await requireEmployee(req, res);
+    if (!employeeInfo) return; // Response already sent (401/403)
 
-      // Lazy-load backend base URL (computed at handler runtime, not module load time)
-      const backendBaseUrl = getBackendBaseUrl();
-      if (!backendBaseUrl) {
-        console.error('[whatsappProxy/getAccounts] WHATSAPP_BACKEND_URL missing');
-        console.error('[whatsappProxy/getAccounts] process.env.WHATSAPP_BACKEND_URL:', process.env.WHATSAPP_BACKEND_URL ? 'SET' : 'NOT SET');
-        return res.status(500).json({
-          success: false,
-          error: 'configuration_missing',
-          message: 'WHATSAPP_BACKEND_BASE_URL or WHATSAPP_BACKEND_URL must be set (env or functions.config().whatsapp.backend_base_url)',
-        });
-      }
-      
-      console.log('[whatsappProxy/getAccounts] Backend URL:', backendBaseUrl.substring(0, 30) + '...');
-
-      // Forward to backend
-      const backendUrl = `${backendBaseUrl}/api/whatsapp/accounts`;
-      const correlationId = req.headers['x-correlation-id'] || req.headers['x-request-id'] || `getAccounts_${Date.now()}`;
-      console.log(`[whatsappProxy/getAccounts] Calling backend: ${backendUrl}, correlationId=${correlationId}`);
-      const response = await getForwardRequest()(backendUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Correlation-Id': correlationId, // Forward correlation ID for end-to-end tracing
-        },
-      });
-
-      // Forward backend response, propagate status codes and body
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return res.status(response.statusCode).json(response.body);
-      } else {
-        // Special handling for specific status codes - propagate as-is
-        if (response.statusCode === 503) {
-          // PASSIVE mode - propagate full response
-          return res.status(503).json(response.body || {
-            success: false,
-            error: 'passive_mode',
-            message: 'Backend in PASSIVE mode',
-          });
-        } else if (response.statusCode === 404) {
-          // Not found - propagate
-          return res.status(404).json(response.body || {
-            success: false,
-            error: 'account_not_found',
-            message: 'Account not found',
-          });
-        } else if (response.statusCode === 409) {
-          // Conflict - propagate
-          return res.status(409).json(response.body || {
-            success: false,
-            error: 'invalid_state',
-            message: 'Invalid state',
-          });
-        } else if (response.statusCode === 429) {
-          // Rate limited - propagate
-          return res.status(429).json(response.body || {
-            success: false,
-            error: 'rate_limited',
-            message: 'Rate limit exceeded',
-          });
-        } else if (response.statusCode === 401) {
-          // Unauthorized - propagate (critical for 401 loop debugging)
-          return res.status(401).json(response.body || {
-            success: false,
-            error: 'unauthorized',
-            message: 'Unauthorized - authentication required or session expired',
-          });
-        } else if (response.statusCode === 403) {
-          // Forbidden - propagate
-          return res.status(403).json(response.body || {
-            success: false,
-            error: 'forbidden',
-            message: 'Forbidden - insufficient permissions',
-          });
-        }
-        
-        // For other errors, return 500 but include backend error details
-        return res.status(500).json({
-          success: false,
-          error: 'backend_error',
-          message: `Backend service returned an error (status: ${response.statusCode})`,
-          upstreamStatusCode: response.statusCode,
-          ...(response.body && typeof response.body === 'object' ? response.body : {}),
-        });
-      }
-    } catch (error) {
-      console.error('[whatsappProxy/getAccounts] Error:', error.message);
-      // Don't log full error object (might contain sensitive info)
+    const backendBaseUrl = getBackendBaseUrl();
+    if (!backendBaseUrl) {
+      console.error('[whatsappProxy/getAccounts] WHATSAPP_BACKEND_URL missing');
+      console.error('[whatsappProxy/getAccounts] process.env.WHATSAPP_BACKEND_URL:', process.env.WHATSAPP_BACKEND_URL ? 'SET' : 'NOT SET');
       return res.status(500).json({
         success: false,
-        error: 'internal_error',
-        message: 'Internal server error',
+        error: 'configuration_missing',
+        message: 'WHATSAPP_BACKEND_BASE_URL or WHATSAPP_BACKEND_URL must be set (env or functions.config().whatsapp.backend_base_url)',
       });
     }
+
+    console.log('[whatsappProxy/getAccounts] Backend URL:', backendBaseUrl.substring(0, 30) + '...');
+
+    const backendUrl = `${backendBaseUrl}/api/whatsapp/accounts`;
+    const correlationId = req.headers['x-correlation-id'] || req.headers['x-request-id'] || `getAccounts_${Date.now()}`;
+    console.log(`[whatsappProxy/getAccounts] Calling backend: ${backendUrl}, correlationId=${correlationId}`);
+    const response = await getForwardRequest()(backendUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Correlation-Id': correlationId,
+      },
+    });
+
+    const bodyIsObject = response.body && typeof response.body === 'object';
+    if (!bodyIsObject) {
+      const bodyPrefix = typeof response.body === 'string'
+        ? response.body.replace(/\s+/g, ' ').trim().substring(0, 200)
+        : '(non-string)';
+      console.error('[whatsappProxy/getAccounts] Backend returned non-JSON (e.g. HTML). status=', response.statusCode, 'bodyPrefix=', bodyPrefix);
+      return res.status(502).json({
+        success: false,
+        error: 'invalid_backend_response',
+        message: 'Backend returned non-JSON (e.g. HTML/404 page). Check backend URL and proxy config.',
+        upstreamStatusCode: response.statusCode,
+        bodyPrefix,
+      });
+    }
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return res.status(response.statusCode).json(response.body);
+    }
+
+    if (response.statusCode === 503) {
+      return res.status(503).json(response.body);
+    }
+    if (response.statusCode === 404) {
+      return res.status(404).json(response.body);
+    }
+    if (response.statusCode === 409) {
+      return res.status(409).json(response.body);
+    }
+    if (response.statusCode === 429) {
+      return res.status(429).json(response.body);
+    }
+    if (response.statusCode === 401) {
+      return res.status(401).json(response.body);
+    }
+    if (response.statusCode === 403) {
+      return res.status(403).json(response.body);
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: 'backend_error',
+      message: `Backend service returned an error (status: ${response.statusCode})`,
+      upstreamStatusCode: response.statusCode,
+      ...response.body,
+    });
+  } catch (error) {
+    console.error('[whatsappProxy/getAccounts] Error:', error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'internal_error',
+      message: 'Internal server error',
+    });
+  }
 }
 
 /**
@@ -1020,83 +1004,8 @@ async function getThreadsHandler(req, res) {
   }
 }
 
-/**
- * GET /whatsappProxyGetMessages handler
- *
- * Returns messages for a thread directly from Firestore.
- * SECURITY: Employee-only.
- */
-async function getMessagesHandler(req, res) {
-  if (req.method === 'OPTIONS') {
-    return res.status(204).send('');
-  }
-
-  if (req.method !== 'GET' && req.method !== 'POST') {
-    return res.status(405).json({
-      success: false,
-      error: 'method_not_allowed',
-      message: 'Only GET or POST method is allowed',
-    });
-  }
-
-  try {
-    const employeeInfo = await requireProxyEmployee(req, res);
-    if (!employeeInfo) return;
-
-    const body = req.body && typeof req.body === 'object' ? req.body : {};
-    const query = req.query || {};
-    const accountId = (body.accountId || query.accountId || '').toString().trim();
-    const threadId = (body.threadId || query.threadId || '').toString().trim();
-    const rawLimit = (body.limit || query.limit || '200').toString();
-    const limit = Math.min(parseInt(rawLimit, 10) || 200, 500);
-
-    if (!accountId || !threadId) {
-      return res.status(400).json({
-        success: false,
-        error: 'invalid_request',
-        message: 'Missing required params: accountId, threadId',
-      });
-    }
-
-    const db = admin.firestore();
-    const threadDoc = await db.collection('threads').doc(threadId).get();
-    if (!threadDoc.exists) {
-      return res.status(404).json({ success: false, error: 'thread_not_found' });
-    }
-
-    const threadData = threadDoc.data() || {};
-    if (threadData.accountId !== accountId) {
-      return res.status(403).json({ success: false, error: 'thread_account_mismatch' });
-    }
-
-    const messagesSnapshot = await db
-      .collection('threads')
-      .doc(threadId)
-      .collection('messages')
-      .orderBy('tsClient', 'desc')
-      .limit(limit)
-      .get();
-
-    const messages = messagesSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    return res.status(200).json({
-      success: true,
-      thread: { id: threadId, ...threadData },
-      messages,
-      count: messages.length,
-    });
-  } catch (error) {
-    console.error('[whatsappProxy/getMessages] Error:', error.message);
-    return res.status(500).json({
-      success: false,
-      error: 'internal_error',
-      message: 'Internal server error',
-    });
-  }
-}
+// whatsappProxyGetMessages REMOVED: messages come only from Firestore threads/{threadId}/messages.
+// Flutter must not call this endpoint. Send uses whatsappProxySend.
 
 // Export handlers for use in index.js
 exports.getAccounts = onRequest(
@@ -1121,7 +1030,6 @@ exports.getThreads = onRequest(
 );
 
 exports.getThreadsHandler = getThreadsHandler;
-exports.getMessagesHandler = getMessagesHandler;
 
 exports.addAccount = onRequest(
   {

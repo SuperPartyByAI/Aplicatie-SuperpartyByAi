@@ -7,9 +7,7 @@ function getBackendBaseUrl() {
   }
   // Deprecated: migrate to WHATSAPP_BACKEND_URL (Hetzner or generic backend)
   if (process.env.WHATSAPP_RAILWAY_BASE_URL) {
-    if (process.env.NODE_ENV !== 'production' || process.env.DEBUG_DEPRECATED === 'true') {
-      console.warn('[backend-url] DEPRECATED: WHATSAPP_RAILWAY_BASE_URL; use WHATSAPP_BACKEND_URL');
-    }
+    console.warn('[backend-url] DEPRECATED: WHATSAPP_RAILWAY_BASE_URL; use WHATSAPP_BACKEND_URL');
     return process.env.WHATSAPP_RAILWAY_BASE_URL;
   }
   try {
