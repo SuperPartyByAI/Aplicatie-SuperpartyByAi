@@ -33,11 +33,6 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   List<Map<String, dynamic>> _threads = [];
   String? _errorMessage;
   
-  // Cache to prevent duplicate loads
-  DateTime? _lastLoadTime;
-  bool _isCurrentlyLoading = false;
-  static const Duration _minRefreshInterval = Duration(seconds: 30);
-  
   // Firestore thread streams (per account)
   final Map<String, StreamSubscription<QuerySnapshot>> _threadSubscriptions = {};
   final Map<String, List<Map<String, dynamic>>> _threadsByAccount = {};
@@ -166,7 +161,6 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       setState(() {
         _threads = dedupedThreads;
         _isLoadingThreads = false;
-        _isCurrentlyLoading = false;
       });
     }
   }
@@ -298,97 +292,10 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     return dedupedByPhone.values.toList();
   }
 
-  Future<void> _loadThreads() async {
-    // Prevent duplicate loads within 2 seconds
-    if (_isCurrentlyLoading) {
-      debugPrint('[WhatsAppInboxScreen] Already loading, skipping duplicate request');
-      return;
-    }
-    
-    final now = DateTime.now();
-    if (_lastLoadTime != null && now.difference(_lastLoadTime!) < _minRefreshInterval) {
-      debugPrint('[WhatsAppInboxScreen] Too soon since last load, skipping');
-      return;
-    }
-    
-    _isCurrentlyLoading = true;
-    _lastLoadTime = now;
-    
-    final availableAccounts = _accounts.toList();
-    
-    if (availableAccounts.isEmpty) {
-      if (mounted) {
-        setState(() {
-          _threads = [];
-          _isLoadingThreads = false;
-          _errorMessage = 'No available accounts found';
-          _isCurrentlyLoading = false;
-        });
-      }
-      return;
-    }
-    
-    setState(() {
-      _isLoadingThreads = true;
-      _errorMessage = null;
-    });
-
-    try {
-      // Load threads from all available accounts in parallel
-      final futures = availableAccounts.map((account) async {
-        final accountId = account['id'] as String?;
-        if (accountId == null) return <Map<String, dynamic>>[];
-        
-        try {
-          final response = await _apiService.getThreads(accountId: accountId);
-          
-          if (response['success'] == true) {
-            final threads = (response['threads'] as List<dynamic>? ?? [])
-                .cast<Map<String, dynamic>>();
-            // Add accountId and account name to each thread
-            return threads.map((thread) {
-              return {
-                ...thread,
-                'accountId': accountId,
-                'accountName': account['name'] as String? ?? accountId,
-              };
-            }).toList();
-          }
-        } catch (e) {
-          final accountHash = accountId.hashCode.toRadixString(16);
-          debugPrint('[WhatsAppInboxScreen] Error loading threads for account $accountHash: $e');
-        }
-        return <Map<String, dynamic>>[];
-      });
-
-      final allThreadsLists = await Future.wait(futures);
-      final allThreads = allThreadsLists.expand((list) => list).toList();
-      
-      final dedupedThreads = _filterAndDedupeThreads(allThreads);
-      
-      if (mounted) {
-        setState(() {
-          _threads = dedupedThreads;
-          _isLoadingThreads = false;
-          _isCurrentlyLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('[WhatsAppInboxScreen] Error loading threads: $e');
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Error loading threads: ${e.toString()}';
-          _isLoadingThreads = false;
-          _isCurrentlyLoading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+  /// Refresh thread list from Firestore cache only (no HTTP). Threads come from
+  /// Firestore listeners; this just rebuilds/sorts from _threadsByAccount.
+  void _loadThreads({bool forceRefresh = false}) {
+    _rebuildThreadsFromCache();
   }
 
   Future<void> _loadAccounts() async {
@@ -404,11 +311,16 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
           setState(() {
             _accounts = accounts;
             _isLoadingAccounts = false;
-            // Start Firestore listeners for real-time updates
-            _startThreadListeners();
-            // Manual refresh fallback (uses Functions proxy)
-            _loadThreads();
+            _isLoadingThreads = accounts.isNotEmpty;
+            _errorMessage = null;
           });
+          _startThreadListeners();
+          if (accounts.isEmpty) {
+            setState(() {
+              _threads = [];
+              _isLoadingThreads = false;
+            });
+          }
         }
       }
     } catch (e) {
@@ -449,7 +361,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
             icon: const Icon(Icons.refresh),
             onPressed: () {
               _loadAccounts();
-              _loadThreads();
+              _loadThreads(forceRefresh: true);
             },
             tooltip: 'Refresh',
           ),
@@ -522,7 +434,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                 ),
                                 const SizedBox(height: 16),
                                 ElevatedButton(
-                                  onPressed: _loadThreads,
+                                  onPressed: () => _loadThreads(forceRefresh: true),
                                   child: const Text('Retry'),
                                 ),
                               ],
@@ -568,7 +480,9 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                   }
 
                                   return RefreshIndicator(
-                                    onRefresh: _loadThreads,
+                                    onRefresh: () async {
+                                      _loadThreads(forceRefresh: true);
+                                    },
                                     child: ListView.builder(
                                       itemCount: filteredThreads.length,
                                       itemBuilder: (context, index) {

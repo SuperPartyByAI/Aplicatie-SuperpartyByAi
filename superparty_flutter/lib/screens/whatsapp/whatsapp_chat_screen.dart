@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -42,13 +41,6 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   bool _isSending = false;
   bool _showCrmPanel = false;
   Map<String, dynamic>? _draftEvent;
-  List<Map<String, dynamic>> _apiMessages = [];
-  bool _useApiMessages = false;
-  bool _isLoadingMessages = false;
-  Timer? _messagePoller;
-  Timer? _firestoreTimeoutTimer;
-  Timer? _firestoreIdleTimer;
-  Timer? _apiProbeTimer;
   int _previousMessageCount = 0; // Track message count to detect new messages
   DateTime? _lastSendAt;
   String? _lastSentText;
@@ -58,10 +50,6 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   String? _threadPhoneE164;
   String? _threadDisplayName;
   String? _effectiveThreadIdOverride;
-  bool _firestoreStreamHealthy = false;
-  DateTime? _lastFirestoreSnapshotAt;
-  int? _lastApiCursorMs;
-  int? _lastApiServerSeq;
 
   String? get _accountId => widget.accountId ?? _extractFromQuery('accountId');
   String? get _threadId => widget.threadId ?? _extractFromQuery('threadId');
@@ -96,17 +84,10 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   void initState() {
     super.initState();
     _ensureCanonicalThread();
-    _startFirestoreTimeoutWatchdog();
-    _startFirestoreIdleWatchdog();
-    _scheduleApiProbe();
   }
 
   @override
   void dispose() {
-    _messagePoller?.cancel();
-    _firestoreTimeoutTimer?.cancel();
-    _firestoreIdleTimer?.cancel();
-    _apiProbeTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -251,26 +232,30 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         return;
       }
 
-      const uuid = Uuid();
-      final clientMessageId = uuid.v4();
+      final requestId = Uuid().v4();
       final toJid = _threadClientJid!;
 
       final maskedAccount = _maskId(_accountId!);
       final maskedThread = _maskId(_effectiveThreadId!);
       final maskedJid = _maskId(toJid);
       debugPrint(
-        '[ChatScreen] Sending message: account=$maskedAccount thread=$maskedThread jid=$maskedJid',
+        '[ChatScreen] Sending via outbox: account=$maskedAccount thread=$maskedThread jid=$maskedJid requestId=$requestId',
       );
 
-      final result = await _apiService.sendViaProxy(
-        threadId: _effectiveThreadId!,
-        accountId: _accountId!,
-        toJid: toJid,
-        text: text,
-        clientMessageId: clientMessageId,
-      );
+      await FirebaseFirestore.instance.collection('outbox').doc(requestId).set({
+        'accountId': _accountId!,
+        'threadId': _effectiveThreadId!,
+        'toJid': toJid,
+        'body': text,
+        'payload': {'text': text},
+        'status': 'queued',
+        'createdAt': FieldValue.serverTimestamp(),
+        'clientMessageId': requestId,
+        'requestId': requestId,
+        'source': 'flutter',
+      });
 
-      debugPrint('[ChatScreen] Message sent successfully: $result');
+      debugPrint('[ChatScreen] Outbox write OK: $requestId');
 
       if (mounted) {
         _messageController.clear();
@@ -278,10 +263,6 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Message sent!'), backgroundColor: Colors.green),
         );
-      }
-
-      if (_useApiMessages) {
-        await _loadMessages();
       }
     } catch (e) {
       debugPrint('[ChatScreen] Error sending message: $e');
@@ -295,114 +276,6 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       if (mounted) {
         setState(() => _isSending = false);
       }
-    }
-  }
-
-  void _startApiPolling() {
-    if (_messagePoller != null) return;
-    _messagePoller = Timer.periodic(const Duration(seconds: 3), (_) {
-      _loadMessages();
-    });
-    _loadMessages();
-  }
-
-  void _stopApiPolling() {
-    _messagePoller?.cancel();
-    _messagePoller = null;
-  }
-
-  void _enableApiMessages({String? reason}) {
-    if (_useApiMessages) return;
-    if (mounted) {
-      setState(() {
-        _useApiMessages = true;
-      });
-    }
-    debugPrint('[ChatScreen] Live sync fallback -> polling${reason != null ? " ($reason)" : ""}');
-    _startApiPolling();
-  }
-
-  void _disableApiMessages() {
-    if (!_useApiMessages) return;
-    if (mounted) {
-      setState(() {
-        _useApiMessages = false;
-      });
-    }
-    _stopApiPolling();
-  }
-
-  void _markFirestoreHealthy() {
-    if (_firestoreStreamHealthy) return;
-    _firestoreStreamHealthy = true;
-    _firestoreTimeoutTimer?.cancel();
-    _disableApiMessages();
-    debugPrint('[ChatScreen] Firestore stream healthy');
-  }
-
-  void _startFirestoreTimeoutWatchdog() {
-    _firestoreTimeoutTimer?.cancel();
-    _firestoreTimeoutTimer = Timer(const Duration(seconds: 10), () {
-      if (!mounted) return;
-      if (!_firestoreStreamHealthy && !_useApiMessages) {
-        _enableApiMessages(reason: 'stream-timeout');
-      }
-    });
-  }
-
-  void _startFirestoreIdleWatchdog() {
-    _firestoreIdleTimer?.cancel();
-    _firestoreIdleTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (!mounted) return;
-      if (_useApiMessages) return;
-      if (!_firestoreStreamHealthy) return;
-      final last = _lastFirestoreSnapshotAt;
-      if (last == null) return;
-      final elapsed = DateTime.now().difference(last);
-      if (elapsed.inSeconds >= 20) {
-        _enableApiMessages(reason: 'stream-idle');
-      }
-    });
-  }
-
-  void _scheduleApiProbe() {
-    _apiProbeTimer?.cancel();
-    _apiProbeTimer = Timer(const Duration(seconds: 2), () {
-      if (!mounted) return;
-      if (_useApiMessages) return;
-      _loadMessages();
-    });
-  }
-
-  Future<void> _loadMessages() async {
-    if (_isLoadingMessages) return;
-    final accountId = _accountId;
-    final threadId = _effectiveThreadId;
-    if (accountId == null || threadId == null || threadId.isEmpty) return;
-
-    _isLoadingMessages = true;
-    try {
-      final response = await _apiService.getMessages(
-        accountId: accountId,
-        threadId: threadId,
-        limit: _lastApiCursorMs == null ? 500 : 200,
-        afterMs: _lastApiCursorMs,
-        afterServerSeq: _lastApiServerSeq,
-      );
-      if (response['success'] == true) {
-        final rawMessages = (response['messages'] as List<dynamic>? ?? [])
-            .cast<Map<String, dynamic>>();
-        final merged = _mergeApiMessages(rawMessages);
-        if (mounted) {
-          setState(() {
-            _apiMessages = merged;
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('[ChatScreen] Error loading messages via proxy: $e');
-    } finally {
-      _isLoadingMessages = false;
     }
   }
 
@@ -442,104 +315,6 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         _extractTsMillis(data['createdAt']) ??
         _extractTsMillis(data['tsServer']) ??
         0;
-  }
-
-  int? _extractServerSeq(Map<String, dynamic> data) {
-    final raw = data['serverSeq'];
-    if (raw is int) return raw;
-    if (raw is String) {
-      final parsed = int.tryParse(raw);
-      return parsed;
-    }
-    return null;
-  }
-
-  void _updateApiCursor(List<Map<String, dynamic>> messages) {
-    int? maxTs;
-    int? maxSeq;
-    for (final msg in messages) {
-      final ts = _extractSortMillis(msg);
-      if (ts > 0) {
-        maxTs = maxTs == null ? ts : (ts > maxTs ? ts : maxTs);
-      }
-      final seq = _extractServerSeq(msg);
-      if (seq != null) {
-        maxSeq = maxSeq == null ? seq : (seq > maxSeq ? seq : maxSeq);
-      }
-    }
-    _lastApiCursorMs = maxTs ?? _lastApiCursorMs;
-    _lastApiServerSeq = maxSeq ?? _lastApiServerSeq;
-  }
-
-  List<Map<String, dynamic>> _mergeApiMessages(List<Map<String, dynamic>> incoming) {
-    final combined = <Map<String, dynamic>>[];
-    combined.addAll(_apiMessages);
-    combined.addAll(incoming);
-    final deduped = _dedupeMessageMaps(combined);
-    _updateApiCursor(deduped);
-    return deduped;
-  }
-
-  List<Map<String, dynamic>> _dedupeMessageMaps(List<Map<String, dynamic>> messages) {
-    final byKey = <String, Map<String, dynamic>>{};
-    int scoreMap(Map<String, dynamic> data) {
-      int score = 0;
-      if ((data['providerMessageId'] as String?)?.isNotEmpty == true) score += 4;
-      if ((data['waMessageId'] as String?)?.isNotEmpty == true) score += 3;
-      final status = data['status'] as String? ?? '';
-      if (status == 'sent' || status == 'delivered' || status == 'read') score += 2;
-      if (data['createdAtMs'] is int) score += 1;
-      if ((data['clientMessageId'] as String?)?.isNotEmpty == true) score += 1;
-      return score;
-    }
-
-    for (final data in messages) {
-      if (data['isDuplicate'] == true) {
-        continue;
-      }
-      final providerMessageId = data['providerMessageId'] as String?;
-      final waMessageId = data['waMessageId'] as String?;
-      final clientMessageId = data['clientMessageId'] as String?;
-      final stableKeyHash = data['stableKeyHash'] as String?;
-      final fingerprintHash = data['fingerprintHash'] as String?;
-      final direction = data['direction'] as String? ?? 'inbound';
-      final body = (data['body'] as String? ?? '').trim();
-      final tsMillis = _extractTsMillis(data['tsClient']);
-      final tsRounded = tsMillis != null ? (tsMillis / 1000).floor() : null;
-      final fallbackKey = 'fallback:$direction|$body|$tsRounded';
-
-      final primaryKey = stableKeyHash?.isNotEmpty == true
-          ? 'stable:$stableKeyHash'
-          : fingerprintHash?.isNotEmpty == true
-              ? 'fp:$fingerprintHash'
-              : providerMessageId?.isNotEmpty == true
-                  ? 'provider:$providerMessageId'
-                  : waMessageId?.isNotEmpty == true
-                      ? 'wa:$waMessageId'
-                      : (clientMessageId?.isNotEmpty == true ? 'client:$clientMessageId' : fallbackKey);
-
-      if (byKey.containsKey(primaryKey)) {
-        final existing = byKey[primaryKey]!;
-        if (scoreMap(data) > scoreMap(existing)) {
-          byKey[primaryKey] = data;
-        }
-        continue;
-      }
-
-      final existing = byKey[fallbackKey];
-      if (existing != null) {
-        if (scoreMap(data) > scoreMap(existing)) {
-          byKey[fallbackKey] = data;
-        }
-        continue;
-      }
-
-      byKey[primaryKey] = data;
-    }
-
-    final deduped = byKey.values.toList();
-    deduped.sort((a, b) => _extractSortMillis(b).compareTo(_extractSortMillis(a)));
-    return deduped;
   }
 
   List<QueryDocumentSnapshot> _dedupeMessageDocs(List<QueryDocumentSnapshot> docs) {
@@ -619,150 +394,6 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       return a.id.compareTo(b.id);
     });
     return deduped;
-  }
-
-  Widget _buildMessageListFromMaps(List<Map<String, dynamic>> messages, String threadKey) {
-    if (messages.isEmpty) {
-      return const Center(child: Text('No messages yet'));
-    }
-
-    final currentMessageCount = messages.length;
-    final hasNewMessages = currentMessageCount > _previousMessageCount;
-
-    if (!_initialScrollDone && messages.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom(force: true);
-      });
-      _initialScrollDone = true;
-    } else if (hasNewMessages) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
-    }
-    _previousMessageCount = currentMessageCount;
-
-    return ListView.builder(
-      controller: _scrollController,
-      key: PageStorageKey('whatsapp-chat-$threadKey'),
-      reverse: true,
-      padding: const EdgeInsets.all(16),
-      itemCount: messages.length,
-      itemBuilder: (context, index) {
-        final data = messages[index];
-        final messageKey = data['waMessageId'] as String? ??
-            data['clientMessageId'] as String? ??
-            data['id'] as String? ??
-            '$index';
-
-        final direction = data['direction'] as String? ?? 'inbound';
-        final body = data['body'] as String? ?? '';
-        final status = data['status'] as String?;
-
-        Timestamp? tsClient;
-        final tsClientRaw = data['tsClient'];
-        if (tsClientRaw is Timestamp) {
-          tsClient = tsClientRaw;
-        } else if (tsClientRaw is String) {
-          try {
-            final dateTime = DateTime.parse(tsClientRaw);
-            tsClient = Timestamp.fromDate(dateTime);
-          } catch (_) {
-            tsClient = null;
-          }
-        } else if (tsClientRaw is int) {
-          tsClient = Timestamp.fromMillisecondsSinceEpoch(tsClientRaw);
-        }
-
-        final isOutbound = direction == 'outbound';
-
-        String timeText = '';
-        if (tsClient != null) {
-          final now = DateTime.now();
-          final msgTime = tsClient.toDate();
-          final diff = now.difference(msgTime);
-
-          if (diff.inDays == 0) {
-            timeText = DateFormat('HH:mm').format(msgTime);
-          } else if (diff.inDays == 1) {
-            timeText = 'Ieri ${DateFormat('HH:mm').format(msgTime)}';
-          } else if (diff.inDays < 7) {
-            timeText = DateFormat('EEE HH:mm').format(msgTime);
-          } else {
-            timeText = DateFormat('dd/MM/yyyy HH:mm').format(msgTime);
-          }
-        }
-
-        return KeyedSubtree(
-          key: ValueKey(messageKey),
-          child: Align(
-            alignment: isOutbound ? Alignment.centerRight : Alignment.centerLeft,
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 4, left: 48, right: 48),
-              child: Row(
-                mainAxisAlignment: isOutbound ? MainAxisAlignment.end : MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  if (!isOutbound) ...[
-                    CircleAvatar(
-                      radius: 14,
-                      backgroundColor: Colors.grey[300],
-                      child: Icon(Icons.person, size: 16, color: Colors.grey[700]),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  Flexible(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isOutbound ? const Color(0xFFDCF8C6) : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black12, blurRadius: 1, offset: Offset(0, 1)),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment:
-                            isOutbound ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            body,
-                            style: const TextStyle(fontSize: 15),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (timeText.isNotEmpty)
-                                Text(
-                                  timeText,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: isOutbound ? Colors.white70 : Colors.grey[600],
-                                  ),
-                                ),
-                              if (isOutbound && status != null) ...[
-                                const SizedBox(width: 4),
-                                Text(
-                                  _getStatusIcon(status),
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (isOutbound) ...[
-                    const SizedBox(width: 48),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
   }
 
   Future<void> _extractEvent() async {
@@ -1054,33 +685,24 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                       .limit(500)
                       .snapshots(),
                   builder: (context, snapshot) {
-                
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  if (_useApiMessages) {
-                    return _buildMessageListFromMaps(_apiMessages, effectiveThreadId);
-                  }
                   return const Center(child: CircularProgressIndicator());
                 }
-
                 if (snapshot.hasError) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _firestoreStreamHealthy = false;
-                    _enableApiMessages(reason: 'stream-error');
-                  });
-                  return _buildMessageListFromMaps(_apiMessages, effectiveThreadId);
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'Stream error: ${snapshot.error}',
+                        style: TextStyle(color: Colors.red[700]),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
                 }
-
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  if (_useApiMessages) {
-                    return _buildMessageListFromMaps(_apiMessages, effectiveThreadId);
-                  }
                   return const Center(child: Text('No messages yet'));
                 }
-
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _lastFirestoreSnapshotAt = DateTime.now();
-                  _markFirestoreHealthy();
-                });
 
                 final dedupedDocs = _dedupeMessageDocs(snapshot.data!.docs);
                 final currentMessageCount = dedupedDocs.length;

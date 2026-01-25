@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
@@ -20,9 +19,6 @@ class WhatsAppApiService {
   WhatsAppApiService._internal();
 
   static WhatsAppApiService get instance => _instance;
-  int? _lastGetMessagesStatus;
-
-  int? get lastGetMessagesStatus => _lastGetMessagesStatus;
 
   /// Request timeout (configurable)
   Duration requestTimeout = const Duration(seconds: 30);
@@ -33,7 +29,6 @@ class WhatsAppApiService {
   }
 
   String _maskId(String value) => value.hashCode.toRadixString(16);
-  int _dotCount(String value) => '.'.allMatches(value).length;
 
   /// True if response is clearly non-JSON (HTML, etc.): body starts with "<" OR
   /// content-type does NOT contain "application/json". Use to avoid parsing.
@@ -130,96 +125,6 @@ class WhatsAppApiService {
   /// Generate request ID for idempotency
   String _generateRequestId() {
     return '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(10000)}';
-  }
-
-  /// Send WhatsApp message via Functions proxy.
-  /// 
-  /// Enforces owner/co-writer policy and creates outbox entry server-side.
-  /// 
-  /// Returns: { success: bool, requestId: string, duplicate: bool }
-  Future<Map<String, dynamic>> sendViaProxy({
-    required String threadId,
-    required String accountId,
-    required String toJid,
-    required String text,
-    required String clientMessageId,
-  }) async {
-    final requestId = _generateRequestId();
-    return retryWithBackoff(() async {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw UnauthorizedException();
-      }
-
-      final token = await user.getIdToken();
-      final functionsUrl = _getFunctionsUrl();
-      final endpointUrl = '$functionsUrl/whatsappProxySend';
-      final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
-
-      debugPrint('[WhatsAppApiService] sendViaProxy: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId');
-
-      final response = await http
-          .post(
-            Uri.parse(endpointUrl),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'X-Request-ID': requestId,
-            },
-            body: jsonEncode({
-              'threadId': threadId,
-              'accountId': accountId,
-              'toJid': toJid,
-              'text': text,
-              'clientMessageId': clientMessageId,
-            }),
-          )
-          .timeout(requestTimeout);
-
-      final contentType = response.headers['content-type'] ?? 'unknown';
-      final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
-      debugPrint('[WhatsAppApiService] sendViaProxy: AFTER response | statusCode=${response.statusCode} | content-type=$contentType | bodyLength=${response.body.length} | bodyPrefix=$bodyPrefix | requestId=$requestId');
-
-      if (_isNonJsonResponse(response)) {
-        _throwNonJsonNetworkException(response, endpointUrl);
-      }
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        Map<String, dynamic>? errorBody;
-        try {
-          errorBody = SafeJson.tryDecodeJsonMap(response.body);
-        } catch (_) {
-          errorBody = null;
-        }
-        String message;
-        if (errorBody != null) {
-          message = errorBody['message'] as String? ?? 'HTTP ${response.statusCode}';
-        } else {
-          message = 'HTTP ${response.statusCode} (non-JSON response). content-type=$contentType. bodyPrefix=$bodyPrefix';
-          debugPrint('[WhatsAppApiService] sendViaProxy: non-JSON error response, bodyPrefix=$bodyPrefix');
-        }
-        throw ErrorMapper.fromHttpException(response.statusCode, message);
-      }
-
-      Map<String, dynamic>? data;
-      try {
-        data = SafeJson.tryDecodeJsonMap(response.body);
-      } catch (e) {
-        throw NetworkException(
-          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
-          code: 'json_decode_failed',
-          originalError: e,
-        );
-      }
-      if (data == null) {
-        throw NetworkException(
-          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
-          code: 'json_decode_failed',
-        );
-      }
-      return data;
-    });
   }
 
   /// Get list of WhatsApp accounts.
@@ -808,117 +713,6 @@ class WhatsAppApiService {
         );
       }
       debugPrint('[WhatsAppApiService] getThreads: success, threadsCount=${data['threads']?.length ?? 0}');
-      return data;
-    });
-  }
-
-  /// Get messages for a thread via Functions proxy (Firestore-backed).
-  ///
-  /// Returns: { success: bool, messages: List<Message>, count: int }
-  Future<Map<String, dynamic>> getMessages({
-    required String accountId,
-    required String threadId,
-    int limit = 200,
-    int? afterMs,
-    int? beforeMs,
-    int? afterServerSeq,
-  }) async {
-    return retryWithBackoff(() async {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw UnauthorizedException();
-      }
-
-      final idToken = (await user.getIdToken(true)) ?? '';
-      if (idToken.isEmpty) {
-        throw UnauthorizedException();
-      }
-      String? appCheckToken;
-      try {
-        appCheckToken = await FirebaseAppCheck.instance.getToken(true);
-      } catch (_) {
-        appCheckToken = null;
-      }
-      final appCheckLen = appCheckToken == null ? 0 : appCheckToken.length;
-      final appCheckHeader =
-          appCheckToken != null && appCheckToken.isNotEmpty ? appCheckToken : null;
-      final functionsUrl = _getFunctionsUrl();
-      final requestId = _generateRequestId();
-      final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
-
-      final queryParams = <String, String>{
-        'accountId': accountId,
-        'threadId': threadId,
-        'limit': '$limit',
-      };
-      if (afterMs != null) queryParams['after'] = '$afterMs';
-      if (beforeMs != null) queryParams['before'] = '$beforeMs';
-      if (afterServerSeq != null) queryParams['afterSeq'] = '$afterServerSeq';
-
-      final endpointUrl = '$functionsUrl/whatsappProxyGetMessages';
-      debugPrint(
-        '[WhatsAppApiService] getMessages: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${idToken.isNotEmpty} | requestId=$requestId | idTokenDots=${_dotCount(idToken)} appCheckLen=$appCheckLen',
-      );
-
-      final response = await http
-          .get(
-            Uri.parse(endpointUrl).replace(queryParameters: queryParams),
-            headers: {
-              'Authorization': 'Bearer $idToken',
-              if (appCheckHeader != null) 'X-Firebase-AppCheck': appCheckHeader,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'X-Request-ID': requestId,
-            },
-          )
-          .timeout(requestTimeout);
-
-      _lastGetMessagesStatus = response.statusCode;
-      final contentType = response.headers['content-type'] ?? 'unknown';
-      final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
-      debugPrint(
-        '[WhatsAppApiService] getMessages: AFTER response | statusCode=${response.statusCode} | content-type=$contentType | bodyLength=${response.body.length} | bodyPrefix=$bodyPrefix | requestId=$requestId',
-      );
-
-      if (_isNonJsonResponse(response)) {
-        _throwNonJsonNetworkException(response, endpointUrl);
-      }
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        Map<String, dynamic>? errorBody;
-        try {
-          errorBody = SafeJson.tryDecodeJsonMap(response.body);
-        } catch (_) {
-          errorBody = null;
-        }
-        String message;
-        if (errorBody != null) {
-          message = errorBody['message'] as String? ?? 'HTTP ${response.statusCode}';
-          debugPrint('[WhatsAppApiService] getMessages: error=${errorBody['error']}, message=$message');
-        } else {
-          message = 'HTTP ${response.statusCode} (non-JSON response). content-type=$contentType. bodyPrefix=$bodyPrefix';
-          debugPrint('[WhatsAppApiService] getMessages: non-JSON error response, bodyPrefix=$bodyPrefix');
-        }
-        throw ErrorMapper.fromHttpException(response.statusCode, message);
-      }
-
-      Map<String, dynamic>? data;
-      try {
-        data = SafeJson.tryDecodeJsonMap(response.body);
-      } catch (e) {
-        throw NetworkException(
-          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
-          code: 'json_decode_failed',
-          originalError: e,
-        );
-      }
-      if (data == null) {
-        throw NetworkException(
-          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
-          code: 'json_decode_failed',
-        );
-      }
-      debugPrint('[WhatsAppApiService] getMessages: success, messagesCount=${data['messages']?.length ?? 0}');
       return data;
     });
   }

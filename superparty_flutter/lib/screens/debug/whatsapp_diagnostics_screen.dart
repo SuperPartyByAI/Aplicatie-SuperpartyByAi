@@ -319,10 +319,6 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
                       _connectedCount?.toString() ?? 'N/A',
                     ),
                     _buildInfoRow(
-                      'Last getMessages Status',
-                      _apiService.lastGetMessagesStatus?.toString() ?? 'N/A',
-                    ),
-                    _buildInfoRow(
                       'Last inbound age (sec)',
                       _lastInboundAgeSec?.toString() ?? 'N/A',
                     ),
