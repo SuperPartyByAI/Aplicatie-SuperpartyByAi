@@ -16,7 +16,10 @@ import '../../services/whatsapp_web_launcher.dart';
 import '../../services/whatsapp_manual_accounts_service.dart';
 import '../../core/config/env.dart';
 import '../../core/errors/app_exception.dart';
+import '../../services/admin_service.dart';
 import '../debug/whatsapp_diagnostics_screen.dart';
+import 'whatsapp_ai_settings_screen.dart';
+import 'whatsapp_backfill_diagnostic_screen.dart';
 
 /// WhatsApp Accounts Management Screen
 /// 
@@ -55,10 +58,14 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   bool _isAddingAccount = false;
   final Set<String> _regeneratingQr = {}; // accountId -> in-flight
   final Set<String> _deletingAccount = {}; // accountId -> in-flight
+  final Set<String> _backfilling = {}; // accountId -> in-flight
   final Set<String> _openingFirefox = {}; // accountId -> in-flight
   final Set<String> _autoOpenedFirefox = {}; // accountId -> auto-opened Firefox (prevent duplicates)
   int _loadRequestToken = 0;
   Timer? _qrPollingTimer; // Timer for polling QR code generation
+
+  bool _isAdmin = false;
+  final AdminService _adminService = AdminService();
   
   static const String _waUrl = 'https://web.whatsapp.com';
   
@@ -151,6 +158,9 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   @override
   void initState() {
     super.initState();
+    _adminService.isCurrentUserAdmin().then((ok) {
+      if (mounted) setState(() => _isAdmin = ok);
+    });
     if (_isManualOnly) {
       _loadManualAccounts();
     } else {
@@ -495,13 +505,15 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           errorMessage = 'Error: ${e.toString()}';
         }
         
-        // Check if error is related to backend being down (502) or passive (503)
+        // Check if error is related to backend being down (502), passive (503), or HTML/non-JSON
         String? backendStatusHint;
         if (e is NetworkException) {
           if (e.code == '502' || e.message.contains('502')) {
             backendStatusHint = 'Backend is down (502 Bad Gateway). Check backend service status.';
           } else if (e.code == '503' || e.message.contains('503') || e.message.contains('passive')) {
             backendStatusHint = 'Backend is in PASSIVE mode (503). Another instance holds the lock.';
+          } else if (e.code == 'expected_json_got_html' || e.message.contains('Expected JSON, got HTML')) {
+            backendStatusHint = 'Backend returned HTML instead of JSON. Check Functions URL, 404, or proxy config.';
           }
         }
         
@@ -747,6 +759,38 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _deletingAccount.remove(accountId));
+    }
+  }
+
+  /// Trigger backfill via Functions proxy (super-admin only). UI hides button for non-admin.
+  Future<void> _backfillAccount(String accountId) async {
+    if (_backfilling.contains(accountId) || _isAddingAccount) return;
+    setState(() => _backfilling.add(accountId));
+
+    try {
+      final res = await _apiService.backfillAccountViaProxy(accountId: accountId);
+      if (!mounted) return;
+      final msg = res['message'] as String? ?? 'Backfill started (runs asynchronously)';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.green),
+      );
+      debugPrint('[WhatsAppAccountsScreen] backfillAccount: success requestId=${res['requestId']}');
+    } catch (e) {
+      if (!mounted) return;
+      String msg = e.toString();
+      if (e is NetworkException && e.code == 'configuration_missing') {
+        msg = 'Functions missing WHATSAPP_BACKEND_URL / WHATSAPP_RAILWAY_BASE_URL secret. Set backend URL in Firebase Functions env.';
+      } else if (e is AppException) {
+        msg = e.message;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Backfill failed: $msg'), backgroundColor: Colors.red, duration: const Duration(seconds: 5)),
+      );
+      debugPrint('[WhatsAppAccountsScreen] backfillAccount: error $e');
+    } finally {
+      if (mounted) setState(() => _backfilling.remove(accountId));
     }
   }
 
@@ -1135,6 +1179,52 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                       icon: const Icon(Icons.refresh, size: 18),
                       label: const Text('Regenerate QR'),
                     ),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      onPressed: _isAddingAccount
+                          ? null
+                          : () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => WhatsAppAiSettingsScreen(accountId: id),
+                                ),
+                              );
+                            },
+                      icon: const Icon(Icons.smart_toy_outlined, size: 18),
+                      label: const Text('Setări AI'),
+                    ),
+                    if (_isAdmin && status == 'connected') ...[
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        onPressed: _backfilling.contains(id) || _isAddingAccount
+                            ? null
+                            : () => _backfillAccount(id),
+                        icon: _backfilling.contains(id)
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.history, size: 18),
+                        label: Text(_backfilling.contains(id) ? 'Backfill…' : 'Backfill history'),
+                      ),
+                      if (kDebugMode) ...[
+                        const SizedBox(width: 4),
+                        IconButton(
+                          onPressed: _isAddingAccount
+                              ? null
+                              : () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => WhatsAppBackfillDiagnosticScreen(accountId: id),
+                                    ),
+                                  );
+                                },
+                          icon: const Icon(Icons.bug_report_outlined, size: 18),
+                          tooltip: 'Verify Firestore (debug)',
+                        ),
+                      ],
+                    ],
                     const SizedBox(width: 8),
                     IconButton(
                       onPressed: _deletingAccount.contains(id) || _isAddingAccount
