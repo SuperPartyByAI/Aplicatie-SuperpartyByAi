@@ -198,7 +198,7 @@ firebase functions:secrets:list
 **Key Collections:**
 - `evenimente` - Events
 - `conversationStates` - AI chat state
-- `accounts` - WhatsApp accounts (Railway backend)
+- `accounts` - WhatsApp accounts (Hetzner backend)
 
 **Key Functions:**
 - `chatEventOps` - Event creation/update/archive
