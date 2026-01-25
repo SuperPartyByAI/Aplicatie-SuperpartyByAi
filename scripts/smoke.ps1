@@ -27,10 +27,10 @@ try {
     Write-Host "  Install Java 21+ or skip Firestore emulator" -ForegroundColor Red
 }
 
-# 3) Set environment variable
-Write-Host "[3/6] Setting WHATSAPP_RAILWAY_BASE_URL..." -ForegroundColor Yellow
-$env:WHATSAPP_RAILWAY_BASE_URL = "https://whats-upp-production.up.railway.app"
-Write-Host "  ✓ WHATSAPP_RAILWAY_BASE_URL=$env:WHATSAPP_RAILWAY_BASE_URL" -ForegroundColor Green
+# 3) Set environment variable (WhatsApp backend URL)
+Write-Host "[3/6] Setting WHATSAPP_BACKEND_URL..." -ForegroundColor Yellow
+$env:WHATSAPP_BACKEND_URL = if ($env:WHATSAPP_BACKEND_URL) { $env:WHATSAPP_BACKEND_URL } else { "http://37.27.34.179:8080" }
+Write-Host "  ✓ WHATSAPP_BACKEND_URL=$env:WHATSAPP_BACKEND_URL" -ForegroundColor Green
 
 # 4) Install dependencies (if needed)
 Write-Host "[4/6] Installing Functions dependencies..." -ForegroundColor Yellow

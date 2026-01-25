@@ -5,7 +5,7 @@
  * Tests:
  * - Verifies functions are deployed via Firebase CLI
  * - Checks Firestore structure (threads, messages, clients)
- * - Validates Railway health
+ * - Validates WhatsApp backend health (WHATSAPP_BACKEND_URL or Hetzner default)
  * 
  * Usage:
  *   cd functions/tools
@@ -16,6 +16,7 @@
 
 const { execSync } = require('child_process');
 const https = require('https');
+const http = require('http');
 
 const results = {
   timestamp: new Date().toISOString(),
@@ -47,36 +48,38 @@ function runCommand(cmd) {
   }
 }
 
-async function checkRailwayHealth() {
+async function checkBackendHealth() {
   return new Promise((resolve) => {
-    const url = 'https://whats-upp-production.up.railway.app/health';
-    https.get(url, { timeout: 10000 }, (res) => {
+    const base = process.env.WHATSAPP_BACKEND_URL || process.env.WHATSAPP_BACKEND_BASE_URL || 'http://37.27.34.179:8080';
+    const url = `${base.replace(/\/$/, '')}/health`;
+    const client = url.startsWith('https') ? https : http;
+    client.get(url, { timeout: 10000 }, (res) => {
       let data = '';
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
           if (json.status === 'healthy') {
-            addResult('Railway Health', 'PASS', { 
+            addResult('Backend Health', 'PASS', { 
               status: json.status, 
               version: json.version,
               uptime: json.uptime,
               firestore: json.firestore?.status
             });
           } else {
-            addResult('Railway Health', 'FAIL', { status: json.status });
+            addResult('Backend Health', 'FAIL', { status: json.status });
           }
           resolve();
         } catch (e) {
-          addResult('Railway Health', 'FAIL', { error: 'Invalid JSON response' });
+          addResult('Backend Health', 'FAIL', { error: 'Invalid JSON response' });
           resolve();
         }
       });
     }).on('error', (err) => {
-      addResult('Railway Health', 'FAIL', { error: err.message });
+      addResult('Backend Health', 'FAIL', { error: err.message });
       resolve();
     }).on('timeout', () => {
-      addResult('Railway Health', 'FAIL', { error: 'Timeout' });
+      addResult('Backend Health', 'FAIL', { error: 'Timeout' });
       resolve();
     });
   });
@@ -279,7 +282,7 @@ async function runAllTests() {
   
   try {
     // Infrastructure tests
-    await checkRailwayHealth();
+    await checkBackendHealth();
     testFunctionsDeployed();
     
     // Code consistency tests
@@ -308,7 +311,7 @@ async function runAllTests() {
     // Exit code (fail only if critical tests failed)
     const criticalFailures = results.tests.filter(t => 
       t.status === 'FAIL' && 
-      (t.testName.includes('Railway') || t.testName.includes('Functions Deployed'))
+      (t.testName.includes('Backend Health') || t.testName.includes('Functions Deployed'))
     ).length;
     
     process.exit(criticalFailures > 0 ? 1 : 0);

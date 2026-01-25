@@ -1,15 +1,17 @@
 function getBackendBaseUrl() {
-  // Priority: new explicit base URL
   if (process.env.WHATSAPP_BACKEND_BASE_URL) {
     return process.env.WHATSAPP_BACKEND_BASE_URL;
   }
-
-  // Legacy: backend URL
   if (process.env.WHATSAPP_BACKEND_URL) {
     return process.env.WHATSAPP_BACKEND_URL;
   }
-
-  // Try v1 functions.config() (v2 may not have this)
+  // Deprecated: migrate to WHATSAPP_BACKEND_URL (Hetzner or generic backend)
+  if (process.env.WHATSAPP_RAILWAY_BASE_URL) {
+    if (process.env.NODE_ENV !== 'production' || process.env.DEBUG_DEPRECATED === 'true') {
+      console.warn('[backend-url] DEPRECATED: WHATSAPP_RAILWAY_BASE_URL; use WHATSAPP_BACKEND_URL');
+    }
+    return process.env.WHATSAPP_RAILWAY_BASE_URL;
+  }
   try {
     const functions = require('firebase-functions');
     const config = functions.config();
@@ -19,7 +21,6 @@ function getBackendBaseUrl() {
   } catch (e) {
     // Ignore
   }
-
   return null;
 }
 

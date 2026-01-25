@@ -127,6 +127,75 @@ class WhatsAppApiService {
     return '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(10000)}';
   }
 
+  /// Send WhatsApp message via Functions proxy (whatsappProxySend).
+  /// Proxy creates outbox entry server-side (Firestore rules are server-only).
+  /// Returns: { success: bool, requestId: string, duplicate?: bool }
+  Future<Map<String, dynamic>> sendViaProxy({
+    required String threadId,
+    required String accountId,
+    required String toJid,
+    required String text,
+    required String clientMessageId,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw UnauthorizedException();
+
+    final token = await user.getIdToken();
+    final functionsUrl = _getFunctionsUrl();
+    final requestId = _generateRequestId();
+    final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
+    final endpointUrl = '$functionsUrl/whatsappProxySend';
+
+    debugPrint('[WhatsAppApiService] sendViaProxy: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId');
+
+    final response = await http
+        .post(
+          Uri.parse(endpointUrl),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Request-ID': requestId,
+          },
+          body: jsonEncode({
+            'threadId': threadId,
+            'accountId': accountId,
+            'toJid': toJid,
+            'text': text,
+            'clientMessageId': clientMessageId,
+          }),
+        )
+        .timeout(requestTimeout);
+
+    final contentType = response.headers['content-type'] ?? 'unknown';
+    final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
+    debugPrint('[WhatsAppApiService] sendViaProxy: AFTER response | statusCode=${response.statusCode} | content-type=$contentType | bodyLength=${response.body.length} | bodyPrefix=$bodyPrefix | requestId=$requestId');
+
+    if (_isNonJsonResponse(response)) {
+      _throwNonJsonNetworkException(response, endpointUrl);
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      Map<String, dynamic>? errorBody;
+      try {
+        errorBody = SafeJson.tryDecodeJsonMap(response.body);
+      } catch (_) {
+        errorBody = null;
+      }
+      final message = errorBody?['message'] as String? ?? 'HTTP ${response.statusCode}';
+      throw ErrorMapper.fromHttpException(response.statusCode, message);
+    }
+
+    final data = SafeJson.tryDecodeJsonMap(response.body);
+    if (data == null) {
+      throw NetworkException(
+        'Invalid response: failed to decode JSON. endpoint=$endpointUrl',
+        code: 'json_decode_failed',
+      );
+    }
+    return data;
+  }
+
   /// Get list of WhatsApp accounts.
   ///
   /// When [backendUrl] is set (Hetzner): GET $backendUrl/api/whatsapp/accounts.
@@ -927,7 +996,7 @@ class WhatsAppApiService {
     final data = SafeJson.tryDecodeJsonMap(response.body);
     if (data != null && data['error'] == 'configuration_missing') {
       throw NetworkException(
-        'Functions missing WHATSAPP_BACKEND_URL / WHATSAPP_RAILWAY_BASE_URL secret. Set backend URL in Firebase Functions env.',
+        'Functions missing WHATSAPP_BACKEND_URL / WHATSAPP_BACKEND_BASE_URL secret. Set backend URL in Firebase Functions env.',
         code: 'configuration_missing',
       );
     }

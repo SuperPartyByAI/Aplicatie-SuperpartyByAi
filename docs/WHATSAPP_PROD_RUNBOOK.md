@@ -11,12 +11,12 @@ This runbook covers deployment, verification, and troubleshooting for the WhatsA
 ## Required Environment Variables
 
 ### Firebase Functions
-- `WHATSAPP_RAILWAY_BASE_URL` - Railway backend base URL (e.g., `https://whats-upp-production.up.railway.app`)
+- `WHATSAPP_BACKEND_URL` or `WHATSAPP_BACKEND_BASE_URL` - WhatsApp backend base URL (e.g. Hetzner `http://37.27.34.179:8080`)
 - Firebase project ID (from Firebase config)
 
-### WhatsApp Backend (Railway)
-- `RAILWAY_DEPLOYMENT_ID` - Unique instance ID (auto-set by Railway)
-- `HOSTNAME` - Fallback instance ID if `RAILWAY_DEPLOYMENT_ID` not set
+### WhatsApp Backend (Hetzner or generic)
+- `INSTANCE_ID` or `DEPLOYMENT_ID` - Unique instance ID (optional; `HOSTNAME` used as fallback)
+- `HOSTNAME` - Fallback instance ID
 - `FIREBASE_PROJECT_ID` - Firebase project ID
 - `FIREBASE_PRIVATE_KEY` - Firebase service account private key (base64 or JSON)
 - `FIREBASE_CLIENT_EMAIL` - Firebase service account email
@@ -38,27 +38,27 @@ firebase deploy --only functions:whatsappProxySend,functions:whatsappProxyGetAcc
 firebase deploy --only firestore:rules
 ```
 
-### 3. Deploy WhatsApp Backend (Railway)
+### 3. Deploy WhatsApp Backend (Hetzner / generic)
 
-- Push to main branch (Railway auto-deploys)
-- OR manually trigger deployment via Railway dashboard
+- Deploy to Hetzner (systemd/Docker) or your host
+- Set `WHATSAPP_BACKEND_URL` in Firebase Functions secrets to backend base URL
 
-### 4. Configure Railway Environment Variables
+### 4. Configure Backend Environment Variables
 
-In Railway dashboard, set:
-- `RAILWAY_DEPLOYMENT_ID` (auto-set, but verify)
+On the backend host, set:
+- `INSTANCE_ID` or `DEPLOYMENT_ID` (optional; `HOSTNAME` fallback)
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_PRIVATE_KEY`
 - `FIREBASE_CLIENT_EMAIL`
 
-### 5. Scale Railway Instances
+### 5. Scale Backend Instances
 
 **Single Instance (Recommended for Start):**
 - Start with 1 instance
 - Monitor metrics before scaling
 
 **Multi-Instance (Requires Leases Enabled):**
-- Ensure `RAILWAY_DEPLOYMENT_ID` is unique per instance
+- Ensure `INSTANCE_ID` or `DEPLOYMENT_ID` is unique per instance
 - Leases are automatically handled (60s TTL)
 - Monitor `/metrics-json` for queue distribution
 
@@ -87,13 +87,14 @@ Expected: `{"success": true, "requestId": "...", "duplicate": false}`
 
 ### 3. WhatsApp Backend Health
 ```bash
-curl https://whats-upp-production.up.railway.app/healthz
+# Replace BASE with WHATSAPP_BACKEND_URL (e.g. http://37.27.34.179:8080)
+curl $BASE/healthz
 # Expected: {"status": "ok", "timestamp": "..."}
 
-curl https://whats-upp-production.up.railway.app/readyz
+curl $BASE/readyz
 # Expected: {"status": "ready", "checks": {...}}
 
-curl https://whats-upp-production.up.railway.app/metrics-json
+curl $BASE/metrics-json
 # Expected: {"activeAccounts": N, "queuedCount": N, ...}
 ```
 
@@ -111,7 +112,7 @@ curl https://whats-upp-production.up.railway.app/metrics-json
 3. Second message should be skipped (dedupe)
 
 ### 6. Multi-Instance Safety
-1. Deploy 2+ Railway instances
+1. Deploy 2+ backend instances
 2. Send multiple messages
 3. Verify:
    - Each message is claimed by only one instance (`claimedBy` field)
@@ -149,7 +150,7 @@ curl https://whats-upp-production.up.railway.app/metrics-json
 
 **Fix:**
 - Ensure flush handlers are removed (check `whatsapp-backend/server.js`)
-- Verify `RAILWAY_DEPLOYMENT_ID` is unique per instance
+- Verify `INSTANCE_ID` or `DEPLOYMENT_ID` is unique per instance
 - Check lease TTL (should be 60s)
 
 ### Issue: Functions proxy returns 403
@@ -178,7 +179,7 @@ curl https://whats-upp-production.up.railway.app/metrics-json
 3. Check worker interval (should be ~5s)
 
 **Fix:**
-- Scale up Railway instances if queue is large
+- Scale up backend instances if queue is large
 - Ensure accounts are connected
 - Check for worker errors
 
@@ -248,8 +249,8 @@ If issues occur after deployment:
    firebase deploy --only firestore:rules
    ```
 
-3. **Rollback Railway:**
-   - Use Railway dashboard to rollback to previous deployment
+3. **Rollback Backend:**
+   - Redeploy previous backend version (Hetzner/systemd or your deploy process)
    - OR revert git commit and push
 
 ## Support Contacts

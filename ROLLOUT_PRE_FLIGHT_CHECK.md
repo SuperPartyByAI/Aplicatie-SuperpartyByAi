@@ -38,7 +38,7 @@ git ls-remote --heads origin
 ls -la firebase.json firestore.rules firestore.indexes.json functions/index.js functions/whatsappProxy.js
 
 # Verify secret names referenced in code
-grep -RIn "RAILWAY_WHATSAPP_URL|WHATSAPP_RAILWAY_BASE_URL|GROQ_API_KEY" functions || echo "No matches (may be in environment/config)"
+grep -RIn "WHATSAPP_BACKEND_URL|WHATSAPP_BACKEND_BASE_URL|GROQ_API_KEY" functions || echo "No matches (may be in environment/config)"
 ```
 
 **Expected:**
@@ -47,13 +47,10 @@ grep -RIn "RAILWAY_WHATSAPP_URL|WHATSAPP_RAILWAY_BASE_URL|GROQ_API_KEY" function
 
 ---
 
-## 3) Verify Railway requirements
+## 3) Verify Backend requirements
 
 ```bash
-# Check Railway config (if exists)
-cat whatsapp-backend/railway.toml 2>/dev/null || echo "railway.toml not found (may be configured via Railway UI)"
-
-# Verify SESSIONS_PATH references
+# Verify SESSIONS_PATH references (Hetzner or generic backend)
 grep -RIn "SESSIONS_PATH|/app/sessions" whatsapp-backend || echo "No matches"
 ```
 

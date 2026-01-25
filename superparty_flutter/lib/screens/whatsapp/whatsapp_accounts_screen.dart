@@ -781,7 +781,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
       if (!mounted) return;
       String msg = e.toString();
       if (e is NetworkException && e.code == 'configuration_missing') {
-        msg = 'Functions missing WHATSAPP_BACKEND_URL / WHATSAPP_RAILWAY_BASE_URL secret. Set backend URL in Firebase Functions env.';
+        msg = 'Functions missing WHATSAPP_BACKEND_URL / WHATSAPP_BACKEND_BASE_URL secret. Set backend URL in Firebase Functions env.';
       } else if (e is AppException) {
         msg = e.message;
       }

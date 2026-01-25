@@ -3,7 +3,7 @@
 /**
  * Unit tests for WhatsApp Proxy QR Connect endpoints
  *
- * Tests authentication, authorization, input validation, and Railway forwarding.
+ * Tests authentication, authorization, input validation, and backend forwarding.
  */
 
 // Set env var before importing module (to avoid fail-fast in tests)
@@ -28,7 +28,7 @@ const mockFirestore = {
     if (name === 'staffProfiles') {
       return {
         doc: jest.fn(() => ({
-          get: jest.fn(),
+          get: jest.fn().mockResolvedValue({ exists: false }),
         })),
       };
     }
@@ -127,10 +127,10 @@ describe('WhatsApp Proxy /getAccounts', () => {
     );
   });
 
-  it('should reject non-super-admin', async () => {
+  it('should reject non-employee', async () => {
     mockVerifyIdToken.mockResolvedValue({
       uid: 'user123',
-      email: 'user@example.com', // Not super-admin
+      email: 'user@example.com', // Not employee
     });
 
     await whatsappProxy.getAccountsHandler(req, res);
@@ -139,12 +139,12 @@ describe('WhatsApp Proxy /getAccounts', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: false,
-        error: 'super_admin_only',
+        error: 'employee_only',
       })
     );
   });
 
-  it('should allow super-admin and forward request', async () => {
+  it('should allow employee (e.g. super-admin) and forward request', async () => {
     mockForwardRequest.mockResolvedValue({
       statusCode: 200,
       body: { success: true, accounts: [{ id: 'acc1', name: 'Test', status: 'connected' }] },

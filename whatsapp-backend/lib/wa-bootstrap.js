@@ -34,7 +34,7 @@ async function initializeWASystem(db) {
 
   instanceId =
     process.env.INSTANCE_ID ||
-    process.env.RAILWAY_DEPLOYMENT_ID ||
+    process.env.DEPLOYMENT_ID ||
     (normalizedHost ? `host_${normalizedHost}` : null) ||
     `instance_${crypto.randomBytes(8).toString('hex')}`;
 

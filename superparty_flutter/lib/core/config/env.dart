@@ -43,9 +43,10 @@ class Env {
     defaultValue: false,
   );
 
-  static const String _defaultWhatsAppBackendUrl = '';
+  /// Default: Hetzner backend.
+  static const String _defaultWhatsAppBackendUrl = 'http://37.27.34.179:8080';
 
-  /// Base URL for WhatsApp backend.
+  /// Base URL for WhatsApp backend (Hetzner).
   ///
   /// Configure via:
   /// `--dart-define=WHATSAPP_BACKEND_URL=https://your-backend-host`

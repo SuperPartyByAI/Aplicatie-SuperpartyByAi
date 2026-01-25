@@ -19,7 +19,7 @@ const LOCK_RENEW_SEC = 60;
 
 async function initJobs(firestoreDb, baseUrl) {
   db = firestoreDb;
-  instanceId = process.env.RAILWAY_DEPLOYMENT_ID || `local-${Date.now()}`;
+  instanceId = process.env.INSTANCE_ID || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || `local-${Date.now()}`;
 
   console.log(`🔧 Initializing long-run jobs (instanceId: ${instanceId})`);
 

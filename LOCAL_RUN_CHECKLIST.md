@@ -12,7 +12,7 @@ firebase login
 firebase use superparty-frontend
 
 # 3. Environment variables
-export WHATSAPP_RAILWAY_BASE_URL='https://whats-upp-production.up.railway.app'
+export WHATSAPP_BACKEND_URL='http://37.27.34.179:8080'
 # OR use functions/.runtimeconfig.json (already configured)
 ```
 
@@ -21,7 +21,7 @@ export WHATSAPP_RAILWAY_BASE_URL='https://whats-upp-production.up.railway.app'
 **Terminal 1:**
 ```bash
 cd /Users/universparty/Aplicatie-SuperpartyByAi
-export WHATSAPP_RAILWAY_BASE_URL='https://whats-upp-production.up.railway.app'
+export WHATSAPP_BACKEND_URL='http://37.27.34.179:8080'
 firebase emulators:start --only firestore,functions,auth
 ```
 
@@ -136,10 +136,10 @@ http://localhost:4001
 **Fix:**
 ```bash
 # Check secret
-firebase functions:secrets:access WHATSAPP_RAILWAY_BASE_URL
+firebase functions:secrets:access WHATSAPP_BACKEND_URL
 
 # OR set env var for emulator
-export WHATSAPP_RAILWAY_BASE_URL='https://whats-upp-production.up.railway.app'
+export WHATSAPP_BACKEND_URL='http://37.27.34.179:8080'
 firebase emulators:start --only functions
 ```
 
