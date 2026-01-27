@@ -81,6 +81,7 @@ class GridOverlay extends StatelessWidget {
     return [
       _buildAppIcon(context, appState, 'Aprobări KYC', Icons.check_circle, '/admin/kyc', color: const Color(0xFFEF4444)),
       _buildAppIcon(context, appState, 'Conversații AI', Icons.chat_bubble, '/admin/ai-conversations', color: const Color(0xFFEF4444)),
+      _buildAppIcon(context, appState, 'AI Prompts', Icons.tune, '/admin/ai-prompts', color: const Color(0xFFEF4444)),
       _buildAppIconAction(context, appState, 'Ieși Admin', Icons.exit_to_app, () {
         appState.exitAdminMode();
         appState.closeGrid();

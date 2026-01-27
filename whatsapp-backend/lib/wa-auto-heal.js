@@ -7,7 +7,7 @@
  * Actions:
  * 1. Create incident with evidence
  * 2. Release lock
- * 3. Exit process (Railway restarts)
+ * 3. Exit process (systemd/Docker restarts)
  */
 
 const { FieldValue } = require('firebase-admin/firestore');
@@ -95,7 +95,7 @@ class WAAutoHeal {
         active: true,
         instructions: 'Reconnect loop detected. Process will restart automatically.',
         runbook: {
-          step1: 'Railway will restart the process automatically',
+          step1: 'systemd/Docker will restart the process automatically',
           step2: 'Check logs after restart for connection status',
           step3: 'If issue persists, check auth state and network',
           step4: 'Consider manual intervention if >3 restarts in 1 hour',
@@ -111,7 +111,7 @@ class WAAutoHeal {
       // Wait a bit for Firestore writes to complete
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Exit process (Railway will restart)
+      // Exit process (systemd/Docker will restart)
       console.log('[WAAutoHeal] 🔄 Exiting process for controlled restart...');
       process.exit(1);
     } catch (error) {

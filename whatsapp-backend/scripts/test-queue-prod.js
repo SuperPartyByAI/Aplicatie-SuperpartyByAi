@@ -1,6 +1,8 @@
+const http = require('http');
 const https = require('https');
+const { URL } = require('url');
 
-const API_URL = 'https://whats-upp-production.up.railway.app';
+const API_BASE = process.env.BAILEYS_BASE_URL || 'http://37.27.34.179:8080';
 const ACCOUNT_ID = 'account_1767014419146';
 const TEST_NUMBER = '+40700999999'; // Test number
 
@@ -12,8 +14,11 @@ function sendMessage(message) {
       message: message,
     });
 
+    const u = new URL(API_BASE);
+    const client = u.protocol === 'https:' ? https : http;
     const options = {
-      hostname: 'whats-upp-production.up.railway.app',
+      hostname: u.hostname,
+      port: u.port || (u.protocol === 'https:' ? 443 : 80),
       path: '/api/whatsapp/send-message',
       method: 'POST',
       headers: {
@@ -22,7 +27,7 @@ function sendMessage(message) {
       },
     };
 
-    const req = https.request(options, res => {
+    const req = client.request(options, res => {
       let responseData = '';
       res.on('data', chunk => (responseData += chunk));
       res.on('end', () => {

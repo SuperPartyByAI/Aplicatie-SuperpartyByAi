@@ -232,30 +232,23 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         return;
       }
 
-      final requestId = Uuid().v4();
+      final clientMessageId = Uuid().v4();
       final toJid = _threadClientJid!;
 
       final maskedAccount = _maskId(_accountId!);
       final maskedThread = _maskId(_effectiveThreadId!);
       final maskedJid = _maskId(toJid);
       debugPrint(
-        '[ChatScreen] Sending via outbox: account=$maskedAccount thread=$maskedThread jid=$maskedJid requestId=$requestId',
+        '[ChatScreen] Sending via proxy: account=$maskedAccount thread=$maskedThread jid=$maskedJid',
       );
 
-      await FirebaseFirestore.instance.collection('outbox').doc(requestId).set({
-        'accountId': _accountId!,
-        'threadId': _effectiveThreadId!,
-        'toJid': toJid,
-        'body': text,
-        'payload': {'text': text},
-        'status': 'queued',
-        'createdAt': FieldValue.serverTimestamp(),
-        'clientMessageId': requestId,
-        'requestId': requestId,
-        'source': 'flutter',
-      });
-
-      debugPrint('[ChatScreen] Outbox write OK: $requestId');
+      await _apiService.sendViaProxy(
+        threadId: _effectiveThreadId!,
+        accountId: _accountId!,
+        toJid: toJid,
+        text: text,
+        clientMessageId: clientMessageId,
+      );
 
       if (mounted) {
         _messageController.clear();
@@ -681,8 +674,8 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                       .collection('threads')
                       .doc(effectiveThreadId)
                       .collection('messages')
-                      .orderBy('createdAt', descending: true)
-                      .limit(500)
+                      .orderBy('tsClient', descending: true)
+                      .limit(200)
                       .snapshots(),
                   builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {

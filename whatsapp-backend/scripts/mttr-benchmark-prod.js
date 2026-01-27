@@ -1,6 +1,6 @@
 const https = require('https');
 
-const API_URL = 'https://whats-upp-production.up.railway.app';
+const API_URL = process.env.BAILEYS_BASE_URL || 'http://37.27.34.179:8080';
 const ACCOUNT_ID = 'account_1767014419146';
 const N = 10;
 

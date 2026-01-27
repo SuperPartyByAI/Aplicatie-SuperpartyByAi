@@ -1,38 +1,38 @@
 const Sentry = require('@sentry/node');
-const { nodeProfilingIntegration } = require('@sentry/profiling-node');
 
-// Initialize Sentry for Firebase Functions
-Sentry.init({
-  dsn: 'https://36da450cdfd7b3789463ed5d709768c9@o4510447481520128.ingest.de.sentry.io/4510632428306512',
+// Cloud Run / Gen2: profiling can cause "failed to start and listen on PORT=8080"
+const isCloudRun = !!(process.env.K_SERVICE || process.env.FUNCTION_TARGET);
+const useProfiling = !isCloudRun;
 
-  environment: process.env.NODE_ENV || 'production',
+const integrations = [Sentry.consoleIntegration({ levels: ['warn', 'error'] })];
+if (useProfiling) {
+  try {
+    const { nodeProfilingIntegration } = require('@sentry/profiling-node');
+    integrations.push(nodeProfilingIntegration());
+  } catch (e) {
+    console.warn('[sentry] Profiling skipped:', e?.message || e);
+  }
+}
 
-  // Performance Monitoring
-  tracesSampleRate: 1.0,
+try {
+  Sentry.init({
+    dsn: 'https://36da450cdfd7b3789463ed5d709768c9@o4510447481520128.ingest.de.sentry.io/4510632428306512',
+    environment: process.env.NODE_ENV || 'production',
+    tracesSampleRate: 1.0,
+    profilesSampleRate: useProfiling ? 1.0 : 0,
+    integrations,
+    enableLogs: true,
+    beforeSend(event) {
+      if (process.env.FUNCTION_NAME) {
+        event.tags = event.tags || {};
+        event.tags.function_name = process.env.FUNCTION_NAME;
+      }
+      return event;
+    },
+  });
+} catch (e) {
+  console.warn('[sentry] Init failed (non-fatal):', e?.message || e);
+}
 
-  // Profiling
-  profilesSampleRate: 1.0,
-
-  integrations: [
-    nodeProfilingIntegration(),
-    Sentry.consoleIntegration({ levels: ['warn', 'error'] }),
-  ],
-
-  // Enable logs
-  enableLogs: true,
-
-  // Add Firebase context
-  beforeSend(event) {
-    // Add Firebase Function context
-    if (process.env.FUNCTION_NAME) {
-      event.tags = event.tags || {};
-      event.tags.function_name = process.env.FUNCTION_NAME;
-    }
-    return event;
-  },
-});
-
-// Export logger
 const { logger } = Sentry;
-
 module.exports = { Sentry, logger };

@@ -2,7 +2,7 @@
 
 /**
  * Process Outbox - Firestore Trigger
- * 
+ *
  * Monitors outbox collection and sends WhatsApp messages via backend.
  * Triggered when outbox document is created with status='queued'.
  */
@@ -32,9 +32,9 @@ function forwardRequest(url, options, body = null) {
       headers: options.headers || {},
     };
 
-    const req = client.request(requestOptions, (res) => {
+    const req = client.request(requestOptions, res => {
       let data = '';
-      res.on('data', (chunk) => {
+      res.on('data', chunk => {
         data += chunk;
       });
       res.on('end', () => {
@@ -55,7 +55,7 @@ function forwardRequest(url, options, body = null) {
       });
     });
 
-    req.on('error', (error) => {
+    req.on('error', error => {
       reject(new Error(`Failed to connect to backend: ${error.message}`));
     });
 
@@ -93,15 +93,25 @@ async function processOutboxHandler(event) {
   // #region agent log
   const fs = require('fs');
   try {
-    fs.appendFileSync('/Users/universparty/.cursor/debug.log', JSON.stringify({
-      location: 'processOutbox.js:98',
-      message: 'processOutbox triggered',
-      data: {requestId, status: outboxDoc.status, hasThreadId: !!outboxDoc.threadId, hasAccountId: !!outboxDoc.accountId},
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      hypothesisId: 'H5'
-    }) + '\n');
-  } catch (e) { /* ignore */ }
+    fs.appendFileSync(
+      '/Users/universparty/.cursor/debug.log',
+      JSON.stringify({
+        location: 'processOutbox.js:98',
+        message: 'processOutbox triggered',
+        data: {
+          requestId,
+          status: outboxDoc.status,
+          hasThreadId: !!outboxDoc.threadId,
+          hasAccountId: !!outboxDoc.accountId,
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        hypothesisId: 'H5',
+      }) + '\n'
+    );
+  } catch (e) {
+    /* ignore */
+  }
   // #endregion
 
   console.log(`[processOutbox] Processing outbox doc: ${requestId}, status=${outboxDoc.status}`);
@@ -144,36 +154,47 @@ async function processOutboxHandler(event) {
       throw new Error('Missing required fields in outbox document');
     }
 
-    console.log(`[processOutbox] Sending message: threadId=${threadId}, accountId=${accountId}, toJid=${toJid}`);
+    console.log(
+      `[processOutbox] Sending message: threadId=${threadId}, accountId=${accountId}, toJid=${toJid}`
+    );
 
     // Send message to backend
     const backendUrl = `${backendBaseUrl}/api/whatsapp/send-message`;
-    const response = await forwardRequest(backendUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Request-ID': requestId,
+    const response = await forwardRequest(
+      backendUrl,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-ID': requestId,
+        },
       },
-    }, {
-      threadId,
-      accountId,
-      to: toJid,
-      message: body,
-    });
+      {
+        threadId,
+        accountId,
+        to: toJid,
+        message: body,
+      }
+    );
 
     console.log(`[processOutbox] Backend response: status=${response.statusCode}`);
 
     // #region agent log
     try {
-      fs.appendFileSync('/Users/universparty/.cursor/debug.log', JSON.stringify({
-        location: 'processOutbox.js:172',
-        message: 'Backend response',
-        data: {requestId, statusCode: response.statusCode, body: response.body},
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        hypothesisId: 'H7'
-      }) + '\n');
-    } catch (e) { /* ignore */ }
+      fs.appendFileSync(
+        '/Users/universparty/.cursor/debug.log',
+        JSON.stringify({
+          location: 'processOutbox.js:172',
+          message: 'Backend response',
+          data: { requestId, statusCode: response.statusCode, body: response.body },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          hypothesisId: 'H7',
+        }) + '\n'
+      );
+    } catch (e) {
+      /* ignore */
+    }
     // #endregion
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -194,7 +215,9 @@ async function processOutboxHandler(event) {
         backendResponse: response.body,
       });
 
-      console.error(`[processOutbox] ❌ Message failed: ${requestId}, status=${response.statusCode}`);
+      console.error(
+        `[processOutbox] ❌ Message failed: ${requestId}, status=${response.statusCode}`
+      );
     }
   } catch (error) {
     console.error(`[processOutbox] Error processing outbox doc ${requestId}:`, error.message);
@@ -224,8 +247,9 @@ exports.processOutbox = onDocumentCreated(
   {
     document: 'outbox/{requestId}',
     region: 'us-central1',
-    maxInstances: 3,
-    secrets: [whatsappBackendBaseUrl, whatsappBackendUrl], // Add secret dependency
+    minInstances: 0,
+    maxInstances: 1,
+    secrets: [whatsappBackendBaseUrl, whatsappBackendUrl],
   },
   processOutboxHandler
 );

@@ -1,0 +1,1651 @@
+{
+  "meta": {
+    "generatedAt": "2026-01-23T17:37:07.426Z",
+    "accountId": "account_prod_904735e817756d2bac1328b0c556b2f9",
+    "repoCommit": "da0a7b96"
+  },
+  "accounts": {
+    "id": "870e79b9:45",
+    "qrUpdatedAt": {
+      "_seconds": 1768870520,
+      "_nanoseconds": 324000000
+    },
+    "qrCode": null,
+    "waJid": "96b3d9fb:29",
+    "phoneE164": "28d27913:11",
+    "historySyncCount": 4497,
+    "lastHistorySyncResult": {
+      "dryRun": false,
+      "errors": 0,
+      "skipped": 49,
+      "total": 4546,
+      "saved": 4497
+    },
+    "lastHistorySyncAt": {
+      "_seconds": 1768870788,
+      "_nanoseconds": 29000000
+    },
+    "accountId": "870e79b9:45",
+    "name": "870e79b9:45",
+    "pairingCode": null,
+    "lastBackfillResult": {
+      "messages": 0,
+      "threads": 50,
+      "errors": 0,
+      "threadResults": [
+        {
+          "threadId": "1a50b0af:66",
+          "status": "processed"
+        },
+        {
+          "threadId": "37b1fad6:62",
+          "status": "processed"
+        },
+        {
+          "threadId": "9ebe6939:66",
+          "status": "processed"
+        },
+        {
+          "threadId": "65e8690b:66",
+          "status": "processed"
+        },
+        {
+          "threadId": "a68cee53:64",
+          "status": "processed"
+        },
+        {
+          "threadId": "2ca3e6fc:66",
+          "status": "processed"
+        },
+        {
+          "threadId": "b10f1989:70",
+          "status": "processed"
+        },
+        {
+          "threadId": "f47acd85:63",
+          "status": "processed"
+        },
+        {
+          "threadId": "7bd2e0f6:70",
+          "status": "processed"
+        },
+        {
+          "threadId": "65ccb262:73",
+          "status": "processed"
+        }
+      ]
+    },
+    "lastBackfillAt": {
+      "_seconds": 1769015372,
+      "_nanoseconds": 113000000
+    },
+    "claimedBy": "ubuntu-8gb-hel1-2",
+    "claimedAt": {
+      "_seconds": 1769015644,
+      "_nanoseconds": 669000000
+    },
+    "createdAt": "2026-01-21T17:14:04.669Z",
+    "leaseUntil": {
+      "_seconds": 1769015944,
+      "_nanoseconds": 669000000
+    },
+    "worker": {
+      "commit": null,
+      "version": "2.0.0",
+      "service": "backend",
+      "instanceId": "ubuntu-8gb-hel1-2",
+      "bootTs": "2026-01-21T17:14:04.669Z",
+      "uptime": 364.269729994
+    },
+    "lastError": "conflict_440_requires_relink",
+    "requiresQR": true,
+    "lastConnectedAt": {
+      "_seconds": 1769015673,
+      "_nanoseconds": 646000000
+    },
+    "lastDisconnectCode": 500,
+    "lastDisconnectReason": "500",
+    "lastDisconnectedAt": {
+      "_seconds": 1769020761,
+      "_nanoseconds": 201000000
+    },
+    "updatedAt": {
+      "_seconds": 1769020761,
+      "_nanoseconds": 201000000
+    },
+    "deletedAt": {
+      "_seconds": 1769118792,
+      "_nanoseconds": 509000000
+    },
+    "status": "deleted"
+  },
+  "threads": {
+    "list": [
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__bd32520f:19",
+        "clientJidHash": "bd32520f:19",
+        "lastMessageAt": "2026-01-21T16:07:42.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "dbc7866a:8",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__b28c94b2:15",
+        "clientJidHash": "b28c94b2:15",
+        "lastMessageAt": "2026-01-21T16:05:35.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "e09b3dbe:17",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__d093632e:19",
+        "clientJidHash": "d093632e:19",
+        "lastMessageAt": "2026-01-21T15:50:11.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "5f2fb386:100",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__805f0d12:19",
+        "clientJidHash": "805f0d12:19",
+        "lastMessageAt": "2026-01-21T15:32:33.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "743ec33d:24",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__d3015fd4:17",
+        "clientJidHash": "d3015fd4:17",
+        "lastMessageAt": "2026-01-21T14:03:14.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "b43373e8:4",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__8f4a9d0d:19",
+        "clientJidHash": "8f4a9d0d:19",
+        "lastMessageAt": "2026-01-21T14:02:42.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "d6264045:21",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__f4a0068b:23",
+        "clientJidHash": "f4a0068b:23",
+        "lastMessageAt": "2026-01-21T10:35:56.450Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "cc54747b:10",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__79b814cf:16",
+        "clientJidHash": "79b814cf:16",
+        "lastMessageAt": "2026-01-21T10:35:40.980Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": null,
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__747ea1ad:23",
+        "clientJidHash": "747ea1ad:23",
+        "lastMessageAt": "2026-01-21T10:30:58.998Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "b0ab2382:11",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__d31c97f6:26",
+        "clientJidHash": "d31c97f6:26",
+        "lastMessageAt": "2026-01-21T10:02:53.838Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "2c3c1f8c:2",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__46ea6bc1:26",
+        "clientJidHash": "46ea6bc1:26",
+        "lastMessageAt": "2026-01-20T20:26:59.051Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "f99e7545:33",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__17cf25c1:19",
+        "clientJidHash": "17cf25c1:19",
+        "lastMessageAt": "2026-01-20T19:22:18.767Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "b9678691:57",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__4e3bbb79:17",
+        "clientJidHash": "4e3bbb79:17",
+        "lastMessageAt": "2026-01-20T19:08:34.882Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "cdb4ee2a:1",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__f858ee18:26",
+        "clientJidHash": "f858ee18:26",
+        "lastMessageAt": "2026-01-20T18:08:20.508Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "9f86d081:4",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__3c54afb0:19",
+        "clientJidHash": "3c54afb0:19",
+        "lastMessageAt": "2026-01-20T17:50:01.748Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "0c38f87b:19",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__9529a415:19",
+        "clientJidHash": "9529a415:19",
+        "lastMessageAt": "2026-01-20T15:29:37.470Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "bd700cbe:42",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__5b2c5aa1:19",
+        "clientJidHash": "5b2c5aa1:19",
+        "lastMessageAt": "2026-01-20T14:50:23.847Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "4287bc21:43",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__b5cc1b7c:26",
+        "clientJidHash": "b5cc1b7c:26",
+        "lastMessageAt": "2026-01-20T14:31:36.159Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "b3f44b29:9",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__6ac99358:26",
+        "clientJidHash": "6ac99358:26",
+        "lastMessageAt": "2026-01-20T11:11:32.169Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": null,
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__c4ab1f4c:19",
+        "clientJidHash": "c4ab1f4c:19",
+        "lastMessageAt": "2026-01-20T11:11:03.782Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "27dfcf66:44",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__c3d7c895:23",
+        "clientJidHash": "c3d7c895:23",
+        "lastMessageAt": "2026-01-20T10:44:59.166Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "9696f038:8",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__da82b741:19",
+        "clientJidHash": "da82b741:19",
+        "lastMessageAt": "2026-01-20T10:44:47.851Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "8185c8ac:5",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__d5bdcbad:26",
+        "clientJidHash": "d5bdcbad:26",
+        "lastMessageAt": "2026-01-20T10:44:41.599Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": null,
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__a97536f9:19",
+        "clientJidHash": "a97536f9:19",
+        "lastMessageAt": "2026-01-20T10:03:37.448Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "df0773da:7",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__88f5fc57:26",
+        "clientJidHash": "88f5fc57:26",
+        "lastMessageAt": "2026-01-20T00:59:29.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": null,
+        "schemaVersion": null
+      }
+    ],
+    "threadIdMix": {
+      "legacyCount": 0,
+      "canonicalCount": 25,
+      "legacyExamples": [],
+      "canonicalExamples": [
+        {
+          "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__bd32520f:19",
+          "hash": "1a50b0af:66"
+        },
+        {
+          "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__b28c94b2:15",
+          "hash": "37b1fad6:62"
+        },
+        {
+          "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__d093632e:19",
+          "hash": "65e8690b:66"
+        },
+        {
+          "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__805f0d12:19",
+          "hash": "9ebe6939:66"
+        },
+        {
+          "docId": "account_prod_904735e817756d2bac1328b0c556b2f9__d3015fd4:17",
+          "hash": "a68cee53:64"
+        }
+      ]
+    }
+  },
+  "messages": {
+    "dmThread": {
+      "id": "account_prod_904735e817756d2bac1328b0c556b2f9__d31c97f6:26",
+      "clientJidHash": "d31c97f6:26"
+    },
+    "groupThread": {
+      "id": "account_prod_904735e817756d2bac1328b0c556b2f9__f4a0068b:23",
+      "clientJidHash": "f4a0068b:23"
+    },
+    "dm": {
+      "messages": [
+        {
+          "docId": "legacy:8a05ae28:20",
+          "docIdHash": "8a05ae28:20",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "8a05ae28:20",
+          "messageIdHash": "8a05ae28:20",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T10:02:53.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "delivered",
+          "textHash": "2c3c1f8c:2",
+          "bodyHash": "2c3c1f8c:2"
+        },
+        {
+          "docId": "legacy:f8c820f9:20",
+          "docIdHash": "f8c820f9:20",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "f8c820f9:20",
+          "messageIdHash": "f8c820f9:20",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T05:06:39.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "delivered",
+          "textHash": "e3b0c442:0",
+          "bodyHash": "e3b0c442:0"
+        }
+      ],
+      "duplicateKeys": [
+        {
+          "key": "e3b0c442:0",
+          "count": 2
+        }
+      ]
+    },
+    "group": {
+      "messages": [
+        {
+          "docId": "legacy:98ae7eeb:32",
+          "docIdHash": "98ae7eeb:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "98ae7eeb:32",
+          "messageIdHash": "98ae7eeb:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T10:35:03.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "9063c975:23",
+          "bodyHash": "9063c975:23"
+        },
+        {
+          "docId": "legacy:4aa33b87:32",
+          "docIdHash": "4aa33b87:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "4aa33b87:32",
+          "messageIdHash": "4aa33b87:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:50:36.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "768b930f:19",
+          "bodyHash": "768b930f:19"
+        },
+        {
+          "docId": "legacy:3a6aff92:32",
+          "docIdHash": "3a6aff92:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "3a6aff92:32",
+          "messageIdHash": "3a6aff92:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:27:24.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "f144a690:5",
+          "bodyHash": "f144a690:5"
+        },
+        {
+          "docId": "legacy:dc99b3d6:32",
+          "docIdHash": "dc99b3d6:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "dc99b3d6:32",
+          "messageIdHash": "dc99b3d6:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T07:52:53.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "delivered",
+          "textHash": "ffd28c62:17",
+          "bodyHash": "ffd28c62:17"
+        },
+        {
+          "docId": "legacy:436cbe9b:32",
+          "docIdHash": "436cbe9b:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "436cbe9b:32",
+          "messageIdHash": "436cbe9b:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T08:26:15.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "8f3c25e4:48",
+          "bodyHash": "8f3c25e4:48"
+        },
+        {
+          "docId": "legacy:42b880a1:32",
+          "docIdHash": "42b880a1:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "42b880a1:32",
+          "messageIdHash": "42b880a1:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:28:21.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "3a226d87:14",
+          "bodyHash": "3a226d87:14"
+        },
+        {
+          "docId": "legacy:ec412c9e:32",
+          "docIdHash": "ec412c9e:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "ec412c9e:32",
+          "messageIdHash": "ec412c9e:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T10:35:55.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "cc54747b:10",
+          "bodyHash": "cc54747b:10"
+        },
+        {
+          "docId": "legacy:0adc7e28:32",
+          "docIdHash": "0adc7e28:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "0adc7e28:32",
+          "messageIdHash": "0adc7e28:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T10:34:16.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "a07e1496:4",
+          "bodyHash": "a07e1496:4"
+        },
+        {
+          "docId": "legacy:574bd90f:32",
+          "docIdHash": "574bd90f:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "574bd90f:32",
+          "messageIdHash": "574bd90f:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T10:35:22.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "0839bad5:25",
+          "bodyHash": "0839bad5:25"
+        },
+        {
+          "docId": "legacy:a18ac67e:32",
+          "docIdHash": "a18ac67e:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "a18ac67e:32",
+          "messageIdHash": "a18ac67e:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:32:15.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "cdb4ee2a:1",
+          "bodyHash": "cdb4ee2a:1"
+        },
+        {
+          "docId": "legacy:e5f68d46:32",
+          "docIdHash": "e5f68d46:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "e5f68d46:32",
+          "messageIdHash": "e5f68d46:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T08:16:09.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "2a38f79f:29",
+          "bodyHash": "2a38f79f:29"
+        },
+        {
+          "docId": "legacy:fa3fa0c3:32",
+          "docIdHash": "fa3fa0c3:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "fa3fa0c3:32",
+          "messageIdHash": "fa3fa0c3:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:33:47.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "ae4b9d6e:7",
+          "bodyHash": "ae4b9d6e:7"
+        },
+        {
+          "docId": "legacy:b7455555:32",
+          "docIdHash": "b7455555:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "b7455555:32",
+          "messageIdHash": "b7455555:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T10:35:46.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "e3b0c442:0",
+          "bodyHash": "e3b0c442:0"
+        },
+        {
+          "docId": "legacy:5661edc6:32",
+          "docIdHash": "5661edc6:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "5661edc6:32",
+          "messageIdHash": "5661edc6:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T10:34:24.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "5e188606:4",
+          "bodyHash": "5e188606:4"
+        },
+        {
+          "docId": "legacy:f40bdd80:32",
+          "docIdHash": "f40bdd80:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "f40bdd80:32",
+          "messageIdHash": "f40bdd80:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T08:23:14.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "d3c54bf5:8",
+          "bodyHash": "d3c54bf5:8"
+        },
+        {
+          "docId": "legacy:301fd204:32",
+          "docIdHash": "301fd204:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "301fd204:32",
+          "messageIdHash": "301fd204:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:50:23.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "e3b0c442:0",
+          "bodyHash": "e3b0c442:0"
+        },
+        {
+          "docId": "legacy:d96dd849:32",
+          "docIdHash": "d96dd849:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "d96dd849:32",
+          "messageIdHash": "d96dd849:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:27:33.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "87e31e75:3",
+          "bodyHash": "87e31e75:3"
+        },
+        {
+          "docId": "legacy:c62970bd:32",
+          "docIdHash": "c62970bd:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "c62970bd:32",
+          "messageIdHash": "c62970bd:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:51:01.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "b63795ba:26",
+          "bodyHash": "b63795ba:26"
+        },
+        {
+          "docId": "legacy:606eabac:32",
+          "docIdHash": "606eabac:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "606eabac:32",
+          "messageIdHash": "606eabac:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:31:50.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "05aca428:10",
+          "bodyHash": "05aca428:10"
+        },
+        {
+          "docId": "legacy:6c6017fe:32",
+          "docIdHash": "6c6017fe:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "6c6017fe:32",
+          "messageIdHash": "6c6017fe:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T14:21:48.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "2ed79d71:15",
+          "bodyHash": "2ed79d71:15"
+        },
+        {
+          "docId": "legacy:581470d3:32",
+          "docIdHash": "581470d3:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "581470d3:32",
+          "messageIdHash": "581470d3:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T10:33:07.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "e3b0c442:0",
+          "bodyHash": "e3b0c442:0"
+        },
+        {
+          "docId": "legacy:e7fd13cf:32",
+          "docIdHash": "e7fd13cf:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "e7fd13cf:32",
+          "messageIdHash": "e7fd13cf:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T14:08:21.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "9957f479:31",
+          "bodyHash": "9957f479:31"
+        },
+        {
+          "docId": "legacy:8ed1d9f8:32",
+          "docIdHash": "8ed1d9f8:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "8ed1d9f8:32",
+          "messageIdHash": "8ed1d9f8:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T10:34:44.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "9417210c:4",
+          "bodyHash": "9417210c:4"
+        },
+        {
+          "docId": "legacy:3a8fa100:32",
+          "docIdHash": "3a8fa100:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "3a8fa100:32",
+          "messageIdHash": "3a8fa100:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T14:01:44.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "5df72596:11",
+          "bodyHash": "5df72596:11"
+        },
+        {
+          "docId": "legacy:3699bf0f:32",
+          "docIdHash": "3699bf0f:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "3699bf0f:32",
+          "messageIdHash": "3699bf0f:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T07:54:34.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "b71a199e:35",
+          "bodyHash": "b71a199e:35"
+        },
+        {
+          "docId": "legacy:3c6ab4bc:32",
+          "docIdHash": "3c6ab4bc:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "3c6ab4bc:32",
+          "messageIdHash": "3c6ab4bc:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:25:29.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "2a157323:60",
+          "bodyHash": "2a157323:60"
+        },
+        {
+          "docId": "legacy:6c6c504f:32",
+          "docIdHash": "6c6c504f:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "6c6c504f:32",
+          "messageIdHash": "6c6c504f:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:28:43.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "6912ad6a:25",
+          "bodyHash": "6912ad6a:25"
+        },
+        {
+          "docId": "legacy:39e23e88:32",
+          "docIdHash": "39e23e88:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "39e23e88:32",
+          "messageIdHash": "39e23e88:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:29:06.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "33071923:20",
+          "bodyHash": "33071923:20"
+        },
+        {
+          "docId": "legacy:4d2df6bf:32",
+          "docIdHash": "4d2df6bf:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "4d2df6bf:32",
+          "messageIdHash": "4d2df6bf:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:32:01.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "490a310c:21",
+          "bodyHash": "490a310c:21"
+        },
+        {
+          "docId": "legacy:4e2f833b:32",
+          "docIdHash": "4e2f833b:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "4e2f833b:32",
+          "messageIdHash": "4e2f833b:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:50:44.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "6527dcc6:33",
+          "bodyHash": "6527dcc6:33"
+        },
+        {
+          "docId": "legacy:57fc9255:32",
+          "docIdHash": "57fc9255:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "57fc9255:32",
+          "messageIdHash": "57fc9255:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:29:41.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "00c5976d:30",
+          "bodyHash": "00c5976d:30"
+        },
+        {
+          "docId": "legacy:7c5b9d5f:32",
+          "docIdHash": "7c5b9d5f:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "7c5b9d5f:32",
+          "messageIdHash": "7c5b9d5f:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T12:47:21.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "8185c8ac:5",
+          "bodyHash": "8185c8ac:5"
+        },
+        {
+          "docId": "legacy:8b3a01ed:32",
+          "docIdHash": "8b3a01ed:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "8b3a01ed:32",
+          "messageIdHash": "8b3a01ed:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:28:46.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "71bcac0b:5",
+          "bodyHash": "71bcac0b:5"
+        },
+        {
+          "docId": "legacy:65291d85:32",
+          "docIdHash": "65291d85:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "65291d85:32",
+          "messageIdHash": "65291d85:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T10:34:00.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "8851aaa7:5",
+          "bodyHash": "8851aaa7:5"
+        },
+        {
+          "docId": "legacy:de4b51da:32",
+          "docIdHash": "de4b51da:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "de4b51da:32",
+          "messageIdHash": "de4b51da:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T13:56:47.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "cbdb5049:8",
+          "bodyHash": "cbdb5049:8"
+        },
+        {
+          "docId": "legacy:fd46f189:32",
+          "docIdHash": "fd46f189:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "fd46f189:32",
+          "messageIdHash": "fd46f189:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:27:48.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "ad573668:3",
+          "bodyHash": "ad573668:3"
+        },
+        {
+          "docId": "legacy:03b9ca92:32",
+          "docIdHash": "03b9ca92:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "03b9ca92:32",
+          "messageIdHash": "03b9ca92:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T14:22:24.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "9417210c:4",
+          "bodyHash": "9417210c:4"
+        },
+        {
+          "docId": "legacy:4baee5ef:32",
+          "docIdHash": "4baee5ef:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "4baee5ef:32",
+          "messageIdHash": "4baee5ef:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T08:23:09.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "62e8ad6b:27",
+          "bodyHash": "62e8ad6b:27"
+        },
+        {
+          "docId": "legacy:d63313f2:32",
+          "docIdHash": "d63313f2:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "d63313f2:32",
+          "messageIdHash": "d63313f2:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:28:25.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "1ed255e9:6",
+          "bodyHash": "1ed255e9:6"
+        },
+        {
+          "docId": "legacy:f27d98c5:32",
+          "docIdHash": "f27d98c5:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "f27d98c5:32",
+          "messageIdHash": "f27d98c5:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T10:34:15.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "9024c2c4:11",
+          "bodyHash": "9024c2c4:11"
+        },
+        {
+          "docId": "legacy:f40240b5:32",
+          "docIdHash": "f40240b5:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "f40240b5:32",
+          "messageIdHash": "f40240b5:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:34:47.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "f144a690:5",
+          "bodyHash": "f144a690:5"
+        },
+        {
+          "docId": "legacy:7a961d43:32",
+          "docIdHash": "7a961d43:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "7a961d43:32",
+          "messageIdHash": "7a961d43:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:31:53.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "2d13045d:16",
+          "bodyHash": "2d13045d:16"
+        },
+        {
+          "docId": "legacy:799b521d:32",
+          "docIdHash": "799b521d:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "799b521d:32",
+          "messageIdHash": "799b521d:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T10:34:31.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "e3b0c442:0",
+          "bodyHash": "e3b0c442:0"
+        },
+        {
+          "docId": "legacy:478e624e:32",
+          "docIdHash": "478e624e:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "478e624e:32",
+          "messageIdHash": "478e624e:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T14:25:01.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "ec6d0ae6:12",
+          "bodyHash": "ec6d0ae6:12"
+        },
+        {
+          "docId": "legacy:76b47920:32",
+          "docIdHash": "76b47920:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "76b47920:32",
+          "messageIdHash": "76b47920:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T10:32:55.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "2e961800:13",
+          "bodyHash": "2e961800:13"
+        },
+        {
+          "docId": "legacy:f052a032:32",
+          "docIdHash": "f052a032:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "f052a032:32",
+          "messageIdHash": "f052a032:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:50:31.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "e3b0c442:0",
+          "bodyHash": "e3b0c442:0"
+        },
+        {
+          "docId": "legacy:9f594152:32",
+          "docIdHash": "9f594152:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "9f594152:32",
+          "messageIdHash": "9f594152:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T10:34:06.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "06764914:19",
+          "bodyHash": "06764914:19"
+        },
+        {
+          "docId": "legacy:aa63953a:32",
+          "docIdHash": "aa63953a:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "aa63953a:32",
+          "messageIdHash": "aa63953a:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T14:24:43.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "ae226a77:42",
+          "bodyHash": "ae226a77:42"
+        },
+        {
+          "docId": "legacy:ed49c57e:32",
+          "docIdHash": "ed49c57e:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "ed49c57e:32",
+          "messageIdHash": "ed49c57e:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-21T10:34:08.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "3f51a180:27",
+          "bodyHash": "3f51a180:27"
+        },
+        {
+          "docId": "legacy:7cb002ae:32",
+          "docIdHash": "7cb002ae:32",
+          "providerMessageIdHash": "e3b0c442:0",
+          "waMessageIdHash": "7cb002ae:32",
+          "messageIdHash": "7cb002ae:32",
+          "clientMessageIdHash": "e3b0c442:0",
+          "requestIdHash": "e3b0c442:0",
+          "createdAt": {},
+          "tsClient": "2026-01-20T21:31:58.000Z",
+          "direction": "inbound",
+          "fromMe": null,
+          "status": "read",
+          "textHash": "7cea30af:19",
+          "bodyHash": "7cea30af:19"
+        }
+      ],
+      "duplicateKeys": [
+        {
+          "key": "e3b0c442:0",
+          "count": 50
+        }
+      ]
+    }
+  },
+  "outbox": {
+    "docs": [
+      {
+        "docId": "8207a5a0:64",
+        "requestId": "8207a5a0:64",
+        "status": "sent",
+        "attemptCount": 2,
+        "nextAttemptAt": "2026-01-20T11:01:26.438Z",
+        "lastAttemptAt": "2026-01-20T10:47:38.729Z",
+        "error": "instance_passive",
+        "errorMessageHash": "d56a5647:16",
+        "claimedByHash": "eef17370:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "b376d48d:64",
+        "requestId": "b376d48d:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-20T14:31:34.792Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "b705f2d7:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "a734b77a:64",
+        "requestId": "a734b77a:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-21T14:43:55.812Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "a36f2515:17",
+        "leaseUntil": null
+      },
+      {
+        "docId": "04190fbc:64",
+        "requestId": "04190fbc:64",
+        "status": "sent",
+        "attemptCount": 2,
+        "nextAttemptAt": "2026-01-20T12:15:25.179Z",
+        "lastAttemptAt": "2026-01-20T12:15:26.032Z",
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "eef17370:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "29f22aa05a5eb254d31c42ed29c00816c25dc722e0f656f13287de2b01766e9b",
+        "requestId": "29f22aa05a5eb254d31c42ed29c00816c25dc722e0f656f13287de2b01766e9b",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-21T14:44:28.742Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "a36f2515:17",
+        "leaseUntil": null
+      },
+      {
+        "docId": "bd555fab:64",
+        "requestId": "bd555fab:64",
+        "status": "sent",
+        "attemptCount": 2,
+        "nextAttemptAt": "2026-01-20T13:00:49.417Z",
+        "lastAttemptAt": "2026-01-20T13:00:50.331Z",
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "b705f2d7:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "49cb8b36:64",
+        "requestId": "49cb8b36:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-20T14:46:25.224Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "b705f2d7:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "fef4d076:64",
+        "requestId": "fef4d076:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-20T13:44:27.958Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "b705f2d7:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "3b311f1f3d889f75c0b20699b4c905e2ecb004aa9ad30b40a077c52eac37041b",
+        "requestId": "3b311f1f3d889f75c0b20699b4c905e2ecb004aa9ad30b40a077c52eac37041b",
+        "status": "sent",
+        "attemptCount": 2,
+        "nextAttemptAt": "2026-01-20T12:14:35.783Z",
+        "lastAttemptAt": "2026-01-20T12:14:41.775Z",
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "eef17370:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "d476358c:64",
+        "requestId": "d476358c:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-21T15:44:26.056Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "a36f2515:17",
+        "leaseUntil": null
+      },
+      {
+        "docId": "c31141da:64",
+        "requestId": "c31141da:64",
+        "status": "sent",
+        "attemptCount": 2,
+        "nextAttemptAt": "2026-01-20T13:12:20.636Z",
+        "lastAttemptAt": "2026-01-20T13:12:21.545Z",
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "b705f2d7:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "446b1e3934da1c1bcf1ce96e7c53b64cfe8a0478df71a042afcc9d2e54dc248d",
+        "requestId": "446b1e3934da1c1bcf1ce96e7c53b64cfe8a0478df71a042afcc9d2e54dc248d",
+        "status": "sent",
+        "attemptCount": 2,
+        "nextAttemptAt": "2026-01-20T12:48:11.603Z",
+        "lastAttemptAt": "2026-01-20T12:48:12.506Z",
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "b705f2d7:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "d3edb149:64",
+        "requestId": "d3edb149:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-20T13:34:16.099Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "b705f2d7:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "4dc2797aef6edfb7f15fb3261a4faa2c1352a81a27995d6ceff54aecccd4dd5e",
+        "requestId": "4dc2797aef6edfb7f15fb3261a4faa2c1352a81a27995d6ceff54aecccd4dd5e",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-21T14:42:00.925Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "a36f2515:17",
+        "leaseUntil": null
+      },
+      {
+        "docId": "a9c49cf7:64",
+        "requestId": "a9c49cf7:64",
+        "status": "sent",
+        "attemptCount": 2,
+        "nextAttemptAt": "2026-01-20T12:47:59.295Z",
+        "lastAttemptAt": "2026-01-20T12:48:00.451Z",
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "b705f2d7:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "5c93e642f806f83cc9ab49ea7e03a1128e4d6591cdf8b4d051e9858e279d7a9d",
+        "requestId": "5c93e642f806f83cc9ab49ea7e03a1128e4d6591cdf8b4d051e9858e279d7a9d",
+        "status": "sent",
+        "attemptCount": 2,
+        "nextAttemptAt": "2026-01-20T13:26:14.028Z",
+        "lastAttemptAt": "2026-01-20T13:26:14.964Z",
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "b705f2d7:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "f90203c6:64",
+        "requestId": "f90203c6:64",
+        "status": "sent",
+        "attemptCount": 2,
+        "nextAttemptAt": "2026-01-20T12:59:59.741Z",
+        "lastAttemptAt": "2026-01-20T13:00:00.377Z",
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "b705f2d7:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "ed79114c:64",
+        "requestId": "ed79114c:64",
+        "status": "sent",
+        "attemptCount": 2,
+        "nextAttemptAt": "2026-01-20T12:14:46.187Z",
+        "lastAttemptAt": "2026-01-20T12:14:46.485Z",
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "eef17370:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "ab08847e:64",
+        "requestId": "ab08847e:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-20T13:48:26.286Z",
+        "lastAttemptAt": "2026-01-20T13:48:26.637Z",
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": null,
+        "leaseUntil": null
+      },
+      {
+        "docId": "2e46688a:64",
+        "requestId": "2e46688a:64",
+        "status": "sent",
+        "attemptCount": 2,
+        "nextAttemptAt": "2026-01-20T12:34:07.518Z",
+        "lastAttemptAt": "2026-01-20T12:34:12.744Z",
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "b705f2d7:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "734613ff:64",
+        "requestId": "734613ff:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-20T13:48:07.079Z",
+        "lastAttemptAt": "2026-01-20T13:48:07.489Z",
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": null,
+        "leaseUntil": null
+      },
+      {
+        "docId": "6c36730b:64",
+        "requestId": "6c36730b:64",
+        "status": "sent",
+        "attemptCount": 2,
+        "nextAttemptAt": "2026-01-20T12:35:11.000Z",
+        "lastAttemptAt": "2026-01-20T12:35:11.861Z",
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "b705f2d7:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "447b8bfc:64",
+        "requestId": "447b8bfc:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-20T13:36:29.470Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "b705f2d7:19",
+        "leaseUntil": null
+      },
+      {
+        "docId": "5d6f6152:64",
+        "requestId": "5d6f6152:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-21T14:40:33.554Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "a36f2515:17",
+        "leaseUntil": null
+      },
+      {
+        "docId": "700d06c8:64",
+        "requestId": "700d06c8:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-20T14:44:15.762Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "b705f2d7:19",
+        "leaseUntil": null
+      }
+    ],
+    "passiveCount": 1,
+    "sentButFailed": 0,
+    "hasRailwayResponse": true,
+    "hasBackendResponse": true
+  },
+  "inboundDedupe": [
+    {
+      "docId": "legacy:f3b89d41:67",
+      "createdAt": "2026-01-23T16:08:28.526Z",
+      "keyHash": "d719c682:20"
+    },
+    {
+      "docId": "legacy:1c6517bf:67",
+      "createdAt": "2026-01-23T15:59:50.652Z",
+      "keyHash": "0a9ab54c:20"
+    },
+    {
+      "docId": "legacy:b065e783:67",
+      "createdAt": "2026-01-23T15:59:41.379Z",
+      "keyHash": "47ce6278:20"
+    },
+    {
+      "docId": "legacy:a3444771:67",
+      "createdAt": "2026-01-23T15:59:38.804Z",
+      "keyHash": "0f749d67:20"
+    },
+    {
+      "docId": "legacy:18b5dcce:67",
+      "createdAt": "2026-01-23T15:59:38.663Z",
+      "keyHash": "fb903ce7:20"
+    },
+    {
+      "docId": "legacy:56b6ebd3:67",
+      "createdAt": "2026-01-23T15:59:34.999Z",
+      "keyHash": "8a570691:20"
+    },
+    {
+      "docId": "legacy:2e59359f:79",
+      "createdAt": "2026-01-23T15:53:58.126Z",
+      "keyHash": "d62c42d7:32"
+    },
+    {
+      "docId": "legacy:afba9a05:79",
+      "createdAt": "2026-01-23T14:27:50.006Z",
+      "keyHash": "64a0d3b9:32"
+    },
+    {
+      "docId": "legacy:248165d8:79",
+      "createdAt": "2026-01-23T14:17:48.857Z",
+      "keyHash": "d5204a4d:32"
+    },
+    {
+      "docId": "legacy:b0d1826b:67",
+      "createdAt": "2026-01-23T14:17:40.730Z",
+      "keyHash": "99ea1b57:20"
+    },
+    {
+      "docId": "legacy:53f20341:67",
+      "createdAt": "2026-01-23T14:17:39.199Z",
+      "keyHash": "d426c283:20"
+    },
+    {
+      "docId": "legacy:f283dff1:79",
+      "createdAt": "2026-01-23T14:17:30.576Z",
+      "keyHash": "8d13f8df:32"
+    },
+    {
+      "docId": "legacy:b0305000:67",
+      "createdAt": "2026-01-23T14:17:18.044Z",
+      "keyHash": "5a344da4:20"
+    },
+    {
+      "docId": "legacy:ecb9189a:67",
+      "createdAt": "2026-01-23T14:15:06.675Z",
+      "keyHash": "0689c466:20"
+    },
+    {
+      "docId": "legacy:5922ca76:79",
+      "createdAt": "2026-01-23T14:12:27.382Z",
+      "keyHash": "20becdb4:32"
+    },
+    {
+      "docId": "legacy:87ed4a67:79",
+      "createdAt": "2026-01-23T14:12:08.122Z",
+      "keyHash": "6359674a:32"
+    },
+    {
+      "docId": "legacy:43f97631:79",
+      "createdAt": "2026-01-23T14:11:59.352Z",
+      "keyHash": "be821da9:32"
+    },
+    {
+      "docId": "legacy:c8c33eed:67",
+      "createdAt": "2026-01-23T14:11:48.119Z",
+      "keyHash": "039d9f80:20"
+    },
+    {
+      "docId": "legacy:365a3336:67",
+      "createdAt": "2026-01-23T13:51:14.813Z",
+      "keyHash": "6c3dd282:20"
+    },
+    {
+      "docId": "legacy:dd2a46e1:67",
+      "createdAt": "2026-01-23T13:51:00.137Z",
+      "keyHash": "d4aa281a:20"
+    },
+    {
+      "docId": "legacy:c8a42a14:67",
+      "createdAt": "2026-01-23T13:48:01.560Z",
+      "keyHash": "a26f837e:20"
+    },
+    {
+      "docId": "legacy:f9e6cdbe:67",
+      "createdAt": "2026-01-23T13:43:35.043Z",
+      "keyHash": "3cf111d9:20"
+    },
+    {
+      "docId": "legacy:667e9864:67",
+      "createdAt": "2026-01-23T13:41:34.420Z",
+      "keyHash": "76773103:20"
+    },
+    {
+      "docId": "legacy:cabc1d61:67",
+      "createdAt": "2026-01-23T13:41:32.752Z",
+      "keyHash": "e01a421c:20"
+    },
+    {
+      "docId": "legacy:19c417d8:67",
+      "createdAt": "2026-01-23T13:28:59.392Z",
+      "keyHash": "ea6dee3a:20"
+    }
+  ],
+  "messageIds": []
+}

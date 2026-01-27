@@ -1,5 +1,5 @@
-const {onCall} = require('firebase-functions/v2/https');
-const {defineSecret} = require('firebase-functions/params');
+const { onCall } = require('firebase-functions/v2/https');
+const { defineSecret } = require('firebase-functions/params');
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const Groq = require('groq-sdk');
@@ -8,13 +8,15 @@ const groqApiKey = defineSecret('GROQ_API_KEY');
 
 exports.createEventFromAI = onCall(
   {
+    region: 'europe-west1',
+    minInstances: 0,
+    maxInstances: 3,
     timeoutSeconds: 30,
-    memory: '512MiB',
-    maxInstances: 1, // Reduce CPU quota pressure
+    memory: '256MiB',
     secrets: [groqApiKey],
   },
   async request => {
-    const {text} = request.data;
+    const { text } = request.data;
     const userId = request.auth?.uid;
 
     if (!userId) {
@@ -26,20 +28,24 @@ exports.createEventFromAI = onCall(
     }
 
     try {
-      const groqKey = groqApiKey.value().trim().replace(/[\r\n\t]/g, '');
-      const groq = new Groq({apiKey: groqKey});
+      const groqKey = groqApiKey
+        .value()
+        .trim()
+        .replace(/[\r\n\t]/g, '');
+      const groq = new Groq({ apiKey: groqKey });
 
-      const systemPrompt = 'Ești un asistent care extrage informații despre evenimente din text. Răspunde DOAR cu JSON valid.';
+      const systemPrompt =
+        'Ești un asistent care extrage informații despre evenimente din text. Răspunde DOAR cu JSON valid.';
 
       const completion = await groq.chat.completions.create({
         model: 'llama-3.1-70b-versatile',
         messages: [
-          {role: 'system', content: systemPrompt},
-          {role: 'user', content: text},
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: text },
         ],
         max_tokens: 500,
         temperature: 0.1,
-        response_format: {type: 'json_object'},
+        response_format: { type: 'json_object' },
       });
 
       const aiResponse = completion.choices[0]?.message?.content;
@@ -51,7 +57,7 @@ exports.createEventFromAI = onCall(
       // Use normalizers for V3 EN schema
       const { normalizeEventFields } = require('./normalizers');
       const { getNextEventShortId, getNextFreeSlot } = require('./shortCodeGenerator');
-      
+
       const eventShortId = await getNextEventShortId();
       const normalized = normalizeEventFields({
         ...eventData,

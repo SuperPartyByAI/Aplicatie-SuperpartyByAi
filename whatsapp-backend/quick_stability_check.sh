@@ -11,8 +11,8 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Get backend URL (default to Railway production)
-BACKEND_URL="${WHATSAPP_BACKEND_URL:-https://whats-upp-production.up.railway.app}"
+# Get backend URL (default to Hetzner)
+BACKEND_URL="${WHATSAPP_BACKEND_URL:-http://37.27.34.179:8080}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 
 # 1. Check backend mode
@@ -50,7 +50,7 @@ elif [ "$READY_HTTP_CODE" = "404" ]; then
   echo "   Backend might be old version - check /health instead"
 elif [ "$READY_HTTP_CODE" = "502" ] || [ "$READY_HTTP_CODE" = "503" ]; then
   echo -e "   ${RED}❌ Backend unhealthy (HTTP $READY_HTTP_CODE)${NC}"
-  echo "   Check Railway service status"
+  echo "   Check Hetzner backend service status"
 else
   echo -e "   ${RED}❌ Cannot reach backend (HTTP $READY_HTTP_CODE)${NC}"
 fi
@@ -113,9 +113,9 @@ echo ""
 
 # 4. Instructions
 echo "📋 Next Steps:"
-echo "   - Monitor logs: railway logs --service whatsapp-backend | grep -E 'restore|health|stale|connected'"
-echo "   - Check for restores: railway logs --service whatsapp-backend | grep 'restore.*Firestore'"
-echo "   - Verify Railway Volume: SESSIONS_PATH=/data/sessions"
+echo "   - Monitor logs: journalctl -u whatsapp-backend -f | grep -E 'restore|health|stale|connected'"
+echo "   - Check for restores: journalctl -u whatsapp-backend | grep 'restore.*Firestore'"
+echo "   - Verify Hetzner volume: SESSIONS_PATH=/opt/whatsapp/sessions"
 echo "   - Test message: curl -X POST .../api/whatsapp/send-message"
 echo ""
 echo "💡 Session Stability Checks:"

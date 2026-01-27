@@ -1,0 +1,150 @@
+{
+  "meta": {
+    "projectId": "unknown",
+    "generatedAt": "2026-01-23T17:34:53.121Z",
+    "repoCommit": "da0a7b96",
+    "accountId": "account_prod_904735e817756d2bac1328b0c556b2f9"
+  },
+  "collections": {
+    "allCollections": [
+      "_health_check",
+      "accounts",
+      "aiChats",
+      "aiConversations",
+      "aiCorrections",
+      "aiLogs",
+      "app_config",
+      "calls",
+      "contacts",
+      "counters",
+      "evenimente",
+      "events",
+      "inboundDedupe",
+      "incidents",
+      "kycProfiles",
+      "kycSubmissions",
+      "message_ids",
+      "messages",
+      "monitoring_events",
+      "outbox",
+      "prod_tests",
+      "staffProfiles",
+      "threads",
+      "tickets",
+      "users",
+      "wa_metrics",
+      "wa_sessions",
+      "whatsapp_messages",
+      "whatsapp_monitor"
+    ],
+    "flags": {
+      "accounts": true,
+      "threads": true,
+      "outbox": true,
+      "inboundDedupe": true,
+      "message_ids": true,
+      "legacyRO": {
+        "conturi": false,
+        "mesaje_whatsapp": false,
+        "cutie_de_trimis": false,
+        "id_uri_mesaje": false,
+        "dedupe_de_intrare": false
+      }
+    }
+  },
+  "account": {
+    "exists": true,
+    "fields": [
+      "qrUpdatedAt",
+      "qrCode",
+      "waJid",
+      "phoneE164",
+      "historySyncCount",
+      "lastHistorySyncResult",
+      "lastHistorySyncAt",
+      "accountId",
+      "name",
+      "pairingCode",
+      "lastBackfillResult",
+      "lastBackfillAt",
+      "claimedBy",
+      "claimedAt",
+      "createdAt",
+      "leaseUntil",
+      "worker",
+      "lastError",
+      "requiresQR",
+      "lastConnectedAt",
+      "lastDisconnectCode",
+      "lastDisconnectReason",
+      "lastDisconnectedAt",
+      "updatedAt",
+      "deletedAt",
+      "status"
+    ],
+    "hashes": {}
+  },
+  "threads": {
+    "threadIdStats": {
+      "canonicalCount": 50,
+      "legacyCount": 0,
+      "missingAccountIdCount": 0,
+      "distinctAccountIdsInSample": [
+        "870e79b9:45"
+      ],
+      "canonicalExamples": [
+        {
+          "docIdHash": "1a50b0af:66",
+          "lastMessageAt": "2026-01-21T16:07:42.000Z"
+        },
+        {
+          "docIdHash": "37b1fad6:62",
+          "lastMessageAt": "2026-01-21T16:05:35.000Z"
+        },
+        {
+          "docIdHash": "65e8690b:66",
+          "lastMessageAt": "2026-01-21T15:50:11.000Z"
+        },
+        {
+          "docIdHash": "9ebe6939:66",
+          "lastMessageAt": "2026-01-21T15:32:33.000Z"
+        },
+        {
+          "docIdHash": "a68cee53:64",
+          "lastMessageAt": "2026-01-21T14:03:14.000Z"
+        }
+      ],
+      "legacyExamples": []
+    },
+    "sampleCount": 50
+  },
+  "messages": {
+    "dm": {
+      "threadIdHash": "65ccb262:73",
+      "duplicateKeys": [
+        {
+          "keyHash": "e3b0c442:0",
+          "count": 2
+        }
+      ]
+    },
+    "group": {
+      "threadIdHash": "b10f1989:70",
+      "duplicateKeys": [
+        {
+          "keyHash": "e3b0c442:0",
+          "count": 50
+        }
+      ]
+    }
+  },
+  "outbox": {
+    "instancePassiveCount": 1,
+    "successTrueCount": 0,
+    "successFalseCount": 0,
+    "inconsistencyCount": 0,
+    "inconsistencyExamples": [],
+    "railwayResponseCount": 12,
+    "backendResponseCount": 2
+  }
+}

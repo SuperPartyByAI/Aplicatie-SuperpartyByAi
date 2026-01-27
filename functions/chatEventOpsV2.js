@@ -86,8 +86,11 @@ async function isEmployee(uid, email) {
 
 exports.chatEventOpsV2 = onCall(
   {
-    region: 'us-central1',
+    region: 'europe-west1',
+    minInstances: 0,
+    maxInstances: 3,
     timeoutSeconds: 60,
+    memory: '256MiB',
     secrets: [groqApiKey],
   },
   async (request) => {

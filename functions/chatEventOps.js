@@ -187,10 +187,13 @@ function sanitizeUpdateFields(data) {
 }
 
 exports.chatEventOps = onCall(
-  { 
-    region: 'us-central1', 
+  {
+    region: 'europe-west1',
+    minInstances: 0,
+    maxInstances: 3,
     timeoutSeconds: 30,
-    secrets: [groqApiKey]  // Attach GROQ_API_KEY secret
+    memory: '256MiB',
+    secrets: [groqApiKey],
   },
   async (request) => {
     // Require authentication (all authenticated users can use this)

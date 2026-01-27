@@ -241,8 +241,11 @@ let forwardRequest = function(url, options, body = null) {
       method: options.method || 'GET',
       headers: {
         ...options.headers,
-        // Remove any sensitive headers that might leak
-        'Authorization': undefined, // Don't forward client auth to backend
+        // Forward Authorization when provided (e.g. backfill/delete); otherwise omit
+        'Authorization':
+          options.headers && options.headers['Authorization'] !== undefined
+            ? options.headers['Authorization']
+            : undefined,
       },
     };
 
@@ -600,12 +603,12 @@ async function getAccountsHandler(req, res) {
 
     const backendBaseUrl = getBackendBaseUrl();
     if (!backendBaseUrl) {
-      console.error('[whatsappProxy/getAccounts] WHATSAPP_BACKEND_URL missing');
-      console.error('[whatsappProxy/getAccounts] process.env.WHATSAPP_BACKEND_URL:', process.env.WHATSAPP_BACKEND_URL ? 'SET' : 'NOT SET');
+      console.error('[whatsappProxy/getAccounts] WHATSAPP_BACKEND_BASE_URL missing');
       return res.status(500).json({
         success: false,
         error: 'configuration_missing',
-        message: 'WHATSAPP_BACKEND_BASE_URL or WHATSAPP_BACKEND_URL must be set (env or functions.config().whatsapp.backend_base_url)',
+        message:
+          'WHATSAPP_BACKEND_BASE_URL must be set (Firebase secret or functions.config().whatsapp.backend_base_url)',
       });
     }
 
@@ -703,7 +706,8 @@ async function addAccountHandler(req, res) {
         return res.status(500).json({
           success: false,
           error: 'configuration_missing',
-          message: 'WHATSAPP_BACKEND_BASE_URL or WHATSAPP_BACKEND_URL must be set (env or functions.config().whatsapp.backend_base_url)',
+          message:
+            'WHATSAPP_BACKEND_BASE_URL must be set (Firebase secret or functions.config().whatsapp.backend_base_url)',
         });
       }
 
@@ -829,7 +833,8 @@ async function deleteAccountHandler(req, res) {
       return res.status(500).json({
         success: false,
         error: 'configuration_missing',
-        message: 'WHATSAPP_BACKEND_BASE_URL or WHATSAPP_BACKEND_URL must be set (env or functions.config().whatsapp.backend_base_url)',
+        message:
+          'WHATSAPP_BACKEND_BASE_URL must be set (Firebase secret or functions.config().whatsapp.backend_base_url)',
       });
     }
 
@@ -843,13 +848,13 @@ async function deleteAccountHandler(req, res) {
       });
     }
 
-    // Forward to backend
+    // Forward to backend (Firebase ID token forwarded for backend auth)
     const backendUrl = `${backendBaseUrl}/api/whatsapp/accounts/${accountId.trim()}`;
+    const headers = { 'Content-Type': 'application/json' };
+    if (req.headers['authorization']) headers['Authorization'] = req.headers['authorization'];
     const response = await getForwardRequest()(backendUrl, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
 
     // Forward backend response, but sanitize non-2xx errors
@@ -898,7 +903,8 @@ async function backfillAccountHandler(req, res) {
       return res.status(500).json({
         success: false,
         error: 'configuration_missing',
-        message: 'WHATSAPP_BACKEND_BASE_URL or WHATSAPP_BACKEND_URL must be set (env or functions.config().whatsapp.backend_base_url)',
+        message:
+          'WHATSAPP_BACKEND_BASE_URL must be set (Firebase secret or functions.config().whatsapp.backend_base_url)',
       });
     }
 
@@ -912,15 +918,12 @@ async function backfillAccountHandler(req, res) {
       });
     }
 
-    // Forward to backend
+    // Forward to backend; prefer incoming Firebase ID token (no ADMIN_TOKEN)
     const backendUrl = `${backendBaseUrl}/api/whatsapp/backfill/${accountId.trim()}`;
-    const response = await getForwardRequest()(backendUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': req.headers['authorization'] ? `Bearer ${process.env.ADMIN_TOKEN || ''}` : undefined,
-      },
-    });
+    const headers = { 'Content-Type': 'application/json' };
+    if (req.headers['authorization']) headers['Authorization'] = req.headers['authorization'];
+    const body = typeof req.body === 'object' && req.body !== null ? JSON.stringify(req.body) : '{}';
+    const response = await getForwardRequest()(backendUrl, { method: 'POST', headers }, body);
 
     // Forward backend response, but sanitize non-2xx errors
     if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -1105,7 +1108,8 @@ async function regenerateQrHandler(req, res) {
         return res.status(500).json({
           success: false,
           error: 'configuration_missing',
-          message: 'WHATSAPP_BACKEND_BASE_URL or WHATSAPP_BACKEND_URL must be set (env or functions.config().whatsapp.backend_base_url)',
+          message:
+            'WHATSAPP_BACKEND_BASE_URL must be set (Firebase secret or functions.config().whatsapp.backend_base_url)',
         });
       }
 

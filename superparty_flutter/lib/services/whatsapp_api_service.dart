@@ -196,6 +196,13 @@ class WhatsAppApiService {
     return data;
   }
 
+  /// Resolve storage path to signed/media URL. Not implemented; status viewer
+  /// will not resolve storage paths until backend exposes an endpoint.
+  /// Returns { url: string? | null, unimplemented: true } so UI can show "Media unavailable".
+  Future<Map<String, dynamic>> getMediaUrl({required String storagePath}) async {
+    return {'url': null, 'unimplemented': true};
+  }
+
   /// Get list of WhatsApp accounts.
   ///
   /// When [backendUrl] is set (Hetzner): GET $backendUrl/api/whatsapp/accounts.
@@ -782,6 +789,20 @@ class WhatsAppApiService {
         );
       }
       debugPrint('[WhatsAppApiService] getThreads: success, threadsCount=${data['threads']?.length ?? 0}');
+      final raw = data['threads'] as List<dynamic>?;
+      if (raw != null && raw.isNotEmpty) {
+        final threads = raw.map((e) {
+          if (e is! Map) return e;
+          final m = Map<String, dynamic>.from(e);
+          final preview = m['lastMessagePreview'] ?? m['lastMessageBody'] ?? m['lastMessage'];
+          if ((m['lastMessageText'] == null || (m['lastMessageText'] as String).isEmpty) &&
+              preview != null) {
+            m['lastMessageText'] = preview is String ? preview : preview.toString();
+          }
+          return m;
+        }).toList();
+        return {...data, 'threads': threads};
+      }
       return data;
     });
   }
@@ -955,63 +976,85 @@ class WhatsAppApiService {
   }
 
   /// POST whatsappProxyBackfillAccount (Functions HTTP) – super-admin only.
-  /// Forwards to backend POST /api/whatsapp/backfill/:accountId.
-  /// Logs requestId, uid, accountId. On configuration_missing, throws with
-  /// code 'configuration_missing' so UI can show explicit env hint.
+  /// Triggers sync of conversation history for [accountId].
+  /// Uses retry/backoff; logs requestId and full response for debugging.
+  /// Throws [UnauthorizedException] / [ForbiddenException] on 401/403.
+  Future<Map<String, dynamic>> backfillAccount({
+    required String accountId,
+  }) async {
+    return retryWithBackoff(() async {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw UnauthorizedException();
+
+      final token = await user.getIdToken();
+      final functionsUrl = _getFunctionsUrl();
+      final requestId = _generateRequestId();
+      final uidTruncated =
+          user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
+      final endpointUrl =
+          '$functionsUrl/whatsappProxyBackfillAccount?accountId=${Uri.encodeComponent(accountId)}';
+
+      debugPrint(
+          '[WhatsAppApiService] backfillAccount: BEFORE request | endpointUrl=$endpointUrl | '
+          'uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | '
+          'requestId=$requestId | accountId=${_maskId(accountId)}');
+
+      final response = await http
+          .post(
+            Uri.parse(endpointUrl),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'X-Request-ID': requestId,
+            },
+            body: jsonEncode({'accountId': accountId}),
+          )
+          .timeout(requestTimeout);
+
+      final contentType = response.headers['content-type'] ?? 'unknown';
+      final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
+      debugPrint(
+          '[WhatsAppApiService] backfillAccount: AFTER response | statusCode=${response.statusCode} | '
+          'content-type=$contentType | bodyLength=${response.body.length} | '
+          'bodyPrefix=$bodyPrefix | requestId=$requestId');
+      if (kDebugMode && response.body.isNotEmpty) {
+        debugPrint(
+            '[WhatsAppApiService] backfillAccount: full body (requestId=$requestId): ${response.body}');
+      }
+
+      if (_isNonJsonResponse(response)) {
+        _throwNonJsonNetworkException(response, endpointUrl);
+      }
+
+      final data = SafeJson.tryDecodeJsonMap(response.body);
+      if (data != null && data['error'] == 'configuration_missing') {
+        throw NetworkException(
+          'Functions missing WHATSAPP_BACKEND_URL / WHATSAPP_BACKEND_BASE_URL secret. Set backend URL in Firebase Functions env.',
+          code: 'configuration_missing',
+        );
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final message =
+            data?['message'] as String? ?? 'HTTP ${response.statusCode}';
+        throw ErrorMapper.fromHttpException(response.statusCode, message);
+      }
+
+      if (data == null) {
+        throw NetworkException(
+          'Invalid response: failed to decode JSON. endpoint=$endpointUrl',
+          code: 'json_decode_failed',
+        );
+      }
+      return data;
+    });
+  }
+
+  /// Legacy alias: delegates to [backfillAccount] (retry + same contract).
   Future<Map<String, dynamic>> backfillAccountViaProxy({
     required String accountId,
   }) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) throw UnauthorizedException();
-
-    final token = await user.getIdToken();
-    final functionsUrl = _getFunctionsUrl();
-    final requestId = _generateRequestId();
-    final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
-    final endpointUrl = '$functionsUrl/whatsappProxyBackfillAccount';
-
-    debugPrint('[WhatsAppApiService] backfillAccountViaProxy: requestId=$requestId uid=$uidTruncated accountId=${_maskId(accountId)}');
-
-    final response = await http
-        .post(
-          Uri.parse('$endpointUrl?accountId=${Uri.encodeComponent(accountId)}'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-Request-ID': requestId,
-          },
-          body: jsonEncode({'accountId': accountId}),
-        )
-        .timeout(requestTimeout);
-
-    final contentType = response.headers['content-type'] ?? 'unknown';
-    final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
-    debugPrint('[WhatsAppApiService] backfillAccountViaProxy: AFTER status=${response.statusCode} content-type=$contentType bodyPrefix=$bodyPrefix requestId=$requestId');
-
-    if (_isNonJsonResponse(response)) {
-      _throwNonJsonNetworkException(response, endpointUrl);
-    }
-
-    final data = SafeJson.tryDecodeJsonMap(response.body);
-    if (data != null && data['error'] == 'configuration_missing') {
-      throw NetworkException(
-        'Functions missing WHATSAPP_BACKEND_URL / WHATSAPP_BACKEND_BASE_URL secret. Set backend URL in Firebase Functions env.',
-        code: 'configuration_missing',
-      );
-    }
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final message = data?['message'] as String? ?? 'HTTP ${response.statusCode}';
-      throw ErrorMapper.fromHttpException(response.statusCode, message);
-    }
-
-    if (data == null) {
-      throw NetworkException(
-        'Invalid response: failed to decode JSON. endpoint=$endpointUrl',
-        code: 'json_decode_failed',
-      );
-    }
-    return data;
+    return backfillAccount(accountId: accountId);
   }
 }

@@ -13,8 +13,8 @@ const options = {
     },
     servers: [
       {
-        url: 'https://aplicatie-superpartybyai-production-d067.up.railway.app',
-        description: 'Production server',
+        url: process.env.BAILEYS_BASE_URL || 'http://37.27.34.179:8080',
+        description: 'Production server (Hetzner)',
       },
       {
         url: 'http://localhost:3000',

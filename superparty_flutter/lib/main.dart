@@ -5,6 +5,7 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:provider/provider.dart';
+import 'core/di/injector.dart';
 import 'services/firebase_service.dart';
 import 'services/background_service.dart';
 import 'services/push_notification_service.dart';
@@ -62,6 +63,15 @@ void main() async {
       debugPrint('[Main] 💡 Timeout likely due to emulator connectivity:');
       debugPrint('[Main]      - Android emulator: Use adb reverse OR USE_ADB_REVERSE=false (uses 10.0.2.2)');
       debugPrint('[Main]      - Verify emulators running: npm run emu:check');
+    }
+  }
+
+  if (FirebaseService.isInitialized) {
+    try {
+      await setupDependencyInjection();
+      debugPrint('[Main] ✅ Dependency injection ready');
+    } catch (e) {
+      debugPrint('[Main] ⚠️ DI init error (non-critical): $e');
     }
   }
   

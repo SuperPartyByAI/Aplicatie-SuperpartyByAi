@@ -15,7 +15,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const BASE_URL = process.env.BAILEYS_BASE_URL || 'https://whats-upp-production.up.railway.app';
+const BASE_URL = process.env.BAILEYS_BASE_URL || 'http://37.27.34.179:8080';
 
 function httpsGet(url) {
   return new Promise((resolve, reject) => {

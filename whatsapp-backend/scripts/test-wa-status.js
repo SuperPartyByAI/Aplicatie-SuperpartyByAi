@@ -6,7 +6,7 @@
 
 const https = require('https');
 
-const BASE_URL = process.env.BAILEYS_BASE_URL || 'https://whats-upp-production.up.railway.app';
+const BASE_URL = process.env.WHATSAPP_BACKEND_URL || process.env.BAILEYS_BASE_URL || 'http://37.27.34.179:8080';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'your-admin-token-here';
 
 function makeRequest(path) {

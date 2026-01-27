@@ -12,6 +12,7 @@ const Groq = require('groq-sdk');
 const {normalizeEventFields, normalizeRoleFields, normalizeRoleType} = require('./normalizers');
 const {getNextEventShortId} = require('./shortCodeGenerator');
 const chatEventOps = require('./chatEventOps').chatEventOps;
+const {getPromptConfig, applyTemplate} = require('./prompt_config');
 
 // Define secret for GROQ API key
 const groqApiKey = defineSecret('GROQ_API_KEY');
@@ -30,10 +31,11 @@ const db = admin.firestore();
  */
 exports.whatsappExtractEventFromThread = onCall(
   {
-    region: 'us-central1', // Match deployment region and Flutter callable invocation
+    region: 'europe-west1',
+    minInstances: 0,
+    maxInstances: 3,
     timeoutSeconds: 60,
     memory: '512MiB',
-    maxInstances: 1, // Reduce CPU quota pressure
     secrets: [groqApiKey],
   },
   async (request) => {
@@ -167,41 +169,12 @@ exports.whatsappExtractEventFromThread = onCall(
 
       // Use Groq to extract structured event data
       const groq = new Groq({apiKey: groqKey});
-      
-      const systemPrompt = `Analizează conversația WhatsApp și extrage structurat datele pentru o petrecere/eveniment.
-      
-Output JSON strict:
-{
-  "intent": "BOOKING" | "QUESTION" | "UPDATE" | "OTHER",
-  "confidence": 0-1,
-  "event": {
-    "date": "DD-MM-YYYY" (sau null),
-    "address": string (sau null),
-    "childName": string (sau null),
-    "childAge": number (sau null),
-    "parentName": string (sau null),
-    "payment": {
-      "amount": number (sau null),
-      "currency": "RON" | "EUR" (sau null),
-      "status": "UNPAID" | "PAID" (default: "UNPAID")
-    },
-    "rolesBySlot": {
-      "slot1": {
-        "roleType": "animator" | "ursitoare" | "vata_de_zahar" | null,
-        "startTime": "HH:MM" (sau null),
-        "durationHours": number (sau null)
-      }
-    }
-  },
-  "reasons": [string array cu explicații]
-}`;
-
-      const userPrompt = `Conversație WhatsApp:
-${conversationText}
-
-Client phone: ${phoneE164}
-
-Extrage date pentru petrecere (dacă există). Răspunde JSON strict.`;
+      const promptConfig = await getPromptConfig();
+      const systemPrompt = promptConfig.whatsappExtractEvent_system || '';
+      const userPrompt = applyTemplate(promptConfig.whatsappExtractEvent_userTemplate || '', {
+        conversation_text: conversationText,
+        phone_e164: phoneE164,
+      });
 
       const completion = await groq.chat.completions.create({
         model: 'llama-3.1-70b-versatile',

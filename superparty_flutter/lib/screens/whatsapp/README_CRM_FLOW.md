@@ -47,6 +47,13 @@
 **Firestore Read:**
 - `threads` where `accountId` (realtime)
 
+**Thread schema (UI compat):** Flutter uses `ThreadModel` with fallbacks. Prefer:
+- `threadId` / `id`, `clientJid` / `jid` / `remoteJid`, `displayName` / `name` / `pushName`
+- `lastMessageText` / `lastMessagePreview` / `lastMessageBody`, `lastMessageAt` / `lastMessageAtMs` / `lastMessageTimestamp`
+- `profilePictureUrl` / `photoUrl` (optional). Backend writes `photoUrl` in `threads` when profile photos are fetched.
+
+**Backend:** Write both `lastMessageText` and `lastMessagePreview` (same value) when updating threads so old and new clients work. Backfill: `POST /api/whatsapp/backfill/:accountId` (via proxy `whatsappProxyBackfillAccount`) to repair threads; run per connected account if history is missing.
+
 ---
 
 ### **4. Chat (Send/Receive Messages)**
@@ -134,6 +141,8 @@
 
 **Firestore Writes:**
 - None (read-only screen)
+
+**AI prompts:** System/user prompts for `whatsappExtractEventFromThread` and `clientCrmAsk` are stored in Firestore `app_config/ai_prompts` and editable from the app at **Admin → AI Prompts** (`/admin/ai-prompts`). See `functions/README.md` for schema and placeholders.
 
 ---
 

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Get Firebase ID Token</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .token-box {
+            background: #f9f9f9;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .error {
+            color: red;
+            background: #ffe6e6;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            color: green;
+            background: #e6ffe6;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .info {
+            background: #e6f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔑 Obținere Firebase ID Token</h1>
+        
+        <div class="info">
+            <strong>Instrucțiuni:</strong>
+            <ol>
+                <li>Deschide aplicația SuperParty într-un alt tab</li>
+                <li>Autentifică-te în aplicație</li>
+                <li>Revino aici și apasă butonul de mai jos</li>
+            </ol>
+        </div>
+
+        <div id="status"></div>
+        <div id="token-display"></div>
+
+        <button onclick="getTokenFromParent()">📋 Obține Token din Tab-ul Aplicației</button>
+        <button onclick="copyToken()">📄 Copiază Token</button>
+
+        <div id="instructions" style="margin-top: 30px; padding: 15px; background: #fff3cd; border-radius: 5px;">
+            <strong>⚠️ Dacă butonul nu funcționează:</strong>
+            <p>1. Deschide aplicația SuperParty într-un alt tab</p>
+            <p>2. Apasă F12 (sau Cmd+Option+I pe Mac) pentru Developer Tools</p>
+            <p>3. Mergi la tab-ul "Console"</p>
+            <p>4. Copiază și lipește această comandă:</p>
+            <div class="token-box">
+firebase.auth().currentUser.getIdToken().then(token => {
+  console.log('TOKEN:', token);
+  prompt('Copiază token-ul:', token);
+});
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentToken = null;
+
+        function getTokenFromParent() {
+            const statusDiv = document.getElementById('status');
+            const tokenDiv = document.getElementById('token-display');
+            
+            statusDiv.innerHTML = '<div class="info">⏳ Încerc să obțin token-ul...</div>';
+            tokenDiv.innerHTML = '';
+
+            // Încearcă să acceseze window.opener sau window.parent
+            try {
+                if (window.opener && window.opener.firebase) {
+                    window.opener.firebase.auth().currentUser.getIdToken().then(token => {
+                        showToken(token);
+                    }).catch(err => {
+                        showError('Nu am putut obține token-ul. Asigură-te că ești autentificat în aplicație.');
+                    });
+                } else {
+                    showError('Nu pot accesa aplicația. Deschide aplicația SuperParty într-un alt tab și autentifică-te, apoi revino aici.');
+                }
+            } catch (err) {
+                showError('Eroare: ' + err.message);
+            }
+        }
+
+        function showToken(token) {
+            currentToken = token;
+            const statusDiv = document.getElementById('status');
+            const tokenDiv = document.getElementById('token-display');
+            
+            statusDiv.innerHTML = '<div class="success">✅ Token obținut cu succes!</div>';
+            tokenDiv.innerHTML = `
+                <h3>Token-ul tău:</h3>
+                <div class="token-box">${token}</div>
+                <p><strong>Copiază token-ul de mai sus și trimite-l pentru a continua cu re-pair și backfill.</strong></p>
+            `;
+        }
+
+        function showError(message) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="error">❌ ${message}</div>`;
+        }
+
+        function copyToken() {
+            if (!currentToken) {
+                alert('Nu există token de copiat. Obține mai întâi token-ul.');
+                return;
+            }
+            
+            navigator.clipboard.writeText(currentToken).then(() => {
+                alert('✅ Token copiat în clipboard!');
+            }).catch(() => {
+                // Fallback pentru browsere vechi
+                const textarea = document.createElement('textarea');
+                textarea.value = currentToken;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                alert('✅ Token copiat în clipboard!');
+            });
+        }
+
+        // Încearcă automat dacă e deschis din aplicație
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (window.opener && window.opener.firebase) {
+                    getTokenFromParent();
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

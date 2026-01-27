@@ -18,6 +18,9 @@ exports.processFollowUps = onSchedule(
   {
     schedule: 'every 1 hours',
     timeZone: 'Europe/Bucharest',
+    region: 'us-central1',
+    minInstances: 0,
+    maxInstances: 1,
     memory: '256MiB',
   },
   async (event) => {

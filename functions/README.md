@@ -14,10 +14,10 @@ For local development with Firebase emulators, set the following environment var
 
 ```powershell
 # PowerShell
-$env:WHATSAPP_RAILWAY_BASE_URL = "https://whats-upp-production.up.railway.app"
+$env:WHATSAPP_BACKEND_URL = "http://37.27.34.179:8080"
 ```
 
-Or use `functions/.runtimeconfig.json` (already configured with the correct value).
+Or use `functions/.runtimeconfig.json` with `whatsapp.backend_base_url` (Hetzner).
 
 ### Starting Firebase Emulators
 
@@ -27,8 +27,8 @@ From the **repo root** (not `functions/` directory):
 # Optional: Kill processes on emulator ports if they're already running
 .\scripts\kill-emulators.ps1 --Force
 
-# Set environment variable
-$env:WHATSAPP_RAILWAY_BASE_URL = "https://whats-upp-production.up.railway.app"
+# Set environment variable (Hetzner backend)
+$env:WHATSAPP_BACKEND_URL = "http://37.27.34.179:8080"
 
 # Start emulators
 firebase.cmd emulators:start --config .\firebase.json --only firestore,functions,auth --project superparty-frontend
@@ -36,7 +36,7 @@ firebase.cmd emulators:start --config .\firebase.json --only firestore,functions
 
 **Note**: If you get port conflicts, run `.\scripts\kill-emulators.ps1` to free up ports 4001, 4401, 9098, 8082, and 5002.
 
-**Important**: The emulator will start successfully even if `WHATSAPP_RAILWAY_BASE_URL` is not set. WhatsApp endpoints will return `500` JSON errors with `{"error":"configuration_missing"}` when called without the URL, but the emulator itself will not crash.
+**Important**: The emulator will start successfully even if `WHATSAPP_BACKEND_URL` is not set. WhatsApp endpoints will return `500` JSON errors with `{"error":"configuration_missing"}` when called without the URL, but the emulator itself will not crash.
 
 ### Building TypeScript
 
@@ -60,7 +60,7 @@ npm test
 ```
 
 Tests verify:
-- ✅ `require('./index')` does NOT throw when `WHATSAPP_RAILWAY_BASE_URL` is missing
+- ✅ `require('./index')` does NOT throw when `WHATSAPP_BACKEND_URL` is missing
 - ✅ `require('./index')` does NOT throw when `FIREBASE_CONFIG` is set (emulator scenario)
 - ✅ WhatsApp handlers return `500` JSON error when URL is missing (instead of crashing)
 - ✅ WhatsApp handlers work correctly when URL is set
@@ -76,7 +76,7 @@ A PowerShell smoke test script is available at `scripts/smoke.ps1`:
 
 This script:
 1. Checks Node.js and Java versions
-2. Sets `WHATSAPP_RAILWAY_BASE_URL` environment variable
+2. Sets `WHATSAPP_BACKEND_URL` environment variable (Hetzner)
 3. Installs dependencies if needed
 4. Starts Firebase emulators
 5. Waits for ports to be ready
@@ -115,14 +115,40 @@ curl.exe -i http://127.0.0.1:5002/superparty-frontend/us-central1/whatsappProxyG
 
 **Note**: Firebase Admin SDK automatically detects `FIREBASE_AUTH_EMULATOR_HOST` when emulators are running, so tokens from the Auth Emulator will be validated correctly.
 
+## AI Prompts (Firestore)
+
+AI prompts for `whatsappExtractEventFromThread` and `clientCrmAsk` are stored in Firestore and **editable from the app** (no code deploy needed).
+
+### Where to edit
+
+- **Flutter**: Admin → **AI Prompts** (`/admin/ai-prompts`). Only visible for admins. Uses real-time stream of `app_config/ai_prompts`.
+- **Firestore Console**: `app_config` → document `ai_prompts` (create it if missing).
+
+### Expected fields
+
+| Field | Description |
+|-------|-------------|
+| `whatsappExtractEvent_system` | System prompt for WhatsApp thread → event extraction |
+| `whatsappExtractEvent_userTemplate` | User template. Placeholders: `{{conversation_text}}`, `{{phone_e164}}` |
+| `clientCrmAsk_system` | System prompt for CRM Q&A |
+| `clientCrmAsk_userTemplate` | User template. Placeholders: `{{client_json}}`, `{{events_json}}`, `{{question}}` |
+| `updatedAt` | `serverTimestamp` (set on save) |
+| `version` | Integer, bumped on each save |
+
+### Functions usage
+
+- `functions/prompt_config.js`: `getPromptConfig()` loads `app_config/ai_prompts` with **60s in-memory cache**.
+- If the doc is missing or invalid, safe defaults (current hardcoded prompts) are used.
+- Logs `version` only (never the full prompt).
+
 ## Architecture Notes
 
 ### Lazy Loading
 
 To prevent Firebase emulator from crashing during code analysis:
 
-1. **Railway Base URL**: Computed lazily in handlers, not at module import time
-   - `getRailwayBaseUrl()` returns `null` if missing (does not throw)
+1. **Backend Base URL**: Computed lazily in handlers, not at module import time
+   - `getBackendBaseUrl()` returns `null` if missing (does not throw)
    - Handlers check for `null` and return `500` JSON error at runtime
 
 2. **Baileys (ESM)**: Loaded via dynamic `import()` only when needed
@@ -135,10 +161,10 @@ To prevent Firebase emulator from crashing during code analysis:
 
 ### Error Handling
 
-When `WHATSAPP_RAILWAY_BASE_URL` is missing:
+When `WHATSAPP_BACKEND_URL` is missing:
 - ✅ Module import succeeds (no crash)
 - ✅ Emulator starts successfully
-- ✅ Endpoints return `500` JSON: `{"success":false,"error":"configuration_missing","message":"WHATSAPP_RAILWAY_BASE_URL must be set..."}`
+- ✅ Endpoints return `500` JSON: `{"success":false,"error":"configuration_missing","message":"WHATSAPP_BACKEND_URL must be set..."}`
 
 ## Ports
 

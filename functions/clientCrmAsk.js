@@ -6,6 +6,7 @@ const admin = require('firebase-admin');
 
 // Groq SDK
 const Groq = require('groq-sdk');
+const {getPromptConfig, applyTemplate} = require('./prompt_config');
 
 // Define secret for GROQ API key
 const groqApiKey = defineSecret('GROQ_API_KEY');
@@ -24,10 +25,11 @@ const db = admin.firestore();
  */
 exports.clientCrmAsk = onCall(
   {
-    region: 'us-central1', // Match deployment region and Flutter callable invocation
+    region: 'europe-west1',
+    minInstances: 0,
+    maxInstances: 3,
     timeoutSeconds: 30,
     memory: '512MiB',
-    maxInstances: 1, // Reduce CPU quota pressure
     secrets: [groqApiKey],
   },
   async (request) => {
@@ -110,33 +112,13 @@ exports.clientCrmAsk = onCall(
 
       // Use Groq to answer question based on structured data
       const groq = new Groq({apiKey: groqKey});
-
-      const systemPrompt = `Ești un asistent CRM care răspunde la întrebări despre clienți bazat pe date structurate (evenimente, cheltuieli).
-
-Reguli:
-- Răspunde DOAR bazat pe datele furnizate (client + events).
-- Când menționezi evenimente, citează întotdeauna eventShortId și data (ex: "Eveniment #123 din 15-01-2026").
-- Pentru cheltuieli totale, folosește client.lifetimeSpendPaid (sumă plătită) sau client.lifetimeSpendAll (total inclusiv neplătit).
-- Răspunde în română, concis și precis.
-
-Output JSON strict:
-{
-  "answer": "string (răspuns în română)",
-  "sources": [
-    {
-      "eventShortId": number (sau null),
-      "date": "DD-MM-YYYY",
-      "details": "string (descriere scurtă)"
-    }
-  ]
-}`;
-
-      const userPrompt = `Client: ${JSON.stringify(context.client)}
-Evenimente: ${JSON.stringify(context.events)}
-
-Întrebare: ${question}
-
-Răspunde bazat pe datele furnizate. Răspunde JSON strict.`;
+      const promptConfig = await getPromptConfig();
+      const systemPrompt = promptConfig.clientCrmAsk_system || '';
+      const userPrompt = applyTemplate(promptConfig.clientCrmAsk_userTemplate || '', {
+        client_json: JSON.stringify(context.client),
+        events_json: JSON.stringify(context.events),
+        question,
+      });
 
       const completion = await groq.chat.completions.create({
         model: 'llama-3.1-70b-versatile',

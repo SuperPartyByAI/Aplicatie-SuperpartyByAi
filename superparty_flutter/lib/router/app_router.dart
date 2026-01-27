@@ -20,11 +20,13 @@ import '../screens/whatsapp/whatsapp_screen.dart';
 import '../screens/whatsapp/whatsapp_accounts_screen.dart';
 import '../screens/whatsapp/whatsapp_inbox_screen.dart';
 import '../screens/whatsapp/whatsapp_chat_screen.dart';
+import '../screens/whatsapp/whatsapp_ai_settings_screen.dart';
 import '../screens/whatsapp/client_profile_screen.dart';
 import '../screens/team/team_screen.dart';
 import '../screens/admin/admin_screen.dart';
 import '../screens/admin/kyc_approvals_screen.dart';
 import '../screens/admin/ai_conversations_screen.dart';
+import '../screens/admin/ai_prompts_screen.dart';
 import '../screens/gm/accounts_screen.dart';
 import '../screens/gm/metrics_screen.dart';
 import '../screens/gm/analytics_screen.dart';
@@ -160,6 +162,16 @@ class AppRouter {
               );
             },
           ),
+          GoRoute(
+            path: 'ai-settings',
+            builder: (context, state) {
+              final accountId = state.uri.queryParameters['accountId'];
+              return AuthGate(
+                fromRoute: state.uri.toString(),
+                child: WhatsAppAiSettingsScreen(accountId: accountId),
+              );
+            },
+          ),
         ],
       ),
       GoRoute(
@@ -229,6 +241,13 @@ class AppRouter {
             builder: (context, state) => AuthGate(
               fromRoute: state.uri.toString(),
               child: const AiConversationsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: 'ai-prompts',
+            builder: (context, state) => AuthGate(
+              fromRoute: state.uri.toString(),
+              child: const AiPromptsScreen(),
             ),
           ),
         ],

@@ -7,7 +7,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/errors/app_exception.dart';
+import '../../services/admin_service.dart';
 import '../../services/whatsapp_api_service.dart';
+import '../../services/whatsapp_backfill_manager.dart';
 
 /// WhatsApp Diagnostics Screen (Debug Only)
 /// 
@@ -26,14 +29,21 @@ class WhatsAppDiagnosticsScreen extends StatefulWidget {
 
 class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
   final WhatsAppApiService _apiService = WhatsAppApiService.instance;
+  final AdminService _adminService = AdminService();
   Map<String, dynamic>? _lastAccountsResponse;
   String? _lastError;
   bool _isLoading = false;
+  bool _isAdmin = false;
+  bool _isBackfilling = false;
   int? _threadCount;
   String? _selectedAccountId;
+  List<Map<String, dynamic>> _accounts = [];
   String _clipboardTokenStatus = 'Not checked';
   int? _connectedCount;
   int? _lastInboundAgeSec;
+  int? _threadsApiCount;
+  String? _threadsApiFirstJson;
+  String? _threadsApiError;
 
   Future<void> _copyAuthTokensToClipboard() async {
     if (!kDebugMode) return;
@@ -158,20 +168,35 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
     setState(() {
       _isLoading = true;
       _lastError = null;
+      _threadsApiCount = null;
+      _threadsApiFirstJson = null;
+      _threadsApiError = null;
     });
 
     try {
+      final adminFuture = _adminService.isCurrentUserAdmin();
       // Test getAccounts API
       final response = await _apiService.getAccounts();
+      final accounts = (response['accounts'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>();
+      final connected = accounts
+          .where((acc) => acc['status'] == 'connected')
+          .length;
+      final isAdmin = await adminFuture;
+
       setState(() {
         _lastAccountsResponse = response;
-        final accounts = (response['accounts'] as List<dynamic>? ?? []);
-        if (accounts.isNotEmpty) {
-          _selectedAccountId = accounts.first['id'] as String?;
+        _accounts = accounts;
+        _isAdmin = isAdmin;
+        _connectedCount = connected;
+        if (accounts.isEmpty) {
+          _selectedAccountId = null;
+        } else {
+          final ids = accounts.map((a) => a['id'] as String?).whereType<String>().toList();
+          if (_selectedAccountId == null || !ids.contains(_selectedAccountId)) {
+            _selectedAccountId = ids.first;
+          }
         }
-        _connectedCount = accounts
-            .where((acc) => (acc as Map<String, dynamic>)['status'] == 'connected')
-            .length;
       });
 
       // Count threads if account selected
@@ -216,6 +241,36 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
             _lastError = 'Inbound age query failed';
           });
         }
+
+        try {
+          final threadsRes = await _apiService.getThreads(accountId: _selectedAccountId!);
+          final list = threadsRes['threads'] as List<dynamic>? ?? [];
+          final first = list.isNotEmpty ? list.first : null;
+          String? firstJson;
+          if (first != null) {
+            try {
+              firstJson = const JsonEncoder.withIndent(' ').convert(
+                first is Map ? first : <String, dynamic>{},
+              );
+              if (firstJson.length > 600) {
+                firstJson = '${firstJson.substring(0, 600)}…';
+              }
+            } catch (_) {
+              firstJson = first.toString();
+            }
+          }
+          setState(() {
+            _threadsApiCount = (threadsRes['count'] as int?) ?? list.length;
+            _threadsApiFirstJson = firstJson;
+            _threadsApiError = null;
+          });
+        } catch (e) {
+          setState(() {
+            _threadsApiError = e.toString();
+            _threadsApiCount = null;
+            _threadsApiFirstJson = null;
+          });
+        }
       }
     } catch (e) {
       setState(() {
@@ -225,6 +280,54 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _runBackfill() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Trebuie să fii autentificat.')),
+      );
+      return;
+    }
+    if (_selectedAccountId == null || _selectedAccountId!.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selectează un cont.')),
+      );
+      return;
+    }
+    if (_isBackfilling) return;
+    setState(() => _isBackfilling = true);
+    try {
+      final res = await _apiService.backfillAccount(accountId: _selectedAccountId!);
+      if (kDebugMode) {
+        debugPrint('[WhatsAppDiagnostics] backfill success: $res');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Backfill pornit. Deschide un thread pentru mesaje.')),
+      );
+      await _loadDiagnostics();
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('[WhatsAppDiagnostics] backfill error: $e');
+        debugPrint('[WhatsAppDiagnostics] backfill stackTrace: $st');
+      }
+      if (!mounted) return;
+      String msg;
+      if (e is UnauthorizedException || e is ForbiddenException) {
+        msg = 'Necesită super-admin.';
+      } else {
+        msg = e.toString();
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red[700]),
+      );
+    } finally {
+      if (mounted) setState(() => _isBackfilling = false);
     }
   }
 
@@ -252,6 +355,15 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
       return dt?.millisecondsSinceEpoch;
     }
     return null;
+  }
+
+  String _formatAge(DateTime dt) {
+    final d = DateTime.now().difference(dt);
+    if (d.inMinutes < 1) return '<1m';
+    if (d.inMinutes < 60) return '${d.inMinutes}m';
+    if (d.inHours < 24) return '${d.inHours}h';
+    if (d.inDays < 7) return '${d.inDays}d';
+    return '${d.inDays}d';
   }
 
   @override
@@ -344,6 +456,134 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
                     ] else
                       _buildInfoRow('Selected AccountId', 'None'),
                   ]),
+                  const SizedBox(height: 24),
+                  _buildSection('Threads API (verify no data lost)', [
+                    if (_threadsApiError != null)
+                      _buildInfoRow('Threads API Error', _threadsApiError!, isError: true),
+                    _buildInfoRow(
+                      'Threads API Count',
+                      _threadsApiCount?.toString() ?? '—',
+                    ),
+                    if (_threadsApiFirstJson != null) ...[
+                      const SizedBox(height: 8),
+                      const Text('First thread (JSON):', style: TextStyle(fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 4),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: SelectableText(
+                          _threadsApiFirstJson!,
+                          style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                        ),
+                      ),
+                    ],
+                  ]),
+                  if (_isAdmin) ...[
+                    const SizedBox(height: 24),
+                    _buildSection('Backfill', [
+                      if (_accounts.isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              const SizedBox(
+                                width: 120,
+                                child: Text('Cont:', style: TextStyle(fontWeight: FontWeight.w500)),
+                              ),
+                              Expanded(
+                                child: DropdownButton<String>(
+                                  value: _selectedAccountId,
+                                  isExpanded: true,
+                                  items: _accounts
+                                      .where((a) =>
+                                          a['id'] is String &&
+                                          (a['id'] as String).isNotEmpty)
+                                      .map((a) {
+                                        final id = a['id'] as String;
+                                        final name =
+                                            a['name'] as String? ?? id;
+                                        return DropdownMenuItem<String>(
+                                          value: id,
+                                          child: Text('$id • $name'),
+                                        );
+                                      })
+                                      .toList(),
+                                  onChanged: (v) {
+                                    setState(() => _selectedAccountId = v);
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (_selectedAccountId != null) ...[
+                        const SizedBox(height: 8),
+                        FutureBuilder<DateTime?>(
+                          future: WhatsAppBackfillManager.instance
+                              .getLastAttemptAt(_selectedAccountId!),
+                          builder: (context, snap) {
+                            String v = '…';
+                            if (snap.hasData) {
+                              final dt = snap.data;
+                              v = dt == null
+                                  ? 'Never'
+                                  : '${_formatAge(dt)} ago';
+                            } else if (snap.hasError) {
+                              v = 'Error: ${snap.error}';
+                            }
+                            return _buildInfoRow(
+                              'Last backfill attempt (app)',
+                              v,
+                            );
+                          },
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        onPressed: (_isBackfilling || _selectedAccountId == null)
+                            ? null
+                            : _runBackfill,
+                        icon: _isBackfilling
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.sync),
+                        label: Text(_isBackfilling ? 'Se sincronizează…' : 'Sync / Backfill history'),
+                      ),
+                    ]),
+                  ],
+                  if (kDebugMode) ...[
+                    const SizedBox(height: 24),
+                    _buildSection('Debug', [
+                      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                        stream: FirebaseFirestore.instance
+                            .collection('app_config')
+                            .doc('ai_prompts')
+                            .snapshots(),
+                        builder: (context, snap) {
+                          if (snap.hasError) {
+                            return _buildInfoRow('AI prompts version', '—');
+                          }
+                          if (!snap.hasData) {
+                            return _buildInfoRow('AI prompts version', '…');
+                          }
+                          final data = snap.data?.data();
+                          final v = data?['version'];
+                          return _buildInfoRow(
+                            'AI prompts version',
+                            v != null ? v.toString() : '—',
+                          );
+                        },
+                      ),
+                    ]),
+                  ],
                   const SizedBox(height: 24),
                   ElevatedButton(
                     onPressed: _loadDiagnostics,

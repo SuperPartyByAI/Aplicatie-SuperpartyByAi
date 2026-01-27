@@ -1,7 +1,7 @@
 {
   "name": "superparty-whatsapp-backend",
   "version": "2.0.1",
-  "description": "WhatsApp Backend for SuperParty on Railway",
+  "description": "WhatsApp Backend for SuperParty on Hetzner",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -36,6 +36,7 @@
     "express": "^4.18.2",
     "express-rate-limit": "^8.2.1",
     "firebase-admin": "^13.6.0",
+    "groq-sdk": "^0.37.0",
     "ioredis": "^5.8.2",
     "pino": "^8.16.2",
     "qrcode": "^1.5.3",

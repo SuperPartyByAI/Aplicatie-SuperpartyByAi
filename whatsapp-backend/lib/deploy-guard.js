@@ -3,14 +3,23 @@
  * Prevents silent deploy failures
  */
 
+const http = require('http');
 const https = require('https');
 
 class DeployGuard {
   constructor(db, schema, baseUrl, expectedCommit) {
     this.db = db;
     this.schema = schema;
-    this.baseUrl = baseUrl;
+    // Normalize baseUrl: ensure it has a protocol
+    if (typeof baseUrl === 'string' && baseUrl && !baseUrl.match(/^https?:\/\//)) {
+      // If no protocol, default to http://
+      this.baseUrl = `http://${baseUrl.replace(/^\/+/, '')}`;
+    } else {
+      this.baseUrl = baseUrl || `http://localhost:8080`;
+    }
     this.expectedCommit = expectedCommit;
+    // Choose http module based on protocol
+    this.httpModule = typeof this.baseUrl === 'string' && this.baseUrl.startsWith('https://') ? https : http;
     this.checkInterval = 5 * 60 * 1000; // 5 minutes
     this.mismatchThreshold = 10 * 60 * 1000; // 10 minutes
     this.lastMismatchDetected = null;
@@ -99,14 +108,14 @@ class DeployGuard {
           deployedCommit: deployedCommit,
           mismatchDurationMs: mismatchDuration,
           instructions: [
-            '1. Go to Railway dashboard',
-            '2. Click "Deployments" tab',
-            '3. Find latest commit and click "Redeploy"',
-            '4. OR run: railway up --service whatsapp-backend',
+            '1. SSH to Hetzner server',
+            '2. cd /opt/whatsapp/Aplicatie-SuperpartyByAi/whatsapp-backend',
+            '3. git pull && npm install',
+            '4. systemctl restart whatsapp-backend',
           ],
         },
         commitHash: this.expectedCommit,
-        instanceId: process.env.RAILWAY_DEPLOYMENT_ID || 'unknown',
+        instanceId: process.env.HOSTNAME || process.env.INSTANCE_ID || 'unknown',
         createdAt: new Date().toISOString(),
       };
 
@@ -125,21 +134,46 @@ class DeployGuard {
 
   fetchHealth() {
     return new Promise((resolve, reject) => {
-      const url = `${this.baseUrl}/health`;
+      // Normalize URL: ensure /health path is properly appended
+      let url = this.baseUrl;
+      if (!url.endsWith('/health')) {
+        url = url.replace(/\/+$/, '') + '/health';
+      }
 
-      https
-        .get(url, res => {
+      // Parse URL to extract hostname and path
+      try {
+        const urlObj = new URL(url);
+        const options = {
+          hostname: urlObj.hostname,
+          port: urlObj.port || (this.httpModule === https ? 443 : 80),
+          path: urlObj.pathname + (urlObj.search || ''),
+          method: 'GET',
+        };
+
+        const req = this.httpModule.get(options, res => {
           let data = '';
           res.on('data', chunk => (data += chunk));
           res.on('end', () => {
             try {
-              resolve(JSON.parse(data));
+              if (res.statusCode === 200) {
+                resolve(JSON.parse(data));
+              } else {
+                reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+              }
             } catch (e) {
-              reject(e);
+              reject(new Error(`Failed to parse response: ${e.message}`));
             }
           });
-        })
-        .on('error', reject);
+        });
+
+        req.on('error', reject);
+        req.setTimeout(5000, () => {
+          req.destroy();
+          reject(new Error('Request timeout'));
+        });
+      } catch (urlError) {
+        reject(new Error(`Invalid URL: ${url} - ${urlError.message}`));
+      }
     });
   }
 }

@@ -9,7 +9,7 @@
 const https = require('https');
 const http = require('http');
 
-const RAILWAY_URL = process.env.RAILWAY_URL || 'https://whats-upp-production.up.railway.app';
+const BACKEND_URL = process.env.WHATSAPP_BACKEND_URL || 'http://37.27.34.179:8080';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'dev-token-test';
 
 // Generate request ID
@@ -70,7 +70,7 @@ function makeRequest(url, options = {}) {
 
 async function runSmokeTest() {
   console.log('🧪 WhatsApp Smoke Test - End-to-End Flow\n');
-  console.log(`Railway URL: ${RAILWAY_URL}`);
+  console.log(`Backend URL (Hetzner): ${BACKEND_URL}`);
   console.log(`Admin Token configured: ${Boolean(ADMIN_TOKEN)}\n`);
 
   const requestId = generateRequestId();
@@ -79,7 +79,7 @@ async function runSmokeTest() {
   try {
     // Step 1: Health check
     console.log('1️⃣  Health Check...');
-    const health = await makeRequest(`${RAILWAY_URL}/health`, { requestId });
+    const health = await makeRequest(`${BACKEND_URL}/health`, { requestId });
     console.log(`   Status: ${health.statusCode}`);
     console.log(`   Response: ${JSON.stringify(health.body, null, 2).substring(0, 200)}`);
     if (health.statusCode !== 200) {
@@ -90,7 +90,7 @@ async function runSmokeTest() {
     // Step 2: Add account
     console.log('2️⃣  Add Account...');
     const addAccountReqId = generateRequestId();
-    const addAccount = await makeRequest(`${RAILWAY_URL}/api/whatsapp/add-account`, {
+    const addAccount = await makeRequest(`${BACKEND_URL}/api/whatsapp/add-account`, {
       method: 'POST',
       requestId: addAccountReqId,
       body: {
@@ -115,7 +115,7 @@ async function runSmokeTest() {
     // Step 3: Get accounts
     console.log('3️⃣  Get Accounts...');
     const getAccountsReqId = generateRequestId();
-    const getAccounts = await makeRequest(`${RAILWAY_URL}/api/whatsapp/accounts`, {
+    const getAccounts = await makeRequest(`${BACKEND_URL}/api/whatsapp/accounts`, {
       requestId: getAccountsReqId,
     });
     console.log(`   Request ID: ${getAccountsReqId}`);
@@ -127,7 +127,7 @@ async function runSmokeTest() {
     // Step 4: Regenerate QR
     console.log('4️⃣  Regenerate QR...');
     const regenerateReqId = generateRequestId();
-    const regenerate = await makeRequest(`${RAILWAY_URL}/api/whatsapp/regenerate-qr/${accountId}`, {
+    const regenerate = await makeRequest(`${BACKEND_URL}/api/whatsapp/regenerate-qr/${accountId}`, {
       method: 'POST',
       requestId: regenerateReqId,
     });
@@ -149,7 +149,7 @@ async function runSmokeTest() {
     console.log('5️⃣  Get Accounts (after regenerate)...');
     await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s for QR generation
     const getAccounts2ReqId = generateRequestId();
-    const getAccounts2 = await makeRequest(`${RAILWAY_URL}/api/whatsapp/accounts`, {
+    const getAccounts2 = await makeRequest(`${BACKEND_URL}/api/whatsapp/accounts`, {
       requestId: getAccounts2ReqId,
     });
     console.log(`   Request ID: ${getAccounts2ReqId}`);

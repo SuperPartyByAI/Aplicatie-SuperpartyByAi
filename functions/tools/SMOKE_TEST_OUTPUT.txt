@@ -1,40 +1,35 @@
 {
-  "timestamp": "2026-01-18T03:07:11.990Z",
+  "timestamp": "2026-01-25T21:58:21.776Z",
   "tests": [
     {
-      "testName": "Railway Health",
+      "testName": "Backend Health",
       "status": "PASS",
       "details": {
         "status": "healthy",
         "version": "2.0.0",
-        "uptime": 31803,
-        "firestore": "connected"
+        "uptime": 34358
       },
-      "timestamp": "2026-01-18T03:07:12.780Z"
+      "timestamp": "2026-01-25T21:58:21.954Z"
     },
     {
       "testName": "All Functions Deployed",
-      "status": "PASS",
+      "status": "FAIL",
       "details": {
-        "count": 5,
-        "functions": [
-          "bootstrapAdmin",
-          "clientCrmAsk",
-          "whatsappExtractEventFromThread",
-          "aggregateClientStats",
+        "deployed": 4,
+        "missing": [
           "whatsappProxySend"
         ]
       },
-      "timestamp": "2026-01-18T03:07:16.960Z"
+      "timestamp": "2026-01-25T21:58:26.079Z"
     },
     {
       "testName": "Functions Region Consistency",
       "status": "PASS",
       "details": {
         "region": "us-central1",
-        "functionsInRegion": 26
+        "functionsInRegion": 24
       },
-      "timestamp": "2026-01-18T03:07:16.960Z"
+      "timestamp": "2026-01-25T21:58:26.079Z"
     },
     {
       "testName": "Flutter Region Alignment",
@@ -42,7 +37,7 @@
       "details": {
         "reason": "whatsapp_api_service.dart not found"
       },
-      "timestamp": "2026-01-18T03:07:16.960Z"
+      "timestamp": "2026-01-25T21:58:26.080Z"
     },
     {
       "testName": "setGlobalOptions Single Call",
@@ -50,7 +45,7 @@
       "details": {
         "reason": "No setGlobalOptions found"
       },
-      "timestamp": "2026-01-18T03:07:16.960Z"
+      "timestamp": "2026-01-25T21:58:26.080Z"
     },
     {
       "testName": "Docs CLI Syntax",
@@ -59,13 +54,13 @@
         "message": "All docs use correct --lines flag",
         "docsChecked": 0
       },
-      "timestamp": "2026-01-18T03:07:16.960Z"
+      "timestamp": "2026-01-25T21:58:26.080Z"
     }
   ],
   "summary": {
     "total": 6,
-    "passed": 4,
-    "failed": 0,
+    "passed": 3,
+    "failed": 1,
     "skipped": 2
   }
 }
