@@ -39,9 +39,6 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   List<ThreadModel> _threads = [];
   String? _errorMessage;
   
-  // Account selector: prevent mixing threads from multiple accounts
-  String? _selectedAccountId;
-  
   // Firestore thread streams (per account)
   final Map<String, StreamSubscription<QuerySnapshot>> _threadSubscriptions = {};
   final Map<String, List<Map<String, dynamic>>> _threadsByAccount = {};
@@ -249,28 +246,14 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   }
 
   void _rebuildThreadsFromCache() {
-    // FIX: Prevent mixing - only show threads from selected account (or first account if none selected)
-    List<Map<String, dynamic>> allThreads;
-    if (_selectedAccountId != null && _threadsByAccount.containsKey(_selectedAccountId)) {
-      // Show only selected account
-      allThreads = _threadsByAccount[_selectedAccountId] ?? [];
-    } else if (_threadsByAccount.isNotEmpty) {
-      // If no selection, use first account (or auto-select first)
-      final firstAccountId = _threadsByAccount.keys.first;
-      if (_selectedAccountId == null && firstAccountId.isNotEmpty) {
-        _selectedAccountId = firstAccountId;
-      }
-      allThreads = _threadsByAccount[firstAccountId] ?? [];
-    } else {
-      allThreads = [];
-    }
-    
+    // RESTORED: Combine all threads from all accounts (original behavior)
+    final allThreads = _threadsByAccount.values.expand((list) => list).toList();
     final dedupedMaps = _filterAndDedupeThreads(allThreads);
     
     // CRITICAL FIX: Stable sort with deterministic tie-breaker
     // Use threadId (or id) as tie-breaker instead of index for true stability
     dedupedMaps.sort((a, b) {
-      // Get timestamps in milliseconds
+      // Get timestamps in milliseconds using robust parser
       final aMs = threadTimeMs(a);
       final bMs = threadTimeMs(b);
       
@@ -294,7 +277,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
         .toList();
     
     if (kDebugMode) {
-      debugPrint('[WhatsAppInboxScreen] Rebuild from cache: accountId=$_selectedAccountId raw=${allThreads.length} deduped=${models.length}');
+      debugPrint('[WhatsAppInboxScreen] Rebuild from cache: raw=${allThreads.length} deduped=${models.length}');
       if (models.isNotEmpty) {
         final first = models.first;
         final last = models.length > 1 ? models.last : null;
@@ -578,20 +561,12 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
             _isLoadingAccounts = false;
             _isLoadingThreads = accounts.isNotEmpty;
             _errorMessage = null;
-            // Auto-select first account if none selected
-            if (_selectedAccountId == null && accounts.isNotEmpty) {
-              final firstAccountId = accounts.first['id'] as String?;
-              if (firstAccountId != null && firstAccountId.isNotEmpty) {
-                _selectedAccountId = firstAccountId;
-              }
-            }
           });
           _startThreadListeners();
           if (accounts.isEmpty) {
             setState(() {
               _threads = <ThreadModel>[];
               _isLoadingThreads = false;
-              _selectedAccountId = null;
             });
           }
         }
@@ -851,40 +826,6 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       ),
       body: Column(
         children: [
-          // Account selector dropdown (prevent mixing accounts)
-          if (_accounts.length > 1)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-              ),
-              child: DropdownButton<String>(
-                value: _selectedAccountId,
-                isExpanded: true,
-                hint: const Text('Selectează contul'),
-                items: _accounts.map((account) {
-                  final accountId = account['id'] as String? ?? '';
-                  final accountName = account['name'] as String? ?? accountId;
-                  final shortId = accountId.length > 20 
-                      ? '${accountId.substring(0, 20)}...' 
-                      : accountId;
-                  return DropdownMenuItem<String>(
-                    value: accountId,
-                    child: Text('$accountName ($shortId)'),
-                  );
-                }).toList(),
-                onChanged: (String? newAccountId) {
-                  if (newAccountId != null && newAccountId != _selectedAccountId) {
-                    setState(() {
-                      _selectedAccountId = newAccountId;
-                      _threads = []; // Clear while loading
-                    });
-                    _rebuildThreadsFromCache();
-                  }
-                },
-              ),
-            ),
           // Search bar
           Padding(
             padding: const EdgeInsets.all(16),
