@@ -1419,12 +1419,11 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // Navigate back to WhatsApp inbox
-            context.go('/whatsapp/inbox');
-          },
+          icon: const Icon(Icons.home, color: Colors.white),
+          onPressed: () => context.go('/home'),
+          tooltip: 'Acasă',
         ),
+        automaticallyImplyLeading: false,
         title: Row(
           children: [
             // Show profile picture if available, otherwise show initial
@@ -1470,6 +1469,15 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         ),
         backgroundColor: const Color(0xFF25D366),
         actions: [
+          // Back to inbox button
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () {
+              // Navigate back to WhatsApp inbox
+              context.go('/whatsapp/inbox');
+            },
+            tooltip: 'Înapoi la Inbox',
+          ),
           if (_phoneE164 != null || _extractPhoneFromJid(_clientJid) != null) ...[
             // WhatsApp call button (opens WhatsApp chat)
             IconButton(

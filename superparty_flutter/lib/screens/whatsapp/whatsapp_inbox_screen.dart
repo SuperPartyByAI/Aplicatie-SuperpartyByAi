@@ -748,6 +748,11 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.home, color: Colors.white),
+          onPressed: () => context.go('/home'),
+          tooltip: 'Acasă',
+        ),
         title: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
