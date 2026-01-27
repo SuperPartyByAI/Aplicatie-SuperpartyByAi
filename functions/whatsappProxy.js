@@ -561,10 +561,15 @@ async function sendHandler(req, res) {
     });
   } catch (error) {
     console.error('[whatsappProxy/send] Error:', error.message);
+    console.error('[whatsappProxy/send] Error stack:', error.stack);
+    
+    // Return structured error with details for debugging
     return res.status(500).json({
       success: false,
       error: 'internal_error',
-      message: 'Internal server error',
+      message: error.message || 'Internal server error',
+      // Include error type for debugging (but not full stack in production)
+      errorType: error.constructor?.name || 'UnknownError',
     });
   }
 }

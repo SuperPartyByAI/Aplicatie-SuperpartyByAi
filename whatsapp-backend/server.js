@@ -3281,6 +3281,22 @@ async function saveContactsBatch(accountId, contacts) {
         const isPhoneJid = rawJid.endsWith('@s.whatsapp.net') || rawJid.endsWith('@c.us');
         const rawDigits = isPhoneJid ? (rawJid.split('@')[0]?.replace(/\D/g, '') || '') : '';
         const phoneE164 = rawDigits ? `+${rawDigits}` : null;
+        
+        // CRITICAL FIX: Try to get profile picture URL if not already in contact
+        // This ensures contacts collection has profile pictures for sync
+        let imgUrl = contact.imgUrl || null;
+        if (!imgUrl && contact.id) {
+          try {
+            const account = connections.get(accountId);
+            if (account && account.sock) {
+              const photoUrl = await account.sock.profilePictureUrl(contact.id, 'image').catch(() => null);
+              if (photoUrl) imgUrl = photoUrl;
+            }
+          } catch (e) {
+            // Non-critical: if profile picture fetch fails, continue without it
+          }
+        }
+        
         batch.set(contactRef, {
           accountId,
           jid: contact.id,
@@ -3288,7 +3304,7 @@ async function saveContactsBatch(accountId, contacts) {
           notify: contact.notify || null,
           verifiedName: contact.verifiedName || null,
           phoneE164,
-          imgUrl: contact.imgUrl || null,
+          imgUrl: imgUrl || null,
           status: contact.status || null,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
@@ -6031,22 +6047,38 @@ app.post('/admin/update-display-names', async (req, res) => {
         if (contactDoc.exists) {
           const contactData = contactDoc.data();
           const newDisplayName = contactData.name || contactData.notify || contactData.verifiedName || null;
+          const newProfilePictureUrl = contactData.imgUrl || null;
 
-          if (newDisplayName && newDisplayName !== threadData.displayName) {
-            console.log(`✅ [${accountId}] Update thread ${clientJid.substring(0, 20)}: "${threadData.displayName}" -> "${newDisplayName}"`);
+          // Check if we need to update displayName
+          const needsDisplayNameUpdate = newDisplayName && newDisplayName !== threadData.displayName;
+          // Check if we need to update profilePictureUrl (only if contact has imgUrl and thread doesn't have it or it's different)
+          const currentPhotoUrl = threadData.profilePictureUrl || threadData.photoUrl || null;
+          const needsPhotoUpdate = newProfilePictureUrl && newProfilePictureUrl !== currentPhotoUrl;
+
+          if (needsDisplayNameUpdate || needsPhotoUpdate) {
+            const updateData = {};
+            if (needsDisplayNameUpdate) {
+              updateData.displayName = newDisplayName;
+              updateData.displayNameUpdatedAt = admin.firestore.FieldValue.serverTimestamp();
+              console.log(`✅ [${accountId}] Update thread ${clientJid.substring(0, 20)}: displayName "${threadData.displayName || 'no_name'}" -> "${newDisplayName}"`);
+            }
+            if (needsPhotoUpdate) {
+              updateData.profilePictureUrl = newProfilePictureUrl;
+              updateData.photoUrl = newProfilePictureUrl; // Also set photoUrl for backward compatibility
+              updateData.photoUpdatedAt = admin.firestore.FieldValue.serverTimestamp();
+              console.log(`✅ [${accountId}] Update thread ${clientJid.substring(0, 20)}: profilePictureUrl "${currentPhotoUrl || 'no_photo'}" -> "${newProfilePictureUrl.substring(0, 50)}..."`);
+            }
 
             if (!dryRun) {
-              await threadDoc.ref.update({
-                displayName: newDisplayName,
-                displayNameUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              });
+              await threadDoc.ref.update(updateData);
             }
 
             updated++;
             results.push({
               clientJid: clientJid.substring(0, 30),
               oldName: threadData.displayName || 'no_name',
-              newName: newDisplayName,
+              newName: newDisplayName || threadData.displayName || 'no_name',
+              hasPhoto: !!newProfilePictureUrl,
               action: dryRun ? 'would_update' : 'updated',
             });
           } else {
@@ -6074,6 +6106,158 @@ app.post('/admin/update-display-names', async (req, res) => {
     });
   } catch (error) {
     console.error(`❌ Update display names failed:`, error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin-only: Sync contacts to threads (update displayName and profilePictureUrl)
+app.post('/admin/sync-contacts-to-threads', async (req, res) => {
+  try {
+    // Check admin token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    const { accountId, dryRun = false } = req.body;
+
+    if (!accountId) {
+      return res.status(400).json({ success: false, error: 'accountId is required' });
+    }
+
+    console.log(`🔄 [ADMIN] Syncing contacts to threads: accountId=${accountId}, dryRun=${dryRun}`);
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    // Get all threads for this account
+    const threadsSnapshot = await db.collection('threads')
+      .where('accountId', '==', accountId)
+      .limit(1000)
+      .get();
+
+    console.log(`📊 Found ${threadsSnapshot.size} threads to process`);
+
+    let processed = 0;
+    let updatedDisplayName = 0;
+    let updatedPhoto = 0;
+    let skipped = 0;
+    let errors = 0;
+    const results = [];
+
+    for (const threadDoc of threadsSnapshot.docs) {
+      const threadData = threadDoc.data();
+      const threadId = threadDoc.id;
+      const clientJid = threadData.clientJid || null;
+
+      processed++;
+
+      try {
+        if (!clientJid) {
+          skipped++;
+          continue;
+        }
+
+        // Look up contact
+        const contactRef = db.collection('contacts').doc(`${accountId}__${clientJid}`);
+        const contactDoc = await contactRef.get();
+
+        if (!contactDoc.exists) {
+          skipped++;
+          if (processed <= 5) {
+            console.log(`   [${processed}] No contact found for ${clientJid.substring(0, 30)}`);
+          }
+          continue;
+        }
+
+        const contactData = contactDoc.data() || {};
+        const contactName = contactData.name || contactData.notify || contactData.verifiedName || null;
+        const contactPhotoUrl = contactData.imgUrl || null;
+
+        // Check if we need to update
+        const currentDisplayName = threadData.displayName || null;
+        const currentPhotoUrl = threadData.profilePictureUrl || threadData.photoUrl || null;
+
+        // CRITICAL FIX: Update if contact has name and thread doesn't have a valid name
+        // Also update if contact name is different (even if thread has a name)
+        const needsNameUpdate = contactName && 
+          typeof contactName === 'string' &&
+          contactName.trim().length > 0 && 
+          (contactName.trim() !== currentDisplayName || 
+           !currentDisplayName || 
+           currentDisplayName.trim().length === 0 ||
+           currentDisplayName === clientJid.split('@')[0] || // Thread has phone number as name
+           /^\+?[\d\s\-\(\)]+$/.test(currentDisplayName)); // Thread name looks like phone number
+        
+        // CRITICAL FIX: Update photo if contact has photo and thread doesn't, or if different
+        const needsPhotoUpdate = contactPhotoUrl && 
+          typeof contactPhotoUrl === 'string' &&
+          contactPhotoUrl.trim().length > 0 && 
+          (contactPhotoUrl.trim() !== currentPhotoUrl || !currentPhotoUrl);
+
+        if (!needsNameUpdate && !needsPhotoUpdate) {
+          skipped++;
+          if (processed <= 5) {
+            console.log(`   [${processed}] ${clientJid.substring(0, 30)}: already up-to-date (name="${currentDisplayName || 'none'}", photo=${currentPhotoUrl ? 'yes' : 'no'})`);
+          }
+          continue;
+        }
+
+        const updateData = {};
+        if (needsNameUpdate) {
+          updateData.displayName = contactName.trim();
+          updateData.displayNameUpdatedAt = admin.firestore.FieldValue.serverTimestamp();
+          updatedDisplayName++;
+        }
+        if (needsPhotoUpdate) {
+          updateData.profilePictureUrl = contactPhotoUrl.trim();
+          updateData.photoUrl = contactPhotoUrl.trim(); // Also set photoUrl for backward compatibility
+          updateData.photoUpdatedAt = admin.firestore.FieldValue.serverTimestamp();
+          updatedPhoto++;
+        }
+
+        if (!dryRun) {
+          await threadDoc.ref.update(updateData);
+        }
+
+        results.push({
+          threadId: threadId.substring(0, 50),
+          clientJid: clientJid.substring(0, 30),
+          oldName: currentDisplayName || 'no_name',
+          newName: contactName || currentDisplayName || 'no_name',
+          hasPhoto: !!contactPhotoUrl,
+          action: dryRun ? 'would_update' : 'updated',
+        });
+
+        if (results.length <= 10) {
+          console.log(`✅ [${accountId}] ${clientJid.substring(0, 30)}: ${needsNameUpdate ? `name="${contactName}"` : ''} ${needsPhotoUpdate ? 'photo=yes' : ''}`);
+        }
+      } catch (error) {
+        console.error(`❌ [${accountId}] Error processing thread ${threadId}:`, error.message);
+        errors++;
+      }
+    }
+
+    console.log(`✅ Sync complete: processed=${processed}, updatedDisplayName=${updatedDisplayName}, updatedPhoto=${updatedPhoto}, skipped=${skipped}, errors=${errors}`);
+
+    return res.json({
+      success: true,
+      dryRun,
+      processed,
+      updatedDisplayName,
+      updatedPhoto,
+      skipped,
+      errors,
+      sampleResults: results.slice(0, 20),
+    });
+  } catch (error) {
+    console.error(`❌ Sync contacts to threads failed:`, error.message);
     return res.status(500).json({ success: false, error: error.message });
   }
 });

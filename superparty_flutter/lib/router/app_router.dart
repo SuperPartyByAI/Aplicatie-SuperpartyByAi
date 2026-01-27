@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:io';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../services/admin_service.dart';
 import '../services/firebase_service.dart';
+import '../utils/debug_logger.dart';
 
 // Existing app screens
 import '../screens/home/home_screen.dart';
@@ -19,6 +18,8 @@ import '../screens/centrala/centrala_screen.dart';
 import '../screens/whatsapp/whatsapp_screen.dart';
 import '../screens/whatsapp/whatsapp_accounts_screen.dart';
 import '../screens/whatsapp/whatsapp_inbox_screen.dart';
+import '../screens/whatsapp/my_inbox_screen.dart';
+import '../screens/whatsapp/employee_inbox_screen.dart';
 import '../screens/whatsapp/whatsapp_chat_screen.dart';
 import '../screens/whatsapp/whatsapp_ai_settings_screen.dart';
 import '../screens/whatsapp/client_profile_screen.dart';
@@ -130,6 +131,20 @@ class AppRouter {
             builder: (context, state) => AuthGate(
               fromRoute: state.uri.toString(),
               child: const WhatsAppInboxScreen(),
+            ),
+          ),
+          GoRoute(
+            path: 'my-inbox',
+            builder: (context, state) => AuthGate(
+              fromRoute: state.uri.toString(),
+              child: const MyInboxScreen(),
+            ),
+          ),
+          GoRoute(
+            path: 'employee-inbox',
+            builder: (context, state) => AuthGate(
+              fromRoute: state.uri.toString(),
+              child: const EmployeeInboxScreen(),
             ),
           ),
           GoRoute(
@@ -288,41 +303,26 @@ class AppRouter {
 
   FutureOr<String?> _redirect(BuildContext context, GoRouterState state) async {
     // #region agent log
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    try {
-      final logEntry = {
-        'id': 'router_redirect_$timestamp',
-        'timestamp': timestamp,
-        'location': 'app_router.dart:113',
-        'message': '[ROUTER] redirect called',
-        'data': {
-          'from': state.uri.path,
-          'firebaseInitialized': FirebaseService.isInitialized,
-        },
-        'sessionId': 'debug-session',
-        'runId': 'run1',
-        'hypothesisId': 'A',
-      };
-      File('/Users/universparty/.cursor/debug.log').writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
-    } catch (_) {}
+    DebugLogger.log(
+      id: 'router_redirect',
+      location: 'app_router.dart:_redirect',
+      message: '[ROUTER] redirect called',
+      data: {
+        'from': state.uri.path,
+        'firebaseInitialized': FirebaseService.isInitialized,
+      },
+    );
     // #endregion
 
     // Wait for Firebase init (main shows a loading MaterialApp until then).
     if (!FirebaseService.isInitialized) {
       // #region agent log
-      try {
-        final logEntry = {
-          'id': 'router_redirect_firebase_not_init_$timestamp',
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-          'location': 'app_router.dart:115',
-          'message': '[ROUTER] redirect: Firebase not initialized, returning null',
-          'data': {'from': state.uri.path},
-          'sessionId': 'debug-session',
-          'runId': 'run1',
-          'hypothesisId': 'A',
-        };
-        File('/Users/universparty/.cursor/debug.log').writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
-      } catch (_) {}
+      DebugLogger.log(
+        id: 'router_redirect_firebase_not_init',
+        location: 'app_router.dart:_redirect',
+        message: '[ROUTER] redirect: Firebase not initialized, returning null',
+        data: {'from': state.uri.path},
+      );
       // #endregion
       return null;
     }
@@ -331,24 +331,17 @@ class AppRouter {
     final loc = state.uri.path;
 
     // #region agent log
-    try {
-      final logEntry = {
-        'id': 'router_redirect_auth_check_$timestamp',
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-        'location': 'app_router.dart:156',
-        'message': '[ROUTER] redirect: auth check',
-        'data': {
-          'from': loc,
-          'userIsNull': user == null,
-          'userId': user?.uid,
-          'userEmail': user?.email != null ? '${user!.email!.substring(0, 2)}***' : null,
-        },
-        'sessionId': 'debug-session',
-        'runId': 'run1',
-        'hypothesisId': 'A',
-      };
-      File('/Users/universparty/.cursor/debug.log').writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
-    } catch (_) {}
+    DebugLogger.log(
+      id: 'router_redirect_auth_check',
+      location: 'app_router.dart:_redirect',
+      message: '[ROUTER] redirect: auth check',
+      data: {
+        'from': loc,
+        'userIsNull': user == null,
+        'userId': user?.uid,
+        'userEmail': user?.email != null ? '${user!.email!.substring(0, 2)}***' : null,
+      },
+    );
     // #endregion
 
     // Only redirect /admin routes for unauthenticated users
@@ -356,38 +349,24 @@ class AppRouter {
     if (loc.startsWith('/admin')) {
       if (user == null) {
         // #region agent log
-        try {
-          final logEntry = {
-            'id': 'router_redirect_admin_unauth_$timestamp',
-            'timestamp': DateTime.now().millisecondsSinceEpoch,
-            'location': 'app_router.dart:171',
-            'message': '[ROUTER] redirect: admin route, user null -> /',
-            'data': {'from': loc, 'to': '/'},
-            'sessionId': 'debug-session',
-            'runId': 'run1',
-            'hypothesisId': 'A',
-          };
-          File('/Users/universparty/.cursor/debug.log').writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
-        } catch (_) {}
+        DebugLogger.log(
+          id: 'router_redirect_admin_unauth',
+          location: 'app_router.dart:_redirect',
+          message: '[ROUTER] redirect: admin route, user null -> /',
+          data: {'from': loc, 'to': '/'},
+        );
         // #endregion
         return '/';
       }
       final ok = await _adminService.isCurrentUserAdmin();
       if (!ok) {
         // #region agent log
-        try {
-          final logEntry = {
-            'id': 'router_redirect_admin_denied_$timestamp',
-            'timestamp': DateTime.now().millisecondsSinceEpoch,
-            'location': 'app_router.dart:318',
-            'message': '[ROUTER] redirect: admin access denied -> /home',
-            'data': {'from': loc, 'to': '/home'},
-            'sessionId': 'debug-session',
-            'runId': 'run1',
-            'hypothesisId': 'E',
-          };
-          File('/Users/universparty/.cursor/debug.log').writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
-        } catch (_) {}
+        DebugLogger.log(
+          id: 'router_redirect_admin_denied',
+          location: 'app_router.dart:_redirect',
+          message: '[ROUTER] redirect: admin access denied -> /home',
+          data: {'from': loc, 'to': '/home'},
+        );
         // #endregion
         return '/home';
       }
@@ -395,19 +374,12 @@ class AppRouter {
 
     // No redirect needed for other routes - AuthGate handles auth in-place
     // #region agent log
-    try {
-      final logEntry = {
-        'id': 'router_redirect_no_redirect_$timestamp',
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-        'location': 'app_router.dart:197',
-        'message': '[ROUTER] redirect: no redirect needed (AuthGate handles auth)',
-        'data': {'from': loc, 'userId': user?.uid, 'isAdminRoute': loc.startsWith('/admin')},
-        'sessionId': 'debug-session',
-        'runId': 'run1',
-        'hypothesisId': 'A',
-      };
-      File('/Users/universparty/.cursor/debug.log').writeAsStringSync('${jsonEncode(logEntry)}\n', mode: FileMode.append);
-    } catch (_) {}
+    DebugLogger.log(
+      id: 'router_redirect_no_redirect',
+      location: 'app_router.dart:_redirect',
+      message: '[ROUTER] redirect: no redirect needed (AuthGate handles auth)',
+      data: {'from': loc, 'userId': user?.uid, 'isAdminRoute': loc.startsWith('/admin')},
+    );
     // #endregion
 
     return null;

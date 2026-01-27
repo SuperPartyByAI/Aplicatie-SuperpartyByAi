@@ -30,6 +30,42 @@ class _AuthWrapperState extends State<AuthWrapper> {
   String? _lastUid;
   bool _returnRouteHandled = false; // Track if we've handled return-after-login
 
+  /// Validate return route - only allow internal routes from whitelist
+  /// Security: Prevents open redirect attacks by only allowing whitelisted internal routes
+  bool _isValidReturnRoute(String route) {
+    if (route.isEmpty) return false;
+    
+    // Must start with / (internal route)
+    if (!route.startsWith('/')) return false;
+    
+    // Parse as URI to check for scheme/host (extra-safety)
+    final uri = Uri.tryParse(route);
+    if (uri == null) return false;
+    
+    // Block external URLs (scheme or host present)
+    if (uri.hasScheme || uri.host.isNotEmpty) return false;
+    
+    // Block root path to prevent login loop
+    if (uri.path == '/') return false;
+    
+    // Whitelist of allowed route prefixes
+    const allowedPrefixes = [
+      '/home',
+      '/evenimente',
+      '/disponibilitate',
+      '/salarizare',
+      '/centrala',
+      '/whatsapp',
+      '/team',
+      '/admin',
+      '/ai-chat',
+      '/kyc',
+    ];
+    
+    // Check if route matches any allowed prefix (exact or sub-route)
+    return allowedPrefixes.any((prefix) => uri.path == prefix || uri.path.startsWith('$prefix/'));
+  }
+
   /// Load user role from staffProfiles and update AppState
   Future<void> _loadUserRole(BuildContext context) async {
     try {
@@ -103,8 +139,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
               if (mounted) {
                 try {
                   final decodedRoute = Uri.decodeComponent(returnRoute);
-                  debugPrint('[AuthWrapper] Navigating to return route: $decodedRoute');
-                  context.go(decodedRoute);
+                  
+                  // SECURITY: Validate route - only allow internal routes
+                  if (_isValidReturnRoute(decodedRoute)) {
+                    debugPrint('[AuthWrapper] Navigating to return route: $decodedRoute');
+                    context.go(decodedRoute);
+                  } else {
+                    debugPrint('[AuthWrapper] Invalid return route (not whitelisted): $decodedRoute');
+                    if (mounted) context.go('/home');
+                  }
                 } catch (e) {
                   debugPrint('[AuthWrapper] Error parsing return route: $e');
                   // Fallback to home if route is invalid

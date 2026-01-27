@@ -1,12 +1,13 @@
 /**
- * Get backend base URL (deployment-agnostic: Hetzner, Railway, or any other backend)
+ * Get backend base URL (Hetzner VPS)
  * 
  * Priority order:
- * 1. BACKEND_BASE_URL (new, generic name)
+ * 1. BACKEND_BASE_URL (preferred, generic name)
  * 2. WHATSAPP_BACKEND_BASE_URL (legacy)
  * 3. WHATSAPP_BACKEND_URL (legacy)
- * 4. WHATSAPP_RAILWAY_BASE_URL (deprecated, fallback only with warning)
- * 5. Firebase config (whatsapp.backend_base_url)
+ * 4. Firebase config (whatsapp.backend_base_url)
+ * 
+ * Default: http://37.27.34.179:8080 (Hetzner VPS)
  */
 function getBackendBaseUrl() {
   // New generic name (preferred)
@@ -22,15 +23,6 @@ function getBackendBaseUrl() {
     return process.env.WHATSAPP_BACKEND_URL;
   }
   
-  // Deprecated Railway-specific name (fallback with warning)
-  if (process.env.WHATSAPP_RAILWAY_BASE_URL) {
-    console.warn(
-      '[backend-url] WHATSAPP_RAILWAY_BASE_URL is deprecated. ' +
-      'Please use BACKEND_BASE_URL or WHATSAPP_BACKEND_BASE_URL instead.'
-    );
-    return process.env.WHATSAPP_RAILWAY_BASE_URL;
-  }
-  
   // Firebase config fallback
   try {
     const functions = require('firebase-functions');
@@ -42,7 +34,13 @@ function getBackendBaseUrl() {
     // Ignore
   }
   
-  return null;
+  // Default: Hetzner VPS (if no config found, this prevents null errors)
+  const defaultBackendUrl = 'http://37.27.34.179:8080';
+  console.warn(
+    '[backend-url] No backend URL configured. Using default Hetzner VPS: ' + defaultBackendUrl +
+    '. Please set BACKEND_BASE_URL or WHATSAPP_BACKEND_BASE_URL in Firebase Functions secrets.'
+  );
+  return defaultBackendUrl;
 }
 
 module.exports = {

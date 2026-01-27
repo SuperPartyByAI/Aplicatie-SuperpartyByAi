@@ -49,5 +49,15 @@
 	<array>
 		<string>whatsapp</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Necesităm acces la galerie pentru a trimite poze în conversații WhatsApp.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Necesităm permisiunea de a salva poze în galerie.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Necesităm acces la cameră pentru a face poze și a le trimite în conversații WhatsApp.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Necesităm acces la microfon pentru a înregistra video-uri cu sunet.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Necesităm acces la locație pentru a trimite locația ta în conversații WhatsApp.</string>
 </dict>
 </plist>

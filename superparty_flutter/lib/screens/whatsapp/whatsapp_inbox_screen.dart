@@ -9,6 +9,7 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:crypto/crypto.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/errors/app_exception.dart';
 import '../../core/config/env.dart';
@@ -213,11 +214,52 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   void _rebuildThreadsFromCache() {
     final allThreads = _threadsByAccount.values.expand((list) => list).toList();
     final dedupedMaps = _filterAndDedupeThreads(allThreads);
-    final models = dedupedMaps
-        .map((m) => ThreadModel.fromJson(Map<String, dynamic>.from(m)))
+    
+    // CRITICAL FIX: Stable sort with tie-breaker to prevent order jumping
+    // Add index to preserve original order when timestamps are equal/null
+    final indexed = dedupedMaps.asMap().entries.map((e) {
+      return {
+        ...e.value,
+        '__idx': e.key,
+      };
+    }).toList();
+    
+    // Sort with stable tie-breaker
+    indexed.sort((a, b) {
+      // Parse timestamps robustly
+      final aTime = _parseLastMessageAt(a['lastMessageAt']) ?? _parseLastMessageAt(a['updatedAt']);
+      final bTime = _parseLastMessageAt(b['lastMessageAt']) ?? _parseLastMessageAt(b['updatedAt']);
+      
+      // Compare timestamps (descending: newest first)
+      final aMs = aTime?.millisecondsSinceEpoch ?? -1;
+      final bMs = bTime?.millisecondsSinceEpoch ?? -1;
+      final timeCmp = bMs.compareTo(aMs);
+      
+      if (timeCmp != 0) return timeCmp;
+      
+      // STABLE SORT: When timestamps are equal/null, preserve original order
+      // This prevents threads from jumping around on refresh
+      return (a['__idx'] as int).compareTo(b['__idx'] as int);
+    });
+    
+    // Remove index and create models
+    final sortedMaps = indexed.map((m) {
+      final copy = Map<String, dynamic>.from(m);
+      copy.remove('__idx');
+      return copy;
+    }).toList();
+    
+    final models = sortedMaps
+        .map((m) => ThreadModel.fromJson(m))
         .toList();
+    
     if (kDebugMode) {
       debugPrint('[WhatsAppInboxScreen] Rebuild from cache: raw=${allThreads.length} deduped=${models.length}');
+      if (models.isNotEmpty) {
+        final first = models.first;
+        final last = models.length > 1 ? models.last : null;
+        debugPrint('[WhatsAppInboxScreen] ✅ SORTED (stable): First=${first.displayName} (${first.lastMessageAt}) | Last=${last?.displayName ?? "N/A"} (${last?.lastMessageAt ?? "N/A"})');
+      }
     }
     if (mounted) {
       setState(() {
@@ -240,35 +282,82 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   }
 
   /// Robust timestamp parser: accepts Firestore Timestamp, Map, ISO string, DateTime, milliseconds int
+  /// Handles multiple formats for maximum compatibility
   DateTime? _parseAnyTs(dynamic v) {
     if (v == null) return null;
     if (v is DateTime) return v;
+    
     // CRITICAL FIX: Handle Firestore Timestamp objects from cloud_firestore package
     if (v is Timestamp) {
       return v.toDate();
     }
+    
+    // Try cloud_firestore Timestamp.toDate() method (best-effort, fără import direct)
+    try {
+      final dyn = v as dynamic;
+      final dt = dyn.toDate?.call();
+      if (dt is DateTime) return dt;
+    } catch (_) {}
+    
+    // ISO string
     if (v is String) {
       final parsed = DateTime.tryParse(v);
       if (parsed != null) return parsed;
     }
+    
+    // Firestore timestamp-like map
     if (v is Map) {
-      final secs = v['_seconds'] ?? v['seconds'];
-      if (secs is num) {
-        return DateTime.fromMillisecondsSinceEpoch(secs.toInt() * 1000);
-      }
+      // Try milliseconds first
       final ms = v['_milliseconds'] ?? v['milliseconds'];
       if (ms is num) {
         return DateTime.fromMillisecondsSinceEpoch(ms.toInt());
       }
+      
+      // Try seconds
+      final secs = v['_seconds'] ?? v['seconds'] ?? v['sec'];
+      if (secs is num) {
+        return DateTime.fromMillisecondsSinceEpoch(secs.toInt() * 1000);
+      }
     }
+    
+    // int: milliseconds (13 digits) or seconds (10 digits)
     if (v is int) {
-      // Assume milliseconds if > 1e12, otherwise seconds
-      if (v > 1e12) {
+      // milliseconds (13 digits-ish, > 1e12)
+      if (v > 1000000000000) {
         return DateTime.fromMillisecondsSinceEpoch(v);
-      } else {
+      }
+      // seconds (10 digits-ish, > 1e9)
+      if (v > 1000000000) {
         return DateTime.fromMillisecondsSinceEpoch(v * 1000);
       }
     }
+    
+    return null;
+  }
+  
+  /// Parse lastMessageAt from thread map with all fallbacks
+  DateTime? _parseLastMessageAt(dynamic v) {
+    // Try direct parse first
+    final parsed = _parseAnyTs(v);
+    if (parsed != null) return parsed;
+    
+    // Additional fallbacks if v is a Map
+    if (v is Map) {
+      // Try lastMessageAtMs
+      if (v['lastMessageAtMs'] is int) {
+        return DateTime.fromMillisecondsSinceEpoch(v['lastMessageAtMs'] as int);
+      }
+      // Try lastMessageTimestamp
+      if (v['lastMessageTimestamp'] is int) {
+        final ts = v['lastMessageTimestamp'] as int;
+        if (ts > 1000000000000) {
+          return DateTime.fromMillisecondsSinceEpoch(ts);
+        } else if (ts > 1000000000) {
+          return DateTime.fromMillisecondsSinceEpoch(ts * 1000);
+        }
+      }
+    }
+    
     return null;
   }
 
@@ -565,6 +654,68 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     return false;
   }
 
+  /// Open WhatsApp chat for calling (user must press Call button in WhatsApp)
+  Future<bool> _openWhatsAppForCall(String? phoneE164) async {
+    if (phoneE164 == null || phoneE164.isEmpty) return false;
+    
+    // Normalize: digits + optional leading +
+    var cleaned = phoneE164.trim().replaceAll(RegExp(r'[^\d+]'), '');
+    final hasPlus = cleaned.startsWith('+');
+    cleaned = cleaned.replaceAll('+', '');
+    if (cleaned.isEmpty) return false;
+    final e164 = hasPlus ? '+$cleaned' : cleaned;
+
+    // 1) Native scheme (opens app)
+    final native = Uri.parse('whatsapp://send?phone=$e164');
+    if (await canLaunchUrl(native)) {
+      return launchUrl(native, mode: LaunchMode.externalApplication);
+    }
+
+    // 2) Web fallback
+    final waDigits = e164.startsWith('+') ? e164.substring(1) : e164;
+    final web = Uri.parse('https://wa.me/$waDigits');
+    return launchUrl(web, mode: LaunchMode.externalApplication);
+  }
+
+  /// Make phone call using url_launcher
+  Future<void> _makePhoneCall(String? phone) async {
+    if (phone == null || phone.isEmpty) return;
+    
+    // Clean phone number: normalize to have + only at the beginning
+    String cleaned = phone.trim();
+    // Remove all non-digit characters except +
+    cleaned = cleaned.replaceAll(RegExp(r'[^\d+]'), '');
+    // Ensure + is only at the beginning (remove any + in the middle/end)
+    final hasPlus = cleaned.startsWith('+');
+    cleaned = cleaned.replaceAll('+', ''); // Remove all +
+    if (hasPlus && cleaned.isNotEmpty) {
+      cleaned = '+$cleaned'; // Add + only at the beginning
+    }
+    
+    if (cleaned.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Număr de telefon invalid')),
+      );
+      return;
+    }
+    
+    final uri = Uri(scheme: 'tel', path: cleaned);
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nu se poate deschide aplicația de telefon')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Eroare la apelare: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Debug: Show backend URL in debug mode
@@ -587,6 +738,16 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
         ),
         backgroundColor: const Color(0xFF25D366),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.sync),
+            onPressed: () async {
+              // Sync messages from phone - run backfill to get latest messages
+              await _runBackfill();
+              // Also refresh threads list
+              _loadThreads(forceRefresh: true);
+            },
+            tooltip: 'Sincronizează mesaje',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
@@ -753,7 +914,8 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                             timeText = DateFormat('dd/MM').format(t.lastMessageAt!);
                                           }
                                         }
-                                        final ph = t.phone ?? '';
+                                        // Use normalizedPhone first, then fallback to phone getter
+                                        final ph = t.normalizedPhone ?? t.phone ?? '';
                                         final showPhone = ph.isNotEmpty &&
                                             (t.displayName.isEmpty ||
                                                 t.displayName == ph ||
@@ -793,7 +955,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                                     // Filter out protocol messages - use fallback if displayName looks like protocol message
                                                     if (t.displayName.isNotEmpty && _looksLikeProtocolMessage(t.displayName)) {
                                                       // Use phone number as fallback if available
-                                                      final ph = t.phone ?? '';
+                                                      final ph = t.normalizedPhone ?? t.phone ?? '';
                                                       if (ph.isNotEmpty) return ph;
                                                       // Otherwise use clientJid or empty
                                                       final jid = t.clientJid ?? '';
@@ -805,7 +967,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                                     }
                                                     return t.displayName.isNotEmpty
                                                         ? t.displayName
-                                                        : (t.phone ?? '');
+                                                        : (t.normalizedPhone ?? t.phone ?? '');
                                                   }(),
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.bold,
@@ -848,15 +1010,58 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(fontSize: 13),
                                           ),
-                                          trailing: timeText.isEmpty
-                                              ? null
-                                              : Text(
+                                          trailing: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              if (timeText.isNotEmpty)
+                                                Text(
                                                   timeText,
                                                   style: TextStyle(
                                                     fontSize: 11,
                                                     color: Colors.grey[600],
                                                   ),
                                                 ),
+                                              if (ph.isNotEmpty) ...[
+                                                if (timeText.isNotEmpty) const SizedBox(width: 8),
+                                                // WhatsApp call button
+                                                IconButton(
+                                                  icon: const Icon(Icons.video_call, color: Color(0xFF25D366), size: 18),
+                                                  onPressed: () async {
+                                                    final ok = await _openWhatsAppForCall(ph);
+                                                    if (!mounted) return;
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(ok
+                                                            ? 'S-a deschis WhatsApp. Apasă iconița Call acolo.'
+                                                            : 'Nu pot deschide WhatsApp (instalat?)'),
+                                                        duration: const Duration(seconds: 2),
+                                                      ),
+                                                    );
+                                                  },
+                                                  tooltip: 'Sună pe WhatsApp',
+                                                  padding: EdgeInsets.zero,
+                                                  constraints: const BoxConstraints(
+                                                    minWidth: 32,
+                                                    minHeight: 32,
+                                                  ),
+                                                  iconSize: 18,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                // Regular phone call button
+                                                IconButton(
+                                                  icon: const Icon(Icons.phone, color: Colors.blue, size: 18),
+                                                  onPressed: () => _makePhoneCall(ph),
+                                                  tooltip: 'Sună ${ph} (telefon)',
+                                                  padding: EdgeInsets.zero,
+                                                  constraints: const BoxConstraints(
+                                                    minWidth: 32,
+                                                    minHeight: 32,
+                                                  ),
+                                                  iconSize: 18,
+                                                ),
+                                              ],
+                                            ],
+                                          ),
                                           onTap: () {
                                             context.go(
                                               '/whatsapp/chat?accountId=${Uri.encodeComponent(t.accountId ?? '')}'

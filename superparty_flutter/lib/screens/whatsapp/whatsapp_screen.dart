@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../services/admin_service.dart';
 import '../../services/whatsapp_service.dart';
+import '../../services/whatsapp_account_service.dart';
+import '../../services/role_service.dart';
 
 class WhatsAppScreen extends StatefulWidget {
   const WhatsAppScreen({super.key});
@@ -13,7 +15,12 @@ class WhatsAppScreen extends StatefulWidget {
 
 class _WhatsAppScreenState extends State<WhatsAppScreen> {
   final AdminService _adminService = AdminService();
+  final WhatsAppAccountService _accountService = WhatsAppAccountService.instance;
+  final RoleService _roleService = RoleService();
+  
   Future<bool>? _isAdminFuture;
+  Future<String?>? _myAccountIdFuture;
+  Future<List<String>>? _employeeAccountIdsFuture;
   bool _isLoading = false;
   bool? _isWhatsAppInstalled;
 
@@ -21,6 +28,8 @@ class _WhatsAppScreenState extends State<WhatsAppScreen> {
   void initState() {
     super.initState();
     _isAdminFuture = _adminService.isCurrentUserAdmin();
+    _myAccountIdFuture = _accountService.getMyWhatsAppAccountId();
+    _employeeAccountIdsFuture = _accountService.getEmployeeWhatsAppAccountIds();
     _checkWhatsAppInstallation();
   }
 
@@ -63,6 +72,11 @@ class _WhatsAppScreenState extends State<WhatsAppScreen> {
       appBar: AppBar(
         title: const Text('WhatsApp'),
         backgroundColor: const Color(0xFF25D366),
+        leading: IconButton(
+          icon: const Icon(Icons.home, color: Colors.white),
+          onPressed: () => context.go('/home'),
+          tooltip: 'Acasă',
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -111,12 +125,64 @@ class _WhatsAppScreenState extends State<WhatsAppScreen> {
                   Card(
                     child: ListTile(
                       leading: const Icon(Icons.inbox),
-                      title: const Text('Inbox'),
-                      subtitle: const Text('Listă conversații WhatsApp'),
+                      title: const Text('Inbox (All Accounts)'),
+                      subtitle: const Text('Listă conversații din toate conturile (admin)'),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => context.go('/whatsapp/inbox'),
                     ),
                   ),
+                ],
+              );
+            },
+          ),
+          // My Inbox (personal account)
+          FutureBuilder<String?>(
+            future: _myAccountIdFuture,
+            builder: (context, snap) {
+              final myAccountId = snap.data;
+              if (myAccountId == null || myAccountId.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.person, color: Color(0xFF25D366)),
+                      title: const Text('My Inbox'),
+                      subtitle: const Text('Conversațiile contului meu personal'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.go('/whatsapp/my-inbox'),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          // Employee Inbox (if employee)
+          FutureBuilder<List<String>>(
+            future: _employeeAccountIdsFuture,
+            builder: (context, snap) {
+              final employeeAccountIds = snap.data ?? [];
+              if (employeeAccountIds.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.business, color: Colors.blue),
+                      title: const Text('Employee Inbox'),
+                      subtitle: Text('Conversațiile conturilor de angajat (${employeeAccountIds.length} cont${employeeAccountIds.length > 1 ? 'uri' : ''})'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => context.go('/whatsapp/employee-inbox'),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
                 ],
               );
             },

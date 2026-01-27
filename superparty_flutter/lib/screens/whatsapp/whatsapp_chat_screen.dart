@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
@@ -9,6 +12,10 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:video_player/video_player.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:path/path.dart' as path;
 
 import '../../services/whatsapp_api_service.dart';
 
@@ -208,6 +215,29 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   String? _extractFromQuery(String param) {
     final uri = Uri.base;
     return uri.queryParameters[param];
+  }
+
+  /// Open WhatsApp chat for calling (user must press Call button in WhatsApp)
+  Future<bool> openWhatsAppForCall(String? phoneE164) async {
+    if (phoneE164 == null || phoneE164.isEmpty) return false;
+    
+    // Normalize: digits + optional leading +
+    var cleaned = phoneE164.trim().replaceAll(RegExp(r'[^\d+]'), '');
+    final hasPlus = cleaned.startsWith('+');
+    cleaned = cleaned.replaceAll('+', '');
+    if (cleaned.isEmpty) return false;
+    final e164 = hasPlus ? '+$cleaned' : cleaned;
+
+    // 1) Native scheme (opens app)
+    final native = Uri.parse('whatsapp://send?phone=$e164');
+    if (await canLaunchUrl(native)) {
+      return launchUrl(native, mode: LaunchMode.externalApplication);
+    }
+
+    // 2) Web fallback
+    final waDigits = e164.startsWith('+') ? e164.substring(1) : e164;
+    final web = Uri.parse('https://wa.me/$waDigits');
+    return launchUrl(web, mode: LaunchMode.externalApplication);
   }
 
   String _maskId(String value) => value.hashCode.toRadixString(16);
@@ -763,8 +793,32 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       debugPrint('[ChatScreen] Error sending message: $e');
       
       if (mounted) {
+        // Extract user-friendly error message
+        String errorMessage = 'Eroare la trimiterea mesajului';
+        if (e.toString().contains('expected_json_got_html')) {
+          errorMessage = 'Backend-ul nu răspunde corect (eroare 500). Verifică logurile backend-ului.';
+        } else if (e.toString().contains('500')) {
+          errorMessage = 'Eroare server (500). Backend-ul nu poate procesa mesajul.';
+        } else if (e.toString().contains('401') || e.toString().contains('unauthorized')) {
+          errorMessage = 'Nu ești autentificat. Te rugăm să te reconectezi.';
+        } else if (e.toString().contains('timeout')) {
+          errorMessage = 'Timeout la trimitere. Verifică conexiunea la internet.';
+        } else {
+          // Show first line of error for debugging
+          final errorStr = e.toString();
+          if (errorStr.length > 100) {
+            errorMessage = 'Eroare: ${errorStr.substring(0, 100)}...';
+          } else {
+            errorMessage = 'Eroare: $errorStr';
+          }
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error sending message: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     } finally {
@@ -783,6 +837,292 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
     );
+  }
+
+  /// Build message text with clickable links
+  Widget _buildMessageText(String body, bool isOutbound) {
+    // Check if body is a URL (starts with http://, https://, or maps.google.com)
+    final isUrl = body.trim().startsWith('http://') || 
+                  body.trim().startsWith('https://') ||
+                  body.trim().startsWith('maps.google.com');
+    
+    if (isUrl) {
+      // Make entire text clickable if it's a URL
+      return GestureDetector(
+        onTap: () async {
+          try {
+            final uri = Uri.parse(body.trim());
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+          } catch (e) {
+            debugPrint('[ChatScreen] Error launching URL: $e');
+          }
+        },
+        child: Text(
+          body,
+          style: TextStyle(
+            color: isOutbound ? Colors.white : Colors.blue[700],
+            fontSize: 15,
+            decoration: TextDecoration.underline,
+          ),
+        ),
+      );
+    }
+    
+    // Regular text - check if it contains URLs
+    final urlPattern = RegExp(r'(https?://[^\s]+|maps\.google\.com[^\s]*)', caseSensitive: false);
+    final matches = urlPattern.allMatches(body);
+    
+    if (matches.isEmpty) {
+      // No URLs found, return plain text
+      return Text(
+        body,
+        style: TextStyle(
+          color: isOutbound ? Colors.white : Colors.black87,
+          fontSize: 15,
+        ),
+      );
+    }
+    
+    // Build RichText with clickable URLs
+    final textSpans = <TextSpan>[];
+    int lastEnd = 0;
+    
+    for (final match in matches) {
+      // Add text before URL
+      if (match.start > lastEnd) {
+        textSpans.add(TextSpan(
+          text: body.substring(lastEnd, match.start),
+          style: TextStyle(
+            color: isOutbound ? Colors.white : Colors.black87,
+            fontSize: 15,
+          ),
+        ));
+      }
+      
+      // Add clickable URL
+      final url = match.group(0)!;
+      textSpans.add(TextSpan(
+        text: url,
+        style: TextStyle(
+          color: isOutbound ? Colors.white70 : Colors.blue[700],
+          fontSize: 15,
+          decoration: TextDecoration.underline,
+        ),
+        recognizer: TapGestureRecognizer()
+          ..onTap = () async {
+            try {
+              final uri = Uri.parse(url);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            } catch (e) {
+              debugPrint('[ChatScreen] Error launching URL: $e');
+            }
+          },
+      ));
+      
+      lastEnd = match.end;
+    }
+    
+    // Add remaining text
+    if (lastEnd < body.length) {
+      textSpans.add(TextSpan(
+        text: body.substring(lastEnd),
+        style: TextStyle(
+          color: isOutbound ? Colors.white : Colors.black87,
+          fontSize: 15,
+        ),
+      ));
+    }
+    
+    return RichText(
+      text: TextSpan(children: textSpans),
+    );
+  }
+
+  /// Upload file to Firebase Storage and return download URL
+  Future<String?> _uploadFile(File file, String fileName) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
+
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('whatsapp_media')
+          .child(user.uid)
+          .child('${Uuid().v4()}_$fileName');
+
+      final uploadTask = storageRef.putFile(file);
+      final snapshot = await uploadTask;
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      debugPrint('[ChatScreen] Upload error: $e');
+      return null;
+    }
+  }
+
+  /// Pick image from gallery
+  Future<void> _pickImage() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+      if (image == null) return;
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Se încarcă imaginea...')),
+      );
+
+      final file = File(image.path);
+      final fileName = path.basename(image.path);
+      final downloadUrl = await _uploadFile(file, fileName);
+
+      if (downloadUrl != null && mounted) {
+        // Send image link as text (varianta minimă)
+        _messageController.text = downloadUrl;
+        await _sendMessage();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Eroare la încărcarea imaginii'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  /// Take photo with camera
+  Future<void> _takePhoto() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: ImageSource.camera);
+      if (image == null) return;
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Se încarcă imaginea...')),
+      );
+
+      final file = File(image.path);
+      final fileName = path.basename(image.path);
+      final downloadUrl = await _uploadFile(file, fileName);
+
+      if (downloadUrl != null && mounted) {
+        // Send image link as text (varianta minimă)
+        _messageController.text = downloadUrl;
+        await _sendMessage();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Eroare la încărcarea imaginii'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  /// Pick file (PDF, DOC, etc.)
+  Future<void> _pickFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(withData: false);
+      if (result == null || result.files.single.path == null) return;
+
+      final filePath = result.files.single.path!;
+      final fileName = result.files.single.name;
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Se încarcă fișierul...')),
+      );
+
+      final file = File(filePath);
+      final downloadUrl = await _uploadFile(file, fileName);
+
+      if (downloadUrl != null && mounted) {
+        // Send file link as text (varianta minimă)
+        _messageController.text = '$fileName: $downloadUrl';
+        await _sendMessage();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Eroare la încărcarea fișierului'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  /// Send location (Google Maps link)
+  Future<void> _sendLocation() async {
+    try {
+      // Check location permissions
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Serviciul de locație este dezactivat'), backgroundColor: Colors.orange),
+          );
+        }
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Permisiunea de locație a fost refuzată'), backgroundColor: Colors.red),
+            );
+          }
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permisiunea de locație este permanent refuzată. Te rugăm să o activezi în setări.'), backgroundColor: Colors.red),
+          );
+        }
+        return;
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Se obține locația...')),
+      );
+
+      final position = await Geolocator.getCurrentPosition();
+      final lat = position.latitude;
+      final lng = position.longitude;
+
+      // Send Google Maps link as text (varianta minimă)
+      final locationLink = 'https://maps.google.com/?q=$lat,$lng';
+      _messageController.text = locationLink;
+      await _sendMessage();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare la obținerea locației: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   int? _extractTsMillis(dynamic tsClientRaw) {
@@ -1130,6 +1470,64 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         ),
         backgroundColor: const Color(0xFF25D366),
         actions: [
+          if (_phoneE164 != null || _extractPhoneFromJid(_clientJid) != null) ...[
+            // WhatsApp call button (opens WhatsApp chat)
+            IconButton(
+              icon: const Icon(Icons.video_call, color: Colors.white),
+              onPressed: () async {
+                final phone = _phoneE164 ?? _extractPhoneFromJid(_clientJid);
+                if (phone != null && phone.isNotEmpty) {
+                  final ok = await openWhatsAppForCall(phone);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(ok
+                          ? 'S-a deschis WhatsApp. Apasă iconița Call acolo.'
+                          : 'Nu pot deschide WhatsApp (instalat?)'),
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
+              },
+              tooltip: 'Sună pe WhatsApp',
+            ),
+            // Regular phone call button
+            IconButton(
+              icon: const Icon(Icons.phone),
+              onPressed: () async {
+                final phone = _phoneE164 ?? _extractPhoneFromJid(_clientJid);
+                if (phone != null && phone.isNotEmpty) {
+                  // Normalize phone number: ensure + is only at the beginning
+                  String cleaned = phone.trim();
+                  cleaned = cleaned.replaceAll(RegExp(r'[^\d+]'), '');
+                  final hasPlus = cleaned.startsWith('+');
+                  cleaned = cleaned.replaceAll('+', '');
+                  if (hasPlus && cleaned.isNotEmpty) {
+                    cleaned = '+$cleaned';
+                  }
+                  
+                  if (cleaned.isNotEmpty) {
+                    final uri = Uri(scheme: 'tel', path: cleaned);
+                    try {
+                      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      if (!ok && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Nu se poate deschide aplicația de telefon')),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Eroare la apelare: $e')),
+                        );
+                      }
+                    }
+                  }
+                }
+              },
+              tooltip: 'Sună contact (telefon)',
+            ),
+          ],
           IconButton(
             icon: Icon(_showCrmPanel ? Icons.expand_less : Icons.expand_more),
             onPressed: () {
@@ -1471,13 +1869,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                                       ],
                                       // Show text body if present
                                       if (body.isNotEmpty)
-                                        Text(
-                                          body,
-                                          style: TextStyle(
-                                            color: isOutbound ? Colors.white : Colors.black87,
-                                            fontSize: 15,
-                                          ),
-                                        ),
+                                        _buildMessageText(body, isOutbound),
                                       if (body.isNotEmpty || (media != null && media['type'] != null)) const SizedBox(height: 4),
                                       Row(
                                         mainAxisSize: MainAxisSize.min,
@@ -1526,33 +1918,63 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
             decoration: BoxDecoration(
               border: Border(top: BorderSide(color: Colors.grey[300]!)),
             ),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: const InputDecoration(
-                      hintText: 'Type a message...',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                // Attachment buttons row
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.photo_library, color: Color(0xFF25D366)),
+                      onPressed: _isSending ? null : _pickImage,
+                      tooltip: 'Poze din galerie',
                     ),
-                    onSubmitted: (_) => _sendMessage(),
-                  ),
+                    IconButton(
+                      icon: const Icon(Icons.camera_alt, color: Color(0xFF25D366)),
+                      onPressed: _isSending ? null : _takePhoto,
+                      tooltip: 'Face poze',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.attach_file, color: Color(0xFF25D366)),
+                      onPressed: _isSending ? null : _pickFile,
+                      tooltip: 'Trimite fișier',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.location_on, color: Color(0xFF25D366)),
+                      onPressed: _isSending ? null : _sendLocation,
+                      tooltip: 'Trimite locație',
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: _isSending ? null : _sendMessage,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF25D366),
-                    padding: const EdgeInsets.all(12),
-                  ),
-                  child: _isSending
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Icon(Icons.send, color: Colors.white),
+                // Text input and send button
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        decoration: const InputDecoration(
+                          hintText: 'Type a message...',
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        onSubmitted: (_) => _sendMessage(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: _isSending ? null : _sendMessage,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF25D366),
+                        padding: const EdgeInsets.all(12),
+                      ),
+                      child: _isSending
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.send, color: Colors.white),
+                    ),
+                  ],
                 ),
               ],
             ),

@@ -236,6 +236,35 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
   // This ensures inbox always shows the last RECEIVED message, not the last SENT message
   const isInbound = direction === 'inbound';
   if (shouldUpdateThread) {
+    // CRITICAL FIX: Look up contact data from contacts collection to enrich thread with name and profile picture
+    // This ensures Flutter Inbox displays correct names and profile pictures for all contacts
+    let contactDisplayName = null;
+    let contactProfilePictureUrl = null;
+    if (resolvedClientJid && db) {
+      try {
+        const contactRef = db.collection('contacts').doc(`${accountId}__${resolvedClientJid}`);
+        const contactDoc = await contactRef.get();
+        if (contactDoc.exists) {
+          const contactData = contactDoc.data() || {};
+          // Extract displayName from contact (prioritize name, then notify, then verifiedName)
+          contactDisplayName = contactData.name || contactData.notify || contactData.verifiedName || null;
+          if (contactDisplayName && typeof contactDisplayName === 'string') {
+            contactDisplayName = contactDisplayName.trim();
+            if (contactDisplayName.length === 0) contactDisplayName = null;
+          }
+          // Extract profile picture URL from contact
+          contactProfilePictureUrl = contactData.imgUrl || null;
+          if (contactProfilePictureUrl && typeof contactProfilePictureUrl === 'string') {
+            contactProfilePictureUrl = contactProfilePictureUrl.trim();
+            if (contactProfilePictureUrl.length === 0) contactProfilePictureUrl = null;
+          }
+        }
+      } catch (error) {
+        // Non-critical: if contact lookup fails, continue without contact data
+        // This prevents message saving from failing if contacts collection is unavailable
+      }
+    }
+    
     const threadUpdate = {
       accountId,
       // Only set clientJid if it's not already in threadOverrides (preserve existing)
@@ -250,9 +279,20 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
       updatedAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
       // Set phoneE164 if available and not already set in threadOverrides (only for 1:1, not groups)
       ...(phoneE164 && !threadOverrides.phoneE164 && !threadOverrides.phone ? { phoneE164, phone: phoneE164, phoneNumber: phoneE164 } : {}),
+      // CRITICAL FIX: Update displayName from contacts collection if available and thread doesn't have a valid one
+      // Only update if thread doesn't already have displayName or if contact has a better name
+      ...(contactDisplayName && (!threadOverrides.displayName || typeof threadOverrides.displayName !== 'string' || threadOverrides.displayName.trim().length === 0) ? { displayName: contactDisplayName } : {}),
+      // CRITICAL FIX: Update profilePictureUrl from contacts collection if available
+      // Flutter looks for both profilePictureUrl and photoUrl, so set both for compatibility
+      ...(contactProfilePictureUrl ? { 
+        profilePictureUrl: contactProfilePictureUrl,
+        photoUrl: contactProfilePictureUrl, // Also set photoUrl for backward compatibility
+        photoUpdatedAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
+      } : {}),
       ...threadOverrides,
     };
     if (threadUpdate.updatedAt === null) delete threadUpdate.updatedAt;
+    if (threadUpdate.photoUpdatedAt === null) delete threadUpdate.photoUpdatedAt;
     await threadRef.set(threadUpdate, { merge: true });
     
     // Log thread update for debugging (always log, even if preview is empty, to confirm thread update)
