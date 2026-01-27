@@ -3,8 +3,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../services/whatsapp_api_service.dart';
+
+String getDisplayInitial(String name) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) {
+    return '?';
+  }
+  return trimmed[0].toUpperCase();
+}
 
 /// WhatsApp Chat Screen - Messages + Send + CRM Panel
 class WhatsAppChatScreen extends StatefulWidget {
@@ -33,15 +42,48 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   bool _showCrmPanel = false;
   Map<String, dynamic>? _draftEvent;
   int _previousMessageCount = 0; // Track message count to detect new messages
+  DateTime? _lastSendAt;
+  String? _lastSentText;
+  bool _initialScrollDone = false;
+  bool _redirectChecked = false;
+  String? _threadClientJid;
+  String? _threadPhoneE164;
+  String? _threadDisplayName;
+  String? _effectiveThreadIdOverride;
 
   String? get _accountId => widget.accountId ?? _extractFromQuery('accountId');
   String? get _threadId => widget.threadId ?? _extractFromQuery('threadId');
-  String? get _clientJid => widget.clientJid ?? _extractFromQuery('clientJid');
-  String? get _phoneE164 => widget.phoneE164 ?? _extractFromQuery('phoneE164');
+  String? get _effectiveThreadId => _effectiveThreadIdOverride ?? _threadId;
+  String? get _clientJid =>
+      _threadClientJid ?? widget.clientJid ?? _extractFromQuery('clientJid');
+  String? get _phoneE164 =>
+      _threadPhoneE164 ?? widget.phoneE164 ?? _extractFromQuery('phoneE164');
+  String? get _displayName =>
+      _threadDisplayName ?? _extractFromQuery('displayName');
 
   String? _extractFromQuery(String param) {
     final uri = Uri.base;
     return uri.queryParameters[param];
+  }
+
+  String _maskId(String value) => value.hashCode.toRadixString(16);
+
+  String _readString(dynamic value, {List<String> mapKeys = const []}) {
+    if (value is String) return value;
+    if (value is Map) {
+      for (final key in mapKeys) {
+        final nested = value[key];
+        if (nested is String) return nested;
+      }
+    }
+    if (value is num) return value.toString();
+    return '';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _ensureCanonicalThread();
   }
 
   @override
@@ -49,6 +91,86 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _ensureCanonicalThread() async {
+    if (_redirectChecked) return;
+    _redirectChecked = true;
+    if (_threadId == null || _accountId == null) {
+      return;
+    }
+
+    try {
+      final threadDoc = await FirebaseFirestore.instance
+          .collection('threads')
+          .doc(_threadId!)
+          .get();
+      if (!threadDoc.exists) {
+        return;
+      }
+
+      final data = threadDoc.data() ?? <String, dynamic>{};
+      final redirectTo = _readString(data['redirectTo']).trim();
+      final canonicalThreadId = _readString(data['canonicalThreadId']).trim();
+      final clientJid = _readString(
+        data['clientJid'],
+        mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
+      ).trim();
+      final isLid = clientJid.endsWith('@lid');
+      final targetThreadId = redirectTo.isNotEmpty ? redirectTo : canonicalThreadId;
+
+      if (mounted) {
+        setState(() {
+          _threadClientJid = clientJid.isNotEmpty ? clientJid : null;
+          _threadPhoneE164 = _readString(data['normalizedPhone']).trim().isNotEmpty
+              ? _readString(data['normalizedPhone']).trim()
+              : null;
+          _threadDisplayName = _readString(data['displayName']).trim().isNotEmpty
+              ? _readString(data['displayName']).trim()
+              : null;
+          if (targetThreadId.isNotEmpty) {
+            _effectiveThreadIdOverride = targetThreadId;
+          } else if ((_threadId ?? '').contains('[object Object]') &&
+              _accountId != null &&
+              clientJid.isNotEmpty) {
+            _effectiveThreadIdOverride = '${_accountId}__$clientJid';
+          }
+        });
+      }
+
+      if ((isLid || redirectTo.isNotEmpty) &&
+          targetThreadId.isNotEmpty &&
+          targetThreadId != _threadId) {
+        final targetDoc = await FirebaseFirestore.instance
+            .collection('threads')
+            .doc(targetThreadId)
+            .get();
+        if (!targetDoc.exists) {
+          return;
+        }
+
+        final targetData = targetDoc.data() ?? <String, dynamic>{};
+        final targetClientJid = _readString(
+          targetData['clientJid'],
+          mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
+        ).trim();
+        final targetPhone = _readString(targetData['normalizedPhone']).trim();
+        final displayName = _readString(targetData['displayName']).trim();
+
+        if (mounted) {
+          final encodedDisplayName = Uri.encodeComponent(displayName);
+          context.go(
+            '/whatsapp/chat?accountId=${Uri.encodeComponent(_accountId!)}'
+            '&threadId=${Uri.encodeComponent(targetThreadId)}'
+            '&clientJid=${Uri.encodeComponent(targetClientJid)}'
+            '&phoneE164=${Uri.encodeComponent(targetPhone)}'
+            '&displayName=$encodedDisplayName',
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[ChatScreen] Redirect check failed: $e');
+    }
   }
 
   Future<void> _sendMessage() async {
@@ -61,36 +183,76 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     }
     
     if (_isSending) return;
+    if (_lastSendAt != null &&
+        _lastSentText == text &&
+        DateTime.now().difference(_lastSendAt!).inMilliseconds < 1500) {
+      debugPrint('[ChatScreen] Skipping duplicate send (cooldown)');
+      return;
+    }
     
-    if (_accountId == null || _threadId == null || _clientJid == null) {
+    if (_accountId == null || _effectiveThreadId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Missing required data: accountId=$_accountId, threadId=$_threadId, clientJid=$_clientJid')),
+        SnackBar(
+          content: Text(
+            'Missing required data: accountId=${_accountId ?? 'none'}, threadId=${_effectiveThreadId ?? 'none'}',
+          ),
+        ),
       );
       return;
     }
 
-    setState(() {
-      _isSending = true;
-    });
+    _isSending = true;
+    setState(() {});
+    _lastSendAt = DateTime.now();
+    _lastSentText = text;
 
     try {
-      final clientMessageId = 'client_${DateTime.now().millisecondsSinceEpoch}';
-      
-      debugPrint('[ChatScreen] Sending message: text=$text, accountId=$_accountId, threadId=$_threadId, clientJid=$_clientJid');
-      
-      final result = await _apiService.sendViaProxy(
-        threadId: _threadId!,
+      if (_threadClientJid == null || _threadClientJid!.isEmpty) {
+        final refreshed = await FirebaseFirestore.instance
+            .collection('threads')
+            .doc(_effectiveThreadId!)
+            .get();
+        final refreshedData = refreshed.data() ?? <String, dynamic>{};
+        final refreshedJid = _readString(
+          refreshedData['clientJid'],
+          mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
+        ).trim();
+        if (mounted) {
+          setState(() {
+            _threadClientJid = refreshedJid.isNotEmpty ? refreshedJid : null;
+          });
+        }
+      }
+
+      if (_threadClientJid == null || _threadClientJid!.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Missing canonical clientJid for thread')),
+        );
+        return;
+      }
+
+      final clientMessageId = Uuid().v4();
+      final toJid = _threadClientJid!;
+
+      final maskedAccount = _maskId(_accountId!);
+      final maskedThread = _maskId(_effectiveThreadId!);
+      final maskedJid = _maskId(toJid);
+      debugPrint(
+        '[ChatScreen] Sending via proxy: account=$maskedAccount thread=$maskedThread jid=$maskedJid',
+      );
+
+      await _apiService.sendViaProxy(
+        threadId: _effectiveThreadId!,
         accountId: _accountId!,
-        toJid: _clientJid!,
+        toJid: toJid,
         text: text,
         clientMessageId: clientMessageId,
       );
 
-      debugPrint('[ChatScreen] Message sent successfully: $result');
-
       if (mounted) {
         _messageController.clear();
-        _scrollToBottom();
+        _scrollToBottom(force: true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Message sent!'), backgroundColor: Colors.green),
         );
@@ -110,18 +272,125 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     }
   }
 
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+  void _scrollToBottom({bool force = false}) {
+    if (!_scrollController.hasClients) return;
+    final nearBottom = _scrollController.offset < 200;
+    if (!force && !nearBottom) return;
+    _scrollController.animateTo(
+      _scrollController.position.minScrollExtent,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
+  int? _extractTsMillis(dynamic tsClientRaw) {
+    if (tsClientRaw is Timestamp) {
+      return tsClientRaw.millisecondsSinceEpoch;
     }
+    if (tsClientRaw is String) {
+      try {
+        return DateTime.parse(tsClientRaw).millisecondsSinceEpoch;
+      } catch (_) {
+        return null;
+      }
+    }
+    if (tsClientRaw is int) {
+      return tsClientRaw;
+    }
+    return null;
+  }
+
+  int _extractSortMillis(Map<String, dynamic> data) {
+    if (data['createdAtMs'] is int) {
+      return data['createdAtMs'] as int;
+    }
+    return _extractTsMillis(data['tsClient']) ??
+        _extractTsMillis(data['createdAt']) ??
+        _extractTsMillis(data['tsServer']) ??
+        0;
+  }
+
+  List<QueryDocumentSnapshot> _dedupeMessageDocs(List<QueryDocumentSnapshot> docs) {
+    final byKey = <String, QueryDocumentSnapshot>{};
+    int scoreDoc(QueryDocumentSnapshot doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      int score = 0;
+      if ((data['providerMessageId'] as String?)?.isNotEmpty == true) score += 4;
+      if ((data['waMessageId'] as String?)?.isNotEmpty == true) score += 3;
+      final status = data['status'] as String? ?? '';
+      if (status == 'sent' || status == 'delivered' || status == 'read') score += 2;
+      if (data['createdAtMs'] is int) score += 1;
+      if ((data['clientMessageId'] as String?)?.isNotEmpty == true) score += 1;
+      return score;
+    }
+    for (final doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      if (data['isDuplicate'] == true) {
+        continue;
+      }
+      final providerMessageId = data['providerMessageId'] as String?;
+      final waMessageId = data['waMessageId'] as String?;
+      final clientMessageId = data['clientMessageId'] as String?;
+      final stableKeyHash = data['stableKeyHash'] as String?;
+      final fingerprintHash = data['fingerprintHash'] as String?;
+      final direction = data['direction'] as String? ?? 'inbound';
+      final body = (data['body'] as String? ?? '').trim();
+      final tsMillis = _extractTsMillis(data['tsClient']);
+      final tsRounded = tsMillis != null ? (tsMillis / 1000).floor() : null;
+      final fallbackKey = 'fallback:$direction|$body|$tsRounded';
+
+      final primaryKey = stableKeyHash?.isNotEmpty == true
+          ? 'stable:$stableKeyHash'
+          : fingerprintHash?.isNotEmpty == true
+              ? 'fp:$fingerprintHash'
+              : providerMessageId?.isNotEmpty == true
+                  ? 'provider:$providerMessageId'
+                  : waMessageId?.isNotEmpty == true
+                      ? 'wa:$waMessageId'
+                      : (clientMessageId?.isNotEmpty == true ? 'client:$clientMessageId' : fallbackKey);
+
+      if (byKey.containsKey(primaryKey)) {
+        final existing = byKey[primaryKey]!;
+        if (scoreDoc(doc) > scoreDoc(existing)) {
+          byKey[primaryKey] = doc;
+        }
+        continue;
+      }
+
+      final existing = byKey[fallbackKey];
+      if (existing != null) {
+        final existingData = existing.data() as Map<String, dynamic>;
+        final existingHasWa = (existingData['waMessageId'] as String?)?.isNotEmpty == true;
+        final currentHasWa = waMessageId?.isNotEmpty == true;
+        if (existingHasWa && !currentHasWa) {
+          continue;
+        }
+        if (!existingHasWa && currentHasWa) {
+          byKey[fallbackKey] = doc;
+          byKey[primaryKey] = doc;
+          continue;
+        }
+      }
+
+      byKey[primaryKey] = doc;
+      byKey.putIfAbsent(fallbackKey, () => doc);
+    }
+    final deduped = byKey.values.toList();
+    deduped.sort((a, b) {
+      final aData = a.data() as Map<String, dynamic>;
+      final bData = b.data() as Map<String, dynamic>;
+      final aSort = _extractSortMillis(aData);
+      final bSort = _extractSortMillis(bData);
+      if (aSort != bSort) {
+        return bSort.compareTo(aSort); // Descending (newest first)
+      }
+      return a.id.compareTo(b.id);
+    });
+    return deduped;
   }
 
   Future<void> _extractEvent() async {
-    if (_threadId == null || _accountId == null) {
+    if (_effectiveThreadId == null || _accountId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('ThreadId and AccountId are required')),
       );
@@ -132,7 +401,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
     try {
       final result = await _apiService.extractEventFromThread(
-        threadId: _threadId!,
+        threadId: _effectiveThreadId!,
         accountId: _accountId!,
         phoneE164: _phoneE164,
         dryRun: true,
@@ -271,6 +540,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
   // Get display name from thread or clientJid
   String get displayName {
+    if (_displayName != null && _displayName!.trim().isNotEmpty) {
+      return _displayName!.trim();
+    }
     // Try to extract a readable name from clientJid first
     if (_clientJid != null) {
       final jidPart = _clientJid!.split('@')[0];
@@ -317,7 +589,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
               radius: 18,
               backgroundColor: Colors.white.withOpacity(0.3),
               child: Text(
-                displayName[0].toUpperCase(),
+                getDisplayInitial(displayName),
                 style: const TextStyle(color: Colors.white),
               ),
             ),
@@ -390,55 +662,70 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
           // Messages list
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('threads')
-                  .doc(_threadId!)
-                  .collection('messages')
-                  .orderBy('tsClient', descending: false)
-                  .limit(200)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                
+            child: Builder(
+              builder: (context) {
+                final effectiveThreadId = _effectiveThreadId;
+                if (effectiveThreadId == null || effectiveThreadId.isEmpty) {
+                  return const Center(child: Text('Missing thread data'));
+                }
+
+                return StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('threads')
+                      .doc(effectiveThreadId)
+                      .collection('messages')
+                      .orderBy('tsClient', descending: true)
+                      .limit(200)
+                      .snapshots(),
+                  builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-
                 if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'Stream error: ${snapshot.error}',
+                        style: TextStyle(color: Colors.red[700]),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
                 }
-
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const Center(child: Text('No messages yet'));
                 }
 
-                final currentMessageCount = snapshot.data!.docs.length;
+                final dedupedDocs = _dedupeMessageDocs(snapshot.data!.docs);
+                final currentMessageCount = dedupedDocs.length;
                 final hasNewMessages = currentMessageCount > _previousMessageCount;
                 
-                // Auto-scroll to bottom ONLY when new messages arrive
-                if (hasNewMessages) {
-                  
+                if (!_initialScrollDone && dedupedDocs.isNotEmpty) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (_scrollController.hasClients) {
-                      _scrollController.animateTo(
-                        _scrollController.position.maxScrollExtent,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOut,
-                      );
-                    }
+                    _scrollToBottom(force: true);
                   });
-                  _previousMessageCount = currentMessageCount;
-                } else {
+                  _initialScrollDone = true;
+                } else if (hasNewMessages) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _scrollToBottom();
+                  });
                 }
+                _previousMessageCount = currentMessageCount;
 
                 return ListView.builder(
                   controller: _scrollController,
+                  key: PageStorageKey('whatsapp-chat-${effectiveThreadId}'),
+                  reverse: true,
                   padding: const EdgeInsets.all(16),
-                  itemCount: snapshot.data!.docs.length,
+                  itemCount: dedupedDocs.length,
                   itemBuilder: (context, index) {
                     
-                    final doc = snapshot.data!.docs[index];
+                    final doc = dedupedDocs[index];
                     final data = doc.data() as Map<String, dynamic>;
+                    final messageKey = data['waMessageId'] as String? ??
+                        data['clientMessageId'] as String? ??
+                        doc.id;
                     
                     final direction = data['direction'] as String? ?? 'inbound';
                     final body = data['body'] as String? ?? '';
@@ -487,95 +774,98 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                       }
                     }
                     
-                    return Align(
-                      alignment: isOutbound ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 4, left: 48, right: 48),
-                        child: Row(
-                          mainAxisAlignment: isOutbound ? MainAxisAlignment.end : MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            // Avatar for inbound messages (left side)
-                            if (!isOutbound) ...[
-                              CircleAvatar(
-                                radius: 16,
-                                backgroundColor: Colors.grey[300],
-                                child: Text(
-                                  displayName[0].toUpperCase(),
-                                  style: const TextStyle(fontSize: 12, color: Colors.black87),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                            ],
-                            
-                            // Message bubble
-                            Flexible(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                constraints: BoxConstraints(
-                                  maxWidth: MediaQuery.of(context).size.width * 0.65,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isOutbound ? const Color(0xFF25D366) : Colors.white,
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: const Radius.circular(8),
-                                    topRight: const Radius.circular(8),
-                                    bottomLeft: Radius.circular(isOutbound ? 8 : 0),
-                                    bottomRight: Radius.circular(isOutbound ? 0 : 8),
+                    return KeyedSubtree(
+                      key: ValueKey(messageKey),
+                      child: Align(
+                        alignment: isOutbound ? Alignment.centerRight : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 4, left: 48, right: 48),
+                          child: Row(
+                            mainAxisAlignment: isOutbound ? MainAxisAlignment.end : MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              // Avatar for inbound messages (left side)
+                              if (!isOutbound) ...[
+                                CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: Colors.grey[300],
+                                  child: Text(
+                                    getDisplayInitial(displayName),
+                                    style: const TextStyle(fontSize: 12, color: Colors.black87),
                                   ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 1,
-                                      offset: const Offset(0, 1),
-                                    ),
-                                  ],
-                                  border: isOutbound ? null : Border.all(color: Colors.grey[200]!),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      body,
-                                      style: TextStyle(
-                                        color: isOutbound ? Colors.white : Colors.black87,
-                                        fontSize: 15,
+                                const SizedBox(width: 8),
+                              ],
+                              // Message bubble
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  constraints: BoxConstraints(
+                                    maxWidth: MediaQuery.of(context).size.width * 0.65,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isOutbound ? const Color(0xFF25D366) : Colors.white,
+                                    borderRadius: BorderRadius.only(
+                                      topLeft: const Radius.circular(8),
+                                      topRight: const Radius.circular(8),
+                                      bottomLeft: Radius.circular(isOutbound ? 8 : 0),
+                                      bottomRight: Radius.circular(isOutbound ? 0 : 8),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 1,
+                                        offset: const Offset(0, 1),
                                       ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        if (timeText.isNotEmpty)
-                                          Text(
-                                            timeText,
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: isOutbound ? Colors.white70 : Colors.grey[600],
+                                    ],
+                                    border: isOutbound ? null : Border.all(color: Colors.grey[200]!),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        body,
+                                        style: TextStyle(
+                                          color: isOutbound ? Colors.white : Colors.black87,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (timeText.isNotEmpty)
+                                            Text(
+                                              timeText,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: isOutbound ? Colors.white70 : Colors.grey[600],
+                                              ),
                                             ),
-                                          ),
-                                        if (isOutbound && status != null) ...[
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            _getStatusIcon(status),
-                                            style: const TextStyle(fontSize: 12),
-                                          ),
+                                          if (isOutbound && status != null) ...[
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              _getStatusIcon(status),
+                                              style: const TextStyle(fontSize: 12),
+                                            ),
+                                          ],
                                         ],
-                                      ],
-                                    ),
-                                  ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                            
-                            // Spacing for outbound messages (before avatar area)
-                            if (isOutbound) ...[
-                              const SizedBox(width: 48), // Match avatar width for alignment
+                              // Spacing for outbound messages (before avatar area)
+                              if (isOutbound) ...[
+                                const SizedBox(width: 48), // Match avatar width for alignment
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     );
+                  },
+                );
                   },
                 );
               },

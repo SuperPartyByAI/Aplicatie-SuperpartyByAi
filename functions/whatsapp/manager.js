@@ -142,7 +142,7 @@ class WhatsAppManager {
     // TIER ULTIMATE 1: Initialize modules
     this.initializeUltimateModules();
 
-    // Auto-restore sessions after Railway restart
+    // Auto-restore sessions after backend restart
     this.autoRestoreSessions();
   }
 

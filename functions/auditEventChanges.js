@@ -16,6 +16,8 @@ exports.auditEventChanges = onDocumentWritten(
   {
     document: 'evenimente/{eventId}',
     region: 'us-central1',
+    minInstances: 0,
+    maxInstances: 3,
   },
   async (event) => {
     const eventId = event.params.eventId;

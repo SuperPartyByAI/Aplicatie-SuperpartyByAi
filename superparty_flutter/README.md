@@ -100,21 +100,21 @@ This uses `10.0.2.2` automatically (works without `adb reverse` setup).
 
 **See:** `RUN_LOCAL_ANDROID.md` for detailed setup instructions and validation tests.
 
-### WhatsApp Backend (Railway)
+### WhatsApp Backend
 
-Set the Railway backend URL at build/run time:
+Set the backend URL at build/run time:
 
 ```bash
-flutter run --dart-define=WHATSAPP_BACKEND_URL=https://whats-upp-production.up.railway.app
+flutter run --dart-define=WHATSAPP_BACKEND_URL=https://your-backend-host
 ```
 
 Or for release builds:
 
 ```bash
-flutter build apk --dart-define=WHATSAPP_BACKEND_URL=https://whats-upp-production.up.railway.app
+flutter build apk --dart-define=WHATSAPP_BACKEND_URL=https://your-backend-host
 ```
 
-Default URL (if not specified): `https://whats-upp-production.up.railway.app`
+Default URL (if not specified): empty (must be set via `--dart-define` or Remote Config)
 
 WebSocket URLs (update if needed):
 - Centrala: `lib/screens/centrala/centrala_screen.dart`

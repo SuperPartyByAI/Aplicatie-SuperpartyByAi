@@ -22,7 +22,7 @@ class FirebaseService {
   /// Must be called before accessing any Firebase services.
   /// Safe to call multiple times (idempotent).
   /// 
-  /// Supports emulator mode via dart-define: USE_EMULATORS=true
+  /// Supports emulator mode via dart-define: USE_FIREBASE_EMULATOR=true
   static Future<void> initialize() async {
     if (_initialized) {
       debugPrint('[FirebaseService] Already initialized, skipping');
@@ -52,16 +52,18 @@ class FirebaseService {
       // Initialize App Check based on build mode
       await _initializeAppCheck();
 
-      // Opt-in emulator support via dart-define: USE_EMULATORS=true
-      // Usage: flutter run --dart-define=USE_EMULATORS=true [--dart-define=USE_ADB_REVERSE=true]
+      // Opt-in emulator support via dart-define: USE_FIREBASE_EMULATOR=true
+      // Usage: flutter run --dart-define=USE_FIREBASE_EMULATOR=true [--dart-define=USE_ADB_REVERSE=true]
       // IMPORTANT: On Android emulator:
       //   - USE_ADB_REVERSE=true (default): uses 127.0.0.1 (requires adb reverse)
       //   - USE_ADB_REVERSE=false: uses 10.0.2.2 (works without adb reverse)
-      const useEmulators = bool.fromEnvironment('USE_EMULATORS', defaultValue: false);
+      const useEmulators = bool.fromEnvironment('USE_FIREBASE_EMULATOR', defaultValue: false);
+      const useLegacyEmulators = bool.fromEnvironment('USE_EMULATORS', defaultValue: false);
       const useAdbReverse = bool.fromEnvironment('USE_ADB_REVERSE', defaultValue: true);
       const emulatorHostIp = String.fromEnvironment('EMULATOR_HOST_IP', defaultValue: '');
       
-      if (useEmulators && kDebugMode) {
+      final emulatorRequested = useEmulators || useLegacyEmulators;
+      if (emulatorRequested && kDebugMode) {
         // Determine emulator host based on platform and configuration
         String emulatorHost;
         String hostReason;
@@ -98,26 +100,38 @@ class FirebaseService {
         const functionsPort = 5002;
         const uiPort = 4001;
         
-        debugPrint('[FirebaseService] 🔧 Using Firebase emulators');
+        debugPrint('[FirebaseService] 🔧 Using Firebase emulators (requested)');
         debugPrint('[FirebaseService] Platform: ${Platform.isAndroid ? "Android" : Platform.isIOS ? "iOS" : "Other"}');
         debugPrint('[FirebaseService] Host: $emulatorHost ($hostReason)');
         
-        // Preflight connectivity check (best-effort, non-blocking)
-        // Run for Android (both 127.0.0.1 and 10.0.2.2) to detect firewall/port/emu issues
-        if (Platform.isAndroid) {
-          _checkEmulatorConnectivity(emulatorHost, authPort, firestorePort);
+        final emulatorReachable = await _isEmulatorReachable(
+          emulatorHost,
+          authPort,
+          firestorePort,
+        );
+        if (!emulatorReachable) {
+          debugPrint('[FirebaseService] ⚠️ Emulator not reachable, falling back to prod');
         }
         
-        try {
-          FirebaseFirestore.instance.useFirestoreEmulator(emulatorHost, firestorePort);
-          FirebaseAuth.instance.useAuthEmulator(emulatorHost, authPort);
-          FirebaseFunctions.instanceFor(region: 'us-central1').useFunctionsEmulator(emulatorHost, functionsPort);
-          debugPrint('[FirebaseService] ✅ Emulators configured: host=$emulatorHost Firestore:$firestorePort Auth:$authPort Functions:$functionsPort UI:$uiPort');
-        } catch (e) {
-          debugPrint('[FirebaseService] ⚠️ Emulator setup error (continuing): $e');
+        if (emulatorReachable) {
+          try {
+            FirebaseFirestore.instance.useFirestoreEmulator(emulatorHost, firestorePort);
+            FirebaseAuth.instance.useAuthEmulator(emulatorHost, authPort);
+            FirebaseFunctions.instanceFor(region: 'us-central1').useFunctionsEmulator(emulatorHost, functionsPort);
+            debugPrint('[FirebaseService] ✅ Emulators configured: host=$emulatorHost Firestore:$firestorePort Auth:$authPort Functions:$functionsPort UI:$uiPort');
+            debugPrint('[FirebaseService] Firestore mode: emulator');
+          } catch (e) {
+            debugPrint('[FirebaseService] ⚠️ Emulator setup error (continuing): $e');
+            debugPrint('[FirebaseService] Firestore mode: prod');
+          }
+        } else {
+          debugPrint('[FirebaseService] Firestore mode: prod');
         }
-      } else if (useEmulators && !kDebugMode) {
-        debugPrint('[FirebaseService] ⚠️ USE_EMULATORS=true but not in debug mode, ignoring');
+      } else if (emulatorRequested && !kDebugMode) {
+        debugPrint('[FirebaseService] ⚠️ USE_FIREBASE_EMULATOR=true but not in debug mode, ignoring');
+        debugPrint('[FirebaseService] Firestore mode: prod');
+      } else {
+        debugPrint('[FirebaseService] Firestore mode: prod');
       }
 
       _initialized = true;
@@ -284,17 +298,17 @@ class FirebaseService {
   
   /// Preflight connectivity check for emulators (best-effort, non-blocking)
   /// Runs on Android for both 127.0.0.1 and 10.0.2.2 to detect firewall/port/emu issues
-  static Future<void> _checkEmulatorConnectivity(String host, int authPort, int firestorePort) async {
+  static Future<bool> _isEmulatorReachable(String host, int authPort, int firestorePort) async {
     try {
-      // Quick socket test with short timeout (300ms each, non-blocking)
-      final authCheck = Socket.connect(host, authPort, timeout: const Duration(milliseconds: 300))
+      // Quick socket test with short timeout (500ms each)
+      final authCheck = Socket.connect(host, authPort, timeout: const Duration(milliseconds: 500))
           .then((socket) {
             socket.destroy();
             return true;
           })
           .catchError((_) => false);
       
-      final firestoreCheck = Socket.connect(host, firestorePort, timeout: const Duration(milliseconds: 300))
+      final firestoreCheck = Socket.connect(host, firestorePort, timeout: const Duration(milliseconds: 500))
           .then((socket) {
             socket.destroy();
             return true;
@@ -323,12 +337,12 @@ class FirebaseService {
           debugPrint('[FirebaseService] 💡 Run: npm run emu:check (verify emulators are running)');
           debugPrint('[FirebaseService] 💡 Or: npm run emu:android (start emulators + setup)');
         }
-      } else {
-        debugPrint('[FirebaseService] ✓ Preflight check: ports accessible on $host');
       }
+      return authOpen && firestoreOpen;
     } catch (e) {
       // Ignore preflight errors - it's just a diagnostic, don't block initialization
       debugPrint('[FirebaseService] Preflight check skipped: $e');
+      return false;
     }
   }
 }

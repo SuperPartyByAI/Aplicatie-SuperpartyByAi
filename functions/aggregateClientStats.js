@@ -17,8 +17,9 @@ const db = admin.firestore();
 exports.aggregateClientStats = onDocumentWritten(
   {
     document: 'evenimente/{eventId}',
-    region: 'europe-west1', // Co-located with Firestore (eur3) for low latency
-    maxInstances: 1, // Event-driven trigger, single instance is sufficient
+    region: 'europe-west1',
+    minInstances: 0,
+    maxInstances: 3,
   },
   async (event) => {
     const eventData = event.data?.after?.data();

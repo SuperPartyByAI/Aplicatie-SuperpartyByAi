@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-BASE="${BAILEYS_BASE_URL:-https://whats-upp-production.up.railway.app}"
+BASE="${BAILEYS_BASE_URL:-http://37.27.34.179:8080}"
 TOKEN="${LONGRUN_ADMIN_TOKEN:-}"
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
