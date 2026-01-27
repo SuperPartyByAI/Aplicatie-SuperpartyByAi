@@ -7,6 +7,8 @@ library injector;
 /// nu prin instanțiere directă sau singleton-uri statice.
 
 import 'package:get_it/get_it.dart';
+
+import '../../services/whatsapp_backfill_manager.dart';
 import 'interfaces.dart';
 import 'firebase_wrappers.dart';
 
@@ -20,6 +22,9 @@ Future<void> setupDependencyInjection() async {
   // Firebase wrappers (singleton - o instanță pentru toată aplicația)
   getIt.registerSingleton<IFirebaseAuth>(FirebaseAuthWrapper());
   getIt.registerSingleton<IFirestore>(FirestoreWrapper());
+
+  // WhatsApp backfill (singleton)
+  getIt.registerSingleton<WhatsAppBackfillManager>(WhatsAppBackfillManager.instance);
 
   // TODO: Adăugă registrări pentru:
   // - Repository-uri (factory - o instanță nouă per request)

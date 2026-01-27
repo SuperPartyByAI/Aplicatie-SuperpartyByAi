@@ -16,6 +16,8 @@ const admin = require('firebase-admin');
 exports.setStaffCode = onCall(
   {
     region: 'us-central1',
+    minInstances: 0,
+    maxInstances: 3,
     memory: '256MiB',
   },
   async (request) => {

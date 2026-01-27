@@ -47,6 +47,13 @@ module.exports = [
     },
   },
   {
-    ignores: ['node_modules/**', 'dist/**', 'build/**', '.firebase/**', 'coverage/**'],
+    ignores: [
+      'node_modules/**',
+      'dist/**',
+      'build/**',
+      '.firebase/**',
+      'coverage/**',
+      '**/__tests__/**',
+    ],
   },
 ];

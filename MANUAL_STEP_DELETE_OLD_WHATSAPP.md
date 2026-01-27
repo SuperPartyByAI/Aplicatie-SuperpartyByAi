@@ -1,18 +1,18 @@
-# Manual Step Required: Delete Old `whatsapp` Function
+# Old `whatsapp` Function – Stub vs Delete
 
-## Problem
+## Current approach (recommended): Stub
 
-Firebase does not allow automatic upgrade from v1 (1st Gen) to v2 (2nd Gen) functions.
-The old `whatsapp(us-central1)` function must be manually deleted before deployment can proceed.
+We now export a **Gen1 stub** `whatsapp` that returns **410 Deprecated**. Deploy no longer tries to delete the old function; it updates it. Unblock deploy without manual delete.
 
-**Error message:**
-```
-Error: [whatsapp(us-central1)] Upgrading from 1st Gen to 2nd Gen is not yet supported.
-```
+See **`docs/FIREBASE_FUNCTIONS_DEPLOY_FIXES.md`** for deploy buckets and cleanup.
 
 ---
 
-## Solution: Delete via Firebase Console
+## Optional: Delete `whatsapp` manually
+
+If you want to remove the legacy function entirely (after deploy works with stub):
+
+### Via Firebase / GCP Console
 
 ### Step-by-Step Instructions
 
@@ -97,7 +97,15 @@ firebase functions:log --only whatsappExtractEventFromThread --lines 100
 
 ---
 
-## Alternative: Google Cloud Console
+### Via CLI
+
+```bash
+firebase functions:delete whatsapp --region us-central1 --force
+```
+
+If that fails, use GCP Console below.
+
+### Google Cloud Console
 
 If Firebase Console doesn't work, use Google Cloud Console:
 
@@ -112,7 +120,6 @@ If Firebase Console doesn't work, use Google Cloud Console:
 
 ## Status
 
-✅ **Code changes complete** - All hardening applied (CPU quota, dist warnings, CORS)  
-⚠️ **Deployment blocked** - Waiting for manual deletion of old `whatsapp` function  
-⏭️ **Next step** - Delete via Firebase Console, then run `firebase deploy --only functions`
+✅ **Stub in place** – `whatsapp` returns 410; deploy not blocked  
+⏭️ **Optional** – Delete via Console/CLI if you want to remove the function entirely; then remove the stub export from `index.js`
 

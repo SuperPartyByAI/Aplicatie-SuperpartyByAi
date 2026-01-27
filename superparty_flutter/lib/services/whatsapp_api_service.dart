@@ -10,8 +10,9 @@ import 'package:http/http.dart' as http;
 import '../core/config/env.dart';
 import '../core/errors/app_exception.dart';
 import '../core/utils/retry.dart';
+import '../core/utils/safe_json.dart';
 
-/// Service for interacting with Railway WhatsApp backend directly.
+/// Service for interacting with WhatsApp backend directly.
 class WhatsAppApiService {
   static final WhatsAppApiService _instance = WhatsAppApiService._internal();
   factory WhatsAppApiService() => _instance;
@@ -22,35 +23,103 @@ class WhatsAppApiService {
   /// Request timeout (configurable)
   Duration requestTimeout = const Duration(seconds: 30);
 
-  /// Get Railway backend base URL
+  /// Get backend base URL
   String _getBackendUrl() {
     return Env.whatsappBackendUrl;
   }
 
-  /// Get Functions URL (for proxy calls)
+  String _maskId(String value) => value.hashCode.toRadixString(16);
+
+  /// True if response is clearly non-JSON (HTML, etc.): body starts with "<" OR
+  /// content-type does NOT contain "application/json". Use to avoid parsing.
+  bool _isNonJsonResponse(http.Response response) {
+    final contentType = response.headers['content-type'] ?? '';
+    if (!contentType.toLowerCase().contains('application/json')) return true;
+    final trimmed = response.body.trimLeft();
+    return trimmed.startsWith('<');
+  }
+
+  /// Throw NetworkException when backend returns HTML/non-JSON instead of JSON.
+  /// Call this before any jsonDecode so we never crash with FormatException.
+  Never _throwNonJsonNetworkException(http.Response response, String endpointUrl) {
+    final contentType = response.headers['content-type'] ?? '';
+    final status = response.statusCode;
+    final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
+    final curlHint = " Test with: curl -i $endpointUrl -H 'Authorization: Bearer <token>'";
+    throw NetworkException(
+      'Expected JSON, got HTML. endpoint=$endpointUrl, status=$status, content-type=$contentType, bodyPrefix=$bodyPrefix.$curlHint',
+      code: 'expected_json_got_html',
+    );
+  }
+
+  String _requireBackendUrl() {
+    final backendUrl = _getBackendUrl();
+    if (backendUrl.isEmpty) {
+      throw DomainFailure(
+        'WHATSAPP_BACKEND_URL is not configured. '
+        'Set --dart-define=WHATSAPP_BACKEND_URL=https://<backend-host>.',
+        code: 'backend_url_missing',
+      );
+    }
+    return backendUrl;
+  }
+
+  static bool _loggedFunctionsUrl = false;
+
+  /// True when running against Firebase emulators (Functions at 127.0.0.1:5002).
+  /// When true, getAccounts/getThreads MUST use Functions URL with {projectId}/{region}
+  /// (e.g. http://127.0.0.1:5002/superparty-frontend/us-central1/whatsappProxyGetAccounts),
+  /// never backendUrl — the emulator serves Functions, not /api/whatsapp/... directly.
+  bool _isEmulatorMode() {
+    const useFirebaseEmulator = bool.fromEnvironment('USE_FIREBASE_EMULATOR', defaultValue: false);
+    const useEmulators = bool.fromEnvironment('USE_EMULATORS', defaultValue: false);
+    return (useFirebaseEmulator || useEmulators) && kDebugMode;
+  }
+
+  /// Get Functions URL (for proxy calls).
+  /// Emulator: USE_EMULATORS / USE_FIREBASE_EMULATOR → http://127.0.0.1:5002/{projectId}/{region}.
+  /// Prod: https://{region}-{projectId}.cloudfunctions.net.
+  /// NO silent fallback. Throws DomainFailure if projectId missing or Firebase not initialized.
   String _getFunctionsUrl() {
     const region = 'us-central1';
-    
-    // Check if using emulators
-    const useEmulators = bool.fromEnvironment('USE_EMULATORS', defaultValue: false);
-    if (useEmulators && kDebugMode) {
-      // Emulator Functions URL (from firebase.json: port 5002)
-      return 'http://127.0.0.1:5002';
-    }
-    
-    // Production: derive project ID from Firebase
+
     try {
       final app = Firebase.app();
       final projectId = app.options.projectId;
-      if (projectId.isNotEmpty) {
-        return 'https://$region-$projectId.cloudfunctions.net';
+      if (projectId.isEmpty) {
+        throw DomainFailure(
+          'Firebase projectId is empty. Cannot build Functions URL. '
+          'Ensure Firebase is initialized and google-services config has project_id.',
+          code: 'functions_url_config',
+        );
       }
-    } catch (_) {
-      // Fallback if Firebase not initialized
+
+      const useFirebaseEmulator = bool.fromEnvironment('USE_FIREBASE_EMULATOR', defaultValue: false);
+      const useEmulators = bool.fromEnvironment('USE_EMULATORS', defaultValue: false);
+      final String url;
+      if ((useFirebaseEmulator || useEmulators) && kDebugMode) {
+        url = 'http://127.0.0.1:5002/$projectId/$region';
+        if (!_loggedFunctionsUrl) {
+          debugPrint('[WhatsAppApiService] Functions URL: $url (emulator, projectId=$projectId, USE_EMULATORS=$useEmulators, USE_FIREBASE_EMULATOR=$useFirebaseEmulator)');
+          _loggedFunctionsUrl = true;
+        }
+      } else {
+        url = 'https://$region-$projectId.cloudfunctions.net';
+        if (!_loggedFunctionsUrl) {
+          debugPrint('[WhatsAppApiService] Functions URL: $url (prod, projectId=$projectId)');
+          _loggedFunctionsUrl = true;
+        }
+      }
+      return url;
+    } catch (e) {
+      if (e is DomainFailure) rethrow;
+      throw DomainFailure(
+        'Firebase not initialized or projectId missing. Cannot build Functions URL. '
+        'Fix Firebase init before calling WhatsApp proxy.',
+        code: 'functions_url_config',
+        originalError: e,
+      );
     }
-    
-    // Fallback: use default (should match your Firebase project)
-    return 'https://$region-superparty-frontend.cloudfunctions.net';
   }
 
   /// Generate request ID for idempotency
@@ -58,11 +127,9 @@ class WhatsAppApiService {
     return '${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(10000)}';
   }
 
-  /// Send WhatsApp message via Functions proxy.
-  /// 
-  /// Enforces owner/co-writer policy and creates outbox entry server-side.
-  /// 
-  /// Returns: { success: bool, requestId: string, duplicate: bool }
+  /// Send WhatsApp message via Functions proxy (whatsappProxySend).
+  /// Proxy creates outbox entry server-side (Firestore rules are server-only).
+  /// Returns: { success: bool, requestId: string, duplicate?: bool }
   Future<Map<String, dynamic>> sendViaProxy({
     required String threadId,
     required String accountId,
@@ -70,54 +137,78 @@ class WhatsAppApiService {
     required String text,
     required String clientMessageId,
   }) async {
-    return retryWithBackoff(() async {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw UnauthorizedException();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw UnauthorizedException();
+
+    final token = await user.getIdToken();
+    final functionsUrl = _getFunctionsUrl();
+    final requestId = _generateRequestId();
+    final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
+    final endpointUrl = '$functionsUrl/whatsappProxySend';
+
+    debugPrint('[WhatsAppApiService] sendViaProxy: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId');
+
+    final response = await http
+        .post(
+          Uri.parse(endpointUrl),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Request-ID': requestId,
+          },
+          body: jsonEncode({
+            'threadId': threadId,
+            'accountId': accountId,
+            'toJid': toJid,
+            'text': text,
+            'clientMessageId': clientMessageId,
+          }),
+        )
+        .timeout(requestTimeout);
+
+    final contentType = response.headers['content-type'] ?? 'unknown';
+    final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
+    debugPrint('[WhatsAppApiService] sendViaProxy: AFTER response | statusCode=${response.statusCode} | content-type=$contentType | bodyLength=${response.body.length} | bodyPrefix=$bodyPrefix | requestId=$requestId');
+
+    if (_isNonJsonResponse(response)) {
+      _throwNonJsonNetworkException(response, endpointUrl);
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      Map<String, dynamic>? errorBody;
+      try {
+        errorBody = SafeJson.tryDecodeJsonMap(response.body);
+      } catch (_) {
+        errorBody = null;
       }
+      final message = errorBody?['message'] as String? ?? 'HTTP ${response.statusCode}';
+      throw ErrorMapper.fromHttpException(response.statusCode, message);
+    }
 
-      // Get Firebase ID token
-      final token = await user.getIdToken();
-      final functionsUrl = _getFunctionsUrl();
-      final requestId = _generateRequestId();
-
-      // Call Functions proxy with timeout
-      final response = await http
-          .post(
-            Uri.parse('$functionsUrl/whatsappProxySend'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-              'X-Request-ID': requestId, // For idempotency
-            },
-            body: jsonEncode({
-              'threadId': threadId,
-              'accountId': accountId,
-              'toJid': toJid,
-              'text': text,
-              'clientMessageId': clientMessageId,
-            }),
-          )
-          .timeout(requestTimeout);
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
-        throw ErrorMapper.fromHttpException(
-          response.statusCode,
-          errorBody?['message'] as String?,
-        );
-      }
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return data;
-    });
+    final data = SafeJson.tryDecodeJsonMap(response.body);
+    if (data == null) {
+      throw NetworkException(
+        'Invalid response: failed to decode JSON. endpoint=$endpointUrl',
+        code: 'json_decode_failed',
+      );
+    }
+    return data;
   }
 
-  /// Get list of WhatsApp accounts via Functions proxy.
-  /// 
-  /// CRITICAL FIX: Uses proxy with Authorization header (Firebase ID token).
-  /// Previously called Railway directly without auth, causing 401 errors.
-  /// 
+  /// Resolve storage path to signed/media URL. Not implemented; status viewer
+  /// will not resolve storage paths until backend exposes an endpoint.
+  /// Returns { url: string? | null, unimplemented: true } so UI can show "Media unavailable".
+  Future<Map<String, dynamic>> getMediaUrl({required String storagePath}) async {
+    return {'url': null, 'unimplemented': true};
+  }
+
+  /// Get list of WhatsApp accounts.
+  ///
+  /// When [backendUrl] is set (Hetzner): GET $backendUrl/api/whatsapp/accounts.
+  /// Otherwise: Functions proxy GET $functionsUrl/whatsappProxyGetAccounts.
+  /// Both use Authorization: Bearer (Firebase ID token) and safe JSON parsing.
+  ///
   /// Returns: { success: bool, accounts: List<Account> }
   /// Account: { id, name, phone, status, qrCode?, pairingCode?, ... }
   Future<Map<String, dynamic>> getAccounts() async {
@@ -127,37 +218,90 @@ class WhatsAppApiService {
         throw UnauthorizedException();
       }
 
-      // Get Firebase ID token
       final token = await user.getIdToken();
-      final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
+      final backendUrl = _getBackendUrl();
+      final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
 
-      debugPrint('[WhatsAppApiService] getAccounts: calling proxy (uid=${user.uid.substring(0, 8)}...)');
-
-      // Call Functions proxy with Authorization header
-      final response = await http
-          .get(
-            Uri.parse('$functionsUrl/whatsappProxyGetAccounts'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-              'X-Request-ID': requestId,
-            },
-          )
-          .timeout(requestTimeout);
-
-      debugPrint('[WhatsAppApiService] getAccounts: status=${response.statusCode}, bodyLength=${response.body.length}');
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
-        debugPrint('[WhatsAppApiService] getAccounts: error=${errorBody?['error']}, message=${errorBody?['message']}');
-        throw ErrorMapper.fromHttpException(
-          response.statusCode,
-          errorBody?['message'] as String?,
-        );
+      // When USE_EMULATORS=true, always use Functions URL (projectId/region prefix).
+      // Backend URL hits /api/whatsapp/accounts; emulator serves /{projectId}/{region}/whatsappProxyGetAccounts.
+      // Using backendUrl for emulator host → 404 HTML, jsonDecode fails.
+      final useProxy = backendUrl.isEmpty || _isEmulatorMode();
+      final String endpointUrl;
+      final http.Response response;
+      if (useProxy) {
+        final functionsUrl = _getFunctionsUrl();
+        endpointUrl = '$functionsUrl/whatsappProxyGetAccounts';
+        debugPrint('[WhatsAppApiService] getAccounts: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId');
+        response = await http
+            .get(
+              Uri.parse(endpointUrl),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Request-ID': requestId,
+              },
+            )
+            .timeout(requestTimeout);
+      } else {
+        endpointUrl = '$backendUrl/api/whatsapp/accounts';
+        debugPrint('[WhatsAppApiService] getAccounts: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId');
+        response = await http
+            .get(
+              Uri.parse(endpointUrl),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Request-ID': requestId,
+              },
+            )
+            .timeout(requestTimeout);
       }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final contentType = response.headers['content-type'] ?? 'unknown';
+      final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
+      debugPrint('[WhatsAppApiService] getAccounts: AFTER response | statusCode=${response.statusCode} | content-type=$contentType | bodyLength=${response.body.length} | bodyPrefix=$bodyPrefix | requestId=$requestId');
+
+      if (_isNonJsonResponse(response)) {
+        _throwNonJsonNetworkException(response, endpointUrl);
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        Map<String, dynamic>? errorBody;
+        try {
+          errorBody = SafeJson.tryDecodeJsonMap(response.body);
+        } catch (_) {
+          errorBody = null;
+        }
+        String message;
+        if (errorBody != null) {
+          message = errorBody['message'] as String? ?? 'HTTP ${response.statusCode}';
+          debugPrint('[WhatsAppApiService] getAccounts: error=${errorBody['error']}, message=$message');
+        } else {
+          message = 'HTTP ${response.statusCode} (non-JSON response). content-type=$contentType. bodyPreview=$bodyPrefix';
+          debugPrint('[WhatsAppApiService] getAccounts: non-JSON error response, bodyPrefix=$bodyPrefix');
+        }
+        throw ErrorMapper.fromHttpException(response.statusCode, message);
+      }
+
+      Map<String, dynamic>? data;
+      try {
+        data = SafeJson.tryDecodeJsonMap(response.body);
+      } catch (e) {
+        throw NetworkException(
+          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
+          code: 'json_decode_failed',
+          originalError: e,
+        );
+      }
+      if (data == null) {
+        throw NetworkException(
+          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
+          code: 'json_decode_failed',
+        );
+      }
       debugPrint('[WhatsAppApiService] getAccounts: success, accountsCount=${(data['accounts'] as List?)?.length ?? 0}');
       return data;
     });
@@ -166,7 +310,7 @@ class WhatsAppApiService {
   /// Add a new WhatsApp account via Functions proxy.
   /// 
   /// CRITICAL FIX: Uses proxy with Authorization header (Firebase ID token).
-  /// Previously called Railway directly without auth, causing 401 errors.
+  /// Previously called backend directly without auth, causing 401 errors.
   /// 
   /// NOTE: Backend requires phone (QR-only without phone is not supported).
   /// 
@@ -181,20 +325,21 @@ class WhatsAppApiService {
         throw UnauthorizedException();
       }
 
-      // Get Firebase ID token
       final token = await user.getIdToken();
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
+      final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
+      final endpointUrl = '$functionsUrl/whatsappProxyAddAccount';
 
-      debugPrint('[WhatsAppApiService] addAccount: calling proxy (uid=${user.uid.substring(0, 8)}..., name=$name, phone=$phone)');
+      debugPrint('[WhatsAppApiService] addAccount: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId | name=$name phone=$phone');
 
-      // Call Functions proxy with Authorization header
       final response = await http
           .post(
-            Uri.parse('$functionsUrl/whatsappProxyAddAccount'),
+            Uri.parse(endpointUrl),
             headers: {
               'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
+              'Accept': 'application/json',
               'X-Request-ID': requestId,
             },
             body: jsonEncode({
@@ -204,18 +349,48 @@ class WhatsAppApiService {
           )
           .timeout(requestTimeout);
 
-      debugPrint('[WhatsAppApiService] addAccount: status=${response.statusCode}, bodyLength=${response.body.length}');
+      final contentType = response.headers['content-type'] ?? 'unknown';
+      final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
+      debugPrint('[WhatsAppApiService] addAccount: AFTER response | statusCode=${response.statusCode} | content-type=$contentType | bodyLength=${response.body.length} | bodyPrefix=$bodyPrefix | requestId=$requestId');
 
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
-        debugPrint('[WhatsAppApiService] addAccount: error=${errorBody?['error']}, message=${errorBody?['message']}');
-        throw ErrorMapper.fromHttpException(
-          response.statusCode,
-          errorBody?['message'] as String?,
-        );
+      if (_isNonJsonResponse(response)) {
+        _throwNonJsonNetworkException(response, endpointUrl);
       }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        Map<String, dynamic>? errorBody;
+        try {
+          errorBody = SafeJson.tryDecodeJsonMap(response.body);
+        } catch (_) {
+          errorBody = null;
+        }
+        String message;
+        if (errorBody != null) {
+          message = errorBody['message'] as String? ?? 'HTTP ${response.statusCode}';
+          debugPrint('[WhatsAppApiService] addAccount: error=${errorBody['error']}, message=$message');
+        } else {
+          message = 'HTTP ${response.statusCode} (non-JSON response). content-type=$contentType. bodyPrefix=$bodyPrefix';
+          debugPrint('[WhatsAppApiService] addAccount: non-JSON error response, bodyPrefix=$bodyPrefix');
+        }
+        throw ErrorMapper.fromHttpException(response.statusCode, message);
+      }
+
+      Map<String, dynamic>? data;
+      try {
+        data = SafeJson.tryDecodeJsonMap(response.body);
+      } catch (e) {
+        throw NetworkException(
+          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
+          code: 'json_decode_failed',
+          originalError: e,
+        );
+      }
+      if (data == null) {
+        throw NetworkException(
+          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
+          code: 'json_decode_failed',
+        );
+      }
       debugPrint('[WhatsAppApiService] addAccount: success, accountId=${data['accountId'] ?? data['account']?['id']}');
       return data;
     });
@@ -224,7 +399,7 @@ class WhatsAppApiService {
   /// Regenerate QR code for a WhatsApp account via Functions proxy.
   /// 
   /// CRITICAL FIX: Uses proxy with Authorization header (Firebase ID token).
-  /// Previously called Railway directly without auth, causing 401 errors.
+  /// Previously called backend directly without auth, causing 401 errors.
   /// 
   /// Returns: { success: bool, message?: string, ... }
   Future<Map<String, dynamic>> regenerateQr({
@@ -236,30 +411,41 @@ class WhatsAppApiService {
         throw UnauthorizedException();
       }
 
-      // Get Firebase ID token
       final token = await user.getIdToken();
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
+      final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
+      final endpointUrl = '$functionsUrl/whatsappProxyRegenerateQr?accountId=$accountId';
 
-      debugPrint('[WhatsAppApiService] regenerateQr: calling proxy (uid=${user.uid.substring(0, 8)}..., accountId=$accountId)');
+      debugPrint('[WhatsAppApiService] regenerateQr: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId | accountId=${_maskId(accountId)}');
 
-      // Call Functions proxy with Authorization header (query param for accountId)
       final response = await http
           .post(
-            Uri.parse('$functionsUrl/whatsappProxyRegenerateQr?accountId=$accountId'),
+            Uri.parse(endpointUrl),
             headers: {
               'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
+              'Accept': 'application/json',
               'X-Request-ID': requestId,
             },
           )
           .timeout(requestTimeout);
 
-      debugPrint('[WhatsAppApiService] regenerateQr: status=${response.statusCode}, bodyLength=${response.body.length}');
+      final contentType = response.headers['content-type'] ?? 'unknown';
+      final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
+      debugPrint('[WhatsAppApiService] regenerateQr: AFTER response | statusCode=${response.statusCode} | content-type=$contentType | bodyLength=${response.body.length} | bodyPrefix=$bodyPrefix | requestId=$requestId');
 
-      // CRITICAL FIX: Handle 202 (already in progress) as non-fatal - return success
+      if (_isNonJsonResponse(response)) {
+        _throwNonJsonNetworkException(response, endpointUrl);
+      }
+
       if (response.statusCode == 202) {
-        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+        Map<String, dynamic>? errorBody;
+        try {
+          errorBody = SafeJson.tryDecodeJsonMap(response.body);
+        } catch (_) {
+          errorBody = null;
+        }
         debugPrint('[WhatsAppApiService] regenerateQr: 202 already_in_progress - returning success');
         return {
           'success': true,
@@ -269,9 +455,13 @@ class WhatsAppApiService {
         };
       }
 
-      // CRITICAL FIX: Handle 429 (rate limited) gracefully - throw NetworkException with message
       if (response.statusCode == 429) {
-        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
+        Map<String, dynamic>? errorBody;
+        try {
+          errorBody = SafeJson.tryDecodeJsonMap(response.body);
+        } catch (_) {
+          errorBody = null;
+        }
         final retryAfterSeconds = errorBody?['retryAfterSeconds'] as int? ?? 10;
         debugPrint('[WhatsAppApiService] regenerateQr: 429 rate_limited - throttle applied, retryAfter=${retryAfterSeconds}s');
         throw NetworkException(
@@ -282,15 +472,39 @@ class WhatsAppApiService {
       }
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
-        debugPrint('[WhatsAppApiService] regenerateQr: error=${errorBody?['error']}, message=${errorBody?['message']}');
-        throw ErrorMapper.fromHttpException(
-          response.statusCode,
-          errorBody?['message'] as String?,
-        );
+        Map<String, dynamic>? errorBody;
+        try {
+          errorBody = SafeJson.tryDecodeJsonMap(response.body);
+        } catch (_) {
+          errorBody = null;
+        }
+        String message;
+        if (errorBody != null) {
+          message = errorBody['message'] as String? ?? 'HTTP ${response.statusCode}';
+          debugPrint('[WhatsAppApiService] regenerateQr: error=${errorBody['error']}, message=$message');
+        } else {
+          message = 'HTTP ${response.statusCode} (non-JSON response). content-type=$contentType. bodyPrefix=$bodyPrefix';
+          debugPrint('[WhatsAppApiService] regenerateQr: non-JSON error response, bodyPrefix=$bodyPrefix');
+        }
+        throw ErrorMapper.fromHttpException(response.statusCode, message);
       }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      Map<String, dynamic>? data;
+      try {
+        data = SafeJson.tryDecodeJsonMap(response.body);
+      } catch (e) {
+        throw NetworkException(
+          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
+          code: 'json_decode_failed',
+          originalError: e,
+        );
+      }
+      if (data == null) {
+        throw NetworkException(
+          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
+          code: 'json_decode_failed',
+        );
+      }
       debugPrint('[WhatsAppApiService] regenerateQr: success, message=${data['message']}');
       return data;
     });
@@ -312,38 +526,74 @@ class WhatsAppApiService {
       final token = await user.getIdToken();
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
+      final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
+      final endpointUrl = '$functionsUrl/whatsappProxyDeleteAccount?accountId=$accountId';
 
-      // Call Functions proxy with DELETE or POST
+      debugPrint('[WhatsAppApiService] deleteAccount: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId | accountId=${_maskId(accountId)}');
+
       final response = await http
           .post(
-            Uri.parse('$functionsUrl/whatsappProxyDeleteAccount?accountId=$accountId'),
+            Uri.parse(endpointUrl),
             headers: {
               'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
+              'Accept': 'application/json',
               'X-Request-ID': requestId,
             },
             body: jsonEncode({'accountId': accountId}),
           )
           .timeout(requestTimeout);
 
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
-        throw ErrorMapper.fromHttpException(
-          response.statusCode,
-          errorBody?['message'] as String?,
-        );
+      final contentType = response.headers['content-type'] ?? 'unknown';
+      final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
+      debugPrint('[WhatsAppApiService] deleteAccount: AFTER response | statusCode=${response.statusCode} | content-type=$contentType | bodyLength=${response.body.length} | bodyPrefix=$bodyPrefix | requestId=$requestId');
+
+      if (_isNonJsonResponse(response)) {
+        _throwNonJsonNetworkException(response, endpointUrl);
       }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        Map<String, dynamic>? errorBody;
+        try {
+          errorBody = SafeJson.tryDecodeJsonMap(response.body);
+        } catch (_) {
+          errorBody = null;
+        }
+        String message;
+        if (errorBody != null) {
+          message = errorBody['message'] as String? ?? 'HTTP ${response.statusCode}';
+        } else {
+          message = 'HTTP ${response.statusCode} (non-JSON response). content-type=$contentType. bodyPrefix=$bodyPrefix';
+          debugPrint('[WhatsAppApiService] deleteAccount: non-JSON error response, bodyPrefix=$bodyPrefix');
+        }
+        throw ErrorMapper.fromHttpException(response.statusCode, message);
+      }
+
+      Map<String, dynamic>? data;
+      try {
+        data = SafeJson.tryDecodeJsonMap(response.body);
+      } catch (e) {
+        throw NetworkException(
+          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
+          code: 'json_decode_failed',
+          originalError: e,
+        );
+      }
+      if (data == null) {
+        throw NetworkException(
+          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
+          code: 'json_decode_failed',
+        );
+      }
       return data;
     });
   }
 
   /// Get QR page URL for an account (fallback: open in browser).
   /// 
-  /// Returns: Full URL to Railway QR endpoint (HTML page).
+  /// Returns: Full URL to QR endpoint (HTML page).
   String qrPageUrl(String accountId) {
-    final backendUrl = _getBackendUrl();
+    final backendUrl = _requireBackendUrl();
     return '$backendUrl/api/whatsapp/qr/$accountId';
   }
 
@@ -460,35 +710,99 @@ class WhatsAppApiService {
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
 
-      debugPrint('[WhatsAppApiService] getThreads: calling proxy (accountId=$accountId)');
-
-      // Call Functions proxy - need to create proxy function or call Railway directly
-      // For now, call Railway directly with token
+      final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
       final backendUrl = _getBackendUrl();
-      final response = await http
-          .get(
-            Uri.parse('$backendUrl/api/whatsapp/threads/$accountId'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-              'X-Request-ID': requestId,
-            },
-          )
-          .timeout(requestTimeout);
-
-      debugPrint('[WhatsAppApiService] getThreads: status=${response.statusCode}');
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
-        debugPrint('[WhatsAppApiService] getThreads: error=${errorBody?['error']}');
-        throw ErrorMapper.fromHttpException(
-          response.statusCode,
-          errorBody?['message'] as String?,
-        );
+      // When USE_EMULATORS=true, always use Functions URL (projectId/region prefix).
+      final useProxy = backendUrl.isEmpty || _isEmulatorMode();
+      final String endpointUrl;
+      final http.Response response;
+      if (useProxy) {
+        endpointUrl = '$functionsUrl/whatsappProxyGetThreads?accountId=$accountId&limit=500';
+        debugPrint('[WhatsAppApiService] getThreads: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId');
+        response = await http
+            .get(
+              Uri.parse(endpointUrl),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Request-ID': requestId,
+              },
+            )
+            .timeout(requestTimeout);
+      } else {
+        endpointUrl = '$backendUrl/api/whatsapp/threads/$accountId?limit=500&orderBy=lastMessageAt';
+        debugPrint('[WhatsAppApiService] getThreads: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId');
+        response = await http
+            .get(
+              Uri.parse(endpointUrl),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Request-ID': requestId,
+              },
+            )
+            .timeout(requestTimeout);
       }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final contentType = response.headers['content-type'] ?? 'unknown';
+      final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
+      debugPrint('[WhatsAppApiService] getThreads: AFTER response | statusCode=${response.statusCode} | content-type=$contentType | bodyLength=${response.body.length} | bodyPrefix=$bodyPrefix | requestId=$requestId');
+
+      if (_isNonJsonResponse(response)) {
+        _throwNonJsonNetworkException(response, endpointUrl);
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        Map<String, dynamic>? errorBody;
+        try {
+          errorBody = SafeJson.tryDecodeJsonMap(response.body);
+        } catch (_) {
+          errorBody = null;
+        }
+        String message;
+        if (errorBody != null) {
+          message = errorBody['message'] as String? ?? 'HTTP ${response.statusCode}';
+          debugPrint('[WhatsAppApiService] getThreads: error=${errorBody['error']}, message=$message');
+        } else {
+          message = 'HTTP ${response.statusCode} (non-JSON response). content-type=$contentType. bodyPrefix=$bodyPrefix';
+          debugPrint('[WhatsAppApiService] getThreads: non-JSON error response, bodyPrefix=$bodyPrefix');
+        }
+        throw ErrorMapper.fromHttpException(response.statusCode, message);
+      }
+
+      Map<String, dynamic>? data;
+      try {
+        data = SafeJson.tryDecodeJsonMap(response.body);
+      } catch (e) {
+        throw NetworkException(
+          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
+          code: 'json_decode_failed',
+          originalError: e,
+        );
+      }
+      if (data == null) {
+        throw NetworkException(
+          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
+          code: 'json_decode_failed',
+        );
+      }
       debugPrint('[WhatsAppApiService] getThreads: success, threadsCount=${data['threads']?.length ?? 0}');
+      final raw = data['threads'] as List<dynamic>?;
+      if (raw != null && raw.isNotEmpty) {
+        final threads = raw.map((e) {
+          if (e is! Map) return e;
+          final m = Map<String, dynamic>.from(e);
+          final preview = m['lastMessagePreview'] ?? m['lastMessageBody'] ?? m['lastMessage'];
+          if ((m['lastMessageText'] == null || (m['lastMessageText'] as String).isEmpty) &&
+              preview != null) {
+            m['lastMessageText'] = preview is String ? preview : preview.toString();
+          }
+          return m;
+        }).toList();
+        return {...data, 'threads': threads};
+      }
       return data;
     });
   }
@@ -507,40 +821,240 @@ class WhatsAppApiService {
       }
 
       final token = await user.getIdToken();
-      final backendUrl = _getBackendUrl();
+      final backendUrl = _requireBackendUrl();
       final requestId = _generateRequestId();
+      final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
+      final endpointUrl = '$backendUrl/api/whatsapp/inbox/$accountId?limit=$limit';
 
-      debugPrint('[WhatsAppApiService] getInbox: calling API (accountId=$accountId, limit=$limit, backendUrl=$backendUrl)');
+      debugPrint('[WhatsAppApiService] getInbox: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId | limit=$limit');
 
       final response = await http
           .get(
-            Uri.parse('$backendUrl/api/whatsapp/inbox/$accountId?limit=$limit'),
+            Uri.parse(endpointUrl),
             headers: {
               'Authorization': 'Bearer $token',
               'Content-Type': 'application/json',
+              'Accept': 'application/json',
               'X-Request-ID': requestId,
             },
           )
           .timeout(requestTimeout);
 
-      debugPrint('[WhatsAppApiService] getInbox: status=${response.statusCode}, bodyLength=${response.body.length}');
-      
-      if (response.statusCode != 200) {
-        debugPrint('[WhatsAppApiService] getInbox: error body=${response.body.substring(0, 200)}');
+      final contentType = response.headers['content-type'] ?? 'unknown';
+      final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
+      debugPrint('[WhatsAppApiService] getInbox: AFTER response | statusCode=${response.statusCode} | content-type=$contentType | bodyLength=${response.body.length} | bodyPrefix=$bodyPrefix | requestId=$requestId');
+
+      if (_isNonJsonResponse(response)) {
+        _throwNonJsonNetworkException(response, endpointUrl);
       }
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        final errorBody = jsonDecode(response.body) as Map<String, dynamic>?;
-        debugPrint('[WhatsAppApiService] getInbox: error=${errorBody?['error']}');
-        throw ErrorMapper.fromHttpException(
-          response.statusCode,
-          errorBody?['message'] as String?,
-        );
+        Map<String, dynamic>? errorBody;
+        try {
+          errorBody = SafeJson.tryDecodeJsonMap(response.body);
+        } catch (_) {
+          errorBody = null;
+        }
+        String message;
+        if (errorBody != null) {
+          message = errorBody['message'] as String? ?? 'HTTP ${response.statusCode}';
+          debugPrint('[WhatsAppApiService] getInbox: error=${errorBody['error']}, message=$message');
+        } else {
+          message = 'HTTP ${response.statusCode} (non-JSON response). content-type=$contentType. bodyPrefix=$bodyPrefix';
+          debugPrint('[WhatsAppApiService] getInbox: non-JSON error response, bodyPrefix=$bodyPrefix');
+        }
+        throw ErrorMapper.fromHttpException(response.statusCode, message);
       }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      Map<String, dynamic>? data;
+      try {
+        data = SafeJson.tryDecodeJsonMap(response.body);
+      } catch (e) {
+        throw NetworkException(
+          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
+          code: 'json_decode_failed',
+          originalError: e,
+        );
+      }
+      if (data == null) {
+        throw NetworkException(
+          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
+          code: 'json_decode_failed',
+        );
+      }
       debugPrint('[WhatsAppApiService] getInbox: success, messagesCount=${data['messages']?.length ?? 0}');
       return data;
     });
+  }
+
+  /// GET /api/whatsapp/auto-reply-settings/:accountId
+  /// Returns: { success: bool, enabled: bool, prompt: string }
+  Future<Map<String, dynamic>> getAutoReplySettings({required String accountId}) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw UnauthorizedException();
+    final token = await user.getIdToken();
+    final backendUrl = _requireBackendUrl();
+    final requestId = _generateRequestId();
+    final endpointUrl = '$backendUrl/api/whatsapp/auto-reply-settings/$accountId';
+
+    debugPrint('[WhatsAppApiService] getAutoReplySettings: $endpointUrl');
+    final response = await http
+        .get(
+          Uri.parse(endpointUrl),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Request-ID': requestId,
+          },
+        )
+        .timeout(requestTimeout);
+
+    if (_isNonJsonResponse(response)) {
+      _throwNonJsonNetworkException(response, endpointUrl);
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final errorBody = SafeJson.tryDecodeJsonMap(response.body);
+      final message = errorBody?['message'] as String? ?? 'HTTP ${response.statusCode}';
+      throw ErrorMapper.fromHttpException(response.statusCode, message);
+    }
+    final data = SafeJson.tryDecodeJsonMap(response.body);
+    if (data == null) {
+      throw NetworkException(
+        'Invalid response: failed to decode JSON. endpoint=$endpointUrl',
+        code: 'json_decode_failed',
+      );
+    }
+    return data;
+  }
+
+  /// POST /api/whatsapp/auto-reply-settings/:accountId
+  /// Body: { enabled: bool, prompt: string }
+  /// Returns: { success: bool, enabled: bool, prompt: string? }
+  Future<Map<String, dynamic>> setAutoReplySettings({
+    required String accountId,
+    required bool enabled,
+    required String prompt,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw UnauthorizedException();
+    final token = await user.getIdToken();
+    final backendUrl = _requireBackendUrl();
+    final requestId = _generateRequestId();
+    final endpointUrl = '$backendUrl/api/whatsapp/auto-reply-settings/$accountId';
+
+    debugPrint('[WhatsAppApiService] setAutoReplySettings: $endpointUrl enabled=$enabled');
+    final response = await http
+        .post(
+          Uri.parse(endpointUrl),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Request-ID': requestId,
+          },
+          body: jsonEncode({'enabled': enabled, 'prompt': prompt}),
+        )
+        .timeout(requestTimeout);
+
+    if (_isNonJsonResponse(response)) {
+      _throwNonJsonNetworkException(response, endpointUrl);
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final errorBody = SafeJson.tryDecodeJsonMap(response.body);
+      final message = errorBody?['message'] as String? ?? 'HTTP ${response.statusCode}';
+      throw ErrorMapper.fromHttpException(response.statusCode, message);
+    }
+    final data = SafeJson.tryDecodeJsonMap(response.body);
+    if (data == null) {
+      throw NetworkException(
+        'Invalid response: failed to decode JSON. endpoint=$endpointUrl',
+        code: 'json_decode_failed',
+      );
+    }
+    return data;
+  }
+
+  /// POST whatsappProxyBackfillAccount (Functions HTTP) – super-admin only.
+  /// Triggers sync of conversation history for [accountId].
+  /// Uses retry/backoff; logs requestId and full response for debugging.
+  /// Throws [UnauthorizedException] / [ForbiddenException] on 401/403.
+  Future<Map<String, dynamic>> backfillAccount({
+    required String accountId,
+  }) async {
+    return retryWithBackoff(() async {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw UnauthorizedException();
+
+      final token = await user.getIdToken();
+      final functionsUrl = _getFunctionsUrl();
+      final requestId = _generateRequestId();
+      final uidTruncated =
+          user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
+      final endpointUrl =
+          '$functionsUrl/whatsappProxyBackfillAccount?accountId=${Uri.encodeComponent(accountId)}';
+
+      debugPrint(
+          '[WhatsAppApiService] backfillAccount: BEFORE request | endpointUrl=$endpointUrl | '
+          'uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | '
+          'requestId=$requestId | accountId=${_maskId(accountId)}');
+
+      final response = await http
+          .post(
+            Uri.parse(endpointUrl),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'X-Request-ID': requestId,
+            },
+            body: jsonEncode({'accountId': accountId}),
+          )
+          .timeout(requestTimeout);
+
+      final contentType = response.headers['content-type'] ?? 'unknown';
+      final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
+      debugPrint(
+          '[WhatsAppApiService] backfillAccount: AFTER response | statusCode=${response.statusCode} | '
+          'content-type=$contentType | bodyLength=${response.body.length} | '
+          'bodyPrefix=$bodyPrefix | requestId=$requestId');
+      if (kDebugMode && response.body.isNotEmpty) {
+        debugPrint(
+            '[WhatsAppApiService] backfillAccount: full body (requestId=$requestId): ${response.body}');
+      }
+
+      if (_isNonJsonResponse(response)) {
+        _throwNonJsonNetworkException(response, endpointUrl);
+      }
+
+      final data = SafeJson.tryDecodeJsonMap(response.body);
+      if (data != null && data['error'] == 'configuration_missing') {
+        throw NetworkException(
+          'Functions missing WHATSAPP_BACKEND_URL / WHATSAPP_BACKEND_BASE_URL secret. Set backend URL in Firebase Functions env.',
+          code: 'configuration_missing',
+        );
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final message =
+            data?['message'] as String? ?? 'HTTP ${response.statusCode}';
+        throw ErrorMapper.fromHttpException(response.statusCode, message);
+      }
+
+      if (data == null) {
+        throw NetworkException(
+          'Invalid response: failed to decode JSON. endpoint=$endpointUrl',
+          code: 'json_decode_failed',
+        );
+      }
+      return data;
+    });
+  }
+
+  /// Legacy alias: delegates to [backfillAccount] (retry + same contract).
+  Future<Map<String, dynamic>> backfillAccountViaProxy({
+    required String accountId,
+  }) async {
+    return backfillAccount(accountId: accountId);
   }
 }

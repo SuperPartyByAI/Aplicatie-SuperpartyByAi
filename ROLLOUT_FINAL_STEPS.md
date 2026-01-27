@@ -39,7 +39,7 @@ Dacă remote are `main` dar local nu: `git fetch origin main:refs/remotes/origin
 
 ## 2) Firebase deploy (secrets + rules/indexes/functions)
 
-Proxy-ul către Railway este gândit să folosească un secret cu URL-ul Railway, ex. `WHATSAPP_RAILWAY_BASE_URL` / `RAILWAY_WHATSAPP_URL` (conform documentației proxy).  
+Proxy-ul către backend folosește un secret cu URL-ul backend, ex. `WHATSAPP_BACKEND_BASE_URL` (recomandat) sau `WHATSAPP_BACKEND_URL` (legacy).
 Pentru AI extraction/ask se menționează cheie `GROQ_API_KEY` (`DEPLOY_MANUAL`).
 
 ### 2.1 Select proiect
@@ -50,13 +50,13 @@ firebase use <PROJECT_ID>
 **Notă:** Înlocuiește `<PROJECT_ID>` cu ID-ul real al proiectului Firebase.
 
 ### 2.2 Set secrets (minim)
-Setează URL-ul Railway (valoare: `https://<railway-domain>`):
+Setează URL-ul backend (valoare: `https://<backend-host>`):
 ```bash
 firebase functions:secrets:set RAILWAY_WHATSAPP_URL
 # sau/și:
-firebase functions:secrets:set WHATSAPP_RAILWAY_BASE_URL
+firebase functions:secrets:set WHATSAPP_BACKEND_BASE_URL
 ```
-**Notă:** Înlocuiește `<railway-domain>` cu domeniul Railway real (ex: `whats-upp-production.up.railway.app`).
+**Notă:** Înlocuiește `<backend-host>` cu domeniul backend real.
 
 AI provider key (dacă folosești Groq):
 ```bash
@@ -96,9 +96,10 @@ Railway → Variables:
 ### 3.3 Verificări în logs (după redeploy)
 Caută:
 - ✅ `"sessions dir ... writable"` / `"write-test"` (startup fail-fast indică să verifici `SESSIONS_PATH` și volume)
+- ✅ `"Session restored from disk"` / `"Session restored from Firestore"` (după redeploy)
 - ✅ `"messaging-history.set"` (history sync)
 - ❌ `"needs_qr"` (dacă apare după scanare = problemă)
-- ✅ `/health 200`
+- ✅ `/health 200` + `sessions_dir_writable=true`
 
 ### 3.4 Constrângere producție
 **1 singură instanță Railway** (fără scale-out) până când ownership/lease e implementat complet.
@@ -119,6 +120,7 @@ BASE="https://<railway-domain>"
 ```bash
 curl -sS "$BASE/health"
 ```
+Expected: `sessions_dir_writable=true` și status 200. Dacă e `false`, /health va răspunde 503.
 
 ### 4.2 List accounts
 ```bash
@@ -305,9 +307,9 @@ Nu implementa delete pentru `threads`/`messages`/`client profile`.
 - rulează: `firebase deploy --only firestore:indexes`
 - așteaptă „Ready” în Console → Indexes
 
-### Problemă: proxy nu ajunge la Railway
-- verifică secret URL (`RAILWAY_WHATSAPP_URL` / `WHATSAPP_RAILWAY_BASE_URL`)
-- verifică că Railway domain e corect și public
+### Problemă: proxy nu ajunge la backend
+- verifică secret URL (`WHATSAPP_BACKEND_BASE_URL` / `WHATSAPP_BACKEND_URL`)
+- verifică că backend host e corect și public
 
 ### Problemă: AI extraction/ask eșuează
 - verifică `GROQ_API_KEY` setat (`DEPLOY_MANUAL`)

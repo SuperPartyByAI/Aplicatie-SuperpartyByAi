@@ -4,7 +4,7 @@
 
 const https = require('https');
 
-const BASE_URL = 'https://whats-upp-production.up.railway.app';
+const BASE_URL = process.env.BAILEYS_BASE_URL || 'http://37.27.34.179:8080';
 
 function makeRequest(path) {
   return new Promise((resolve, reject) => {
@@ -72,11 +72,10 @@ async function testHealth() {
     console.log('Next step: Test WA status with admin token');
     console.log('========================================');
     console.log('');
-    console.log('Get your ADMIN_TOKEN from Railway:');
-    console.log('1. Go to https://railway.app');
-    console.log('2. Open your project');
-    console.log('3. Click "Variables" tab');
-    console.log('4. Copy ADMIN_TOKEN value');
+    console.log('Get your ADMIN_TOKEN from your backend config (e.g. Hetzner env vars):');
+    console.log('1. Open your backend project / host');
+    console.log('2. Check environment variables');
+    console.log('3. Copy ADMIN_TOKEN value');
     console.log('');
     console.log('Then run:');
     console.log('  test-wa-status.bat YOUR_TOKEN_HERE');

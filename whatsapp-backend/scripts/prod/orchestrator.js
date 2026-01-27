@@ -5,7 +5,7 @@ const admin = require('firebase-admin');
 const fs = require('fs');
 const path = require('path');
 
-const BASE_URL = process.env.BAILEYS_BASE_URL || 'https://whats-upp-production.up.railway.app';
+const BASE_URL = process.env.BAILEYS_BASE_URL || 'http://37.27.34.179:8080';
 const TEST_TOKEN = process.env.ONE_TIME_TEST_TOKEN;
 
 if (!TEST_TOKEN) {

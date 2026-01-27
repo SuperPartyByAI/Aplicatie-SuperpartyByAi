@@ -1,0 +1,481 @@
+{
+  "meta": {
+    "generatedAt": "2026-01-23T17:37:09.225Z",
+    "accountId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443",
+    "repoCommit": "da0a7b96"
+  },
+  "accounts": {
+    "id": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443",
+    "accountId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443",
+    "name": "532eaabd:4",
+    "pairingCode": null,
+    "qrUpdatedAt": {
+      "_seconds": 1769119055,
+      "_nanoseconds": 861000000
+    },
+    "qrCode": null,
+    "waJid": "9c220ae5:29",
+    "phoneE164": "28d27913:11",
+    "historySyncCount": 860,
+    "lastHistorySyncResult": {
+      "dryRun": false,
+      "errors": 0,
+      "total": 908,
+      "saved": 860,
+      "skipped": 48
+    },
+    "lastHistorySyncAt": {
+      "_seconds": 1769119555,
+      "_nanoseconds": 294000000
+    },
+    "claimedBy": "ubuntu-8gb-hel1-2",
+    "lastBackfillResult": {
+      "messages": 0,
+      "threads": 13,
+      "errors": 13,
+      "threadResults": [
+        {
+          "threadId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__[object Object]",
+          "status": "error",
+          "error": "9 FAILED_PRECONDITION: "
+        },
+        {
+          "threadId": "5253ff57:65",
+          "status": "error",
+          "error": "9 FAILED_PRECONDITION: "
+        },
+        {
+          "threadId": "fbe63b0e:64",
+          "status": "error",
+          "error": "9 FAILED_PRECONDITION: "
+        },
+        {
+          "threadId": "64c6a2a1:66",
+          "status": "error",
+          "error": "9 FAILED_PRECONDITION: "
+        },
+        {
+          "threadId": "d9c45e44:64",
+          "status": "error",
+          "error": "9 FAILED_PRECONDITION: "
+        },
+        {
+          "threadId": "96b08e84:66",
+          "status": "error",
+          "error": "9 FAILED_PRECONDITION: "
+        },
+        {
+          "threadId": "c1c882ca:64",
+          "status": "error",
+          "error": "9 FAILED_PRECONDITION: "
+        },
+        {
+          "threadId": "ed897f1f:66",
+          "status": "error",
+          "error": "9 FAILED_PRECONDITION: "
+        },
+        {
+          "threadId": "968569cd:65",
+          "status": "error",
+          "error": "9 FAILED_PRECONDITION: "
+        },
+        {
+          "threadId": "fafc258f:66",
+          "status": "error",
+          "error": "9 FAILED_PRECONDITION: "
+        }
+      ]
+    },
+    "lastBackfillAt": {
+      "_seconds": 1769188945,
+      "_nanoseconds": 448000000
+    },
+    "lastDisconnectCode": 440,
+    "lastDisconnectReason": "440",
+    "createdAt": "2026-01-23T17:31:58.233Z",
+    "worker": {
+      "instanceId": "ubuntu-8gb-hel1-2",
+      "service": "backend",
+      "commit": null,
+      "version": "2.0.0",
+      "bootTs": "2026-01-23T17:31:58.233Z",
+      "uptime": 63547.509049959
+    },
+    "lastDisconnectedAt": {
+      "_seconds": 1769189518,
+      "_nanoseconds": 798000000
+    },
+    "lastConnectedAt": {
+      "_seconds": 1769189519,
+      "_nanoseconds": 219000000
+    },
+    "status": "connected",
+    "claimedAt": {
+      "_seconds": 1769189814,
+      "_nanoseconds": 346000000
+    },
+    "leaseUntil": {
+      "_seconds": 1769190114,
+      "_nanoseconds": 346000000
+    },
+    "updatedAt": {
+      "_seconds": 1769189814,
+      "_nanoseconds": 370000000
+    }
+  },
+  "threads": {
+    "list": [
+      {
+        "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__b28c94b2:15",
+        "clientJidHash": "b28c94b2:15",
+        "lastMessageAt": "2026-01-23T16:08:27.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": null,
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__9014307c:18",
+        "clientJidHash": "9014307c:18",
+        "lastMessageAt": "2026-01-23T15:59:50.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "b520d64a:24",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__4e3bbb79:17",
+        "clientJidHash": "4e3bbb79:17",
+        "lastMessageAt": "2026-01-23T14:27:49.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "c96e5eab:9",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__17cf25c1:19",
+        "clientJidHash": "17cf25c1:19",
+        "lastMessageAt": "2026-01-23T14:04:35.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "66933de7:100",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__d3015fd4:17",
+        "clientJidHash": "d3015fd4:17",
+        "lastMessageAt": "2026-01-23T10:37:38.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "02d5ad1c:8",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__8e394061:19",
+        "clientJidHash": "8e394061:19",
+        "lastMessageAt": "2026-01-22T22:13:27.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "532eaabd:4",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__9529a415:19",
+        "clientJidHash": "9529a415:19",
+        "lastMessageAt": "2026-01-20T15:29:36.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "bd700cbe:42",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__3bc2fd33:17",
+        "clientJidHash": "3bc2fd33:17",
+        "lastMessageAt": "2026-01-19T16:44:36.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "32c3a8f9:41",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__6a3596c6:19",
+        "clientJidHash": "6a3596c6:19",
+        "lastMessageAt": "2026-01-16T12:09:00.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "ba54dc0c:11",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__88b360e5:18",
+        "clientJidHash": "88b360e5:18",
+        "lastMessageAt": "2026-01-14T10:35:40.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "48c69233:34",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__8f89bd84:18",
+        "clientJidHash": "8f89bd84:18",
+        "lastMessageAt": "2025-12-29T22:04:29.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "0da9b0a9:34",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__62ba7a7b:19",
+        "clientJidHash": "62ba7a7b:19",
+        "lastMessageAt": "2025-12-20T09:24:50.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "5da64bba:17",
+        "schemaVersion": null
+      },
+      {
+        "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__8eb56b8a:18",
+        "clientJidHash": "8eb56b8a:18",
+        "lastMessageAt": "2025-12-19T18:16:58.000Z",
+        "titleHash": null,
+        "lastMessagePreviewHash": "0b9c6544:13",
+        "schemaVersion": null
+      }
+    ],
+    "threadIdMix": {
+      "legacyCount": 0,
+      "canonicalCount": 13,
+      "legacyExamples": [],
+      "canonicalExamples": [
+        {
+          "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__b28c94b2:15",
+          "hash": "76c16c76:62"
+        },
+        {
+          "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__9014307c:18",
+          "hash": "5253ff57:65"
+        },
+        {
+          "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__4e3bbb79:17",
+          "hash": "fbe63b0e:64"
+        },
+        {
+          "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__17cf25c1:19",
+          "hash": "64c6a2a1:66"
+        },
+        {
+          "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__d3015fd4:17",
+          "hash": "d9c45e44:64"
+        }
+      ]
+    }
+  },
+  "messages": {
+    "dmThread": null,
+    "groupThread": null,
+    "dm": {
+      "messages": [],
+      "duplicateKeys": []
+    },
+    "group": {
+      "messages": [],
+      "duplicateKeys": []
+    }
+  },
+  "outbox": {
+    "docs": [
+      {
+        "docId": "c35cdb94:64",
+        "requestId": "c35cdb94:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-23T13:41:50.277Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "a36f2515:17",
+        "leaseUntil": null
+      },
+      {
+        "docId": "1dc29de9:64",
+        "requestId": "1dc29de9:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-23T13:41:23.348Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "a36f2515:17",
+        "leaseUntil": null
+      },
+      {
+        "docId": "085079d7:64",
+        "requestId": "085079d7:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-23T13:41:08.739Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "a36f2515:17",
+        "leaseUntil": null
+      },
+      {
+        "docId": "238ab526:64",
+        "requestId": "238ab526:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-23T10:40:37.058Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "a36f2515:17",
+        "leaseUntil": null
+      },
+      {
+        "docId": "0a90652d:64",
+        "requestId": "0a90652d:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-23T10:37:58.315Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "a36f2515:17",
+        "leaseUntil": null
+      },
+      {
+        "docId": "cc9a11ec:64",
+        "requestId": "cc9a11ec:64",
+        "status": "sent",
+        "attemptCount": 1,
+        "nextAttemptAt": "2026-01-23T10:36:26.097Z",
+        "lastAttemptAt": null,
+        "error": null,
+        "errorMessageHash": null,
+        "claimedByHash": "a36f2515:17",
+        "leaseUntil": null
+      }
+    ],
+    "passiveCount": 0,
+    "sentButFailed": 0,
+    "hasRailwayResponse": false,
+    "hasBackendResponse": false
+  },
+  "inboundDedupe": [
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__d719c682:20",
+      "createdAt": "2026-01-23T16:08:28.526Z",
+      "keyHash": "d719c682:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__0a9ab54c:20",
+      "createdAt": "2026-01-23T15:59:50.652Z",
+      "keyHash": "0a9ab54c:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__47ce6278:20",
+      "createdAt": "2026-01-23T15:59:41.379Z",
+      "keyHash": "47ce6278:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__0f749d67:20",
+      "createdAt": "2026-01-23T15:59:38.804Z",
+      "keyHash": "0f749d67:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__fb903ce7:20",
+      "createdAt": "2026-01-23T15:59:38.663Z",
+      "keyHash": "fb903ce7:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__8a570691:20",
+      "createdAt": "2026-01-23T15:59:34.999Z",
+      "keyHash": "8a570691:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__d62c42d7:32",
+      "createdAt": "2026-01-23T15:53:58.126Z",
+      "keyHash": "d62c42d7:32"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__64a0d3b9:32",
+      "createdAt": "2026-01-23T14:27:50.006Z",
+      "keyHash": "64a0d3b9:32"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__d5204a4d:32",
+      "createdAt": "2026-01-23T14:17:48.857Z",
+      "keyHash": "d5204a4d:32"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__99ea1b57:20",
+      "createdAt": "2026-01-23T14:17:40.730Z",
+      "keyHash": "99ea1b57:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__d426c283:20",
+      "createdAt": "2026-01-23T14:17:39.199Z",
+      "keyHash": "d426c283:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__8d13f8df:32",
+      "createdAt": "2026-01-23T14:17:30.576Z",
+      "keyHash": "8d13f8df:32"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__5a344da4:20",
+      "createdAt": "2026-01-23T14:17:18.044Z",
+      "keyHash": "5a344da4:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__0689c466:20",
+      "createdAt": "2026-01-23T14:15:06.675Z",
+      "keyHash": "0689c466:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__20becdb4:32",
+      "createdAt": "2026-01-23T14:12:27.382Z",
+      "keyHash": "20becdb4:32"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__6359674a:32",
+      "createdAt": "2026-01-23T14:12:08.122Z",
+      "keyHash": "6359674a:32"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__be821da9:32",
+      "createdAt": "2026-01-23T14:11:59.352Z",
+      "keyHash": "be821da9:32"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__039d9f80:20",
+      "createdAt": "2026-01-23T14:11:48.119Z",
+      "keyHash": "039d9f80:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__6c3dd282:20",
+      "createdAt": "2026-01-23T13:51:14.813Z",
+      "keyHash": "6c3dd282:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__d4aa281a:20",
+      "createdAt": "2026-01-23T13:51:00.137Z",
+      "keyHash": "d4aa281a:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__a26f837e:20",
+      "createdAt": "2026-01-23T13:48:01.560Z",
+      "keyHash": "a26f837e:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__3cf111d9:20",
+      "createdAt": "2026-01-23T13:43:35.043Z",
+      "keyHash": "3cf111d9:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__76773103:20",
+      "createdAt": "2026-01-23T13:41:34.420Z",
+      "keyHash": "76773103:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__e01a421c:20",
+      "createdAt": "2026-01-23T13:41:32.752Z",
+      "keyHash": "e01a421c:20"
+    },
+    {
+      "docId": "account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443__ea6dee3a:20",
+      "createdAt": "2026-01-23T13:28:59.392Z",
+      "keyHash": "ea6dee3a:20"
+    }
+  ],
+  "messageIds": []
+}

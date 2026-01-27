@@ -6,35 +6,13 @@
 
 set -e
 
-BASE_URL="${RAILWAY_PUBLIC_DOMAIN:-https://whats-upp-production.up.railway.app}"
+BASE_URL="${WHATSAPP_BACKEND_URL:-http://37.27.34.179:8080}"
 
-# Try to get ADMIN_TOKEN from Railway CLI if not set
+# Try to get ADMIN_TOKEN from helper script if available
 if [ -z "$ADMIN_TOKEN" ]; then
-  # Source helper script if available
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   if [ -f "$SCRIPT_DIR/set_admin_token.sh" ]; then
     source "$SCRIPT_DIR/set_admin_token.sh" 2>/dev/null || true
-  fi
-  
-  # Fallback: try direct extraction methods
-  if [ -z "$ADMIN_TOKEN" ]; then
-    # Try JSON format first (most reliable)
-    if command -v jq &> /dev/null; then
-      ADMIN_TOKEN=$(railway variables --json 2>/dev/null | jq -r '.[] | select(.name == "ADMIN_TOKEN") | .value' 2>/dev/null | grep -v "null" || true)
-    fi
-    
-    # If still empty, try table format
-    if [ -z "$ADMIN_TOKEN" ] || [ "$ADMIN_TOKEN" = "null" ]; then
-      # Method: perl regex (most reliable for Railway CLI table format)
-      if command -v perl &> /dev/null; then
-        ADMIN_TOKEN=$(railway variables 2>&1 | grep 'ADMIN_TOKEN' | head -1 | perl -pe 's/.*\│[[:space:]]*([^[:space:]]+).*/$1/' 2>/dev/null || true)
-      fi
-    fi
-    
-    if [ -n "$ADMIN_TOKEN" ] && [ "$ADMIN_TOKEN" != "null" ] && [ "$ADMIN_TOKEN" != "" ]; then
-      export ADMIN_TOKEN
-      echo "✅ ADMIN_TOKEN obținut automat din Railway CLI (${#ADMIN_TOKEN} caractere)"
-    fi
   fi
 fi
 
@@ -42,13 +20,10 @@ if [ -z "$ADMIN_TOKEN" ]; then
   echo "❌ ADMIN_TOKEN nu este setat!"
   echo ""
   echo "💡 SOLUȚIE:"
-  echo "   1. Obține token-ul manual:"
-  echo "      railway variables | grep ADMIN_TOKEN"
-  echo ""
-  echo "   2. Setează token-ul:"
+  echo "   1. Setează token-ul:"
   echo "      export ADMIN_TOKEN='your-token-here'"
   echo ""
-  echo "   3. Sau rulează direct cu token:"
+  echo "   2. Sau rulează direct cu token:"
   echo "      ADMIN_TOKEN='your-token' ./scripts/delete_accounts.sh --list"
   exit 1
 fi
