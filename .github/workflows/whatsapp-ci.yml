@@ -46,7 +46,7 @@ jobs:
         run: npm test
         env:
           NODE_ENV: test
-          WHATSAPP_RAILWAY_BASE_URL: https://test-railway.invalid
+          WHATSAPP_BACKEND_BASE_URL: https://test-backend.invalid
 
   test-whatsapp-backend:
     name: Test WhatsApp Backend
