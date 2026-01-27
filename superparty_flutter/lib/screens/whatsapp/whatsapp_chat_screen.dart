@@ -1,9 +1,14 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:video_player/video_player.dart';
+import 'package:just_audio/just_audio.dart';
 
 import '../../services/whatsapp_api_service.dart';
 
@@ -49,7 +54,146 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   String? _threadClientJid;
   String? _threadPhoneE164;
   String? _threadDisplayName;
+  String? _threadProfilePictureUrl;
   String? _effectiveThreadIdOverride;
+  
+  // Media players - one per message
+  final Map<String, VideoPlayerController> _videoControllers = {};
+  final Map<String, AudioPlayer> _audioPlayers = {};
+  final Map<String, bool> _videoPlaying = {};
+  final Map<String, bool> _audioPlaying = {};
+  final Map<String, bool> _videoInitializing = {}; // Track initialization state
+  final Map<String, bool> _audioInitializing = {}; // Track initialization state
+  
+  // Listen to video player state changes
+  void _setupVideoPlayerListener(String messageKey, VideoPlayerController controller) {
+    controller.addListener(() {
+      if (mounted && controller.value.isPlaying != (_videoPlaying[messageKey] ?? false)) {
+        // Use SchedulerBinding to avoid blocking UI during build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              _videoPlaying[messageKey] = controller.value.isPlaying;
+            });
+          }
+        });
+      }
+    });
+  }
+  
+  // Listen to audio player state changes
+  void _setupAudioPlayerListener(String messageKey, AudioPlayer player) {
+    player.playerStateStream.listen((state) {
+      if (mounted) {
+        final isPlaying = state.playing;
+        if (isPlaying != (_audioPlaying[messageKey] ?? false)) {
+          // Use SchedulerBinding to avoid blocking UI during build
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {
+                _audioPlaying[messageKey] = isPlaying;
+              });
+            }
+          });
+        }
+      }
+    });
+  }
+  
+  // Initialize video player asynchronously (lazy, on-demand)
+  Future<VideoPlayerController?> _initializeVideoPlayer(String messageKey, String videoUrl) async {
+    if (_videoControllers.containsKey(messageKey)) {
+      return _videoControllers[messageKey]; // Already initialized
+    }
+    
+    if (_videoInitializing[messageKey] == true) {
+      return null; // Already initializing, return null to show loading
+    }
+    
+    _videoInitializing[messageKey] = true;
+    
+    try {
+      // Create controller asynchronously - this is non-blocking
+      final controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
+      _videoControllers[messageKey] = controller;
+      _setupVideoPlayerListener(messageKey, controller);
+      
+      // Initialize on background - this may take time but won't block UI
+      await controller.initialize();
+      
+      // Update state only once after initialization completes
+      if (mounted) {
+        _videoInitializing[messageKey] = false;
+        // Use microtask to avoid blocking during build
+        Future.microtask(() {
+          if (mounted) {
+            setState(() {});
+          }
+        });
+      }
+      
+      return controller;
+    } catch (e) {
+      debugPrint('Video initialization error: $e');
+      _videoControllers.remove(messageKey);
+      if (mounted) {
+        _videoInitializing[messageKey] = false;
+        Future.microtask(() {
+          if (mounted) {
+            setState(() {});
+          }
+        });
+      }
+      return null;
+    }
+  }
+  
+  // Initialize audio player asynchronously (lazy, on-demand)
+  Future<AudioPlayer?> _initializeAudioPlayer(String messageKey, String audioUrl) async {
+    if (_audioPlayers.containsKey(messageKey)) {
+      return _audioPlayers[messageKey]; // Already initialized
+    }
+    
+    if (_audioInitializing[messageKey] == true) {
+      return null; // Already initializing, return null to show loading
+    }
+    
+    _audioInitializing[messageKey] = true;
+    
+    try {
+      final player = AudioPlayer();
+      _audioPlayers[messageKey] = player;
+      _setupAudioPlayerListener(messageKey, player);
+      
+      // Load URL asynchronously - this is non-blocking
+      await player.setUrl(audioUrl);
+      
+      // Update state only once after initialization completes
+      if (mounted) {
+        _audioInitializing[messageKey] = false;
+        // Use microtask to avoid blocking during build
+        Future.microtask(() {
+          if (mounted) {
+            setState(() {});
+          }
+        });
+      }
+      
+      return player;
+    } catch (e) {
+      debugPrint('Audio load error: $e');
+      _audioPlayers.remove(messageKey);
+      if (mounted) {
+        _audioInitializing[messageKey] = false;
+        Future.microtask(() {
+          if (mounted) {
+            setState(() {});
+          }
+        });
+      }
+      return null;
+    }
+  }
 
   String? get _accountId => widget.accountId ?? _extractFromQuery('accountId');
   String? get _threadId => widget.threadId ?? _extractFromQuery('threadId');
@@ -90,6 +234,16 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    // Dispose video controllers
+    for (final controller in _videoControllers.values) {
+      controller.dispose();
+    }
+    _videoControllers.clear();
+    // Dispose audio players
+    for (final player in _audioPlayers.values) {
+      player.dispose();
+    }
+    _audioPlayers.clear();
     super.dispose();
   }
 
@@ -127,6 +281,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
               : null;
           _threadDisplayName = _readString(data['displayName']).trim().isNotEmpty
               ? _readString(data['displayName']).trim()
+              : null;
+          _threadProfilePictureUrl = _readString(data['profilePictureUrl'] ?? data['photoUrl']).trim().isNotEmpty
+              ? _readString(data['profilePictureUrl'] ?? data['photoUrl']).trim()
               : null;
           if (targetThreadId.isNotEmpty) {
             _effectiveThreadIdOverride = targetThreadId;
@@ -171,6 +328,351 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     } catch (e) {
       debugPrint('[ChatScreen] Redirect check failed: $e');
     }
+  }
+
+  // Build video player widget
+  Widget _buildVideoPlayer(String messageKey, Map<String, dynamic> media, bool isOutbound) {
+    final videoUrl = media['url'] as String?;
+    if (videoUrl == null || videoUrl.isEmpty) {
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: Colors.black87,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Center(
+          child: Text(
+            'Video not available',
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+        ),
+      );
+    }
+
+    // Use FutureBuilder to handle initialization without blocking UI
+    return FutureBuilder<VideoPlayerController?>(
+      future: _videoControllers.containsKey(messageKey)
+          ? Future.value(_videoControllers[messageKey])
+          : _initializeVideoPlayer(messageKey, videoUrl),
+      builder: (context, snapshot) {
+        final controller = snapshot.data;
+        final isInitialized = controller != null && controller.value.isInitialized;
+        final isInitializing = snapshot.connectionState == ConnectionState.waiting || 
+                              _videoInitializing[messageKey] == true;
+        final isPlaying = _videoPlaying[messageKey] ?? false;
+
+        return Container(
+          height: 200,
+          decoration: BoxDecoration(
+            color: Colors.black87,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Video player or thumbnail
+              if (isInitialized && controller != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 200,
+                    child: FittedBox(
+                      fit: BoxFit.cover,
+                      child: SizedBox(
+                        width: controller.value.size.width,
+                        height: controller.value.size.height,
+                        child: VideoPlayer(controller),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                Builder(
+                  builder: (context) {
+                    // Show thumbnail if available while initializing
+                    if (!isInitializing) {
+                      try {
+                        final thumbBase64 = media['thumbBase64'] as String?;
+                        if (thumbBase64 != null && thumbBase64.isNotEmpty) {
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.memory(
+                              base64Decode(thumbBase64),
+                              width: double.infinity,
+                              height: 200,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  height: 200,
+                                  color: Colors.black87,
+                                  child: const Center(
+                                    child: CircularProgressIndicator(color: Colors.white),
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        // Ignore decode errors
+                      }
+                    }
+                    // Show loading indicator while initializing
+                    return Container(
+                      height: 200,
+                      color: Colors.black87,
+                      child: const Center(
+                        child: CircularProgressIndicator(color: Colors.white),
+                      ),
+                    );
+                  },
+                ),
+              // Play/pause button overlay (only show when not playing or when video is not initialized)
+              if (!isInitialized || !isPlaying)
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.3),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.play_circle_filled,
+                      size: 48,
+                      color: Colors.white,
+                    ),
+                    onPressed: () {
+                      if (isInitialized && controller != null) {
+                        controller.play();
+                        // Use microtask to avoid blocking during build
+                        Future.microtask(() {
+                          if (mounted) {
+                            setState(() {
+                              _videoPlaying[messageKey] = true;
+                            });
+                          }
+                        });
+                      }
+                    },
+                  ),
+                )
+              else if (controller != null)
+                // Show pause button when playing
+                GestureDetector(
+                  onTap: () {
+                    controller.pause();
+                    // Use microtask to avoid blocking during build
+                    Future.microtask(() {
+                      if (mounted) {
+                        setState(() {
+                          _videoPlaying[messageKey] = false;
+                        });
+                      }
+                    });
+                  },
+                  child: Container(
+                    color: Colors.transparent,
+                    width: double.infinity,
+                    height: 200,
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Build audio player widget
+  Widget _buildAudioPlayer(String messageKey, Map<String, dynamic> media, bool isOutbound) {
+    final audioUrl = media['url'] as String?;
+    if (audioUrl == null || audioUrl.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.grey[200],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.audiotrack,
+              color: isOutbound ? Colors.white70 : Colors.grey[700],
+              size: 24,
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Audio not available',
+                style: TextStyle(fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Use FutureBuilder to handle initialization without blocking UI
+    return FutureBuilder<AudioPlayer?>(
+      future: _audioPlayers.containsKey(messageKey)
+          ? Future.value(_audioPlayers[messageKey])
+          : _initializeAudioPlayer(messageKey, audioUrl),
+      builder: (context, snapshot) {
+        final player = snapshot.data;
+        final isInitializing = snapshot.connectionState == ConnectionState.waiting || 
+                             _audioInitializing[messageKey] == true;
+        final isPlaying = _audioPlaying[messageKey] ?? false;
+
+        // Show loading state while initializing
+        if (player == null || isInitializing) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isOutbound ? Colors.grey[800] : Colors.grey[200],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.audiotrack,
+                  color: isOutbound ? Colors.white70 : Colors.grey[700],
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Loading audio...',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return StreamBuilder<Duration?>(
+          stream: player.durationStream,
+          builder: (context, durationSnapshot) {
+            return StreamBuilder<Duration>(
+              stream: player.positionStream,
+              builder: (context, positionSnapshot) {
+                final duration = durationSnapshot.data ?? Duration.zero;
+                final position = positionSnapshot.data ?? Duration.zero;
+                final durationText = duration.inSeconds > 0
+                    ? '${duration.inMinutes}:${(duration.inSeconds % 60).toString().padLeft(2, '0')}'
+                    : '';
+                final positionText = position.inSeconds > 0
+                    ? '${position.inMinutes}:${(position.inSeconds % 60).toString().padLeft(2, '0')}'
+                    : '0:00';
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isOutbound ? Colors.grey[800] : Colors.grey[200],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                          color: isOutbound ? Colors.white : Colors.blue[700],
+                          size: 32,
+                        ),
+                        onPressed: () async {
+                          // Use microtask to avoid blocking during build
+                          Future.microtask(() {
+                            if (mounted) {
+                              setState(() {
+                                if (isPlaying) {
+                                  player.pause();
+                                  _audioPlaying[messageKey] = false;
+                                } else {
+                                  player.play();
+                                  _audioPlaying[messageKey] = true;
+                                }
+                              });
+                            }
+                          });
+                        },
+                      ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.audiotrack,
+                    color: isOutbound ? Colors.white70 : Colors.grey[700],
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Audio message',
+                          style: TextStyle(
+                            color: isOutbound ? Colors.white : Colors.black87,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        if (duration.inSeconds > 0)
+                          Row(
+                            children: [
+                              Text(
+                                positionText,
+                                style: TextStyle(
+                                  color: isOutbound ? Colors.white70 : Colors.grey[600],
+                                  fontSize: 11,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: LinearProgressIndicator(
+                                  value: duration.inSeconds > 0
+                                      ? position.inSeconds / duration.inSeconds
+                                      : 0,
+                                  backgroundColor: isOutbound ? Colors.white24 : Colors.grey[300],
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    isOutbound ? Colors.white70 : (Colors.blue[700] ?? Colors.blue),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                durationText,
+                                style: TextStyle(
+                                  color: isOutbound ? Colors.white70 : Colors.grey[600],
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          )
+                        else if (media['mimetype'] != null)
+                          Text(
+                            media['mimetype'] as String,
+                            style: TextStyle(
+                              color: isOutbound ? Colors.white70 : Colors.grey[600],
+                              fontSize: 11,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+      },
+    );
   }
 
   Future<void> _sendMessage() async {
@@ -585,14 +1087,28 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         ),
         title: Row(
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: Colors.white.withOpacity(0.3),
-              child: Text(
-                getDisplayInitial(displayName),
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
+            // Show profile picture if available, otherwise show initial
+            _threadProfilePictureUrl != null && _threadProfilePictureUrl!.isNotEmpty
+                ? CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.white.withOpacity(0.3),
+                    backgroundImage: CachedNetworkImageProvider(_threadProfilePictureUrl!),
+                    onBackgroundImageError: (exception, stackTrace) {
+                      // Image failed to load - will show fallback child
+                    },
+                    child: Text(
+                      getDisplayInitial(displayName),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  )
+                : CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.white.withOpacity(0.3),
+                    child: Text(
+                      getDisplayInitial(displayName),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -730,6 +1246,15 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                     final direction = data['direction'] as String? ?? 'inbound';
                     final body = data['body'] as String? ?? '';
                     final status = data['status'] as String?;
+                    final media = data['media'] as Map<String, dynamic>?;
+                    // Extract sender name - try multiple fields
+                    final senderName = data['senderName'] as String? ?? 
+                                     data['lastSenderName'] as String? ??
+                                     (data['key'] is Map ? (data['key'] as Map)['participant'] as String? : null);
+                    // Check if this is a group message (clientJid ends with @g.us)
+                    final clientJidForMessage = data['clientJid'] as String? ?? _clientJid;
+                    final isGroupMessage = (clientJidForMessage?.endsWith('@g.us') ?? false) ||
+                                          (_clientJid?.endsWith('@g.us') ?? false);
                     
                     // Handle tsClient - it might be a Timestamp, String, or int
                     Timestamp? tsClient;
@@ -823,14 +1348,137 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        body,
-                                        style: TextStyle(
-                                          color: isOutbound ? Colors.white : Colors.black87,
-                                          fontSize: 15,
+                                      // Show sender name for group messages (inbound only)
+                                      if (!isOutbound && isGroupMessage && senderName != null && senderName.isNotEmpty && senderName != 'me') ...[
+                                        Padding(
+                                          padding: const EdgeInsets.only(bottom: 4),
+                                          child: Text(
+                                            senderName,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: isOutbound ? Colors.white70 : Colors.blue[700],
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 4),
+                                      ],
+                                      // Show media based on type
+                                      if (media != null) ...[
+                                        if (media['type'] == 'image') ...[
+                                          if (media['url'] != null)
+                                            ClipRRect(
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: Image.network(
+                                                media['url'] as String,
+                                                width: double.infinity,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error, stackTrace) {
+                                                  return Container(
+                                                    height: 200,
+                                                    color: Colors.grey[300],
+                                                    child: const Center(
+                                                      child: Icon(Icons.broken_image, color: Colors.grey),
+                                                    ),
+                                                  );
+                                                },
+                                                loadingBuilder: (context, child, loadingProgress) {
+                                                  if (loadingProgress == null) return child;
+                                                  return Container(
+                                                    height: 200,
+                                                    color: Colors.grey[200],
+                                                    child: const Center(
+                                                      child: CircularProgressIndicator(),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            )
+                                          else
+                                            Container(
+                                              height: 200,
+                                              color: Colors.grey[300],
+                                              child: const Center(
+                                                child: Icon(Icons.image, color: Colors.grey),
+                                              ),
+                                            ),
+                                          if (body.isNotEmpty) const SizedBox(height: 8),
+                                        ] else if (media['type'] == 'video') ...[
+                                          _buildVideoPlayer(messageKey, media, isOutbound),
+                                          if (body.isNotEmpty) const SizedBox(height: 8),
+                                        ] else if (media['type'] == 'audio') ...[
+                                          _buildAudioPlayer(messageKey, media, isOutbound),
+                                          if (body.isNotEmpty) const SizedBox(height: 8),
+                                        ] else if (media['type'] == 'document') ...[
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[200],
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.insert_drive_file,
+                                                  color: isOutbound ? Colors.white70 : Colors.grey[700],
+                                                  size: 24,
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        media['filename'] as String? ?? 'Document',
+                                                        style: TextStyle(
+                                                          color: isOutbound ? Colors.white : Colors.black87,
+                                                          fontSize: 14,
+                                                          fontWeight: FontWeight.w500,
+                                                        ),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                      if (media['mimetype'] != null)
+                                                        Text(
+                                                          media['mimetype'] as String,
+                                                          style: TextStyle(
+                                                            color: isOutbound ? Colors.white70 : Colors.grey[600],
+                                                            fontSize: 11,
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                IconButton(
+                                                  icon: Icon(
+                                                    Icons.download,
+                                                    color: isOutbound ? Colors.white : Colors.blue[700],
+                                                  ),
+                                                  onPressed: () async {
+                                                    final url = media['url'] as String?;
+                                                    if (url != null) {
+                                                      final uri = Uri.parse(url);
+                                                      if (await canLaunchUrl(uri)) {
+                                                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                                      }
+                                                    }
+                                                  },
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          if (body.isNotEmpty) const SizedBox(height: 8),
+                                        ],
+                                      ],
+                                      // Show text body if present
+                                      if (body.isNotEmpty)
+                                        Text(
+                                          body,
+                                          style: TextStyle(
+                                            color: isOutbound ? Colors.white : Colors.black87,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      if (body.isNotEmpty || (media != null && media['type'] != null)) const SizedBox(height: 4),
                                       Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [

@@ -136,12 +136,14 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     for (final accountId in accountIds) {
       if (_threadSubscriptions.containsKey(accountId)) continue;
 
-      // CRITICAL FIX: Add orderBy to get threads sorted by lastMessageAt from Firestore
-      // This ensures correct chronological order even before client-side sorting
+      // CRITICAL FIX: Add orderBy and limit to improve performance
+      // Limit to 200 most recent threads (enough for most use cases, can be increased if needed)
+      // Firestore already sorts by lastMessageAt, so client-side sorting is minimal
       final subscription = FirebaseFirestore.instance
           .collection('threads')
           .where('accountId', isEqualTo: accountId)
           .orderBy('lastMessageAt', descending: true)
+          .limit(200)
           .snapshots()
           .listen(
         (snapshot) {
@@ -168,8 +170,12 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
               final firstThread = threads[0];
               final lastMessageAt = firstThread['lastMessageAt'];
               final lastMessageText = firstThread['lastMessageText'] ?? firstThread['lastMessagePreview'];
+              final idStr = firstThread['id']?.toString() ?? '';
+              final msgStr = lastMessageText?.toString() ?? '';
+              final idPreview = idStr.length > 20 ? '${idStr.substring(0, 20)}...' : idStr;
+              final msgPreview = msgStr.length > 30 ? '${msgStr.substring(0, 30)}...' : msgStr;
               debugPrint(
-                  '[WhatsAppInboxScreen] First thread: id=${firstThread['id']?.toString().substring(0, 20)} lastMessageAt=$lastMessageAt lastMessageText=${lastMessageText?.toString().substring(0, 30)}');
+                  '[WhatsAppInboxScreen] First thread: id=$idPreview lastMessageAt=$lastMessageAt lastMessageText=$msgPreview');
             }
             for (var i = 0; i < 2 && i < threads.length; i++) {
               final t = threads[i];
@@ -306,26 +312,29 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       return true;
     }).toList();
 
-    visibleThreads.sort((a, b) {
-      final timeA = resolveThreadTime(a);
-      final timeB = resolveThreadTime(b);
-      
-      // CRITICAL FIX: Threads without timestamp should be sorted LAST (use very old date)
-      // This ensures threads with real timestamps appear first in correct chronological order
-      final epochStart = DateTime.fromMillisecondsSinceEpoch(0);
-      final aa = timeA ?? epochStart;
-      final bb = timeB ?? epochStart;
-      
-      // Sort descending (newest first)
-      final c = bb.compareTo(aa);
-      if (c != 0) return c;
-      
-      // Tie-break: use thread ID for stable sort
+    // OPTIMIZATION: Firestore already sorts by lastMessageAt, so we only need to sort
+    // threads without timestamps to the end (they come unsorted from Firestore)
+    // This is much faster than full sort on all threads
+    final threadsWithTime = <Map<String, dynamic>>[];
+    final threadsWithoutTime = <Map<String, dynamic>>[];
+    for (final thread in visibleThreads) {
+      if (resolveThreadTime(thread) != null) {
+        threadsWithTime.add(thread);
+      } else {
+        threadsWithoutTime.add(thread);
+      }
+    }
+    // Threads with timestamps are already sorted by Firestore (orderBy lastMessageAt desc)
+    // Only sort threads without timestamps by ID for stability
+    threadsWithoutTime.sort((a, b) {
       return (b['id'] ?? '').toString().compareTo((a['id'] ?? '').toString());
     });
+    // Combine: threads with time (already sorted) + threads without time
+    final sortedThreads = [...threadsWithTime, ...threadsWithoutTime];
 
+    // OPTIMIZATION: Deduplicate while preserving order from sortedThreads
     final dedupedByPhone = <String, Map<String, dynamic>>{};
-    for (final thread in visibleThreads) {
+    for (final thread in sortedThreads) {
       final normalizedPhone = _readString(thread['normalizedPhone']).trim();
       final canonicalThreadId = _readString(thread['canonicalThreadId']).trim();
       final clientJid = _readString(
@@ -391,19 +400,10 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
         }
       }
     }
+    // OPTIMIZATION: Convert map values to list while preserving insertion order
+    // Since we iterate sortedThreads in order, dedupedByPhone preserves that order
+    // Dart Map preserves insertion order, so values.toList() maintains chronological order
     final dedupedList = dedupedByPhone.values.toList();
-    // CRITICAL FIX: Sortăm din nou după deduplicare pentru a păstra ordinea corectă
-    dedupedList.sort((a, b) {
-      final timeA = resolveThreadTime(a);
-      final timeB = resolveThreadTime(b);
-      // CRITICAL FIX: Threads without timestamp should be sorted LAST
-      final epochStart = DateTime.fromMillisecondsSinceEpoch(0);
-      final aa = timeA ?? epochStart;
-      final bb = timeB ?? epochStart;
-      final c = bb.compareTo(aa);
-      if (c != 0) return c;
-      return (b['id'] ?? '').toString().compareTo((a['id'] ?? '').toString());
-    });
     return dedupedList;
   }
 

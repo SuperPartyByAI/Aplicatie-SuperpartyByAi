@@ -107,8 +107,54 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
 
   const { accountId, clientJid, threadId, direction } = opts;
   const { extraFields = {}, threadOverrides = {}, messageIdOverride } = options;
-  const { body } = extractBodyAndType(msg);
+  const { body, type } = extractBodyAndType(msg);
   const ts = computeTsClient({ messageTimestamp: msg?.messageTimestamp });
+  
+  // Media data should come from extraFields (uploaded to Firebase Storage via buildMediaPayload)
+  // If not provided, extract basic info from message for fallback
+  let mediaData = extraFields?.media || null;
+  if (!mediaData && msg?.message) {
+    if (msg.message.imageMessage) {
+      const img = msg.message.imageMessage;
+      mediaData = {
+        type: 'image',
+        url: null, // Will be set by buildMediaPayload
+        mimetype: img.mimetype || null,
+        caption: img.caption || null,
+      };
+    } else if (msg.message.videoMessage) {
+      const vid = msg.message.videoMessage;
+      mediaData = {
+        type: 'video',
+        url: null,
+        mimetype: vid.mimetype || null,
+        caption: vid.caption || null,
+      };
+    } else if (msg.message.documentMessage) {
+      const doc = msg.message.documentMessage;
+      mediaData = {
+        type: 'document',
+        url: null,
+        mimetype: doc.mimetype || null,
+        filename: doc.fileName || null,
+        caption: doc.caption || null,
+      };
+    } else if (msg.message.audioMessage) {
+      const aud = msg.message.audioMessage;
+      mediaData = {
+        type: 'audio',
+        url: null,
+        mimetype: aud.mimetype || null,
+      };
+    } else if (msg.message.stickerMessage) {
+      const stk = msg.message.stickerMessage;
+      mediaData = {
+        type: 'sticker',
+        url: null,
+        mimetype: stk.mimetype || null,
+      };
+    }
+  }
   // CRITICAL: Use message timestamp (not serverTimestamp) for lastMessageAt to preserve correct ordering
   // Only fallback to current time if messageTimestamp is completely missing (should be rare)
   const tsClientAt = ts?.tsClientAt || null; // Don't use Timestamp.now() - prefer null if timestamp missing
@@ -244,10 +290,14 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
     threadId,
     direction,
     body: body || null,
+    messageType: type || null, // Add message type (text, image, video, etc.)
+    ...(mediaData ? { media: mediaData } : {}), // Add media data if present
     tsClient: tsClientAt,
     createdAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
     updatedAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
     ...(senderJid ? { senderId: senderJid, senderJid: senderJid } : {}), // Add senderId for group messages
+    // CRITICAL: Preserve senderName from extraFields (set by saveMessageToFirestore)
+    // This is important for group messages to show who sent the message
     ...extraFields,
   };
   // Preserve original WhatsApp message key for fetchMessageHistory

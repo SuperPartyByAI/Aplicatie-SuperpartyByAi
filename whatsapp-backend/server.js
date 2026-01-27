@@ -3018,6 +3018,37 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       ? await buildMediaPayload(db, accountId, threadId, msg)
       : null;
 
+    // CRITICAL FIX: Get sender name for group messages
+    // For groups, participant JID is in msg.key.participant
+    // Try to get participant name from group metadata
+    let senderName = null;
+    if (isFromMe) {
+      senderName = 'me';
+    } else if (isGroupJid && sock && typeof sock.groupMetadata === 'function') {
+      const participant = msg.key?.participant || null;
+      if (participant) {
+        try {
+          const metadata = await sock.groupMetadata(from);
+          const participantInfo = metadata?.participants?.find(p => p.id === participant);
+          if (participantInfo) {
+            senderName = participantInfo.name || participantInfo.notify || participant.split('@')[0] || null;
+          } else {
+            // Fallback: use pushName or participant phone
+            senderName = msg.pushName || participant.split('@')[0] || null;
+          }
+        } catch (e) {
+          // Fallback: use pushName or participant phone
+          senderName = msg.pushName || (participant ? participant.split('@')[0] : null);
+        }
+      } else {
+        // Not a group message or no participant - use pushName
+        senderName = msg.pushName || null;
+      }
+    } else {
+      // 1:1 chat - use pushName
+      senderName = msg.pushName || null;
+    }
+
     const result = await writeMessageIdempotent(
       db,
       { accountId, clientJid: from, threadId, direction },
@@ -3025,7 +3056,8 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       {
         extraFields: {
           status: msg.key.fromMe ? 'sent' : 'delivered',
-          lastSenderName: isFromMe ? 'me' : (msg.pushName || null),
+          senderName: senderName, // Use senderName (more descriptive than lastSenderName)
+          lastSenderName: senderName, // Keep for backward compatibility
           ...(mediaPayload ? { media: mediaPayload } : {}),
         },
         threadOverrides,

@@ -142,3 +142,34 @@ COMPLETE-CONFIG.txt
 *TOKEN*.txt
 DEPLOY-CU-TOKEN.txt
 GENEREAZA-TOKEN-FIREBASE.txt
+
+# Additional security exclusions
+**/auth_info*
+**/creds.json
+**/.baileys_auth*
+**/baileys_auth*
+**/auth_info_*
+**/creds_*
+**/whatsapp-sessions/
+**/whatsapp_sessions/
+
+# Large build artifacts (already covered but explicit)
+**/build/
+**/dist/
+**/.dart_tool/
+**/.gradle/
+**/DerivedData/
+**/android/.cxx/
+**/android/app/build/
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Flutter.framework/
+**/ios/Flutter/Flutter.podspec
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+
+# Additional exclusions
+**/.firebase/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/coverage/
