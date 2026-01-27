@@ -39,6 +39,9 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   List<ThreadModel> _threads = [];
   String? _errorMessage;
   
+  // Account selector: prevent mixing threads from multiple accounts
+  String? _selectedAccountId;
+  
   // Firestore thread streams (per account)
   final Map<String, StreamSubscription<QuerySnapshot>> _threadSubscriptions = {};
   final Map<String, List<Map<String, dynamic>>> _threadsByAccount = {};
@@ -211,54 +214,93 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     }
   }
 
+  /// Helper: Extract timestamp in milliseconds from thread map
+  /// Priority: lastMessageAtMs > lastMessageAt > updatedAt > lastMessageTimestamp
+  int threadTimeMs(Map<String, dynamic> t) {
+    // Try lastMessageAtMs first (most reliable)
+    if (t['lastMessageAtMs'] is int) {
+      return t['lastMessageAtMs'] as int;
+    }
+    
+    // Try lastMessageAt (parsed)
+    final lastMessageAt = _parseLastMessageAt(t['lastMessageAt']);
+    if (lastMessageAt != null) {
+      return lastMessageAt.millisecondsSinceEpoch;
+    }
+    
+    // Try updatedAt (parsed)
+    final updatedAt = _parseLastMessageAt(t['updatedAt']);
+    if (updatedAt != null) {
+      return updatedAt.millisecondsSinceEpoch;
+    }
+    
+    // Try lastMessageTimestamp (int)
+    if (t['lastMessageTimestamp'] is int) {
+      final ts = t['lastMessageTimestamp'] as int;
+      // Assume milliseconds if > 1e12, otherwise seconds
+      if (ts > 1000000000000) {
+        return ts;
+      } else if (ts > 1000000000) {
+        return ts * 1000;
+      }
+    }
+    
+    return 0;
+  }
+
   void _rebuildThreadsFromCache() {
-    final allThreads = _threadsByAccount.values.expand((list) => list).toList();
+    // FIX: Prevent mixing - only show threads from selected account (or first account if none selected)
+    List<Map<String, dynamic>> allThreads;
+    if (_selectedAccountId != null && _threadsByAccount.containsKey(_selectedAccountId)) {
+      // Show only selected account
+      allThreads = _threadsByAccount[_selectedAccountId] ?? [];
+    } else if (_threadsByAccount.isNotEmpty) {
+      // If no selection, use first account (or auto-select first)
+      final firstAccountId = _threadsByAccount.keys.first;
+      if (_selectedAccountId == null && firstAccountId.isNotEmpty) {
+        _selectedAccountId = firstAccountId;
+      }
+      allThreads = _threadsByAccount[firstAccountId] ?? [];
+    } else {
+      allThreads = [];
+    }
+    
     final dedupedMaps = _filterAndDedupeThreads(allThreads);
     
-    // CRITICAL FIX: Stable sort with tie-breaker to prevent order jumping
-    // Add index to preserve original order when timestamps are equal/null
-    final indexed = dedupedMaps.asMap().entries.map((e) {
-      return {
-        ...e.value,
-        '__idx': e.key,
-      };
-    }).toList();
-    
-    // Sort with stable tie-breaker
-    indexed.sort((a, b) {
-      // Parse timestamps robustly
-      final aTime = _parseLastMessageAt(a['lastMessageAt']) ?? _parseLastMessageAt(a['updatedAt']);
-      final bTime = _parseLastMessageAt(b['lastMessageAt']) ?? _parseLastMessageAt(b['updatedAt']);
+    // CRITICAL FIX: Stable sort with deterministic tie-breaker
+    // Use threadId (or id) as tie-breaker instead of index for true stability
+    dedupedMaps.sort((a, b) {
+      // Get timestamps in milliseconds
+      final aMs = threadTimeMs(a);
+      final bMs = threadTimeMs(b);
       
-      // Compare timestamps (descending: newest first)
-      final aMs = aTime?.millisecondsSinceEpoch ?? -1;
-      final bMs = bTime?.millisecondsSinceEpoch ?? -1;
+      // Sort descending by timestamp (newest first)
       final timeCmp = bMs.compareTo(aMs);
-      
       if (timeCmp != 0) return timeCmp;
       
-      // STABLE SORT: When timestamps are equal/null, preserve original order
-      // This prevents threads from jumping around on refresh
-      return (a['__idx'] as int).compareTo(b['__idx'] as int);
+      // STABLE SORT: When timestamps are equal/null, use deterministic tie-breaker
+      // Use threadId (or id) for consistent ordering across refreshes
+      final aId = (a['id'] ?? a['threadId'] ?? a['clientJid'] ?? '').toString();
+      final bId = (b['id'] ?? b['threadId'] ?? b['clientJid'] ?? '').toString();
+      final idCmp = aId.compareTo(bId);
+      
+      // DO NOT return 0 unless both timestamp AND id are equal
+      // This ensures stable sort even when timestamps are null/equal
+      return idCmp;
     });
     
-    // Remove index and create models
-    final sortedMaps = indexed.map((m) {
-      final copy = Map<String, dynamic>.from(m);
-      copy.remove('__idx');
-      return copy;
-    }).toList();
-    
-    final models = sortedMaps
+    final models = dedupedMaps
         .map((m) => ThreadModel.fromJson(m))
         .toList();
     
     if (kDebugMode) {
-      debugPrint('[WhatsAppInboxScreen] Rebuild from cache: raw=${allThreads.length} deduped=${models.length}');
+      debugPrint('[WhatsAppInboxScreen] Rebuild from cache: accountId=$_selectedAccountId raw=${allThreads.length} deduped=${models.length}');
       if (models.isNotEmpty) {
         final first = models.first;
         final last = models.length > 1 ? models.last : null;
-        debugPrint('[WhatsAppInboxScreen] ✅ SORTED (stable): First=${first.displayName} (${first.lastMessageAt}) | Last=${last?.displayName ?? "N/A"} (${last?.lastMessageAt ?? "N/A"})');
+        final firstTimeMs = threadTimeMs(dedupedMaps.first);
+        final lastTimeMs = dedupedMaps.length > 1 ? threadTimeMs(dedupedMaps.last) : 0;
+        debugPrint('[WhatsAppInboxScreen] ✅ SORTED (stable): First=${first.displayName} (timeMs=$firstTimeMs) | Last=${last?.displayName ?? "N/A"} (timeMs=$lastTimeMs)');
       }
     }
     if (mounted) {
@@ -536,12 +578,20 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
             _isLoadingAccounts = false;
             _isLoadingThreads = accounts.isNotEmpty;
             _errorMessage = null;
+            // Auto-select first account if none selected
+            if (_selectedAccountId == null && accounts.isNotEmpty) {
+              final firstAccountId = accounts.first['id'] as String?;
+              if (firstAccountId != null && firstAccountId.isNotEmpty) {
+                _selectedAccountId = firstAccountId;
+              }
+            }
           });
           _startThreadListeners();
           if (accounts.isEmpty) {
             setState(() {
               _threads = <ThreadModel>[];
               _isLoadingThreads = false;
+              _selectedAccountId = null;
             });
           }
         }
@@ -801,6 +851,40 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       ),
       body: Column(
         children: [
+          // Account selector dropdown (prevent mixing accounts)
+          if (_accounts.length > 1)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+              ),
+              child: DropdownButton<String>(
+                value: _selectedAccountId,
+                isExpanded: true,
+                hint: const Text('Selectează contul'),
+                items: _accounts.map((account) {
+                  final accountId = account['id'] as String? ?? '';
+                  final accountName = account['name'] as String? ?? accountId;
+                  final shortId = accountId.length > 20 
+                      ? '${accountId.substring(0, 20)}...' 
+                      : accountId;
+                  return DropdownMenuItem<String>(
+                    value: accountId,
+                    child: Text('$accountName ($shortId)'),
+                  );
+                }).toList(),
+                onChanged: (String? newAccountId) {
+                  if (newAccountId != null && newAccountId != _selectedAccountId) {
+                    setState(() {
+                      _selectedAccountId = newAccountId;
+                      _threads = []; // Clear while loading
+                    });
+                    _rebuildThreadsFromCache();
+                  }
+                },
+              ),
+            ),
           // Search bar
           Padding(
             padding: const EdgeInsets.all(16),
