@@ -1132,7 +1132,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
                                               '&threadId=${Uri.encodeComponent(effectiveThreadId)}'
                                               '&clientJid=${Uri.encodeComponent(t.clientJid)}'
                                               '&phoneE164=${Uri.encodeComponent(ph)}'
-                                              '&displayName=${Uri.encodeComponent(t.displayName)}',
+                                              '&displayName=${Uri.encodeComponent(t.displayName)}'
+                                              '&returnRoute=${Uri.encodeComponent('/whatsapp/inbox-staff')}',
                                             );
                                           },
                                         );

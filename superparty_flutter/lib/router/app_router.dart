@@ -162,6 +162,7 @@ class AppRouter {
               final threadId = state.uri.queryParameters['threadId'];
               final clientJid = state.uri.queryParameters['clientJid'];
               final phoneE164 = state.uri.queryParameters['phoneE164'];
+              final returnRoute = state.uri.queryParameters['returnRoute'];
               return AuthGate(
                 fromRoute: state.uri.toString(),
                 child: WhatsAppChatScreen(
@@ -169,6 +170,7 @@ class AppRouter {
                   threadId: threadId,
                   clientJid: clientJid != null ? Uri.decodeComponent(clientJid) : null,
                   phoneE164: phoneE164 != null ? Uri.decodeComponent(phoneE164) : null,
+                  returnRoute: returnRoute != null ? Uri.decodeComponent(returnRoute) : null,
                 ),
               );
             },

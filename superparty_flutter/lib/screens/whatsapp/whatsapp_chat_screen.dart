@@ -33,6 +33,7 @@ class WhatsAppChatScreen extends StatefulWidget {
   final String? threadId;
   final String? clientJid;
   final String? phoneE164;
+  final String? returnRoute; // Route to return to (e.g., '/whatsapp/inbox-staff' or '/whatsapp/inbox')
 
   const WhatsAppChatScreen({
     super.key,
@@ -40,6 +41,7 @@ class WhatsAppChatScreen extends StatefulWidget {
     this.threadId,
     this.clientJid,
     this.phoneE164,
+    this.returnRoute,
   });
 
   @override
@@ -355,8 +357,16 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
           );
         }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('[ChatScreen] Redirect check failed: $e');
+      debugPrint('[ChatScreen] Stack trace: $stackTrace');
+      // Don't crash the app - just log the error and continue
+      if (mounted && (_threadId == null || _accountId == null)) {
+        // If critical data is missing, show error but don't crash
+        setState(() {
+          // State update to trigger rebuild with error handling
+        });
+      }
     }
   }
 
@@ -1411,10 +1421,48 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_threadId == null) {
+    if (_threadId == null || _accountId == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Chat')),
-        body: const Center(child: Text('ThreadId is required')),
+        appBar: AppBar(
+          title: const Text('Chat'),
+          backgroundColor: const Color(0xFF25D366),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () {
+              final returnRoute = widget.returnRoute ?? 
+                  _extractFromQuery('returnRoute') ?? 
+                  '/whatsapp/inbox';
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                context.go(returnRoute);
+              }
+            },
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(
+                _threadId == null ? 'ThreadId is required' : 'AccountId is required',
+                style: const TextStyle(fontSize: 16, color: Colors.red),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  final returnRoute = widget.returnRoute ?? 
+                      _extractFromQuery('returnRoute') ?? 
+                      '/whatsapp/inbox';
+                  context.go(returnRoute);
+                },
+                child: const Text('Înapoi la Inbox'),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
@@ -1475,8 +1523,15 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
           IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
             onPressed: () {
-              // Navigate back to WhatsApp inbox
-              context.go('/whatsapp/inbox');
+              // Navigate back to the route we came from, or default to /whatsapp/inbox
+              final returnRoute = widget.returnRoute ?? 
+                  _extractFromQuery('returnRoute') ?? 
+                  '/whatsapp/inbox';
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                context.go(returnRoute);
+              }
             },
             tooltip: 'Înapoi la Inbox',
           ),
@@ -1590,7 +1645,33 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
               builder: (context) {
                 final effectiveThreadId = _effectiveThreadId;
                 if (effectiveThreadId == null || effectiveThreadId.isEmpty) {
-                  return const Center(child: Text('Missing thread data'));
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Thread data is missing or invalid',
+                            style: TextStyle(fontSize: 16, color: Colors.red),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () {
+                              final returnRoute = widget.returnRoute ?? 
+                                  _extractFromQuery('returnRoute') ?? 
+                                  '/whatsapp/inbox';
+                              context.go(returnRoute);
+                            },
+                            child: const Text('Înapoi la Inbox'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
                 }
 
                 return StreamBuilder<QuerySnapshot>(
@@ -1606,13 +1687,31 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
+                  debugPrint('[ChatScreen] Stream error: ${snapshot.error}');
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'Stream error: ${snapshot.error}',
-                        style: TextStyle(color: Colors.red[700]),
-                        textAlign: TextAlign.center,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Eroare la încărcarea mesajelor: ${snapshot.error}',
+                            style: TextStyle(color: Colors.red[700]),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () {
+                              final returnRoute = widget.returnRoute ?? 
+                                  _extractFromQuery('returnRoute') ?? 
+                                  '/whatsapp/inbox';
+                              context.go(returnRoute);
+                            },
+                            child: const Text('Înapoi la Inbox'),
+                          ),
+                        ],
                       ),
                     ),
                   );
