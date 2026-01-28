@@ -7121,6 +7121,7 @@ app.get('/health', async (req, res) => {
     requestId: requestId,
     accounts_total: accountsTotal,
     connected: connected,
+    firestore: firestoreAvailable && db ? 'connected' : 'disabled',
     // Note: Use /ready for mode (active/passive), /health/detailed for comprehensive status
   });
 });

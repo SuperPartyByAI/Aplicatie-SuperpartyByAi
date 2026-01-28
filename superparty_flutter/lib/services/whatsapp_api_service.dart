@@ -910,6 +910,7 @@ class WhatsAppApiService {
       final contentType = response.headers['content-type'] ?? 'unknown';
       final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
       debugPrint('[WhatsAppApiService] getThreads: AFTER response | statusCode=${response.statusCode} | content-type=$contentType | bodyLength=${response.body.length} | bodyPrefix=$bodyPrefix | requestId=$requestId');
+      debugPrint('[WhatsAppApiService] getThreads: CONFIG | backendUrl=$backendUrl | statusCode=${response.statusCode}');
 
       if (_isNonJsonResponse(response)) {
         _throwNonJsonNetworkException(response, endpointUrl);
@@ -987,7 +988,8 @@ class WhatsAppApiService {
       final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
       final endpointUrl = '$backendUrl/api/whatsapp/inbox/$accountId?limit=$limit';
 
-      debugPrint('[WhatsAppApiService] getInbox: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId | limit=$limit');
+      debugPrint('[WhatsAppApiService] getInbox: CONFIG | backendUrl=$backendUrl | accountId=${_maskId(accountId)} | limit=$limit');
+      debugPrint('[WhatsAppApiService] getInbox: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId');
 
       final response = await http
           .get(
@@ -1004,6 +1006,7 @@ class WhatsAppApiService {
       final contentType = response.headers['content-type'] ?? 'unknown';
       final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
       debugPrint('[WhatsAppApiService] getInbox: AFTER response | statusCode=${response.statusCode} | content-type=$contentType | bodyLength=${response.body.length} | bodyPrefix=$bodyPrefix | requestId=$requestId');
+      debugPrint('[WhatsAppApiService] getInbox: CONFIG | backendUrl=$backendUrl | statusCode=${response.statusCode}');
 
       if (_isNonJsonResponse(response)) {
         _throwNonJsonNetworkException(response, endpointUrl);
