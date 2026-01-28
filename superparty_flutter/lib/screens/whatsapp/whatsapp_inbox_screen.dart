@@ -160,12 +160,16 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     }
     
     // Pentru inbox personal: doar contul cu phone +40737571397
+    // IMPORTANT: Nu folosim fallback - dacă nu găsim contul personal, lista rămâne goală
     final filteredAccounts = connectedAccounts.where((account) {
       final phone = account['phone'] as String?;
       final normalizedPhone = _normalizePhoneToE164(phone);
       final matches = normalizedPhone == myPhoneE164;
-      if (kDebugMode && matches) {
-        debugPrint('[WhatsAppInboxScreen] ✅ Found personal account: id=${account['id']}, phone=$phone, normalized=$normalizedPhone');
+      if (kDebugMode) {
+        debugPrint('[WhatsAppInboxScreen] Checking account: id=${account['id']}, phone=$phone, normalized=$normalizedPhone, matches=$matches');
+        if (matches) {
+          debugPrint('[WhatsAppInboxScreen] ✅ Found personal account: id=${account['id']}, phone=$phone, normalized=$normalizedPhone');
+        }
       }
       return matches;
     }).toList();
@@ -174,15 +178,18 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       debugPrint('[WhatsAppInboxScreen] Filtered accounts (personal): ${filteredAccounts.length}');
       if (filteredAccounts.isEmpty) {
         debugPrint('[WhatsAppInboxScreen] ⚠️ Personal account (+40737571397) not found in connected accounts!');
-        debugPrint('[WhatsAppInboxScreen] Will use all connected accounts as fallback.');
+        debugPrint('[WhatsAppInboxScreen] Available phones:');
+        for (final acc in connectedAccounts) {
+          final phone = acc['phone'] as String?;
+          final normalized = _normalizePhoneToE164(phone);
+          debugPrint('[WhatsAppInboxScreen]   - phone=$phone, normalized=$normalized, id=${acc['id']}');
+        }
       }
     }
     
-    // Pentru inbox personal: folosim doar contul personal dacă există
-    // Dacă nu există, folosim toate conturile (fallback pentru admin view)
-    final accountsToUse = filteredAccounts.isNotEmpty 
-        ? filteredAccounts 
-        : connectedAccounts;
+    // Pentru inbox personal: folosim DOAR contul personal (nu fallback)
+    // Dacă nu există, lista rămâne goală (nu arată toate conturile)
+    final accountsToUse = filteredAccounts;
     
     final accountIds = accountsToUse
         .map((account) => account['id'])
