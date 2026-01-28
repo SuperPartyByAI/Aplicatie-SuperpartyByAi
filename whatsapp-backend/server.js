@@ -819,6 +819,12 @@ function wireSocketEvents({
   console.log(
     `[WA][wire] accountId=${accountId} messages.upsert=${getListenerCount(sock, 'messages.upsert')} connection.update=${getListenerCount(sock, 'connection.update')} creds.update=${getListenerCount(sock, 'creds.update')}`
   );
+  
+  // Initialize real message tracking for this account
+  if (!global.lastRealMessageTime) {
+    global.lastRealMessageTime = new Map();
+  }
+  global.lastRealMessageTime.set(accountId, Date.now()); // Initialize with current time
 }
 
 function buildAiContextMessages(systemPrompt, history) {
@@ -1686,8 +1692,13 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
       const fromMe = msg.key?.fromMe === true;
       return `${fromMe ? 'OUT' : 'IN'}:${hasConversation ? 'conv' : ''}${hasExtendedText ? 'ext' : ''}${hasProtocol ? 'proto' : ''}[${msgKeys.join(',')}]`;
     });
+    
+    // Count real vs protocol messages for health monitoring
+    const realMessageCount = newMessages.filter(msg => !isProtocolHistorySync(msg)).length;
+    const protocolCount = newMessages.length - realMessageCount;
+    
     console.log(
-      `🔍 [${hashForLog(accountId)}] BATCH DEBUG: type=${type} messageTypes=[${messageTypes.join('|')}]`
+      `🔍 [${hashForLog(accountId)}] BATCH DEBUG: type=${type} total=${newMessages.length} real=${realMessageCount} protocol=${protocolCount} messageTypes=[${messageTypes.join('|')}]`
     );
     
     // CRITICAL FIX: Nu mai blocăm pe eventType=append
@@ -1913,6 +1924,15 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
             console.log(
               `💾 [${hashForLog(accountId)}] Message saved: ${hashForLog(saved.messageId)} thread=${hashForLog(saved.threadId)} bodyLen=${saved.messageBody?.length || 0} direction=${isFromMe ? 'OUTBOUND' : 'INBOUND'}`
             );
+            
+            // Track real message receipt time for health monitoring (not protocol messages)
+            if (!isProtocolHistorySync(msg)) {
+              if (!global.lastRealMessageTime) {
+                global.lastRealMessageTime = new Map();
+              }
+              global.lastRealMessageTime.set(accountId, Date.now());
+            }
+            
             await ensurePhoneE164ForLidThread(accountId, saved.threadId, from);
 
             // STRICT: Auto-reply DOAR pentru mesaje INBOUND (client → WA conectat)
@@ -8070,6 +8090,30 @@ app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req, 
 });
 
 // Regenerate QR
+// Health check endpoint: verify real messages are flowing (not just protocol)
+app.get('/api/whatsapp/accounts/:accountId/health', requireFirebaseAuth, async (req, res) => {
+  const { accountId } = req.params;
+  const account = connections.get(accountId);
+  
+  if (!account) {
+    return res.status(404).json({ error: 'Account not found' });
+  }
+  
+  const lastReal = global.lastRealMessageTime?.get(accountId) || 0;
+  const timeSinceLastReal = lastReal > 0 ? Date.now() - lastReal : null;
+  const isDegraded = timeSinceLastReal !== null && timeSinceLastReal > 5 * 60 * 1000; // 5 minutes
+  
+  res.json({
+    accountId,
+    status: account.status,
+    connected: account.status === 'connected',
+    lastRealMessageMs: lastReal || null,
+    timeSinceLastRealMs: timeSinceLastReal,
+    isDegraded,
+    warning: isDegraded ? 'No real messages received in last 5 minutes - session may be degraded' : null,
+  });
+});
+
 app.post('/api/whatsapp/regenerate-qr/:accountId', requireFirebaseAuth, qrRegenerateLimiter, async (req, res) => {
   // DEBUG: Log incoming request
   const accountId = req.params.accountId;
