@@ -322,7 +322,8 @@ class WhatsAppApiService {
         throw UnauthorizedException();
       }
 
-      final token = await user.getIdToken();
+      // Force token refresh for staff endpoint (employee-only access)
+      final token = await user.getIdToken(true);
       final requestId = _generateRequestId();
       final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
 
