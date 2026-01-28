@@ -32,14 +32,14 @@ This runbook covers deployment, verification, and troubleshooting for the WhatsA
 firebase use <alias-proiect>   # e.g. default, production
 cd functions
 npm install
-firebase deploy --only functions:whatsappProxySend,functions:whatsappProxyGetAccounts,functions:whatsappProxyAddAccount,functions:whatsappProxyRegenerateQr
+firebase deploy --only functions:whatsappProxySend,functions:whatsappProxyGetAccounts,functions:whatsappProxyGetAccountsStaff,functions:whatsappProxyGetInbox,functions:whatsappProxyAddAccount,functions:whatsappProxyRegenerateQr
 ```
 
 **Verify:**
 
 ```bash
-firebase functions:list | grep whatsappProxySend
-# Expect: whatsappProxySend(us-central1)
+firebase functions:list | grep whatsappProxy
+# Expect: whatsappProxySend(us-central1), whatsappProxyGetAccountsStaff(us-central1), etc.
 ```
 
 **Secrets (required for processOutbox / getAccounts proxy → backend):**
@@ -47,6 +47,55 @@ firebase functions:list | grep whatsappProxySend
 ```bash
 firebase functions:secrets:set WHATSAPP_BACKEND_BASE_URL
 # Enter value, e.g.: http://37.27.34.179:8080
+```
+
+### 1b. Post-Deploy: Cloud Run IAM (Gen2 Functions)
+
+**CRITICAL:** Firebase Functions Gen2 uses Cloud Run, which requires explicit IAM bindings for public access. Without this, you'll see "The request was not authenticated/authorized to invoke this service" errors.
+
+**Option A: Use automated script (recommended)**
+
+```bash
+# Linux/Mac
+./scripts/cloudrun_make_public.sh
+
+# Windows PowerShell
+.\scripts\cloudrun_make_public.ps1
+```
+
+**Option B: Manual commands**
+
+```bash
+PROJECT_ID="superparty-frontend"
+REGION="us-central1"
+
+# List services
+gcloud run services list --project="$PROJECT_ID" --region="$REGION" | grep -i whatsappproxy
+
+# Apply IAM for each service
+gcloud run services add-iam-policy-binding whatsappproxygetaccountsstaff \
+  --region="$REGION" \
+  --member="allUsers" \
+  --role="roles/run.invoker" \
+  --project="$PROJECT_ID"
+
+gcloud run services add-iam-policy-binding whatsappproxygetinbox \
+  --region="$REGION" \
+  --member="allUsers" \
+  --role="roles/run.invoker" \
+  --project="$PROJECT_ID"
+
+# Verify bindings
+gcloud run services get-iam-policy whatsappproxygetaccountsstaff --region="$REGION" --project="$PROJECT_ID" | grep -E "allUsers|run.invoker"
+gcloud run services get-iam-policy whatsappproxygetinbox --region="$REGION" --project="$PROJECT_ID" | grep -E "allUsers|run.invoker"
+```
+
+**Verify IAM is working:**
+
+```bash
+# Should get 401 from your app (not Cloud Run "not authenticated" error)
+curl -i "https://us-central1-superparty-frontend.cloudfunctions.net/whatsappProxyGetAccountsStaff"
+# Expected: 401 with JSON body from your middleware, NOT Cloud Run HTML error page
 ```
 
 ### 2. Deploy Firestore Rules
@@ -117,6 +166,9 @@ Expected: `{"success": true, "requestId": "...", "duplicate": false}`
 ### 3. WhatsApp Backend Health
 ```bash
 # Replace BASE with WHATSAPP_BACKEND_BASE_URL value (e.g. http://37.27.34.179:8080)
+curl -s $BASE/health
+# Expected: {"ok": true, "status": "healthy", "service": "whatsapp-backend", "version": "...", "commit": "...", "firestore": "connected"|"disabled", ...}
+
 curl $BASE/healthz
 # Expected: {"status": "ok", "timestamp": "..."}
 

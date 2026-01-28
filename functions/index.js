@@ -965,6 +965,7 @@ const proxyOpts = {
   memory: '256MiB', // Increased from 128MiB to prevent OOM errors
   cpu: 0.5,
   secrets: [whatsappBackendBaseUrl], // Only WHATSAPP_BACKEND_BASE_URL (standardized on Hetzner)
+  invoker: 'public', // Allow unauthenticated invocations (auth handled in code via requireAuth/requireEmployee)
 };
 
 exports.whatsappProxyGetAccounts = onRequest(
