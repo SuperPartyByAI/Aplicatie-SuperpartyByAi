@@ -1,4 +1,4 @@
-# PR: WhatsApp CRM migration – GetMessages removed, Send via proxy, WHATSAPP_BACKEND_URL
+# PR: WhatsApp CRM migration – GetMessages removed, Send via proxy (Hetzner)
 
 **Branch:** `chore/remove-legacy hosting` → migrated to Hetzner  
 **Commit:** `e88fc34f`
@@ -27,7 +27,7 @@
 | **docs/** | `MIGRATION_WHATSAPP_CRM_FINAL.md`, `PRODUCTION_READINESS_CHECKLIST.md`, `PRODUCTION_READINESS_OUTPUT.md`. |
 | **scripts/firebase_deploy_whatsapp.sh** | Script login + deploy (indexes, rules, Functions). |
 
-*(Alte modificări din branch – index.js fără export GetMessages, Flutter chat/inbox/sendViaProxy, CI WHATSAPP_BACKEND_URL – pot fi în commit-uri anterioare pe același branch.)*
+*(Alte modificări din branch – index.js fără export GetMessages, Flutter chat/inbox/sendViaProxy, CI WHATSAPP_BACKEND_BASE_URL – pot fi în commit-uri anterioare pe același branch.)*
 
 ---
 

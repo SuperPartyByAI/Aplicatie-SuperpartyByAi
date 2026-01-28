@@ -6,7 +6,7 @@ Use this after code changes to verify end-to-end flow and deployment.
 
 - Firebase CLI logged in: `firebase login`
 - Project selected: `firebase use <alias>` (e.g. `default` or `superparty-frontend`)
-- Backend (Hetzner) running and reachable at `WHATSAPP_BACKEND_URL`
+- Backend (Hetzner) running and reachable (Functions use secret `WHATSAPP_BACKEND_BASE_URL`)
 
 ---
 
@@ -41,14 +41,14 @@ firebase deploy --only firestore:rules
 
 ## 3. Secrets (backend URL)
 
-**Why:** `processOutbox` and proxy handlers (getAccounts, etc.) forward to backend. They use `WHATSAPP_BACKEND_URL` or `WHATSAPP_BACKEND_BASE_URL`.
+**Why:** `processOutbox` and proxy handlers (getAccounts, etc.) forward to backend. They use `WHATSAPP_BACKEND_BASE_URL` (Firebase secret or `functions.config().whatsapp.backend_base_url`).
 
 **Commands:**
 
 ```bash
-firebase functions:secrets:set WHATSAPP_BACKEND_URL
+firebase functions:secrets:set WHATSAPP_BACKEND_BASE_URL
 # Value e.g.: http://37.27.34.179:8080
-firebase functions:secrets:access WHATSAPP_BACKEND_URL
+firebase functions:secrets:access WHATSAPP_BACKEND_BASE_URL
 ```
 
 **Success:** Secret is set; access prints the value (or confirms presence).
@@ -112,7 +112,7 @@ If you have Firebase/project access:
 
 1. `firebase deploy --only firestore:indexes`
 2. `firebase deploy --only firestore:rules`
-3. `firebase functions:secrets:set WHATSAPP_BACKEND_URL`
+3. `firebase functions:secrets:set WHATSAPP_BACKEND_BASE_URL`
 4. `firebase deploy --only functions:whatsappProxySend` (and other proxy functions as needed)
 5. `firebase functions:list | grep whatsappProxySend`
 6. Smoke `curl` to `whatsappProxySend` with Bearer token
@@ -125,4 +125,4 @@ If you **cannot** deploy (no workflow scope / no Firebase access): run the above
 
 - **Runbook:** `docs/WHATSAPP_PROD_RUNBOOK.md`
 - **CRM flow:** `superparty_flutter/lib/screens/whatsapp/README_CRM_FLOW.md`
-- **Backend URL:** `functions/lib/backend-url.js` (prefers `BACKEND_BASE_URL` / `WHATSAPP_BACKEND_BASE_URL` / `WHATSAPP_BACKEND_URL`)
+- **Backend URL:** `functions/lib/backend-url.js` (WHATSAPP_BACKEND_BASE_URL only; default Hetzner `http://37.27.34.179:8080`)

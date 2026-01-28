@@ -102,19 +102,21 @@ This uses `10.0.2.2` automatically (works without `adb reverse` setup).
 
 ### WhatsApp Backend
 
-Set the backend URL at build/run time:
+Backend URL is set at build/run time via `WHATSAPP_BACKEND_URL` (dart-define). Default is Hetzner production.
 
+**Run (development):**
 ```bash
-flutter run --dart-define=WHATSAPP_BACKEND_URL=https://your-backend-host
+flutter run --dart-define=WHATSAPP_BACKEND_URL=http://37.27.34.179:8080
+```
+(Omit the flag to use the default Hetzner URL from `lib/core/config/env.dart`.)
+
+**Release builds:**
+```bash
+flutter build apk --dart-define=WHATSAPP_BACKEND_URL=http://37.27.34.179:8080
+flutter build ios --dart-define=WHATSAPP_BACKEND_URL=http://37.27.34.179:8080
 ```
 
-Or for release builds:
-
-```bash
-flutter build apk --dart-define=WHATSAPP_BACKEND_URL=https://your-backend-host
-```
-
-Default URL (if not specified): `http://37.27.34.179:8080` (Hetzner production - defined in `lib/core/config/env.dart`)
+Default (if not specified): `http://37.27.34.179:8080` (Hetzner – defined in `lib/core/config/env.dart`).
 
 WebSocket URLs (update if needed):
 - Centrala: `lib/screens/centrala/centrala_screen.dart`

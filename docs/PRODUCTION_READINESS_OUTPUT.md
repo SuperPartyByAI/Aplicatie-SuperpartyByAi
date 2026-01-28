@@ -100,7 +100,7 @@ Vezi **`docs/PRODUCTION_READINESS_CHECKLIST.md`**.
 | Indexuri | `firebase deploy --only firestore:indexes` | Executat în sesiune: **Deploy complete!** |
 | List functions | `firebase functions:list \| grep whatsappProxySend` | **Făcut:** `whatsappProxySend` **nu** apare în listă (doar `whatsappV4` / `whatsapp`). Deploy proxy necesar. |
 | Deploy send | `firebase deploy --only functions:whatsappProxySend` | Trebuie rulat manual. |
-| Set secret | `firebase functions:secrets:set WHATSAPP_BACKEND_URL` | Trebuie rulat manual. |
+| Set secret | `firebase functions:secrets:set WHATSAPP_BACKEND_BASE_URL` | Trebuie rulat manual. |
 | Smoke curl | `curl -X POST .../whatsappProxySend ...` | După deploy + secret. |
 
 ---

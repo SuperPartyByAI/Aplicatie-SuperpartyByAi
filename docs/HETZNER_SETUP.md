@@ -73,7 +73,7 @@ firebase deploy --only functions
    - [ ] Send message on phone → verify it appears in app within 10 seconds
 
 2. **Firebase Functions:**
-   - [ ] Set `BACKEND_BASE_URL` secret or config
+   - [ ] Set `WHATSAPP_BACKEND_BASE_URL` secret or config
    - [ ] Redeploy functions
    - [ ] Test QR code generation (should connect to Hetzner backend)
 

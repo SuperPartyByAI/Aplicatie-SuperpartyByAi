@@ -11,7 +11,7 @@ This runbook covers deployment, verification, and troubleshooting for the WhatsA
 ## Required Environment Variables
 
 ### Firebase Functions
-- `WHATSAPP_BACKEND_URL` or `WHATSAPP_BACKEND_BASE_URL` - WhatsApp backend base URL (e.g. Hetzner `http://37.27.34.179:8080`)
+- `WHATSAPP_BACKEND_BASE_URL` - WhatsApp backend base URL (Firebase secret; e.g. Hetzner `http://37.27.34.179:8080`)
 - Firebase project ID (from Firebase config)
 
 ### WhatsApp Backend (Hetzner or generic)
@@ -45,7 +45,7 @@ firebase functions:list | grep whatsappProxySend
 **Secrets (required for processOutbox / getAccounts proxy → backend):**
 
 ```bash
-firebase functions:secrets:set WHATSAPP_BACKEND_URL
+firebase functions:secrets:set WHATSAPP_BACKEND_BASE_URL
 # Enter value, e.g.: http://37.27.34.179:8080
 ```
 
@@ -70,7 +70,7 @@ firebase deploy --only firestore:indexes
 ### 3. Deploy WhatsApp Backend (Hetzner / generic)
 
 - Deploy to Hetzner (systemd/Docker) or your host
-- Set `WHATSAPP_BACKEND_URL` in Firebase Functions secrets to backend base URL
+- Set `WHATSAPP_BACKEND_BASE_URL` in Firebase Functions secrets to backend base URL
 
 ### 4. Configure Backend Environment Variables
 
@@ -116,7 +116,7 @@ Expected: `{"success": true, "requestId": "...", "duplicate": false}`
 
 ### 3. WhatsApp Backend Health
 ```bash
-# Replace BASE with WHATSAPP_BACKEND_URL (e.g. http://37.27.34.179:8080)
+# Replace BASE with WHATSAPP_BACKEND_BASE_URL value (e.g. http://37.27.34.179:8080)
 curl $BASE/healthz
 # Expected: {"status": "ok", "timestamp": "..."}
 
@@ -175,7 +175,7 @@ curl $BASE/metrics-json
 | Indexes | `firebase deploy --only firestore:indexes` | `Deploy complete!` |
 | List functions | `firebase functions:list \| grep whatsappProxySend` | `whatsappProxySend(us-central1)` |
 | Deploy send | `firebase deploy --only functions:whatsappProxySend` | No errors |
-| Set secret | `firebase functions:secrets:set WHATSAPP_BACKEND_URL` | Secret set |
+| Set secret | `firebase functions:secrets:set WHATSAPP_BACKEND_BASE_URL` | Secret set |
 | Send smoke | `curl -X POST .../whatsappProxySend -H "Authorization: Bearer <token>" ...` | JSON `{"success":true,...}` |
 
 ## Troubleshooting
