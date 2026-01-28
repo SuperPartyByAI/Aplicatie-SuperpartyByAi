@@ -961,6 +961,11 @@ exports.whatsappProxyGetAccounts = onRequest(
   wrapWithSecrets(whatsappProxy.getAccountsHandler, [whatsappBackendBaseUrl, whatsappBackendUrl])
 );
 
+exports.whatsappProxyGetAccountsStaff = onRequest(
+  proxyOpts,
+  wrapWithSecrets(whatsappProxy.getAccountsStaffHandler, [whatsappBackendBaseUrl, whatsappBackendUrl])
+);
+
 exports.whatsappProxyAddAccount = onRequest(
   proxyOpts,
   wrapWithSecrets(whatsappProxy.addAccountHandler, [whatsappBackendBaseUrl, whatsappBackendUrl])

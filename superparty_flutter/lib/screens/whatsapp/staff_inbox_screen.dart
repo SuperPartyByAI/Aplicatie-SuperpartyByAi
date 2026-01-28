@@ -497,7 +497,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
     setState(() => _isLoadingAccounts = true);
 
     try {
-      final response = await _apiService.getAccounts();
+      // Use staff-safe endpoint (employee-only, no QR codes)
+      final response = await _apiService.getAccountsStaff();
       if (response['success'] == true) {
         final accounts = (response['accounts'] as List<dynamic>? ?? [])
             .cast<Map<String, dynamic>>();

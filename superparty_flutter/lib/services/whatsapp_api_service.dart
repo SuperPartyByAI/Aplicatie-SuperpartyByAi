@@ -307,6 +307,87 @@ class WhatsAppApiService {
     });
   }
 
+  /// Get list of WhatsApp accounts (staff-safe version, without QR codes).
+  ///
+  /// Uses Functions proxy: GET $functionsUrl/whatsappProxyGetAccountsStaff.
+  /// Employee-only access (requires staffProfiles document).
+  /// Returns accounts without sensitive data (QR codes, pairing codes).
+  ///
+  /// Returns: { success: bool, accounts: List<Account> }
+  /// Account: { id, name, phone, status, ... } (no qrCode, pairingCode)
+  Future<Map<String, dynamic>> getAccountsStaff() async {
+    return retryWithBackoff(() async {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw UnauthorizedException();
+      }
+
+      final token = await user.getIdToken();
+      final requestId = _generateRequestId();
+      final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
+
+      // Always use Functions proxy for staff endpoint (employee-only, sanitized response)
+      final functionsUrl = _getFunctionsUrl();
+      final endpointUrl = '$functionsUrl/whatsappProxyGetAccountsStaff';
+      debugPrint('[WhatsAppApiService] getAccountsStaff: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId');
+      final response = await http
+          .get(
+            Uri.parse(endpointUrl),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'X-Request-ID': requestId,
+            },
+          )
+          .timeout(requestTimeout);
+
+      final contentType = response.headers['content-type'] ?? 'unknown';
+      final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
+      debugPrint('[WhatsAppApiService] getAccountsStaff: AFTER response | statusCode=${response.statusCode} | content-type=$contentType | bodyLength=${response.body.length} | bodyPrefix=$bodyPrefix | requestId=$requestId');
+
+      if (_isNonJsonResponse(response)) {
+        _throwNonJsonNetworkException(response, endpointUrl);
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        Map<String, dynamic>? errorBody;
+        try {
+          errorBody = SafeJson.tryDecodeJsonMap(response.body);
+        } catch (_) {
+          errorBody = null;
+        }
+        String message;
+        if (errorBody != null) {
+          message = errorBody['message'] as String? ?? 'HTTP ${response.statusCode}';
+          debugPrint('[WhatsAppApiService] getAccountsStaff: error=${errorBody['error']}, message=$message');
+        } else {
+          message = 'HTTP ${response.statusCode} (non-JSON response). content-type=$contentType. bodyPreview=$bodyPrefix';
+          debugPrint('[WhatsAppApiService] getAccountsStaff: non-JSON error response, bodyPrefix=$bodyPrefix');
+        }
+        throw ErrorMapper.fromHttpException(response.statusCode, message);
+      }
+
+      Map<String, dynamic>? data;
+      try {
+        data = SafeJson.tryDecodeJsonMap(response.body);
+      } catch (e) {
+        throw NetworkException(
+          'Invalid response: failed to decode JSON. endpoint=$endpointUrl, status=${response.statusCode}, content-type=$contentType, bodyPrefix=$bodyPrefix',
+          code: 'json_decode_failed',
+          originalError: e,
+        );
+      }
+      if (data == null) {
+        throw NetworkException(
+          'Empty response body. endpoint=$endpointUrl, status=${response.statusCode}',
+          code: 'empty_response',
+        );
+      }
+      return data;
+    });
+  }
+
   /// Add a new WhatsApp account via Functions proxy.
   /// 
   /// CRITICAL FIX: Uses proxy with Authorization header (Firebase ID token).
