@@ -608,8 +608,9 @@ async function getAccountsHandler(req, res) {
     if (!isSuperAdmin) return; // Response already sent (401/403)
 
     const backendBaseUrl = getBackendBaseUrl();
-    if (!backendBaseUrl) {
-      console.error('[whatsappProxy/getAccounts] WHATSAPP_BACKEND_BASE_URL missing');
+    // Note: getBackendBaseUrl() always returns a value (has default), so this check is redundant but kept for safety
+    if (!backendBaseUrl || !backendBaseUrl.trim()) {
+      console.error('[whatsappProxy/getAccounts] Backend URL is empty or invalid');
       return res.status(500).json({
         success: false,
         error: 'configuration_missing',
@@ -623,13 +624,26 @@ async function getAccountsHandler(req, res) {
     const backendUrl = `${backendBaseUrl}/api/whatsapp/accounts`;
     const correlationId = req.headers['x-correlation-id'] || req.headers['x-request-id'] || `getAccounts_${Date.now()}`;
     console.log(`[whatsappProxy/getAccounts] Calling backend: ${backendUrl}, correlationId=${correlationId}`);
-    const response = await getForwardRequest()(backendUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Correlation-Id': correlationId,
-      },
-    });
+    
+    let response;
+    try {
+      response = await getForwardRequest()(backendUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Correlation-Id': correlationId,
+        },
+      });
+    } catch (error) {
+      console.error('[whatsappProxy/getAccounts] Backend request failed:', error.message);
+      console.error('[whatsappProxy/getAccounts] Error stack:', error.stack);
+      return res.status(502).json({
+        success: false,
+        error: 'backend_connection_failed',
+        message: `Failed to connect to backend: ${error.message}`,
+        backendUrl: backendBaseUrl,
+      });
+    }
 
     const bodyIsObject = response.body && typeof response.body === 'object';
     if (!bodyIsObject) {
