@@ -65,6 +65,21 @@ class WhatsAppApiService {
     return backendUrl;
   }
 
+  /// Returns Firebase ID token for Authorization: Bearer. Throws if not logged in or token empty.
+  /// Use for all proxy/backend requests so no endpoint is "forgotten".
+  Future<String> _requireIdToken({bool forceRefresh = false}) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw UnauthorizedException();
+    }
+    final token = await user.getIdToken(forceRefresh);
+    if (token == null || token.isEmpty) {
+      debugPrint('[WhatsAppApiService] _requireIdToken: token is null or empty');
+      throw UnauthorizedException('Firebase ID token is null or empty');
+    }
+    return token;
+  }
+
   static bool _loggedFunctionsUrl = false;
 
   /// True when running against Firebase emulators (Functions at 127.0.0.1:5002).
@@ -165,10 +180,8 @@ class WhatsAppApiService {
     required String text,
     required String clientMessageId,
   }) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) throw UnauthorizedException();
-
-    final token = await user.getIdToken();
+    final token = await _requireIdToken();
+    final user = FirebaseAuth.instance.currentUser!;
     final functionsUrl = _getFunctionsUrl();
     final requestId = _generateRequestId();
     final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
@@ -251,12 +264,8 @@ class WhatsAppApiService {
   /// Account: { id, name, phone, status, qrCode?, pairingCode?, ... }
   Future<Map<String, dynamic>> getAccounts() async {
     return retryWithBackoff(() async {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw UnauthorizedException();
-      }
-
-      final token = await user.getIdToken();
+      final token = await _requireIdToken();
+      final user = FirebaseAuth.instance.currentUser!;
       final requestId = _generateRequestId();
       final backendUrl = _getBackendUrl();
       final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
@@ -366,13 +375,8 @@ class WhatsAppApiService {
   /// Account: { id, name, phone, status, ... } (no qrCode, pairingCode)
   Future<Map<String, dynamic>> getAccountsStaff() async {
     return retryWithBackoff(() async {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw UnauthorizedException();
-      }
-
-      // Force token refresh for staff endpoint (employee-only access)
-      final token = await user.getIdToken(true);
+      final token = await _requireIdToken(forceRefresh: true);
+      final user = FirebaseAuth.instance.currentUser!;
       final requestId = _generateRequestId();
       final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
 
@@ -389,15 +393,7 @@ class WhatsAppApiService {
         debugPrint('[WhatsAppApiService] getAccountsStaff: CONFIG | functionsUrl=$functionsUrl | endpointUrl=$endpointUrl | Firebase projectId unavailable: $e');
       }
       
-      // CRITICAL: Verify token is not null/empty before sending
-      if (token == null || token.isEmpty) {
-        debugPrint('[WhatsAppApiService] getAccountsStaff: ❌ Token is null or empty - cannot make request');
-        throw UnauthorizedException('Firebase ID token is null or empty');
-      }
-      
-      final tokenLength = token.length;
-      final tokenPrefix = token.length > 20 ? '${token.substring(0, 20)}...' : token;
-      debugPrint('[WhatsAppApiService] getAccountsStaff: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenLength=$tokenLength | tokenPrefix=$tokenPrefix | requestId=$requestId');
+      debugPrint('[WhatsAppApiService] getAccountsStaff: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenLength=${token.length} | tokenPrefix=${token.length > 20 ? '${token.substring(0, 20)}...' : token} | requestId=$requestId');
       
       final response = await http
           .get(
@@ -470,12 +466,8 @@ class WhatsAppApiService {
     required String phone,
   }) async {
     return retryWithBackoff(() async {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw UnauthorizedException();
-      }
-
-      final token = await user.getIdToken();
+      final token = await _requireIdToken();
+      final user = FirebaseAuth.instance.currentUser!;
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
       final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
@@ -556,12 +548,8 @@ class WhatsAppApiService {
     required String accountId,
   }) async {
     return retryWithBackoff(() async {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw UnauthorizedException();
-      }
-
-      final token = await user.getIdToken();
+      final token = await _requireIdToken();
+      final user = FirebaseAuth.instance.currentUser!;
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
       final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
@@ -668,12 +656,8 @@ class WhatsAppApiService {
     required String accountId,
   }) async {
     return retryWithBackoff(() async {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw UnauthorizedException();
-      }
-
-      final token = await user.getIdToken();
+      final token = await _requireIdToken();
+      final user = FirebaseAuth.instance.currentUser!;
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
       final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
@@ -851,12 +835,8 @@ class WhatsAppApiService {
     required String accountId,
   }) async {
     return retryWithBackoff(() async {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw UnauthorizedException();
-      }
-
-      final token = await user.getIdToken();
+      final token = await _requireIdToken();
+      final user = FirebaseAuth.instance.currentUser!;
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
 
@@ -977,12 +957,8 @@ class WhatsAppApiService {
     int limit = 100,
   }) async {
     return retryWithBackoff(() async {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw UnauthorizedException();
-      }
-
-      final token = await user.getIdToken();
+      final token = await _requireIdToken();
+      final user = FirebaseAuth.instance.currentUser!;
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
 
@@ -1084,9 +1060,7 @@ class WhatsAppApiService {
   /// GET /api/whatsapp/auto-reply-settings/:accountId
   /// Returns: { success: bool, enabled: bool, prompt: string }
   Future<Map<String, dynamic>> getAutoReplySettings({required String accountId}) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) throw UnauthorizedException();
-    final token = await user.getIdToken();
+    final token = await _requireIdToken();
     final backendUrl = _requireBackendUrl();
     final requestId = _generateRequestId();
     final endpointUrl = '$backendUrl/api/whatsapp/auto-reply-settings/$accountId';
@@ -1130,9 +1104,7 @@ class WhatsAppApiService {
     required bool enabled,
     required String prompt,
   }) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) throw UnauthorizedException();
-    final token = await user.getIdToken();
+    final token = await _requireIdToken();
     final backendUrl = _requireBackendUrl();
     final requestId = _generateRequestId();
     final endpointUrl = '$backendUrl/api/whatsapp/auto-reply-settings/$accountId';
@@ -1177,10 +1149,8 @@ class WhatsAppApiService {
     required String accountId,
   }) async {
     return retryWithBackoff(() async {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw UnauthorizedException();
-
-      final token = await user.getIdToken();
+      final token = await _requireIdToken();
+      final user = FirebaseAuth.instance.currentUser!;
       final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
       final uidTruncated =
