@@ -1,11 +1,13 @@
 # Inbox clienți – Runbook (503 / Firestore)
 
-Inbox-ul de **clienți** în app se bazează pe **backend (Hetzner)**, nu pe Cloud Functions. Flutter apelează direct:
+Inbox-ul de **clienți** în app se bazează pe **backend (Hetzner)** sau pe **proxy Cloud Functions** (ex. pe iOS simulator). Flutter apelează:
 
-- **GET** `/api/whatsapp/threads/:accountId`
-- **GET** `/api/whatsapp/inbox/:accountId`
+- **GET** `/api/whatsapp/threads/:accountId` (direct la `backendUrl` sau via `whatsappProxyGetThreads`)
+- **GET** `/api/whatsapp/inbox/:accountId` (direct la `backendUrl` sau via `whatsappProxyGetInbox`)
 
-cu token Firebase în header `Authorization: Bearer …`.
+cu token Firebase în header `Authorization: Bearer <idToken>`.
+
+**Notă:** 401 de la `whatsappProxyGetInbox` fără `Authorization: Bearer <idToken>` e comportament corect — confirmă că funcția e live și middleware-ul de auth rulează înainte de forward.
 
 ---
 
@@ -23,14 +25,10 @@ Backend-ul rulează fără Firestore dacă **FIREBASE_SERVICE_ACCOUNT_JSON** nu 
 
 Caută liniile:
 
-- `getThreads: CONFIG | backendUrl=... | statusCode=...`
-- `getInbox: CONFIG | backendUrl=... | statusCode=...`
+- `getThreads: ... tokenPresent=... | endpointUrl=...` apoi `getThreads: CONFIG | backendUrl=... | statusCode=...`
+- `getInbox: ... tokenPresent=... | endpointUrl=...` apoi `getInbox: CONFIG | backendUrl=... | statusCode=...`
 
-**Dacă vezi statusCode=503** → Firestore e dezactivat pe backend (fix mai jos).
-
-**Dacă vezi 401** → problemă de auth (token lipsă/invalid).
-
-**Dacă vezi 500** → eroare server (ex. index Firestore lipsă sau altă excepție).
+Din cod, `getThreads()` lovește `GET $backendUrl/api/whatsapp/threads/$accountId` (sau proxy); `getInbox()` lovește `GET $backendUrl/api/whatsapp/inbox/$accountId?limit=$limit` (sau proxy). Status code-ul din log spune imediat dacă problema e pe Hetzner sau pe auth din app.
 
 ### Din logurile backend (pe Hetzner)
 
@@ -60,8 +58,12 @@ Endpoint-ul de threads folosește query pe `threads` cu `where(accountId == …)
 
 | Status | Cauză probabilă | Acțiune |
 |--------|------------------|--------|
-| **503** | Firestore not available | Setează FIREBASE_SERVICE_ACCOUNT_JSON pe Hetzner, restart, verifică /health → firestore: "connected" |
-| **401** | Token lipsă/invalid | Verifică autentificare în app (Firebase Auth, token în header) |
-| **500** | Eroare server (index, excepție) | Verifică loguri backend; dacă e "index required", creează index sau scoate orderBy |
+| **200** | Backend răspunde OK | Dacă UI e gol, problema e după request (parsing / afișare / date inexistente). |
+| **401** + în log `tokenPresent=false` | Nu trimiți token (sau request-ul pleacă înainte ca auth să fie gata) | Tokenul vine din `FirebaseAuth.instance.currentUser.getIdToken()` și e pus în `Authorization: Bearer ...`. Folosește `_requireIdToken()` înainte de request. |
+| **401** + în log `tokenPresent=true` | Token invalid/expirat sau backend respinge tokenul | Retry cu refresh (`getIdToken(true)`) sau verificare token pe server. |
+| **503** | Backend fără Firestore | Setează FIREBASE_SERVICE_ACCOUNT_JSON pe Hetzner, restart, verifică /health → firestore: "connected". |
+| **500** | Excepție pe backend | Verifică logurile de pe Hetzner pentru ruta respectivă + requestId; dacă e "index required", creează index sau scoate orderBy. |
 
-Spune ce **status code** vezi în app la request și ce **error** vine în body, și se poate identifica exact blocajul (auth vs Firestore vs index).
+**Important:** Când `getInbox`/`getThreads` merg direct la `backendUrl` (device real), status code-ul din log vine de la Hetzner. Când merg prin proxy (simulator), vine de la Cloud Function; 401 fără token confirmă că funcția e live și auth-ul rulează.
+
+Spune ce **status code** vezi în app la request și ce **error** vine în body (și dacă `tokenPresent=true/false`), și se poate identifica exact blocajul (auth vs Firestore vs index).
