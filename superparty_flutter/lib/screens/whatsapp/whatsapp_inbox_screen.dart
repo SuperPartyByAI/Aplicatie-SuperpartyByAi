@@ -44,6 +44,9 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   final Map<String, List<Map<String, dynamic>>> _threadsByAccount = {};
   /// Account IDs we last started listeners for. Skip re-subscribe when unchanged.
   Set<String> _activeAccountIds = {};
+  
+  // Auto-refresh timer: refresh threads every 10 seconds to catch new messages
+  Timer? _autoRefreshTimer;
 
   Future<void> _copyAuthTokensToClipboard() async {
     if (!kDebugMode) return;
@@ -100,10 +103,25 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   void initState() {
     super.initState();
     _loadAccounts();
+    // Start auto-refresh timer: refresh threads every 10 seconds
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (mounted && _accounts.isNotEmpty) {
+        // Only refresh if we have connected accounts
+        final hasConnected = _accounts.any((a) => a['status'] == 'connected');
+        if (hasConnected) {
+          if (kDebugMode) {
+            debugPrint('[WhatsAppInboxScreen] Auto-refresh: refreshing threads (10s interval)');
+          }
+          _loadThreads(forceRefresh: false); // Force refresh to re-subscribe listeners
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = null;
     for (final subscription in _threadSubscriptions.values) {
       subscription.cancel();
     }
@@ -128,13 +146,26 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     if (digits.startsWith('4') && digits.length == 11) {
       return '+$digits';
     }
-    // If already has +, return as is (but normalize digits)
+    // If already has +, normalize digits but keep +
     if (phone.startsWith('+')) {
+      // Extract digits and rebuild with +
+      if (digits.startsWith('4') && digits.length == 11) {
+        return '+$digits';
+      }
+      // If digits start with 0 and have 10 digits, convert to +4
+      if (digits.startsWith('0') && digits.length == 10) {
+        return '+4$digits';
+      }
+      // Return as is if already in correct format
       return phone;
     }
     // If has 11 digits starting with 4, add +
     if (digits.length == 11 && digits.startsWith('4')) {
       return '+$digits';
+    }
+    
+    if (kDebugMode) {
+      debugPrint('[WhatsAppInboxScreen] _normalizePhoneToE164: Could not normalize phone=$phone, digits=$digits');
     }
     return null;
   }
@@ -629,12 +660,31 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
 
   Future<void> _loadAccounts() async {
     setState(() => _isLoadingAccounts = true);
+    _errorMessage = null;
 
     try {
+      if (kDebugMode) {
+        debugPrint('[WhatsAppInboxScreen] Loading accounts via getAccounts...');
+      }
+      
       final response = await _apiService.getAccounts();
+      
+      if (kDebugMode) {
+        debugPrint('[WhatsAppInboxScreen] getAccounts response: success=${response['success']}, accountsCount=${(response['accounts'] as List?)?.length ?? 0}');
+      }
+      
       if (response['success'] == true) {
         final accounts = (response['accounts'] as List<dynamic>? ?? [])
             .cast<Map<String, dynamic>>();
+
+        if (kDebugMode) {
+          debugPrint('[WhatsAppInboxScreen] Loaded ${accounts.length} accounts');
+          for (final acc in accounts) {
+            final phone = acc['phone'] as String?;
+            final normalized = _normalizePhoneToE164(phone);
+            debugPrint('[WhatsAppInboxScreen] Account: id=${acc['id']}, phone=$phone, normalized=$normalized, status=${acc['status']}');
+          }
+        }
 
         if (mounted) {
           setState(() {
@@ -651,12 +701,33 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
             });
           }
         }
+      } else {
+        final errorMsg = response['message'] as String? ?? 'Failed to load accounts';
+        if (kDebugMode) {
+          debugPrint('[WhatsAppInboxScreen] getAccounts failed: $errorMsg');
+        }
+        if (mounted) {
+          setState(() {
+            _isLoadingAccounts = false;
+            _errorMessage = errorMsg;
+          });
+        }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        debugPrint('[WhatsAppInboxScreen] Error loading accounts: $e');
+        debugPrint('[WhatsAppInboxScreen] Stack trace: $stackTrace');
+      }
       if (mounted) {
-        setState(() => _isLoadingAccounts = false);
+        setState(() {
+          _isLoadingAccounts = false;
+          _errorMessage = 'Eroare la încărcarea conturilor: ${e.toString()}';
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading accounts: $e')),
+          SnackBar(
+            content: Text('Error loading accounts: $e'),
+            backgroundColor: Colors.red[700],
+          ),
         );
       }
     }

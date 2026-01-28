@@ -44,7 +44,9 @@ class Env {
   );
 
   /// Default: Hetzner backend (production).
-  static const String _defaultWhatsAppBackendUrl = 'https://whats-app-ompro.ro';
+  /// Hetzner IP: http://37.27.34.179:8080
+  /// Domain: https://whats-app-ompro.ro
+  static const String _defaultWhatsAppBackendUrl = 'http://37.27.34.179:8080';
 
   /// Base URL for WhatsApp backend (Hetzner).
   ///

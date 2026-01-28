@@ -45,17 +45,30 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
   final Map<String, StreamSubscription<QuerySnapshot>> _threadSubscriptions = {};
   final Map<String, List<Map<String, dynamic>>> _threadsByAccount = {};
   Set<String> _activeAccountIds = {};
+  
+  // Auto-refresh timer: refresh threads every 10 seconds to catch new messages
+  Timer? _autoRefreshTimer;
 
   /// Normalize phone number to digits only (like backend does)
-  /// Examples: "+40737571397" -> "40737571397", "0737571397" -> "40737571397"
+  /// Examples: "+40737571397" -> "40737571397", "0737571397" -> "40737571397", "40737571397" -> "40737571397"
   String _normalizePhoneToDigits(String? phone) {
     if (phone == null || phone.isEmpty) return '';
     // Remove all non-digit characters
     final digits = phone.replaceAll(RegExp(r'\D'), '');
-    // If starts with 0, replace with 4 (Romanian country code)
+    if (digits.isEmpty) return '';
+    
+    // If starts with 0 and has 10 digits, replace with 4 (Romanian country code)
     if (digits.startsWith('0') && digits.length == 10) {
       return '4$digits';
     }
+    
+    // If already starts with 4 and has 11 digits, return as is
+    if (digits.startsWith('4') && digits.length == 11) {
+      return digits;
+    }
+    
+    // If has 11 digits but doesn't start with 4, might be missing country code
+    // But we'll return as is to avoid false matches
     return digits;
   }
 
@@ -63,7 +76,13 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
   bool _shouldExcludeAccount(Map<String, dynamic> account) {
     final phone = account['phone'] as String? ?? '';
     final normalized = _normalizePhoneToDigits(phone);
-    return normalized == _excludedPhoneDigits;
+    final shouldExclude = normalized == _excludedPhoneDigits;
+    
+    if (kDebugMode) {
+      debugPrint('[StaffInboxScreen] _shouldExcludeAccount: phone=$phone, normalized=$normalized, excluded=$shouldExclude, target=$_excludedPhoneDigits');
+    }
+    
+    return shouldExclude;
   }
 
   Future<void> _copyAuthTokensToClipboard() async {
@@ -121,10 +140,25 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
   void initState() {
     super.initState();
     _loadAccounts();
+    // Start auto-refresh timer: refresh threads every 10 seconds
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (mounted && _accounts.isNotEmpty) {
+        // Only refresh if we have connected accounts
+        final hasConnected = _accounts.any((a) => a['status'] == 'connected');
+        if (hasConnected) {
+          if (kDebugMode) {
+            debugPrint('[StaffInboxScreen] Auto-refresh: refreshing threads (10s interval)');
+          }
+          _loadThreads(forceRefresh: false); // Force refresh to re-subscribe listeners
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = null;
     for (final subscription in _threadSubscriptions.values) {
       subscription.cancel();
     }
@@ -134,10 +168,26 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
   }
 
   void _startThreadListeners() {
-    // Filter accounts: exclude the one with phone 0737571397
-    final allowedAccounts = _accounts.where((account) {
+    // Filter accounts: only connected accounts, excluding the one with phone 0737571397
+    final connectedAccounts = _accounts
+        .where((account) => account['status'] == 'connected')
+        .toList();
+    
+    final allowedAccounts = connectedAccounts.where((account) {
       return !_shouldExcludeAccount(account);
     }).toList();
+    
+    if (kDebugMode) {
+      debugPrint('[StaffInboxScreen] Total accounts: ${_accounts.length}');
+      debugPrint('[StaffInboxScreen] Connected accounts: ${connectedAccounts.length}');
+      debugPrint('[StaffInboxScreen] Allowed accounts (excluding personal): ${allowedAccounts.length}');
+      for (final acc in connectedAccounts) {
+        final phone = acc['phone'] as String?;
+        final normalized = _normalizePhoneToDigits(phone);
+        final excluded = _shouldExcludeAccount(acc);
+        debugPrint('[StaffInboxScreen] Account: id=${acc['id']}, phone=$phone, normalized=$normalized, excluded=$excluded');
+      }
+    }
 
     final accountIds = allowedAccounts
         .map((account) => account['id'])
@@ -495,13 +545,33 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
 
   Future<void> _loadAccounts() async {
     setState(() => _isLoadingAccounts = true);
+    _errorMessage = null;
 
     try {
+      if (kDebugMode) {
+        debugPrint('[StaffInboxScreen] Loading accounts via getAccountsStaff...');
+      }
+      
       // Use staff-safe endpoint (employee-only, no QR codes)
       final response = await _apiService.getAccountsStaff();
+      
+      if (kDebugMode) {
+        debugPrint('[StaffInboxScreen] getAccountsStaff response: success=${response['success']}, accountsCount=${(response['accounts'] as List?)?.length ?? 0}');
+      }
+      
       if (response['success'] == true) {
         final accounts = (response['accounts'] as List<dynamic>? ?? [])
             .cast<Map<String, dynamic>>();
+
+        if (kDebugMode) {
+          debugPrint('[StaffInboxScreen] Loaded ${accounts.length} accounts');
+          for (final acc in accounts) {
+            final phone = acc['phone'] as String?;
+            final normalized = _normalizePhoneToDigits(phone);
+            final excluded = _shouldExcludeAccount(acc);
+            debugPrint('[StaffInboxScreen] Account: id=${acc['id']}, phone=$phone, normalized=$normalized, excluded=$excluded, status=${acc['status']}');
+          }
+        }
 
         if (mounted) {
           setState(() {
@@ -518,12 +588,33 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
             });
           }
         }
+      } else {
+        final errorMsg = response['message'] as String? ?? 'Failed to load accounts';
+        if (kDebugMode) {
+          debugPrint('[StaffInboxScreen] getAccountsStaff failed: $errorMsg');
+        }
+        if (mounted) {
+          setState(() {
+            _isLoadingAccounts = false;
+            _errorMessage = errorMsg;
+          });
+        }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        debugPrint('[StaffInboxScreen] Error loading accounts: $e');
+        debugPrint('[StaffInboxScreen] Stack trace: $stackTrace');
+      }
       if (mounted) {
-        setState(() => _isLoadingAccounts = false);
+        setState(() {
+          _isLoadingAccounts = false;
+          _errorMessage = 'Eroare la încărcarea conturilor: ${e.toString()}';
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading accounts: $e')),
+          SnackBar(
+            content: Text('Error loading accounts: $e'),
+            backgroundColor: Colors.red[700],
+          ),
         );
       }
     }
@@ -687,9 +778,16 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.home, color: Colors.white),
-          onPressed: () => context.go('/home'),
-          tooltip: 'Acasă',
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () {
+            // Use Navigator.pop() to go back to previous screen, not to home
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              context.go('/home');
+            }
+          },
+          tooltip: 'Înapoi',
         ),
         title: Column(
           mainAxisSize: MainAxisSize.min,

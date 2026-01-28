@@ -48,14 +48,14 @@ jobs:
           NODE_ENV: test
           WHATSAPP_BACKEND_BASE_URL: https://test-backend.invalid
 
-      - name: Check for legacy references
+      - name: Check for legacy hosting references
         run: |
           if git grep -niE '(r[a]ilway|up\.railway\.app|RAILW[A]Y_|r[a]ilway_base_url|getR[a]ilwayBaseUrl)' -- functions/ whatsapp-backend/scripts/ superparty_flutter/lib/ superparty_flutter/README.md 2>/dev/null | grep -v "Binary" | grep -v "node_modules" | grep -q .; then
-            echo "❌ ERROR: legacy references found in codebase!"
+            echo "❌ ERROR: legacy hosting references found in codebase!"
             git grep -niE '(r[a]ilway|up\.railway\.app|RAILW[A]Y_|r[a]ilway_base_url|getR[a]ilwayBaseUrl)' -- functions/ whatsapp-backend/scripts/ superparty_flutter/lib/ superparty_flutter/README.md 2>/dev/null | grep -v "Binary" | grep -v "node_modules"
             exit 1
           else
-            echo "✅ No legacy references found in codebase."
+            echo "✅ No legacy hosting references found in codebase."
           fi
 
   test-whatsapp-backend:

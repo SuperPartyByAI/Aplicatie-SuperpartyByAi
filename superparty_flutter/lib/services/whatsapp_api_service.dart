@@ -256,6 +256,16 @@ class WhatsAppApiService {
       // Using backendUrl for emulator host → 404 HTML, jsonDecode fails.
       // Also use proxy on iOS simulator (DNS resolution issues with direct backend access).
       final useProxy = backendUrl.isEmpty || _isEmulatorMode() || _isSimulator();
+      
+      // Log configuration for debugging
+      try {
+        final app = Firebase.app();
+        final projectId = app.options.projectId;
+        debugPrint('[WhatsAppApiService] getAccounts: CONFIG | backendUrl=$backendUrl | projectId=$projectId | useProxy=$useProxy | isEmulatorMode=${_isEmulatorMode()} | isSimulator=${_isSimulator()}');
+      } catch (e) {
+        debugPrint('[WhatsAppApiService] getAccounts: CONFIG | backendUrl=$backendUrl | useProxy=$useProxy | Firebase projectId unavailable: $e');
+      }
+      
       final String endpointUrl;
       final http.Response response;
       if (useProxy) {
@@ -359,6 +369,16 @@ class WhatsAppApiService {
       // Always use Functions proxy for staff endpoint (employee-only, sanitized response)
       final functionsUrl = _getFunctionsUrl();
       final endpointUrl = '$functionsUrl/whatsappProxyGetAccountsStaff';
+      
+      // Log configuration for debugging
+      try {
+        final app = Firebase.app();
+        final projectId = app.options.projectId;
+        debugPrint('[WhatsAppApiService] getAccountsStaff: CONFIG | functionsUrl=$functionsUrl | projectId=$projectId | endpointUrl=$endpointUrl');
+      } catch (e) {
+        debugPrint('[WhatsAppApiService] getAccountsStaff: CONFIG | functionsUrl=$functionsUrl | endpointUrl=$endpointUrl | Firebase projectId unavailable: $e');
+      }
+      
       debugPrint('[WhatsAppApiService] getAccountsStaff: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId');
       final response = await http
           .get(
@@ -823,6 +843,16 @@ class WhatsAppApiService {
 
       final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
       final backendUrl = _getBackendUrl();
+      
+      // Log configuration for debugging
+      try {
+        final app = Firebase.app();
+        final projectId = app.options.projectId;
+        debugPrint('[WhatsAppApiService] getThreads: CONFIG | backendUrl=$backendUrl | projectId=$projectId | accountId=${_maskId(accountId)} | isEmulatorMode=${_isEmulatorMode()} | isSimulator=${_isSimulator()}');
+      } catch (e) {
+        debugPrint('[WhatsAppApiService] getThreads: CONFIG | backendUrl=$backendUrl | accountId=${_maskId(accountId)} | Firebase projectId unavailable: $e');
+      }
+      
       // When USE_EMULATORS=true, always use Functions URL (projectId/region prefix).
       // Also use proxy on iOS simulator (DNS resolution issues with direct backend access).
       final useProxy = backendUrl.isEmpty || _isEmulatorMode() || _isSimulator();
@@ -830,7 +860,7 @@ class WhatsAppApiService {
       final http.Response response;
       if (useProxy) {
         endpointUrl = '$functionsUrl/whatsappProxyGetThreads?accountId=$accountId&limit=500';
-        debugPrint('[WhatsAppApiService] getThreads: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId');
+        debugPrint('[WhatsAppApiService] getThreads: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId | USING PROXY');
         response = await http
             .get(
               Uri.parse(endpointUrl),
@@ -844,7 +874,7 @@ class WhatsAppApiService {
             .timeout(requestTimeout);
       } else {
         endpointUrl = '$backendUrl/api/whatsapp/threads/$accountId?limit=500&orderBy=lastMessageAt';
-        debugPrint('[WhatsAppApiService] getThreads: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId');
+        debugPrint('[WhatsAppApiService] getThreads: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId | USING DIRECT HETZNER');
         response = await http
             .get(
               Uri.parse(endpointUrl),

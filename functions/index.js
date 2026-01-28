@@ -925,22 +925,35 @@ const whatsappBackendUrl = defineSecret('WHATSAPP_BACKEND_URL');
 // This allows getBackendBaseUrl() in lib/backend-url.js to find the value
 const wrapWithSecrets = (handler, secrets) => {
   return async (req, res) => {
-    const secretList = Array.isArray(secrets) ? secrets : [secrets].filter(Boolean);
-    for (const secret of secretList) {
-      if (!secret) continue;
-      try {
-        const name = secret.name || '';
-        if (name === 'WHATSAPP_BACKEND_BASE_URL' && !process.env.WHATSAPP_BACKEND_BASE_URL) {
-          process.env.WHATSAPP_BACKEND_BASE_URL = secret.value();
-        } else if (name === 'WHATSAPP_BACKEND_URL' && !process.env.WHATSAPP_BACKEND_URL) {
-          process.env.WHATSAPP_BACKEND_URL = secret.value();
+    try {
+      const secretList = Array.isArray(secrets) ? secrets : [secrets].filter(Boolean);
+      for (const secret of secretList) {
+        if (!secret) continue;
+        try {
+          const name = secret.name || '';
+          if (name === 'WHATSAPP_BACKEND_BASE_URL' && !process.env.WHATSAPP_BACKEND_BASE_URL) {
+            process.env.WHATSAPP_BACKEND_BASE_URL = secret.value();
+          } else if (name === 'WHATSAPP_BACKEND_URL' && !process.env.WHATSAPP_BACKEND_URL) {
+            process.env.WHATSAPP_BACKEND_URL = secret.value();
+          }
+        } catch (e) {
+          // Secret not available (emulator/local dev) - will use .runtimeconfig.json or env var
+          // This is OK - getBackendBaseUrl() will fallback to functions.config()
         }
-      } catch (e) {
-        // Secret not available (emulator/local dev) - will use .runtimeconfig.json or env var
-        // This is OK - getBackendBaseUrl() will fallback to functions.config()
+      }
+      return await handler(req, res);
+    } catch (error) {
+      // Catch any unhandled errors and return JSON instead of letting Firebase return HTML
+      console.error('[wrapWithSecrets] Unhandled error:', error.message);
+      console.error('[wrapWithSecrets] Error stack:', error.stack);
+      if (!res.headersSent) {
+        return res.status(500).json({
+          success: false,
+          error: 'internal_error',
+          message: 'Internal server error',
+        });
       }
     }
-    return handler(req, res);
   };
 };
 

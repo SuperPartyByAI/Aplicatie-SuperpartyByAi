@@ -21,7 +21,7 @@ class BootstrapRunner {
 
     try {
       // Get instance info
-      const commitHash = (process.env.GIT_COMMIT_SHA || process.env.RAILWAY_GIT_COMMIT_SHA)?.slice(0, 8) || 'unknown';
+      const commitHash = process.env.GIT_COMMIT_SHA?.slice(0, 8) || 'unknown';
       const deploymentId = process.env.INSTANCE_ID || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || `local-${Date.now()}`;
       const instanceId = deploymentId;
       const serviceVersion = '2.0.0';

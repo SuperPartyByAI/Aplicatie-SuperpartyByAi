@@ -45,7 +45,7 @@ function startHeartbeatJob() {
         .set({
           ts: admin.firestore.FieldValue.serverTimestamp(),
           tsIso: ts,
-          commit: (process.env.GIT_COMMIT_SHA || process.env.RAILWAY_GIT_COMMIT_SHA)?.slice(0, 8) || 'unknown',
+          commit: process.env.GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
           deploymentId: process.env.INSTANCE_ID || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown',
           uptimeSec: Math.floor(uptime),
           memoryRss: memory.rss,

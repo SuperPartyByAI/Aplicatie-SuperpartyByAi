@@ -69,7 +69,7 @@ async function initConfig(baseUrl) {
         consecutiveProbeFails: 3,
         queueDepthThreshold: 100,
       },
-      commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+      commitHash: process.env.GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
       serviceVersion: '2.0.0',
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -162,7 +162,7 @@ function startHeartbeatJob() {
           ts: admin.firestore.FieldValue.serverTimestamp(),
           tsIso: now.toISOString(),
           bucketId,
-          commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+          commitHash: process.env.GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
           serviceVersion: '2.0.0',
           instanceId,
           uptimeSec: Math.floor(uptime),
@@ -227,7 +227,7 @@ async function runOutboundProbe() {
       result: 'PASS',
       latencyMs: Date.now() - startTs,
       instanceId,
-      commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+      commitHash: process.env.GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
       serviceVersion: '2.0.0',
     });
 
@@ -248,7 +248,7 @@ async function runOutboundProbe() {
         error: error.message,
         latencyMs: Date.now() - startTs,
         instanceId,
-        commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+        commitHash: process.env.GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
         serviceVersion: '2.0.0',
       });
   }
@@ -276,7 +276,7 @@ async function runQueueProbe() {
       tsIso: now.toISOString(),
       result: 'PASS',
       instanceId,
-      commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+      commitHash: process.env.GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
       serviceVersion: '2.0.0',
     });
 
@@ -311,7 +311,7 @@ async function runInboundProbe() {
       tsIso: now.toISOString(),
       result: 'PASS',
       instanceId,
-      commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+      commitHash: process.env.GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
       serviceVersion: '2.0.0',
       note: 'Probe sender required for full implementation',
     });
@@ -464,7 +464,7 @@ async function runDailyRollup() {
       incidentsCount: incidents.length,
       insufficientData: numericCoverage < 0.8,
       numericCoverage: Math.round(numericCoverage * 1000) / 1000,
-      commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+      commitHash: process.env.GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
       serviceVersion: '2.0.0',
       instanceId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -515,7 +515,7 @@ async function checkMissedHeartbeats() {
         expectedHb,
         actualHb,
         missedHb,
-        commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+        commitHash: process.env.GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
         instanceId,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
@@ -571,7 +571,7 @@ async function checkConsecutiveProbeFails() {
           reason: `${consecutiveFails} consecutive ${type} probe failures`,
           consecutiveFails,
           failedProbes: probes.slice(0, consecutiveFails).map(p => p.probeKey),
-          commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+          commitHash: process.env.GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
           instanceId,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
