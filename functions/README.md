@@ -14,7 +14,7 @@ For local development with Firebase emulators, set the following environment var
 
 ```powershell
 # PowerShell
-$env:WHATSAPP_BACKEND_URL = "http://37.27.34.179:8080"
+$env:WHATSAPP_BACKEND_BASE_URL = "http://37.27.34.179:8080"
 ```
 
 Or use `functions/.runtimeconfig.json` with `whatsapp.backend_base_url` (Hetzner).
@@ -36,7 +36,7 @@ firebase.cmd emulators:start --config .\firebase.json --only firestore,functions
 
 **Note**: If you get port conflicts, run `.\scripts\kill-emulators.ps1` to free up ports 4001, 4401, 9098, 8082, and 5002.
 
-**Important**: The emulator will start successfully even if `WHATSAPP_BACKEND_URL` is not set. WhatsApp endpoints will return `500` JSON errors with `{"error":"configuration_missing"}` when called without the URL, but the emulator itself will not crash.
+**Important**: The emulator will start successfully even if `WHATSAPP_BACKEND_BASE_URL` is not set. WhatsApp endpoints will return `500` JSON errors with `{"error":"configuration_missing"}` when called without the URL, but the emulator itself will not crash.
 
 ### Building TypeScript
 
@@ -60,7 +60,7 @@ npm test
 ```
 
 Tests verify:
-- ✅ `require('./index')` does NOT throw when `WHATSAPP_BACKEND_URL` is missing
+- ✅ `require('./index')` does NOT throw when `WHATSAPP_BACKEND_BASE_URL` is missing
 - ✅ `require('./index')` does NOT throw when `FIREBASE_CONFIG` is set (emulator scenario)
 - ✅ WhatsApp handlers return `500` JSON error when URL is missing (instead of crashing)
 - ✅ WhatsApp handlers work correctly when URL is set
@@ -161,10 +161,10 @@ To prevent Firebase emulator from crashing during code analysis:
 
 ### Error Handling
 
-When `WHATSAPP_BACKEND_URL` is missing:
+When `WHATSAPP_BACKEND_BASE_URL` is missing:
 - ✅ Module import succeeds (no crash)
 - ✅ Emulator starts successfully
-- ✅ Endpoints return `500` JSON: `{"success":false,"error":"configuration_missing","message":"WHATSAPP_BACKEND_URL must be set..."}`
+- ✅ Endpoints return `500` JSON: `{"success":false,"error":"configuration_missing","message":"WHATSAPP_BACKEND_BASE_URL must be set (Firebase secret or functions.config().whatsapp.backend_base_url)"}`
 
 ## Ports
 

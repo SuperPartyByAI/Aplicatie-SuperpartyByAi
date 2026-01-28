@@ -6,7 +6,7 @@
 
 set -e
 
-BASE_URL="${WHATSAPP_BACKEND_URL:-http://37.27.34.179:8080}"
+BASE_URL="${WHATSAPP_BACKEND_BASE_URL:-http://37.27.34.179:8080}"
 
 # Try to get ADMIN_TOKEN from helper script if available
 if [ -z "$ADMIN_TOKEN" ]; then

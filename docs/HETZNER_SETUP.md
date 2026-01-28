@@ -11,6 +11,8 @@ cd superparty_flutter
 flutter run --dart-define=WHATSAPP_BACKEND_URL=http://37.27.34.179:8080
 ```
 
+**Note:** Default is already Hetzner (`http://37.27.34.179:8080`), so `--dart-define` is optional unless overriding.
+
 ### Production Build
 
 ```bash
@@ -24,7 +26,7 @@ flutter build apk --dart-define=WHATSAPP_BACKEND_URL=http://37.27.34.179:8080
 ### Default Value
 
 The Flutter app has a default backend URL set to Hetzner:
-- Default: `http://37.27.34.179:8080`
+- Default: `http://37.27.34.179:8080` (Hetzner production)
 - This is defined in `lib/core/config/env.dart`
 
 If you don't pass `--dart-define=WHATSAPP_BACKEND_URL`, the app will use the default Hetzner URL.
@@ -39,29 +41,19 @@ Firebase Functions proxy needs to know where the backend is located.
 
 ### Set Environment Variable
 
-Set one of these environment variables in Firebase Functions (priority order):
-
-1. **BACKEND_BASE_URL** (recommended, new generic name):
-   ```bash
-   firebase functions:config:set backend.base_url="http://37.27.34.179:8080"
-   ```
-
-2. **WHATSAPP_BACKEND_BASE_URL** (legacy, still supported):
-   ```bash
-   firebase functions:config:set whatsapp.backend_base_url="http://37.27.34.179:8080"
-   ```
-
-3. **WHATSAPP_BACKEND_URL** (legacy, still supported):
-   ```bash
-   firebase functions:config:set whatsapp.backend_url="http://37.27.34.179:8080"
-   ```
-
 ### Using Firebase Secrets (Recommended for Production)
 
 ```bash
 # Set secret (more secure than config)
-firebase functions:secrets:set BACKEND_BASE_URL
+firebase functions:secrets:set WHATSAPP_BACKEND_BASE_URL
 # Paste: http://37.27.34.179:8080
+```
+
+### Using Firebase Config (Fallback for Emulator/Local)
+
+```bash
+# Set config (for emulator/local development)
+firebase functions:config:set whatsapp.backend_base_url="http://37.27.34.179:8080"
 ```
 
 ### Verify Configuration
@@ -121,7 +113,7 @@ firebase deploy --only functions
 ### Functions proxy errors
 
 - If Firebase Functions can't reach Hetzner backend:
-  1. Verify `BACKEND_BASE_URL` is set correctly
+  1. Verify `WHATSAPP_BACKEND_BASE_URL` secret is set correctly
   2. Check Hetzner firewall allows connections from Firebase Functions
   3. Verify backend is accessible: `curl http://37.27.34.179:8080/health`
 

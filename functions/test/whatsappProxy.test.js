@@ -8,8 +8,9 @@
 
 // Set env var before importing module (to avoid fail-fast in tests)
 // Note: For lazy-loading tests, we'll unset this to test missing config behavior
+// Set test backend URL (Hetzner default for tests)
 process.env.WHATSAPP_BACKEND_BASE_URL =
-  process.env.WHATSAPP_BACKEND_BASE_URL || 'https://test-backend.invalid';
+  process.env.WHATSAPP_BACKEND_BASE_URL || 'http://37.27.34.179:8080';
 process.env.NODE_ENV = 'test';
 
 // Mock Firebase Admin BEFORE requiring it (Jest hoisting)
@@ -974,10 +975,8 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
   });
 
   it('should return 500 error when getAccountsHandler called without base URL', async () => {
-    // Unset all possible backend URL env vars
+    // Unset backend URL env var
     delete process.env.WHATSAPP_BACKEND_BASE_URL;
-    delete process.env.WHATSAPP_BACKEND_URL;
-    delete process.env.BACKEND_BASE_URL;
     delete process.env.FIREBASE_CONFIG;
 
     // Mock getBackendBaseUrl to return null (no default)
@@ -1018,10 +1017,8 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
   });
 
   it('should return 500 error when addAccountHandler called without base URL', async () => {
-    // Delete all possible backend URL env vars
+    // Delete backend URL env var
     delete process.env.WHATSAPP_BACKEND_BASE_URL;
-    delete process.env.WHATSAPP_BACKEND_URL;
-    delete process.env.BACKEND_BASE_URL;
     delete process.env.FIREBASE_CONFIG;
 
     // Mock getBackendBaseUrl to return null
@@ -1068,8 +1065,7 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
   it('should work correctly when base URL is set via process.env', async () => {
     // Set test env BEFORE resetting modules
     const savedEnv = process.env.WHATSAPP_BACKEND_BASE_URL;
-    process.env.WHATSAPP_BACKEND_BASE_URL = 'https://test-backend.example.com';
-    delete process.env.WHATSAPP_BACKEND_URL;
+    process.env.WHATSAPP_BACKEND_BASE_URL = 'http://37.27.34.179:8080';
     delete process.env.BACKEND_BASE_URL;
 
     // Reset modules to pick up new env vars

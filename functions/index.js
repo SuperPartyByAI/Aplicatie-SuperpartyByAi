@@ -917,11 +917,10 @@ exports.aiEventHandler = require('./aiEventHandler_v3').aiEventHandler;
 
 // WhatsApp Backend Proxy - QR Connect Routes Only
 const whatsappProxy = require('./whatsappProxy');
-// Define secrets for backend URL resolution (v2 functions)
+// Define secret for backend base URL (v2 functions) - Hetzner backend
 const whatsappBackendBaseUrl = defineSecret('WHATSAPP_BACKEND_BASE_URL');
-const whatsappBackendUrl = defineSecret('WHATSAPP_BACKEND_URL');
 
-// Wrap handlers to inject secrets into process.env for lazy-loading compatibility
+// Wrap handlers to inject secret into process.env for lazy-loading compatibility
 // This allows getBackendBaseUrl() in lib/backend-url.js to find the value
 const wrapWithSecrets = (handler, secrets) => {
   return async (req, res) => {
@@ -933,8 +932,6 @@ const wrapWithSecrets = (handler, secrets) => {
           const name = secret.name || '';
           if (name === 'WHATSAPP_BACKEND_BASE_URL' && !process.env.WHATSAPP_BACKEND_BASE_URL) {
             process.env.WHATSAPP_BACKEND_BASE_URL = secret.value();
-          } else if (name === 'WHATSAPP_BACKEND_URL' && !process.env.WHATSAPP_BACKEND_URL) {
-            process.env.WHATSAPP_BACKEND_URL = secret.value();
           }
         } catch (e) {
           // Secret not available (emulator/local dev) - will use .runtimeconfig.json or env var
@@ -967,32 +964,32 @@ const proxyOpts = {
   maxInstances: 1,
   memory: '256MiB', // Increased from 128MiB to prevent OOM errors
   cpu: 0.5,
-  secrets: [whatsappBackendBaseUrl, whatsappBackendUrl],
+  secrets: [whatsappBackendBaseUrl], // Only WHATSAPP_BACKEND_BASE_URL (standardized on Hetzner)
 };
 
 exports.whatsappProxyGetAccounts = onRequest(
   proxyOpts,
-  wrapWithSecrets(whatsappProxy.getAccountsHandler, [whatsappBackendBaseUrl, whatsappBackendUrl])
+  wrapWithSecrets(whatsappProxy.getAccountsHandler, [whatsappBackendBaseUrl])
 );
 
 exports.whatsappProxyGetAccountsStaff = onRequest(
   proxyOpts,
-  wrapWithSecrets(whatsappProxy.getAccountsStaffHandler, [whatsappBackendBaseUrl, whatsappBackendUrl])
+  wrapWithSecrets(whatsappProxy.getAccountsStaffHandler, [whatsappBackendBaseUrl])
 );
 
 exports.whatsappProxyAddAccount = onRequest(
   proxyOpts,
-  wrapWithSecrets(whatsappProxy.addAccountHandler, [whatsappBackendBaseUrl, whatsappBackendUrl])
+  wrapWithSecrets(whatsappProxy.addAccountHandler, [whatsappBackendBaseUrl])
 );
 
 exports.whatsappProxyRegenerateQr = onRequest(
   proxyOpts,
-  wrapWithSecrets(whatsappProxy.regenerateQrHandler, [whatsappBackendBaseUrl, whatsappBackendUrl])
+  wrapWithSecrets(whatsappProxy.regenerateQrHandler, [whatsappBackendBaseUrl])
 );
 
 exports.whatsappProxyGetThreads = onRequest(
   proxyOpts,
-  wrapWithSecrets(whatsappProxy.getThreadsHandler, [whatsappBackendBaseUrl, whatsappBackendUrl])
+  wrapWithSecrets(whatsappProxy.getThreadsHandler, [whatsappBackendBaseUrl])
 );
 
 // whatsappProxyGetMessages removed: messages come only from Firestore threads/{threadId}/messages.
@@ -1000,20 +997,17 @@ exports.whatsappProxyGetThreads = onRequest(
 
 exports.whatsappProxyDeleteAccount = onRequest(
   proxyOpts,
-  wrapWithSecrets(whatsappProxy.deleteAccountHandler, [whatsappBackendBaseUrl, whatsappBackendUrl])
+  wrapWithSecrets(whatsappProxy.deleteAccountHandler, [whatsappBackendBaseUrl])
 );
 
 exports.whatsappProxyBackfillAccount = onRequest(
   proxyOpts,
-  wrapWithSecrets(whatsappProxy.backfillAccountHandler, [
-    whatsappBackendBaseUrl,
-    whatsappBackendUrl,
-  ])
+  wrapWithSecrets(whatsappProxy.backfillAccountHandler, [whatsappBackendBaseUrl])
 );
 
 exports.whatsappProxySend = onRequest(
   proxyOpts,
-  wrapWithSecrets(whatsappProxy.sendHandler, [whatsappBackendBaseUrl, whatsappBackendUrl])
+  wrapWithSecrets(whatsappProxy.sendHandler, [whatsappBackendBaseUrl])
 );
 
 // Process outbox collection - send WhatsApp messages

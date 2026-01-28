@@ -82,7 +82,7 @@ Vezi **`docs/PRODUCTION_READINESS_CHECKLIST.md`**.
 
 1. **Indexuri:** `firebase deploy --only firestore:indexes` → `Deploy complete!`
 2. **Rules:** `firebase deploy --only firestore:rules`
-3. **Secrets:** `firebase functions:secrets:set WHATSAPP_BACKEND_URL` (ex. `http://37.27.34.179:8080`)
+3. **Secrets:** `firebase functions:secrets:set WHATSAPP_BACKEND_BASE_URL` (ex. `http://37.27.34.179:8080`)
 4. **Functions:**  
    `firebase deploy --only functions:whatsappProxySend,functions:whatsappProxyGetAccounts,...`  
    `firebase functions:list | grep whatsappProxySend` → trebuie să apară.
@@ -120,4 +120,4 @@ Vezi **`docs/PRODUCTION_READINESS_CHECKLIST.md`**.
 - Runbook: `docs/WHATSAPP_PROD_RUNBOOK.md`
 - Checklist: `docs/PRODUCTION_READINESS_CHECKLIST.md`
 - CRM flow: `superparty_flutter/lib/screens/whatsapp/README_CRM_FLOW.md`
-- Backend URL: `functions/lib/backend-url.js` (WHATSAPP_BACKEND_BASE_URL / WHATSAPP_BACKEND_URL / BACKEND_BASE_URL).
+- Backend URL: `functions/lib/backend-url.js` (WHATSAPP_BACKEND_BASE_URL standard, fallback to functions.config().whatsapp.backend_base_url).

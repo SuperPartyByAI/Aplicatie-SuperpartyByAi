@@ -114,7 +114,7 @@ Or for release builds:
 flutter build apk --dart-define=WHATSAPP_BACKEND_URL=https://your-backend-host
 ```
 
-Default URL (if not specified): empty (must be set via `--dart-define` or Remote Config)
+Default URL (if not specified): `http://37.27.34.179:8080` (Hetzner production - defined in `lib/core/config/env.dart`)
 
 WebSocket URLs (update if needed):
 - Centrala: `lib/screens/centrala/centrala_screen.dart`

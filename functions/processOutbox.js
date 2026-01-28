@@ -144,7 +144,7 @@ async function processOutboxHandler(event) {
     // Get backend URL
     const backendBaseUrl = getBackendBaseUrl();
     if (!backendBaseUrl) {
-      throw new Error('WHATSAPP_BACKEND_BASE_URL/WHATSAPP_BACKEND_URL not configured');
+      throw new Error('WHATSAPP_BACKEND_BASE_URL not configured. Set Firebase secret or functions.config().whatsapp.backend_base_url');
     }
 
     // Extract message data
