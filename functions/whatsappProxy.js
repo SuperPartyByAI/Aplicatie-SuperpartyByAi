@@ -144,12 +144,23 @@ function validateName(name) {
 // Auth middleware factory
 async function requireAuth(req, res) {
   const token = extractIdToken(req);
-  const decoded = await verifyIdToken(token);
-  if (!decoded) {
+  if (!token) {
+    console.error('[whatsappProxy/requireAuth] No token in Authorization header');
     res.status(401).json({
       success: false,
-      error: 'missing_auth_token',
-      message: 'Missing or invalid Firebase ID token',
+      error: 'unauthorized',
+      message: 'Missing token',
+    });
+    return null;
+  }
+  
+  const decoded = await verifyIdToken(token);
+  if (!decoded) {
+    console.error('[whatsappProxy/requireAuth] Token verification failed');
+    res.status(401).json({
+      success: false,
+      error: 'unauthorized',
+      message: 'Invalid or expired token',
     });
     return null;
   }

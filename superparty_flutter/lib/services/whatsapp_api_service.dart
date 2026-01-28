@@ -379,7 +379,16 @@ class WhatsAppApiService {
         debugPrint('[WhatsAppApiService] getAccountsStaff: CONFIG | functionsUrl=$functionsUrl | endpointUrl=$endpointUrl | Firebase projectId unavailable: $e');
       }
       
-      debugPrint('[WhatsAppApiService] getAccountsStaff: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId');
+      // CRITICAL: Verify token is not null/empty before sending
+      if (token == null || token.isEmpty) {
+        debugPrint('[WhatsAppApiService] getAccountsStaff: ❌ Token is null or empty - cannot make request');
+        throw UnauthorizedException('Firebase ID token is null or empty');
+      }
+      
+      final tokenLength = token.length;
+      final tokenPrefix = token.length > 20 ? '${token.substring(0, 20)}...' : token;
+      debugPrint('[WhatsAppApiService] getAccountsStaff: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenLength=$tokenLength | tokenPrefix=$tokenPrefix | requestId=$requestId');
+      
       final response = await http
           .get(
             Uri.parse(endpointUrl),
