@@ -763,12 +763,14 @@ async function getAccountsStaffHandler(req, res) {
 
     const backendUrl = `${backendBaseUrl}/api/whatsapp/accounts`;
     const correlationId = req.headers['x-correlation-id'] || req.headers['x-request-id'] || `getAccountsStaff_${Date.now()}`;
+    const authHeader = req.headers.authorization || req.headers.Authorization;
     console.log(`[whatsappProxy/getAccountsStaff] Calling backend: ${backendUrl}, correlationId=${correlationId}`);
     const response = await getForwardRequest()(backendUrl, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'X-Correlation-Id': correlationId,
+        ...(authHeader ? { Authorization: authHeader } : {}),
       },
     });
 
@@ -885,6 +887,7 @@ async function getInboxHandler(req, res) {
 
     const backendUrl = `${backendBaseUrl}/api/whatsapp/inbox/${encodeURIComponent(accountId)}?limit=${limit}`;
     const correlationId = req.headers['x-correlation-id'] || req.headers['x-request-id'] || `getInbox_${Date.now()}`;
+    const authHeader = req.headers.authorization || req.headers.Authorization;
     console.log(`[whatsappProxy/getInbox] Calling backend: ${backendUrl}, correlationId=${correlationId}`);
     
     const response = await getForwardRequest()(backendUrl, {
@@ -892,6 +895,7 @@ async function getInboxHandler(req, res) {
       headers: {
         'Content-Type': 'application/json',
         'X-Correlation-Id': correlationId,
+        ...(authHeader ? { Authorization: authHeader } : {}),
       },
     });
 
