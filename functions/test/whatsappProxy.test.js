@@ -1066,19 +1066,26 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
   });
 
   it('should work correctly when base URL is set via process.env', async () => {
+    // Set test env BEFORE resetting modules
+    const savedEnv = process.env.WHATSAPP_BACKEND_BASE_URL;
     process.env.WHATSAPP_BACKEND_BASE_URL = 'https://test-backend.example.com';
-    // Clear other env vars that might interfere
     delete process.env.WHATSAPP_BACKEND_URL;
     delete process.env.BACKEND_BASE_URL;
 
+    // Reset modules to pick up new env vars
     jest.resetModules();
+    // Also reset the backend-url module mock if it exists
+    jest.doMock('../lib/backend-url', () => ({
+      getBackendBaseUrl: jest.fn(() => 'https://test-backend.example.com'),
+    }));
+    
     const whatsappProxy = require('../whatsappProxy');
 
+    // Mock must be set AFTER module is loaded
     const mockForwardRequest = jest.fn().mockResolvedValue({
       statusCode: 200,
       body: { success: true, accounts: [] },
     });
-    // Mock the forwardRequest function (exported for testing)
     whatsappProxy._forwardRequest = mockForwardRequest;
 
     const req = {
@@ -1101,10 +1108,24 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
 
     await whatsappProxy.getAccountsHandler(req, res);
 
+    // Verify mock was called (it should be called via getForwardRequest())
+    expect(mockForwardRequest).toHaveBeenCalled();
     expect(mockForwardRequest).toHaveBeenCalledWith(
       'https://test-backend.example.com/api/whatsapp/accounts',
-      expect.any(Object)
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+        }),
+      })
     );
     expect(res.status).toHaveBeenCalledWith(200);
+    
+    // Restore original env
+    if (savedEnv) {
+      process.env.WHATSAPP_BACKEND_BASE_URL = savedEnv;
+    } else {
+      delete process.env.WHATSAPP_BACKEND_BASE_URL;
+    }
   });
 });

@@ -32,12 +32,8 @@
     "*.min.js",
     ".baileys_auth"
   ],
-
-  // ESLint
   "eslint.enable": true,
   "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
-
-  // SonarLint
   "sonarlint.rules": {
     "javascript:S1192": {
       "level": "on"
@@ -46,8 +42,6 @@
       "level": "on"
     }
   },
-
-  // Prettier
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
   "[javascript]": {
