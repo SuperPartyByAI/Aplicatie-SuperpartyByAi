@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crypto/crypto.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 
 import '../../services/whatsapp_api_service.dart';
 
@@ -27,6 +31,120 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
   bool _isLoading = false;
   int? _threadCount;
   String? _selectedAccountId;
+  String _clipboardTokenStatus = 'Not checked';
+  int? _connectedCount;
+  int? _lastInboundAgeSec;
+
+  Future<void> _copyAuthTokensToClipboard() async {
+    if (!kDebugMode) return;
+    final idToken = await FirebaseAuth.instance.currentUser?.getIdToken(true);
+    String? appCheckToken;
+    try {
+      appCheckToken = await FirebaseAppCheck.instance.getToken(true);
+    } catch (e) {
+      appCheckToken = null;
+      debugPrint('[WhatsAppDebug] appCheckToken error: ${e.runtimeType}');
+    }
+    final idTokenLen = idToken?.length ?? 0;
+    final idTokenDotCount = idToken == null ? 0 : '.'.allMatches(idToken).length;
+    final idTokenHash = idToken == null || idToken.isEmpty
+        ? 'none'
+        : sha256.convert(utf8.encode(idToken)).toString().substring(0, 8);
+    final appCheckLen = appCheckToken?.length ?? 0;
+    final appCheckHash = appCheckToken == null || appCheckToken.isEmpty
+        ? 'none'
+        : sha256.convert(utf8.encode(appCheckToken)).toString().substring(0, 8);
+
+    debugPrint(
+      '[WhatsAppDebug] idTokenLen=$idTokenLen, idTokenDotCount=$idTokenDotCount, idTokenHash=$idTokenHash',
+    );
+    debugPrint('[WhatsAppDebug] appCheckLen=$appCheckLen, appCheckHash=$appCheckHash');
+
+    if (idToken == null || idToken.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ID token unavailable'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    await Clipboard.setData(
+      ClipboardData(text: 'ID=$idToken\nAPP=${appCheckToken ?? ''}\n'),
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          appCheckToken == null || appCheckToken.isEmpty
+              ? 'Copied ID token (AppCheck unavailable)'
+              : 'Copied tokens',
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _validateClipboardTokens() async {
+    if (!kDebugMode) return;
+    final data = await Clipboard.getData('text/plain');
+    final text = (data?.text ?? '').replaceAll('\r', '');
+    if (text.trim().isEmpty) {
+      setState(() {
+        _clipboardTokenStatus = 'No clipboard tokens';
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Token looks valid: no')),
+      );
+      return;
+    }
+
+    String idToken = '';
+    String appToken = '';
+    for (final line in text.split('\n')) {
+      if (line.startsWith('ID=')) {
+        idToken = line.substring(3).trim();
+      } else if (line.startsWith('APP=')) {
+        appToken = line.substring(4).trim();
+      }
+    }
+
+    final idLen = idToken.length;
+    final idDotCount = idToken.isEmpty ? 0 : '.'.allMatches(idToken).length;
+    final idHash = idToken.isEmpty
+        ? 'none'
+        : sha256.convert(utf8.encode(idToken)).toString().substring(0, 8);
+    final appLen = appToken.length;
+    final appHash = appToken.isEmpty
+        ? 'none'
+        : sha256.convert(utf8.encode(appToken)).toString().substring(0, 8);
+
+    debugPrint(
+      '[WhatsAppDebug] clipboard idLen=$idLen, idDotCount=$idDotCount, idHash=$idHash',
+    );
+    debugPrint('[WhatsAppDebug] clipboard appLen=$appLen, appHash=$appHash');
+
+    final looksValidId = idDotCount == 2 && idLen > 500;
+    final looksValidApp = appLen > 100;
+    final looksValid = looksValidId && (looksValidApp || appLen == 0);
+    setState(() {
+      if (looksValidId && looksValidApp) {
+        _clipboardTokenStatus = 'Valid';
+      } else if (looksValidId && appLen == 0) {
+        _clipboardTokenStatus = 'Valid (AppCheck missing)';
+      } else {
+        _clipboardTokenStatus = 'Invalid';
+      }
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Token looks valid: ${looksValid ? 'yes' : 'no'}')),
+    );
+  }
 
   @override
   void initState() {
@@ -51,6 +169,9 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
         if (accounts.isNotEmpty) {
           _selectedAccountId = accounts.first['id'] as String?;
         }
+        _connectedCount = accounts
+            .where((acc) => (acc as Map<String, dynamic>)['status'] == 'connected')
+            .length;
       });
 
       // Count threads if account selected
@@ -63,6 +184,38 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
         setState(() {
           _threadCount = threadsSnapshot.size;
         });
+
+        try {
+          final baseQuery = FirebaseFirestore.instance
+              .collectionGroup('messages')
+              .where('accountId', isEqualTo: _selectedAccountId)
+              .where('direction', isEqualTo: 'inbound');
+          QuerySnapshot<Map<String, dynamic>> inboundSnapshot;
+          try {
+            inboundSnapshot =
+                await baseQuery.orderBy('tsClientMs', descending: true).limit(1).get();
+          } catch (_) {
+            inboundSnapshot =
+                await baseQuery.orderBy('tsClient', descending: true).limit(1).get();
+          }
+          if (inboundSnapshot.docs.isNotEmpty) {
+            final data = inboundSnapshot.docs.first.data();
+            final tsMs = _extractMillis(
+              data['tsClientMs'] ?? data['createdAtMs'] ?? data['tsClient'] ?? data['createdAt'],
+            );
+            if (tsMs != null) {
+              final ageSec =
+                  ((DateTime.now().millisecondsSinceEpoch - tsMs) / 1000).round();
+              setState(() {
+                _lastInboundAgeSec = ageSec;
+              });
+            }
+          }
+        } catch (e) {
+          setState(() {
+            _lastError = 'Inbound age query failed';
+          });
+        }
       }
     } catch (e) {
       setState(() {
@@ -86,6 +239,21 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
     }
   }
 
+  int? _extractMillis(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is int) return raw;
+    if (raw is Timestamp) return raw.millisecondsSinceEpoch;
+    if (raw is String) {
+      final parsed = int.tryParse(raw);
+      if (parsed != null) {
+        return parsed < 1000000000000 ? parsed * 1000 : parsed;
+      }
+      final dt = DateTime.tryParse(raw);
+      return dt?.millisecondsSinceEpoch;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!kDebugMode) {
@@ -105,6 +273,16 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
             icon: const Icon(Icons.refresh),
             onPressed: _loadDiagnostics,
             tooltip: 'Refresh',
+          ),
+          IconButton(
+            icon: const Icon(Icons.copy),
+            onPressed: _copyAuthTokensToClipboard,
+            tooltip: 'Copy Auth Tokens',
+          ),
+          IconButton(
+            icon: const Icon(Icons.verified),
+            onPressed: _validateClipboardTokens,
+            tooltip: 'Validate Clipboard Tokens',
           ),
         ],
       ),
@@ -127,11 +305,27 @@ class _WhatsAppDiagnosticsScreenState extends State<WhatsAppDiagnosticsScreen> {
                         );
                       },
                     ),
+                    _buildInfoRow(
+                      'Clipboard Token Valid',
+                      _clipboardTokenStatus,
+                    ),
                   ]),
                   const SizedBox(height: 24),
                   _buildSection('API Status', [
                     if (_lastError != null)
                       _buildInfoRow('Last Error', _lastError!, isError: true),
+                    _buildInfoRow(
+                      'Connected Accounts',
+                      _connectedCount?.toString() ?? 'N/A',
+                    ),
+                    _buildInfoRow(
+                      'Last getMessages Status',
+                      _apiService.lastGetMessagesStatus?.toString() ?? 'N/A',
+                    ),
+                    _buildInfoRow(
+                      'Last inbound age (sec)',
+                      _lastInboundAgeSec?.toString() ?? 'N/A',
+                    ),
                     if (_lastAccountsResponse != null) ...[
                       _buildInfoRow(
                         'Accounts Count',

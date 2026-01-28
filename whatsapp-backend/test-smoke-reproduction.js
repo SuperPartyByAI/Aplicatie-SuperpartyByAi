@@ -71,7 +71,7 @@ function makeRequest(url, options = {}) {
 async function runSmokeTest() {
   console.log('🧪 WhatsApp Smoke Test - End-to-End Flow\n');
   console.log(`Railway URL: ${RAILWAY_URL}`);
-  console.log(`Admin Token: ${ADMIN_TOKEN.substring(0, 10)}...\n`);
+  console.log(`Admin Token configured: ${Boolean(ADMIN_TOKEN)}\n`);
 
   const requestId = generateRequestId();
   console.log(`📋 Test Request ID: ${requestId}\n`);

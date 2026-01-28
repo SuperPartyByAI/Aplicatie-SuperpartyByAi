@@ -1,0 +1,4 @@
+
+> superparty-whatsapp-backend@2.0.1 test
+> jest
+

@@ -8,7 +8,10 @@ class MultiRegionManager {
     this.regions = [
       {
         name: 'primary',
-        url: process.env.PRIMARY_REGION_URL || process.env.RAILWAY_PUBLIC_DOMAIN,
+        url:
+          process.env.PRIMARY_REGION_URL ||
+          process.env.WHATSAPP_BACKEND_BASE_URL ||
+          process.env.WHATSAPP_BACKEND_URL,
         active: true,
         healthCheckFails: 0,
       },

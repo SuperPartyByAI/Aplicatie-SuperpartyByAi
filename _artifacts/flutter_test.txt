@@ -1,0 +1,239 @@
+Resolving dependencies...
+Downloading packages...
+  _flutterfire_internals 1.3.65 (1.3.66 available)
+  async 2.11.0 (2.13.0 available)
+  boolean_selector 2.1.1 (2.1.2 available)
+  cached_network_image 3.4.0 (3.4.1 available)
+  cached_network_image_platform_interface 4.1.0 (4.1.1 available)
+  cached_network_image_web 1.3.0 (1.3.1 available)
+  characters 1.4.0 (1.4.1 available)
+  cloud_firestore 6.1.1 (6.1.2 available)
+  cloud_firestore_platform_interface 7.0.5 (7.0.6 available)
+  cloud_firestore_web 5.1.1 (5.1.2 available)
+  cloud_functions 6.0.5 (6.0.6 available)
+  cloud_functions_platform_interface 5.8.8 (5.8.9 available)
+  cloud_functions_web 5.1.1 (5.1.2 available)
+  ffi 2.1.3 (2.1.5 available)
+  file_selector_linux 0.9.3+2 (0.9.4 available)
+  file_selector_macos 0.9.4+2 (0.9.5 available)
+  file_selector_platform_interface 2.6.2 (2.7.0 available)
+  file_selector_windows 0.9.3+4 (0.9.3+5 available)
+  firebase_app_check 0.4.1+3 (0.4.1+4 available)
+  firebase_app_check_platform_interface 0.2.1+3 (0.2.1+4 available)
+  firebase_app_check_web 0.2.2+1 (0.2.2+2 available)
+  firebase_auth 6.1.3 (6.1.4 available)
+  firebase_auth_platform_interface 8.1.5 (8.1.6 available)
+  firebase_auth_web 6.1.1 (6.1.2 available)
+  firebase_core 4.3.0 (4.4.0 available)
+  firebase_core_web 3.3.1 (3.4.0 available)
+  firebase_messaging 16.1.0 (16.1.1 available)
+  firebase_messaging_platform_interface 4.7.5 (4.7.6 available)
+  firebase_messaging_web 4.1.1 (4.1.2 available)
+  firebase_storage 13.0.5 (13.0.6 available)
+  firebase_storage_platform_interface 5.2.16 (5.2.17 available)
+  firebase_storage_web 3.11.1 (3.11.2 available)
+  flutter_cache_manager 3.4.0 (3.4.1 available)
+  flutter_foreground_task 6.5.0 (9.2.0 available)
+  flutter_lints 4.0.0 (6.0.0 available)
+  flutter_local_notifications 17.2.4 (19.5.0 available)
+  flutter_local_notifications_linux 4.0.1 (6.0.0 available)
+  flutter_local_notifications_platform_interface 7.2.0 (9.1.0 available)
+  flutter_plugin_android_lifecycle 2.0.26 (2.0.33 available)
+  flutter_svg 2.1.0 (2.2.3 available)
+  get_it 7.7.0 (9.2.0 available)
+  go_router 14.8.1 (17.0.1 available)
+  http_parser 4.0.2 (4.1.2 available)
+  image_picker 1.1.2 (1.2.1 available)
+  image_picker_android 0.8.12+21 (0.8.13+11 available)
+  image_picker_for_web 3.0.2 (3.1.1 available)
+  image_picker_ios 0.8.12+2 (0.8.13+3 available)
+  image_picker_linux 0.2.1+2 (0.2.2 available)
+  image_picker_macos 0.2.1+2 (0.2.2+1 available)
+  image_picker_platform_interface 2.10.1 (2.11.1 available)
+  image_picker_windows 0.2.1+1 (0.2.2 available)
+  intl 0.19.0 (0.20.2 available)
+  lints 4.0.0 (6.0.0 available)
+  matcher 0.12.17 (0.12.18 available)
+  material_color_utilities 0.11.1 (0.13.0 available)
+  meta 1.17.0 (1.18.0 available)
+  mime 1.0.6 (2.0.0 available)
+  package_info_plus 8.3.1 (9.0.0 available)
+  path_provider_android 2.2.15 (2.2.22 available)
+  path_provider_foundation 2.4.1 (2.6.0 available)
+  petitparser 6.0.2 (7.0.1 available)
+  rx 0.4.0 (0.5.0 available)
+  shared_preferences 2.2.3 (2.5.4 available)
+  shared_preferences_android 2.4.7 (2.4.18 available)
+  shared_preferences_foundation 2.5.4 (2.5.6 available)
+  source_span 1.10.0 (1.10.1 available)
+  sqflite 2.4.1 (2.4.2 available)
+  sqflite_android 2.4.0 (2.4.2+2 available)
+  sqflite_common 2.5.4+6 (2.5.6 available)
+  sqflite_darwin 2.4.1+1 (2.4.2 available)
+  string_scanner 1.2.0 (1.4.1 available)
+  synchronized 3.3.0+3 (3.4.0 available)
+  term_glyph 1.2.1 (1.2.2 available)
+  test_api 0.7.7 (0.7.9 available)
+  timezone 0.9.4 (0.11.0 available)
+  url_launcher 6.3.1 (6.3.2 available)
+  url_launcher_android 6.3.14 (6.3.28 available)
+  url_launcher_ios 6.3.3 (6.3.6 available)
+  url_launcher_linux 3.2.1 (3.2.2 available)
+  url_launcher_macos 3.2.2 (3.2.5 available)
+  url_launcher_windows 3.1.4 (3.1.5 available)
+  vector_graphics 1.1.18 (1.1.19 available)
+  vector_graphics_compiler 1.1.16 (1.1.20 available)
+  vm_service 14.2.5 (15.0.2 available)
+  web_socket_channel 2.4.0 (3.0.3 available)
+  win32 5.10.1 (5.15.0 available)
+  xml 6.5.0 (6.6.1 available)
+Got dependencies!
+87 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+00:00 +0: loading /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart
+00:00 +0: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/utils/event_utils_test.dart: requiresSofer returns true for exterior locations
+00:00 +1: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/utils/event_utils_test.dart: requiresSofer returns false for interior locations
+00:00 +2: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/utils/event_utils_test.dart: requiresSofer returns false for online events regardless of location
+00:00 +3: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/errors/error_mapping_test.dart: ErrorMapper maps unauthenticated to UnauthorizedException
+00:00 +4: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/errors/error_mapping_test.dart: ErrorMapper maps unauthenticated to UnauthorizedException
+00:00 +5: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/errors/error_mapping_test.dart: ErrorMapper maps unauthenticated to UnauthorizedException
+00:00 +6: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/errors/error_mapping_test.dart: ErrorMapper maps permission-denied to ForbiddenException
+00:00 +7: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/errors/error_mapping_test.dart: ErrorMapper maps HTTP 401 to UnauthorizedException
+00:00 +8: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/errors/error_mapping_test.dart: ErrorMapper maps HTTP 403 to ForbiddenException
+00:00 +9: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/errors/error_mapping_test.dart: ErrorMapper maps HTTP 408/504 to TimeoutException
+00:00 +10: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/errors/error_mapping_test.dart: ErrorMapper maps unknown HTTP status to NetworkException
+00:00 +11: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should NOT retry 401 errors
+00:00 +12: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/errors/result_test.dart: Result Success creates successful result
+00:00 +13: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should NOT retry 403 errors
+00:00 +14: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/errors/result_test.dart: Result Failure creates failure result
+00:00 +15: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +16: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +17: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +18: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +19: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +20: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +21: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +22: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +23: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +24: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +25: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +26: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +27: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +28: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +29: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +30: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +31: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +32: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +33: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +34: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +35: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +36: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +36: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/models/app_version_config_test.dart: AppVersionConfig fromFirestore parses valid data correctly
+[AppVersionConfig] ✅ Found version field: 1.0.1
+[AppVersionConfig] ✅ Found build number field: 2
+00:00 +37: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +37: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/models/app_version_config_test.dart: AppVersionConfig fromFirestore uses default values for optional fields
+[AppVersionConfig] ✅ Found version field: 1.0.0
+[AppVersionConfig] ✅ Found build number field: 1
+00:00 +38: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +38: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/models/app_version_config_test.dart: AppVersionConfig fromFirestore returns safe defaults when min_version is missing
+[AppVersionConfig] ✅ Found build number field: 1
+[AppVersionConfig] ⚠️ Missing required fields in Firestore config
+[AppVersionConfig] ⚠️ Using safe default: force_update=false, min_build_number=0
+[AppVersionConfig] 💡 Recommendation: Update Firestore app_config/version with:
+[AppVersionConfig]    - min_version: "1.0.0"
+[AppVersionConfig]    - min_build_number: 1
+00:00 +39: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +39: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/models/app_version_config_test.dart: AppVersionConfig fromFirestore returns safe defaults when min_build_number is missing
+[AppVersionConfig] ✅ Found version field: 1.0.0
+[AppVersionConfig] ⚠️ Missing required fields in Firestore config
+[AppVersionConfig] ⚠️ Using safe default: force_update=false, min_build_number=0
+[AppVersionConfig] 💡 Recommendation: Update Firestore app_config/version with:
+[AppVersionConfig]    - min_version: "1.0.0"
+[AppVersionConfig]    - min_build_number: 1
+00:00 +40: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +40: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/models/app_version_config_test.dart: AppVersionConfig fromFirestore handles wrong type for min_version gracefully
+[AppVersionConfig] ✅ Found version field: 123
+[AppVersionConfig] ✅ Found build number field: 1
+00:00 +41: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +41: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/models/app_version_config_test.dart: AppVersionConfig fromFirestore handles wrong type for min_build_number gracefully
+[AppVersionConfig] ✅ Found version field: 1.0.0
+[AppVersionConfig] ✅ Found build number field: 1
+00:00 +42: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +43: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:00 +44: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:01 +45: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:01 +46: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:01 +47: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:01 +48: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:01 +49: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:01 +50: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:01 +51: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:01 +52: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:01 +53: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:01 +54: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:01 +55: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:01 +56: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:01 +57: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry timeout errors (max 3 attempts)
+00:01 +58: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +59: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +60: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +61: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +62: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +63: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +64: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +65: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +66: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +67: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +68: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +69: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +70: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +71: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +72: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +73: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +74: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +75: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +76: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +77: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +78: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +79: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +80: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should retry on unknown exceptions (max 3 attempts)
+00:02 +81: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should return result on success (no retry)
+00:02 +82: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should honor maxAttempts config
+00:03 +83: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should honor maxAttempts config
+00:03 +84: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should honor maxAttempts config
+00:03 +85: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should honor maxAttempts config
+00:03 +86: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should honor maxAttempts config
+00:03 +87: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should honor maxAttempts config
+00:03 +88: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should honor maxAttempts config
+00:03 +89: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should honor maxAttempts config
+00:03 +90: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should honor maxAttempts config
+00:03 +91: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should honor maxAttempts config
+00:03 +92: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should honor maxAttempts config
+00:03 +93: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should apply exponential backoff delays
+00:03 +94: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should apply exponential backoff delays
+00:03 +95: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should apply exponential backoff delays
+00:03 +96: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should apply exponential backoff delays
+00:03 +97: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should apply exponential backoff delays
+00:03 +98: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should apply exponential backoff delays
+00:03 +99: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should apply exponential backoff delays
+00:03 +100: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should apply exponential backoff delays
+00:03 +101: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should apply exponential backoff delays
+00:03 +102: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/services/force_update_checker_service_test.dart: ForceUpdateCheckerService needsForceUpdate returns false when force_update is disabled
+00:03 +103: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:03 +104: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:03 +105: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:03 +106: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:03 +107: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:03 +108: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:04 +109: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:04 +110: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:04 +111: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:04 +112: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:04 +113: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:04 +114: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:04 +115: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:04 +116: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:04 +117: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:04 +118: /Users/universparty/Aplicatie-SuperpartyByAi/superparty_flutter/test/core/utils/retry_test.dart: retryWithBackoff should cap delay at maxDelay
+00:07 +119: All tests passed!
