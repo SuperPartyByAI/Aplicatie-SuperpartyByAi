@@ -28,11 +28,16 @@ function getAdminEmails() {
 
 // Extract Firebase ID token from request
 function extractIdToken(req) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  // Firebase Functions v2 may normalize headers to lowercase, but check both variants
+  const authHeader = req.headers.authorization || req.headers.Authorization;
+  if (!authHeader || typeof authHeader !== 'string') {
     return null;
   }
-  return authHeader.substring(7);
+  const trimmed = authHeader.trim();
+  if (!trimmed.startsWith('Bearer ')) {
+    return null;
+  }
+  return trimmed.substring(7);
 }
 
 function extractAppCheckToken(req) {
@@ -145,7 +150,20 @@ function validateName(name) {
 async function requireAuth(req, res) {
   const token = extractIdToken(req);
   if (!token) {
-    console.error('[whatsappProxy/requireAuth] No token in Authorization header');
+    // Debug: log available headers to diagnose header extraction issues
+    const authHeaderLower = req.headers.authorization;
+    const authHeaderUpper = req.headers.Authorization;
+    const headerKeys = Object.keys(req.headers || {}).filter(k => 
+      k.toLowerCase().includes('auth') || k.toLowerCase().includes('authorization')
+    );
+    console.error('[whatsappProxy/requireAuth] No token in Authorization header', {
+      hasAuthorizationLower: !!authHeaderLower,
+      hasAuthorizationUpper: !!authHeaderUpper,
+      authHeaderLowerType: typeof authHeaderLower,
+      authHeaderUpperType: typeof authHeaderUpper,
+      relevantHeaderKeys: headerKeys,
+      allHeaderKeys: Object.keys(req.headers || {}).slice(0, 10), // First 10 for debugging
+    });
     res.status(401).json({
       success: false,
       error: 'missing_auth_token',
