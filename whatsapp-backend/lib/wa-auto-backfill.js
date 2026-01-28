@@ -13,14 +13,14 @@
 
 const os = require('os');
 
-const DEFAULT_COOLDOWN_SUCCESS_MS = 6 * 60 * 60 * 1000; // 6h
+const DEFAULT_COOLDOWN_SUCCESS_MS = 1 * 60 * 60 * 1000; // 1h (reduced from 6h for more frequent sync)
 const DEFAULT_ATTEMPT_BACKOFF_MS = 10 * 60 * 1000; // 10 min
 const DEFAULT_INTERVAL_MS = 12 * 60 * 1000; // 12 min
 const DEFAULT_LEASE_MS = 15 * 60 * 1000; // 15 min
 const INITIAL_DELAY_MIN_MS = 10000;
 const INITIAL_DELAY_MAX_MS = 40000;
-const DEFAULT_MAX_ACCOUNTS_PER_TICK = 3;
-const DEFAULT_MAX_CONCURRENCY = 1;
+const DEFAULT_MAX_ACCOUNTS_PER_TICK = 4; // Process all connected accounts per tick (increased from 3)
+const DEFAULT_MAX_CONCURRENCY = 2; // Allow 2 concurrent backfills (increased from 1 for faster sync)
 
 function maskId(id) {
   if (!id || typeof id !== 'string') return '?';

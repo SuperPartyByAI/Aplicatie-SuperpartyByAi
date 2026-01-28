@@ -457,6 +457,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
 
     final dedupedByPhone = <String, Map<String, dynamic>>{};
     for (final thread in sortedThreads) {
+      final accountId = _readString(thread['accountId']).trim();
       final normalizedPhone = _readString(thread['normalizedPhone']).trim();
       final canonicalThreadId = _readString(thread['canonicalThreadId']).trim();
       final clientJid = _readString(
@@ -470,9 +471,15 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
           (normalizedPhone.isNotEmpty && jidPhone != null && normalizedPhone == jidPhone)
               ? normalizedPhone
               : null;
-      final key = canonicalThreadId.isNotEmpty
+      // FIX: Include accountId in dedupe key to prevent merging threads from different accounts
+      // Use canonicalThreadId if available, otherwise fallback to threadId or phoneKey/clientJid
+      final threadKey = canonicalThreadId.isNotEmpty
           ? canonicalThreadId
           : (threadId.isNotEmpty ? threadId : (phoneKey ?? clientJid));
+      // Dedupe key format: accountId::threadKey to ensure threads from different accounts are kept separate
+      final key = accountId.isNotEmpty 
+          ? '$accountId::$threadKey'
+          : threadKey; // Fallback if accountId is missing (shouldn't happen)
       final existing = dedupedByPhone[key];
       if (existing == null) {
         dedupedByPhone[key] = thread;

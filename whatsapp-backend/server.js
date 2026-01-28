@@ -1672,6 +1672,10 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
     console.log(
       `🔔 [${hashForLog(accountId)}] Firestore available: ${firestoreAvailable}, DB exists: ${!!db}`
     );
+    // Enhanced logging for real-time message processing
+    console.log(
+      `📨 [${hashForLog(accountId)}] Processing ${newMessages.length} message(s) in real-time (type=${type || 'unknown'})`
+    );
     
     // DEBUG: Log message types in batch to see if text messages come through
     const messageTypes = newMessages.map(msg => {
@@ -1722,11 +1726,11 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
 
         try {
           console.log(
-            `📩 [${hashForLog(accountId)}] INBOUND_META remote=${hashForLog(remoteJid)} fromMe=${fromMe} msg=${hashForLog(messageId)} ts=${timestamp ? String(timestamp) : 'n/a'}`
+            `📩 [${hashForLog(accountId)}] Processing message: remote=${hashForLog(remoteJid)} fromMe=${fromMe} msg=${hashForLog(messageId)} ts=${timestamp ? String(timestamp) : 'n/a'} type=${type || 'unknown'}`
           );
 
           if (!msg.message) {
-            console.log(`⚠️  [${hashForLog(accountId)}] Skipping message ${hashForLog(messageId)} - no content`);
+            console.log(`⚠️  [${hashForLog(accountId)}] Skipping message ${hashForLog(messageId)} - no content (msg.message is null/undefined)`);
             continue;
           }
 
@@ -1769,7 +1773,7 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
               await db.runTransaction(async (transaction) => {
                 const dedupeDoc = await transaction.get(dedupeRef);
                 if (dedupeDoc.exists) {
-                  console.log(`⏭️  [${hashForLog(accountId)}] Message ${hashForLog(messageId)} already processed (dedupe), skipping`);
+                  console.log(`⏭️  [${hashForLog(accountId)}] Message ${hashForLog(messageId)} already processed (dedupe), skipping - this is normal for duplicate events`);
                   shouldSkip = true;
                   return;
                 }
@@ -1783,11 +1787,11 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
                   processedAt: admin.firestore.FieldValue.serverTimestamp(),
                   expiresAt: ttlTimestamp,
                 });
+                console.log(`✅ [${hashForLog(accountId)}] Dedupe key set for message ${hashForLog(messageId)} - proceeding with save`);
               });
             } catch (dedupeError) {
-              console.log(
-                `⏭️  [${hashForLog(accountId)}] Dedupe check failed for ${hashForLog(messageId)}:`,
-                dedupeError.message
+              console.error(
+                `❌ [${hashForLog(accountId)}] Dedupe check FAILED for ${hashForLog(messageId)}: ${dedupeError.message} - skipping message to avoid duplicates`
               );
               shouldSkip = true;
             }
@@ -1866,7 +1870,20 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
 
           let saved = null;
           try {
+            // Enhanced logging for real-time message processing
+            console.log(
+              `💾 [${hashForLog(accountId)}] Attempting to save message: remoteJid=${hashForLog(remoteJid)} msg=${hashForLog(messageId)} fromMe=${isFromMe} type=${type ?? 'n/a'} ts=${timestamp ?? 'n/a'}`
+            );
             saved = await saveMessageToFirestore(accountId, msg, false, sock);
+            if (saved) {
+              console.log(
+                `✅ [${hashForLog(accountId)}] Message saved successfully: msgId=${hashForLog(saved.messageId)} threadId=${hashForLog(saved.threadId)}`
+              );
+            } else {
+              console.warn(
+                `⚠️  [${hashForLog(accountId)}] saveMessageToFirestore returned null for msg=${hashForLog(messageId)} - message may be filtered or invalid`
+              );
+            }
           } catch (writeErr) {
             const errCode = writeErr.code || 'unknown';
             console.error(
