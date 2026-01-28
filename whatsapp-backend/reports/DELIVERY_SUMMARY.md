@@ -152,12 +152,12 @@ node scripts/verify-probes.js
 - `GET /api/admin/longrun/locks` - Query locks (pending deploy)
 - `GET /api/admin/longrun/config` - Query config (pending deploy)
 
-**Base URL:** https://whats-upp-production.up.railway.app
+**Base URL:** https://whats-app-ompro.ro
 
 **Example:**
 
 ```bash
-curl https://whats-upp-production.up.railway.app/api/admin/longrun/heartbeats?limit=5
+curl https://whats-app-ompro.ro/api/admin/longrun/heartbeats?limit=5
 ```
 
 ---
@@ -244,15 +244,15 @@ d900ea6f - docs: long-run production artifacts (READY+COLLECTING)
 
 ## 🚀 Deployment
 
-**Service:** Railway  
-**URL:** https://whats-upp-production.up.railway.app  
+**Service:** legacy hosting  
+**URL:** https://whats-app-ompro.ro  
 **Commit:** de2c6c30  
 **Status:** ✅ RUNNING
 
 **Health Check:**
 
 ```bash
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 ```
 
 **Response:**
@@ -295,7 +295,7 @@ curl https://whats-upp-production.up.railway.app/health
 - [x] Documentation (PROBE_SENDER setup)
 - [x] Coverage >80% (81.1% achieved)
 - [x] Restart-safe (verified)
-- [x] Production deployment (Railway)
+- [x] Production deployment (legacy hosting)
 
 ---
 
@@ -323,7 +323,7 @@ curl https://whats-upp-production.up.railway.app/health
 ## 📞 Support
 
 **Repository:** https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi  
-**Service:** https://whats-upp-production.up.railway.app  
+**Service:** https://whats-app-ompro.ro  
 **Documentation:** `whatsapp-backend/docs/`  
 **Reports:** `whatsapp-backend/reports/`
 
@@ -348,7 +348,7 @@ All deliverables complete:
 
 **Evidence:** 43 heartbeats, 1 probe, 3 sequential instances, 0 overlaps, 0 duplicates
 
-**Deployment:** https://whats-upp-production.up.railway.app
+**Deployment:** https://whats-app-ompro.ro
 
 **Commit:** de2c6c30
 

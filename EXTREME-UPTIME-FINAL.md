@@ -133,7 +133,7 @@ degradationThreshold: 3; // 3 slow responses
 - Previne: **50% din failures**
 - Cost: $0
 
-### 5. Railway Ultra-Fast Config
+### 5. legacy hosting Ultra-Fast Config
 
 ```json
 {
@@ -144,7 +144,7 @@ degradationThreshold: 3; // 3 slow responses
 }
 ```
 
-- Railway restart: 10s → **5s**
+- legacy hosting restart: 10s → **5s**
 - Cost: $0
 
 ---
@@ -154,10 +154,10 @@ degradationThreshold: 3; // 3 slow responses
 **TOATE optimizările sunt GRATUITE:**
 
 - ✅ Health checks mai dese (HTTP requests gratuite)
-- ✅ Railway API calls (incluse în plan)
-- ✅ Parallel recovery (Railway feature)
+- ✅ legacy hosting API calls (incluse în plan)
+- ✅ Parallel recovery (legacy hosting feature)
 - ✅ Predictive monitoring (logic în cod)
-- ✅ Multi-region (Railway free tier)
+- ✅ Multi-region (legacy hosting free tier)
 
 **ZERO costuri adiționale!**
 
@@ -235,7 +235,7 @@ User → Service DOWN → Failover <0.1s → Backup → Success
 ### Pasul 1: Copiază config extreme
 
 ```bash
-cp railway-extreme.json railway.json
+cp legacy hosting-extreme.json legacy hosting.json
 ```
 
 ### Pasul 2: Deploy monitoring service
@@ -247,7 +247,7 @@ cp railway-extreme.json railway.json
 ### Pasul 3: Setează env vars
 
 ```bash
-RAILWAY_TOKEN=<token>
+LEGACY_TOKEN=<token>
 BACKEND_URL=<url>
 BACKEND_SERVICE_ID=<id>
 COQUI_API_URL=<url>
@@ -284,7 +284,7 @@ COQUI_SERVICE_ID=<id>
 
 - ✅ Pro: Recovery 3x mai rapid
 - ⚠️ Con: Mai multe resurse simultan
-- **Verdict:** Worth it, Railway free tier suportă
+- **Verdict:** Worth it, legacy hosting free tier suportă
 
 ---
 

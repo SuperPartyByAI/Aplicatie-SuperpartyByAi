@@ -66,12 +66,12 @@ cat ~/Downloads/superparty-whatsapp-firebase-adminsdk-xxxxx.json
 
 ---
 
-### Pas 2: Configurare Railway (2 minute)
+### Pas 2: Configurare legacy hosting (2 minute)
 
-#### 2.1 Accesează Railway Dashboard
+#### 2.1 Accesează legacy hosting Dashboard
 
 ```
-https://railway.app
+https://legacy hosting.app
 ```
 
 #### 2.2 Găsește Serviciul
@@ -89,7 +89,7 @@ https://railway.app
 
 #### 2.4 Redeploy (Automat)
 
-- Railway va reporni automat serviciul (~30-60s)
+- legacy hosting va reporni automat serviciul (~30-60s)
 - Verifică în tab "Deployments" că e "Success"
 
 ---
@@ -99,7 +99,7 @@ https://railway.app
 #### 3.1 Test Health Check
 
 ```bash
-curl https://YOUR-RAILWAY-URL.railway.app/
+curl https://YOUR-LEGACY_HOSTING-URL.legacy hosting.app/
 ```
 
 **Răspuns așteptat:**
@@ -125,7 +125,7 @@ curl https://YOUR-RAILWAY-URL.railway.app/
 #### 3.2 Verifică Firebase în Logs
 
 ```bash
-# În Railway Dashboard → Logs
+# În legacy hosting Dashboard → Logs
 # Caută:
 ✅ Firebase initialized
 ```
@@ -145,7 +145,7 @@ curl https://YOUR-RAILWAY-URL.railway.app/
 #### 4.1 Adaugă Account
 
 ```bash
-curl -X POST https://YOUR-RAILWAY-URL.railway.app/api/whatsapp/add-account \
+curl -X POST https://YOUR-LEGACY_HOSTING-URL.legacy hosting.app/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
   -d '{"name": "SuperParty Main", "phone": "+40792864811"}'
 ```
@@ -168,7 +168,7 @@ curl -X POST https://YOUR-RAILWAY-URL.railway.app/api/whatsapp/add-account \
 
 **Opțiunea 1: Browser**
 
-1. Deschide în browser: `https://YOUR-RAILWAY-URL.railway.app/`
+1. Deschide în browser: `https://YOUR-LEGACY_HOSTING-URL.legacy hosting.app/`
 2. Copiază `qrCode` din răspuns
 3. Paste în browser (data URL)
 4. Scanează cu WhatsApp pe telefon
@@ -177,7 +177,7 @@ curl -X POST https://YOUR-RAILWAY-URL.railway.app/api/whatsapp/add-account \
 
 ```javascript
 const io = require('socket.io-client');
-const socket = io('https://YOUR-RAILWAY-URL.railway.app');
+const socket = io('https://YOUR-LEGACY_HOSTING-URL.legacy hosting.app');
 
 socket.on('whatsapp:qr', data => {
   console.log('QR Code:', data.qrCode);
@@ -192,7 +192,7 @@ socket.on('whatsapp:ready', data => {
 #### 4.3 Verifică Conectare
 
 ```bash
-curl https://YOUR-RAILWAY-URL.railway.app/api/whatsapp/accounts
+curl https://YOUR-LEGACY_HOSTING-URL.legacy hosting.app/api/whatsapp/accounts
 ```
 
 **Răspuns așteptat:**
@@ -219,7 +219,7 @@ curl https://YOUR-RAILWAY-URL.railway.app/api/whatsapp/accounts
 
 ```bash
 # Simulează disconnect
-# În Railway Dashboard → Click "Restart"
+# În legacy hosting Dashboard → Click "Restart"
 
 # Verifică în logs:
 🔄 Auto-reconnecting...
@@ -232,7 +232,7 @@ curl https://YOUR-RAILWAY-URL.railway.app/api/whatsapp/accounts
 
 ```bash
 # Trimite același mesaj de 2 ori rapid
-curl -X POST https://YOUR-RAILWAY-URL.railway.app/api/whatsapp/send/ACCOUNT_ID/CHAT_ID \
+curl -X POST https://YOUR-LEGACY_HOSTING-URL.legacy hosting.app/api/whatsapp/send/ACCOUNT_ID/CHAT_ID \
   -H "Content-Type: application/json" \
   -d '{"message": "Test duplicate"}'
 
@@ -252,7 +252,7 @@ curl -X POST https://YOUR-RAILWAY-URL.railway.app/api/whatsapp/send/ACCOUNT_ID/C
 ### Test 4: Graceful Shutdown
 
 ```bash
-# În Railway Dashboard → Click "Restart"
+# În legacy hosting Dashboard → Click "Restart"
 
 # Verifică în logs:
 🛑 Graceful shutdown initiated...
@@ -269,19 +269,19 @@ curl -X POST https://YOUR-RAILWAY-URL.railway.app/api/whatsapp/send/ACCOUNT_ID/C
 ### Verifică Status
 
 ```bash
-curl https://YOUR-RAILWAY-URL.railway.app/
+curl https://YOUR-LEGACY_HOSTING-URL.legacy hosting.app/
 ```
 
 ### Verifică Accounts
 
 ```bash
-curl https://YOUR-RAILWAY-URL.railway.app/api/whatsapp/accounts
+curl https://YOUR-LEGACY_HOSTING-URL.legacy hosting.app/api/whatsapp/accounts
 ```
 
-### Verifică Logs Railway
+### Verifică Logs legacy hosting
 
 ```
-Railway Dashboard → Logs
+legacy hosting Dashboard → Logs
 ```
 
 **Ce să cauți:**
@@ -303,7 +303,7 @@ Railway Dashboard → Logs
 
 1. Verifică că ai copiat ÎNTREGUL JSON (inclusiv `{` și `}`)
 2. Verifică că nu ai spații extra
-3. Redeploy Railway
+3. Redeploy legacy hosting
 
 ### Problema: "Firebase initialization failed"
 
@@ -367,8 +367,8 @@ Railway Dashboard → Logs
 ## ✅ CHECKLIST FINAL
 
 - [ ] Firebase Service Account generat
-- [ ] `FIREBASE_SERVICE_ACCOUNT` setat în Railway
-- [ ] Railway redeployed cu succes
+- [ ] `FIREBASE_SERVICE_ACCOUNT` setat în legacy hosting
+- [ ] legacy hosting redeployed cu succes
 - [ ] Health check returnează "online"
 - [ ] Firebase initialized în logs
 - [ ] Account WhatsApp adăugat
@@ -394,7 +394,7 @@ Railway Dashboard → Logs
 
 **Probleme?**
 
-1. Verifică logs în Railway Dashboard
+1. Verifică logs în legacy hosting Dashboard
 2. Verifică că Firebase e configurat corect
 3. Verifică că QR code e scanat
 4. Verifică că WhatsApp e conectat pe telefon

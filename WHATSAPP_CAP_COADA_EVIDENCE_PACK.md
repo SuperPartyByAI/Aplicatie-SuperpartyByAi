@@ -45,7 +45,7 @@ Remote: origin → git@github.com:SuperPartyByAI/Aplicatie-SuperpartyByAi.git
 ### Services:
 
 **Existing:**
-- ✅ `superparty_flutter/lib/services/whatsapp_api_service.dart` - API client for Railway backend
+- ✅ `superparty_flutter/lib/services/whatsapp_api_service.dart` - API client for legacy hosting backend
   - Methods: `getAccounts()`, `addAccount()`, `regenerateQr()`, `deleteAccount()`, `sendViaProxy()`, `qrPageUrl()`
   
 **Missing:**
@@ -74,22 +74,22 @@ grep -n "sendViaProxy\|whatsappProxy\|getAccounts\|addAccount" superparty_flutte
 
 **Results:**
 - `sendViaProxy()` - Line 64 (sends via Firebase Functions proxy with auth)
-- `getAccounts()` - Line 118 (GET Railway backend)
-- `addAccount()` - Line 151 (POST Railway backend)
-- `regenerateQr()` - Line 189 (POST Railway backend)
-- `deleteAccount()` - Line 222 (DELETE Railway backend)
+- `getAccounts()` - Line 118 (GET legacy hosting backend)
+- `addAccount()` - Line 151 (POST legacy hosting backend)
+- `regenerateQr()` - Line 189 (POST legacy hosting backend)
+- `deleteAccount()` - Line 222 (DELETE legacy hosting backend)
 - `qrPageUrl()` - Line 255 (returns URL for QR page)
 
 ---
 
-## 3) BACKEND WHATSAPP EVIDENCE (Railway Backend)
+## 3) BACKEND WHATSAPP EVIDENCE (legacy hosting Backend)
 
 ### Directory Structure:
 
 ```
 whatsapp-backend/
 ├── server.js (main backend service)
-├── railway.toml (Railway config)
+├── legacy hosting.toml (legacy hosting config)
 ├── package.json (dependencies)
 └── ... (other files)
 ```
@@ -151,9 +151,9 @@ whatsapp-backend/
 // See grep output: lines 1545-1549, 2452, 2561-2582, 2977, 3129, 3158, 5044
 ```
 
-### Railway Configuration:
+### legacy hosting Configuration:
 
-**railway.toml:**
+**legacy hosting.toml:**
 ```
 (see full file content)
 ```
@@ -182,11 +182,11 @@ whatsapp-backend/
 - SESSIONS_PATH env var checked at startup (Line 311-314, 339)
 - Writable check: `sessions dir exists/writable true` (Line 344-350)
 - Uses `useMultiFileAuthState` from Baileys (Line 912)
-- Railway volume mount: `/app/sessions` (from railway.toml line 17)
+- legacy hosting volume mount: `/app/sessions` (from legacy hosting.toml line 17)
 
 **Line References:**
 ```javascript
-// Line 311-314: SESSIONS_PATH env var (priority: SESSIONS_PATH > RAILWAY_VOLUME_MOUNT_PATH > fallback)
+// Line 311-314: SESSIONS_PATH env var (priority: SESSIONS_PATH > LEGACY_VOLUME_MOUNT_PATH > fallback)
 // Line 339: console.log(`📁 SESSIONS_PATH: ${process.env.SESSIONS_PATH || 'NOT SET (using fallback)'}`)
 // Line 344-350: Writable check with error message if not writable
 // Line 912: useMultiFileAuthState(sessionPath) for Baileys auth
@@ -291,9 +291,9 @@ exports.chatEventOpsV2 = require('./chatEventOpsV2').chatEventOpsV2; // Line 850
 
 ## 5) DEPLOY EVIDENCE (MANUAL INPUT REQUIRED)
 
-### Railway Service:
+### legacy hosting Service:
 
-**Domain:** `whats-upp-production.up.railway.app` (or your actual domain)
+**Domain:** `whats-upp-production.up.legacy hosting.app` (or your actual domain)
 
 **Environment Variables (Names only, no secrets):**
 - `SESSIONS_PATH`
@@ -303,13 +303,13 @@ exports.chatEventOpsV2 = require('./chatEventOpsV2').chatEventOpsV2; // Line 850
 - `WHATSAPP_BACKFILL_COUNT`
 - `WHATSAPP_BACKFILL_THREADS`
 - `REDIS_URL` (if used)
-- `RAILWAY_TOKEN` (if used)
+- `LEGACY_TOKEN` (if used)
 
 **Volume Mount Path:** `/app/sessions`
 
-**Deploy Status:** (check Railway UI → Deployments → Latest)
+**Deploy Status:** (check legacy hosting UI → Deployments → Latest)
 
-**Branch Running:** `main` or `audit-whatsapp-30` (check Railway UI)
+**Branch Running:** `main` or `audit-whatsapp-30` (check legacy hosting UI)
 
 ---
 
@@ -465,11 +465,11 @@ exports.chatEventOpsV2 = require('./chatEventOpsV2').chatEventOpsV2; // Line 850
    - Display QR → Client scans → Connected
 
 2. ✅ **Send Message (via Proxy):**
-   - Flutter → `sendViaProxy()` → Firebase Functions → Railway backend
+   - Flutter → `sendViaProxy()` → Firebase Functions → legacy hosting backend
    - Message saved to `outbox` + `threads/{threadId}/messages`
 
 3. ✅ **Receive Message (backend):**
-   - WhatsApp → Railway backend → `messages.upsert` → Firestore
+   - WhatsApp → legacy hosting backend → `messages.upsert` → Firestore
    - Saved to `threads/{threadId}/messages`
 
 4. ✅ **History Sync (backend):**
@@ -503,7 +503,7 @@ exports.chatEventOpsV2 = require('./chatEventOpsV2').chatEventOpsV2; // Line 850
 
 ## 8) COMPLETE CHECKLIST (What Exists ✅ vs Missing ❌)
 
-### Backend WhatsApp (Railway):
+### Backend WhatsApp (legacy hosting):
 - ✅ Account management (add/regenerate/delete)
 - ✅ QR generation + pairing
 - ✅ Message persistence (inbound/outbound)
@@ -562,16 +562,16 @@ exports.chatEventOpsV2 = require('./chatEventOpsV2').chatEventOpsV2; // Line 850
 
 ## 10) VERIFICATION COMMANDS
 
-### Check Backend (Railway):
+### Check Backend (legacy hosting):
 ```bash
 # Health check
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # Accounts list
-curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts
+curl https://whats-app-ompro.ro/api/whatsapp/accounts
 
 # Dashboard
-curl https://whats-upp-production.up.railway.app/api/status/dashboard
+curl https://whats-app-ompro.ro/api/status/dashboard
 ```
 
 ### Check Firebase:

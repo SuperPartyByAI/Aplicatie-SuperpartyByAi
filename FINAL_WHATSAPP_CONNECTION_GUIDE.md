@@ -2,7 +2,7 @@
 
 ## 📊 Situația Actuală
 
-Din logs-urile Railway:
+Din logs-urile legacy hosting:
 - **Cont vechi** (`account_dev_cd7b11e308a59fd9ab810bce5faf8393`): Loop infinit 401 → delete → recreate
 - **Cont nou** (`account_dev_dde908a65501c63b124cb94c627e551d`): Nu mai apare în logs recente (poate șters sau expirat)
 
@@ -52,13 +52,13 @@ Din logs-urile Railway:
 
 ## ⚠️ Dacă Backend Continuă Să Recreeze Contul Vechi
 
-**Problema**: Backend Railway recreează automat contul corupt cu 401 (loop infinit).
+**Problema**: Backend legacy hosting recreează automat contul corupt cu 401 (loop infinit).
 
 **Efect**: Nu te afectează - backend șterge automat când primește 401.
 
 **Acțiune**: **Ignore contul vechi** - folosește doar contul nou cu QR valid.
 
-**Fix permanent**: Trebuie fixat în **backend Railway code** (nu în Flutter):
+**Fix permanent**: Trebuie fixat în **backend legacy hosting code** (nu în Flutter):
 - Caută logic care recreează conturi șterse
 - Caută cron jobs sau scheduled tasks
 - Verifică Firestore rules pentru auto-recreate
@@ -73,7 +73,7 @@ Din logs-urile Railway:
 - [ ] QR code vizibil în cardul contului
 - [ ] Status: `qr_ready` → apoi `connected` (după scan)
 
-### În logs Railway:
+### În logs legacy hosting:
 - [ ] Cont nou: `QR Code generated` (nu 401)
 - [ ] Cont nou: `phone: +407****97` (numărul tău real)
 - [ ] Cont nou: `Status: qr_ready` sau `connected`
@@ -100,13 +100,13 @@ Din logs-urile Railway:
 
 ```bash
 # Verifică conturi existente
-curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts
+curl https://whats-app-ompro.ro/api/whatsapp/accounts
 
 # Verifică backend health
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # Test add account (cu număr real)
-curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-account \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
   -d '{"name":"Cont Principal","phone":"+40712345678"}'
 ```

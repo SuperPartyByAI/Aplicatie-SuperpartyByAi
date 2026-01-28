@@ -33,12 +33,12 @@ $ git status --short
 
 ## 2. Backend Health Endpoints
 
-**Base URL:** `https://whats-upp-production.up.railway.app`
+**Base URL:** `https://whats-app-ompro.ro`
 
 ### `/healthz` Endpoint
 
 ```bash
-$ curl -sS https://whats-upp-production.up.railway.app/healthz
+$ curl -sS https://whats-app-ompro.ro/healthz
 ```
 
 **Output:**
@@ -53,7 +53,7 @@ $ curl -sS https://whats-upp-production.up.railway.app/healthz
 ### `/readyz` Endpoint
 
 ```bash
-$ curl -sS https://whats-upp-production.up.railway.app/readyz
+$ curl -sS https://whats-app-ompro.ro/readyz
 ```
 
 **Output:**
@@ -68,7 +68,7 @@ $ curl -sS https://whats-upp-production.up.railway.app/readyz
 ### `/metrics-json` Endpoint
 
 ```bash
-$ curl -sS https://whats-upp-production.up.railway.app/metrics-json | head -20
+$ curl -sS https://whats-app-ompro.ro/metrics-json | head -20
 ```
 
 **Output:**
@@ -83,7 +83,7 @@ $ curl -sS https://whats-upp-production.up.railway.app/metrics-json | head -20
 ### `/health` Endpoint (Alternative)
 
 ```bash
-$ curl -sS https://whats-upp-production.up.railway.app/health
+$ curl -sS https://whats-app-ompro.ro/health
 ```
 
 **Output:**
@@ -232,12 +232,12 @@ warning • The left operand can't be null, so the right operand is never execut
 ```dart
 // Lines 34-46
 static const String _defaultWhatsAppBackendUrl =
-    'https://whats-upp-production.up.railway.app';
+    'https://whats-app-ompro.ro';
 
-/// Base URL for Railway `whatsapp-backend`.
+/// Base URL for legacy hosting `whatsapp-backend`.
 ///
 /// Configure via:
-/// `--dart-define=WHATSAPP_BACKEND_URL=https://your-service.up.railway.app`
+/// `--dart-define=WHATSAPP_BACKEND_URL=https://whats-app-ompro.ro`
 static final String whatsappBackendUrl = _normalizeBaseUrl(
   const String.fromEnvironment(
     'WHATSAPP_BACKEND_URL',
@@ -247,7 +247,7 @@ static final String whatsappBackendUrl = _normalizeBaseUrl(
 ```
 
 **Key Points:**
-- **Default URL:** `https://whats-upp-production.up.railway.app`
+- **Default URL:** `https://whats-app-ompro.ro`
 - **Configuration:** Via `--dart-define=WHATSAPP_BACKEND_URL=...`
 - **Usage:** Accessed via `Env.whatsappBackendUrl`
 
@@ -259,7 +259,7 @@ static final String whatsappBackendUrl = _normalizeBaseUrl(
 
 **Code Excerpt (lines 25-28):**
 ```dart
-/// Get Railway backend base URL
+/// Get legacy hosting backend base URL
 String _getBackendUrl() {
   return Env.whatsappBackendUrl;
 }
@@ -267,7 +267,7 @@ String _getBackendUrl() {
 
 **Integration:**
 - Service reads URL from `Env.whatsappBackendUrl`
-- Used for direct Railway backend calls (e.g., QR endpoint URLs)
+- Used for direct legacy hosting backend calls (e.g., QR endpoint URLs)
 - Most operations go through **Firebase Functions proxy** (see Section 6)
 
 ---
@@ -277,18 +277,18 @@ String _getBackendUrl() {
 **Search for `WHATSAPP_BACKEND_URL`:**
 ```
 Aplicatie-SuperpartyByAi/superparty_flutter/lib/core/config/env.dart
-  40:  /// `--dart-define=WHATSAPP_BACKEND_URL=https://your-service.up.railway.app`
+  40:  /// `--dart-define=WHATSAPP_BACKEND_URL=https://whats-app-ompro.ro`
   43:      'WHATSAPP_BACKEND_URL',
 
 Aplicatie-SuperpartyByAi/superparty_flutter/README.md
-  108:flutter run --dart-define=WHATSAPP_BACKEND_URL=https://whats-upp-production.up.railway.app
-  114:flutter build apk --dart-define=WHATSAPP_BACKEND_URL=https://whats-upp-production.up.railway.app
+  108:flutter run --dart-define=WHATSAPP_BACKEND_URL=https://whats-app-ompro.ro
+  114:flutter build apk --dart-define=WHATSAPP_BACKEND_URL=https://whats-app-ompro.ro
 ```
 
-**Search for `railway` / `whats-upp-production`:**
+**Search for `legacy hosting` / `whats-upp-production`:**
 ```
 Aplicatie-SuperpartyByAi/superparty_flutter/lib/core/config/env.dart
-  35:      'https://whats-upp-production.up.railway.app';
+  35:      'https://whats-app-ompro.ro';
   [Multiple references in comments/docs]
 ```
 
@@ -303,7 +303,7 @@ Aplicatie-SuperpartyByAi/superparty_flutter/lib/core/config/env.dart
 
 **Build Command:**
 ```bash
-cd superparty_flutter && flutter build apk --release --dart-define=WHATSAPP_BACKEND_URL=https://whats-upp-production.up.railway.app
+cd superparty_flutter && flutter build apk --release --dart-define=WHATSAPP_BACKEND_URL=https://whats-app-ompro.ro
 ```
 
 **Status:** ⏭️ **NOT EXECUTED** (Skipped to avoid long build time; build configuration appears correct)
@@ -322,7 +322,7 @@ cd superparty_flutter && flutter build apk --release --dart-define=WHATSAPP_BACK
 
 ### Cloud Functions Endpoints
 
-The app uses Firebase Cloud Functions as a **proxy layer** between Flutter and the Railway backend.
+The app uses Firebase Cloud Functions as a **proxy layer** between Flutter and the legacy hosting backend.
 
 **Functions Region:** `us-central1`  
 **Base URL Pattern:** `https://us-central1-{projectId}.cloudfunctions.net`  
@@ -398,7 +398,7 @@ final response = await http.post(
 2. Extracts Firebase ID token via `user.getIdToken()`
 3. Sends token in `Authorization: Bearer {token}` header
 4. Functions proxy (`functions/whatsappProxy.js`) verifies token server-side
-5. Proxy then forwards request to Railway backend with appropriate auth
+5. Proxy then forwards request to legacy hosting backend with appropriate auth
 
 **Status:** ✅ **AUTHENTICATION CORRECTLY CONFIGURED**
 
@@ -433,8 +433,8 @@ async function verifyIdToken(token) {
 ```
 
 **Backend URL Configuration:**
-- Proxy reads Railway URL from `process.env.WHATSAPP_RAILWAY_BASE_URL` (v2 functions)
-- Falls back to `functions.config().whatsapp.railway_base_url` (v1 functions)
+- Proxy reads legacy hosting URL from `process.env.WHATSAPP_LEGACY_BASE_URL` (v2 functions)
+- Falls back to `functions.config().whatsapp.legacy_base_url` (v1 functions)
 - Missing URL causes 500 error at runtime (not module load time)
 
 ---
@@ -453,7 +453,7 @@ async function verifyIdToken(token) {
 ### App Configuration Status
 
 ✅ **WhatsApp Backend URL Wiring:**
-- **Default URL:** Correctly set to `https://whats-upp-production.up.railway.app`
+- **Default URL:** Correctly set to `https://whats-app-ompro.ro`
 - **Configuration Method:** `--dart-define=WHATSAPP_BACKEND_URL=...` ✅
 - **Service Integration:** `WhatsAppApiService` correctly reads from `Env.whatsappBackendUrl` ✅
 
@@ -485,9 +485,9 @@ async function verifyIdToken(token) {
 
 🚨 **Backend Down (502 Errors)**
 
-**Issue:** Railway backend (`whats-upp-production.up.railway.app`) is not responding to any health checks.
+**Issue:** legacy hosting backend (`whats-upp-production.up.legacy hosting.app`) is not responding to any health checks.
 
-**Likely Cause:** Syntax error at `whatsapp-backend/server.js:1832` (as seen in Railway logs: `SyntaxError: Unexpected token ')'`)
+**Likely Cause:** Syntax error at `whatsapp-backend/server.js:1832` (as seen in legacy hosting logs: `SyntaxError: Unexpected token ')'`)
 
 **Impact:**
 - App cannot connect to WhatsApp backend
@@ -496,7 +496,7 @@ async function verifyIdToken(token) {
 
 **Required Fix:**
 1. Fix syntax error in `whatsapp-backend/server.js:1832`
-2. Redeploy backend to Railway
+2. Redeploy backend to legacy hosting
 3. Verify `/health` endpoint returns 200
 4. Retest Flutter app integration
 

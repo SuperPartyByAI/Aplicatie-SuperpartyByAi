@@ -56,7 +56,7 @@ flutter run --dart-define=USE_EMULATORS=true -d emulator-5554
 
 ---
 
-## PASUL B — WhatsApp Flow (Proxy → Railway)
+## PASUL B — WhatsApp Flow (Proxy → legacy hosting)
 
 ### Problema 1: GET /api/whatsapp/accounts în PASSIVE Mode
 
@@ -76,12 +76,12 @@ flutter run --dart-define=USE_EMULATORS=true -d emulator-5554
 
 **Test:**
 ```bash
-# Verifică în Railway logs:
+# Verifică în legacy hosting logs:
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
      -H "X-Request-ID: test_123" \
-     https://whats-upp-production.up.railway.app/api/whatsapp/accounts
+     https://whats-app-ompro.ro/api/whatsapp/accounts
 
-# Expected logs în Railway:
+# Expected logs în legacy hosting:
 # [GET /accounts/test_123] Request: waMode=passive, lockReason=lock_not_acquired
 # [GET /accounts/test_123] In-memory accounts: 0
 # [GET /accounts/test_123] Firestore accounts: X total
@@ -213,7 +213,7 @@ bash scripts/verify-emulators.sh
 
 **Usage:**
 ```bash
-RAILWAY_URL=https://whats-upp-production.up.railway.app \
+LEGACY_URL=https://whats-app-ompro.ro \
 ADMIN_TOKEN=your-token \
 bash scripts/test-whatsapp-flow.sh
 ```
@@ -257,7 +257,7 @@ flutter run --dart-define=USE_EMULATORS=true -d emulator-5554
 # Expected: [WhatsAppApiService] getAccounts: accountsCount=1
 # Expected: QR code apare în UI
 
-# 3. Verifică logs Railway:
+# 3. Verifică logs legacy hosting:
 bash scripts/test-whatsapp-flow.sh
 
 # Expected: waMode=active, accounts count > 0
@@ -303,7 +303,7 @@ bash scripts/test-whatsapp-flow.sh
 
 ## Files Modified Summary
 
-### Backend (Railway)
+### Backend (legacy hosting)
 1. ✅ `whatsapp-backend/server.js:3129-3215` - GET /accounts logging + PASSIVE mode
 
 ### Frontend (Flutter)
@@ -325,15 +325,15 @@ bash scripts/test-whatsapp-flow.sh
 Toate request-urile acum includ `requestId` pentru corelare end-to-end:
 
 1. **Flutter:** Generează `requestId` în `whatsapp_api_service.dart`
-2. **Functions Proxy:** Forward `requestId` la Railway
-3. **Railway Backend:** Loghează `requestId` în toate endpoint-urile
+2. **Functions Proxy:** Forward `requestId` la legacy hosting
+3. **legacy hosting Backend:** Loghează `requestId` în toate endpoint-urile
 4. **Response:** Include `requestId` pentru debugging
 
 **Exemplu corelare:**
 ```
 Flutter: [WhatsAppApiService] regenerateQr: requestId=req_1234567890
 Functions: [whatsappProxy/regenerateQr] requestId=req_1234567890
-Railway: [regenerateQr/req_1234567890] QR regeneration started
+legacy hosting: [regenerateQr/req_1234567890] QR regeneration started
 ```
 
 ---
@@ -367,7 +367,7 @@ Railway: [regenerateQr/req_1234567890] QR regeneration started
 bash scripts/verify-emulators.sh
 
 # Test WhatsApp flow
-RAILWAY_URL=https://whats-upp-production.up.railway.app \
+LEGACY_URL=https://whats-app-ompro.ro \
 ADMIN_TOKEN=your-token \
 bash scripts/test-whatsapp-flow.sh
 

@@ -88,7 +88,7 @@ SAU dacă service pică:
 
 ## 🚀 DEPLOYMENT
 
-### **Pasul 1: Creează service pe Railway**
+### **Pasul 1: Creează service pe legacy hosting**
 
 ```
 Name: superparty-perfect-monitor
@@ -99,7 +99,7 @@ Start Command: node perfect-monitor.js
 
 ```bash
 # Required
-RAILWAY_TOKEN=<token>
+LEGACY_TOKEN=<token>
 BACKEND_URL=<url>
 BACKEND_SERVICE_ID=<id>
 COQUI_API_URL=<url>
@@ -113,7 +113,7 @@ BACKEND_URL_EU_WEST=<url>
 
 ### **Pasul 3: Deploy!**
 
-Railway va detecta automat și va deploy-a.
+legacy hosting va detecta automat și va deploy-a.
 
 ---
 
@@ -172,7 +172,7 @@ Railway va detecta automat și va deploy-a.
 **PERFECT Monitor:**
 
 - Base features: **$0**
-- Multi-region: **$0** (Railway free tier)
+- Multi-region: **$0** (legacy hosting free tier)
 - Auto-scaling: **$0-5/lună** (doar când scalează)
 - **TOTAL: $0-5/lună**
 
@@ -292,7 +292,7 @@ Railway va detecta automat și va deploy-a.
 
 ## ✅ CHECKLIST DEPLOYMENT
 
-- [ ] Railway token obținut
+- [ ] legacy hosting token obținut
 - [ ] Service IDs obținute
 - [ ] Multi-region URLs (opțional)
 - [ ] Monitoring service creat

@@ -91,7 +91,7 @@ curl.exe -i https://us-central1-superparty-frontend.cloudfunctions.net/whatsappP
   - Only expected errors (if any)
   - No unexpected spikes
 
-**Logs checked**: [Railway / Firebase Functions / App logs]  
+**Logs checked**: [legacy hosting / Firebase Functions / App logs]  
 **Issues found**: _______________
 
 ---
@@ -100,7 +100,7 @@ curl.exe -i https://us-central1-superparty-frontend.cloudfunctions.net/whatsappP
 
 - [ ] **Health check**:
   ```powershell
-  curl.exe https://whats-upp-production.up.railway.app/health
+  curl.exe https://whats-app-ompro.ro/health
   ```
   Expected: `200 OK`
 

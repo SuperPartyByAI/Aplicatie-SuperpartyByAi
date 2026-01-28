@@ -45,7 +45,7 @@ Robot:
 
 ## 🤖 UNDE FOLOSEȘTI ROBOTUL?
 
-### **Robotul rulează pe Railway 24/7 și:**
+### **Robotul rulează pe legacy hosting 24/7 și:**
 
 #### **1. Monitorizează aplicația ta**
 
@@ -88,7 +88,7 @@ Zilnic:
 
 ---
 
-## 🏗️ CREEAZĂ PROIECTE RAILWAY AUTOMAT?
+## 🏗️ CREEAZĂ PROIECTE LEGACY_HOSTING AUTOMAT?
 
 ### **DA! Iată cum:**
 
@@ -103,7 +103,7 @@ Zilnic:
 **Robotul face:**
 
 ```
-1. Creează proiect Railway
+1. Creează proiect legacy hosting
    ✅ Nume: "superparty-backend"
    ✅ Region: EU West (mai aproape de users)
 
@@ -131,7 +131,7 @@ Zilnic:
    ✅ middleware/auth.js (JWT auth)
 
 6. Deploy
-   ✅ Push la Railway
+   ✅ Push la legacy hosting
    ✅ Build automat
    ✅ Start service
 
@@ -141,7 +141,7 @@ Zilnic:
    ✅ Database conectat
 
 8. Raportează
-   ✅ URL: https://superparty-backend.railway.app
+   ✅ URL: https://superparty-backend.legacy hosting.app
    ✅ Status: Running
    ✅ Cost: $0 (free tier)
 ```
@@ -165,7 +165,7 @@ Zilnic:
    ✅ Identifică voice logic în backend
    ✅ Detectează dependencies
 
-2. Creează nou service Railway
+2. Creează nou service legacy hosting
    ✅ Nume: "superparty-voice"
    ✅ Tip: Python (pentru Coqui)
    ✅ Port: 5000
@@ -196,7 +196,7 @@ Zilnic:
    ✅ Update documentation
 
 8. Raportează
-   ✅ Voice service: https://superparty-voice.railway.app
+   ✅ Voice service: https://superparty-voice.legacy hosting.app
    ✅ Backend updated
    ✅ Performance: 5x mai rapid
    ✅ Cost: +$5/month (dar worth it)
@@ -285,7 +285,7 @@ Zilnic:
 8. Deploy
    ✅ Push changes
    ✅ Test automat
-   ✅ Deploy la Railway
+   ✅ Deploy la legacy hosting
 
 9. Raportează
    ✅ Blog live: https://superparty.app/blog
@@ -388,7 +388,7 @@ Robot:
 
 🏗️ Plan implementare:
 1. Creează Twilio account (5 min)
-2. Add env vars în Railway (2 min)
+2. Add env vars în legacy hosting (2 min)
 3. Generez cod backend (10 min)
 4. Generez UI pentru settings (15 min)
 5. Testing (10 min)
@@ -419,7 +419,7 @@ Robot: "🤖 Analizez aplicația...
 - Frontend: React
 - Backend: Node.js + Express
 - Database: Firebase
-- Hosting: Railway
+- Hosting: legacy hosting
 
 💡 Opțiuni pentru blog:
 
@@ -535,7 +535,7 @@ Features incluse:
    - Image upload: ✅
 
 ✅ 6/6 - Deploy... (3 min)
-   - Push la Railway
+   - Push la legacy hosting
    - Build success
    - Deploy success
 
@@ -610,7 +610,7 @@ Vreau să adaug ceva?"
 - Reduce costuri
 - Îmbunătățește performance
 
-### **4. Creează proiecte Railway**
+### **4. Creează proiecte legacy hosting**
 
 - Creează services
 - Adaugă env vars
@@ -625,7 +625,7 @@ Vreau să adaug ceva?"
 
 ### **6. Deploy automat**
 
-- Push la Railway
+- Push la legacy hosting
 - Test automat
 - Rollback dacă fail
 
@@ -646,7 +646,7 @@ Vreau să adaug ceva?"
 ❌ **NU mai faci:**
 
 - Copy-paste cod
-- Setup manual Railway
+- Setup manual legacy hosting
 - Debug ore întregi
 - Monitoring manual
 - Optimization manual
@@ -719,7 +719,7 @@ Rezultat: Blog funcțional garantat
 
 **Apoi adăugăm treptat:**
 
-- Creează proiecte Railway automat
+- Creează proiecte legacy hosting automat
 - Generează cod automat
 - Deploy automat
 - Etc.

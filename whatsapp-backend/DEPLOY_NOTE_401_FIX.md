@@ -1,10 +1,10 @@
-# ⚠️ CRITICAL: Deploy 401 Reconnect Loop Fix to Railway
+# ⚠️ CRITICAL: Deploy 401 Reconnect Loop Fix to Hetzner
 
 ## Status
 
-**Fix-ul este implementat local, dar NU este deployat pe Railway!**
+**Fix-ul este implementat local, dar NU este deployat pe Hetzner!**
 
-Railway rulează încă codul vechi, de aceea vezi în logs:
+Backend-ul rulează încă codul vechi, de aceea vezi în logs:
 - `❌ [account_xxx] Explicit cleanup (401), deleting account` (mesaj vechi)
 - Loop infinit: după "Connection lock released" apare imediat "Creating connection..."
 
@@ -12,7 +12,7 @@ Railway rulează încă codul vechi, de aceea vezi în logs:
 
 ## Deploy Required
 
-**Următorul pas**: Deploy fix-ul la Railway.
+**Următorul pas**: Deploy fix-ul pe Hetzner.
 
 După deploy, logs-urile ar trebui să arate:
 - `❌ [account_xxx] Explicit cleanup (401), terminal logout - clearing session` (mesaj nou)
@@ -30,14 +30,16 @@ cd whatsapp-backend
 git add server.js scripts/verify_terminal_logout.js
 git commit -m "fix(wa): stop 401 reconnect loop; clear session on logged_out; deterministic regenerate-qr"
 
-# Push to branch (Railway will auto-deploy if configured)
-git push origin audit-whatsapp-30
+# Push to branch
+git push origin cursor/baileys-fix
 ```
 
-**SAU** deploy manual în Railway Dashboard:
-1. Railway Dashboard → Select "Whats Upp" service
-2. Go to "Deployments" → "Trigger Deployment"
-3. Select branch `audit-whatsapp-30`
+**Deploy pe Hetzner:**
+1. SSH to server: `ssh root@37.27.34.179`
+2. Navigate: `cd /opt/whatsapp/Aplicatie-SuperpartyByAi/whatsapp-backend`
+3. Pull latest: `git pull origin cursor/baileys-fix`
+4. Install: `npm ci`
+5. Restart: `sudo systemctl restart whatsapp-backend`
 
 ---
 

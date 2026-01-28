@@ -11,7 +11,7 @@
 ### ✅ Current State
 - **Git**: Clean (audit-whatsapp-30, up to date)
 - **Firebase Project**: superparty-frontend
-- **Railway Backend**: Healthy (v2.0.0, commit 892419e6)
+- **legacy hosting Backend**: Healthy (v2.0.0, commit 892419e6)
   - Firestore: Connected
   - Accounts: 0/30
   - Uptime: 29556s

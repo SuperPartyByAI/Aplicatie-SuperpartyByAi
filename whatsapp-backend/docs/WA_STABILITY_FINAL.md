@@ -345,7 +345,7 @@ Output includes:
 d3307d83 - Add evidence runner + complete DoD-WA-1 fields
 ```
 
-**Deployed**: ✅ Railway (commit `d3307d83`)
+**Deployed**: ✅ legacy hosting (commit `d3307d83`)
 
 ---
 

@@ -70,8 +70,8 @@
 ### Test 1: Account Restore după Restart
 ```bash
 # 1. Add account → QR apare (status: qr_ready)
-# 2. Restart Railway backend
-# 3. Verifică Railway logs:
+# 2. Restart legacy hosting backend
+# 3. Verifică legacy hosting logs:
 # Expected: 📦 Found 1 accounts in Firestore (statuses: qr_ready, connecting, awaiting_scan, connected)
 # Expected: 🔄 [account_xxx] Restoring account (status: qr_ready, name: ...)
 # Expected: Account rămâne vizibil după restart
@@ -80,7 +80,7 @@
 ### Test 2: getAccounts după Restart
 ```bash
 # 1. Add account → QR apare (status: qr_ready)
-# 2. Restart Railway backend
+# 2. Restart legacy hosting backend
 # 3. Call getAccounts:
 # Expected: accountsCount=1 (nu 0)
 # Expected: Account status: qr_ready (nu dispare)
@@ -89,7 +89,7 @@
 ### Test 3: regenerateQr după Restart
 ```bash
 # 1. Add account → QR apare (status: qr_ready)
-# 2. Restart Railway backend
+# 2. Restart legacy hosting backend
 # 3. Call regenerateQr:
 # Expected: 200 OK sau 202 "already in progress" (nu 500 "Account not found")
 ```
@@ -107,19 +107,19 @@
 
 ## Pași de Deploy
 
-### 1. Deploy Railway Backend
+### 1. Deploy legacy hosting Backend
 ```bash
 cd whatsapp-backend
 git add server.js
 git commit -m "fix: account restore include pairing phase + regenerateQr idempotency + enhanced logging"
 git push
-# Railway auto-deploys
+# legacy hosting auto-deploys
 ```
 
 **Verificare după deploy:**
 ```bash
 # Așteaptă 2-3 minute pentru deploy
-# Verifică Railway logs pentru:
+# Verifică legacy hosting logs pentru:
 # - "Restoring account (status: qr_ready" (nu doar "connected")
 # - Enhanced logging pentru "unknown" reason codes
 ```
@@ -134,8 +134,8 @@ firebase deploy --only functions:regenerateQr
 ```bash
 # Trigger regenerateQr care returnează 500
 # Verifică Functions logs pentru:
-# - Railway error body complet
-# - Railway error details structurate
+# - legacy hosting error body complet
+# - legacy hosting error details structurate
 ```
 
 ### 3. Deploy Flutter Client
@@ -157,7 +157,7 @@ flutter build apk --release
 
 ## Files Modified Summary
 
-### Backend (Railway)
+### Backend (legacy hosting)
 1. ✅ `whatsapp-backend/server.js:5493-5501` - Account restore include pairing phase
 2. ✅ `whatsapp-backend/server.js:4803-4804` - restoreSingleAccount include pairing phase
 3. ✅ `whatsapp-backend/server.js:5579` - Starting connections include pairing phase
@@ -180,14 +180,14 @@ flutter build apk --release
 1. **Account disappearing:** După restart, accounts în pairing phase nu erau restaurate → map-ul intern gol → regenerateQr dă 500 "Account not found"
 2. **regenerateQr 500 loop:** Backend nu verifica Firestore pentru `regeneratingQr` flag → returnează 500 în loc de 202
 3. **Client guard:** Client trata 202 ca error → seta cooldown → buclă
-4. **Proxy logging:** Proxy maschează erorile Railway ca 500 generic, fără detalii
+4. **Proxy logging:** Proxy maschează erorile legacy hosting ca 500 generic, fără detalii
 5. **Unknown reason codes:** Nu avem suficiente detalii pentru debugging când reason code este "unknown"
 
 **Fix-uri:**
 - ✅ Restaura TOATE accounts în pairing phase + connected
 - ✅ Backend verifică Firestore pentru `regeneratingQr` flag
 - ✅ Client tratează 202 ca success
-- ✅ Proxy loghează body-ul complet al răspunsului Railway
+- ✅ Proxy loghează body-ul complet al răspunsului legacy hosting
 - ✅ Enhanced logging pentru "unknown" reason codes
 - ✅ GET /accounts include TOATE accounts din Firestore
 
@@ -196,7 +196,7 @@ flutter build apk --release
 ## Comenzi Rapide
 
 ```bash
-# Deploy Railway Backend
+# Deploy legacy hosting Backend
 cd whatsapp-backend && git add server.js && git commit -m "fix: account restore include pairing phase + regenerateQr idempotency + enhanced logging" && git push
 
 # Deploy Firebase Functions

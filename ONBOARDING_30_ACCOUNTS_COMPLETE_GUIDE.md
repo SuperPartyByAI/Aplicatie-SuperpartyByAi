@@ -1,7 +1,7 @@
 # 🚀 Onboarding 30 WhatsApp Accounts - Ghid Complet cu Comenzi cURL
 
-**Base URL:** `https://your-service.railway.app` (înlocuiește cu domeniul tău Railway)  
-**Admin Token:** Setează `ADMIN_TOKEN` în Railway Variables
+**Base URL:** `https://your-service.legacy hosting.app` (înlocuiește cu domeniul tău legacy hosting)  
+**Admin Token:** Setează `ADMIN_TOKEN` în legacy hosting Variables
 
 ---
 
@@ -9,32 +9,32 @@
 
 ```bash
 # Setează aceste variabile înainte de a rula comenzi
-export BASE_URL="https://whats-upp-production.up.railway.app"  # Înlocuiește cu URL-ul tău
-export ADMIN_TOKEN="your-admin-token-here"  # Din Railway Variables
+export BASE_URL="https://whats-app-ompro.ro"  # Înlocuiește cu URL-ul tău
+export ADMIN_TOKEN="your-admin-token-here"  # Din legacy hosting Variables
 ```
 
 ---
 
-## Checklist Complet: Railway + Onboarding 30 Conturi
+## Checklist Complet: legacy hosting + Onboarding 30 Conturi
 
-### ✅ 1. Railway Setup (Cap-coadă)
+### ✅ 1. legacy hosting Setup (Cap-coadă)
 
 #### A. Persistent Volume
 
-**În Railway Dashboard:**
-1. Railway → Project → Service (`whatsapp-backend`) → Tab **"Volumes"**
+**În legacy hosting Dashboard:**
+1. legacy hosting → Project → Service (`whatsapp-backend`) → Tab **"Volumes"**
 2. Click **"New Volume"**
 3. Completează:
    - **Name:** `whatsapp-sessions-volume`
-   - **Mount Path:** `/app/sessions` ⚠️ (EXACT - confirmat în `railway.toml` linia 17)
+   - **Mount Path:** `/app/sessions` ⚠️ (EXACT - confirmat în `legacy hosting.toml` linia 17)
    - **Size:** `10GB` (recomandat pentru 30 conturi)
 4. Click **"Create"**
 5. Așteaptă status **"Active"** (verde)
 
 #### B. Variabile de Mediu (Minim Necesare)
 
-**În Railway Dashboard:**
-1. Railway → Service → Tab **"Variables"**
+**În legacy hosting Dashboard:**
+1. legacy hosting → Service → Tab **"Variables"**
 2. Adaugă variabilele:
 
 ```bash
@@ -56,8 +56,8 @@ WHATSAPP_CONNECT_TIMEOUT_MS=60000
 **Comandă:**
 ```bash
 # Obține logs recente (după deploy)
-railway logs --tail 100
-# Sau în Railway Dashboard → Deployments → Latest → View Logs
+legacy hosting logs --tail 100
+# Sau în legacy hosting Dashboard → Deployments → Latest → View Logs
 ```
 
 **Caută în logs:**
@@ -70,7 +70,7 @@ railway logs --tail 100
 
 **Test Health Endpoint:**
 ```bash
-curl -s "https://your-service.railway.app/health" | jq '{ok, sessions_dir_writable, status, firestore}'
+curl -s "https://your-service.legacy hosting.app/health" | jq '{ok, sessions_dir_writable, status, firestore}'
 ```
 
 **Așteptat:**
@@ -279,7 +279,7 @@ curl -sS -X POST "${BASE_URL}/api/whatsapp/add-account" \
 #!/bin/bash
 
 # Configurare
-BASE_URL="${BASE_URL:-https://whats-upp-production.up.railway.app}"
+BASE_URL="${BASE_URL:-https://whats-app-ompro.ro}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
 
 # Lista de telefonuri (adaugă 30 numere aici)
@@ -418,7 +418,7 @@ echo "🎉 Onboarding complet!"
 **Rulare Script:**
 ```bash
 chmod +x onboard-30-accounts.sh
-export BASE_URL="https://your-service.railway.app"
+export BASE_URL="https://your-service.legacy hosting.app"
 ./onboard-30-accounts.sh
 ```
 
@@ -430,7 +430,7 @@ export BASE_URL="https://your-service.railway.app"
 # 1. Verifică status înainte de restart
 curl -sS "${BASE_URL}/api/status/dashboard" | jq '.summary'
 
-# 2. Trigger restart (în Railway Dashboard → Redeploy, sau wait for auto-redeploy)
+# 2. Trigger restart (în legacy hosting Dashboard → Redeploy, sau wait for auto-redeploy)
 
 # 3. Așteaptă 1-2 minute pentru boot
 
@@ -555,7 +555,7 @@ curl -sS "${BASE_URL}/api/whatsapp/messages?accountId={accountId}&limit=50" | jq
 **Dacă nu vezi date:**
 
 ❌ **Firestore nu e activ:**
-- Verifică `FIREBASE_SERVICE_ACCOUNT_JSON` în Railway Variables
+- Verifică `FIREBASE_SERVICE_ACCOUNT_JSON` în legacy hosting Variables
 - Verifică logs pentru erori: `Firestore not available`
 - Test health: `curl "${BASE_URL}/health" | jq .firestore`
 
@@ -569,7 +569,7 @@ curl -sS "${BASE_URL}/api/whatsapp/messages?accountId={accountId}&limit=50" | jq
 
 ### Setup Inițial
 ```bash
-export BASE_URL="https://whats-upp-production.up.railway.app"  # ÎNLOICUIEȘTE
+export BASE_URL="https://whats-app-ompro.ro"  # ÎNLOICUIEȘTE
 export ADMIN_TOKEN="your-admin-token"  # OPTIONAL pentru endpoint-uri protejate
 ```
 
@@ -628,7 +628,7 @@ curl -sS -X POST "${BASE_URL}/api/whatsapp/send-message" \
   -d '{
     "accountId": "account_prod_...",
     "to": "+40712345678",
-    "message": "Hello from Railway!"
+    "message": "Hello from legacy hosting!"
   }' | jq .
 
 # Obține mesaje
@@ -660,7 +660,7 @@ curl -sS "${BASE_URL}/api/admin/firestore/sessions?token=${ADMIN_TOKEN}" | jq .
 
 | Endpoint | Method | Protejat? | Descriere |
 |----------|--------|-----------|-----------|
-| `/health` | GET | ❌ | Health check (Railway healthcheck) |
+| `/health` | GET | ❌ | Health check (legacy hosting healthcheck) |
 | `/api/status/dashboard` | GET | ❌ | Dashboard status (toate conturile) |
 | `/api/whatsapp/accounts` | GET | ❌ | Lista toate conturile |
 | `/api/whatsapp/add-account` | POST | ❌ | Adaugă cont nou |
@@ -722,7 +722,7 @@ curl -sS "${BASE_URL}/health" | jq .firestore
 # Trebuie: {"status": "connected"}
 
 # 2. Verifică env var
-# Railway → Variables → FIREBASE_SERVICE_ACCOUNT_JSON (trebuie setat)
+# legacy hosting → Variables → FIREBASE_SERVICE_ACCOUNT_JSON (trebuie setat)
 
 # 3. Verifică logs pentru erori Firestore
 # Caută: "Firestore not available" sau "Firestore save failed"

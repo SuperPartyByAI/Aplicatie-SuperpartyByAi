@@ -1,11 +1,11 @@
-# Verificare Commit Deploy - Railway
+# Verificare Commit Deploy - legacy hosting
 
-## Status Actual (Din Loguri Railway)
+## Status Actual (Din Loguri legacy hosting)
 
 **Commit deploy-at**: `d4f4998a` (vechi)  
 **Commit cu fix-uri**: `96a06c5e` (nou, push-at în main)
 
-### Loguri Railway (17:26)
+### Loguri legacy hosting (17:26)
 ```
 🚀 SuperParty WhatsApp Backend v2.0.0 (d4f4998a)
 [DeployGuard] Validare așteptată: d4f4998a
@@ -62,7 +62,7 @@ După redeploy complet (~5-10 minute), verifică:
 
 ```bash
 # Check commit hash
-curl https://whats-upp-production.up.railway.app/health | jq '.commit'
+curl https://whats-app-ompro.ro/health | jq '.commit'
 
 # Expected după deploy: "96a06c5e"
 # Current: "d4f4998a"
@@ -70,9 +70,9 @@ curl https://whats-upp-production.up.railway.app/health | jq '.commit'
 
 ## Dacă Commit E Încă Veche După Redeploy
 
-### Opțiunea 1: Verifică Railway Settings
+### Opțiunea 1: Verifică legacy hosting Settings
 
-Railway ar trebui să deploy automat `main` branch. Verifică:
+legacy hosting ar trebui să deploy automat `main` branch. Verifică:
 - Repository branch: `main` (nu alt branch)
 - Auto-deploy: Enabled
 
@@ -80,22 +80,22 @@ Railway ar trebui să deploy automat `main` branch. Verifică:
 
 ```bash
 # Trigger redeploy manual (dacă e nevoie)
-# Prin Railway dashboard: Deploy → Redeploy
+# Prin legacy hosting dashboard: Deploy → Redeploy
 ```
 
 ### Opțiunea 3: Verifică Git Hook
 
-Dacă Railway folosește webhook, verifică dacă webhook-ul e trigger-at când push în main.
+Dacă legacy hosting folosește webhook, verifică dacă webhook-ul e trigger-at când push în main.
 
 ## Concluzie
 
 **Status**:
 - ✅ Fix-urile sunt commit-uite și push-ate în `main`
-- ⏳ Railway rulează încă commit veche `d4f4998a`
+- ⏳ legacy hosting rulează încă commit veche `d4f4998a`
 - ⏳ Redeploy în progres (SIGTERM primit)
 
 **Urmează**: Așteaptă redeploy (~5-10 min) și verifică `/health` pentru commit `96a06c5e`.
 
 **Dacă după redeploy commit-ul e încă veche**, verifică:
-1. Railway branch settings (trebuie `main`)
+1. legacy hosting branch settings (trebuie `main`)
 2. Git push confirmation (remote `origin/main`)

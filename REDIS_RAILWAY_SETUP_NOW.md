@@ -1,10 +1,10 @@
-# Redis Railway Setup - Pași Exacti
+# Redis legacy hosting Setup - Pași Exacti
 
 ## 🚀 Adaugă Redis ACUM (5 minute)
 
-### Pasul 1: Deschide Railway Dashboard
+### Pasul 1: Deschide legacy hosting Dashboard
 
-1. Mergi la [railway.app](https://railway.app)
+1. Mergi la [legacy hosting.app](https://legacy hosting.app)
 2. Login cu contul tău
 3. Selectează proiectul **SuperParty** (sau cum îl ai numit)
 
@@ -16,7 +16,7 @@
 2. **Selectează "Database"**
 3. **Selectează "Add Redis"**
 
-Railway va crea automat:
+legacy hosting va crea automat:
 
 - Redis instance
 - Variabila `REDIS_URL`
@@ -35,14 +35,14 @@ Format: `redis://default:password@host:port`
 Exemplu:
 
 ```
-REDIS_URL=redis://default:abc123xyz@redis.railway.internal:6379
+REDIS_URL=redis://default:abc123xyz@redis.legacy hosting.internal:6379
 ```
 
 ---
 
 ### Pasul 4: Conectează Redis la Serviciul Tău
 
-Railway face asta automat! Variabila `REDIS_URL` este disponibilă în toate serviciile din proiect.
+legacy hosting face asta automat! Variabila `REDIS_URL` este disponibilă în toate serviciile din proiect.
 
 **Verifică:**
 
@@ -60,7 +60,7 @@ Dacă NU vezi `REDIS_URL`:
 
 ### Pasul 5: Redeploy Serviciul
 
-Railway va redeploy automat când adaugi Redis, dar dacă nu:
+legacy hosting va redeploy automat când adaugi Redis, dar dacă nu:
 
 1. Click pe serviciul tău
 2. Click pe "Deployments"
@@ -93,8 +93,8 @@ git push origin main
 **Opțiunea 2: Test Endpoint**
 
 ```bash
-# Înlocuiește cu URL-ul tău Railway
-curl https://your-app.railway.app/api/cache/stats
+# Înlocuiește cu URL-ul tău legacy hosting
+curl https://your-app.legacy hosting.app/api/cache/stats
 
 # Ar trebui să vezi:
 {
@@ -145,7 +145,7 @@ curl https://your-app.railway.app/api/cache/stats
 
 ### Redis costă prea mult
 
-**Railway Redis Pricing:**
+**legacy hosting Redis Pricing:**
 
 - **Starter:** $5/month (256MB RAM) ← Recomandat
 - **Pro:** $10/month (512MB RAM)
@@ -223,13 +223,13 @@ Cache hit rate: 85%
 
 ### Înainte (fără Redis):
 
-- Railway: $5-10/month
+- legacy hosting: $5-10/month
 - Firebase: $15-30/month
 - **Total: $20-40/month**
 
 ### După (cu Redis):
 
-- Railway: $5-10/month
+- legacy hosting: $5-10/month
 - Redis: $5/month
 - Firebase: $4.50-9/month (70% reducere!)
 - **Total: $14.50-24/month**
@@ -252,9 +252,9 @@ Cache hit rate: 85%
 
 **Dacă întâmpini probleme:**
 
-1. **Check logs:** `railway logs`
+1. **Check logs:** `legacy hosting logs`
 2. **Check cache stats:** `curl https://your-app/api/cache/stats`
-3. **Verifică Variables:** Railway Dashboard → Service → Variables
+3. **Verifică Variables:** legacy hosting Dashboard → Service → Variables
 4. **Fallback:** App va funcționa cu in-memory cache
 
 **Redis este opțional dar FOARTE recomandat pentru production!**
@@ -263,7 +263,7 @@ Cache hit rate: 85%
 
 ## ✅ Checklist Final
 
-- [ ] Redis service creat în Railway
+- [ ] Redis service creat în legacy hosting
 - [ ] REDIS_URL există în Variables
 - [ ] Service redeployed
 - [ ] Logs arată "Redis connected successfully"

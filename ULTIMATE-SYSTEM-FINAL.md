@@ -42,7 +42,7 @@
 
 - `extreme-monitor.js` - Monitor extreme (99.99%)
 - `ultra-fast-monitor.js` - Monitor rapid (99.9%)
-- `railway-api.js` - Integration Railway
+- `legacy hosting-api.js` - Integration legacy hosting
 
 ---
 
@@ -124,7 +124,7 @@ Learning: "v1.4 and v1.5 have bugs"
 # 99.9% uptime, basic repair
 ```
 
-### **Pasul 2: Creează service pe Railway**
+### **Pasul 2: Creează service pe legacy hosting**
 
 ```
 Name: superparty-ultimate-monitor
@@ -135,8 +135,8 @@ Start Command: node ultimate-monitor.js
 ### **Pasul 3: Adaugă env vars**
 
 ```bash
-RAILWAY_TOKEN=<token>
-BACKEND_URL=https://web-production-00dca9.up.railway.app
+LEGACY_TOKEN=<token>
+BACKEND_URL=https://whats-app-ompro.ro
 BACKEND_SERVICE_ID=<id>
 COQUI_API_URL=<url>
 COQUI_SERVICE_ID=<id>
@@ -144,7 +144,7 @@ COQUI_SERVICE_ID=<id>
 
 ### **Pasul 4: Deploy!**
 
-Railway va detecta automat și va deploy-a.
+legacy hosting va detecta automat și va deploy-a.
 
 ---
 
@@ -351,7 +351,7 @@ console.log(stats);
 
 ## ✅ CHECKLIST DEPLOYMENT
 
-- [ ] Railway token obținut
+- [ ] legacy hosting token obținut
 - [ ] Service IDs obținute
 - [ ] Monitoring service creat
 - [ ] Env vars adăugate
@@ -390,7 +390,7 @@ console.log(stats);
 
 ## 🚀 NEXT STEPS
 
-1. **Deploy ULTIMATE monitor** pe Railway
+1. **Deploy ULTIMATE monitor** pe legacy hosting
 2. **Monitorizează logs** pentru 24 ore
 3. **Verifică statistici** cu `getStats()`
 4. **(Opțional) Activează chaos testing**

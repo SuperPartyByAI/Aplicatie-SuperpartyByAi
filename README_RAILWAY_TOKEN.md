@@ -1,10 +1,10 @@
-# 🔐 Cum să folosești Railway API Token pentru Setup Automat
+# 🔐 Cum să folosești legacy hosting API Token pentru Setup Automat
 
-## Pasul 1: Obține Token-ul Railway
+## Pasul 1: Obține Token-ul legacy hosting
 
-1. **Deschide Railway Dashboard:**
-   - Link: https://railway.app/account/tokens
-   - Sau: Railway Dashboard → Settings → Tokens
+1. **Deschide legacy hosting Dashboard:**
+   - Link: https://legacy hosting.app/account/tokens
+   - Sau: legacy hosting Dashboard → Settings → Tokens
 
 2. **Creează Token Nou:**
    - Click pe butonul **"New Token"**
@@ -24,38 +24,38 @@
 
 ```bash
 # Setează token-ul (nu-l partaja în chat!)
-export RAILWAY_TOKEN='tokenul_tau_aici'
+export LEGACY_TOKEN='tokenul_tau_aici'
 
 # Rulează script-ul
 cd ~/Aplicatie-SuperpartyByAi
-./setup-railway.sh
+./setup-legacy hosting.sh
 ```
 
 ### Varianta B: Folosește Token Direct în Comandă
 
 ```bash
 # Nu recomandat (apare în history), dar funcționează
-RAILWAY_TOKEN='tokenul_tau_aici' ./setup-railway.sh
+LEGACY_TOKEN='tokenul_tau_aici' ./setup-legacy hosting.sh
 ```
 
-### Varianta C: Manual cu Railway CLI
+### Varianta C: Manual cu legacy hosting CLI
 
 ```bash
 # Autentificare
-railway login --browserless --token 'tokenul_tau_aici'
+legacy hosting login --browserless --token 'tokenul_tau_aici'
 
 # Link la proiect
 cd ~/Aplicatie-SuperpartyByAi
-railway link --project be379927-9034-4a4d-8e35-4fbdfe258fc0
+legacy hosting link --project be379927-9034-4a4d-8e35-4fbdfe258fc0
 
 # Creează volume
-railway volume create whatsapp-sessions-volume \
+legacy hosting volume create whatsapp-sessions-volume \
   --mount /data/sessions \
   --size 1GB \
   --service bac72d7a-eeca-4dda-acd9-6b0496a2184f
 
 # Setează variabilă
-railway variables set SESSIONS_PATH=/data/sessions
+legacy hosting variables set SESSIONS_PATH=/data/sessions
 ```
 
 ---
@@ -75,13 +75,13 @@ După ce rulezi script-ul, verifică:
 
 ```bash
 # Lista volume-uri
-railway volume list
+legacy hosting volume list
 
 # Lista variabile
-railway variables
+legacy hosting variables
 
 # Verifică health endpoint (după deploy)
-curl https://your-url.railway.app/health | jq
+curl https://your-url.legacy hosting.app/health | jq
 ```
 
 ---
@@ -103,4 +103,4 @@ curl https://your-url.railway.app/health | jq
 
 ---
 
-**Întrebări?** Verifică `RAILWAY_SETUP_MANUAL_STEPS.md` pentru pași manuali alternativi.
+**Întrebări?** Verifică `LEGACY_SETUP_MANUAL_STEPS.md` pentru pași manuali alternativi.

@@ -10,8 +10,6 @@ package-lock.json
 kyc-app/
 superparty_flutter/
 monitoring/
-railway-monitor/
-railway-redeployer/
 whatsapp-backend/
 voice-backend/
 shared/

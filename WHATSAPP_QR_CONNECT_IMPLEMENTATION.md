@@ -27,21 +27,21 @@ Implemented WhatsApp QR connect functionality from Flutter by adding:
 All routes require Firebase ID token authentication:
 
 1. **GET /whatsappProxyGetAccounts**
-   - Auth: Employee required
-   - Forwards to: `GET https://whats-upp-production.up.railway.app/api/whatsapp/accounts`
-   - Returns: Railway response unchanged
+   - Auth: Super-admin required (exposes QR codes)
+   - Forwards to: `GET https://whats-app-ompro.ro/api/whatsapp/accounts`
+   - Returns: Backend response unchanged
 
 2. **POST /whatsappProxyAddAccount**
    - Auth: Super-admin only (`ursache.andrei1995@gmail.com`)
    - Body: `{ name: string, phone: string }`
    - Forwards to: `POST /api/whatsapp/add-account`
-   - Returns: Railway response unchanged
+   - Returns: legacy hosting response unchanged
 
 3. **POST /whatsappProxyRegenerateQr**
    - Auth: Super-admin only
    - Query param: `accountId`
    - Forwards to: `POST /api/whatsapp/regenerate-qr/:accountId`
-   - Returns: Railway response unchanged
+   - Returns: legacy hosting response unchanged
 
 ### Flutter Service
 
@@ -78,7 +78,7 @@ All methods attach Firebase ID token in `Authorization: Bearer <token>` header.
    flutter pub get
    ```
 
-3. Ensure Railway backend is running and accessible at `https://whats-upp-production.up.railway.app`
+3. Ensure Hetzner backend is running and accessible at `https://whats-app-ompro.ro`
 
 ### Test Flow: Add Account → QR Ready → Scan → Connected
 
@@ -174,22 +174,22 @@ curl -X POST \
 
 ### QR code not showing
 - **Cause**: Account status is not `qr_ready` or `qrCode` field is missing
-- **Fix**: Check Railway backend logs, ensure account is in correct state
+- **Fix**: Check Hetzner backend logs, ensure account is in correct state
 
 ### Functions timeout
-- **Cause**: Railway backend not responding or slow
-- **Fix**: Check Railway backend status, increase timeout in `whatsappProxy.js` if needed
+- **Cause**: Hetzner backend not responding or slow
+- **Fix**: Check Hetzner backend status, increase timeout in `whatsappProxy.js` if needed
 
 ## Environment Variables
 
 Set in Firebase Functions config:
 ```bash
-firebase functions:config:set whatsapp.railway_base_url="https://whats-upp-production.up.railway.app"
+firebase functions:config:set whatsapp.backend_base_url="https://whats-app-ompro.ro"
 ```
 
 Or use `.env` file (for local development):
 ```
-WHATSAPP_RAILWAY_BASE_URL=https://whats-upp-production.up.railway.app
+WHATSAPP_BACKEND_BASE_URL=https://whats-app-ompro.ro
 ```
 
 ## Next Steps

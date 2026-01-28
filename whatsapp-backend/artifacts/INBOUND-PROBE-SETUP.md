@@ -13,7 +13,7 @@ Probe Sender Account (WhatsApp)
   ↓ (sends probe message)
 Operator Account (WhatsApp)
   ↓ (receives message)
-Baileys Backend (Railway)
+Baileys Backend (Hetzner)
   ↓ (detects probe message)
 Firestore (wa_metrics/longrun/probes/IN_{timestamp})
 ```
@@ -43,7 +43,7 @@ Firestore (wa_metrics/longrun/probes/IN_{timestamp})
 ### Option A: Add via API
 
 ```bash
-curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-account \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Probe Sender",
@@ -78,7 +78,7 @@ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-accoun
 ### Get Operator Account ID
 
 ```bash
-curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq '.accounts[] | select(.name | contains("Operator")) | {id, name, phone}'
+curl https://whats-app-ompro.ro/api/whatsapp/accounts | jq '.accounts[] | select(.name | contains("Operator")) | {id, name, phone}'
 ```
 
 **Example output:**
@@ -94,7 +94,7 @@ curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq '.ac
 ### Get Probe Sender Account ID
 
 ```bash
-curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq '.accounts[] | select(.name | contains("Probe")) | {id, name, phone}'
+curl https://whats-app-ompro.ro/api/whatsapp/accounts | jq '.accounts[] | select(.name | contains("Probe")) | {id, name, phone}'
 ```
 
 **Example output:**
@@ -130,7 +130,7 @@ curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq '.ac
 ### Via API (if implemented)
 
 ```bash
-curl -X POST https://whats-upp-production.up.railway.app/api/admin/longrun/config \
+curl -X POST https://whats-app-ompro.ro/api/admin/longrun/config \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ${LONGRUN_ADMIN_TOKEN}" \
   -d '{
@@ -175,7 +175,7 @@ async function runInboundProbe() {
       tsIso: now.toISOString(),
       result: 'PASS',
       instanceId,
-      commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+      commitHash: process.env.GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
       serviceVersion: '2.0.0',
       note: 'Probe sender required for full implementation',
     });
@@ -228,7 +228,7 @@ await probeRef.set({
   result: received ? 'PASS' : 'FAIL',
   latencyMs,
   instanceId,
-  commitHash: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
+  commitHash: process.env.GIT_COMMIT_SHA?.slice(0, 8) || 'unknown',
   serviceVersion: '2.0.0',
   probeSenderAccountId: config.probeSenderAccountId,
   operatorJid: config.operatorJid,
@@ -281,8 +281,9 @@ function waitForProbeMessage(probeMessage, timeoutMs) {
 
 2. **Check if received:**
    ```bash
-   # Check Railway logs
-   railway logs --filter "TEST_PROBE_MANUAL"
+   # Check Hetzner logs
+   ssh root@37.27.34.179
+   sudo journalctl -u whatsapp-backend -f | grep "TEST_PROBE_MANUAL"
    ```
 
 ### Automated Test
@@ -290,14 +291,14 @@ function waitForProbeMessage(probeMessage, timeoutMs) {
 1. **Trigger probe manually:**
 
    ```javascript
-   // In Railway console or local
+   // On Hetzner server or local
    const { runInboundProbe } = require('./lib/longrun-jobs-v2');
    await runInboundProbe();
    ```
 
 2. **Check probe result:**
    ```bash
-   curl https://whats-upp-production.up.railway.app/api/admin/longrun/probes | jq '.probes[] | select(.type=="inbound") | {probeKey, result, latencyMs}'
+   curl https://whats-app-ompro.ro/api/admin/longrun/probes | jq '.probes[] | select(.type=="inbound") | {probeKey, result, latencyMs}'
    ```
 
 **Expected output:**
@@ -319,26 +320,27 @@ After successful manual test:
 1. **Verify config:**
 
    ```bash
-   curl https://whats-upp-production.up.railway.app/api/admin/longrun/config | jq '.config | {probeSenderAccountId, operatorJid}'
+   curl https://whats-app-ompro.ro/api/admin/longrun/config | jq '.config | {probeSenderAccountId, operatorJid}'
    ```
 
-2. **Restart Railway service:**
+2. **Restart Hetzner service:**
 
    ```bash
-   railway service restart
+   sudo systemctl restart whatsapp-backend
    ```
 
 3. **Verify probe schedule:**
 
    ```bash
    # Check logs for "Inbound probe: IN_..."
-   railway logs --filter "Inbound probe"
+   ssh root@37.27.34.179
+   sudo journalctl -u whatsapp-backend -f | grep "Inbound probe"
    ```
 
 4. **Monitor probe results:**
    ```bash
    # Check every 6 hours
-   curl https://whats-upp-production.up.railway.app/api/admin/longrun/probes | jq '.probes[] | select(.type=="inbound")'
+   curl https://whats-app-ompro.ro/api/admin/longrun/probes | jq '.probes[] | select(.type=="inbound")'
    ```
 
 ---
@@ -357,7 +359,7 @@ After successful manual test:
 1. Check probe sender status:
 
    ```bash
-   curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq '.accounts[] | select(.id=="account_1767080000000")'
+   curl https://whats-app-ompro.ro/api/whatsapp/accounts | jq '.accounts[] | select(.id=="account_1767080000000")'
    ```
 
 2. If status != "connected":
@@ -376,7 +378,7 @@ After successful manual test:
 1. Check operator account status:
 
    ```bash
-   curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq '.accounts[] | select(.id=="account_1767044290665")'
+   curl https://whats-app-ompro.ro/api/whatsapp/accounts | jq '.accounts[] | select(.id=="account_1767044290665")'
    ```
 
 2. Check if operator JID is correct:
@@ -385,7 +387,7 @@ After successful manual test:
 
 3. Test manual message:
    - Send from probe sender to operator
-   - Check if received in Railway logs
+   - Check if received in Hetzner logs (journalctl -u whatsapp-backend)
 
 ### Problem: Config not found
 
@@ -398,7 +400,7 @@ After successful manual test:
 1. Verify config exists:
 
    ```bash
-   curl https://whats-upp-production.up.railway.app/api/admin/longrun/config | jq '.config'
+   curl https://whats-app-ompro.ro/api/admin/longrun/config | jq '.config'
    ```
 
 2. Update config (see Step 3)
@@ -415,14 +417,14 @@ If probe sender account needs to be changed:
 2. Update config with new `probeSenderAccountId` (Step 3)
 3. Disconnect old probe sender:
    ```bash
-   curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/disconnect/{old_account_id}
+   curl -X POST https://whats-app-ompro.ro/api/whatsapp/disconnect/{old_account_id}
    ```
 
 ### Monitoring Probe Health
 
 ```bash
 # Get probe pass rate (last 7 days)
-curl https://whats-upp-production.up.railway.app/api/admin/longrun/probes | jq '[.probes[] | select(.type=="inbound")] | group_by(.result) | map({result: .[0].result, count: length})'
+curl https://whats-app-ompro.ro/api/admin/longrun/probes | jq '[.probes[] | select(.type=="inbound")] | group_by(.result) | map({result: .[0].result, count: length})'
 ```
 
 **Expected output:**

@@ -1,8 +1,8 @@
-# 🔴 CRITICAL: Railway Backend 401 Loop - Auto-Recreate Bug
+# 🔴 CRITICAL: legacy hosting Backend 401 Loop - Auto-Recreate Bug
 
 ## 🎯 Problema Identificată
 
-**Backend Railway recreează automat contul corupt** cu 401 într-un **loop infinit**:
+**Backend legacy hosting recreează automat contul corupt** cu 401 într-un **loop infinit**:
 
 ```
 account_dev_cd7b11e308a59fd9ab810bce5faf8393:
@@ -13,7 +13,7 @@ account_dev_cd7b11e308a59fd9ab810bce5faf8393:
 ```
 
 **Efect**:
-- Logs-urile Railway sunt flood-uite cu 401 errors
+- Logs-urile legacy hosting sunt flood-uite cu 401 errors
 - Contul corupt se recreează constant
 - Backend consumă resurse înutil (CPU, memory)
 - User-ul vede doar contul vechi corupt în app (nu contul nou cu QR valid)
@@ -22,7 +22,7 @@ account_dev_cd7b11e308a59fd9ab810bce5faf8393:
 
 ## 🔍 Root Cause
 
-**Sesiune coruptă** în Railway:
+**Sesiune coruptă** în legacy hosting:
 - Session file: `/app/sessions/account_dev_cd7b11e308a59fd9ab810bce5faf8393`
 - `Credentials exist: true` dar **invalid/expirat** pentru WhatsApp
 - WhatsApp respinge cu **401 (Unauthorized)**
@@ -39,20 +39,20 @@ account_dev_cd7b11e308a59fd9ab810bce5faf8393:
 
 ## 🔧 Soluții
 
-### **Soluția 1: Șterge Session File din Railway (RECOMANDAT)**
+### **Soluția 1: Șterge Session File din legacy hosting (RECOMANDAT)**
 
-**Backend Railway** (nu Flutter) trebuie să:
+**Backend legacy hosting** (nu Flutter) trebuie să:
 1. **Șteargă session file-ul corupt**: `/app/sessions/account_dev_cd7b11e308a59fd9ab810bce5faf8393`
 2. **SAU**: Șterge tot folder-ul `/app/sessions` (va regenera fresh)
 
 **Cum**:
-- Railway Dashboard → Volumes
+- legacy hosting Dashboard → Volumes
 - Găsește volume mount pentru `/app/sessions`
 - Șterge file-ul sau folder-ul corupt
 
 ### **Soluția 2: Fix Backend Code (PERMANENT)**
 
-**Backend Railway code** trebuie modificat să:
+**Backend legacy hosting code** trebuie modificat să:
 1. **Nu recreeze automat** conturile șterse pentru 401
 2. **Ignore retry-urile** pentru conturi cu 401 permanent
 3. **Mark accounts cu 401** ca `blacklisted` sau `do_not_retry`
@@ -105,7 +105,7 @@ async function reconnectAccounts() {
 
 ## 🔍 Verificări
 
-### Logs Railway:
+### Logs legacy hosting:
 - [ ] Cont vechi apare constant: `account_dev_cd7b11e308a59fd9ab810bce5faf8393`
 - [ ] 401 loop infinit: `401 → delete → recreate → 401...`
 - [ ] Backend recreează automat contul șters
@@ -114,7 +114,7 @@ async function reconnectAccounts() {
 - [ ] Document cu `id: "account_dev_cd7b11e308a59fd9ab810bce5faf8393"` există
 - [ ] Status: `connecting` sau `disconnected` (nu șters permanent)
 
-### Railway Volumes:
+### legacy hosting Volumes:
 - [ ] Session file: `/app/sessions/account_dev_cd7b11e308a59fd9ab810bce5faf8393` există
 - [ ] File-ul e corupt/invalid (cauza 401)
 
@@ -122,14 +122,14 @@ async function reconnectAccounts() {
 
 ## 🚨 Concluzie
 
-**Problema**: Backend Railway recreează automat contul corupt cu 401 → loop infinit
+**Problema**: Backend legacy hosting recreează automat contul corupt cu 401 → loop infinit
 
-**Soluția permanentă**: Fix backend Railway code să nu recreeze conturile șterse pentru 401
+**Soluția permanentă**: Fix backend legacy hosting code să nu recreeze conturile șterse pentru 401
 
-**Workaround**: Șterge session file din Railway sau Firestore document manual
+**Workaround**: Șterge session file din legacy hosting sau Firestore document manual
 
 **Pentru user**: Ignore contul vechi - folosește contul nou cu QR valid. Loop-ul backend nu te afectează direct (se șterge automat la 401).
 
 ---
 
-**Fix-ul trebuie făcut în backend Railway code** (nu în Flutter repo). Acest document explică problema pentru a fi rezolvată în backend.
+**Fix-ul trebuie făcut în backend legacy hosting code** (nu în Flutter repo). Acest document explică problema pentru a fi rezolvată în backend.

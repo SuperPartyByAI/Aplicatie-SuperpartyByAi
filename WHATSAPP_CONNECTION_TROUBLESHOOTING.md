@@ -25,8 +25,8 @@
 - Dacă apare ca "Connecting..." → așteaptă 1-2 minute
 - Dacă apare "Connected" → ✅ Success!
 
-### 3️⃣ Verifică logs Railway (dacă ai acces):
-- Railway Dashboard → Logs
+### 3️⃣ Verifică logs legacy hosting (dacă ai acces):
+- legacy hosting Dashboard → Logs
 - Caută erori sau warnings după scan
 
 ---
@@ -45,11 +45,11 @@
 
 ### Dacă status = `disconnected` sau eroare:
 - Verifică conexiunea internet (WiFi/mobile data)
-- Verifică că backend Railway e healthy:
+- Verifică că backend legacy hosting e healthy:
   ```bash
-  curl https://whats-upp-production.up.railway.app/health
+  curl https://whats-app-ompro.ro/health
   ```
-- Verifică logs Railway pentru erori
+- Verifică logs legacy hosting pentru erori
 
 ---
 
@@ -57,10 +57,10 @@
 
 ```bash
 # Verifică status conturi
-curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts
+curl https://whats-app-ompro.ro/api/whatsapp/accounts
 
 # Verifică backend health
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # Verifică Flutter logs (Android)
 adb logcat | grep -iE "whatsapp|error|connection"
@@ -90,7 +90,7 @@ adb logcat | grep -iE "whatsapp|error|connection"
 - **Fix**: Verifică conexiunea internet, reîncearcă
 
 ### 3. Backend down
-- **Fix**: Verifică Railway health, redeploy dacă e nevoie
+- **Fix**: Verifică legacy hosting health, redeploy dacă e nevoie
 
 ### 4. WhatsApp rate limit
 - **Fix**: Așteaptă 10-15 minute, reîncearcă
@@ -99,7 +99,7 @@ adb logcat | grep -iE "whatsapp|error|connection"
 
 ## Dacă tot nu merge:
 
-1. Verifică Railway logs pentru erori specifice
+1. Verifică legacy hosting logs pentru erori specifice
 2. Verifică că backend e healthy
 3. Regenerează QR și scanează din nou
 4. Verifică că nu ai deja prea multe devices conectate (max 4)

@@ -1,20 +1,20 @@
 # Reparare Backend WhatsApp
 
 ## Problema identificată:
-Railway backend returnează **HTTP 502 Bad Gateway** - "Application failed to respond"
+legacy hosting backend returnează **HTTP 502 Bad Gateway** - "Application failed to respond"
 
-**URL:** `https://whats-upp-production.up.railway.app`
+**URL:** `https://whats-app-ompro.ro`
 
 ## Cauza:
-Service-ul Railway WhatsApp backend este **DOWN** - nu rulează sau a crash-at.
+Service-ul legacy hosting WhatsApp backend este **DOWN** - nu rulează sau a crash-at.
 
 ## Soluții:
 
-### OPȚIUNEA 1: Railway Dashboard (RECOMANDAT - cel mai simplu)
+### OPȚIUNEA 1: legacy hosting Dashboard (RECOMANDAT - cel mai simplu)
 
-1. **Deschide Railway Dashboard:**
-   - Mergi la: https://railway.app
-   - Login cu contul tău Railway
+1. **Deschide legacy hosting Dashboard:**
+   - Mergi la: https://legacy hosting.app
+   - Login cu contul tău legacy hosting
 
 2. **Găsește service-ul:**
    - Selectează proiectul **"whats-upp-production"**
@@ -26,33 +26,33 @@ Service-ul Railway WhatsApp backend este **DOWN** - nu rulează sau a crash-at.
 
 4. **Verifică:**
    ```bash
-   curl https://whats-upp-production.up.railway.app/health
+   curl https://whats-app-ompro.ro/health
    ```
    Ar trebui să returneze `200 OK` sau `{"status":"ok"}`
 
-### OPȚIUNEA 2: Railway CLI (din terminal)
+### OPȚIUNEA 2: legacy hosting CLI (din terminal)
 
 ```bash
 cd /Users/universparty/Aplicatie-SuperpartyByAi/whatsapp-backend
 
 # Autentifică-te (deschide browser pentru login)
-railway login
+legacy hosting login
 
 # Repornește service-ul
-railway restart
+legacy hosting restart
 
 # Verifică status
-railway status
+legacy hosting status
 ```
 
 ### Verificare după restart:
 
 ```bash
 # Test health endpoint
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # Test accounts endpoint (ar trebui să returneze lista de conturi sau [])
-curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts
+curl https://whats-app-ompro.ro/api/whatsapp/accounts
 ```
 
 ## După ce backend-ul pornește:
@@ -73,5 +73,5 @@ curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts
 ## Note:
 
 - Backend-ul poate avea probleme temporare (crash, restart automat)
-- Dacă problema persistă, verifică logurile în Railway Dashboard
+- Dacă problema persistă, verifică logurile în legacy hosting Dashboard
 - Scripturile Firefox funcționează perfect chiar dacă backend-ul este down

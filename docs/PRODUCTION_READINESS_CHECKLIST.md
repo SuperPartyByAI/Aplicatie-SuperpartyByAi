@@ -125,4 +125,4 @@ If you **cannot** deploy (no workflow scope / no Firebase access): run the above
 
 - **Runbook:** `docs/WHATSAPP_PROD_RUNBOOK.md`
 - **CRM flow:** `superparty_flutter/lib/screens/whatsapp/README_CRM_FLOW.md`
-- **Backend URL:** `functions/lib/backend-url.js` (prefers `WHATSAPP_BACKEND_URL`; `WHATSAPP_RAILWAY_BASE_URL` deprecated fallback)
+- **Backend URL:** `functions/lib/backend-url.js` (prefers `BACKEND_BASE_URL` / `WHATSAPP_BACKEND_BASE_URL` / `WHATSAPP_BACKEND_URL`)

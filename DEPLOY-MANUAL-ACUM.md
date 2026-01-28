@@ -4,9 +4,9 @@
 
 ---
 
-## PASUL 1: DESCHIDE RAILWAY
+## PASUL 1: DESCHIDE LEGACY_HOSTING
 
-1. Deschide: https://railway.app/dashboard
+1. Deschide: https://legacy hosting.app/dashboard
 2. Click **"New Project"**
 3. Click **"Deploy from GitHub repo"**
 4. Selectează: **Aplicatie-SuperpartyByAi**
@@ -43,7 +43,7 @@ Adaugă 3 variabile:
 **Variabila 1:**
 
 ```
-Variable name: RAILWAY_TOKEN
+Variable name: LEGACY_TOKEN
 Value: 998d4e46-c67c-47e2-9eaa-ae4cc806aab1
 ```
 
@@ -67,7 +67,7 @@ Value: production
 
 Click **"Add"**
 
-✅ Railway va redeploy automat
+✅ legacy hosting va redeploy automat
 
 ---
 
@@ -76,7 +76,7 @@ Click **"Add"**
 1. Click **"Settings"** (tab)
 2. Scroll la **"Networking"**
 3. Click **"Generate Domain"**
-4. Copy URL-ul (ex: `v7-singularity.up.railway.app`)
+4. Copy URL-ul (ex: `v7-singularity.up.legacy hosting.app`)
 
 ✅ GATA!
 
@@ -90,14 +90,14 @@ Click **"Add"**
 SAU verifică health:
 
 ```
-https://your-url.railway.app/health
+https://your-url.legacy hosting.app/health
 ```
 
 ---
 
 ## 🎉 DONE!
 
-**Dashboard:** https://your-url.railway.app
+**Dashboard:** https://your-url.legacy hosting.app
 
 **Dacă nu merge:**
 

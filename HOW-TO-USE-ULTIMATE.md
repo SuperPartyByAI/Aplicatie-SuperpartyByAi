@@ -507,12 +507,12 @@ curl -X POST http://localhost:3000/api/whatsapp/send/acc1/1234567890@s.whatsapp.
 
 ## 🚀 DEPLOYMENT
 
-### Railway (Automatic):
+### legacy hosting (Automatic):
 
 ```bash
 git push origin main
 # Automatic deploy
-# Check: https://your-app.railway.app/
+# Check: https://your-app.legacy hosting.app/
 ```
 
 ### Local:
@@ -529,8 +529,8 @@ npm start
 ### Check Logs:
 
 ```bash
-# Railway
-railway logs
+# legacy hosting
+legacy hosting logs
 
 # Local
 npm start

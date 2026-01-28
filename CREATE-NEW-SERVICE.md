@@ -2,13 +2,13 @@
 
 ## De ce serviciu nou?
 
-Serviciul `web-production-f0714.up.railway.app` rulează alt cod și nu pot schimba sursa prin API.
+Serviciul `web-production-f0714.up.legacy hosting.app` rulează alt cod și nu pot schimba sursa prin API.
 
 ## Soluție: Serviciu nou (2 minute)
 
 ### Pasul 1: Creează serviciu nou
 
-1. https://railway.app
+1. https://legacy hosting.app
 2. Click "New Project"
 3. Click "Deploy from GitHub repo"
 4. Selectează: `SuperPartyByAI/superparty-ai-backend`
@@ -23,7 +23,7 @@ OPENAI_API_KEY=sk-proj-yeD5AdD5HEWhCCXMeafIq83haw-qcArnbz9HvW4N3ZEpw4aA7_b9wOf5d
 TWILIO_ACCOUNT_SID=AC17c88873d670aab4aa4a50fae230d2df
 TWILIO_AUTH_TOKEN=5c6670d39a1dbf46d47ecdaa244b91d9
 TWILIO_PHONE_NUMBER=+12182204425
-COQUI_API_URL=https://web-production-00dca9.up.railway.app
+COQUI_API_URL=https://whats-app-ompro.ro
 NODE_ENV=production
 PORT=5001
 ```
@@ -32,7 +32,7 @@ PORT=5001
 
 1. Settings → Networking
 2. Click "Generate Domain"
-3. Copiază URL-ul (ex: `voice-ai-production-abc.up.railway.app`)
+3. Copiază URL-ul (ex: `voice-ai-production-abc.up.legacy hosting.app`)
 
 ### Pasul 4: Update BACKEND_URL
 
@@ -42,14 +42,14 @@ PORT=5001
 SAU adaugă variabila:
 
 ```
-BACKEND_URL=https://URL-UL-TAU.up.railway.app
+BACKEND_URL=https://whats-app-ompro.ro
 ```
 
 ### Pasul 5: Update Twilio
 
 1. https://console.twilio.com/
 2. Phone Numbers → +1 (218) 220-4425
-3. A call comes in: `https://URL-UL-TAU.up.railway.app/api/voice/incoming`
+3. A call comes in: `https://whats-app-ompro.ro/api/voice/incoming`
 
 ### Pasul 6: Test
 
@@ -61,9 +61,9 @@ Ar trebui să auzi: "Bună ziua, SuperParty, cu ce vă ajut?" cu vocea Kasya!
 
 ## SAU: Folosește serviciul vechi (mai rapid)
 
-Dacă vrei să folosești `web-production-f0714.up.railway.app`:
+Dacă vrei să folosești `web-production-f0714.up.legacy hosting.app`:
 
-1. Railway → Serviciul respectiv
+1. legacy hosting → Serviciul respectiv
 2. Settings → Source → Disconnect
 3. Connect Repo → `SuperPartyByAI/superparty-ai-backend` (branch: main)
 4. Variables → Adaugă cele de mai sus

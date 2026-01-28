@@ -1,6 +1,6 @@
-# Railway Deployment Instructions - WhatsApp Backend v2.0.0
+# legacy hosting Deployment Instructions - WhatsApp Backend v2.0.0
 
-**Status:** Local tests 100% passed, ready for Railway deployment  
+**Status:** Local tests 100% passed, ready for legacy hosting deployment  
 **Code:** Commits 639acbb3, fd2a9842 pushed to GitHub  
 **Evidence:** LOCAL-TEST-SUCCESS.md, evidence-local-test.json
 
@@ -8,19 +8,19 @@
 
 ## Prerequisites
 
-1. Railway account (https://railway.app)
-2. GitHub repo connected to Railway
+1. legacy hosting account (https://legacy hosting.app)
+2. GitHub repo connected to legacy hosting
 3. Firebase service account credentials
 
 ---
 
 ## Deployment Steps
 
-### Option A: Railway Dashboard (Recommended)
+### Option A: legacy hosting Dashboard (Recommended)
 
 #### Step 1: Create New Service
 
-1. Go to https://railway.app/dashboard
+1. Go to https://legacy hosting.app/dashboard
 2. Click "New Project"
 3. Select "Deploy from GitHub repo"
 4. Choose: `SuperPartyByAI/Aplicatie-SuperpartyByAi`
@@ -34,13 +34,13 @@
 whatsapp-backend
 ```
 
-**Build Command:** (auto-detected from railway.toml)
+**Build Command:** (auto-detected from legacy hosting.toml)
 
 ```
 npm install
 ```
 
-**Start Command:** (from railway.toml)
+**Start Command:** (from legacy hosting.toml)
 
 ```
 node server.js
@@ -79,16 +79,16 @@ PORT=8080
 #### Step 5: Get Service URL
 
 1. Go to service → Settings → Domains
-2. Copy the Railway-provided domain:
+2. Copy the legacy hosting-provided domain:
    ```
-   https://whatsapp-backend-production-XXXX.up.railway.app
+   https://whats-app-ompro.ro
    ```
 
 #### Step 6: Verify Deployment
 
 ```bash
 # Test health endpoint
-curl https://YOUR-SERVICE.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # Expected response:
 {
@@ -104,25 +104,25 @@ curl https://YOUR-SERVICE.up.railway.app/health
 
 ---
 
-### Option B: Railway CLI
+### Option B: legacy hosting CLI
 
-#### Step 1: Install Railway CLI
+#### Step 1: Install legacy hosting CLI
 
 ```bash
-npm install -g @railway/cli
+npm install -g @legacy hosting/cli
 ```
 
 #### Step 2: Login
 
 ```bash
-railway login
+legacy hosting login
 ```
 
 #### Step 3: Link Project
 
 ```bash
 cd whatsapp-backend
-railway link
+legacy hosting link
 ```
 
 Select existing project or create new one.
@@ -130,23 +130,23 @@ Select existing project or create new one.
 #### Step 4: Add Environment Variables
 
 ```bash
-railway variables set FIREBASE_PROJECT_ID=superparty-frontend
-railway variables set FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@superparty-frontend.iam.gserviceaccount.com
-railway variables set FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-railway variables set NODE_ENV=production
-railway variables set PORT=8080
+legacy hosting variables set FIREBASE_PROJECT_ID=superparty-frontend
+legacy hosting variables set FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@superparty-frontend.iam.gserviceaccount.com
+legacy hosting variables set FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+legacy hosting variables set NODE_ENV=production
+legacy hosting variables set PORT=8080
 ```
 
 #### Step 5: Deploy
 
 ```bash
-railway up
+legacy hosting up
 ```
 
 #### Step 6: Get Service URL
 
 ```bash
-railway domain
+legacy hosting domain
 ```
 
 ---
@@ -156,7 +156,7 @@ railway domain
 ### 1. Health Check
 
 ```bash
-curl https://YOUR-SERVICE.up.railway.app/health | jq .
+curl https://whats-app-ompro.ro/health | jq .
 ```
 
 **Expected:**
@@ -175,7 +175,7 @@ curl https://YOUR-SERVICE.up.railway.app/health | jq .
 ### 2. Add First Account
 
 ```bash
-curl -X POST https://YOUR-SERVICE.up.railway.app/api/whatsapp/add-account \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
   -d '{"phoneNumber": "+40700000001"}' | jq .
 ```
@@ -198,7 +198,7 @@ curl -X POST https://YOUR-SERVICE.up.railway.app/api/whatsapp/add-account \
 Wait 3 seconds, then:
 
 ```bash
-curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0]'
+curl https://whats-app-ompro.ro/api/whatsapp/accounts | jq '.accounts[0]'
 ```
 
 **Expected:**
@@ -226,7 +226,7 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0
 **Option B: Terminal (if qrencode installed)**
 
 ```bash
-curl -s https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | \
+curl -s https://whats-app-ompro.ro/api/whatsapp/accounts | \
   jq -r '.accounts[0].qrCode' | \
   sed 's/data:image\/png;base64,//' | \
   base64 -d | \
@@ -244,7 +244,7 @@ curl -s https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | \
 ### 6. Verify Connection
 
 ```bash
-curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0].status'
+curl https://whats-app-ompro.ro/api/whatsapp/accounts | jq '.accounts[0].status'
 ```
 
 **Expected:** `"connected"`
@@ -259,9 +259,9 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0
 
 **Solution:**
 
-1. Check Railway dashboard for deployment status
+1. Check legacy hosting dashboard for deployment status
 2. Verify service is running (not sleeping)
-3. Check logs: `railway logs`
+3. Check logs: `legacy hosting logs`
 
 ### Issue: Health endpoint returns 500
 
@@ -269,9 +269,9 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0
 
 **Solution:**
 
-1. Check Railway variables are set correctly
+1. Check legacy hosting variables are set correctly
 2. Verify FIREBASE_PRIVATE_KEY has \n characters preserved
-3. Check logs for specific error: `railway logs`
+3. Check logs for specific error: `legacy hosting logs`
 
 ### Issue: QR code is null
 
@@ -285,7 +285,7 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0
    const sock = makeWASocket({ auth: state, version, ... });
    ```
 2. Check logs for 405 errors
-3. Restart service: `railway service restart`
+3. Restart service: `legacy hosting service restart`
 
 ### Issue: Account stuck in "connecting"
 
@@ -304,16 +304,16 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0
 
 ### View Logs
 
-**Railway Dashboard:**
+**legacy hosting Dashboard:**
 
 1. Go to service → Deployments
 2. Click on latest deployment
 3. View logs in real-time
 
-**Railway CLI:**
+**legacy hosting CLI:**
 
 ```bash
-railway logs
+legacy hosting logs
 ```
 
 ### Key Log Messages
@@ -338,7 +338,7 @@ railway logs
 
 ## Next Steps After Deployment
 
-1. ✅ Deploy to Railway (this guide)
+1. ✅ Deploy to legacy hosting (this guide)
 2. ⏳ Generate QR and connect first account
 3. ⏳ Test MTTR (reconnection speed)
 4. ⏳ Test message queue (100% delivery)
@@ -350,7 +350,7 @@ railway logs
 ## Files Reference
 
 - **server.js** - Production server code (v2.0.0)
-- **railway.toml** - Railway configuration
+- **legacy hosting.toml** - legacy hosting configuration
 - **package.json** - Dependencies
 - **LOCAL-TEST-SUCCESS.md** - Local test results (100% passed)
 - **evidence-local-test.json** - Machine-readable evidence
@@ -358,6 +358,6 @@ railway logs
 ---
 
 **Generated:** 2025-12-29T12:20:00Z  
-**Code Version:** Railway v2.0.0  
+**Code Version:** legacy hosting v2.0.0  
 **Commits:** 639acbb3, fd2a9842  
 **Local Tests:** 7/7 PASSED (100%)

@@ -130,7 +130,7 @@ if (response.statusCode < 200 || response.statusCode >= 300) {
 
 ## Logs Expected
 
-### Backend (Railway)
+### Backend (legacy hosting)
 ```
 🔍 [req_xxx] Regenerate QR request: accountId=account_xxx
 🔍 [req_xxx] Account state: status=connecting, waMode=active
@@ -148,7 +148,7 @@ if (response.statusCode < 200 || response.statusCode >= 300) {
 
 ## Next Steps
 
-1. **Deploy fixes** la Railway backend
+1. **Deploy fixes** la legacy hosting backend
 2. **Deploy fixes** la Flutter client
 3. **Test manual** - Verifică că regenerateQr nu mai dă 500 loop
 4. **Investigate** - De ce conexiunea se închide după QR generation (reason "unknown")

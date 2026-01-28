@@ -1,8 +1,8 @@
-# 🚂 Railway Setup - Ghid Complet
+# 🚂 legacy hosting Setup - Ghid Complet
 
 ## Problema Identificată
 
-Service-ul `whats-upp-production.up.railway.app` returnează **HTTP 502** (Application failed to respond).  
+Service-ul `whats-upp-production.up.legacy hosting.app` returnează **HTTP 502** (Application failed to respond).  
 Cauze probabile:
 - ❌ Volume persistent lipsă (`/data/sessions`)
 - ❌ Variabila `SESSIONS_PATH` neconfigurată
@@ -12,10 +12,10 @@ Cauze probabile:
 
 ## Soluții Disponibile
 
-### Opțiunea 1: Railway Web UI (RECOMANDAT - Cel mai simplu)
+### Opțiunea 1: legacy hosting Web UI (RECOMANDAT - Cel mai simplu)
 
 Pași manuali în interfața web:
-1. Deschide: https://railway.app/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
+1. Deschide: https://legacy hosting.app/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
 2. Tab "Volumes" → New Volume:
    - Name: `whatsapp-sessions-volume`
    - Mount: `/data/sessions`
@@ -25,29 +25,29 @@ Pași manuali în interfața web:
    - Value: `/data/sessions`
 4. Redeploy automat → Verifică logs
 
-**Ghid complet:** Vezi `RAILWAY_SETUP_MANUAL_STEPS.md`
+**Ghid complet:** Vezi `LEGACY_SETUP_MANUAL_STEPS.md`
 
 ---
 
-### Opțiunea 2: Railway CLI cu Token
+### Opțiunea 2: legacy hosting CLI cu Token
 
-**IMPORTANT:** Railway CLI nu acceptă token prin environment pentru `whoami`, dar poate funcționa pentru comenzile reale.
+**IMPORTANT:** legacy hosting CLI nu acceptă token prin environment pentru `whoami`, dar poate funcționa pentru comenzile reale.
 
-1. Obține token: https://railway.app/account/tokens
+1. Obține token: https://legacy hosting.app/account/tokens
 2. Rulează script-ul:
 
 ```bash
 cd ~/Aplicatie-SuperpartyByAi
 
 # Metoda 1: Token ca parametru
-./setup-railway-with-token.sh YOUR_TOKEN_HERE
+./setup-legacy hosting-with-token.sh YOUR_TOKEN_HERE
 
 # Metoda 2: Token ca variabilă de mediu
-export RAILWAY_TOKEN='YOUR_TOKEN_HERE'
-./setup-railway-with-token.sh
+export LEGACY_TOKEN='YOUR_TOKEN_HERE'
+./setup-legacy hosting-with-token.sh
 ```
 
-**Script:** `setup-railway-with-token.sh`
+**Script:** `setup-legacy hosting-with-token.sh`
 
 **Note:**
 - Script-ul va încerca comenzile CLI direct (fără verificare `whoami`)
@@ -55,7 +55,7 @@ export RAILWAY_TOKEN='YOUR_TOKEN_HERE'
 
 ---
 
-### Opțiunea 3: Railway GraphQL API Direct
+### Opțiunea 3: legacy hosting GraphQL API Direct
 
 Dacă CLI-ul nu funcționează cu token-ul, folosește API direct:
 
@@ -63,15 +63,15 @@ Dacă CLI-ul nu funcționează cu token-ul, folosește API direct:
 cd ~/Aplicatie-SuperpartyByAi
 
 # Rulează script-ul cu API direct
-./setup-railway-api-direct.sh YOUR_TOKEN_HERE
+./setup-legacy hosting-api-direct.sh YOUR_TOKEN_HERE
 ```
 
-**Script:** `setup-railway-api-direct.sh`
+**Script:** `setup-legacy hosting-api-direct.sh`
 
 **Avantaje:**
 - Funcționează garantat cu token API valid
-- Nu depinde de Railway CLI
-- Folosește Railway GraphQL API direct
+- Nu depinde de legacy hosting CLI
+- Folosește legacy hosting GraphQL API direct
 
 ---
 
@@ -81,10 +81,10 @@ cd ~/Aplicatie-SuperpartyByAi
 
 ```bash
 # Health endpoint
-curl https://whats-upp-production.up.railway.app/health | jq
+curl https://whats-app-ompro.ro/health | jq
 
 # Status dashboard
-curl https://whats-upp-production.up.railway.app/api/status/dashboard | jq
+curl https://whats-app-ompro.ro/api/status/dashboard | jq
 ```
 
 **Așteptat:**
@@ -97,10 +97,10 @@ curl https://whats-upp-production.up.railway.app/api/status/dashboard | jq
 cd ~/Aplicatie-SuperpartyByAi
 
 # Fără token (doar verifică health)
-./check-railway-status.sh
+./check-legacy hosting-status.sh
 
-# Cu token (verifică configurare Railway)
-./check-railway-status.sh YOUR_TOKEN
+# Cu token (verifică configurare legacy hosting)
+./check-legacy hosting-status.sh YOUR_TOKEN
 ```
 
 ---
@@ -110,23 +110,23 @@ cd ~/Aplicatie-SuperpartyByAi
 ### Service returnează 502
 
 **Cauze:**
-1. Volume nu este montat corect → Verifică Volume în Railway dashboard
-2. `SESSIONS_PATH` nu este setat → Verifică Variables în Railway dashboard
-3. App crash la startup → Verifică logs în Railway dashboard
+1. Volume nu este montat corect → Verifică Volume în legacy hosting dashboard
+2. `SESSIONS_PATH` nu este setat → Verifică Variables în legacy hosting dashboard
+3. App crash la startup → Verifică logs în legacy hosting dashboard
 
 **Soluții:**
-- Verifică logs: Railway Dashboard → Service → Logs
+- Verifică logs: legacy hosting Dashboard → Service → Logs
 - Caută în logs: `CRITICAL`, `SESSIONS_PATH`, `writable`
-- Verifică volumul: Railway Dashboard → Service → Volumes
+- Verifică volumul: legacy hosting Dashboard → Service → Volumes
 
-### Railway CLI nu acceptă token
+### legacy hosting CLI nu acceptă token
 
-**Soluție:** Folosește Railway Web UI (Opțiunea 1) sau API direct (Opțiunea 3)
+**Soluție:** Folosește legacy hosting Web UI (Opțiunea 1) sau API direct (Opțiunea 3)
 
 ### Token invalid sau expirat
 
 **Soluție:**
-1. Deschide: https://railway.app/account/tokens
+1. Deschide: https://legacy hosting.app/account/tokens
 2. Creează token nou
 3. Reîncearcă setup-ul
 

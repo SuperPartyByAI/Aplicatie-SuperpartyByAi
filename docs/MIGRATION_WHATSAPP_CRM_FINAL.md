@@ -9,7 +9,7 @@
 | Fișier | Modificare |
 |--------|------------|
 | `functions/whatsappProxy.js` | Eliminat `getMessagesHandler` și `exports.getMessagesHandler`. Comentariu: GetMessages removed, send uses whatsappProxySend. |
-| `functions/lib/backend-url.js` | `WHATSAPP_RAILWAY_BASE_URL` fallback deprecated – `console.warn` mereu când e folosit. |
+| `functions/lib/backend-url.js` | Folosește `WHATSAPP_BACKEND_BASE_URL` / `WHATSAPP_BACKEND_URL` / `BACKEND_BASE_URL` (Hetzner). |
 | `docs/WHATSAPP_PROD_RUNBOOK.md` | Troubleshooting 404/HTML; notă tsClient; deploy/index/secrets deja documentate. |
 | `superparty_flutter/.../README_CRM_FLOW.md` | 404/HTML fix; `orderBy('tsClient', descending: true)` în doc. |
 | `ACCEPTANCE_CHECKLIST_CRM_WHATSAPP.md` | Secțiune **Migration** (Inbox refresh, Chat Firestore, Send proxy, no GetMessages). |

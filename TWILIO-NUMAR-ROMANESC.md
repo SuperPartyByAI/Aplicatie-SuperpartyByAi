@@ -25,7 +25,7 @@ Scroll la secțiunea **Voice Configuration** și configurează:
 
 ```
 Configure with: Webhook
-URL: https://web-production-f0714.up.railway.app/api/voice/incoming
+URL: https://whats-app-ompro.ro/api/voice/incoming
 HTTP Method: HTTP POST
 ```
 
@@ -33,14 +33,14 @@ HTTP Method: HTTP POST
 
 ```
 Configure with: Webhook
-URL: https://web-production-f0714.up.railway.app/api/voice/incoming
+URL: https://whats-app-ompro.ro/api/voice/incoming
 HTTP Method: HTTP POST
 ```
 
 #### **Call status changes:**
 
 ```
-URL: https://web-production-f0714.up.railway.app/api/voice/status
+URL: https://whats-app-ompro.ro/api/voice/status
 HTTP Method: HTTP POST
 ```
 
@@ -61,7 +61,7 @@ Click **Save** jos de tot pe pagină.
 ### Test 1: Verifică Backend
 
 ```bash
-curl https://web-production-f0714.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 ```
 
 **Răspuns așteptat:**
@@ -86,9 +86,9 @@ Sună la: +40373805828
 
 Cu voce **ElevenLabs (PREMIUM)** - naturală și profesională.
 
-### Test 3: Verifică Logs Railway
+### Test 3: Verifică Logs legacy hosting
 
-1. Mergi la: https://railway.app
+1. Mergi la: https://legacy hosting.app
 2. Selectează serviciul: `web-production-f0714`
 3. Click **Deployments** → **View Logs**
 
@@ -138,7 +138,7 @@ Cu voce **ElevenLabs (PREMIUM)** - naturală și profesională.
 | ------------------------ | ------------------------ |
 | Twilio RO                | $0.017/apel              |
 | OpenAI GPT-4o-mini       | $0.0003/apel             |
-| Coqui XTTS (self-hosted) | $0.00 (Railway $10/lună) |
+| Coqui XTTS (self-hosted) | $0.00 (legacy hosting $10/lună) |
 | **Total per apel**       | **~$0.02**               |
 
 **Trade-off:** Calitate voce mai slabă, AI mai puțin inteligent
@@ -182,7 +182,7 @@ Cu voce **ElevenLabs (PREMIUM)** - naturală și profesională.
    ↓
 3. Twilio trimite webhook: POST /api/voice/incoming
    ↓
-4. Backend Railway răspunde cu TwiML
+4. Backend legacy hosting răspunde cu TwiML
    ↓
 5. Twilio redă mesaj: "Bună ziua, SuperParty..."
    ↓
@@ -216,8 +216,8 @@ Cu voce **ElevenLabs (PREMIUM)** - naturală și profesională.
 - [ ] Webhook "Primary handler fails" setat la `/api/voice/incoming`
 - [ ] Webhook "Call status changes" setat la `/api/voice/status`
 - [ ] Toate webhook-uri pe **HTTP POST**
-- [ ] Backend Railway activ (curl /health)
-- [ ] Variabile Railway setate (OPENAI, TWILIO, ELEVENLABS)
+- [ ] Backend legacy hosting activ (curl /health)
+- [ ] Variabile legacy hosting setate (OPENAI, TWILIO, ELEVENLABS)
 - [ ] Test apel efectuat
 - [ ] AI răspunde corect
 - [ ] Logs verificate (fără erori)
@@ -233,10 +233,10 @@ Cu voce **ElevenLabs (PREMIUM)** - naturală și profesională.
 
 ```bash
 # Verifică backend
-curl https://web-production-f0714.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
-# Verifică logs Railway
-Railway → Deployments → View Logs
+# Verifică logs legacy hosting
+legacy hosting → Deployments → View Logs
 ```
 
 ### Problema: Apelul se închide imediat
@@ -245,7 +245,7 @@ Railway → Deployments → View Logs
 **Soluție:**
 
 ```bash
-# Verifică logs Railway pentru erori
+# Verifică logs legacy hosting pentru erori
 # Caută: "[Twilio] Error" sau "[VoiceAI] Error"
 ```
 
@@ -255,7 +255,7 @@ Railway → Deployments → View Logs
 **Soluție:**
 
 ```bash
-# Verifică variabila în Railway
+# Verifică variabila în legacy hosting
 ELEVENLABS_API_KEY=...
 
 # Verifică quota ElevenLabs
@@ -268,7 +268,7 @@ https://elevenlabs.io/
 **Soluție:**
 
 ```bash
-# Verifică variabila în Railway
+# Verifică variabila în legacy hosting
 OPENAI_API_KEY=sk-...
 
 # Verifică quota OpenAI
@@ -293,7 +293,7 @@ https://platform.openai.com/usage
 
 ### 3. Verifică Logs (2 min)
 
-- Railway logs
+- legacy hosting logs
 - Twilio logs
 - Caută erori
 
@@ -308,7 +308,7 @@ https://platform.openai.com/usage
 ## 📞 Informații Contact
 
 **Număr Voice AI:** +40373805828  
-**Backend:** https://web-production-f0714.up.railway.app  
+**Backend:** https://whats-app-ompro.ro  
 **Voice Engine:** ElevenLabs (PREMIUM)  
 **AI Engine:** OpenAI GPT-4o  
 **Cost:** ~$0.034 per apel (2 min)
@@ -318,7 +318,7 @@ https://platform.openai.com/usage
 ## ✅ Status Final
 
 - ✅ Număr românesc Twilio confirmat
-- ✅ Backend Railway activ
+- ✅ Backend legacy hosting activ
 - ✅ Voice AI enabled
 - ✅ Configurație webhook pregătită
 - ⏳ Așteaptă configurare în Twilio Console

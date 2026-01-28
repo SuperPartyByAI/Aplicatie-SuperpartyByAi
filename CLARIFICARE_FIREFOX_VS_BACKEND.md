@@ -29,7 +29,7 @@ Sunt **două sisteme complet separate**:
 
 ---
 
-## 🚂 Backend Accounts (Railway + Baileys)
+## 🚂 Backend Accounts (legacy hosting + Baileys)
 
 ### Ce face:
 - **Gestionează conexiuni WhatsApp** via Baileys library
@@ -54,10 +54,10 @@ Sunt **două sisteme complet separate**:
 ## 🔄 Firebase Functions Proxy
 
 ### Ce face:
-- **Proxy între Flutter app și Railway backend**
+- **Proxy între Flutter app și legacy hosting backend**
 - **Autentifică** userul prin Firebase ID token
 - **Verifică** dacă userul e super-admin
-- **Forward** request-ul către Railway
+- **Forward** request-ul către legacy hosting
 
 ### Flow:
 ```
@@ -66,7 +66,7 @@ Flutter App
 Firebase Functions (whatsappProxyGetAccounts)
   ↓ (verifică super-admin)
   ↓ (X-Admin-Token: ADMIN_TOKEN)
-Railway Backend (/api/whatsapp/accounts)
+legacy hosting Backend (/api/whatsapp/accounts)
   ↓ (returnează accounts)
 Firebase Functions
   ↓ (returnează răspuns)
@@ -79,8 +79,8 @@ Flutter App
 
 ### 1. Backend-ul e down (502)
 - **Cauză**: `ADMIN_TOKEN` lipsește → `process.exit(1)` → 502
-- **Fix**: Setează `ADMIN_TOKEN` în Railway Variables
-- **Verificare**: `curl https://whats-upp-production.up.railway.app/health`
+- **Fix**: Setează `ADMIN_TOKEN` în legacy hosting Variables
+- **Verificare**: `curl https://whats-app-ompro.ro/health`
 
 ### 2. Nu ești logat ca super-admin
 - **Cauză**: Proxy-ul verifică `SUPER_ADMIN_EMAIL = 'ursache.andrei1995@gmail.com'`
@@ -98,7 +98,7 @@ Flutter App
 
 | Aspect | Firefox Containers | Backend Accounts |
 |--------|-------------------|------------------|
-| **Locație** | Local (macOS browser) | Cloud (Railway + Firestore) |
+| **Locație** | Local (macOS browser) | Cloud (legacy hosting + Firestore) |
 | **Creează accounts?** | ❌ NU | ✅ DA |
 | **Apare în Flutter?** | ❌ NU | ✅ DA |
 | **QR Code** | Manual scan în browser | Generat de backend, afișat în app |
@@ -112,7 +112,7 @@ Flutter App
 ### Pentru a vedea accounts în Flutter:
 
 1. **✅ Backend trebuie să fie up** (nu 502):
-   - Setează `ADMIN_TOKEN` în Railway
+   - Setează `ADMIN_TOKEN` în legacy hosting
    - Verifică `/health` returnează 200
 
 2. **✅ Trebuie să fii logat ca super-admin**:
@@ -122,7 +122,7 @@ Flutter App
 3. **✅ Trebuie să existe accounts în Firestore**:
    - Fie create din app
    - Fie create manual în Firestore
-   - Fie create prin Railway API
+   - Fie create prin legacy hosting API
 
 ### Firefox containers sunt **separate**:
 - **NU** apar automat în Flutter

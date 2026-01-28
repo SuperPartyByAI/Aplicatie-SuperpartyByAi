@@ -80,9 +80,9 @@ firebase functions:list | grep whatsapp
 
 În cod se folosesc, în ordine:
 
-1. `WHATSAPP_BACKEND_BASE_URL`
-2. `WHATSAPP_BACKEND_URL`
-3. (deprecated) `WHATSAPP_RAILWAY_BASE_URL`
+1. `BACKEND_BASE_URL` (preferred, generic)
+2. `WHATSAPP_BACKEND_BASE_URL` (current standard)
+3. `WHATSAPP_BACKEND_URL` (legacy)
 
 `getBackendBaseUrl()` din `functions/lib/backend-url.js` citește din `process.env`; Functions le iau din Secret Manager via `defineSecret`.
 

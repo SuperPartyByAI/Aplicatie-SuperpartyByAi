@@ -195,7 +195,7 @@ firebase functions:secrets:access GROQ_API_KEY --project superparty-frontend
 flutter analyze
 # Result: 1 deprecation warning (non-blocking)
 
-curl https://whats-upp-production.up.railway.app/health | jq
+curl https://whats-app-ompro.ro/health | jq
 # Result: { "status": "healthy", "firestore": { "status": "connected" } }
 ```
 
@@ -244,7 +244,7 @@ clientCrmAsk:
 ```
 **Status**: **PASS** (clean startup, GROQ_API_KEY present)
 
-### ✅ Railway Backend
+### ✅ legacy hosting Backend
 ```json
 {
   "status": "healthy",
@@ -293,7 +293,7 @@ flutter run -d emulator-5554
 - TEST 2: Inbox (verify threads appear)
 - TEST 3: Receive (send from client phone → appears in app)
 - TEST 4: Send (send from app → client receives)
-- TEST 5: Restart Safety (Railway restart → no data loss)
+- TEST 5: Restart Safety (legacy hosting restart → no data loss)
 - TEST 7: Save Event (create `evenimente` doc)
 - TEST 8: Aggregate Stats (auto-update `clients/{phoneE164}`)
 
@@ -353,7 +353,7 @@ See `ACCEPTANCE_TEST_REPORT.md` for detailed steps.
 - ✅ Functions deployed (CRM AI + admin bootstrap)
 - ✅ Admin permanence (auto-bootstrap on sign-in)
 - ✅ GROQ_API_KEY configured
-- ✅ Railway backend healthy
+- ✅ legacy hosting backend healthy
 - ✅ Flutter dependencies installed
 - ✅ Emulator running (emulator-5554)
 

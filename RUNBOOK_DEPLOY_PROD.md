@@ -3,7 +3,7 @@
 **Date:** 2026-01-26  
 **Branch:** `main`  
 **Status:** Ready for production deployment  
-**Backend:** Hetzner (generic backend base URL). No Railway dependency.
+**Backend:** Hetzner (generic backend base URL). No legacy hosting dependency.
 
 ---
 

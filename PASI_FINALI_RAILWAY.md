@@ -1,4 +1,4 @@
-# ✅ Pași Finali Railway Setup
+# ✅ Pași Finali legacy hosting Setup
 
 ## Unde ești acum ✅
 
@@ -79,12 +79,12 @@
 
 ## După ce completezi totul
 
-1. Railway va **redeploy automat** după modificări
+1. legacy hosting va **redeploy automat** după modificări
 2. Așteaptă 1-2 minute pentru deployment
 3. Verifică health endpoint:
 
 ```bash
-curl https://whats-upp-production.up.railway.app/health | jq
+curl https://whats-app-ompro.ro/health | jq
 ```
 
 **Așteptat:**

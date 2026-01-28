@@ -2,7 +2,7 @@
 
 **Date:** 2026-01-26  
 **Branch:** `main`  
-**Backend:** Hetzner (no Railway).
+**Backend:** Hetzner (no legacy hosting).
 
 ---
 

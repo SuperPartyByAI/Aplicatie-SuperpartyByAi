@@ -10,7 +10,7 @@
 |------|--------|
 | `superparty_flutter/lib/screens/whatsapp/whatsapp_inbox_screen.dart` | Removed all auto-backfill: `WidgetsBindingObserver`, `WhatsAppBackfillManager`, banner, snackbars, `_triggerAutoBackfill`. Kept manual "Sync / Backfill" debug-only. |
 | `docs/WHATSAPP_AUTO_BACKFILL.md` | Updated Overview + Flutter section: no auto backfill; manual debug-only. Replaced client throttle/probe with deploy checklist. |
-| `whatsapp-backend/RUNBOOK_WHATSAPP_SYNC.md` | Flutter: "never auto-calls backfill"; Sync debug-only. Replaced "Railway" with "backend (Hetzner)" in troubleshooting. |
+| `whatsapp-backend/RUNBOOK_WHATSAPP_SYNC.md` | Flutter: "never auto-calls backfill"; Sync debug-only. Uses Hetzner backend. |
 
 **Backend** (`wa-auto-backfill.js`, `server.js`, `env.auto-backfill.example`): already implemented and wired. No code edits in this pass.
 

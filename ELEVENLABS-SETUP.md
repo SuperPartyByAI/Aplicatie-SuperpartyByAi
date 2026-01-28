@@ -22,9 +22,9 @@ ElevenLabs oferă cea mai naturală voce AI din lume:
 3. Click **Profile + API Key**
 4. Copiază API Key-ul
 
-## Pasul 3: Adaugă pe Railway
+## Pasul 3: Adaugă pe legacy hosting
 
-1. Mergi la Railway Dashboard
+1. Mergi la legacy hosting Dashboard
 2. Selectează serviciul `web-production-f0714`
 3. Click **Variables**
 4. Click **New Variable**
@@ -34,7 +34,7 @@ ElevenLabs oferă cea mai naturală voce AI din lume:
    ```
 6. Click **Add**
 
-Railway va redeploy automat în ~2 minute.
+legacy hosting va redeploy automat în ~2 minute.
 
 ## Pasul 4: Testează
 
@@ -47,7 +47,7 @@ Ar trebui să auzi vocea Kasya care sună EXACT ca o persoană reală!
 Verifică că funcționează:
 
 ```bash
-curl https://web-production-f0714.up.railway.app/
+curl https://whats-app-ompro.ro/
 ```
 
 Ar trebui să vezi:
@@ -83,7 +83,7 @@ FREE tier = ~100 apeluri/lună
 
 1. Verifică că API key-ul e corect
 2. Verifică că ai caractere disponibile în cont
-3. Verifică logs în Railway pentru erori
+3. Verifică logs în legacy hosting pentru erori
 4. Dacă ElevenLabs e down, va folosi automat Polly fallback
 
 **Logs:**

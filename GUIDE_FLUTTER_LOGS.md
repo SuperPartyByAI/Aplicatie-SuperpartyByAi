@@ -116,8 +116,8 @@ Dacă log-urile sunt prea multe, poți face screenshot din emulator:
 
 Înainte de a debuga app-ul, verifică backend-ul:
 ```bash
-curl https://whats-upp-production.up.railway.app/health
-curl https://whats-upp-production.up.railway.app/ready
-curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts
+curl https://whats-app-ompro.ro/health
+curl https://whats-app-ompro.ro/ready
+curl https://whats-app-ompro.ro/api/whatsapp/accounts
 ```
 

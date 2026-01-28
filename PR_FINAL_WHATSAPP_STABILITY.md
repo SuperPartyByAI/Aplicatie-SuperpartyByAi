@@ -87,16 +87,16 @@ See `WHATSAPP_STABILITY_TEST_PLAN.md` for complete test plan.
 
 ```bash
 # 1. Verify commit hash (should be d4f4998a or newer)
-curl https://whats-upp-production.up.railway.app/health | jq '.commit, .instanceId, .waMode, .lock'
+curl https://whats-app-ompro.ro/health | jq '.commit, .instanceId, .waMode, .lock'
 
 # 2. Test regenerateQr idempotency (should return existing QR if valid)
 curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/regenerate-qr/ACCOUNT_ID
+  https://whats-app-ompro.ro/api/whatsapp/regenerate-qr/ACCOUNT_ID
 
 # 3. Test spam (should return 429, not 500)
 for i in {1..5}; do
   curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
-    https://whats-upp-production.up.railway.app/api/whatsapp/regenerate-qr/ACCOUNT_ID &
+    https://whats-app-ompro.ro/api/whatsapp/regenerate-qr/ACCOUNT_ID &
 done
 ```
 

@@ -1,4 +1,4 @@
-# ✅ Corectare Configurare Railway
+# ✅ Corectare Configurare legacy hosting
 
 ## Ce ai făcut până acum
 - ✅ Variabilă de mediu: `whatsapp-sessions-volume` = `/data/sessions`
@@ -49,12 +49,12 @@
 
 ### Volume (Storage Persistent)
 - **Ce face:** Creează un disc persistent în container
-- **Unde:** Tab "Volumes" în Railway
+- **Unde:** Tab "Volumes" în legacy hosting
 - **Rezultat:** Datele rămân chiar și după restart/redeploy
 
 ### Variabilă de mediu (`SESSIONS_PATH`)
 - **Ce face:** Spune aplicației unde să scrie sesiunile
-- **Unde:** Tab "Variables" în Railway
+- **Unde:** Tab "Variables" în legacy hosting
 - **Rezultat:** Codul știe să folosească path-ul `/data/sessions`
 
 **Fără Volume:** Datele se pierd la restart  
@@ -66,9 +66,9 @@
 
 ## După corectare
 
-1. Railway va redeploy automat după modificări
+1. legacy hosting va redeploy automat după modificări
 2. Verifică logs:
    ```bash
-   curl https://whats-upp-production.up.railway.app/health | jq
+   curl https://whats-app-ompro.ro/health | jq
    ```
 3. Caută în răspuns: `"sessions_dir_writable": true` ✅

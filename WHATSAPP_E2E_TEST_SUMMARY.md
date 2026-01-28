@@ -7,7 +7,7 @@
 
 ### ✅ PASSED (3/4 automated tests)
 
-1. **Railway Health Check** ✅
+1. **legacy hosting Health Check** ✅
    - Status: `healthy`
    - Firestore: `connected`
    - Accounts: 0 total, 0 connected (ready for pairing)
@@ -34,8 +34,8 @@
 
 ### ⚠️ MANUAL CHECK REQUIRED (1 item)
 
-1. **Railway Variables** ⚠️
-   - Verify in Railway dashboard:
+1. **legacy hosting Variables** ⚠️
+   - Verify in legacy hosting dashboard:
      - `SESSIONS_PATH=/app/sessions` ✅
      - `FIREBASE_SERVICE_ACCOUNT_JSON=...` ✅ (must be set)
      - `ADMIN_TOKEN=...` (optional)
@@ -74,9 +74,9 @@
 bash test-whatsapp-e2e-complete.sh
 ```
 
-### Check Railway Health
+### Check legacy hosting Health
 ```bash
-curl -sS https://whats-upp-production.up.railway.app/health | jq '.status, .firestore.status'
+curl -sS https://whats-app-ompro.ro/health | jq '.status, .firestore.status'
 ```
 
 ### List Firebase Functions
@@ -100,7 +100,7 @@ firebase firestore:get clients --limit 5
 
 1. **Immediate:**
    - [ ] Delete old `whatsapp` v1 function from Firebase Console
-   - [ ] Verify Railway variables in dashboard
+   - [ ] Verify legacy hosting variables in dashboard
    - [ ] Run manual tests 5-10 in Flutter app
 
 2. **After Manual Tests Pass:**
@@ -123,7 +123,7 @@ firebase firestore:get clients --limit 5
 
 For issues:
 1. Check test report: `cat WHATSAPP_E2E_TEST_REPORT_*.md`
-2. Review Railway logs in dashboard
+2. Review legacy hosting logs in dashboard
 3. Check Firebase Functions logs
 4. Verify Firestore rules and indexes
 5. Confirm all secrets are set

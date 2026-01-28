@@ -17,10 +17,10 @@
 - **Fixes:**
   - Logs upstream status code + short error ID (not full body)
   - Returns structured error: `{ code: "UPSTREAM_HTTP_<status>", requestId, hint }`
-  - Forwards requestId to Railway backend
+  - Forwards requestId to legacy hosting backend
   - Better error handling with stack traces
 
-#### 3. Railway Backend Endpoint ✅
+#### 3. legacy hosting Backend Endpoint ✅
 - **File:** `whatsapp-backend/server.js`
 - **Fixes:**
   - Created `checkPassiveModeGuard()` function (was missing)

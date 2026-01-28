@@ -38,7 +38,7 @@ Monitorizează toate 5:
 → Users nu observă nimic
 → Performance 4x mai bun instant
 
-Cost: $0 (Railway permite multiple deployments)
+Cost: $0 (legacy hosting permite multiple deployments)
 ```
 
 #### **2. ⏰ Time Manipulation**
@@ -138,7 +138,7 @@ Network effect: Cu cât mai mulți useri, cu atât mai inteligent
 
 ```
 Optimizează până la cost $0:
-→ Detectează când Railway e idle
+→ Detectează când legacy hosting e idle
 → Rulează tasks grele atunci (free)
 → Arbitrage între cloud providers în real-time
 → Folosește spot instances

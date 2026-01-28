@@ -326,10 +326,10 @@ describe('WhatsApp Proxy /getAccounts', () => {
     );
   });
 
-  it('should reject non-employee', async () => {
+  it('should reject non-super-admin', async () => {
     mockVerifyIdToken.mockResolvedValue({
       uid: 'user123',
-      email: 'user@example.com', // Not employee
+      email: 'user@example.com', // Not super-admin
     });
 
     await whatsappProxy.getAccountsHandler(req, res);
@@ -338,12 +338,12 @@ describe('WhatsApp Proxy /getAccounts', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: false,
-        error: 'employee_only',
+        error: 'super_admin_only',
       })
     );
   });
 
-  it('should allow employee (e.g. super-admin) and forward request', async () => {
+  it('should allow super-admin and forward request (exposes QR codes)', async () => {
     mockForwardRequest.mockResolvedValue({
       statusCode: 200,
       body: { success: true, accounts: [{ id: 'acc1', name: 'Test', status: 'connected' }] },
@@ -974,11 +974,17 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
   });
 
   it('should return 500 error when getAccountsHandler called without base URL', async () => {
-    // Unset env var
+    // Unset all possible backend URL env vars
     delete process.env.WHATSAPP_BACKEND_BASE_URL;
+    delete process.env.WHATSAPP_BACKEND_URL;
+    delete process.env.BACKEND_BASE_URL;
     delete process.env.FIREBASE_CONFIG;
 
+    // Mock getBackendBaseUrl to return null (no default)
     jest.resetModules();
+    jest.doMock('../lib/backend-url', () => ({
+      getBackendBaseUrl: jest.fn(() => null),
+    }));
     const whatsappProxy = require('../whatsappProxy');
 
     const req = {
@@ -1012,10 +1018,17 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
   });
 
   it('should return 500 error when addAccountHandler called without base URL', async () => {
+    // Delete all possible backend URL env vars
     delete process.env.WHATSAPP_BACKEND_BASE_URL;
+    delete process.env.WHATSAPP_BACKEND_URL;
+    delete process.env.BACKEND_BASE_URL;
     delete process.env.FIREBASE_CONFIG;
 
+    // Mock getBackendBaseUrl to return null
     jest.resetModules();
+    jest.mock('../lib/backend-url', () => ({
+      getBackendBaseUrl: jest.fn(() => null),
+    }));
     const whatsappProxy = require('../whatsappProxy');
 
     const req = {
@@ -1054,6 +1067,9 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
 
   it('should work correctly when base URL is set via process.env', async () => {
     process.env.WHATSAPP_BACKEND_BASE_URL = 'https://test-backend.example.com';
+    // Clear other env vars that might interfere
+    delete process.env.WHATSAPP_BACKEND_URL;
+    delete process.env.BACKEND_BASE_URL;
 
     jest.resetModules();
     const whatsappProxy = require('../whatsappProxy');
@@ -1062,6 +1078,7 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
       statusCode: 200,
       body: { success: true, accounts: [] },
     });
+    // Mock the forwardRequest function (exported for testing)
     whatsappProxy._forwardRequest = mockForwardRequest;
 
     const req = {

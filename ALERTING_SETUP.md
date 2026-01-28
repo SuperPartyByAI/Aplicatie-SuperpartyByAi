@@ -141,7 +141,7 @@ Link: https://sentry.io/issues/...
 ```
 ⚠️ Service Down
 Service: WhatsApp Backend
-URL: https://aplicatie-superpartybyai-production-d067.up.railway.app
+URL: https://whats-app-ompro.ro
 Status: 503 Service Unavailable
 Duration: 2 minutes
 ```

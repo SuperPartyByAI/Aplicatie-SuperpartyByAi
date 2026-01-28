@@ -22,18 +22,25 @@ const { state, saveCreds } = useMultiFileAuthState(sessionPath);
 - Dacă NU există, restaurează din Firestore (`useFirestoreAuthState`)
 - Dacă există ambele, preferă disk (mai recent)
 
-### 2. **SESSIONS_PATH nu e persistent (Railway Volume lipsește)**
+### 2. **SESSIONS_PATH nu e persistent (Hetzner persistent storage lipsește)**
 
 **Problema:**
 - Dacă `SESSIONS_PATH` nu e configurat sau nu e persistent, sesiunea se pierde la redeploy
 - Backup-ul în Firestore există, dar nu se folosește
 
 **Soluție:**
-- **Configură Railway Volume persistent:**
+- **Configură Hetzner persistent storage:**
   ```bash
-  # Railway Dashboard -> Volumes -> Create Volume
-  # Mount path: /data/sessions
-  # Set SESSIONS_PATH=/data/sessions
+  # SSH to Hetzner server
+  ssh root@37.27.34.179
+  
+  # Create persistent directory
+  sudo mkdir -p /var/lib/whatsapp-backend/sessions
+  sudo chown -R $(systemctl show whatsapp-backend -p User --value):$(systemctl show whatsapp-backend -p User --value) /var/lib/whatsapp-backend/sessions
+  
+  # Set SESSIONS_PATH in systemd service
+  # Edit /etc/systemd/system/whatsapp-backend.service.d/20-sessions.conf
+  # Add: Environment="SESSIONS_PATH=/var/lib/whatsapp-backend/sessions"
   ```
 
 - **SAU** implementează restore automat din Firestore dacă disk session lipsește
@@ -145,7 +152,7 @@ if (!waBootstrap.canStartBaileys()) {
 ### 🔴 Prioritate ALTA (fix imediat)
 
 1. **Restore automat din Firestore la startup** dacă disk session lipsește
-2. **Verifică SESSIONS_PATH e persistent** (Railway Volume configurat)
+2. **Verifică SESSIONS_PATH e persistent** (Hetzner persistent storage configurat)
 
 ### 🟡 Prioritate MEDIE (fix în curând)
 
@@ -206,15 +213,26 @@ async function createConnection(accountId, name, phone) {
 }
 ```
 
-### Pas 2: Verifică Railway Volume
+### Pas 2: Verifică Hetzner Persistent Storage
 
 ```bash
-# Railway Dashboard -> Volumes -> Create Volume
-# Name: whatsapp-sessions
-# Mount path: /data/sessions
+# SSH to Hetzner server
+ssh root@37.27.34.179
 
-# Set environment variable:
-SESSIONS_PATH=/data/sessions
+# Create persistent directory
+sudo mkdir -p /var/lib/whatsapp-backend/sessions
+sudo chown -R $(systemctl show whatsapp-backend -p User --value):$(systemctl show whatsapp-backend -p User --value) /var/lib/whatsapp-backend/sessions
+
+# Set environment variable in systemd service
+sudo mkdir -p /etc/systemd/system/whatsapp-backend.service.d
+sudo tee /etc/systemd/system/whatsapp-backend.service.d/20-sessions.conf > /dev/null <<EOF
+[Service]
+Environment="SESSIONS_PATH=/var/lib/whatsapp-backend/sessions"
+EOF
+
+# Reload and restart
+sudo systemctl daemon-reload
+sudo systemctl restart whatsapp-backend
 ```
 
 ### Pas 3: Retry cu restore pentru logout temporar
@@ -237,9 +255,9 @@ Modifică handler-ul de disconnect pentru a nu șterge imediat sesiunea:
    - Restart backend
    - Verifică că se restaurează din Firestore
 
-2. **Test Railway Volume:**
-   - Configurează volume persistent
-   - Redeploy backend
+2. **Test Hetzner Persistent Storage:**
+   - Configurează persistent storage (systemd override)
+   - Restart backend
    - Verifică că sesiunea persistă
 
 3. **Test logout temporar:**
@@ -249,5 +267,5 @@ Modifică handler-ul de disconnect pentru a nu șterge imediat sesiunea:
 ## Referințe
 
 - [Baileys Auth State](https://github.com/WhiskeySockets/Baileys/blob/master/src/Utils/auth-state.ts)
-- [Railway Volumes](https://docs.railway.app/develop/volumes)
+- [Hetzner Systemd Service](whatsapp-backend/UBUNTU_SYSTEMD_SESSIONS.md)
 - [Firestore Backup/Restore](whatsapp-backend/lib/persistence/firestore-auth.js)

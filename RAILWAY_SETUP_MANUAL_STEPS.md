@@ -1,13 +1,13 @@
-# Railway Setup - Pași Manuali (Pas cu Pas)
+# legacy hosting Setup - Pași Manuali (Pas cu Pas)
 
 **Proiect:** WhatsApp 30 Accounts Backend  
-**Link Railway:** https://railway.app/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
+**Link legacy hosting:** https://legacy hosting.app/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
 
 ---
 
-## Pasul 1: Autentifică-te în Railway
+## Pasul 1: Autentifică-te în legacy hosting
 
-1. Deschide: https://railway.app
+1. Deschide: https://legacy hosting.app
 2. Login cu contul tău
 3. Navighează la proiect: **Aplicatie-SuperpartyByAi** (sau link-ul de mai sus)
 
@@ -15,7 +15,7 @@
 
 ## Pasul 2: Creează Volume (Persistent Storage)
 
-1. În Railway dashboard, deschide service-ul **whatsapp-backend**
+1. În legacy hosting dashboard, deschide service-ul **whatsapp-backend**
 2. Click pe tab-ul **Volumes** (în stânga)
 3. Click pe butonul **New Volume**
 4. Completează:
@@ -39,7 +39,7 @@
    - **Value:** `/data/sessions` (trebuie să fie exact același path ca mount path-ul de la Step 2)
 5. Click **Save**
 
-**Railway va redeploy automat după ce adaugi variabila.**
+**legacy hosting va redeploy automat după ce adaugi variabila.**
 
 ---
 
@@ -63,10 +63,10 @@
 
 ## Pasul 5: Verifică Health Endpoint
 
-1. În Railway dashboard, găsește **Public URL** pentru service (sau creează un domain)
+1. În legacy hosting dashboard, găsește **Public URL** pentru service (sau creează un domain)
 2. Testează health endpoint:
    ```bash
-   curl https://your-railway-url.railway.app/health
+   curl https://your-legacy hosting-url.legacy hosting.app/health
    ```
 
 3. **Răspuns așteptat:**
@@ -90,7 +90,7 @@
 
 1. Testează dashboard endpoint:
    ```bash
-   curl https://your-railway-url.railway.app/api/status/dashboard
+   curl https://your-legacy hosting-url.legacy hosting.app/api/status/dashboard
    ```
 
 2. **Răspuns așteptat:**

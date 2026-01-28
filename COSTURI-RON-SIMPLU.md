@@ -99,7 +99,7 @@
 
 - **Plan:** Coqui (economică)
 - **Cost/apel:** 0.08 RON
-- **Total:** 400 RON + 50 RON (Railway) = **450 RON/lună**
+- **Total:** 400 RON + 50 RON (legacy hosting) = **450 RON/lună**
 
 ---
 
@@ -144,7 +144,7 @@
 **Costurile NU includ:**
 
 - ❌ Dezvoltare/mentenanță
-- ❌ Hosting (Railway ~$5-10/lună)
+- ❌ Hosting (legacy hosting ~$5-10/lună)
 - ❌ Număr Twilio (~$1-2/lună)
 
 ---

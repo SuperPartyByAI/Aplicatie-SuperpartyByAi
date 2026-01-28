@@ -1,8 +1,8 @@
-# Railway WhatsApp Backend - Operator Runbook
+# legacy hosting WhatsApp Backend - Operator Runbook
 
 **Version:** 2.0.0  
 **Last Updated:** 2026-01-17  
-**Purpose:** Production operations guide for 30 WhatsApp accounts on Railway
+**Purpose:** Production operations guide for 30 WhatsApp accounts on legacy hosting
 
 ---
 
@@ -10,7 +10,7 @@
 
 1. [Repository Map](#0-repository-map)
 2. [Entrypoints & Startup](#1-entrypoints--startup)
-3. [Railway Persistence Requirements](#2-railway-persistence-requirements)
+3. [legacy hosting Persistence Requirements](#2-legacy hosting-persistence-requirements)
 4. [Baileys Confirmation](#3-baileys-confirmation)
 5. [Multi-Account Design](#4-multi-account-design)
 6. [Boot Restore Sequence](#5-boot-restore-sequence)
@@ -32,9 +32,9 @@ Aplicatie-SuperpartyByAi/
 │   ├── server.js              # Main entrypoint (4728 lines)
 │   ├── package.json           # Dependencies
 │   ├── Dockerfile             # Container image
-│   ├── railway.toml           # Railway deployment config
+│   ├── legacy hosting.toml           # legacy hosting deployment config
 │   └── lib/                   # Support modules
-├── railway.json               # Root Railway config
+├── legacy hosting.json               # Root legacy hosting config
 └── [other services...]
 ```
 
@@ -57,9 +57,9 @@ Aplicatie-SuperpartyByAi/
 - **Start Command:** `"start": "node server.js"` (line 7)
 - **Dev Command:** `"dev": "nodemon server.js"` (line 8)
 
-### Railway Configuration
+### legacy hosting Configuration
 
-**File:** `railway.json` (root, lines 1-17)
+**File:** `legacy hosting.json` (root, lines 1-17)
 ```json
 {
   "build": {
@@ -74,7 +74,7 @@ Aplicatie-SuperpartyByAi/
 }
 ```
 
-**File:** `whatsapp-backend/railway.toml` (lines 1-17)
+**File:** `whatsapp-backend/legacy hosting.toml` (lines 1-17)
 ```toml
 [build]
 builder = "NIXPACKS"
@@ -101,21 +101,21 @@ CMD ["node", "server.js"]
 
 ---
 
-## 2. Railway Persistence Requirements
+## 2. legacy hosting Persistence Requirements
 
 ### SESSIONS_PATH Logic
 - **File:** `whatsapp-backend/server.js` (lines 311-317)
 ```javascript
 const authDir =
   process.env.SESSIONS_PATH ||
-  (process.env.RAILWAY_VOLUME_MOUNT_PATH
-    ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'baileys_auth')
+  (process.env.LEGACY_VOLUME_MOUNT_PATH
+    ? path.join(process.env.LEGACY_VOLUME_MOUNT_PATH, 'baileys_auth')
     : path.join(__dirname, '.baileys_auth'));
 ```
 
 **Priority:**
 1. `SESSIONS_PATH` env var (highest priority)
-2. `RAILWAY_VOLUME_MOUNT_PATH + '/baileys_auth'`
+2. `LEGACY_VOLUME_MOUNT_PATH + '/baileys_auth'`
 3. Fallback: `{__dirname}/.baileys_auth` (ephemeral)
 
 ### Fail-Fast Writability Check
@@ -130,13 +130,13 @@ const authDir =
 - Line 351: Error message includes fix instructions
 
 ### Expected Mount Path from Config
-- **File:** `whatsapp-backend/railway.toml` (line 17)
+- **File:** `whatsapp-backend/legacy hosting.toml` (line 17)
 - **Mount Path:** `/app/sessions`
 
-### Railway UI Steps (Exact)
+### legacy hosting UI Steps (Exact)
 
 #### Step 1: Create Persistent Volume
-1. Railway Dashboard → Project → Service (`whatsapp-backend`) → Tab **"Volumes"**
+1. legacy hosting Dashboard → Project → Service (`whatsapp-backend`) → Tab **"Volumes"**
 2. Click **"New Volume"**
 3. Set:
    - **Name:** `whatsapp-sessions-volume`
@@ -146,7 +146,7 @@ const authDir =
 5. Wait for status **"Active"** (green)
 
 #### Step 2: Set Environment Variables
-Railway Dashboard → Service → Tab **"Variables"** → Add:
+legacy hosting Dashboard → Service → Tab **"Variables"** → Add:
 
 | Variable | Value | Required | Evidence |
 |----------|-------|----------|----------|
@@ -156,7 +156,7 @@ Railway Dashboard → Service → Tab **"Variables"** → Add:
 | `WHATSAPP_CONNECT_TIMEOUT_MS` | `60000` | Optional | Lines 373, 508 |
 
 #### Step 3: Verify Deployment
-**Check Logs (Railway Dashboard → Deployments → Latest → View Logs):**
+**Check Logs (legacy hosting Dashboard → Deployments → Latest → View Logs):**
 ```
 ✅ SESSIONS_PATH: /app/sessions
 ✅ Auth directory: /app/sessions
@@ -168,7 +168,7 @@ Railway Dashboard → Service → Tab **"Variables"** → Add:
 
 **Health Check:**
 ```bash
-curl https://your-service.railway.app/health | jq '{ok, sessions_dir_writable, firestore: .firestore.status}'
+curl https://your-service.legacy hosting.app/health | jq '{ok, sessions_dir_writable, firestore: .firestore.status}'
 ```
 
 **Expected:**
@@ -311,7 +311,7 @@ function generateAccountId(phone) {
 
 ### Base URL
 ```
-https://your-service.railway.app
+https://your-service.legacy hosting.app
 ```
 
 ### Authentication
@@ -354,7 +354,7 @@ https://your-service.railway.app
 
 **Example Request:**
 ```bash
-curl -X POST "https://your-service.railway.app/api/whatsapp/add-account" \
+curl -X POST "https://your-service.legacy hosting.app/api/whatsapp/add-account" \
   -H "Content-Type: application/json" \
   -d '{"name":"WA-01","phone":"+40712345678"}'
 ```
@@ -397,7 +397,7 @@ curl -X POST "https://your-service.railway.app/api/whatsapp/add-account" \
 
 **Example Request:**
 ```bash
-curl "https://your-service.railway.app/api/whatsapp/qr/account_prod_abc123..."
+curl "https://your-service.legacy hosting.app/api/whatsapp/qr/account_prod_abc123..."
 ```
 
 **Example Response:** HTML page with `<img src="data:image/png;base64,...">`
@@ -440,7 +440,7 @@ curl "https://your-service.railway.app/api/whatsapp/qr/account_prod_abc123..."
 
 **Example Request:**
 ```bash
-curl "https://your-service.railway.app/api/whatsapp/accounts"
+curl "https://your-service.legacy hosting.app/api/whatsapp/accounts"
 ```
 
 **Example Response:**
@@ -518,7 +518,7 @@ curl "https://your-service.railway.app/api/whatsapp/accounts"
 
 **Example Request:**
 ```bash
-curl "https://your-service.railway.app/api/status/dashboard"
+curl "https://your-service.legacy hosting.app/api/status/dashboard"
 ```
 
 **Example Response:**
@@ -584,7 +584,7 @@ curl "https://your-service.railway.app/api/status/dashboard"
 
 **Example Request:**
 ```bash
-curl -X POST "https://your-service.railway.app/api/whatsapp/regenerate-qr/account_prod_abc123..."
+curl -X POST "https://your-service.legacy hosting.app/api/whatsapp/regenerate-qr/account_prod_abc123..."
 ```
 
 **Code Evidence:**
@@ -614,7 +614,7 @@ curl -X POST "https://your-service.railway.app/api/whatsapp/regenerate-qr/accoun
 
 **Example Request:**
 ```bash
-curl -X POST "https://your-service.railway.app/api/whatsapp/disconnect/account_prod_abc123..."
+curl -X POST "https://your-service.legacy hosting.app/api/whatsapp/disconnect/account_prod_abc123..."
 ```
 
 **Code Evidence:**
@@ -642,7 +642,7 @@ curl -X POST "https://your-service.railway.app/api/whatsapp/disconnect/account_p
 
 **Example Request:**
 ```bash
-curl -X DELETE "https://your-service.railway.app/api/whatsapp/accounts/account_prod_abc123..."
+curl -X DELETE "https://your-service.legacy hosting.app/api/whatsapp/accounts/account_prod_abc123..."
 ```
 
 **Code Evidence:**
@@ -688,12 +688,12 @@ curl -X DELETE "https://your-service.railway.app/api/whatsapp/accounts/account_p
 
 **Example Request:**
 ```bash
-curl -X POST "https://your-service.railway.app/api/whatsapp/send-message" \
+curl -X POST "https://your-service.legacy hosting.app/api/whatsapp/send-message" \
   -H "Content-Type: application/json" \
   -d '{
     "accountId": "account_prod_7a8b9c...",
     "to": "+40712345678",
-    "message": "Hello from Railway!"
+    "message": "Hello from legacy hosting!"
   }'
 ```
 
@@ -746,7 +746,7 @@ curl -X POST "https://your-service.railway.app/api/whatsapp/send-message" \
 
 **Example Request:**
 ```bash
-curl "https://your-service.railway.app/api/whatsapp/messages?accountId=account_prod_...&limit=50"
+curl "https://your-service.legacy hosting.app/api/whatsapp/messages?accountId=account_prod_...&limit=50"
 ```
 
 **Code Evidence:**
@@ -761,7 +761,7 @@ curl "https://your-service.railway.app/api/whatsapp/messages?accountId=account_p
 **Route:** `GET /health`  
 **File:** `whatsapp-backend/server.js` (lines 1380-1503)  
 **Auth:** None  
-**Railway Healthcheck:** Configured in `railway.toml` line 8
+**legacy hosting Healthcheck:** Configured in `legacy hosting.toml` line 8
 
 **Response Schema:**
 ```json
@@ -796,7 +796,7 @@ curl "https://your-service.railway.app/api/whatsapp/messages?accountId=account_p
 
 **Example Request:**
 ```bash
-curl "https://your-service.railway.app/health"
+curl "https://your-service.legacy hosting.app/health"
 ```
 
 **Code Evidence:**
@@ -1107,10 +1107,10 @@ connected → (disconnect) → reconnecting (auto-reconnect)
 
 ## 11. Operator Checklists
 
-### Checklist 1: Railway Setup (Initial Deployment)
+### Checklist 1: legacy hosting Setup (Initial Deployment)
 
 #### A. Create Persistent Volume
-- [ ] Railway Dashboard → Project → Service (`whatsapp-backend`) → Tab **"Volumes"**
+- [ ] legacy hosting Dashboard → Project → Service (`whatsapp-backend`) → Tab **"Volumes"**
 - [ ] Click **"New Volume"**
 - [ ] Set **Name:** `whatsapp-sessions-volume`
 - [ ] Set **Mount Path:** `/app/sessions` ⚠️ (EXACT - must match)
@@ -1119,14 +1119,14 @@ connected → (disconnect) → reconnecting (auto-reconnect)
 - [ ] Wait for status **"Active"** (green)
 
 #### B. Set Environment Variables
-- [ ] Railway Dashboard → Service → Tab **"Variables"**
+- [ ] legacy hosting Dashboard → Service → Tab **"Variables"**
 - [ ] Add `SESSIONS_PATH` = `/app/sessions`
 - [ ] Add `FIREBASE_SERVICE_ACCOUNT_JSON` = `{...}` (Firebase service account JSON as string)
 - [ ] Add `ADMIN_TOKEN` = `your-long-random-token` (recommended)
 - [ ] (Optional) Add `WHATSAPP_CONNECT_TIMEOUT_MS` = `60000`
 
 #### C. Verify Deployment
-- [ ] Railway Dashboard → Deployments → Latest → View Logs
+- [ ] legacy hosting Dashboard → Deployments → Latest → View Logs
 - [ ] Confirm logs show:
   ```
   ✅ SESSIONS_PATH: /app/sessions
@@ -1136,7 +1136,7 @@ connected → (disconnect) → reconnecting (auto-reconnect)
   ```
 - [ ] Test health endpoint:
   ```bash
-  curl https://your-service.railway.app/health | jq '{ok, sessions_dir_writable, firestore: .firestore.status}'
+  curl https://your-service.legacy hosting.app/health | jq '{ok, sessions_dir_writable, firestore: .firestore.status}'
   ```
 - [ ] Expected: `{"ok": true, "sessions_dir_writable": true, "firestore": {"status": "connected"}}`
 
@@ -1146,7 +1146,7 @@ connected → (disconnect) → reconnecting (auto-reconnect)
 
 #### Setup Variables
 ```bash
-export BASE_URL="https://your-service.railway.app"
+export BASE_URL="https://your-service.legacy hosting.app"
 export ADMIN_TOKEN="your-admin-token"  # Optional
 ```
 
@@ -1199,7 +1199,7 @@ curl "${BASE_URL}/api/status/dashboard" | jq '.summary'
 - [ ] Expected: `"connected": 30, "total": 30`
 
 **Step 7: Test Redeploy (After All Connected)**
-- [ ] Trigger redeploy (Railway Dashboard → Redeploy)
+- [ ] Trigger redeploy (legacy hosting Dashboard → Redeploy)
 - [ ] Wait 1-2 minutes for boot
 - [ ] Verify all accounts auto-reconnect:
   ```bash
@@ -1301,11 +1301,11 @@ curl "${BASE_URL}/api/status/dashboard" | jq '.storage'
 
 **Evidence:**
 - Code: Lines 311-317 (SESSIONS_PATH priority logic)
-- Config: `railway.toml` line 17 specifies `/app/sessions`
+- Config: `legacy hosting.toml` line 17 specifies `/app/sessions`
 - Failure: Lines 346-352 (process.exit(1) if not writable)
 
 **Mitigation:**
-- ✅ Always set `SESSIONS_PATH=/app/sessions` to match `railway.toml`
+- ✅ Always set `SESSIONS_PATH=/app/sessions` to match `legacy hosting.toml`
 - ✅ Verify logs show `Sessions dir writable: true`
 - ✅ Test after redeploy: accounts should auto-reconnect
 
@@ -1370,7 +1370,7 @@ curl "${BASE_URL}/api/status/dashboard" | jq '.storage'
 
 ### Setup Variables
 ```bash
-export BASE_URL="https://your-service.railway.app"
+export BASE_URL="https://your-service.legacy hosting.app"
 export ADMIN_TOKEN="your-token"  # Optional
 ```
 

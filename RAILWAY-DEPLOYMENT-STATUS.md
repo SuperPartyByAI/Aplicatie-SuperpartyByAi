@@ -1,14 +1,14 @@
-# RAILWAY DEPLOYMENT STATUS
+# LEGACY_HOSTING DEPLOYMENT STATUS
 
 **Timestamp:** 2025-12-29T12:30:00Z  
-**Service URL:** https://whatsapp-backend-production.up.railway.app  
+**Service URL:** https://whats-app-ompro.ro  
 **Status:** Domain exists but returns 404 (service not configured)
 
 ---
 
 ## ISSUE IDENTIFIED
 
-Railway service exists and has a domain, but returns 404 error:
+legacy hosting service exists and has a domain, but returns 404 error:
 
 ```json
 { "status": "error", "code": 404, "message": "Application not found" }
@@ -20,15 +20,15 @@ Railway service exists and has a domain, but returns 404 error:
 
 ## SOLUTION: TEMPORARY ROOT DEPLOYMENT
 
-Since Railway API/CLI requires authentication and user cannot be asked to configure manually, I will:
+Since legacy hosting API/CLI requires authentication and user cannot be asked to configure manually, I will:
 
 1. Copy whatsapp-backend files to repo root temporarily
-2. Add railway.json in root for Railway to detect
+2. Add legacy hosting.json in root for legacy hosting to detect
 3. Push to trigger auto-deploy
 4. Test deployment
 5. Revert to proper structure after verification
 
-This is a temporary workaround to achieve DoD-1 (Railway deploy + health OK).
+This is a temporary workaround to achieve DoD-1 (legacy hosting deploy + health OK).
 
 ---
 

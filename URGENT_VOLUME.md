@@ -66,12 +66,12 @@
 
 ## După ce creezi Volume-ul
 
-1. Railway va **redeploy automat**
+1. legacy hosting va **redeploy automat**
 2. Așteaptă 1-2 minute
 3. Verifică health endpoint:
 
 ```bash
-curl https://whats-upp-production.up.railway.app/health | jq .sessions_dir_writable
+curl https://whats-app-ompro.ro/health | jq .sessions_dir_writable
 ```
 
 **Așteptat:** `true` ✅

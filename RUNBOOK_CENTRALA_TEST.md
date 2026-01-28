@@ -9,7 +9,7 @@
 **Valoare:**
 
 ```bash
-VITE_VOICE_BACKEND_URL=https://web-production-f0714.up.railway.app
+VITE_VOICE_BACKEND_URL=https://whats-app-ompro.ro
 ```
 
 ### Setare pentru Development
@@ -25,7 +25,7 @@ cp .env.example .env
 
 ```bash
 # Backend URL for Voice/Centrala
-VITE_VOICE_BACKEND_URL=https://web-production-f0714.up.railway.app
+VITE_VOICE_BACKEND_URL=https://whats-app-ompro.ro
 ```
 
 **Verificare:**
@@ -78,7 +78,7 @@ VITE v7.3.0  ready in 163 ms
 **Request:**
 
 ```
-GET https://web-production-f0714.up.railway.app/api/voice/token
+GET https://whats-app-ompro.ro/api/voice/token
 ```
 
 **Headers așteptate:**
@@ -109,7 +109,7 @@ Authorization: Bearer [Firebase ID Token]
 **Request:**
 
 ```
-GET https://web-production-f0714.up.railway.app/api/voice/calls/stats
+GET https://whats-app-ompro.ro/api/voice/calls/stats
 ```
 
 **Response așteptat (200 OK):**
@@ -136,7 +136,7 @@ GET https://web-production-f0714.up.railway.app/api/voice/calls/stats
 **Request:**
 
 ```
-GET https://web-production-f0714.up.railway.app/api/voice/calls/recent?limit=20
+GET https://whats-app-ompro.ro/api/voice/calls/recent?limit=20
 ```
 
 **Response așteptat (200 OK):**
@@ -191,11 +191,11 @@ TwilioError: 31205 - Connection error
 
 1. **Backend URL greșit**
    - Verifică: `echo $VITE_VOICE_BACKEND_URL` sau `.env`
-   - Corect: `https://web-production-f0714.up.railway.app`
-   - Greșit: `https://web-production-f0714.up.railway.app/` (trailing slash)
+   - Corect: `https://whats-app-ompro.ro`
+   - Greșit: `https://whats-app-ompro.ro/` (trailing slash)
 
 2. **Backend nu rulează**
-   - Verifică Railway dashboard: https://railway.app/
+   - Verifică legacy hosting dashboard: https://legacy hosting.app/
    - Service: `web-production-f0714`
    - Status: Running?
 
@@ -208,7 +208,7 @@ TwilioError: 31205 - Connection error
 ```javascript
 // CentralaTelefonicaScreen.jsx
 const BACKEND_URL =
-  import.meta.env.VITE_VOICE_BACKEND_URL || 'https://web-production-f0714.up.railway.app';
+  import.meta.env.VITE_VOICE_BACKEND_URL || 'https://whats-app-ompro.ro';
 // Verifică că nu are trailing slash
 ```
 
@@ -336,7 +336,7 @@ app.use(
   - Fallback la hardcoded URL dacă env var nu e setat
 - **Fișier:** `src/screens/CentralaTelefonicaScreen.jsx` (commit `81497da8`)
 
-- **Backend:** Railway service `web-production-f0714`
+- **Backend:** legacy hosting service `web-production-f0714`
 
 ---
 
@@ -344,14 +344,14 @@ app.use(
 
 **Posibile cauze:**
 
-1. Backend nu rulează pe Railway
+1. Backend nu rulează pe legacy hosting
 2. Backend URL greșit în `.env`
 3. Endpoints nu există în backend
 4. CORS blocat
 
 **Next steps:**
 
-1. Verifică Railway dashboard
+1. Verifică legacy hosting dashboard
 2. Verifică logs backend
 3. Contactează backend team
 4. Consideră fallback UI (error handling graceful)

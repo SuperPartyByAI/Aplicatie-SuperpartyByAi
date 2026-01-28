@@ -1,6 +1,6 @@
 # Analiza Loop 401 - Fix Necesar
 
-## Problema Observată în Railway Logs
+## Problema Observată în legacy hosting Logs
 
 **Pattern de Loop Infinit:**
 ```
@@ -108,7 +108,7 @@ if (credsExists) {
 ## Pași de Debug
 
 1. **Verifică Cleanup:**
-   - Caută în Railway logs: "Session directory deleted"
+   - Caută în legacy hosting logs: "Session directory deleted"
    - Dacă nu apare, cleanup nu funcționează
 
 2. **Verifică Auto-Reconnect:**
@@ -124,8 +124,8 @@ if (credsExists) {
 ## Soluție Rapidă (Workaround)
 
 **Dacă cleanup nu funcționează:**
-1. **Șterge manual session-ul din Railway:**
-   - SSH în Railway container
+1. **Șterge manual session-ul din legacy hosting:**
+   - SSH în legacy hosting container
    - `rm -rf /app/sessions/account_dev_dde908a65501c63b124cb94c627e551d`
    - Redeploy
 
@@ -140,4 +140,4 @@ if (credsExists) {
 - ❌ **Problema:** Loop infinit de 401 errors
 - 🔍 **Root Cause:** Cleanup nu funcționează sau auto-reconnect activează imediat după
 - 🛠️ **Fix:** Verificare cleanup + prevenire auto-reconnect pentru 401
-- ⏳ **Status:** Necesită investigare suplimentară în Railway logs
+- ⏳ **Status:** Necesită investigare suplimentară în legacy hosting logs

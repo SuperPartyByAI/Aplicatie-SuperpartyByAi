@@ -445,8 +445,8 @@ npm run deploy:frontend
 # WhatsApp Functions (Firebase Functions)
 npm run deploy:whatsapp
 
-# WhatsApp Backend (Railway)
-npm run deploy:railway
+# WhatsApp Backend (legacy hosting)
+npm run deploy:legacy hosting
 ```
 
 ---

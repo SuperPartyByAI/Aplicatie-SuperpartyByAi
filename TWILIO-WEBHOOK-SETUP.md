@@ -15,12 +15,12 @@
 
 - **Configure with**: Webhooks, TwiML Bins, Functions, Studio, or Proxy
 - **A call comes in**:
-  - URL: `https://web-production-f0714.up.railway.app/api/voice/incoming`
+  - URL: `https://whats-app-ompro.ro/api/voice/incoming`
   - Method: **HTTP POST**
 
 ### Call Status Changes (Optional)
 
-- **Status callback URL**: `https://web-production-f0714.up.railway.app/api/voice/status`
+- **Status callback URL**: `https://whats-app-ompro.ro/api/voice/status`
 - Method: **HTTP POST**
 
 ## Salvează
@@ -39,7 +39,7 @@ Cu vocea Kasya (clonată cu Coqui).
 
 ## ✅ Verificare
 
-După ce suni, verifică în Railway logs:
+După ce suni, verifică în legacy hosting logs:
 
 - Ar trebui să vezi: `[Twilio] Incoming call: { callSid: '...', from: '...' }`
 - Ar trebui să vezi: `[VoiceAI] Initialized with OpenAI`
@@ -50,14 +50,14 @@ După ce suni, verifică în Railway logs:
 ### Dacă nu răspunde deloc:
 
 - Verifică că webhook-ul e setat corect în Twilio
-- Verifică că URL-ul e: `https://web-production-f0714.up.railway.app/api/voice/incoming`
+- Verifică că URL-ul e: `https://whats-app-ompro.ro/api/voice/incoming`
 
 ### Dacă răspunde dar nu e vocea Kasya:
 
-- Verifică că `COQUI_API_URL` e setat în Railway Variables
-- Verifică că serviciul Coqui rulează pe: `https://web-production-00dca9.up.railway.app`
+- Verifică că `COQUI_API_URL` e setat în legacy hosting Variables
+- Verifică că serviciul Coqui rulează pe: `https://whats-app-ompro.ro`
 
 ### Dacă se închide imediat:
 
-- Verifică Railway logs pentru erori
+- Verifică legacy hosting logs pentru erori
 - Verifică că toate variabilele sunt setate corect

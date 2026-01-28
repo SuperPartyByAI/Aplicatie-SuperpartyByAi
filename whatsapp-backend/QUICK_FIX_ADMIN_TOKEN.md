@@ -8,9 +8,9 @@
 
 ---
 
-## ✅ OPȚIUNEA 1: Railway Dashboard (CEL MAI RAPID!)
+## ✅ OPȚIUNEA 1: legacy hosting Dashboard (CEL MAI RAPID!)
 
-1. **Deschide**: https://railway.app/dashboard
+1. **Deschide**: https://legacy hosting.app/dashboard
 2. **Login** (dacă nu ești logat): `superpartybyai@gmail.com`
 3. **Selectează proiectul**: WhatsApp backend
 4. **Click pe** "Variables" tab (sau Settings → Variables)
@@ -25,17 +25,17 @@
 
 ---
 
-## ✅ OPȚIUNEA 2: Railway CLI
+## ✅ OPȚIUNEA 2: legacy hosting CLI
 
 ### Pasul 1: Link proiect (dacă nu e deja link-at)
 
 ```bash
 cd /Users/universparty/Aplicatie-SuperpartyByAi/whatsapp-backend
-railway link
+legacy hosting link
 ```
 
 **Ce se întâmplă:**
-- Railway va deschide browser-ul
+- legacy hosting va deschide browser-ul
 - Selectează **workspace-ul** tău (superpartybyai's Projects)
 - Selectează **proiectul** WhatsApp backend
 - Confirmă link-ul
@@ -43,7 +43,7 @@ railway link
 ### Pasul 2: Setează ADMIN_TOKEN
 
 ```bash
-railway variables set ADMIN_TOKEN="8df59afe1ca9387674e2b72c42460e3a3d2dea96833af6d3d9b840ff48ddfea3"
+legacy hosting variables set ADMIN_TOKEN="8df59afe1ca9387674e2b72c42460e3a3d2dea96833af6d3d9b840ff48ddfea3"
 ```
 
 **SAU** rulează script-ul automat:
@@ -64,7 +64,7 @@ cd /Users/universparty/Aplicatie-SuperpartyByAi/whatsapp-backend
 
 Script-ul:
 - Verifică dacă proiectul e link-at
-- Dacă NU e link-at, te ghidează să faci `railway link` mai întâi
+- Dacă NU e link-at, te ghidează să faci `legacy hosting link` mai întâi
 - Dacă E link-at, setează automat `ADMIN_TOKEN`
 
 ---
@@ -75,10 +75,10 @@ După 1-2 minute (când backend-ul s-a redeploy-at):
 
 ```bash
 # Verifică health
-curl -s https://whats-upp-production.up.railway.app/health | jq
+curl -s https://whats-app-ompro.ro/health | jq
 
 # Verifică ready (returnează mode: active/passive)
-curl -s https://whats-upp-production.up.railway.app/ready | jq
+curl -s https://whats-app-ompro.ro/ready | jq
 ```
 
 **Răspuns așteptat pentru `/health`:**
@@ -104,18 +104,18 @@ curl -s https://whats-upp-production.up.railway.app/ready | jq
 
 ## 🔍 Verificare că e setat corect
 
-### În Railway Dashboard:
+### În legacy hosting Dashboard:
 1. Proiect → **Variables** tab
 2. Caută `ADMIN_TOKEN` în listă
 3. Ar trebui să vezi valoarea (primele 10 caractere)
 
-### Via Railway CLI:
+### Via legacy hosting CLI:
 ```bash
 cd /Users/universparty/Aplicatie-SuperpartyByAi/whatsapp-backend
-railway variables | grep -i ADMIN_TOKEN
+legacy hosting variables | grep -i ADMIN_TOKEN
 ```
 
-### În logs Railway:
+### În logs legacy hosting:
 După deploy, caută în logs:
 - ✅ `🔐 ADMIN_TOKEN configured: 8df59afe1c...` → Token setat corect
 - ❌ `❌ ADMIN_TOKEN is required in production...` → Token lipsește sau nu e setat corect
@@ -126,13 +126,13 @@ După deploy, caută în logs:
 
 Dacă încă returnează 502 după setarea `ADMIN_TOKEN`:
 
-1. **Verifică logs în Railway**:
+1. **Verifică logs în legacy hosting**:
    - Dashboard → Service → **Logs** tab
    - Caută mesaje despre `ADMIN_TOKEN`
 
 2. **Verifică variabile**:
    ```bash
-   railway variables
+   legacy hosting variables
    ```
    Ar trebui să vezi `ADMIN_TOKEN` în listă.
 

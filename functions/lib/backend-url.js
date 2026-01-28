@@ -8,8 +8,6 @@
  * 4. Firebase config (whatsapp.backend_base_url)
  * 
  * Default: https://whats-app-ompro.ro (Hetzner production)
- * 
- * Note: Railway references removed. Use Hetzner/Backend naming only.
  */
 function getBackendBaseUrl() {
   // New generic name (preferred)

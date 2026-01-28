@@ -42,8 +42,8 @@
 
 ## Immediate Actions Required
 
-### 1. Check Railway Logs (CRITICAL)
-In Railway dashboard, check logs for:
+### 1. Check legacy hosting Logs (CRITICAL)
+In legacy hosting dashboard, check logs for:
 ```
 ❌ Regenerate QR error:
 🔌 [account_xxx] connection.update: close
@@ -73,7 +73,7 @@ firebase firestore:get accounts --limit 10
 
 ### 3. Test Account Creation Flow
 1. **Create fresh account** via Flutter app
-2. **Monitor Railway logs** in real-time
+2. **Monitor legacy hosting logs** in real-time
 3. **Check Firestore** immediately after creation
 4. **Wait for QR** - does it appear?
 5. **Check account status** - does it persist?
@@ -188,7 +188,7 @@ if (reason === 'unknown' || !reason) {
 
 ## Next Steps
 
-1. **URGENT:** Check Railway logs for detailed error messages
+1. **URGENT:** Check legacy hosting logs for detailed error messages
 2. **URGENT:** Verify account exists in Firestore after creation
 3. **HIGH:** Test account creation flow end-to-end
 4. **MEDIUM:** Apply fixes based on findings
@@ -198,7 +198,7 @@ if (reason === 'unknown' || !reason) {
 
 1. ✅ Is backend in PASSIVE mode? → **NO, it's ACTIVE**
 2. ❓ Does account exist in Firestore after creation? → **CHECK REQUIRED**
-3. ❓ What is the exact error in Railway logs? → **CHECK REQUIRED**
+3. ❓ What is the exact error in legacy hosting logs? → **CHECK REQUIRED**
 4. ❓ Why does connection close with "unknown" reason? → **INVESTIGATE**
 5. ❓ Is account being incorrectly cleaned up? → **INVESTIGATE**
 
@@ -220,6 +220,6 @@ firebase firestore:get accounts --limit 10
 # Check specific account
 firebase firestore:get accounts/account_dev_dde908a65501c63b124cb94c627e551d
 
-# Check Railway health
-curl -sS https://whats-upp-production.up.railway.app/health | jq
+# Check legacy hosting health
+curl -sS https://whats-app-ompro.ro/health | jq
 ```

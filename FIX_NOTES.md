@@ -68,7 +68,7 @@
 - `addAccountHandler` (around line 588)
 
 **Changes:**
-- Propagates full 503 response from Railway backend
+- Propagates full 503 response from legacy hosting backend
 - Includes: `error`, `message`, `mode`, `instanceId`, `holderInstanceId`, `retryAfterSeconds`, `waMode`, `requestId`
 - Does NOT wrap 503 into 500 (propagates as-is)
 
@@ -127,8 +127,8 @@
   "error": "passive_mode",
   "message": "Backend in PASSIVE mode: lock_not_acquired",
   "mode": "passive",
-  "instanceId": "railway_xxx",
-  "holderInstanceId": "railway_yyy",
+  "instanceId": "legacy_xxx",
+  "holderInstanceId": "legacy_yyy",
   "retryAfterSeconds": 15,
   "waMode": "passive",
   "requestId": "req_1234567890"
@@ -164,7 +164,7 @@
 
 ## Notes
 
-- **Single Railway Instance Assumption:** The lock mechanism ensures only one instance is ACTIVE at a time. Other instances run in PASSIVE mode and retry lock acquisition every 15s.
+- **Single legacy hosting Instance Assumption:** The lock mechanism ensures only one instance is ACTIVE at a time. Other instances run in PASSIVE mode and retry lock acquisition every 15s.
 - **Lock Lease:** 90s lease, refreshed every 30s by holder instance
 - **retryAfterSeconds:** Calculated from lock lease remaining time (min 5s, max 90s)
 - **Pairing Phase:** Statuses `qr_ready`, `awaiting_scan`, `pairing`, `connecting` are considered pairing phase

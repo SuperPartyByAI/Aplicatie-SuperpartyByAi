@@ -96,7 +96,7 @@ async function loadAccounts() {
 async function fetchContactInfo(jid) {
   // Since we don't have access to the sock object here, we'll use a different approach
   // We'll check if the thread has received any messages with pushName
-  // Or we can make an API call to the Railway backend if needed
+  // Or we can make an API call to the Hetzner backend if needed
   
   // For now, return null - the real fix will happen when new messages arrive
   // This script will primarily mark threads that need updating

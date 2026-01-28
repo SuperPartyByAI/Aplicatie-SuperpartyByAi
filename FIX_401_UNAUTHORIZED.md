@@ -8,7 +8,7 @@
 - ❌ Backend șterge automat contul (`Explicit cleanup (401), deleting account`)
 - 🔄 Se repetă: connect → 401 → delete → reconnect → loop
 
-**Cauză**: Sesiune coruptă în Railway (`/app/sessions/account_dev_cd7b11e308a59fd9ab810bce5faf8393`)
+**Cauză**: Sesiune coruptă în legacy hosting (`/app/sessions/account_dev_cd7b11e308a59fd9ab810bce5faf8393`)
 - Session file e invalid/expirat
 - WhatsApp respinge credentials cu 401
 - Backend șterge contul automat (evită loop infinit)
@@ -56,7 +56,7 @@
 - ❌ Session file nu e sincronizat cu WhatsApp servers
 
 **Cauze comune**:
-- Railway restart (sesiune pierdută)
+- legacy hosting restart (sesiune pierdută)
 - WhatsApp deautentificare manuală
 - Session file corupt (disk error, etc.)
 - Prea multe reconectări rapide
@@ -80,8 +80,8 @@
 
 Dacă noul cont primește și el 401:
 
-### 1. **Verifică Railway sessions**
-- Railway Dashboard → Volumes
+### 1. **Verifică legacy hosting sessions**
+- legacy hosting Dashboard → Volumes
 - Verifică dacă `/app/sessions` volume mount funcționează
 - Verifică disk space (poate fi plin)
 
@@ -113,13 +113,13 @@ Dacă noul cont primește și el 401:
 
 ```bash
 # Verifică conturi existente
-curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts
+curl https://whats-app-ompro.ro/api/whatsapp/accounts
 
 # Verifică backend health
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # Test add account (cu număr real)
-curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-account \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
   -d '{"name":"Cont Principal","phone":"+40712345678"}'
 ```
@@ -128,7 +128,7 @@ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-accoun
 
 ## 💡 Concluzie
 
-**Problema**: Sesiune coruptă în Railway (session file invalid)
+**Problema**: Sesiune coruptă în legacy hosting (session file invalid)
 
 **Soluția**: Șterge contul corupt și adaugă unul nou → sesiune fresh
 

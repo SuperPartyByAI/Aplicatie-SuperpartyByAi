@@ -80,9 +80,9 @@
 
 ### Eroare: "Connection timeout"
 - **Fix**: Verifică conexiunea internet (WiFi/mobile data)
-- Verifică că backend Railway e healthy:
+- Verifică că backend Hetzner e healthy:
   ```bash
-  curl https://whats-upp-production.up.railway.app/health
+  curl https://whats-app-ompro.ro/health
   ```
 
 ### QR code nu apare
@@ -95,13 +95,13 @@
 
 ```bash
 # Verifică conturi existente
-curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts
+curl https://whats-app-ompro.ro/api/whatsapp/accounts
 
 # Verifică backend health
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # Test add account (cu număr real)
-curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-account \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
   -d '{"name":"Cont Principal","phone":"+40712345678"}'
 ```
@@ -134,7 +134,7 @@ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-accoun
 
 ## 🆘 Dacă Tot Nu Merge
 
-1. **Verifică logs Railway** (dacă ai acces)
+1. **Verifică logs Hetzner** (dacă ai acces)
 2. **Verifică Firestore** → `accounts` collection (dacă ai acces)
 3. **Reîncearcă** cu Regenerate QR
 4. **Șterge contul vechi** și adaugă din nou

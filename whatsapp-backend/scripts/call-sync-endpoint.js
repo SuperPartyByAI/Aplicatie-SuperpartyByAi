@@ -6,7 +6,7 @@
  *   node scripts/call-sync-endpoint.js <backendUrl> <adminToken> <accountId> [--dry-run]
  * 
  * Example:
- *   node scripts/call-sync-endpoint.js https://your-backend.railway.app 8df59afe1ca9387674e2b72c42460e3a3d2dea96833af6d3d9b840ff48ddfea3 account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443
+ *   node scripts/call-sync-endpoint.js https://whats-app-ompro.ro 8df59afe1ca9387674e2b72c42460e3a3d2dea96833af6d3d9b840ff48ddfea3 account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443
  */
 
 const https = require('https');

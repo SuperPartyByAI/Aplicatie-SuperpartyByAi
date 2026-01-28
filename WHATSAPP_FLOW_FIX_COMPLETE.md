@@ -63,8 +63,8 @@ return res.status(...).json({
 
 **Status**: ✅ **DEJA IMPLEMENTAT**
 - Flutter trimite `X-Correlation-Id` (whatsapp_api_service.dart lines 241, 355)
-- Functions forwardează `X-Correlation-Id` către Railway (whatsappProxy.js line 952)
-- Railway loghează correlation ID în endpoints (server.js folosește `X-Request-ID` / `X-Correlation-Id`)
+- Functions forwardează `X-Correlation-Id` către legacy hosting (whatsappProxy.js line 952)
+- legacy hosting loghează correlation ID în endpoints (server.js folosește `X-Request-ID` / `X-Correlation-Id`)
 
 ### C) Backend 401/logged_out Cleanup ✅ DEJA FIXAT
 

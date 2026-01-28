@@ -1,7 +1,7 @@
 # FINAL DoD REPORT - Baileys WhatsApp Backend (COMPLETE)
 
 **Generated:** 2025-12-29T18:51:00Z  
-**Service:** https://whats-upp-production.up.railway.app  
+**Service:** https://whats-app-ompro.ro  
 **Repository:** /workspaces/Aplicatie-SuperpartyByAi  
 **Current Deployment:** 76758774 (makeInMemoryStore fix)  
 **Latest Commit:** d6ee1ae9 (queue endpoints + force redeploy)
@@ -24,8 +24,8 @@
 
 - ⏳ DoD-4: Queue/Outbox - CODE READY, DEPLOYMENT BLOCKED
 
-**Root Cause:** Railway auto-deploy not triggered for commits 04585e76, 50bc36bf, d6ee1ae9.  
-**Workaround:** Manual redeploy required in Railway dashboard.
+**Root Cause:** legacy hosting auto-deploy not triggered for commits 04585e76, 50bc36bf, d6ee1ae9.  
+**Workaround:** Manual redeploy required in legacy hosting dashboard.
 
 ---
 
@@ -98,7 +98,7 @@ store.bind(sock.ev); // CRITICAL
 
 ### ✅ DoD-3: COLD START RECOVERY - PASS
 
-**Test:** Railway redeploy → accounts restore from Firestore without rescan.
+**Test:** legacy hosting redeploy → accounts restore from Firestore without rescan.
 
 **Pre-Restart:**
 
@@ -146,7 +146,7 @@ store.bind(sock.ev); // CRITICAL
 
 ### ⏳ DoD-4: QUEUE/OUTBOX - CODE READY, DEPLOYMENT BLOCKED
 
-**Status:** Implementation complete (commit 04585e76), but not deployed to Railway.
+**Status:** Implementation complete (commit 04585e76), but not deployed to legacy hosting.
 
 **Implementation:**
 
@@ -169,19 +169,19 @@ GET  /admin/queue/status  - View queue statistics
 
 - Current deployment: 76758774 (Dec 29, 17:58)
 - Latest commit: d6ee1ae9 (Dec 29, 18:22)
-- Railway did not auto-deploy commits 04585e76, 50bc36bf, d6ee1ae9
+- legacy hosting did not auto-deploy commits 04585e76, 50bc36bf, d6ee1ae9
 
 **Verification Attempted:**
 
 ```bash
-curl https://whats-upp-production.up.railway.app/admin/queue/status
+curl https://whats-app-ompro.ro/admin/queue/status
 Response: Cannot GET /admin/queue/status (404)
 ```
 
 **Workaround Required:**
 
-1. Manual redeploy in Railway dashboard
-2. OR: Railway webhook/integration fix
+1. Manual redeploy in legacy hosting dashboard
+2. OR: legacy hosting webhook/integration fix
 3. OR: Force push with empty commit
 
 **Code Verification:**
@@ -258,7 +258,7 @@ Target duration: 7200000ms (2 hours)
 **UI Components Found:**
 
 1. **ChatClientiScreen** (`kyc-app/dist/assets/ChatClientiScreen-*.js`)
-   - Points to BAILEYS_BASE_URL: `https://whats-upp-production.up.railway.app`
+   - Points to BAILEYS_BASE_URL: `https://whats-app-ompro.ro`
    - Fetches: `/api/whatsapp/accounts`, `/api/clients`, `/api/clients/{id}/messages`
    - Displays: messages with timestamps, direction, status
    - Features: client list, conversation view, send message
@@ -395,7 +395,7 @@ Target duration: 7200000ms (2 hours)
 - ⚠️ RBAC backend (role-based access control)
 - ⚠️ Call/recording/transcript integration (UI shows N/A)
 - ⚠️ Monitoring dashboard
-- ⚠️ Automated deployment fix (Railway webhook)
+- ⚠️ Automated deployment fix (legacy hosting webhook)
 
 ---
 
@@ -412,8 +412,8 @@ Target duration: 7200000ms (2 hours)
 
 ### Immediate (Pre-Production):
 
-1. **Fix Railway Deployment:**
-   - Manual redeploy in Railway dashboard
+1. **Fix legacy hosting Deployment:**
+   - Manual redeploy in legacy hosting dashboard
    - OR: Trigger webhook manually
    - OR: Force push with empty commit
    - Verify commit d6ee1ae9 deployed
@@ -453,12 +453,12 @@ Target duration: 7200000ms (2 hours)
 
 ## BLOCKERS & WORKAROUNDS
 
-### BLOCKER 1: Railway Auto-Deploy Not Working
+### BLOCKER 1: legacy hosting Auto-Deploy Not Working
 
 **Impact:** Queue endpoints not available in production  
-**Root Cause:** Railway webhook not triggered for commits 04585e76, 50bc36bf, d6ee1ae9  
-**Workaround:** Manual redeploy in Railway dashboard  
-**Permanent Fix:** Investigate Railway webhook configuration
+**Root Cause:** legacy hosting webhook not triggered for commits 04585e76, 50bc36bf, d6ee1ae9  
+**Workaround:** Manual redeploy in legacy hosting dashboard  
+**Permanent Fix:** Investigate legacy hosting webhook configuration
 
 ### BLOCKER 2: Soak Test Duration
 
@@ -487,7 +487,7 @@ System is **production-ready** for core operations:
 - ⏳ Soak test (in progress, 10 min evidence collected)
 - ⚠️ RBAC backend (needs implementation)
 
-**Recommendation:** **DEPLOY QUEUE ENDPOINTS** manually in Railway, complete soak test, implement RBAC, then **PRODUCTION READY**.
+**Recommendation:** **DEPLOY QUEUE ENDPOINTS** manually in legacy hosting, complete soak test, implement RBAC, then **PRODUCTION READY**.
 
 ---
 
@@ -503,7 +503,7 @@ System is **production-ready** for core operations:
 
 **Next Steps:**
 
-1. Manual Railway redeploy
+1. Manual legacy hosting redeploy
 2. Wait for soak completion (1h 35min remaining)
 3. Implement RBAC backend
 4. Generate final evidence.json

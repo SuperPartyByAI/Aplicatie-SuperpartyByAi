@@ -1,6 +1,6 @@
 # Fix "Unknown" Reason Code + Connection Close After QR
 
-## Problema Identificată din Railway Logs
+## Problema Identificată din legacy hosting Logs
 
 **Symptom:**
 ```
@@ -107,14 +107,14 @@ console.error(`🔌 [${accountId}] connection.update: close`, logData);
 ### Test 1: Verifică Logging pentru "Unknown" Reason
 ```bash
 # 1. Trigger regenerateQr
-# 2. Verifică Railway logs pentru "UNKNOWN REASON (investigating...)"
+# 2. Verifică legacy hosting logs pentru "UNKNOWN REASON (investigating...)"
 # Expected: Logs arată lastDisconnect, error, connection objects complet
 ```
 
 ### Test 2: Verifică Race Condition
 ```bash
 # 1. Trigger regenerateQr rapid (2-3 apeluri)
-# 2. Verifică Railway logs:
+# 2. Verifică legacy hosting logs:
 # Expected: "Already connecting, skipping duplicate" (guard funcționează)
 # Expected: Nu mai apare "Connection already in progress" după primul apel
 ```
@@ -122,7 +122,7 @@ console.error(`🔌 [${accountId}] connection.update: close`, logData);
 ### Test 3: Verifică Connection Close
 ```bash
 # 1. Trigger regenerateQr
-# 2. Verifică Railway logs pentru "connection.update: close"
+# 2. Verifică legacy hosting logs pentru "connection.update: close"
 # Expected: Dacă reason este "unknown", logs arată detalii complete
 # Expected: Account rămâne în pairing phase (nu devine disconnected imediat)
 ```
@@ -177,7 +177,7 @@ console.error(`🔌 [${accountId}] connection.update: close`, logData);
 
 ## Next Steps
 
-1. **Deploy** fix la Railway backend
+1. **Deploy** fix la legacy hosting backend
 2. **Test** - Trigger regenerateQr și verifică logs pentru "UNKNOWN REASON"
 3. **Analizează** logs pentru a identifica cauza reală a "unknown" reason codes
 4. **Aplică** fix-uri specifice bazate pe analiza logs

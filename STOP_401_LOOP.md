@@ -51,8 +51,8 @@
 
 **Soluții**:
 
-### 1. **Șterge session file din Railway** (dacă ai acces)
-- Railway Dashboard → Volumes
+### 1. **Șterge session file din legacy hosting** (dacă ai acces)
+- legacy hosting Dashboard → Volumes
 - Șterge: `/app/sessions/account_dev_cd7b11e308a59fd9ab810bce5faf8393`
 - Sau șterge tot folder-ul `/app/sessions` (va regenera fresh)
 
@@ -62,7 +62,7 @@
 - Șterge manual dacă există
 
 ### 3. **Verifică backend code pentru auto-recreate**
-- Backend Railway code (nu am acces din Flutter repo)
+- Backend legacy hosting code (nu am acces din Flutter repo)
 - Caută logic care recreează conturi șterse
 - Caută cron jobs sau scheduled tasks care reîncerci conexiuni
 
@@ -80,7 +80,7 @@
 - [ ] Cont nou: **Vizibil cu QR code** (status = `qr_ready`)
 - [ ] QR code: **Scannable** (se poate scana cu telefonul)
 
-### În logs Railway:
+### În logs legacy hosting:
 - [ ] Cont vechi: **Nu mai apare** (sau apare rar, se șterge automat)
 - [ ] Cont nou: **QR generat**, **Status: `qr_ready`** sau `connected`
 
@@ -90,10 +90,10 @@
 
 ```bash
 # Verifică conturi existente
-curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts
+curl https://whats-app-ompro.ro/api/whatsapp/accounts
 
 # Verifică backend health
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # Verifică Firestore (dacă ai acces)
 # Firestore Console → accounts collection

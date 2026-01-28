@@ -1,4 +1,4 @@
-# Railway Services - Ghid Complet pentru SuperParty
+# legacy hosting Services - Ghid Complet pentru SuperParty
 
 ## 🗄️ Database Services (Baze de Date)
 
@@ -103,7 +103,7 @@
 
 ## 📊 Monitoring & Observability
 
-### 5. Railway Metrics (Built-in) ⭐⭐⭐⭐⭐
+### 5. legacy hosting Metrics (Built-in) ⭐⭐⭐⭐⭐
 
 **Cost:** GRATUIT
 **Recomandare:** FOLOSEȘTE-L!
@@ -129,7 +129,7 @@
 
 ---
 
-### 6. Railway Logs (Built-in) ⭐⭐⭐⭐⭐
+### 6. legacy hosting Logs (Built-in) ⭐⭐⭐⭐⭐
 
 **Cost:** GRATUIT
 **Recomandare:** FOLOSEȘTE-L!
@@ -150,7 +150,7 @@
 
 ## 🔄 Workflow & Automation
 
-### 7. Railway Cron Jobs ⭐⭐⭐⭐
+### 7. legacy hosting Cron Jobs ⭐⭐⭐⭐
 
 **Cost:** Inclus în serviciu
 **Recomandare:** FOARTE UTIL
@@ -188,7 +188,7 @@
 
 ---
 
-### 8. Railway Webhooks ⭐⭐⭐⭐
+### 8. legacy hosting Webhooks ⭐⭐⭐⭐
 
 **Cost:** GRATUIT
 **Recomandare:** UTIL pentru CI/CD
@@ -232,14 +232,14 @@
 **Exemplu:**
 
 ```
-În loc de: whats-upp-production.up.railway.app
+În loc de: whats-upp-production.up.legacy hosting.app
 Folosești: api.superparty.ro
 ```
 
 **Cum Să Configurezi:**
 
 1. Cumpără domeniu (GoDaddy, Namecheap, etc.)
-2. Railway → Service → Settings → Domains
+2. legacy hosting → Service → Settings → Domains
 3. Add custom domain
 4. Update DNS records (CNAME)
 
@@ -317,7 +317,7 @@ API_KEY → shared
 
 ## 📦 Storage & Volumes
 
-### 13. Railway Volumes ⭐⭐⭐⭐
+### 13. legacy hosting Volumes ⭐⭐⭐⭐
 
 **Cost:** ~$0.25/GB/month
 **Recomandare:** UTIL pentru persistent storage
@@ -387,15 +387,15 @@ fs.writeFileSync(`${uploadPath}/user-${userId}.jpg`, photoBuffer);
 **Cum Funcționează:**
 
 1. Creezi PR pe GitHub
-2. Railway creează automat preview environment
+2. legacy hosting creează automat preview environment
 3. Testezi pe URL-ul preview
 4. Merge PR → deploy la production
 
 **Exemplu:**
 
 ```
-Production: whats-upp-production.up.railway.app
-PR #123: whats-upp-pr-123.up.railway.app
+Production: whats-upp-production.up.legacy hosting.app
+PR #123: whats-upp-pr-123.up.legacy hosting.app
 ```
 
 ---
@@ -442,7 +442,7 @@ PR #123: whats-upp-pr-123.up.railway.app
 
 1. Service → Settings → Scaling
 2. Replicas: 2-3
-3. Railway face load balancing automat
+3. legacy hosting face load balancing automat
 
 **Cost:**
 
@@ -457,7 +457,7 @@ PR #123: whats-upp-pr-123.up.railway.app
 ### 18. Vertical Scaling ⭐⭐⭐
 
 **Cost:** Automat (pay per use)
-**Recomandare:** Lasă Railway să gestioneze
+**Recomandare:** Lasă legacy hosting să gestioneze
 
 **Ce Face:**
 
@@ -469,7 +469,7 @@ PR #123: whats-upp-pr-123.up.railway.app
 
 ## 🔔 Notifications & Alerts
 
-### 19. Railway Notifications ⭐⭐⭐⭐
+### 19. legacy hosting Notifications ⭐⭐⭐⭐
 
 **Cost:** GRATUIT
 **Recomandare:** ACTIVEAZĂ-LE
@@ -520,7 +520,7 @@ PR #123: whats-upp-pr-123.up.railway.app
 
 ### Implementează ACUM (Gratuit):
 
-1. **✅ Railway Metrics** - Monitoring basic
+1. **✅ legacy hosting Metrics** - Monitoring basic
    - Cost: $0
    - Timp: 0 (deja activ)
    - Benefit: Vezi performance
@@ -617,7 +617,7 @@ Total: $22.08/month
 
 ### Săptămâna 1 (GRATUIT):
 
-- [ ] Activează Railway Metrics
+- [ ] Activează legacy hosting Metrics
 - [ ] Setup Webhooks pentru Slack/Discord
 - [ ] Configurează Shared Variables
 - [ ] Explorează Logs & Monitoring
@@ -625,7 +625,7 @@ Total: $22.08/month
 ### Săptămâna 2-3 (Când Ai Timp):
 
 - [ ] Cumpără custom domain
-- [ ] Setup custom domain în Railway
+- [ ] Setup custom domain în legacy hosting
 - [ ] Creează cron job pentru cleanup
 - [ ] Setup volume pentru uploads
 
@@ -658,7 +658,7 @@ A: Când ai > 5000 requests/min sau downtime = pierdere bani
 
 ## 🚀 Next Steps
 
-1. **Explorează Railway Metrics** - Vezi cum performează aplicația
+1. **Explorează legacy hosting Metrics** - Vezi cum performează aplicația
 2. **Setup Custom Domain** - Professional look
 3. **Configurează Webhooks** - Team notifications
 4. **Creează Cron Job** - Cleanup automat

@@ -181,14 +181,14 @@ Cost per apel (1 min audio): $0.06
 | ------------------------ | ---------- | ------------------- |
 | Twilio RO                | $0.017     | 2 min × $0.0085/min |
 | OpenAI GPT-4o-mini       | $0.0003    | ~1,400 tokens       |
-| Coqui XTTS (self-hosted) | $0.00      | Gratis (Railway)    |
+| Coqui XTTS (self-hosted) | $0.00      | Gratis (legacy hosting)    |
 | **TOTAL**                | **$0.017** | **~$0.02 per apel** |
 
 **Adevăr:** 95%
 
 **Notă:** Necesită:
 
-- Deploy Coqui service pe Railway (~$5-10/lună)
+- Deploy Coqui service pe legacy hosting (~$5-10/lună)
 - Calitate voce mai slabă decât ElevenLabs
 - GPT-4o-mini e mai puțin inteligent decât GPT-4o
 

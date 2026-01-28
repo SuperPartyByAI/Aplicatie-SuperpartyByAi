@@ -22,7 +22,7 @@ flutter run --dart-define=USE_EMULATORS=true -d emulator-5554
 
 ---
 
-### PASUL B — WhatsApp Flow (Proxy → Railway) ✅
+### PASUL B — WhatsApp Flow (Proxy → legacy hosting) ✅
 
 #### Fix 1: GET /api/whatsapp/accounts - PASSIVE Mode Logging ✅
 **File:** `whatsapp-backend/server.js:3129-3215`
@@ -37,7 +37,7 @@ flutter run --dart-define=USE_EMULATORS=true -d emulator-5554
 
 **Test:**
 ```bash
-# Verifică în Railway logs:
+# Verifică în legacy hosting logs:
 # Expected: [GET /accounts/req_xxx] Request: waMode=passive, lockReason=lock_not_acquired
 # Expected: [GET /accounts/req_xxx] In-memory accounts: 0
 # Expected: [GET /accounts/req_xxx] Firestore accounts: X total
@@ -67,7 +67,7 @@ flutter run --dart-define=USE_EMULATORS=true -d emulator-5554
 **Status:** Deja fixat în fix-urile anterioare
 - ✅ Logs upstream status + short error ID
 - ✅ Returns structured error: `{ code: "UPSTREAM_HTTP_<status>", requestId, hint }`
-- ✅ Forwards requestId la Railway
+- ✅ Forwards requestId la legacy hosting
 
 ---
 
@@ -150,7 +150,7 @@ bash scripts/verify-emulators.sh
 
 **Usage:**
 ```bash
-RAILWAY_URL=https://whats-upp-production.up.railway.app \
+LEGACY_URL=https://whats-app-ompro.ro \
 ADMIN_TOKEN=your-token \
 bash scripts/test-whatsapp-flow.sh
 ```
@@ -184,7 +184,7 @@ flutter run --dart-define=USE_EMULATORS=true -d emulator-5554
 # Expected: [WhatsAppApiService] getAccounts: accountsCount=1
 # Expected: QR code apare în UI
 
-# 3. Verifică logs Railway (via test script):
+# 3. Verifică logs legacy hosting (via test script):
 bash scripts/test-whatsapp-flow.sh
 
 # Expected: waMode=active, accounts count > 0

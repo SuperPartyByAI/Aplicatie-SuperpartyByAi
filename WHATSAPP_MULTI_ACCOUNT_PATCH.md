@@ -30,7 +30,7 @@ This patch ensures stable send/receive from the app, messages saved in Firestore
     - Set `status='sending'`, `claimedBy=WORKER_ID`, `leaseUntil=now+60s`
   - After send: release lease (`leaseUntil=null`)
   - On failure: reset to `queued` and release lease
-- **Worker ID**: Uses `RAILWAY_DEPLOYMENT_ID` or `HOSTNAME` or `local-${Date.now()}`
+- **Worker ID**: Uses `LEGACY_DEPLOYMENT_ID` or `HOSTNAME` or `local-${Date.now()}`
 
 ### 4. Outbound First-Class Messages
 - **Status**: ✅ Implemented
@@ -168,7 +168,7 @@ firebase firestore:get outbox --where "status" "==" "sending" --limit 10
 
 ### G) Multi-Instance Safety (Optional)
 **Steps**:
-1. Run 2 backend instances (different `RAILWAY_DEPLOYMENT_ID`)
+1. Run 2 backend instances (different `LEGACY_DEPLOYMENT_ID`)
 2. Queue messages
 3. Both instances query outbox
 
@@ -193,9 +193,9 @@ firebase deploy --only firestore:indexes
 
 ### 2. Deploy Backend
 ```bash
-# Railway auto-deploys on push to main
+# legacy hosting auto-deploys on push to main
 # Or manually:
-railway up
+legacy hosting up
 ```
 
 ### 3. Verify Indexes

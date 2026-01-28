@@ -6,7 +6,6 @@ node_modules/
 .firebase-token
 .secrets/
 secrets-backup/
-.railway-credentials
 COMPLETE-CONFIG.txt
 YOUR-ENV-VARS.txt
 FINAL-ENV-VARS.txt
@@ -29,11 +28,8 @@ service-account-key.json
 .env.*
 .env.local
 *.env
-RAILWAY-VARIABLES-*.env
-**/RAILWAY-VARIABLES-*.env
 # Keep example files
 !*.env.example
-!RAILWAY-VARIABLES.env.example
 
 # Firebase Admin SDK / service accounts (never commit)
 **/*adminsdk*.json
@@ -135,7 +131,6 @@ devtools_options.yaml
 
 # Temporary files with secrets (must not commit)
 FINAL-SIMPLE-STEPS.txt
-COPY-PASTE-RAILWAY.txt
 COMPLETE-CONFIG.txt
 *CONFIG.txt
 *ENV-VARS.txt

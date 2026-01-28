@@ -161,7 +161,7 @@ firebase deploy --only firestore:indexes
 
 **Pentru backend (cod Node.js):**
 - Nu necesită deploy Firebase (e parte din backend)
-- Se deploy-ează normal pe Railway (commit + push → Railway redeploy)
+- Se deploy-ează normal pe legacy hosting (commit + push → legacy hosting redeploy)
 
 ---
 

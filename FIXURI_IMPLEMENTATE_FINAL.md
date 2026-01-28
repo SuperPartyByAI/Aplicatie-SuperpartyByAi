@@ -129,7 +129,7 @@ După deploy, testează:
    ```bash
    # De pe PASSIVE instance
    curl -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-     https://whats-upp-production.up.railway.app/api/whatsapp/accounts/ACCOUNT_ID
+     https://whats-app-ompro.ro/api/whatsapp/accounts/ACCOUNT_ID
    # Expected: 503 { error: "instance_passive" }
    ```
 
@@ -163,6 +163,6 @@ git push origin main
 
 ## Note Importante
 
-- **Commit Railway**: Ensure Railway deploy folosește commit corect (d4f4998a sau mai nou pentru fix-uri complete)
+- **Commit legacy hosting**: Ensure legacy hosting deploy folosește commit corect (d4f4998a sau mai nou pentru fix-uri complete)
 - **Backward Compatibility**: 401 handler change e compatibil - UI gestionează ambele `needs_qr` și `logged_out`
 - **No Breaking Changes**: Fix-urile sunt defensive și nu schimbă comportamentul existent pentru cazurile corecte

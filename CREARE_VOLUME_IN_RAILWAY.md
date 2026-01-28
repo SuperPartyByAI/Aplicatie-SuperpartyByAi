@@ -1,4 +1,4 @@
-# 📦 Cum să creezi Volume în Railway
+# 📦 Cum să creezi Volume în legacy hosting
 
 ## Locuri unde poți crea Volume
 
@@ -62,7 +62,7 @@ După ce creezi volume-ul, verifică:
 
 1. Volume-ul apare în listă cu status "Active" (verde)
 2. Mount Path este `/data/sessions`
-3. Railway va redeploy automat
+3. legacy hosting va redeploy automat
 
 ---
 
@@ -70,7 +70,7 @@ După ce creezi volume-ul, verifică:
 
 **Posibile motive:**
 
-1. **Planul Railway:** Unele planuri pot avea restricții (rar)
+1. **Planul legacy hosting:** Unele planuri pot avea restricții (rar)
 2. **Locație UI:** Poate fi într-un loc neașteptat în Settings
 3. **Permisiuni:** Poate ai nevoie de permisiuni admin
 
@@ -78,7 +78,7 @@ După ce creezi volume-ul, verifică:
 
 1. Verifică toate secțiunile din **Settings**
 2. Încearcă **Command Palette** (`⌘K` sau `Ctrl+K`)
-3. Contactează suport Railway (dacă ești sigur că planul permite volumes)
+3. Contactează suport legacy hosting (dacă ești sigur că planul permite volumes)
 
 ---
 

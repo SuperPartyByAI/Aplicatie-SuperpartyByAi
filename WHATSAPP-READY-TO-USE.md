@@ -308,7 +308,7 @@ curl http://localhost:5002/api/ultimate/health | jq .
 
 ⚠️ **NU expune acest fișier public!**
 
-### Environment Variables (Pentru Railway)
+### Environment Variables (Pentru legacy hosting)
 
 ```bash
 FIREBASE_SERVICE_ACCOUNT=<JSON complet>
@@ -318,20 +318,20 @@ NODE_ENV=production
 
 ---
 
-## 🚂 Deploy pe Railway
+## 🚂 Deploy pe legacy hosting
 
 ### Opțiunea 1: Schimbă Start Command
 
-În Railway dashboard:
+În legacy hosting dashboard:
 
 1. Mergi la **Settings** → **Deploy**
 2. **Start Command:** `node whatsapp-server.js`
 3. **Save**
-4. Railway va redeploya automat
+4. legacy hosting va redeploya automat
 
 ### Opțiunea 2: Creează Serviciu Nou
 
-1. **New Service** în Railway
+1. **New Service** în legacy hosting
 2. **Connect Repo:** acest repository
 3. **Start Command:** `node whatsapp-server.js`
 4. **Variables:** Adaugă `FIREBASE_SERVICE_ACCOUNT`
@@ -383,7 +383,7 @@ node whatsapp-server.js
 ## 📞 Informații Contact
 
 **Server Local:** http://localhost:5002  
-**Railway URL:** (după deploy)  
+**legacy hosting URL:** (după deploy)  
 **Firebase Project:** superparty-frontend  
 **Versiune:** 5.0.0  
 **Tier:** ULTIMATE 2
@@ -402,7 +402,7 @@ node whatsapp-server.js
 - [ ] Mesaj de test trimis
 - [ ] Proxy configurat (opțional)
 - [ ] Webhooks configurate (opțional)
-- [ ] Deploy pe Railway (opțional)
+- [ ] Deploy pe legacy hosting (opțional)
 
 ---
 

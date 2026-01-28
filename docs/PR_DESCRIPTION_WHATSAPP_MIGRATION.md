@@ -1,6 +1,6 @@
 # PR: WhatsApp CRM migration – GetMessages removed, Send via proxy, WHATSAPP_BACKEND_URL
 
-**Branch:** `chore/remove-railway`  
+**Branch:** `chore/remove-legacy hosting` → migrated to Hetzner  
 **Commit:** `e88fc34f`
 
 ---
@@ -9,7 +9,7 @@
 
 - **Flutter** nu mai folosește `getMessages` / `whatsappProxyGetMessages`; mesajele vin doar din Firestore `threads/{threadId}/messages` (Stream).
 - **Send** se face exclusiv prin `whatsappProxySend` → outbox server-side (Admin SDK). Outbox rămâne server-only în Firestore rules.
-- **Config** preferă `WHATSAPP_BACKEND_URL` / `WHATSAPP_BACKEND_BASE_URL`; `WHATSAPP_RAILWAY_BASE_URL` doar fallback deprecated cu `console.warn`.
+- **Config** folosește `WHATSAPP_BACKEND_BASE_URL` / `WHATSAPP_BACKEND_URL` / `BACKEND_BASE_URL` (Hetzner).
 - **CI** (whatsapp-ci) folosește `WHATSAPP_BACKEND_URL` pentru testele Functions.
 - **Docs / runbook**: 404/HTML = funcție nedeployată sau proiect/regiune greșit; pași deploy/verify actualizați.
 
@@ -20,7 +20,7 @@
 | Area | Change |
 |------|--------|
 | **functions/whatsappProxy.js** | Eliminat `getMessagesHandler` și `exports.getMessagesHandler` (dead code). |
-| **functions/lib/backend-url.js** | `WHATSAPP_RAILWAY_BASE_URL` fallback deprecated; `console.warn` mereu când e folosit. |
+| **functions/lib/backend-url.js** | Folosește `WHATSAPP_BACKEND_BASE_URL` / `WHATSAPP_BACKEND_URL` / `BACKEND_BASE_URL` (Hetzner). |
 | **docs/WHATSAPP_PROD_RUNBOOK.md** | Troubleshooting 404/HTML; notă tsClient pentru index. |
 | **README_CRM_FLOW.md** | 404/HTML fix; `orderBy('tsClient', descending: true)` în doc. |
 | **ACCEPTANCE_CHECKLIST_CRM_WHATSAPP** | Secțiune **Migration** (Inbox, Chat Firestore, Send proxy, no GetMessages). |

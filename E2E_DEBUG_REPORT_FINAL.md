@@ -7,7 +7,7 @@
 
 ✅ **WhatsApp Flow:** Architecture verified, token attachment confirmed, logging enhanced  
 ✅ **Events Flow:** Query verified, filters working, logging added  
-⚠️ **Config:** WHATSAPP_RAILWAY_BASE_URL must be set (secret or env var)
+⚠️ **Config:** WHATSAPP_LEGACY_BASE_URL must be set (secret or env var)
 
 ---
 
@@ -22,7 +22,7 @@
 ### Base URLs:
 - **Functions URL:** `https://us-central1-{projectId}.cloudfunctions.net` (production)
 - **Emulator:** `http://127.0.0.1:5002` (if `USE_EMULATORS=true` and `kDebugMode`)
-- **Railway Direct:** NOT USED (all calls go through Functions proxy)
+- **legacy hosting Direct:** NOT USED (all calls go through Functions proxy)
 
 **Status:** ✅ Architecture correct - all calls use Functions proxy
 
@@ -82,16 +82,16 @@ exports.whatsappProxyRegenerateQr = onRequest(...) // Line 940
 ## TASK 4: Config/Secrets ✅
 
 ### Secret Configuration:
-- **Production:** `firebase functions:secrets:set WHATSAPP_RAILWAY_BASE_URL`
-- **Emulator:** `functions/.runtimeconfig.json` or `process.env.WHATSAPP_RAILWAY_BASE_URL`
+- **Production:** `firebase functions:secrets:set WHATSAPP_LEGACY_BASE_URL`
+- **Emulator:** `functions/.runtimeconfig.json` or `process.env.WHATSAPP_LEGACY_BASE_URL`
 
 **Fallback Chain:**
-1. `process.env.WHATSAPP_RAILWAY_BASE_URL` (v2 functions)
-2. `functions.config().whatsapp.railway_base_url` (v1 functions)
+1. `process.env.WHATSAPP_LEGACY_BASE_URL` (v2 functions)
+2. `functions.config().whatsapp.legacy_base_url` (v1 functions)
 3. Returns `null` → 500 error with clear message
 
 **Enhanced Logging Added:**
-- Logs Railway URL (truncated) when available
+- Logs legacy hosting URL (truncated) when available
 - Logs "SET" / "NOT SET" when missing
 
 **Status:** ✅ Config verified, logging added
@@ -99,10 +99,10 @@ exports.whatsappProxyRegenerateQr = onRequest(...) // Line 940
 **Required Config:**
 ```bash
 # Production
-firebase functions:secrets:set WHATSAPP_RAILWAY_BASE_URL
+firebase functions:secrets:set WHATSAPP_LEGACY_BASE_URL
 
 # Emulator
-export WHATSAPP_RAILWAY_BASE_URL='https://whats-upp-production.up.railway.app'
+export WHATSAPP_LEGACY_BASE_URL='https://whats-app-ompro.ro'
 # OR use functions/.runtimeconfig.json
 ```
 
@@ -219,7 +219,7 @@ FirebaseFirestore.instance.collection('evenimente').snapshots()
 - **Fix:** Created `whatsapp_diagnostics_screen.dart`
 
 ### 3. Config Missing Guard Logs (FIXED)
-- **Issue:** Hard to debug missing `WHATSAPP_RAILWAY_BASE_URL`
+- **Issue:** Hard to debug missing `WHATSAPP_LEGACY_BASE_URL`
 - **Fix:** Added guard logs in `whatsappProxy.js`
 
 ---
@@ -252,7 +252,7 @@ FirebaseFirestore.instance.collection('evenimente').snapshots()
 
 ```bash
 # Terminal 1: Start emulators
-export WHATSAPP_RAILWAY_BASE_URL='https://whats-upp-production.up.railway.app'
+export WHATSAPP_LEGACY_BASE_URL='https://whats-app-ompro.ro'
 firebase emulators:start --only firestore,functions,auth
 
 # Terminal 2: Run Flutter
@@ -306,13 +306,13 @@ adb -s emulator-5554 logcat | grep -iE "Evenimente|evenimente|events"
 
 ### Production:
 ```bash
-firebase functions:secrets:set WHATSAPP_RAILWAY_BASE_URL
-# Value: https://whats-upp-production.up.railway.app
+firebase functions:secrets:set WHATSAPP_LEGACY_BASE_URL
+# Value: https://whats-app-ompro.ro
 ```
 
 ### Emulator:
 ```bash
-export WHATSAPP_RAILWAY_BASE_URL='https://whats-upp-production.up.railway.app'
+export WHATSAPP_LEGACY_BASE_URL='https://whats-app-ompro.ro'
 # OR use functions/.runtimeconfig.json (already configured)
 ```
 

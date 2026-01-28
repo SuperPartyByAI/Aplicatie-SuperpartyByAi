@@ -1,12 +1,12 @@
 # 🎯 OPȚIUNEA 2 - Pași Exacți (1 minut)
 
-## Pasul 1: Railway Dashboard
+## Pasul 1: legacy hosting Dashboard
 
-Mergi la: https://railway.app
+Mergi la: https://legacy hosting.app
 
 ## Pasul 2: Găsește serviciul
 
-Caută și click pe: **web-production-f0714.up.railway.app**
+Caută și click pe: **web-production-f0714.up.legacy hosting.app**
 
 ## Pasul 3: Disconnect sursa veche
 
@@ -33,8 +33,8 @@ OPENAI_API_KEY=sk-proj-yeD5AdD5HEWhCCXMeafIq83haw-qcArnbz9HvW4N3ZEpw4aA7_b9wOf5d
 TWILIO_ACCOUNT_SID=AC17c88873d670aab4aa4a50fae230d2df
 TWILIO_AUTH_TOKEN=5c6670d39a1dbf46d47ecdaa244b91d9
 TWILIO_PHONE_NUMBER=+12182204425
-BACKEND_URL=https://web-production-f0714.up.railway.app
-COQUI_API_URL=https://web-production-00dca9.up.railway.app
+BACKEND_URL=https://whats-app-ompro.ro
+COQUI_API_URL=https://whats-app-ompro.ro
 NODE_ENV=production
 PORT=5001
 ```
@@ -43,7 +43,7 @@ PORT=5001
 
 ## Pasul 6: Așteaptă deploy
 
-Railway va redeploya automat. Durează ~2-3 minute.
+legacy hosting va redeploya automat. Durează ~2-3 minute.
 
 Verifică în tab **Deployments** - când vezi "Success" e gata.
 
@@ -74,7 +74,7 @@ Cu vocea Kasya (clonată cu Coqui XTTS)!
 
 Webhook-ul e deja setat automat de v7.0:
 
-- URL: `https://web-production-f0714.up.railway.app/api/voice/incoming`
+- URL: `https://whats-app-ompro.ro/api/voice/incoming`
 - Method: POST
 
 Nu trebuie să faci nimic în Twilio!
@@ -85,5 +85,5 @@ Nu trebuie să faci nimic în Twilio!
 
 1. Verifică că branch-ul e **main** (nu master)
 2. Verifică că toate variabilele sunt copiate corect
-3. Verifică logs în Railway pentru erori
+3. Verifică logs în legacy hosting pentru erori
 4. Așteaptă 3-4 minute pentru deploy complet

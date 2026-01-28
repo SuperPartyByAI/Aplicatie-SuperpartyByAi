@@ -270,7 +270,7 @@ await page.goto('https://web.whatsapp.com');
 
 1. **WhatsApp poate cădea** (0.01% downtime/an)
 2. **Network poate cădea** (0.1% downtime/an)
-3. **Railway poate cădea** (0.9% downtime/an)
+3. **legacy hosting poate cădea** (0.9% downtime/an)
 4. **Browser poate crasha** (0.05% downtime/an)
 
 **Maxim posibil:** 99.99% uptime
@@ -500,7 +500,7 @@ class WhatsAppGoLogin {
 
 - WhatsApp poate cădea (0.01%)
 - Network poate cădea (0.1%)
-- Railway poate cădea (0.9%)
+- legacy hosting poate cădea (0.9%)
 - Browser poate crasha (0.05%)
 
 **Maxim posibil:**

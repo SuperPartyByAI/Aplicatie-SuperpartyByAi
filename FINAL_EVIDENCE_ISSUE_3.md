@@ -96,7 +96,7 @@ const snapshot = await db.collection('accounts').get(); // ALL accounts
 ### 1. Backend Health
 
 ```bash
-$ curl -s https://whats-upp-production.up.railway.app/health
+$ curl -s https://whats-app-ompro.ro/health
 {
   "status": "healthy",
   "accounts": {
@@ -108,7 +108,7 @@ $ curl -s https://whats-upp-production.up.railway.app/health
 ### 2. Account Creation
 
 ```bash
-$ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-account \
+$ curl -X POST https://whats-app-ompro.ro/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
   -d '{"phone": "+40737571397", "name": "Test"}'
 
@@ -118,7 +118,7 @@ $ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-acco
 ### 3. QR Generation
 
 ```bash
-$ curl https://whats-upp-production.up.railway.app/api/whatsapp/qr/account_dev_xxx
+$ curl https://whats-app-ompro.ro/api/whatsapp/qr/account_dev_xxx
 # Returns HTML page with QR code  // ✅ WORKS!
 ```
 
@@ -126,7 +126,7 @@ $ curl https://whats-upp-production.up.railway.app/api/whatsapp/qr/account_dev_x
 
 ```bash
 # After restart:
-$ curl -s https://whats-upp-production.up.railway.app/health
+$ curl -s https://whats-app-ompro.ro/health
 {
   "accounts": {
     "total": 6,      // ✅ Accounts restored!
@@ -141,21 +141,21 @@ $ curl -s https://whats-upp-production.up.railway.app/health
 
 ### Step 1: Scan QR Code
 
-1. Open: https://whats-upp-production.up.railway.app/api/whatsapp/qr/account_dev_dde908a65501c63b124cb94c627e551d
+1. Open: https://whats-app-ompro.ro/api/whatsapp/qr/account_dev_dde908a65501c63b124cb94c627e551d
 2. Scan with WhatsApp (Settings → Linked Devices → Link a Device)
 3. Wait for connection
 
 ### Step 2: Verify Connection
 
 ```bash
-curl -s https://whats-upp-production.up.railway.app/health | python3 -m json.tool
+curl -s https://whats-app-ompro.ro/health | python3 -m json.tool
 # Expected: "connected": 2 (or more)
 ```
 
 ### Step 3: Send Test Message
 
 ```bash
-curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/send \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/send \
   -H "Content-Type: application/json" \
   -d '{
     "accountId": "account_dev_dde908a65501c63b124cb94c627e551d",
@@ -166,7 +166,7 @@ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/send \
 
 ### Step 4: Test Restart Persistence
 
-1. Restart service in Railway Dashboard
+1. Restart service in legacy hosting Dashboard
 2. Wait 30 seconds
 3. Check health: `connected` count should remain stable
 4. Repeat 2 more times (total 3 restarts)

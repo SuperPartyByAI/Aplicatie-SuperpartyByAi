@@ -1,43 +1,27 @@
 #!/bin/bash
-# Helper script to set ADMIN_TOKEN from Railway CLI
+# Helper script to set ADMIN_TOKEN from environment or manual input
 # Usage: source scripts/set_admin_token.sh
 
-if command -v railway &> /dev/null; then
-  # Try JSON format first (more reliable)
-  TOKEN=$(railway variables --json 2>/dev/null | jq -r '.[] | select(.name == "ADMIN_TOKEN") | .value' 2>/dev/null)
-  
-  # If JSON fails, try table format with multiple methods
-  if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
-    # Method 1: perl regex (most reliable for Railway CLI table format)
-    if command -v perl &> /dev/null; then
-      TOKEN=$(railway variables 2>&1 | grep 'ADMIN_TOKEN' | head -1 | perl -pe 's/.*\│[[:space:]]*([^[:space:]]+).*/$1/' 2>/dev/null || true)
-    fi
-    
-    # Method 2: awk with custom field separator (fallback)
-    if [ -z "$TOKEN" ]; then
-      TOKEN=$(railway variables 2>&1 | grep 'ADMIN_TOKEN' | head -1 | awk -F'│' '{
-        gsub(/^[ \t]+|[ \t]+$/, "", $3)
-        if (length($3) > 0) print $3
-      }')
-    fi
-    
-    # Method 3: cut with xargs (fallback)
-    if [ -z "$TOKEN" ]; then
-      TOKEN=$(railway variables 2>&1 | grep 'ADMIN_TOKEN' | head -1 | cut -d'│' -f3 | xargs)
-    fi
-  fi
-  
-  if [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] && [ "$TOKEN" != "" ]; then
-    export ADMIN_TOKEN="$TOKEN"
-    echo "✅ ADMIN_TOKEN setat automat (${#TOKEN} caractere)"
-    return 0
-  else
-    echo "⚠️  Nu s-a putut obține ADMIN_TOKEN automat"
-    echo "   Setează manual: export ADMIN_TOKEN='your-token'"
-    return 1
-  fi
-else
-  echo "⚠️  Railway CLI nu este instalat"
-  echo "   Setează manual: export ADMIN_TOKEN='your-token'"
-  return 1
+# Check if ADMIN_TOKEN is already set
+if [ -n "$ADMIN_TOKEN" ]; then
+  echo "✅ ADMIN_TOKEN deja setat (${#ADMIN_TOKEN} caractere)"
+  return 0
 fi
+
+# Try to get from Hetzner server (if accessible)
+if command -v ssh &> /dev/null; then
+  # Try to get from Hetzner server environment
+  TOKEN=$(ssh root@37.27.34.179 "systemctl show whatsapp-backend -p Environment | grep -oP 'ADMIN_TOKEN=\K[^ ]+' | head -1" 2>/dev/null || true)
+  
+  if [ -n "$TOKEN" ] && [ "$TOKEN" != "" ]; then
+    export ADMIN_TOKEN="$TOKEN"
+    echo "✅ ADMIN_TOKEN setat automat din Hetzner server (${#TOKEN} caractere)"
+    return 0
+  fi
+fi
+
+# Fallback: manual input
+echo "⚠️  ADMIN_TOKEN nu este setat automat"
+echo "   Setează manual: export ADMIN_TOKEN='your-token'"
+echo "   Sau obține din Hetzner: ssh root@37.27.34.179 'systemctl show whatsapp-backend -p Environment'"
+return 1

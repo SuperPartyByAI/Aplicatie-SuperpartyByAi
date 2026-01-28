@@ -1,18 +1,18 @@
-# 🚂 DEPLOY v7.0 PE RAILWAY - GHID SIMPLU
+# 🚂 DEPLOY v7.0 PE LEGACY_HOSTING - GHID SIMPLU
 
 ## 🎯 3 PAȘI SIMPLI
 
 ---
 
-## PASUL 1: CREEAZĂ SERVICE ÎN RAILWAY
+## PASUL 1: CREEAZĂ SERVICE ÎN LEGACY_HOSTING
 
-1. Mergi la [railway.app](https://railway.app)
+1. Mergi la [legacy hosting.app](https://legacy hosting.app)
 2. Click **"New Project"**
 3. Click **"Deploy from GitHub repo"**
 4. Selectează: `SuperPartyByAI/Aplicatie-SuperpartyByAi`
 5. Click **"Deploy"**
 
-✅ Railway va crea service-ul automat
+✅ legacy hosting va crea service-ul automat
 
 ---
 
@@ -39,8 +39,8 @@
 **Adaugă acestea:**
 
 ```bash
-# OBLIGATORIU - Railway API Token
-RAILWAY_TOKEN = <your_token_here>
+# OBLIGATORIU - legacy hosting API Token
+LEGACY_TOKEN = <your_token_here>
 
 # OBLIGATORIU - Port
 PORT = 3001
@@ -49,12 +49,12 @@ PORT = 3001
 NODE_ENV = production
 ```
 
-**Cum obții RAILWAY_TOKEN:**
+**Cum obții LEGACY_TOKEN:**
 
-1. Railway Dashboard (sus-dreapta) → **Account Settings**
+1. legacy hosting Dashboard (sus-dreapta) → **Account Settings**
 2. **Tokens** → **Create New Token**
 3. Copy token
-4. Paste în RAILWAY_TOKEN
+4. Paste în LEGACY_TOKEN
 
 **OPȚIONAL - Project IDs (dacă vrei să adaugi proiecte automat):**
 
@@ -65,13 +65,13 @@ VOICE_PROJECT_ID = <project_id>
 
 **Cum obții Project ID:**
 
-1. Deschide proiectul în Railway
+1. Deschide proiectul în legacy hosting
 2. **Settings** → **General**
 3. Copy **Project ID**
 
 4. Click **"Add"** pentru fiecare variabilă
 
-✅ Railway va redeploy automat după ce adaugi variables
+✅ legacy hosting va redeploy automat după ce adaugi variables
 
 ---
 
@@ -81,7 +81,7 @@ VOICE_PROJECT_ID = <project_id>
 
 1. **Settings** → **Networking**
 2. Click **"Generate Domain"**
-3. Vei primi URL: `https://v7-singularity-monitor.up.railway.app`
+3. Vei primi URL: `https://whats-app-ompro.ro`
 
 ### **B. Deschide Dashboard**
 
@@ -94,7 +94,7 @@ VOICE_PROJECT_ID = <project_id>
 
 ## 🎉 GATA!
 
-**Dashboard:** `https://your-service.railway.app`
+**Dashboard:** `https://your-service.legacy hosting.app`
 
 **Ce vezi:**
 
@@ -110,7 +110,7 @@ VOICE_PROJECT_ID = <project_id>
 
 ### **Metoda 1: Automat (la start)**
 
-Adaugă în Railway Variables:
+Adaugă în legacy hosting Variables:
 
 ```bash
 SUPERPARTY_PROJECT_ID = <id>
@@ -122,7 +122,7 @@ Restart service → Proiectele apar automat
 ### **Metoda 2: Manual (via API)**
 
 ```bash
-curl -X POST https://your-service.railway.app/api/projects \
+curl -X POST https://your-service.legacy hosting.app/api/projects \
   -H "Content-Type: application/json" \
   -d '{"projectId":"your-project-id","name":"SuperParty"}'
 ```
@@ -152,7 +152,7 @@ Refresh page → Proiectul apare
 
 ### **1. Verifică Logs**
 
-Railway Dashboard → Service → **Deployments** → Click pe deployment → Vezi logs
+legacy hosting Dashboard → Service → **Deployments** → Click pe deployment → Vezi logs
 
 Ar trebui să vezi:
 
@@ -167,7 +167,7 @@ Ar trebui să vezi:
 Deschide în browser:
 
 ```
-https://your-service.railway.app/health
+https://your-service.legacy hosting.app/health
 ```
 
 Ar trebui să vezi:
@@ -182,7 +182,7 @@ Ar trebui să vezi:
 ### **3. Verifică API**
 
 ```
-https://your-service.railway.app/api/overview
+https://your-service.legacy hosting.app/api/overview
 ```
 
 Ar trebui să vezi JSON cu overview.
@@ -197,7 +197,7 @@ Ar trebui să vezi JSON cu overview.
 
 1. Root Directory = `monitoring` ✅
 2. Start Command = `npm start` ✅
-3. RAILWAY_TOKEN e adăugat ✅
+3. LEGACY_TOKEN e adăugat ✅
 4. PORT = 3001 ✅
 
 **Fix:** Restart service (Settings → Deployments → Restart)
@@ -215,12 +215,12 @@ Ar trebui să vezi JSON cu overview.
 - Regenerează domain
 - Restart service
 
-### **"RAILWAY_TOKEN invalid"**
+### **"LEGACY_TOKEN invalid"**
 
 **Fix:**
 
 1. Regenerează token în Account Settings
-2. Update variabila în Railway
+2. Update variabila în legacy hosting
 3. Restart service
 
 ---
@@ -268,7 +268,7 @@ Ar trebui să vezi JSON cu overview.
 
 **Vrei mai multe detalii?**
 
-- **Deploy avansat:** `RAILWAY-V7-DEPLOY.md`
+- **Deploy avansat:** `LEGACY_HOSTING-V7-DEPLOY.md`
 - **Configurare:** `V7-IMPLEMENTATION-GUIDE.md`
 - **Features:** `V7-SINGULARITY-REAL.md`
 
@@ -276,10 +276,10 @@ Ar trebui să vezi JSON cu overview.
 
 ## ✅ CHECKLIST
 
-- [ ] Service creat în Railway
+- [ ] Service creat în legacy hosting
 - [ ] Root Directory = `monitoring`
 - [ ] Start Command = `npm start`
-- [ ] RAILWAY_TOKEN adăugat
+- [ ] LEGACY_TOKEN adăugat
 - [ ] PORT = 3001
 - [ ] NODE_ENV = production
 - [ ] Domain generat
@@ -293,22 +293,22 @@ Ar trebui să vezi JSON cu overview.
 
 ## 🚀 LINK-URI UTILE
 
-**Railway:**
+**legacy hosting:**
 
-- Dashboard: [railway.app](https://railway.app)
-- Docs: [docs.railway.app](https://docs.railway.app)
+- Dashboard: [legacy hosting.app](https://legacy hosting.app)
+- Docs: [docs.legacy hosting.app](https://docs.legacy hosting.app)
 
 **v7.0 Dashboard:**
 
-- URL: `https://your-service.railway.app`
-- API: `https://your-service.railway.app/api/overview`
-- Health: `https://your-service.railway.app/health`
+- URL: `https://your-service.legacy hosting.app`
+- API: `https://your-service.legacy hosting.app/api/overview`
+- Health: `https://your-service.legacy hosting.app/health`
 
 ---
 
 # 🎉 SUCCESS!
 
-**v7.0 Singularity e LIVE pe Railway!**
+**v7.0 Singularity e LIVE pe legacy hosting!**
 
 **Features active:**
 

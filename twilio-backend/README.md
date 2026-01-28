@@ -5,7 +5,7 @@ SMS service using Twilio API for SuperParty notifications.
 ## Setup
 
 1. Get Twilio credentials from [console.twilio.com](https://console.twilio.com)
-2. Set environment variables in Railway:
+2. Set environment variables in legacy hosting:
    - `TWILIO_ACCOUNT_SID`
    - `TWILIO_AUTH_TOKEN`
    - `TWILIO_PHONE_NUMBER`
@@ -51,6 +51,6 @@ cp .env.example .env
 npm run dev
 ```
 
-## Railway Deployment
+## legacy hosting Deployment
 
-Set Root Directory to `/twilio-backend` in Railway project settings.
+Set Root Directory to `/twilio-backend` in legacy hosting project settings.

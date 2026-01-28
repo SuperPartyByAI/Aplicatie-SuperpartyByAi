@@ -113,7 +113,7 @@ flutter run -d emulator-5554 -v 2>&1 | tee /tmp/flutter_test.log
 grep "Polling" /tmp/flutter_test.log
 
 # Test backend reset endpoint
-curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/accounts/ACCOUNT_ID/reset \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/accounts/ACCOUNT_ID/reset \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 

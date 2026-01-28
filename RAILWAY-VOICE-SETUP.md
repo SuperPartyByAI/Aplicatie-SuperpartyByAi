@@ -1,10 +1,10 @@
-# 🎤 Railway Voice AI Setup - URGENT
+# 🎤 legacy hosting Voice AI Setup - URGENT
 
 ## Pasul 1: Găsește serviciul backend
 
-1. Mergi la: https://railway.app
+1. Mergi la: https://legacy hosting.app
 2. Login
-3. Găsește serviciul care rulează pe: `https://web-production-f0714.up.railway.app`
+3. Găsește serviciul care rulează pe: `https://whats-app-ompro.ro`
 
 ## Pasul 2: Schimbă Root Directory
 
@@ -28,9 +28,9 @@ TWILIO_AUTH_TOKEN=5c6670d39a1dbf46d47ecdaa244b91d9
 
 TWILIO_PHONE_NUMBER=+12182204425
 
-BACKEND_URL=https://web-production-f0714.up.railway.app
+BACKEND_URL=https://whats-app-ompro.ro
 
-COQUI_API_URL=https://web-production-00dca9.up.railway.app
+COQUI_API_URL=https://whats-app-ompro.ro
 
 NODE_ENV=production
 
@@ -39,7 +39,7 @@ PORT=5001
 
 ## Pasul 4: Așteaptă Deploy
 
-Railway va redeploya automat în ~2-3 minute.
+legacy hosting va redeploya automat în ~2-3 minute.
 
 ## Pasul 5: Testează
 
@@ -52,7 +52,7 @@ Ar trebui să auzi:
 
 ## ✅ Verificare
 
-După deploy, verifică logs-urile în Railway:
+După deploy, verifică logs-urile în legacy hosting:
 
 - Ar trebui să vezi: `🚀 SuperParty Backend - WhatsApp + Voice`
 - Ar trebui să vezi: `Server running on port 5001`
@@ -60,4 +60,4 @@ După deploy, verifică logs-urile în Railway:
 
 ## ❌ Dacă nu merge
 
-Verifică în Railway logs dacă apar erori și spune-mi ce vezi.
+Verifică în legacy hosting logs dacă apar erori și spune-mi ce vezi.

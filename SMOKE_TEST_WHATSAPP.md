@@ -23,14 +23,14 @@ Verify that WhatsApp integration is stable and production-ready:
 
 ### Environment
 
-- Railway deployment running
+- legacy hosting deployment running
 - Redis connected
 - Firebase configured
 - WhatsApp account ready for testing
 
 ### Tools Needed
 
-- Browser (for Railway logs)
+- Browser (for legacy hosting logs)
 - WhatsApp mobile app
 - Terminal (for API calls)
 - Postman/curl (optional)
@@ -38,7 +38,7 @@ Verify that WhatsApp integration is stable and production-ready:
 ### Test Data
 
 - Test phone number: `+40XXXXXXXXX` (your test number)
-- Admin token: Check Railway variables
+- Admin token: Check legacy hosting variables
 
 ---
 
@@ -56,14 +56,14 @@ Verify that WhatsApp integration is stable and production-ready:
 
 ```bash
 # Get current deployment status
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # Expected: status: "healthy"
 ```
 
 #### 1.2 Connect WhatsApp Account
 
-1. Navigate to Railway logs
+1. Navigate to legacy hosting logs
 2. Look for QR code or pairing code
 3. Scan QR with WhatsApp mobile app
 4. Wait for "✅ Connected" in logs
@@ -77,7 +77,7 @@ curl https://whats-upp-production.up.railway.app/health
 
 #### 1.3 First Restart
 
-1. In Railway Dashboard → Deployments
+1. In legacy hosting Dashboard → Deployments
 2. Click "Redeploy" on current deployment
 3. Wait for restart (~2 minutes)
 4. Check logs
@@ -122,7 +122,7 @@ curl https://whats-upp-production.up.railway.app/health
 ### Pass Criteria:
 
 - ✅ All 3 restarts reconnect WITHOUT QR code
-- ✅ Session data persists in Railway Volume
+- ✅ Session data persists in legacy hosting Volume
 - ✅ Connection time < 30 seconds per restart
 
 ---
@@ -137,7 +137,7 @@ curl https://whats-upp-production.up.railway.app/health
 
 1. Turn off WiFi on WhatsApp mobile device
 2. Wait 30 seconds
-3. Check Railway logs
+3. Check legacy hosting logs
 
 **Expected Result:**
 
@@ -208,7 +208,7 @@ Firestore: threads/{threadId}/messages/{messageId}
 
 #### 3.2 Simulate Duplicate Delivery
 
-1. Check Railway logs for message processing
+1. Check legacy hosting logs for message processing
 2. Look for messageId
 
 **Expected Result:**
@@ -247,7 +247,7 @@ Firestore: threads/{threadId}/messages/{messageId}
 
 ```bash
 # Create test message in wa_outbox
-curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/send \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/send \
   -H "Content-Type: application/json" \
   -d '{
     "to": "+40XXXXXXXXX",
@@ -355,7 +355,7 @@ No duplicate messages sent
 #### 6.1 Check Health Endpoint
 
 ```bash
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 ```
 
 **Expected Result:**
@@ -378,7 +378,7 @@ curl https://whats-upp-production.up.railway.app/health
 
 #### 6.2 Verify Structured Logs
 
-1. Open Railway logs
+1. Open legacy hosting logs
 2. Look for structured log format
 
 **Expected Result:**
@@ -394,7 +394,7 @@ curl https://whats-upp-production.up.railway.app/health
 #### 6.3 Check Cache Stats
 
 ```bash
-curl https://whats-upp-production.up.railway.app/api/cache/stats
+curl https://whats-app-ompro.ro/api/cache/stats
 ```
 
 **Expected Result:**
@@ -449,9 +449,9 @@ curl https://whats-upp-production.up.railway.app/api/cache/stats
 
 ### If Session Persistence Fails:
 
-1. Check Railway Volume is mounted: `/app/sessions`
+1. Check legacy hosting Volume is mounted: `/app/sessions`
 2. Check SESSIONS_PATH environment variable
-3. Check disk space in Railway
+3. Check disk space in legacy hosting
 4. Review logs for "Session saved" messages
 
 ### If Reconnect Fails:
@@ -481,7 +481,7 @@ curl https://whats-upp-production.up.railway.app/api/cache/stats
 
 **Issues?**
 
-- Check Railway logs first
+- Check legacy hosting logs first
 - Review Firestore data
 - Check environment variables
 - Contact: dev team

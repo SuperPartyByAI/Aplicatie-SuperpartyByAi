@@ -13,7 +13,7 @@
 | **`superparty_flutter/lib/screens/whatsapp/whatsapp_chat_screen.dart`** | Stream messages: `orderBy('tsClient', descending: true)`, `limit(200)`; send via `sendViaProxy` (nu outbox direct). |
 | **`superparty_flutter/lib/screens/whatsapp/README_CRM_FLOW.md`** | Notă: nu folosim `whatsappProxyGetMessages`; mesajele vin doar din Firestore. |
 | **`functions/index.js`** | Eliminat export `whatsappProxyGetMessages`; comentariu că mesajele vin din Firestore, send folosește `whatsappProxySend`. |
-| **`.github/workflows/whatsapp-ci.yml`** | `WHATSAPP_RAILWAY_BASE_URL` → `WHATSAPP_BACKEND_URL` pentru testele Functions. |
+| **`.github/workflows/whatsapp-ci.yml`** | Folosește `WHATSAPP_BACKEND_BASE_URL` pentru testele Functions. |
 
 **Firestore:** `firestore.indexes.json` – deja există `fieldOverrides` pentru `messages` + `tsClient` (ASC/DESC). Nu s-a schimbat.
 
@@ -120,4 +120,4 @@ Vezi **`docs/PRODUCTION_READINESS_CHECKLIST.md`**.
 - Runbook: `docs/WHATSAPP_PROD_RUNBOOK.md`
 - Checklist: `docs/PRODUCTION_READINESS_CHECKLIST.md`
 - CRM flow: `superparty_flutter/lib/screens/whatsapp/README_CRM_FLOW.md`
-- Backend URL: `functions/lib/backend-url.js` (WHATSAPP_BACKEND_URL preferat; RAILWAY deprecated).
+- Backend URL: `functions/lib/backend-url.js` (WHATSAPP_BACKEND_BASE_URL / WHATSAPP_BACKEND_URL / BACKEND_BASE_URL).

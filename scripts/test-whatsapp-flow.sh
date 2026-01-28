@@ -1,11 +1,11 @@
 #!/bin/bash
 # test-whatsapp-flow.sh - Test WhatsApp Flow End-to-End
 
-RAILWAY_URL="${RAILWAY_URL:-https://whats-upp-production.up.railway.app}"
+BACKEND_URL="${BACKEND_URL:-https://whats-app-ompro.ro}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-dev-token-test}"
 
 echo "=== Test WhatsApp Flow ==="
-echo "Railway URL: $RAILWAY_URL"
+echo "Backend URL: $BACKEND_URL"
 echo "Admin Token: ${ADMIN_TOKEN:0:10}..."
 echo ""
 
@@ -13,7 +13,7 @@ REQUEST_ID="test_$(date +%s)_$$"
 
 # 1. Health check
 echo "1️⃣  Health Check..."
-HEALTH=$(curl -sS -H "X-Request-ID: $REQUEST_ID" "$RAILWAY_URL/health")
+HEALTH=$(curl -sS -H "X-Request-ID: $REQUEST_ID" "$BACKEND_URL/health")
 STATUS=$(echo "$HEALTH" | jq -r '.status // "unknown"')
 WA_MODE=$(echo "$HEALTH" | jq -r '.waMode // "unknown"')
 ACCOUNTS_TOTAL=$(echo "$HEALTH" | jq -r '.accounts.total // 0')
@@ -32,7 +32,7 @@ echo ""
 
 # 2. Get accounts
 echo "2️⃣  GET /api/whatsapp/accounts..."
-ACCOUNTS_RESP=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" -H "X-Request-ID: $REQUEST_ID" "$RAILWAY_URL/api/whatsapp/accounts")
+ACCOUNTS_RESP=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" -H "X-Request-ID: $REQUEST_ID" "$BACKEND_URL/api/whatsapp/accounts")
 ACCOUNTS_SUCCESS=$(echo "$ACCOUNTS_RESP" | jq -r '.success // false')
 ACCOUNTS_COUNT=$(echo "$ACCOUNTS_RESP" | jq -r '.accounts | length // 0')
 RESP_WA_MODE=$(echo "$ACCOUNTS_RESP" | jq -r '.waMode // "unknown"')
@@ -63,7 +63,7 @@ echo ""
 ACCOUNT_ID=$(echo "$ACCOUNTS_RESP" | jq -r '.accounts[0].id // empty')
 if [ -n "$ACCOUNT_ID" ] && [ "$ACCOUNT_ID" != "null" ]; then
   echo "3️⃣  Test Regenerate QR pentru account: $ACCOUNT_ID..."
-  REGEN_RESP=$(curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "X-Request-ID: $REQUEST_ID" "$RAILWAY_URL/api/whatsapp/regenerate-qr/$ACCOUNT_ID")
+  REGEN_RESP=$(curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H "X-Request-ID: $REQUEST_ID" "$BACKEND_URL/api/whatsapp/regenerate-qr/$ACCOUNT_ID")
   REGEN_SUCCESS=$(echo "$REGEN_RESP" | jq -r '.success // false')
   REGEN_STATUS=$(echo "$REGEN_RESP" | jq -r '.status // "unknown"')
   REGEN_MESSAGE=$(echo "$REGEN_RESP" | jq -r '.message // "none"')

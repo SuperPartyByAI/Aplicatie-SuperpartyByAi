@@ -29,7 +29,7 @@
 - GET /accounts include accounts cu status `disconnected`, dar UI-ul poate să nu-l afișeze
 
 ### Problema 3: Connection Closes After QR
-**Din Railway logs:**
+**Din legacy hosting logs:**
 ```
 🔔 [account_xxx] Connection update: qr
 📱 [account_xxx] QR Code generated
@@ -154,7 +154,7 @@ if (response.statusCode < 200 || response.statusCode >= 300) {
 ### Test 3: Connection Close Handling
 ```bash
 # 1. Add account → QR apare
-# 2. Verifică Railway logs:
+# 2. Verifică legacy hosting logs:
 # Expected: După QR generation, dacă conexiunea se închide:
 #   - Account status: awaiting_scan sau qr_ready (nu disconnected)
 #   - QR code păstrat în Firestore
@@ -165,7 +165,7 @@ if (response.statusCode < 200 || response.statusCode >= 300) {
 
 ## Logs Expected
 
-### Backend (Railway)
+### Backend (legacy hosting)
 ```
 🔍 [req_xxx] Regenerate QR request: accountId=account_xxx
 🔍 [req_xxx] Account state: status=connecting, waMode=active
@@ -183,7 +183,7 @@ if (response.statusCode < 200 || response.statusCode >= 300) {
 
 ## Next Steps
 
-1. **Deploy fixes** la Railway backend
+1. **Deploy fixes** la legacy hosting backend
 2. **Deploy fixes** la Flutter client
 3. **Test manual** - Verifică că regenerateQr nu mai dă 500 loop
 4. **Test manual** - Verifică că account nu mai dispare după regenerateQr

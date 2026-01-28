@@ -44,7 +44,7 @@
 
 ### Step 1: Check Backend Status
 ```bash
-curl -sS https://whats-upp-production.up.railway.app/health | jq '.lock, .waMode'
+curl -sS https://whats-app-ompro.ro/health | jq '.lock, .waMode'
 ```
 
 **Expected:**
@@ -66,8 +66,8 @@ firebase firestore:get accounts/account_dev_dde908a65501c63b124cb94c627e551d
 - `lastDisconnectReason` field
 - `requiresQR` field
 
-### Step 3: Check Railway Logs
-In Railway dashboard, check logs for:
+### Step 3: Check legacy hosting Logs
+In legacy hosting dashboard, check logs for:
 - `PASSIVE mode` messages
 - `Regenerate QR error` messages
 - `Connection update: close` with reason details
@@ -130,7 +130,7 @@ curl -X POST \
 
 ## Immediate Actions
 
-### 1. Check Backend Logs in Railway
+### 1. Check Backend Logs in legacy hosting
 Look for:
 - `PASSIVE mode` messages
 - `Regenerate QR error` with stack traces
@@ -199,7 +199,7 @@ console.error(`🔌 [${accountId}] connection.update: close`, {
 ## Next Steps
 
 1. **Run diagnostic commands** above to gather more information
-2. **Check Railway logs** for detailed error messages
+2. **Check legacy hosting logs** for detailed error messages
 3. **Verify Firestore** account state
 4. **Test with fresh account** to isolate the issue
 5. **Apply fixes** based on findings
@@ -208,6 +208,6 @@ console.error(`🔌 [${accountId}] connection.update: close`, {
 
 1. Is backend in PASSIVE mode? (Check health endpoint)
 2. Does account exist in Firestore after creation?
-3. What is the exact error in Railway logs when regenerate QR fails?
+3. What is the exact error in legacy hosting logs when regenerate QR fails?
 4. Why does connection close with "unknown" reason?
 5. Is account being incorrectly marked as "old" and disconnected?

@@ -184,7 +184,7 @@ $0.423 × 4.60 = 1.95 RON/min
 |----------|-----------|
 | Twilio (500 min) | $4.25 |
 | OpenAI GPT-4o | $1.50 |
-| Coqui (Railway) | $10.00 |
+| Coqui (legacy hosting) | $10.00 |
 | Număr Twilio | $1.00 |
 | **TOTAL** | **$16.75** |
 
@@ -207,7 +207,7 @@ $0.423 × 4.60 = 1.95 RON/min
 |----------|-----------|
 | Twilio (500 min) | $4.25 |
 | OpenAI GPT-4o-mini | $0.10 |
-| Coqui (Railway) | $10.00 |
+| Coqui (legacy hosting) | $10.00 |
 | Număr Twilio | $1.00 |
 | **TOTAL** | **$15.35** |
 

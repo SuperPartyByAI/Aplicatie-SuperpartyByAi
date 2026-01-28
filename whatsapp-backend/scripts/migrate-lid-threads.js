@@ -8,7 +8,7 @@
  *
  * Notes:
  * - Idempotent: re-run safe (uses deterministic dedupe doc IDs).
- * - Does NOT require Railway or hardcoded URLs.
+ * - Does NOT require external backend URLs or hardcoded endpoints.
  */
 
 const admin = require('firebase-admin');

@@ -43,7 +43,7 @@
 
 **Features:**
 
-- ✅ Auto-creates Railway projects
+- ✅ Auto-creates legacy hosting projects
 - ✅ Modifies code automatically
 - ✅ Self-evolution & learning
 - ✅ Predictive scaling (4h ahead)
@@ -160,7 +160,7 @@
 - **[MULTI-PROJECT-SETUP.md](MULTI-PROJECT-SETUP.md)** - Setup multi-proiect
   - Configurare environment variables
   - Multiple projects monitoring
-  - Railway setup
+  - legacy hosting setup
 
 ### Voice Service (Coqui)
 
@@ -193,30 +193,30 @@ npm install
 
 # 3. Configure environment
 cp .env.example .env
-# Add your RAILWAY_TOKEN
+# Add your LEGACY_TOKEN
 
 # 4. Start autonomous monitor
 npm start
 ```
 
-### Deploy pe Railway
+### Deploy pe legacy hosting
 
 ```bash
 # Auto-deploy on push
 git push origin main
 
 # Or manual deploy
-railway up
+legacy hosting up
 ```
 
 ### Verificare Status
 
 ```bash
 # Health check
-curl https://your-monitor.railway.app/health
+curl https://your-monitor.legacy hosting.app/health
 
 # Stats detaliate
-curl https://your-monitor.railway.app/stats
+curl https://your-monitor.legacy hosting.app/stats
 ```
 
 ---
@@ -321,7 +321,7 @@ curl https://your-monitor.railway.app/stats
 ### Pentru DevOps
 
 1. Citește [MULTI-PROJECT-SETUP.md](MULTI-PROJECT-SETUP.md)
-2. Configurează Railway
+2. Configurează legacy hosting
 3. Setează environment variables
 4. Monitorizează `/stats` endpoint
 
@@ -337,9 +337,9 @@ GitHub: https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/issues
 
 Toate fișierele `.md` din acest repository
 
-### Railway
+### legacy hosting
 
-Dashboard: https://railway.app
+Dashboard: https://legacy hosting.app
 
 ---
 

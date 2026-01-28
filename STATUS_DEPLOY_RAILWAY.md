@@ -1,11 +1,11 @@
-# Status Deploy Railway - Analiză Loguri
+# Status Deploy legacy hosting - Analiză Loguri
 
 ## ⚠️ Observație Importantă: Commit Veche Rulează
 
 **Commit deploy-at**: `d4f4998a` (vechi)  
 **Commit nou push-at**: `96a06c5e` (cu fix-uri noi)
 
-### Analiză Loguri Railway (18 ian. 2026, 17:26)
+### Analiză Loguri legacy hosting (18 ian. 2026, 17:26)
 
 ```
 🚀 SuperParty WhatsApp Backend v2.0.0 (d4f4998a)
@@ -14,7 +14,7 @@
 [WAStability] ⚠️ MOD PASIV - blocarea nu a fost obținută
 ```
 
-**Problema**: Railway rulează commit `d4f4998a`, nu `96a06c5e` cu fix-urile noastre.
+**Problema**: legacy hosting rulează commit `d4f4998a`, nu `96a06c5e` cu fix-urile noastre.
 
 ### Cauze Posibile
 
@@ -27,7 +27,7 @@
 
 2. **Commit nu e merge-at corect**: Verifică dacă `96a06c5e` e în `main`
 
-3. **Railway cache**: Railway poate avea cache pentru commit hash
+3. **legacy hosting cache**: legacy hosting poate avea cache pentru commit hash
 
 ## Verificare Commit Hash
 
@@ -92,8 +92,8 @@ După deploy complet, `/health` ar trebui să returneze:
 ### 1. Verifică Commit-ul Deploy-at
 
 ```bash
-# Check Railway health endpoint
-curl https://whats-upp-production.up.railway.app/health | jq '.commit'
+# Check legacy hosting health endpoint
+curl https://whats-app-ompro.ro/health | jq '.commit'
 
 # Dacă returnează "d4f4998a" → deploy-ul nu s-a finalizat sau e veche
 # Dacă returnează "96a06c5e" → deploy OK
@@ -101,12 +101,12 @@ curl https://whats-upp-production.up.railway.app/health | jq '.commit'
 
 ### 2. Dacă Commit e Veche
 
-**Opțiunea 1**: Așteaptă redeploy (Railway poate fi în progres)
+**Opțiunea 1**: Așteaptă redeploy (legacy hosting poate fi în progres)
 
-**Opțiunea 2**: Force redeploy prin Railway dashboard sau:
+**Opțiunea 2**: Force redeploy prin legacy hosting dashboard sau:
 ```bash
 # Trigger redeploy manual (dacă e nevoie)
-# Railway ar trebui să redeploy automat când main se actualizează
+# legacy hosting ar trebui să redeploy automat când main se actualizează
 ```
 
 ### 3. Verifică Merge-ul Corect
@@ -126,11 +126,11 @@ git push origin main
 
 ## Concluzie
 
-**Status actual**: Railway rulează commit `d4f4998a` (vechi), nu `96a06c5e` (cu fix-uri).
+**Status actual**: legacy hosting rulează commit `d4f4998a` (vechi), nu `96a06c5e` (cu fix-uri).
 
 **Urmează**:
 1. Verifică commit-ul în `main` (local și remote)
 2. Așteaptă redeploy sau trigger manual
 3. Verifică `/health` după redeploy pentru commit `96a06c5e`
 
-**Fix-urile sunt push-ate corect**, dar Railway trebuie să deploy commit-ul nou.
+**Fix-urile sunt push-ate corect**, dar legacy hosting trebuie să deploy commit-ul nou.

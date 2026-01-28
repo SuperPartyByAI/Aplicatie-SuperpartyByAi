@@ -236,7 +236,7 @@ async function verifyDoD_WA_5() {
     }
 
     console.log('✅ Incident created correctly');
-    console.log('⚠️ Note: exit(1) would have been triggered (check Railway logs for restart)');
+    console.log('⚠️ Note: exit(1) would have been triggered (check Hetzner logs for restart)');
 
     return true;
   } catch (error) {

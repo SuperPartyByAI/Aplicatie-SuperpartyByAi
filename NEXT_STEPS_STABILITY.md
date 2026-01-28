@@ -224,7 +224,7 @@ Repo-ul are o bază solidă de stabilitate (idempotency, guards UI, retry policy
 
 ✅ **Nu s-au șters fișiere tracked**  
 ✅ **Nu s-a rescris istoric git**  
-✅ **Nu s-au introdus secrete** (grep pentru `RAILWAY_TOKEN`, `API_KEY`, `SECRET`, `PASSWORD`, `PRIVATE_KEY` nu a găsit valori hardcodate)  
+✅ **Nu s-au introdus secrete** (grep pentru `LEGACY_TOKEN`, `API_KEY`, `SECRET`, `PASSWORD`, `PRIVATE_KEY` nu a găsit valori hardcodate)  
 ✅ **Nu s-au eliminat lockfiles** (`package-lock.json` și `functions/package-lock.json` prezente)
 
 ---

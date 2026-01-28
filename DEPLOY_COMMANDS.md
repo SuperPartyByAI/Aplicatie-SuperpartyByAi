@@ -55,10 +55,10 @@ git diff whatsappProxy.js | head -50
 
 ## Verify After Deploy
 
-### 1. Check Railway Logs for New Commit Hash
+### 1. Check legacy hosting Logs for New Commit Hash
 
 ```bash
-# Railway will show commit hash in logs
+# legacy hosting will show commit hash in logs
 # Should NOT be 892419e6 (old commit)
 # Should be a NEW commit hash
 ```

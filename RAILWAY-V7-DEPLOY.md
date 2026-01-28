@@ -1,4 +1,4 @@
-# 🚂 v7.0 SINGULARITY - DEPLOY PE RAILWAY
+# 🚂 v7.0 SINGULARITY - DEPLOY PE LEGACY_HOSTING
 
 ## 🎯 GHID COMPLET PENTRU DEPLOY
 
@@ -8,17 +8,17 @@
 
 ### **Ce ai nevoie:**
 
-1. ✅ Cont Railway ([railway.app](https://railway.app))
-2. ✅ Railway CLI (opțional, dar recomandat)
+1. ✅ Cont legacy hosting ([legacy hosting.app](https://legacy hosting.app))
+2. ✅ legacy hosting CLI (opțional, dar recomandat)
 3. ✅ Git repository (acest repo)
 
 ---
 
 ## 🚀 METODA 1: DEPLOY DIRECT DIN GITHUB (RECOMANDAT)
 
-### **Pasul 1: Creează Service în Railway**
+### **Pasul 1: Creează Service în legacy hosting**
 
-1. Mergi la [railway.app](https://railway.app)
+1. Mergi la [legacy hosting.app](https://legacy hosting.app)
 2. Click **"New Project"**
 3. Selectează **"Deploy from GitHub repo"**
 4. Alege repository-ul: `SuperPartyByAI/Aplicatie-SuperpartyByAi`
@@ -52,8 +52,8 @@ Build Command: npm install
 **OBLIGATORII:**
 
 ```bash
-# Railway API Token
-RAILWAY_TOKEN=<your_railway_token>
+# legacy hosting API Token
+LEGACY_TOKEN=<your_legacy_token>
 
 # Port pentru dashboard
 PORT=3001
@@ -71,22 +71,22 @@ VOICE_PROJECT_ID=<project_id>
 MONITORING_PROJECT_ID=<project_id>
 ```
 
-**Cum obții RAILWAY_TOKEN:**
+**Cum obții LEGACY_TOKEN:**
 
-1. Railway Dashboard → Account Settings
+1. legacy hosting Dashboard → Account Settings
 2. Tokens → Create New Token
 3. Copy token
 4. Paste în Variables
 
 **Cum obții Project IDs:**
 
-1. Deschide proiectul în Railway
+1. Deschide proiectul în legacy hosting
 2. Settings → General
 3. Copy Project ID
 
 ### **Pasul 4: Deploy**
 
-Railway va deploy automat după ce adaugi variables.
+legacy hosting va deploy automat după ce adaugi variables.
 
 Vei vedea în logs:
 
@@ -112,33 +112,33 @@ Features:
 **Settings → Networking:**
 
 1. Click **"Generate Domain"**
-2. Vei primi URL: `https://v7-singularity-monitor.up.railway.app`
+2. Vei primi URL: `https://whats-app-ompro.ro`
 3. Accesează URL-ul în browser
 
 **Dashboard va fi live la:**
 
 ```
-https://v7-singularity-monitor.up.railway.app
+https://whats-app-ompro.ro
 ```
 
 ---
 
-## 🚀 METODA 2: DEPLOY CU RAILWAY CLI
+## 🚀 METODA 2: DEPLOY CU LEGACY_HOSTING CLI
 
-### **Pasul 1: Instalează Railway CLI**
+### **Pasul 1: Instalează legacy hosting CLI**
 
 ```bash
 # macOS/Linux
-curl -fsSL https://railway.app/install.sh | sh
+curl -fsSL https://legacy hosting.app/install.sh | sh
 
 # Windows (PowerShell)
-iwr https://railway.app/install.ps1 | iex
+iwr https://legacy hosting.app/install.ps1 | iex
 ```
 
 ### **Pasul 2: Login**
 
 ```bash
-railway login
+legacy hosting login
 ```
 
 Browser se va deschide pentru autentificare.
@@ -147,7 +147,7 @@ Browser se va deschide pentru autentificare.
 
 ```bash
 cd /workspaces/Aplicatie-SuperpartyByAi/monitoring
-railway init
+legacy hosting init
 ```
 
 Selectează:
@@ -158,28 +158,28 @@ Selectează:
 ### **Pasul 4: Adaugă Variables**
 
 ```bash
-# Railway token
-railway variables set RAILWAY_TOKEN=<your_token>
+# legacy hosting token
+legacy hosting variables set LEGACY_TOKEN=<your_token>
 
 # Port
-railway variables set PORT=3001
+legacy hosting variables set PORT=3001
 
 # Node env
-railway variables set NODE_ENV=production
+legacy hosting variables set NODE_ENV=production
 
 # Project IDs (opțional)
-railway variables set SUPERPARTY_PROJECT_ID=<id>
-railway variables set VOICE_PROJECT_ID=<id>
-railway variables set MONITORING_PROJECT_ID=<id>
+legacy hosting variables set SUPERPARTY_PROJECT_ID=<id>
+legacy hosting variables set VOICE_PROJECT_ID=<id>
+legacy hosting variables set MONITORING_PROJECT_ID=<id>
 ```
 
 ### **Pasul 5: Deploy**
 
 ```bash
-railway up
+legacy hosting up
 ```
 
-Railway va:
+legacy hosting va:
 
 1. Upload code
 2. Install dependencies
@@ -190,10 +190,10 @@ Railway va:
 
 ```bash
 # Vezi logs
-railway logs
+legacy hosting logs
 
 # Vezi URL
-railway open
+legacy hosting open
 ```
 
 ---
@@ -211,15 +211,15 @@ monitor.superparty.app
 Apoi adaugă CNAME record în DNS:
 
 ```
-CNAME monitor.superparty.app → v7-singularity-monitor.up.railway.app
+CNAME monitor.superparty.app → v7-singularity-monitor.up.legacy hosting.app
 ```
 
 ### **Health Check**
 
-Railway va verifica automat:
+legacy hosting va verifica automat:
 
 ```
-GET https://v7-singularity-monitor.up.railway.app/health
+GET https://whats-app-ompro.ro/health
 ```
 
 Răspuns:
@@ -233,7 +233,7 @@ Răspuns:
 
 ### **Auto-Deploy pe Git Push**
 
-Railway va deploy automat când faci push pe GitHub:
+legacy hosting va deploy automat când faci push pe GitHub:
 
 ```bash
 git add .
@@ -241,7 +241,7 @@ git commit -m "Update v7.0"
 git push origin main
 ```
 
-Railway detectează push-ul și redeploy-ează automat.
+legacy hosting detectează push-ul și redeploy-ează automat.
 
 ---
 
@@ -252,18 +252,18 @@ Railway detectează push-ul și redeploy-ează automat.
 **Dashboard principal:**
 
 ```
-https://v7-singularity-monitor.up.railway.app
+https://whats-app-ompro.ro
 ```
 
 **API Endpoints:**
 
 ```
-GET  https://v7-singularity-monitor.up.railway.app/api/overview
-GET  https://v7-singularity-monitor.up.railway.app/api/projects
-GET  https://v7-singularity-monitor.up.railway.app/api/projects/:id
-POST https://v7-singularity-monitor.up.railway.app/api/projects
-DELETE https://v7-singularity-monitor.up.railway.app/api/projects/:id
-GET  https://v7-singularity-monitor.up.railway.app/health
+GET  https://whats-app-ompro.ro/api/overview
+GET  https://whats-app-ompro.ro/api/projects
+GET  https://whats-app-ompro.ro/api/projects/:id
+POST https://whats-app-ompro.ro/api/projects
+DELETE https://whats-app-ompro.ro/api/projects/:id
+GET  https://whats-app-ompro.ro/health
 ```
 
 ### **Exemple API:**
@@ -271,13 +271,13 @@ GET  https://v7-singularity-monitor.up.railway.app/health
 **Get overview:**
 
 ```bash
-curl https://v7-singularity-monitor.up.railway.app/api/overview
+curl https://whats-app-ompro.ro/api/overview
 ```
 
 **Add project:**
 
 ```bash
-curl -X POST https://v7-singularity-monitor.up.railway.app/api/projects \
+curl -X POST https://whats-app-ompro.ro/api/projects \
   -H "Content-Type: application/json" \
   -d '{"projectId":"project-id","name":"My Project"}'
 ```
@@ -312,7 +312,7 @@ app.use((req, res, next) => {
 });
 ```
 
-Apoi adaugă în Railway Variables:
+Apoi adaugă în legacy hosting Variables:
 
 ```bash
 DASHBOARD_USER=admin
@@ -321,14 +321,14 @@ DASHBOARD_PASS=your_secure_password
 
 **Opțiunea 2: IP Whitelist (avansat)**
 
-În Railway Settings → Networking → Access Control:
+În legacy hosting Settings → Networking → Access Control:
 
 - Adaugă IP-urile tale
 - Doar acele IP-uri pot accesa
 
 ---
 
-## 💰 COST RAILWAY
+## 💰 COST LEGACY_HOSTING
 
 ### **Free Tier:**
 
@@ -366,7 +366,7 @@ Cu Free Tier: $0/month (primele luni)
 
 ### **Vezi logs în timp real:**
 
-**În Railway Dashboard:**
+**În legacy hosting Dashboard:**
 
 1. Deschide service-ul
 2. Tab "Deployments"
@@ -376,7 +376,7 @@ Cu Free Tier: $0/month (primele luni)
 **Cu CLI:**
 
 ```bash
-railway logs --follow
+legacy hosting logs --follow
 ```
 
 ### **Logs importante:**
@@ -420,12 +420,12 @@ git commit -m "Update v7.0"
 git push origin main
 ```
 
-Railway redeploy-ează automat.
+legacy hosting redeploy-ează automat.
 
-**Metoda 2: Railway CLI**
+**Metoda 2: legacy hosting CLI**
 
 ```bash
-railway up
+legacy hosting up
 ```
 
 ### **Restart service:**
@@ -436,7 +436,7 @@ Settings → Deployments → Restart
 **Cu CLI:**
 
 ```bash
-railway restart
+legacy hosting restart
 ```
 
 ### **Rollback:**
@@ -450,7 +450,7 @@ railway restart
 **Cu CLI:**
 
 ```bash
-railway rollback
+legacy hosting rollback
 ```
 
 ---
@@ -462,12 +462,12 @@ railway rollback
 **Verifică logs:**
 
 ```bash
-railway logs
+legacy hosting logs
 ```
 
 **Cauze comune:**
 
-- ❌ RAILWAY_TOKEN lipsă sau invalid
+- ❌ LEGACY_TOKEN lipsă sau invalid
 - ❌ PORT nu e setat
 - ❌ Dependencies nu s-au instalat
 
@@ -475,11 +475,11 @@ railway logs
 
 ```bash
 # Verifică variables
-railway variables
+legacy hosting variables
 
 # Adaugă ce lipsește
-railway variables set RAILWAY_TOKEN=<token>
-railway variables set PORT=3001
+legacy hosting variables set LEGACY_TOKEN=<token>
+legacy hosting variables set PORT=3001
 ```
 
 ### **Dashboard nu se încarcă:**
@@ -494,23 +494,23 @@ railway variables set PORT=3001
 
 ```bash
 # Restart service
-railway restart
+legacy hosting restart
 
 # Verifică logs
-railway logs
+legacy hosting logs
 ```
 
 ### **Self-replication nu funcționează:**
 
 **Cauze:**
 
-- ❌ RAILWAY_TOKEN nu are permissions
+- ❌ LEGACY_TOKEN nu are permissions
 - ❌ Project IDs greșite
 
 **Fix:**
 
-1. Regenerează Railway token cu permissions complete
-2. Verifică Project IDs în Railway Dashboard
+1. Regenerează legacy hosting token cu permissions complete
+2. Verifică Project IDs în legacy hosting Dashboard
 
 ### **Learning nu învață:**
 
@@ -526,11 +526,11 @@ railway logs
 
 ## ✅ CHECKLIST DEPLOY
 
-- [ ] Cont Railway creat
-- [ ] Repository conectat la Railway
+- [ ] Cont legacy hosting creat
+- [ ] Repository conectat la legacy hosting
 - [ ] Service creat cu root directory `monitoring`
 - [ ] Start command setat: `npm start`
-- [ ] RAILWAY_TOKEN adăugat în variables
+- [ ] LEGACY_TOKEN adăugat în variables
 - [ ] PORT=3001 adăugat
 - [ ] NODE_ENV=production adăugat
 - [ ] Project IDs adăugate (opțional)
@@ -549,19 +549,19 @@ railway logs
 **1. Accesează dashboard:**
 
 ```
-https://v7-singularity-monitor.up.railway.app
+https://whats-app-ompro.ro
 ```
 
 **2. Verifică API:**
 
 ```bash
-curl https://v7-singularity-monitor.up.railway.app/api/overview
+curl https://whats-app-ompro.ro/api/overview
 ```
 
 **3. Adaugă proiecte:**
 
 ```bash
-curl -X POST https://v7-singularity-monitor.up.railway.app/api/projects \
+curl -X POST https://whats-app-ompro.ro/api/projects \
   -H "Content-Type: application/json" \
   -d '{"projectId":"your-project-id","name":"SuperParty"}'
 ```
@@ -569,7 +569,7 @@ curl -X POST https://v7-singularity-monitor.up.railway.app/api/projects \
 **4. Monitorizează logs:**
 
 ```bash
-railway logs --follow
+legacy hosting logs --follow
 ```
 
 **5. Așteaptă 24h pentru learning să înceapă**
@@ -578,9 +578,9 @@ railway logs --follow
 
 ## 🎉 GATA!
 
-**v7.0 Singularity e LIVE pe Railway!**
+**v7.0 Singularity e LIVE pe legacy hosting!**
 
-**Dashboard:** `https://v7-singularity-monitor.up.railway.app`
+**Dashboard:** `https://whats-app-ompro.ro`
 
 **Features active:**
 

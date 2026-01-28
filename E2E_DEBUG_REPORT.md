@@ -31,7 +31,7 @@ flutter analyze
 
 **Current State:**
 - ✅ Flutter calls Firebase Functions proxy endpoints
-- ✅ Functions use `defineSecret('WHATSAPP_RAILWAY_BASE_URL')`
+- ✅ Functions use `defineSecret('WHATSAPP_LEGACY_BASE_URL')`
 - ✅ Secret deployed and accessible
 - ✅ Authorization: Bearer token sent from Flutter
 
@@ -41,24 +41,24 @@ flutter analyze
 - `functions/index.js`: Wraps handlers with secrets
 
 **Root Cause (FIXED):**
-- **Issue:** Functions missing `WHATSAPP_RAILWAY_BASE_URL` secret → 500 error
+- **Issue:** Functions missing `WHATSAPP_LEGACY_BASE_URL` secret → 500 error
 - **Fix:** Secret created + functions redeployed with `secrets: [whatsappRailwayUrl]`
 - **Commit:** `27d46127`
 
 **Verification:**
 ```bash
 # Production
-firebase functions:secrets:access WHATSAPP_RAILWAY_BASE_URL
+firebase functions:secrets:access WHATSAPP_LEGACY_BASE_URL
 # ✅ Secret exists
 
 # Emulator
 cat functions/.runtimeconfig.json
-# ✅ Has railway_base_url
+# ✅ Has legacy_base_url
 ```
 
 **Logging:**
 - ✅ Flutter: `debugPrint` for request/response (status, error, bodyLength)
-- ✅ Functions: Console logs for auth, Railway forwarding
+- ✅ Functions: Console logs for auth, legacy hosting forwarding
 - ⚠️ **Enhancement needed:** Add requestId logging in Functions
 
 ---
@@ -67,10 +67,10 @@ cat functions/.runtimeconfig.json
 
 ### Auth Requirements
 
-**Railway Backend (`whatsapp-backend/server.js`):**
+**legacy hosting Backend (`whatsapp-backend/server.js`):**
 - `/api/whatsapp/*` endpoints require `ADMIN_TOKEN` (Bearer auth)
 - ✅ Proxy in Functions handles this (super-admin only)
-- ✅ Flutter never calls Railway directly (uses proxy)
+- ✅ Flutter never calls legacy hosting directly (uses proxy)
 
 **Health Check:**
 - `/health` endpoint available
@@ -211,7 +211,7 @@ firebase login
 firebase use superparty-frontend
 
 # 3. Environment variables
-export WHATSAPP_RAILWAY_BASE_URL='https://whats-upp-production.up.railway.app'
+export WHATSAPP_LEGACY_BASE_URL='https://whats-app-ompro.ro'
 # OR use functions/.runtimeconfig.json (already configured)
 ```
 
@@ -219,7 +219,7 @@ export WHATSAPP_RAILWAY_BASE_URL='https://whats-upp-production.up.railway.app'
 ```bash
 # Terminal 1: Firebase Emulators
 cd /Users/universparty/Aplicatie-SuperpartyByAi
-export WHATSAPP_RAILWAY_BASE_URL='https://whats-upp-production.up.railway.app'
+export WHATSAPP_LEGACY_BASE_URL='https://whats-app-ompro.ro'
 firebase emulators:start --only firestore,functions,auth
 
 # Terminal 2: Flutter (with emulator flag)

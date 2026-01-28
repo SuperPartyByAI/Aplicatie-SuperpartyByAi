@@ -9,7 +9,7 @@ Generated: Sun Jan 18 14:08:46 EET 2026
 Found old function. Delete via Firebase Console:\nFirebase Console → Project superparty-frontend → Functions → Filter '1st gen' → Find 'whatsapp' → Delete\nThen run: firebase deploy --only functions
 ```
 
-## Test: 1. Railway Health Check
+## Test: 1. legacy hosting Health Check
 **Status:** ❌ FAIL
 **Timestamp:** Sun Jan 18 14:08:53 EET 2026
 **Details:**
@@ -41,12 +41,12 @@ Firestore not connected: {"status":"healthy","version":"2.0.0","commit":"892419e
 Rules file exists with threads/messages protection
 ```
 
-## Test: 4. Railway Variables
+## Test: 4. legacy hosting Variables
 **Status:** ⚠️  MANUAL CHECK REQUIRED
 **Timestamp:** Sun Jan 18 14:08:57 EET 2026
 **Details:**
 ```
-Verify in Railway dashboard:\n- SESSIONS_PATH=/app/sessions\n- FIREBASE_SERVICE_ACCOUNT_JSON=... (set)\n- ADMIN_TOKEN=... (if exists)\n- Single instance (no scale-out)
+Verify in legacy hosting dashboard:\n- SESSIONS_PATH=/app/sessions\n- FIREBASE_SERVICE_ACCOUNT_JSON=... (set)\n- ADMIN_TOKEN=... (if exists)\n- Single instance (no scale-out)
 ```
 
 ## Test: 5. Pair WhatsApp Account (QR)
@@ -86,7 +86,7 @@ Steps:\n1. In app Chat: Type and send message\n2. Verify client receives on What
 **Timestamp:** Sun Jan 18 14:08:57 EET 2026
 **Details:**
 ```
-Steps:\n1. Pair WA-01 and send/receive a few messages\n2. Restart/redeploy Railway backend\n3. Verify:\n   - Account remains connected (no QR required)\n   - Messages remain visible in app\n   - If messages received during restart, they appear after restart\n\nExpected: Conversations persist, no data loss
+Steps:\n1. Pair WA-01 and send/receive a few messages\n2. Restart/redeploy legacy hosting backend\n3. Verify:\n   - Account remains connected (no QR required)\n   - Messages remain visible in app\n   - If messages received during restart, they appear after restart\n\nExpected: Conversations persist, no data loss
 ```
 
 ## Test: 10. CRM Extract/Save/Ask AI

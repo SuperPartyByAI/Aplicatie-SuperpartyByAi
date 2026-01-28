@@ -125,7 +125,7 @@ Added to `saveAccountToFirestore()` calls:
 
 ```javascript
 {
-  claimedBy: process.env.RAILWAY_DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown',
+  claimedBy: process.env.LEGACY_DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown',
   claimedAt: admin.firestore.Timestamp.fromMillis(now),
   leaseUntil: admin.firestore.Timestamp.fromMillis(now + LEASE_DURATION_MS)
 }

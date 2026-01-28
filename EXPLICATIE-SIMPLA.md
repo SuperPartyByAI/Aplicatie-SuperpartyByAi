@@ -226,10 +226,10 @@ Start Command: node extreme-monitor.js
 Start Command: node ultra-fast-monitor.js
 ```
 
-### **Pasul 2: Deploy pe Railway**
+### **Pasul 2: Deploy pe legacy hosting**
 
 1. Creează service nou
-2. Adaugă env vars (RAILWAY_TOKEN, etc)
+2. Adaugă env vars (LEGACY_TOKEN, etc)
 3. Deploy
 
 ### **Pasul 3: Verifică logs**
@@ -314,12 +314,12 @@ Start Command: node ultra-fast-monitor.js
 ## 🚀 START RAPID
 
 ```bash
-# 1. Creează service pe Railway
+# 1. Creează service pe legacy hosting
 Name: superparty-monitor
 Start Command: node ultimate-monitor.js
 
 # 2. Adaugă env vars
-RAILWAY_TOKEN=<token>
+LEGACY_TOKEN=<token>
 BACKEND_URL=<url>
 BACKEND_SERVICE_ID=<id>
 COQUI_API_URL=<url>

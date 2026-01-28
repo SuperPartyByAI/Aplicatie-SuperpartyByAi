@@ -8,7 +8,7 @@
 
 ### **PASUL 1: Creează 1 Service de Monitoring**
 
-În Railway, creează **UN SINGUR** service:
+În legacy hosting, creează **UN SINGUR** service:
 
 ```
 Name: superparty-multi-monitor
@@ -22,35 +22,35 @@ Start Command: node multi-project-monitor.js
 **Pentru TOATE 4 proiectele:**
 
 ```bash
-# Railway Token (același pentru toate)
-RAILWAY_TOKEN=<token_din_railway_settings>
+# legacy hosting Token (același pentru toate)
+LEGACY_TOKEN=<token_din_legacy_settings>
 
 # ========== PROIECT 1 ==========
 PROJECT_NAME_1=SuperParty Main
-BACKEND_URL_1=https://project1.railway.app
+BACKEND_URL_1=https://project1.legacy hosting.app
 BACKEND_SERVICE_ID_1=<service_id_proiect_1>
-COQUI_URL_1=https://project1.railway.app
+COQUI_URL_1=https://project1.legacy hosting.app
 COQUI_SERVICE_ID_1=<service_id_proiect_1>
 
 # ========== PROIECT 2 ==========
 PROJECT_NAME_2=SuperParty Voice
-BACKEND_URL_2=https://project2.railway.app
+BACKEND_URL_2=https://project2.legacy hosting.app
 BACKEND_SERVICE_ID_2=<service_id_proiect_2>
-COQUI_URL_2=https://project2.railway.app
+COQUI_URL_2=https://project2.legacy hosting.app
 COQUI_SERVICE_ID_2=<service_id_proiect_2>
 
 # ========== PROIECT 3 ==========
 PROJECT_NAME_3=SuperParty KYC
-BACKEND_URL_3=https://project3.railway.app
+BACKEND_URL_3=https://project3.legacy hosting.app
 BACKEND_SERVICE_ID_3=<service_id_proiect_3>
-COQUI_URL_3=https://project3.railway.app
+COQUI_URL_3=https://project3.legacy hosting.app
 COQUI_SERVICE_ID_3=<service_id_proiect_3>
 
 # ========== PROIECT 4 ==========
 PROJECT_NAME_4=SuperParty Admin
-BACKEND_URL_4=https://project4.railway.app
+BACKEND_URL_4=https://project4.legacy hosting.app
 BACKEND_SERVICE_ID_4=<service_id_proiect_4>
-COQUI_URL_4=https://project4.railway.app
+COQUI_URL_4=https://project4.legacy hosting.app
 COQUI_SERVICE_ID_4=<service_id_proiect_4>
 ```
 
@@ -60,15 +60,15 @@ COQUI_SERVICE_ID_4=<service_id_proiect_4>
 
 ### **Pentru fiecare din cele 4 proiecte:**
 
-1. **Mergi la proiectul respectiv în Railway**
+1. **Mergi la proiectul respectiv în legacy hosting**
 2. **Click pe service-ul principal**
 3. **Copiază URL-ul public** (Settings → Domains)
    ```
-   Exemplu: https://web-production-abc123.up.railway.app
+   Exemplu: https://whats-app-ompro.ro
    ```
 4. **Copiază Service ID din URL**
    ```
-   URL: railway.app/project/xyz/service/abc123
+   URL: legacy hosting.app/project/xyz/service/abc123
                                         ^^^^^^
                                         Acesta!
    ```
@@ -120,19 +120,19 @@ Self-healing pentru toate
 ============================================================
 
 🚀 SuperParty Main
-   URL: https://project1.railway.app
+   URL: https://project1.legacy hosting.app
    Backend: 99.98% uptime
 
 🚀 SuperParty Voice
-   URL: https://project2.railway.app
+   URL: https://project2.legacy hosting.app
    Coqui: 99.95% uptime
 
 🚀 SuperParty KYC
-   URL: https://project3.railway.app
+   URL: https://project3.legacy hosting.app
    Backend: 99.99% uptime
 
 🚀 SuperParty Admin
-   URL: https://project4.railway.app
+   URL: https://project4.legacy hosting.app
    Backend: 99.97% uptime
 
 ============================================================
@@ -178,30 +178,30 @@ vs
 # - Proiect 3: KYC app
 # - Proiect 4: Admin panel
 
-RAILWAY_TOKEN=frp_abc123def456xyz789
+LEGACY_TOKEN=frp_abc123def456xyz789
 
 PROJECT_NAME_1=Backend Principal
-BACKEND_URL_1=https://web-production-00dca9.up.railway.app
+BACKEND_URL_1=https://whats-app-ompro.ro
 BACKEND_SERVICE_ID_1=abc123def456
-COQUI_URL_1=https://web-production-00dca9.up.railway.app
+COQUI_URL_1=https://whats-app-ompro.ro
 COQUI_SERVICE_ID_1=abc123def456
 
 PROJECT_NAME_2=Voice Service
-BACKEND_URL_2=https://coqui-production-xyz789.up.railway.app
+BACKEND_URL_2=https://whats-app-ompro.ro
 BACKEND_SERVICE_ID_2=xyz789ghi012
-COQUI_URL_2=https://coqui-production-xyz789.up.railway.app
+COQUI_URL_2=https://whats-app-ompro.ro
 COQUI_SERVICE_ID_2=xyz789ghi012
 
 PROJECT_NAME_3=KYC App
-BACKEND_URL_3=https://kyc-production-jkl345.up.railway.app
+BACKEND_URL_3=https://whats-app-ompro.ro
 BACKEND_SERVICE_ID_3=jkl345mno678
-COQUI_URL_3=https://kyc-production-jkl345.up.railway.app
+COQUI_URL_3=https://whats-app-ompro.ro
 COQUI_SERVICE_ID_3=jkl345mno678
 
 PROJECT_NAME_4=Admin Panel
-BACKEND_URL_4=https://admin-production-pqr901.up.railway.app
+BACKEND_URL_4=https://whats-app-ompro.ro
 BACKEND_SERVICE_ID_4=pqr901stu234
-COQUI_URL_4=https://admin-production-pqr901.up.railway.app
+COQUI_URL_4=https://whats-app-ompro.ro
 COQUI_SERVICE_ID_4=pqr901stu234
 ```
 

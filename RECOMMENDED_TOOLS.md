@@ -5,7 +5,7 @@
 ### 1. Redis (Distributed Caching) ⭐⭐⭐⭐⭐
 
 **Priority:** CRITICAL
-**Cost:** $5/month (Railway addon)
+**Cost:** $5/month (legacy hosting addon)
 **Effort:** 2-4 hours
 **ROI:** VERY HIGH
 
@@ -19,7 +19,7 @@
 **What You Get:**
 
 - Persistent cache across deployments
-- Shared cache between multiple Railway instances
+- Shared cache between multiple legacy hosting instances
 - 10-100x faster than database queries
 - Session storage for WhatsApp connections
 - Pub/sub for real-time features
@@ -27,7 +27,7 @@
 **Implementation Complexity:** LOW
 
 - Drop-in replacement for current cache
-- Railway provides managed Redis
+- legacy hosting provides managed Redis
 - Minimal code changes needed
 
 **When to Implement:** IMMEDIATELY
@@ -201,7 +201,7 @@ cacheHitRate.set(hits / (hits + misses));
 
 ```bash
 # Day 1-2: Setup
-railway add redis
+legacy hosting add redis
 npm install ioredis
 
 # Day 3-4: Implementation
@@ -242,17 +242,17 @@ npm install ioredis
 
 ## 🔧 Quick Start: Redis Implementation
 
-### 1. Add Redis to Railway (5 minutes)
+### 1. Add Redis to legacy hosting (5 minutes)
 
 ```bash
-# Option A: Railway Dashboard
+# Option A: legacy hosting Dashboard
 # 1. Go to your project
 # 2. Click "New" → "Database" → "Add Redis"
 # 3. Copy REDIS_URL from variables
 
-# Option B: Railway CLI
-railway add redis
-railway variables
+# Option B: legacy hosting CLI
+legacy hosting add redis
+legacy hosting variables
 ```
 
 ### 2. Install Redis Client (1 minute)
@@ -390,17 +390,17 @@ git add .
 git commit -m "feat: add Redis for distributed caching"
 git push origin main
 
-# Railway will auto-deploy with REDIS_URL
+# legacy hosting will auto-deploy with REDIS_URL
 ```
 
 ### 7. Verify (15 minutes)
 
 ```bash
 # Check cache stats
-curl https://your-app.railway.app/api/cache/stats
+curl https://your-app.legacy hosting.app/api/cache/stats
 
 # Monitor logs
-railway logs
+legacy hosting logs
 
 # Check performance improvement
 # - Response times should be faster

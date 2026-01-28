@@ -28,7 +28,7 @@ async function getAccountStatus() {
 
 async function triggerReconnect() {
   // Simulate disconnect by restarting connection
-  // In production, this would be done via Railway restart or disconnect API
+  // In production, this would be done via Hetzner service restart or disconnect API
   console.log('⚠️  MTTR test requires manual disconnect/reconnect simulation');
   console.log('For now, measuring existing connection time from logs');
 
@@ -78,12 +78,12 @@ async function runBenchmark() {
   console.log('');
 
   // For full MTTR test, would need to:
-  // 1. Disconnect account (via Railway restart or API)
+  // 1. Disconnect account (via Hetzner service restart or API)
   // 2. Wait for reconnect
   // 3. Measure time
   // 4. Repeat N times
 
-  console.log('⚠️  Full MTTR benchmark requires Railway service restart capability');
+  console.log('⚠️  Full MTTR benchmark requires Hetzner service restart capability');
   console.log('Current implementation shows initial connection time only');
   console.log('');
   console.log('RESULT: Initial MTTR =', initialMTTR, 'ms (', Math.floor(initialMTTR / 1000), 's)');

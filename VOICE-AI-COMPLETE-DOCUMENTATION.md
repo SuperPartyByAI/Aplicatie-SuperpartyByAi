@@ -18,46 +18,46 @@ Data: 28 Decembrie 2025
   - Google Cloud Text-to-Speech (voce naturală)
   - Twilio (telefonie)
 
-### 2. Deployment Railway
+### 2. Deployment legacy hosting
 
-- **Service URL**: `https://web-production-f0714.up.railway.app`
+- **Service URL**: `https://whats-app-ompro.ro`
 - **Service ID**: `1931479e-da65-4d3a-8c5b-77c4b8fb3e31`
 - **Project ID**: `a08232e9-9a0b-4bab-b7bd-7efaa7c83868`
 
 ### 3. Twilio Configuration
 
 - **Număr telefon**: `+1 (218) 220-4425`
-- **Webhook**: `https://web-production-f0714.up.railway.app/api/voice/incoming`
+- **Webhook**: `https://whats-app-ompro.ro/api/voice/incoming`
 - **Status**: Auto-configurat prin API
 
 ---
 
-## 🔧 Configurare Railway Variables
+## 🔧 Configurare legacy hosting Variables
 
 ### Variables Complete (Copy-Paste în Raw Editor):
 
 ```
-RAILWAY_TOKEN=998d4e46-c67c-47e2-9eaa-ae4cc806aab1
+LEGACY_TOKEN=998d4e46-c67c-47e2-9eaa-ae4cc806aab1
 PORT=3001
 NODE_ENV=production
 SUPERPARTY_PROJECT_ID=6d417631-9c08-479c-aa97-d898dd0d5b03
 VOICE_PROJECT_ID=1931479e-da65-4d3a-8c5b-77c4b8fb3e31
 PROJECT_NAME_1=SuperParty Backend
-BACKEND_URL_1=https://web-production-00dca9.up.railway.app
+BACKEND_URL_1=https://whats-app-ompro.ro
 BACKEND_SERVICE_ID_1=6d417631-9c08-479c-aa97-d898dd0d5b03
-COQUI_URL_1=https://web-production-00dca9.up.railway.app
+COQUI_URL_1=https://whats-app-ompro.ro
 COQUI_SERVICE_ID_1=6d417631-9c08-479c-aa97-d898dd0d5b03
 PROJECT_NAME_2=Web Production
-BACKEND_URL_2=https://web-production-f0714.up.railway.app
+BACKEND_URL_2=https://whats-app-ompro.ro
 BACKEND_SERVICE_ID_2=1931479e-da65-4d3a-8c5b-77c4b8fb3e31
-COQUI_URL_2=https://web-production-f0714.up.railway.app
+COQUI_URL_2=https://whats-app-ompro.ro
 COQUI_SERVICE_ID_2=1931479e-da65-4d3a-8c5b-77c4b8fb3e31
 OPENAI_API_KEY=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
 TWILIO_ACCOUNT_SID=AC17c88873d670aab4aa4a50fae230d2df
 TWILIO_AUTH_TOKEN=5c6670d39a1dbf46d47ecdaa244b91d9
 TWILIO_PHONE_NUMBER=+12182204425
-BACKEND_URL=https://web-production-f0714.up.railway.app
-COQUI_API_URL=https://web-production-00dca9.up.railway.app
+BACKEND_URL=https://whats-app-ompro.ro
+COQUI_API_URL=https://whats-app-ompro.ro
 GOOGLE_CREDENTIALS_JSON={"type":"service_account","project_id":"superparty-frontend","private_key_id":"b90e20f74715474d2b116d05b436ff39252fd090","private_key":"-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCnDvexVmoCZOHV\nwewtcbreEHmTfewF1Ijdq2YbC9Mvnf3oTVifgfje3esOXCx2VP+6av/0Ib49v/LC\nNYOtNnkI5pmR1fOF/2W+KPizzAveFLtir0E+vEeTS0F+qamkb5QCAA6ouZEVwwFi\nv9AcqY8iKJR+G+ysZVPVgEYLFXuOQwuiT1EoQ55rj3F9XxOtYgR17zD/fy37oezk\nebuCGv4AeebZcVzUB8qo/n6ET06ZwH/lShWYL4ouFU9L4+IsEFOSNIdA1eTkVIm2\ncLkC06s91OF/mPZexhUdCzAsuGhAHYdPd/GnaklPYWmw3gr6eCQk+SBd8YN7pI9N\nDx8nZLBtAgMBAAECggEABdFPXmFaQTmWpL1DVoTMo2GS/kgnET/owUFwBZaYlOKt\nXirdYHaj/kzfm+kpUjidDDagMbYAHEHkOA+phX1tYxo2tF2tRJgTiLcADDDZo/L4\nYJQmU0M2weIfxoOtiPCqyJQMbqNBsm6PTItN+cWM2r1riGW8DPfdXsTAC7BElHxi\nQdWypGuS+c8N5dC2K35X+mBnr6koKI8o6PBlPbqsWOo+soquzK/CfFgpfpmtPHxb\n8HooTkKgB0hzm2sA3Bme8dLFMTSfBR2kmKN8J7sezgFvrh4VA+MH6BYu7jQ6Azpo\nQCScO6GN9oFCX12/5zPCKuQxL5HM0X+t8VplBDBSqQKBgQDjm+0W3oDCq8s1s97I\nJp5YgxRVM3QUzinyNXXzuNBBV39vEPueQzgjhReDDvptrNK9aa6LDuRifx3hePaz\niIfbQO174mqeXD7OX8dgDKRUd3CSrVcI5SJOg1NVhqtTCYAwN2G+bP0Fof+qC2fd\nQDwDE7VAv8O9Mcr+ikuR8f58KQKBgQC75YXfThVfAEn5Hd5oRmfAZRz5y45itXeX\nEMryM1u43UucO/PQMOYuA1QOwAutj7uZnYAHHD55t9SHReqZYo+PSmIML0zvr3dh\nSl6qWEZUbu2jpNPKM4ASo3eFzf55+aGTt2I8vFDDPGbWiwD8oWYt8z9SbC48Xra3\nF1u5j/6apQKBgGRdpp+WAAtXu+TzawKxXNPFAVtMtBxUiNSgVGHjlhmqHqx4Pawd\nEg0/rA2DtlRUiB00E96H85enXCLHt2mVg+rf55jgT4mDPcK9I2qsSG5iuMZFH4Lx\nnz4l1MJ6/uM/5kHcugJBhxVLyTRPkT5UC+KDd0KVDRhJc6zoiMhTgJd5AoGAFu7x\nwwqlwx2m6bgCkFmfijUNL1PwAg5CFXcgPiWUmWCxPNV4cb22KoGPfelkw39al2pI\n2RVSbsrILuaStrv357Zddz1Ct7KD8KUCHup9UwrjCGkyzGgyxpObIAK/f6W/Wec1\nH1KgzOOPbbozmaIddZhN70Jy9j1dMcWxFVoE6l0CgYBRCuQV2hUYQK7loLfRT2AR\nY+LRSOobiZlp3pmctQf0q7uBQuYVyzdiPkzAjyNFAqTt1epuP+OBSi5l80kJ4hge\n6BMf8Y5QcWG3OxdYtpCPcmFaaQe/JS7fdPJXahcg0Y0YQl18W37yPJ06l9EcUcWJ\naIlu1mQEe/xeRJGWlcAAsg==\n-----END PRIVATE KEY-----\n","client_email":"firebase-adminsdk-fbsvc@superparty-frontend.iam.gserviceaccount.com","client_id":"118362575838205906896","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url":"https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40superparty-frontend.iam.gserviceaccount.com","universe_domain":"googleapis.com"}
 ```
 
@@ -76,17 +76,17 @@ superparty-ai-backend/
 ├── elevenlabs-handler.js        # ElevenLabs (backup, nu folosit)
 ├── coqui-handler.js             # Coqui XTTS (backup, nu folosit)
 ├── package.json                 # Dependencies
-├── Procfile                     # Railway start command
-└── railway.json                 # Railway configuration
+├── Procfile                     # legacy hosting start command
+└── legacy hosting.json                 # legacy hosting configuration
 ```
 
 ### Fișiere Importante în `Aplicatie-SuperpartyByAi`:
 
 ```
-railway-monitor/
+legacy hosting-monitor/
 ├── configure-twilio.js          # Auto-configure Twilio webhooks
 ├── verify-and-fix.js            # Verify deployment status
-├── railway-api-complete.js      # Railway API automation
+├── legacy hosting-api-complete.js      # legacy hosting API automation
 └── update-twilio-webhook.js     # Update Twilio webhook URL
 
 voice-backend/                   # Original voice backend code
@@ -101,7 +101,7 @@ VOICE-AI-COMPLETE-DOCUMENTATION.md  # Acest fișier
 
 1. **User sună** la `+1 (218) 220-4425`
 2. **Twilio** primește apelul
-3. **Webhook** trimite la: `https://web-production-f0714.up.railway.app/api/voice/incoming`
+3. **Webhook** trimite la: `https://whats-app-ompro.ro/api/voice/incoming`
 4. **Backend** răspunde cu salut: "Bună ziua! Numele meu este Kasya, de la SuperParty. Cu ce vă pot ajuta?"
 5. **User vorbește** (4 secunde timeout pentru speech)
 6. **GPT-4o** procesează conversația
@@ -126,19 +126,19 @@ VOICE-AI-COMPLETE-DOCUMENTATION.md  # Acest fișier
 ### 1. Verificare Status
 
 ```bash
-node railway-monitor/verify-and-fix.js
+node legacy hosting-monitor/verify-and-fix.js
 ```
 
 ### 2. Configurare Twilio Webhook
 
 ```bash
-node railway-monitor/configure-twilio.js
+node legacy hosting-monitor/configure-twilio.js
 ```
 
 ### 3. Test Backend
 
 ```bash
-curl https://web-production-f0714.up.railway.app/
+curl https://whats-app-ompro.ro/
 ```
 
 ---
@@ -148,7 +148,7 @@ curl https://web-production-f0714.up.railway.app/
 ### Problema: Vocea e robotizată
 
 **Cauză**: Google TTS nu e configurat sau credentials lipsesc
-**Soluție**: Verifică că `GOOGLE_CREDENTIALS_JSON` e setat în Railway Variables
+**Soluție**: Verifică că `GOOGLE_CREDENTIALS_JSON` e setat în legacy hosting Variables
 
 ### Problema: "Nu am primit nicio informație"
 
@@ -163,16 +163,16 @@ curl https://web-production-f0714.up.railway.app/
 **Cauză**: Backend nu răspunde sau webhook greșit
 **Soluție**:
 
-- Verifică Railway logs
+- Verifică legacy hosting logs
 - Verifică că webhook-ul Twilio e corect setat
-- Rulează: `node railway-monitor/configure-twilio.js`
+- Rulează: `node legacy hosting-monitor/configure-twilio.js`
 
 ### Problema: Backend-ul vechi încă rulează
 
-**Cauză**: Railway nu a luat repo-ul nou
+**Cauză**: legacy hosting nu a luat repo-ul nou
 **Soluție**:
 
-1. Railway → Settings → Source → Disconnect
+1. legacy hosting → Settings → Source → Disconnect
 2. Connect Repo → `SuperPartyByAI/superparty-ai-backend` (branch: main)
 3. Verifică că în logs apare: `SuperParty Backend - WhatsApp + Voice`
 
@@ -182,7 +182,7 @@ curl https://web-production-f0714.up.railway.app/
 
 ### v7.0 Monitor
 
-- **URL**: `https://web-production-79489.up.railway.app`
+- **URL**: `https://whats-app-ompro.ro`
 - **Dashboard**: Multi-project monitoring
 - **Features**:
   - Self-monitoring
@@ -190,7 +190,7 @@ curl https://web-production-f0714.up.railway.app/
   - Health checks
   - Uptime tracking
 
-### Railway Logs
+### legacy hosting Logs
 
 ```
 [GoogleTTS] Initialized
@@ -220,7 +220,7 @@ curl https://web-production-f0714.up.railway.app/
 - **Cost**: $0.0085/minut (incoming calls)
 - **Estimat**: Depinde de volum
 
-### Railway
+### legacy hosting
 
 - **Plan**: Hobby ($5/lună) sau Pro ($20/lună)
 - **Inclus**: Compute, bandwidth, storage
@@ -258,7 +258,7 @@ curl https://web-production-f0714.up.railway.app/
 ## 📞 Contact & Support
 
 - **Repository**: https://github.com/SuperPartyByAI/superparty-ai-backend
-- **Railway Project**: https://railway.app/project/a08232e9-9a0b-4bab-b7bd-7efaa7c83868
+- **legacy hosting Project**: https://legacy hosting.app/project/a08232e9-9a0b-4bab-b7bd-7efaa7c83868
 - **Twilio Console**: https://console.twilio.com/
 
 ---
@@ -266,7 +266,7 @@ curl https://web-production-f0714.up.railway.app/
 ## ✅ Checklist Deployment
 
 - [x] Backend code pushed to GitHub
-- [x] Railway service connected to correct repo
+- [x] legacy hosting service connected to correct repo
 - [x] All environment variables set
 - [x] Google Cloud credentials configured
 - [x] Twilio webhook configured

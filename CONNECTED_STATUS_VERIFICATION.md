@@ -56,19 +56,19 @@ sock.ev.on('connection.update', async update => {
 ### Check Current Status
 
 ```bash
-curl -s https://whats-upp-production.up.railway.app/health | python3 -m json.tool
+curl -s https://whats-app-ompro.ro/health | python3 -m json.tool
 ```
 
-### Monitor Logs (Railway)
+### Monitor Logs (legacy hosting)
 
 ```bash
-railway logs --service whats-upp
+legacy hosting logs --service whats-upp
 ```
 
 ### Test Message After Connection
 
 ```bash
-curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/send \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/send \
   -H "Content-Type: application/json" \
   -d '{
     "accountId": "account_dev_dde908a65501c63b124cb94c627e551d",
@@ -82,12 +82,12 @@ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/send \
 ### 1. Trigger Restart
 
 ```bash
-# Option A: Via Railway Dashboard
-# Go to: https://railway.app/project/[project-id]/service/[service-id]
+# Option A: Via legacy hosting Dashboard
+# Go to: https://legacy hosting.app/project/[project-id]/service/[service-id]
 # Click: "Restart"
 
 # Option B: Via API (if available)
-curl -X POST https://whats-upp-production.up.railway.app/api/admin/restart \
+curl -X POST https://whats-app-ompro.ro/api/admin/restart \
   -H "Authorization: Bearer [ADMIN_TOKEN]"
 ```
 
@@ -96,7 +96,7 @@ curl -X POST https://whats-upp-production.up.railway.app/api/admin/restart \
 After restart, check:
 
 ```bash
-curl -s https://whats-upp-production.up.railway.app/health | python3 -m json.tool
+curl -s https://whats-app-ompro.ro/health | python3 -m json.tool
 ```
 
 Expected:
@@ -116,7 +116,7 @@ Expected:
 
 ```bash
 # Should show "Already connected" or similar
-curl -s "https://whats-upp-production.up.railway.app/api/whatsapp/qr/account_dev_dde908a65501c63b124cb94c627e551d"
+curl -s "https://whats-app-ompro.ro/api/whatsapp/qr/account_dev_dde908a65501c63b124cb94c627e551d"
 ```
 
 ## Evidence Collection

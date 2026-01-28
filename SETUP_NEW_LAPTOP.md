@@ -115,11 +115,11 @@ cd ..
 Create `.env` file in root (NOT committed):
 ```powershell
 # Copy example
-Copy-Item RAILWAY-VARIABLES.env.example .env
+Copy-Item LEGACY_HOSTING-VARIABLES.env.example .env
 # Edit .env with your actual values
 ```
 
-Required variables (see `RAILWAY-VARIABLES.env.example` for full list):
+Required variables (see `LEGACY_HOSTING-VARIABLES.env.example` for full list):
 - `OPENAI_API_KEY` (for AI features)
 - `TWILIO_ACCOUNT_SID` (for WhatsApp/Voice)
 - `TWILIO_AUTH_TOKEN`

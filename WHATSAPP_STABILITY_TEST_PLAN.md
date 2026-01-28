@@ -23,12 +23,12 @@ flutter run -d emulator-5554 --dart-define=USE_EMULATORS=true --dart-define=USE_
 export ADMIN_TOKEN="dev-token-..."
 ```
 
-## Test 1: Verify Railway Commit Hash (d4f4998a)
+## Test 1: Verify legacy hosting Commit Hash (d4f4998a)
 
 ### Steps
 ```bash
 # 1. Check health endpoint for commit hash
-curl https://whats-upp-production.up.railway.app/health | jq '.commit, .instanceId, .waMode, .lock'
+curl https://whats-app-ompro.ro/health | jq '.commit, .instanceId, .waMode, .lock'
 
 # Expected:
 # - commit: "d4f4998a" (or newer)
@@ -50,7 +50,7 @@ curl https://whats-upp-production.up.railway.app/health | jq '.commit, .instance
 curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Test","phone":"+40712345678"}' \
-  https://whats-upp-production.up.railway.app/api/whatsapp/add-account
+  https://whats-app-ompro.ro/api/whatsapp/add-account
 
 # Expected if PASSIVE:
 # Status: 503
@@ -58,7 +58,7 @@ curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 # 3. Call regenerateQr from PASSIVE instance
 curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/regenerate-qr/ACCOUNT_ID
+  https://whats-app-ompro.ro/api/whatsapp/regenerate-qr/ACCOUNT_ID
 
 # Expected if PASSIVE:
 # Status: 503
@@ -66,7 +66,7 @@ curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 # 4. Call deleteAccount from PASSIVE instance
 curl -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts/ACCOUNT_ID
+  https://whats-app-ompro.ro/api/whatsapp/accounts/ACCOUNT_ID
 
 # Expected if PASSIVE:
 # Status: 503
@@ -86,13 +86,13 @@ curl -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
 curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Test","phone":"+40712345678"}' \
-  https://whats-upp-production.up.railway.app/api/whatsapp/add-account
+  https://whats-app-ompro.ro/api/whatsapp/add-account
 
 # Wait for QR (poll getAccounts until qrCode exists)
 
 # 2. Call regenerateQr immediately (QR is valid < 60s old)
 curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/regenerate-qr/ACCOUNT_ID
+  https://whats-app-ompro.ro/api/whatsapp/regenerate-qr/ACCOUNT_ID
 
 # Expected:
 # Status: 200
@@ -108,7 +108,7 @@ curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
 # 4. Rapidly call regenerateQr 5 times within 5 seconds
 for i in {1..5}; do
   curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
-    https://whats-upp-production.up.railway.app/api/whatsapp/regenerate-qr/ACCOUNT_ID &
+    https://whats-app-ompro.ro/api/whatsapp/regenerate-qr/ACCOUNT_ID &
 done
 wait
 
@@ -131,7 +131,7 @@ wait
 curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Test","phone":"+40712345678"}' \
-  https://whats-upp-production.up.railway.app/api/whatsapp/add-account
+  https://whats-app-ompro.ro/api/whatsapp/add-account
 
 # Save accountId from response
 
@@ -139,7 +139,7 @@ curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
 curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Test","phone":"+40712345678"}' \
-  https://whats-upp-production.up.railway.app/api/whatsapp/add-account
+  https://whats-app-ompro.ro/api/whatsapp/add-account
 
 # Expected:
 # Status: 200
@@ -161,7 +161,7 @@ curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```bash
 # 1. Add account and wait for connected status
 # 2. Manually delete session files (simulate 401)
-# On Railway:
+# On legacy hosting:
 #   - SSH into instance OR
 #   - Delete via API if available
 #   OR trigger 401 by invalidating creds
@@ -170,7 +170,7 @@ curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 # 4. Check account status
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts
+  https://whats-app-ompro.ro/api/whatsapp/accounts
 
 # Expected:
 # - Account status = "logged_out" (NOT "needs_qr")
@@ -260,7 +260,7 @@ flutter run -d emulator-5554 \
 - ✅ Only 1 regenerateQr request sent (guards work)
 - ✅ Backend returns 202/429 (not 500)
 - ✅ UI shows friendly message for 202/429
-- ✅ CorrelationId propagated end-to-end (Flutter → Functions → Railway)
+- ✅ CorrelationId propagated end-to-end (Flutter → Functions → legacy hosting)
 
 ## Test 9: Negative Tests (Spam Protection)
 
@@ -270,7 +270,7 @@ flutter run -d emulator-5554 \
 for i in {1..10}; do
   curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
     -H "X-Request-ID: spam_$i" \
-    https://whats-upp-production.up.railway.app/api/whatsapp/regenerate-qr/ACCOUNT_ID &
+    https://whats-app-ompro.ro/api/whatsapp/regenerate-qr/ACCOUNT_ID &
 done
 wait
 
@@ -283,7 +283,7 @@ for i in {1..5}; do
   curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{"name":"Test","phone":"+40712345678"}' \
-    https://whats-upp-production.up.railway.app/api/whatsapp/add-account &
+    https://whats-app-ompro.ro/api/whatsapp/add-account &
 done
 wait
 
@@ -324,7 +324,7 @@ wait
 ## Verification Checklist
 
 After all tests:
-- [ ] Railway commit hash is d4f4998a or newer (check /health)
+- [ ] legacy hosting commit hash is d4f4998a or newer (check /health)
 - [ ] PASSIVE instances return 503 for mutating endpoints
 - [ ] regenerateQr returns existing QR if valid (200)
 - [ ] regenerateQr returns 202 if connecting (not 500)
@@ -341,21 +341,21 @@ After all tests:
 
 ```bash
 # Verify commit
-curl https://whats-upp-production.up.railway.app/health | jq '.commit'
+curl https://whats-app-ompro.ro/health | jq '.commit'
 
 # Test addAccount
 curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Test","phone":"+40712345678"}' \
-  https://whats-upp-production.up.railway.app/api/whatsapp/add-account
+  https://whats-app-ompro.ro/api/whatsapp/add-account
 
 # Test regenerateQr (should return existing QR if valid)
 curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/regenerate-qr/ACCOUNT_ID
+  https://whats-app-ompro.ro/api/whatsapp/regenerate-qr/ACCOUNT_ID
 
 # Test spam (should return 429)
 for i in {1..5}; do
   curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
-    https://whats-upp-production.up.railway.app/api/whatsapp/regenerate-qr/ACCOUNT_ID &
+    https://whats-app-ompro.ro/api/whatsapp/regenerate-qr/ACCOUNT_ID &
 done
 ```

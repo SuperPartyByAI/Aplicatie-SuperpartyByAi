@@ -2,9 +2,9 @@
 
 ## ✅ Status Serviciu
 
-**Railway Backend:**
+**legacy hosting Backend:**
 
-- URL: `https://web-production-f0714.up.railway.app`
+- URL: `https://whats-app-ompro.ro`
 - Status: ✅ ONLINE
 - Voice AI: ✅ ENABLED
 - Voice Engine: ElevenLabs (PREMIUM)
@@ -20,7 +20,7 @@
 
 ```
 Webhook
-URL: https://web-production-f0714.up.railway.app/api/voice/incoming
+URL: https://whats-app-ompro.ro/api/voice/incoming
 HTTP Method: HTTP POST
 ```
 
@@ -28,7 +28,7 @@ HTTP Method: HTTP POST
 
 ```
 Webhook
-URL: https://web-production-f0714.up.railway.app/api/voice/incoming
+URL: https://whats-app-ompro.ro/api/voice/incoming
 HTTP Method: HTTP POST
 ```
 
@@ -36,7 +36,7 @@ HTTP Method: HTTP POST
 
 ```
 Webhook
-URL: https://web-production-f0714.up.railway.app/api/voice/status
+URL: https://whats-app-ompro.ro/api/voice/status
 HTTP Method: HTTP POST
 ```
 
@@ -61,16 +61,16 @@ Status: Disabled
 1. Scroll la secțiunea **Voice Configuration**
 2. La **A call comes in:**
    - Selectează: **Webhook**
-   - URL: `https://web-production-f0714.up.railway.app/api/voice/incoming`
+   - URL: `https://whats-app-ompro.ro/api/voice/incoming`
    - HTTP: **HTTP POST**
 
 3. La **Primary handler fails:**
    - Selectează: **Webhook**
-   - URL: `https://web-production-f0714.up.railway.app/api/voice/incoming`
+   - URL: `https://whats-app-ompro.ro/api/voice/incoming`
    - HTTP: **HTTP POST**
 
 4. La **Call status changes:**
-   - URL: `https://web-production-f0714.up.railway.app/api/voice/status`
+   - URL: `https://whats-app-ompro.ro/api/voice/status`
    - HTTP: **HTTP POST**
 
 5. **Caller Name Lookup:** Lasă **Disabled**
@@ -87,7 +87,7 @@ Status: Disabled
 ### Test 1: Verifică Backend
 
 ```bash
-curl https://web-production-f0714.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 ```
 
 **Răspuns așteptat:**
@@ -106,9 +106,9 @@ curl https://web-production-f0714.up.railway.app/health
 2. Ar trebui să auzi: **"Bună ziua, SuperParty, cu ce vă ajut?"**
 3. Vocea: **ElevenLabs (PREMIUM)** - voce naturală, profesională
 
-### Test 3: Verifică Logs Railway
+### Test 3: Verifică Logs legacy hosting
 
-1. Mergi la: https://railway.app
+1. Mergi la: https://legacy hosting.app
 2. Selectează serviciul: `web-production-f0714`
 3. Click **Deployments** → **View Logs**
 4. Ar trebui să vezi:
@@ -143,9 +143,9 @@ curl https://web-production-f0714.up.railway.app/health
 
 ---
 
-## 🔐 Variabile Railway (Verificare)
+## 🔐 Variabile legacy hosting (Verificare)
 
-Verifică că toate variabilele sunt setate în Railway:
+Verifică că toate variabilele sunt setate în legacy hosting:
 
 ```bash
 OPENAI_API_KEY=sk-...           # OpenAI pentru AI
@@ -158,7 +158,7 @@ ELEVENLABS_VOICE_ID=...         # ID voce Kasya
 **Verificare:**
 
 ```bash
-curl https://web-production-f0714.up.railway.app/
+curl https://whats-app-ompro.ro/
 ```
 
 Ar trebui să vezi:
@@ -179,16 +179,16 @@ Ar trebui să vezi:
 **Cauză:** Backend-ul nu răspunde  
 **Soluție:**
 
-1. Verifică că Railway service e activ
+1. Verifică că legacy hosting service e activ
 2. Verifică logs pentru erori
-3. Test: `curl https://web-production-f0714.up.railway.app/health`
+3. Test: `curl https://whats-app-ompro.ro/health`
 
 ### Problema: Apelul se închide imediat
 
 **Cauză:** Eroare în TwiML response  
 **Soluție:**
 
-1. Verifică Railway logs
+1. Verifică legacy hosting logs
 2. Caută erori de tip: `[Twilio] Error generating TwiML`
 3. Verifică că toate variabilele sunt setate
 
@@ -197,7 +197,7 @@ Ar trebui să vezi:
 **Cauză:** ElevenLabs API key invalid sau limită depășită  
 **Soluție:**
 
-1. Verifică `ELEVENLABS_API_KEY` în Railway
+1. Verifică `ELEVENLABS_API_KEY` în legacy hosting
 2. Verifică quota ElevenLabs: https://elevenlabs.io/
 3. Fallback: Sistemul va folosi voce Google TTS
 
@@ -206,7 +206,7 @@ Ar trebui să vezi:
 **Cauză:** OpenAI API key invalid sau limită depășită  
 **Soluție:**
 
-1. Verifică `OPENAI_API_KEY` în Railway
+1. Verifică `OPENAI_API_KEY` în legacy hosting
 2. Verifică quota OpenAI: https://platform.openai.com/usage
 3. Verifică logs pentru erori GPT-4o
 
@@ -247,12 +247,12 @@ Ar trebui să vezi:
 ### Opțional - Îmbunătățiri:
 
 1. **Coqui XTTS (Voce Gratis):**
-   - Deploy Coqui service pe Railway
-   - Schimbă `VOICE_ENGINE=coqui` în Railway
+   - Deploy Coqui service pe legacy hosting
+   - Schimbă `VOICE_ENGINE=coqui` în legacy hosting
    - Economie: $0.60/100 apeluri
 
 2. **Transfer la Operator:**
-   - Configurează `TRANSFER_NUMBER` în Railway
+   - Configurează `TRANSFER_NUMBER` în legacy hosting
    - AI va transfera apeluri complexe
 
 3. **Webhook Notificări:**
@@ -269,14 +269,14 @@ Ar trebui să vezi:
 
 **Dacă ai probleme:**
 
-1. Verifică Railway logs
+1. Verifică legacy hosting logs
 2. Verifică Twilio logs: https://console.twilio.com/monitor/logs/calls
-3. Test manual: `curl https://web-production-f0714.up.railway.app/health`
+3. Test manual: `curl https://whats-app-ompro.ro/health`
 
-**Logs Railway:**
+**Logs legacy hosting:**
 
 ```bash
-# În Railway dashboard
+# În legacy hosting dashboard
 Deployments → View Logs → Filter: "error" sau "Twilio"
 ```
 
@@ -291,8 +291,8 @@ Monitor → Logs → Calls → Selectează apelul
 
 ## ✅ Checklist Final
 
-- [ ] Backend Railway activ (verificat cu curl)
-- [ ] Toate variabilele setate în Railway
+- [ ] Backend legacy hosting activ (verificat cu curl)
+- [ ] Toate variabilele setate în legacy hosting
 - [ ] Webhook-uri configurate în Twilio
 - [ ] Test apel efectuat
 - [ ] Voce funcționează (ElevenLabs)
@@ -302,7 +302,7 @@ Monitor → Logs → Calls → Selectează apelul
 ---
 
 **Status:** ✅ READY FOR PRODUCTION  
-**Backend:** https://web-production-f0714.up.railway.app  
+**Backend:** https://whats-app-ompro.ro  
 **Voice Engine:** ElevenLabs (PREMIUM)  
 **AI Engine:** OpenAI GPT-4o  
 **Cost:** ~$0.05 per apel

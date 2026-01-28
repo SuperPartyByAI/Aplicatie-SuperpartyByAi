@@ -50,17 +50,17 @@ flutter run -d emulator-5554 \
 ### Production (curl)
 ```bash
 # Health check
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # Add account (should return 503 if PASSIVE)
 curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Test","phone":"+40712345678"}' \
-  https://whats-upp-production.up.railway.app/api/whatsapp/add-account
+  https://whats-app-ompro.ro/api/whatsapp/add-account
 
 # regenerateQr (should return existing QR if valid, 202 if connecting, 429 if throttled)
 curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/regenerate-qr/ACCOUNT_ID
+  https://whats-app-ompro.ro/api/whatsapp/regenerate-qr/ACCOUNT_ID
 ```
 
 ### Expected Behavior

@@ -1,13 +1,13 @@
 # WhatsApp Web 30 Accounts - Long-Term Stability Architecture Plan
 
 **Generated:** 2025-01-27  
-**Goal:** Stable, persistent architecture for 30 WhatsApp Web sessions on Railway
+**Goal:** Stable, persistent architecture for 30 WhatsApp Web sessions on legacy hosting
 
 ---
 
 ## Executive Summary
 
-This document provides a comprehensive architecture and implementation plan to maintain 30 WhatsApp Web sessions online on Railway with maximum stability and recoverability. The plan prioritizes session persistence, crash recovery, and deployment resilience over speed.
+This document provides a comprehensive architecture and implementation plan to maintain 30 WhatsApp Web sessions online on legacy hosting with maximum stability and recoverability. The plan prioritizes session persistence, crash recovery, and deployment resilience over speed.
 
 ---
 
@@ -16,7 +16,7 @@ This document provides a comprehensive architecture and implementation plan to m
 ### 1.1 Repo Structure
 ```
 Aplicatie-SuperpartyByAi/
-├── whatsapp-backend/          # Main Railway deployment
+├── whatsapp-backend/          # Main legacy hosting deployment
 │   ├── server.js              # Primary entrypoint (4535 lines)
 │   ├── package.json           # Node 20.x, Baileys 7.0.0-rc.9
 │   ├── Dockerfile             # node:20-slim
@@ -24,7 +24,7 @@ Aplicatie-SuperpartyByAi/
 │   └── lib/
 │       └── persistence/
 │           └── firestore-auth.js  # Firestore backup layer
-├── railway.json               # Railway deployment config
+├── legacy hosting.json               # legacy hosting deployment config
 └── whatsapp-server.js         # Alternative server (Socket.io version)
 ```
 
@@ -34,7 +34,7 @@ Aplicatie-SuperpartyByAi/
 - **WhatsApp Library:** `@whiskeysockets/baileys` v7.0.0-rc.9
 - **Session Storage:** `useMultiFileAuthState` (multi-file auth state)
 - **Backup:** Firestore (`USE_FIRESTORE_BACKUP = true`)
-- **Platform:** Railway (Linux containers)
+- **Platform:** legacy hosting (Linux containers)
 
 ### 1.3 Current Session Storage Path Logic
 **Location:** `server.js` lines 311-317
@@ -42,23 +42,23 @@ Aplicatie-SuperpartyByAi/
 ```javascript
 const authDir =
   process.env.SESSIONS_PATH ||
-  (process.env.RAILWAY_VOLUME_MOUNT_PATH
-    ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'baileys_auth')
+  (process.env.LEGACY_VOLUME_MOUNT_PATH
+    ? path.join(process.env.LEGACY_VOLUME_MOUNT_PATH, 'baileys_auth')
     : path.join(__dirname, '.baileys_auth'));
 ```
 
 **Priority Order:**
 1. `SESSIONS_PATH` env var (if set)
-2. `RAILWAY_VOLUME_MOUNT_PATH/baileys_auth` (if volume mounted)
-3. Fallback: `./whatsapp-backend/.baileys_auth` (EPHEMERAL on Railway)
+2. `LEGACY_VOLUME_MOUNT_PATH/baileys_auth` (if volume mounted)
+3. Fallback: `./whatsapp-backend/.baileys_auth` (EPHEMERAL on legacy hosting)
 
 **Session Structure per Account:**
 - `{authDir}/{accountId}/creds.json` - Authentication credentials
 - `{authDir}/{accountId}/app-state-sync-key-*.json` - State sync keys
 - `{authDir}/{accountId}/app-state-sync-version-*.json` - State versions
 
-### 1.4 Railway Configuration
-**File:** `railway.json` (root level)
+### 1.4 legacy hosting Configuration
+**File:** `legacy hosting.json` (root level)
 
 ```json
 {
@@ -86,7 +86,7 @@ const authDir =
 - **Graceful Shutdown:** SIGTERM/SIGINT handlers (NOT present in visible code)
 
 ### 1.6 Missing Pieces (Gaps)
-1. ❌ **Persistent Volume:** No explicit Railway volume mount configuration
+1. ❌ **Persistent Volume:** No explicit legacy hosting volume mount configuration
 2. ❌ **Status Dashboard:** No per-account status UI endpoint
 3. ❌ **Graceful Shutdown:** SIGTERM handler exists but may not flush all 30 sessions
 4. ❌ **Session Validation:** No startup check to verify all 30 sessions are restorable
@@ -103,13 +103,13 @@ const authDir =
 
 **Session Persistence:**
 - Sessions survive container restarts
-- Sessions survive Railway redeploys
+- Sessions survive legacy hosting redeploys
 - Sessions survive browser crashes
 - Session files stored on persistent volume (not `/tmp` or container filesystem)
 
 **Crash Recovery:**
 - Browser crash → auto-detect → auto-restart browser context
-- Process crash → Railway auto-restart → restore all 30 sessions from disk
+- Process crash → legacy hosting auto-restart → restore all 30 sessions from disk
 - Network hiccup → reconnection logic with exponential backoff
 
 **Deploy Recovery:**
@@ -131,8 +131,8 @@ const authDir =
 
 | Failure Mode | Detection | Recovery | Time to Recover |
 |--------------|-----------|----------|-----------------|
-| Container restart | Railway health check fails | Auto-restart → load sessions from disk | 30-60s |
-| Railway redeploy | Git push triggers deploy | New container → load sessions from volume | 60-120s |
+| Container restart | legacy hosting health check fails | Auto-restart → load sessions from disk | 30-60s |
+| legacy hosting redeploy | Git push triggers deploy | New container → load sessions from volume | 60-120s |
 | Browser crash | Socket disconnects, no events | Auto-detect → restart browser context | 5-10s |
 | WhatsApp logout | QR code required, disconnected event | Mark as "needs_qr", surface via API | Immediate |
 | Network hiccup | Connection timeout | Exponential backoff retry | 1-5s |
@@ -150,7 +150,7 @@ const authDir =
 **Rationale:**
 - ✅ Lower memory overhead (one browser process)
 - ✅ Shared connection pool
-- ✅ Simpler deployment (one service on Railway)
+- ✅ Simpler deployment (one service on legacy hosting)
 - ✅ Easier debugging (all logs in one place)
 - ✅ Current codebase already follows this pattern
 
@@ -172,7 +172,7 @@ const authDir =
 - Easier debugging (session files organized by account)
 - Supports future scaling (can move accounts to separate processes)
 
-### 3.3 Persistent Volume Layout on Railway
+### 3.3 Persistent Volume Layout on legacy hosting
 
 **Recommended Path Structure:**
 ```
@@ -194,7 +194,7 @@ const authDir =
 SESSIONS_PATH=/data/sessions
 ```
 
-**Railway Volume Configuration:**
+**legacy hosting Volume Configuration:**
 - Volume name: `whatsapp-sessions-volume`
 - Mount path: `/data/sessions`
 - Size: 1GB (sufficient for 30 sessions + metadata)
@@ -255,7 +255,7 @@ SESSIONS_PATH=/data/sessions
 
 ### 3.5 Secrets + Environment Variables Layout
 
-**Required Environment Variables (Railway):**
+**Required Environment Variables (legacy hosting):**
 
 ```bash
 # Application
@@ -282,7 +282,7 @@ SENTRY_DSN=...  # if using Sentry
 ```
 
 **No Hardcoded Values:**
-- All secrets via Railway environment variables
+- All secrets via legacy hosting environment variables
 - Session paths via `SESSIONS_PATH` env var
 - No hardcoded phone numbers or tokens
 
@@ -290,12 +290,12 @@ SENTRY_DSN=...  # if using Sentry
 
 ## 4. Implementation Steps (Ordered)
 
-### 4.1 Step 1: Configure Railway Persistent Volume
+### 4.1 Step 1: Configure legacy hosting Persistent Volume
 
-**Action:** Create and mount persistent volume on Railway
+**Action:** Create and mount persistent volume on legacy hosting
 
-**Railway Dashboard Steps:**
-1. Open Railway project → Service → Volumes
+**legacy hosting Dashboard Steps:**
+1. Open legacy hosting project → Service → Volumes
 2. Create new volume: `whatsapp-sessions-volume`
 3. Set size: 1GB
 4. Mount path: `/data/sessions`
@@ -416,8 +416,8 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 **Testing:**
 ```bash
-# Deploy to Railway
-# Trigger redeploy via Railway dashboard
+# Deploy to legacy hosting
+# Trigger redeploy via legacy hosting dashboard
 # Check logs for "graceful shutdown" messages
 ```
 
@@ -439,7 +439,7 @@ async function bootSequence() {
   // 1. Verify persistent volume is mounted
   if (!fs.existsSync(authDir)) {
     console.error(`❌ Auth directory not found: ${authDir}`);
-    console.error('   Check SESSIONS_PATH env var and Railway volume mount');
+    console.error('   Check SESSIONS_PATH env var and legacy hosting volume mount');
     process.exit(1);
   }
 
@@ -659,11 +659,11 @@ logger.info({ accountId: 'WA-01', event: 'connected', phone: '+40737571397' });
 
 ---
 
-## 5. Railway Deployment Plan (Step-by-Step)
+## 5. legacy hosting Deployment Plan (Step-by-Step)
 
 ### 5.1 Step 1: Create Persistent Volume
 
-**Railway Dashboard:**
+**legacy hosting Dashboard:**
 1. Navigate to Project → `whatsapp-backend` service
 2. Go to **Volumes** tab
 3. Click **New Volume**
@@ -676,7 +676,7 @@ logger.info({ accountId: 'WA-01', event: 'connected', phone: '+40737571397' });
 
 **Verification:**
 ```bash
-# Check Railway logs after deploy:
+# Check legacy hosting logs after deploy:
 # Should see: "📁 SESSIONS_PATH: /data/sessions"
 ```
 
@@ -684,7 +684,7 @@ logger.info({ accountId: 'WA-01', event: 'connected', phone: '+40737571397' });
 
 ### 5.2 Step 2: Set Environment Variable
 
-**Railway Dashboard:**
+**legacy hosting Dashboard:**
 1. Service → **Variables** tab
 2. Add variable:
    - **Key:** `SESSIONS_PATH`
@@ -692,7 +692,7 @@ logger.info({ accountId: 'WA-01', event: 'connected', phone: '+40737571397' });
 3. Save
 
 **Deploy Trigger:**
-- Railway will redeploy automatically after variable change
+- legacy hosting will redeploy automatically after variable change
 
 ---
 
@@ -717,7 +717,7 @@ CMD ["node", "server.js"]
 
 ### 5.4 Step 4: Memory/CPU Sizing Guidance
 
-**Current Railway Plan:** (Check your plan in Railway dashboard)
+**Current legacy hosting Plan:** (Check your plan in legacy hosting dashboard)
 
 **Recommended Minimum:**
 - **Memory:** 1GB (2GB preferred for 30 accounts)
@@ -729,7 +729,7 @@ CMD ["node", "server.js"]
 - Node.js base: ~100-200MB
 - Total: ~400-800MB (1GB with headroom)
 
-**Railway Pricing:**
+**legacy hosting Pricing:**
 - Hobby plan (512MB RAM): ❌ Insufficient
 - Starter plan (1GB RAM): ⚠️  Tight but workable
 - Developer plan (2GB RAM): ✅ Recommended
@@ -739,11 +739,11 @@ CMD ["node", "server.js"]
 ### 5.5 Step 5: Add Readiness/Liveness Checks
 
 **Current:** `/health` endpoint exists  
-**Enhancement:** Update `railway.json`
+**Enhancement:** Update `legacy hosting.json`
 
 ```json
 {
-  "$schema": "https://railway.app/railway.schema.json",
+  "$schema": "https://legacy hosting.app/legacy hosting.schema.json",
   "build": {
     "builder": "NIXPACKS",
     "buildCommand": "cd whatsapp-backend && npm install"
@@ -776,7 +776,7 @@ CMD ["node", "server.js"]
 }
 ```
 
-**Note:** Railway may not support all Kubernetes probe fields. Use Railway dashboard to configure health checks.
+**Note:** legacy hosting may not support all Kubernetes probe fields. Use legacy hosting dashboard to configure health checks.
 
 ---
 
@@ -788,7 +788,7 @@ CMD ["node", "server.js"]
 2. **Add accounts one-by-one via API:**
    ```bash
    for i in {1..30}; do
-     curl -X POST https://your-railway-url.railway.app/api/whatsapp/add-account \
+     curl -X POST https://your-legacy hosting-url.legacy hosting.app/api/whatsapp/add-account \
        -H "Content-Type: application/json" \
        -H "Authorization: Bearer ${ADMIN_TOKEN}" \
        -d "{\"name\": \"WA-${i}\", \"phone\": \"+407XXXXXXXX\"}"
@@ -803,7 +803,7 @@ CMD ["node", "server.js"]
 
 4. **Verify all 30 sessions:**
    ```bash
-   curl https://your-railway-url.railway.app/api/status/dashboard | jq '.summary'
+   curl https://your-legacy hosting-url.legacy hosting.app/api/status/dashboard | jq '.summary'
    # Should show: { "connected": 30, "needs_qr": 0, "total": 30 }
    ```
 
@@ -817,9 +817,9 @@ CMD ["node", "server.js"]
 
 **Test:**
 ```bash
-# 1. Deploy to Railway
+# 1. Deploy to legacy hosting
 # 2. Wait for all 30 accounts to connect
-# 3. Manually restart service (Railway dashboard → Restart)
+# 3. Manually restart service (legacy hosting dashboard → Restart)
 # 4. Check logs for boot sequence
 # 5. Verify all accounts reconnect automatically
 ```
@@ -849,7 +849,7 @@ CMD ["node", "server.js"]
 git commit --allow-empty -m "test: trigger redeploy"
 git push
 
-# 2. Watch Railway deploy logs
+# 2. Watch legacy hosting deploy logs
 # 3. Verify boot sequence restores all sessions
 ```
 
@@ -863,7 +863,7 @@ git push
 
 **Test:**
 ```bash
-# 1. Simulate network disconnect (kill Railway service network)
+# 1. Simulate network disconnect (kill legacy hosting service network)
 # 2. Verify reconnection logic triggers
 # 3. Check logs for reconnection attempts
 ```
@@ -901,7 +901,7 @@ git push
 **Test:**
 ```bash
 # 1. Deploy with redaction enabled
-# 2. Check Railway logs for any plaintext:
+# 2. Check legacy hosting logs for any plaintext:
 #    - Phone numbers (should be +407****97 format)
 #    - Tokens (should be [REDACTED])
 #    - Firebase keys (should be [REDACTED])
@@ -910,7 +910,7 @@ git push
 **Command:**
 ```bash
 # Download logs and search:
-railway logs | grep -E '\+\d{10,}|Bearer\s+\w{20,}|private_key' | head -20
+legacy hosting logs | grep -E '\+\d{10,}|Bearer\s+\w{20,}|private_key' | head -20
 ```
 
 **Expected:** Zero matches (all redacted)
@@ -977,11 +977,11 @@ async function bootSequence() {
 
 **After code review, these are missing:**
 
-1. ❌ **Railway Volume Configuration:**
-   - No evidence of persistent volume created in Railway
+1. ❌ **legacy hosting Volume Configuration:**
+   - No evidence of persistent volume created in legacy hosting
    - `SESSIONS_PATH` env var may not be set
-   - **Where I looked:** `railway.json`, `server.js` (lines 311-317)
-   - **Fix:** Create volume via Railway dashboard (Step 5.1)
+   - **Where I looked:** `legacy hosting.json`, `server.js` (lines 311-317)
+   - **Fix:** Create volume via legacy hosting dashboard (Step 5.1)
 
 2. ❌ **Status Dashboard Endpoint:**
    - `/api/status/dashboard` endpoint not found in code
@@ -1007,7 +1007,7 @@ async function bootSequence() {
 
 ## 9. Next Steps (Priority Order)
 
-1. **IMMEDIATE:** Create Railway persistent volume (Step 5.1)
+1. **IMMEDIATE:** Create legacy hosting persistent volume (Step 5.1)
 2. **IMMEDIATE:** Set `SESSIONS_PATH=/data/sessions` env var (Step 5.2)
 3. **HIGH:** Add status dashboard endpoint (Step 4.5)
 4. **HIGH:** Implement graceful shutdown (Step 4.3)
@@ -1023,13 +1023,13 @@ async function bootSequence() {
 - `/whatsapp-backend/server.js` (4535 lines, read partially)
 - `/whatsapp-backend/package.json` (dependencies checked)
 - `/whatsapp-backend/Dockerfile` (checked for Chromium deps)
-- `/railway.json` (deployment config checked)
+- `/legacy hosting.json` (deployment config checked)
 - `/whatsapp-backend/lib/persistence/firestore-auth.js` (exists, not read)
 
 **Files Not Found (but expected):**
-- No `Procfile` (using Railway Nixpacks instead)
+- No `Procfile` (using legacy hosting Nixpacks instead)
 - No `nixpacks.toml` (using default Nixpacks detection)
-- No explicit volume mount config in code (must be done in Railway dashboard)
+- No explicit volume mount config in code (must be done in legacy hosting dashboard)
 
 ---
 

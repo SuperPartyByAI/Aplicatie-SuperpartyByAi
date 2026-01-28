@@ -16,7 +16,7 @@ Account was logged out by WhatsApp (401). Invalid credentials exist on disk, cau
 ```bash
 # Reset account session via API
 curl -X POST \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts/ACCOUNT_ID/reset \
+  https://whats-app-ompro.ro/api/whatsapp/accounts/ACCOUNT_ID/reset \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json"
 ```
@@ -30,7 +30,7 @@ This will:
 Then regenerate QR:
 ```bash
 curl -X POST \
-  https://whats-upp-production.up.railway.app/api/whatsapp/regenerate-qr/ACCOUNT_ID \
+  https://whats-app-ompro.ro/api/whatsapp/regenerate-qr/ACCOUNT_ID \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -41,7 +41,7 @@ curl -X POST \
    - App will call reset endpoint internally (TODO: add explicit reset button)
 
 #### Option 3: Manual Cleanup (Backend Only)
-If you have shell access to Railway backend:
+If you have shell access to legacy hosting backend:
 ```bash
 # Delete session directory
 rm -rf /app/sessions/ACCOUNT_ID

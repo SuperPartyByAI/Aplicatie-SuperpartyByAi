@@ -1,10 +1,10 @@
-# 🚂 DA! ROBOTUL CREEAZĂ VARIABILELE ÎN RAILWAY AUTOMAT
+# 🚂 DA! ROBOTUL CREEAZĂ VARIABILELE ÎN LEGACY_HOSTING AUTOMAT
 
 ## ✅ RĂSPUNS SCURT: DA, 100% AUTOMAT!
 
 **Robotul creează:**
 
-- ✅ Proiectul Railway
+- ✅ Proiectul legacy hosting
 - ✅ Service-ul
 - ✅ TOATE variabilele environment
 - ✅ Cu valorile corecte înăuntru
@@ -27,18 +27,18 @@
 
 **Robotul face AUTOMAT:**
 
-#### **1. Creează proiect Railway**
+#### **1. Creează proiect legacy hosting**
 
 ```javascript
 // Robotul execută:
-railway project create "superparty-backend"
+legacy hosting project create "superparty-backend"
 ```
 
 #### **2. Creează service**
 
 ```javascript
 // Robotul execută:
-railway service create \
+legacy hosting service create \
   --name "backend" \
   --region "eu-west" \
   --type "nodejs"
@@ -51,17 +51,17 @@ railway service create \
 ```javascript
 // Robotul execută pentru FIECARE variabilă:
 
-railway variables set NODE_ENV=production
-railway variables set PORT=3000
-railway variables set JWT_SECRET=a8f5f167f44f4964e6c998dee827110c  // generat random
-railway variables set JWT_EXPIRES_IN=7d
-railway variables set MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/superparty
-railway variables set CORS_ORIGIN=https://superparty.app
-railway variables set API_VERSION=v1
-railway variables set LOG_LEVEL=info
-railway variables set MAX_REQUEST_SIZE=10mb
-railway variables set RATE_LIMIT_WINDOW=15m
-railway variables set RATE_LIMIT_MAX=100
+legacy hosting variables set NODE_ENV=production
+legacy hosting variables set PORT=3000
+legacy hosting variables set JWT_SECRET=a8f5f167f44f4964e6c998dee827110c  // generat random
+legacy hosting variables set JWT_EXPIRES_IN=7d
+legacy hosting variables set MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/superparty
+legacy hosting variables set CORS_ORIGIN=https://superparty.app
+legacy hosting variables set API_VERSION=v1
+legacy hosting variables set LOG_LEVEL=info
+legacy hosting variables set MAX_REQUEST_SIZE=10mb
+legacy hosting variables set RATE_LIMIT_WINDOW=15m
+legacy hosting variables set RATE_LIMIT_MAX=100
 ```
 
 **TOATE create automat cu:**
@@ -97,11 +97,11 @@ SESSION_SECRET=9f86d081884c7d659a2feaa0c55ad015  // Generează random
 
 ```javascript
 // Robotul vede că ai deja:
-BACKEND_URL=https://superparty-backend.railway.app
+BACKEND_URL=https://superparty-backend.legacy hosting.app
 
 // Și creează automat:
 CORS_ORIGIN=https://superparty.app  // Extrage domain-ul
-API_BASE_URL=https://superparty-backend.railway.app/api/v1
+API_BASE_URL=https://superparty-backend.legacy hosting.app/api/v1
 ```
 
 #### **4. Valori pe care TE ÎNTREABĂ**
@@ -148,14 +148,14 @@ Robot (gândește):
 
 ```bash
 # Robotul execută:
-railway project create "superparty-voice"
+legacy hosting project create "superparty-voice"
 ```
 
 #### **Pasul 3: Creează service**
 
 ```bash
 # Robotul execută:
-railway service create \
+legacy hosting service create \
   --name "voice" \
   --region "eu-west" \
   --type "python"
@@ -169,33 +169,33 @@ railway service create \
 # Robotul execută:
 
 # Model configuration
-railway variables set MODEL_NAME="tts_models/multilingual/multi-dataset/xtts_v2"
-railway variables set LANGUAGE="ro"
-railway variables set CACHE_DIR="/app/cache"
+legacy hosting variables set MODEL_NAME="tts_models/multilingual/multi-dataset/xtts_v2"
+legacy hosting variables set LANGUAGE="ro"
+legacy hosting variables set CACHE_DIR="/app/cache"
 
 # Quality settings
-railway variables set TEMPERATURE="0.7"
-railway variables set SPEED="1.0"
-railway variables set SPLIT_SENTENCES="true"
+legacy hosting variables set TEMPERATURE="0.7"
+legacy hosting variables set SPEED="1.0"
+legacy hosting variables set SPLIT_SENTENCES="true"
 
 # API settings
-railway variables set PORT="5000"
-railway variables set FLASK_ENV="production"
-railway variables set MAX_TEXT_LENGTH="500"
+legacy hosting variables set PORT="5000"
+legacy hosting variables set FLASK_ENV="production"
+legacy hosting variables set MAX_TEXT_LENGTH="500"
 
 # Performance
-railway variables set WORKERS="2"
-railway variables set TIMEOUT="120"
-railway variables set MAX_REQUESTS="100"
+legacy hosting variables set WORKERS="2"
+legacy hosting variables set TIMEOUT="120"
+legacy hosting variables set MAX_REQUESTS="100"
 
 # Cache settings
-railway variables set CACHE_ENABLED="true"
-railway variables set CACHE_TTL="3600"
-railway variables set MAX_CACHE_SIZE="1GB"
+legacy hosting variables set CACHE_ENABLED="true"
+legacy hosting variables set CACHE_TTL="3600"
+legacy hosting variables set MAX_CACHE_SIZE="1GB"
 
 # Monitoring
-railway variables set LOG_LEVEL="info"
-railway variables set SENTRY_DSN=""  // Opțional, te întreabă dacă vrei
+legacy hosting variables set LOG_LEVEL="info"
+legacy hosting variables set SENTRY_DSN=""  // Opțional, te întreabă dacă vrei
 ```
 
 **TOATE create automat!**
@@ -228,7 +228,7 @@ SPEED = float(os.getenv('SPEED'))
 # Robotul execută:
 git add .
 git commit -m "Add voice service"
-git push railway main
+git push legacy hosting main
 ```
 
 #### **Pasul 7: Verifică**
@@ -247,8 +247,8 @@ git push railway main
 Robot:
 "✅ Voice service creat!
 
-📍 URL: https://superparty-voice.railway.app
-📍 Health: https://superparty-voice.railway.app/health
+📍 URL: https://superparty-voice.legacy hosting.app
+📍 Health: https://superparty-voice.legacy hosting.app/health
 
 📊 Environment variables create (15):
 ✅ MODEL_NAME
@@ -271,7 +271,7 @@ Robot:
 ⏱️ Time: 5 min
 
 Test API:
-curl https://superparty-voice.railway.app/health
+curl https://superparty-voice.legacy hosting.app/health
 
 Totul OK?"
 ```
@@ -434,11 +434,11 @@ STRIPE_CURRENCY = RON; // Detectează din location
 
 ```javascript
 // Vede că ai deja backend:
-BACKEND_URL=https://superparty-backend.railway.app
+BACKEND_URL=https://superparty-backend.legacy hosting.app
 
 // Și creează automat pentru voice service:
-BACKEND_API_URL=https://superparty-backend.railway.app/api/v1
-VOICE_CALLBACK_URL=https://superparty-backend.railway.app/webhooks/voice
+BACKEND_API_URL=https://superparty-backend.legacy hosting.app/api/v1
+VOICE_CALLBACK_URL=https://superparty-backend.legacy hosting.app/webhooks/voice
 ```
 
 ---
@@ -448,7 +448,7 @@ VOICE_CALLBACK_URL=https://superparty-backend.railway.app/webhooks/voice
 ### **Fără robot (manual):**
 
 ```
-1. Creezi proiect Railway (5 min)
+1. Creezi proiect legacy hosting (5 min)
 2. Creezi service (5 min)
 3. Cauți ce variabile trebuie (30 min)
 4. Adaugi fiecare variabilă manual (20 min)
@@ -524,7 +524,7 @@ Total: 5 min + 0 frustrare
 
 **Ce face:**
 
-- ✅ Creează proiect Railway
+- ✅ Creează proiect legacy hosting
 - ✅ Creează service
 - ✅ Creează TOATE variabilele
 - ✅ Cu denumiri corecte
@@ -583,7 +583,7 @@ Total: 5 min + 0 frustrare
 
 ```
 "Perfect! Creez:
-- Proiect Railway ✅
+- Proiect legacy hosting ✅
 - Service Python ✅
 - 15 variabile environment ✅
 - Cod complet ✅
@@ -594,7 +594,7 @@ Gata în 5 min!"
 [5 min later]
 
 "✅ Voice service live!
-URL: https://superparty-voice.railway.app
+URL: https://superparty-voice.legacy hosting.app
 
 Variabile create (15):
 ✅ MODEL_NAME=tts_models/multilingual/multi-dataset/xtts_v2
@@ -614,7 +614,7 @@ Variabile create (15):
 ✅ MAX_CACHE_SIZE=1GB
 
 Test:
-curl https://superparty-voice.railway.app/health
+curl https://superparty-voice.legacy hosting.app/health
 
 Totul OK?"
 ```

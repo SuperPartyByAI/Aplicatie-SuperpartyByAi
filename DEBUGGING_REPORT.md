@@ -51,7 +51,7 @@ flutter run --dart-define=USE_EMULATORS=true -d emulator-5554
 
 ---
 
-## PASUL B — WhatsApp Flow (Proxy → Railway)
+## PASUL B — WhatsApp Flow (Proxy → legacy hosting)
 
 ### Problema 1: GET /api/whatsapp/accounts în PASSIVE Mode
 
@@ -197,7 +197,7 @@ flutter run --dart-define=USE_EMULATORS=true -d emulator-5554
 # Expected: [WhatsAppApiService] getAccounts: accountsCount=1
 # Expected: QR code apare în UI
 
-# 3. Verifică Railway logs:
+# 3. Verifică legacy hosting logs:
 # Expected: [account_xxx] QR Code generated
 # Expected: waMode: active (nu passive)
 ```
@@ -250,26 +250,26 @@ fi
 #!/bin/bash
 # test-whatsapp-flow.sh
 
-RAILWAY_URL="https://whats-upp-production.up.railway.app"
+LEGACY_URL="https://whats-app-ompro.ro"
 ADMIN_TOKEN="${ADMIN_TOKEN:-dev-token-test}"
 
 echo "=== Test WhatsApp Flow ==="
 
 # 1. Health check
 echo "1. Health check..."
-HEALTH=$(curl -sS "$RAILWAY_URL/health")
+HEALTH=$(curl -sS "$LEGACY_URL/health")
 echo "$HEALTH" | jq -r '.status, .waMode, .accounts.total'
 
 # 2. Get accounts
 echo "2. Get accounts..."
-ACCOUNTS=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$RAILWAY_URL/api/whatsapp/accounts")
+ACCOUNTS=$(curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$LEGACY_URL/api/whatsapp/accounts")
 echo "$ACCOUNTS" | jq -r '.success, .accounts | length, .waMode'
 
 # 3. Test regenerate (dacă există account)
 ACCOUNT_ID=$(echo "$ACCOUNTS" | jq -r '.accounts[0].id // empty')
 if [ -n "$ACCOUNT_ID" ]; then
   echo "3. Test regenerate QR pentru $ACCOUNT_ID..."
-  REGEN=$(curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" "$RAILWAY_URL/api/whatsapp/regenerate-qr/$ACCOUNT_ID")
+  REGEN=$(curl -sS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" "$LEGACY_URL/api/whatsapp/regenerate-qr/$ACCOUNT_ID")
   echo "$REGEN" | jq -r '.success, .status, .requestId'
 fi
 ```

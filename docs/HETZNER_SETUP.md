@@ -113,7 +113,7 @@ firebase deploy --only functions
 
 ### App shows wrong backend URL
 
-- If app shows a Railway URL instead of Hetzner:
+- If app shows wrong backend URL instead of Hetzner:
   1. Rebuild app with `--dart-define=WHATSAPP_BACKEND_URL=http://37.27.34.179:8080`
   2. Clear build cache: `flutter clean && flutter pub get`
   3. Rebuild: `flutter run --dart-define=WHATSAPP_BACKEND_URL=http://37.27.34.179:8080`

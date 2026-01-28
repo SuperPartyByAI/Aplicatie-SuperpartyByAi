@@ -58,7 +58,7 @@ Low Impact, Low Effort           Low Impact, High Effort
 
 **Tasks:**
 
-1. Add Redis to Railway
+1. Add Redis to legacy hosting
 2. Install ioredis client
 3. Create redis-cache.js wrapper
 4. Update server.js to use Redis
@@ -75,7 +75,7 @@ Low Impact, Low Effort           Low Impact, High Effort
 
 **Deliverables:**
 
-- ✅ Redis running on Railway
+- ✅ Redis running on legacy hosting
 - ✅ Cache persists across restarts
 - ✅ Performance dashboard showing improvements
 
@@ -135,7 +135,7 @@ Low Impact, Low Effort           Low Impact, High Effort
 
 **Day 3-4: Grafana Setup**
 
-1. Deploy Grafana (Railway or self-hosted)
+1. Deploy Grafana (legacy hosting or self-hosted)
 2. Connect to Prometheus
 3. Create dashboards:
    - API Performance
@@ -315,7 +315,7 @@ Low Impact, Low Effort           Low Impact, High Effort
 
 ### Week 1: Redis (CRITICAL)
 
-- [ ] Add Redis to Railway
+- [ ] Add Redis to legacy hosting
 - [ ] Install ioredis
 - [ ] Create redis-cache.js
 - [ ] Update server.js

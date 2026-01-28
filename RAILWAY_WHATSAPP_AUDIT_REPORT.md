@@ -1,8 +1,8 @@
-# Railway WhatsApp Backend - Complete Audit Report
+# legacy hosting WhatsApp Backend - Complete Audit Report
 
 **Mode:** READ-ONLY AUDIT  
 **Date:** 2026-01-17  
-**Purpose:** Extract Railway deployment steps, API onboarding flow, and Firestore schema for 30 WhatsApp accounts
+**Purpose:** Extract legacy hosting deployment steps, API onboarding flow, and Firestore schema for 30 WhatsApp accounts
 
 ---
 
@@ -15,13 +15,13 @@ Aplicatie-SuperpartyByAi/
 │   ├── server.js              # Main entrypoint (4728 lines)
 │   ├── package.json           # Dependencies & scripts
 │   ├── Dockerfile             # Container image
-│   ├── railway.toml           # Railway deployment config
+│   ├── legacy hosting.toml           # legacy hosting deployment config
 │   └── lib/                   # Support modules
 ├── superparty_flutter/        # Flutter mobile app (out of scope)
 ├── functions/                 # Firebase Cloud Functions
 ├── voice-backend/             # Voice AI backend
 ├── twilio-backend/            # Twilio integration
-└── railway.json               # Root Railway config
+└── legacy hosting.json               # Root legacy hosting config
 ```
 
 ### WhatsApp Backend Location
@@ -45,8 +45,8 @@ Aplicatie-SuperpartyByAi/
 - **Dev Command:** `"dev": "nodemon server.js"` (line 8)
 - **Pre-start Guard:** `"prestart": "node build-guard.js"` (line 9)
 
-### Railway Configuration
-- **File:** `railway.json` (root)
+### legacy hosting Configuration
+- **File:** `legacy hosting.json` (root)
   - **Builder:** `NIXPACKS` (line 4)
   - **Build Command:** `cd whatsapp-backend && npm install` (line 5)
   - **Start Command:** `cd whatsapp-backend && node server.js` (line 8)
@@ -54,7 +54,7 @@ Aplicatie-SuperpartyByAi/
   - **Healthcheck Timeout:** 30s (line 14)
   - **Healthcheck Interval:** 20s (line 15)
 
-- **File:** `whatsapp-backend/railway.toml`
+- **File:** `whatsapp-backend/legacy hosting.toml`
   - **Builder:** `NIXPACKS` (line 2)
   - **Start Command:** `node server.js` (line 5)
   - **Restart Policy:** `ON_FAILURE` with max 10 retries (lines 6-7)
@@ -99,8 +99,8 @@ const {
 ```javascript
 const authDir =
   process.env.SESSIONS_PATH ||
-  (process.env.RAILWAY_VOLUME_MOUNT_PATH
-    ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'baileys_auth')
+  (process.env.LEGACY_VOLUME_MOUNT_PATH
+    ? path.join(process.env.LEGACY_VOLUME_MOUNT_PATH, 'baileys_auth')
     : path.join(__dirname, '.baileys_auth'));
 ```
 - **Per-Account Path:** Line 513, 3140: `const sessionPath = path.join(authDir, accountId);`
@@ -143,18 +143,18 @@ const authDir =
 
 ---
 
-## 4. Session Persistence (Railway-Critical)
+## 4. Session Persistence (legacy hosting-Critical)
 
 ### SESSIONS_PATH Configuration
 - **File:** `whatsapp-backend/server.js` (lines 311-317)
 - **Priority:**
   1. `process.env.SESSIONS_PATH`
-  2. `process.env.RAILWAY_VOLUME_MOUNT_PATH + '/baileys_auth'`
+  2. `process.env.LEGACY_VOLUME_MOUNT_PATH + '/baileys_auth'`
   3. Fallback: `{__dirname}/.baileys_auth`
 
 ### Runtime Directory When Env Missing
 - **Fallback Path:** Line 317: `path.join(__dirname, '.baileys_auth')`
-- **Note:** Ephemeral on Railway unless volume mounted
+- **Note:** Ephemeral on legacy hosting unless volume mounted
 
 ### Folder Structure Per Account
 - **Base Path:** `{authDir}/{accountId}/` (lines 513, 3140)
@@ -674,21 +674,21 @@ const authDir =
 
 ---
 
-## 11. Railway Deployment Guidance
+## 11. legacy hosting Deployment Guidance
 
-### railway.toml
-- **File:** `whatsapp-backend/railway.toml`
+### legacy hosting.toml
+- **File:** `whatsapp-backend/legacy hosting.toml`
 - **Volume Mount:** Line 17: `mountPath = "/app/sessions"` (NOTE: Current config uses `/app/sessions`, but code expects `/data/sessions` or `SESSIONS_PATH` env var)
 
-### railway.json (Root)
-- **File:** `railway.json` (root directory)
+### legacy hosting.json (Root)
+- **File:** `legacy hosting.json` (root directory)
 - **Start Command:** Line 8: `cd whatsapp-backend && node server.js`
 
 ### Required Environment Variables
 Based on code evidence:
 
 #### Critical (Must Have)
-1. **SESSIONS_PATH** (or RAILWAY_VOLUME_MOUNT_PATH)
+1. **SESSIONS_PATH** (or LEGACY_VOLUME_MOUNT_PATH)
    - **Usage:** Lines 311-317
    - **Expected:** `/app/sessions` or `/data/sessions`
    - **Note:** Must match volume mount path
@@ -700,7 +700,7 @@ Based on code evidence:
 
 3. **PORT**
    - **Usage:** Line 138: `process.env.PORT || 8080`
-   - **Railway:** Auto-injected, defaults to 8080
+   - **legacy hosting:** Auto-injected, defaults to 8080
 
 #### Optional (Nice to Have)
 4. **ADMIN_TOKEN**
@@ -721,18 +721,18 @@ Based on code evidence:
    - **Usage:** Lines 373, 508, 594, 3133, 3243
    - **Default:** 60000 (60 seconds)
 
-8. **RAILWAY_DEPLOYMENT_ID**
+8. **LEGACY_DEPLOYMENT_ID**
    - **Usage:** Lines 385, 630, 4262
-   - **Railway:** Auto-injected
+   - **legacy hosting:** Auto-injected
    - **Purpose:** Worker identification
 
-9. **RAILWAY_GIT_COMMIT_SHA**
+9. **LEGACY_GIT_COMMIT_SHA**
    - **Usage:** Line 355
-   - **Railway:** Auto-injected
+   - **legacy hosting:** Auto-injected
    - **Purpose:** Version tracking
 
 ### Volume Configuration
-- **Expected Mount Path:** Based on `railway.toml` line 17: `/app/sessions`
+- **Expected Mount Path:** Based on `legacy hosting.toml` line 17: `/app/sessions`
 - **Code Preference:** `SESSIONS_PATH` env var (line 313) - should match volume mount
 - **Current Issue:** Code checks for writability at startup (lines 346-352) and exits if not writable
 
@@ -781,10 +781,10 @@ Based on code evidence:
 
 ## Final Checklists
 
-### Railway UI Deployment Steps
+### legacy hosting UI Deployment Steps
 
 1. **Create Volume**
-   - Railway Dashboard → Service → Volumes
+   - legacy hosting Dashboard → Service → Volumes
    - Click "New Volume"
    - Name: `whatsapp-sessions-volume`
    - Mount Path: `/app/sessions` (or set `SESSIONS_PATH` env var to match)
@@ -793,7 +793,7 @@ Based on code evidence:
    - Click "Create"
 
 2. **Set Environment Variables**
-   - Railway Dashboard → Service → Variables
+   - legacy hosting Dashboard → Service → Variables
    - Add variables:
      - `SESSIONS_PATH` = `/app/sessions` (MUST match volume mount path)
      - `FIREBASE_SERVICE_ACCOUNT_JSON` = `{...}` (Firebase service account JSON as string)
@@ -802,16 +802,16 @@ Based on code evidence:
      - `WHATSAPP_CONNECT_TIMEOUT_MS` = `60000` (optional, default 60s)
 
 3. **Deploy**
-   - Railway auto-deploys on git push (if connected)
-   - Or: Railway Dashboard → Deployments → Redeploy
+   - legacy hosting auto-deploys on git push (if connected)
+   - Or: legacy hosting Dashboard → Deployments → Redeploy
 
 4. **Verify Health**
    - Check logs for: `Sessions dir writable: true` (line 342)
-   - Test endpoint: `GET https://your-service.railway.app/health`
+   - Test endpoint: `GET https://your-service.legacy hosting.app/health`
    - Expected: `"status": "healthy"` and `"sessions_dir_writable": true`
 
 5. **Log Checks**
-   - Railway Dashboard → Service → Logs
+   - legacy hosting Dashboard → Service → Logs
    - Look for:
      - `✅ Server running on port 8080`
      - `📁 Auth directory: /app/sessions`
@@ -831,7 +831,7 @@ Based on code evidence:
 
 1. **Add Account**
    ```bash
-   POST https://your-service.railway.app/api/whatsapp/add-account
+   POST https://your-service.legacy hosting.app/api/whatsapp/add-account
    Content-Type: application/json
    
    {
@@ -844,7 +844,7 @@ Based on code evidence:
 
 2. **Wait for QR (5-10 seconds)**
    ```bash
-   GET https://your-service.railway.app/api/whatsapp/qr/{accountId}
+   GET https://your-service.legacy hosting.app/api/whatsapp/qr/{accountId}
    ```
    - **Response:** HTML page with QR code image
    - **Alternative:** `GET /api/whatsapp/accounts` to get `qrCode` field in JSON
@@ -856,14 +856,14 @@ Based on code evidence:
 
 4. **Verify Connection**
    ```bash
-   GET https://your-service.railway.app/api/status/dashboard
+   GET https://your-service.legacy hosting.app/api/status/dashboard
    ```
    - **Check:** Account status = `"connected"`
    - **Evidence:** Lines 4148-4218
 
 5. **Monitor Status**
    ```bash
-   GET https://your-service.railway.app/api/whatsapp/accounts
+   GET https://your-service.legacy hosting.app/api/whatsapp/accounts
    ```
    - **Check:** `status: "connected"`, `qrCode: null`
 
@@ -878,7 +878,7 @@ Based on code evidence:
 **Batch Onboarding Script Example:**
 ```bash
 #!/bin/bash
-BASE_URL="https://your-service.railway.app"
+BASE_URL="https://your-service.legacy hosting.app"
 PHONES=("+40711111111" "+40722222222" ... "+40730303030")
 
 for i in {1..30}; do

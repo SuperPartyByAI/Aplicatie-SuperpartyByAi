@@ -1,50 +1,50 @@
-# RAILWAY CONFIGURATION REQUIRED
+# LEGACY_HOSTING CONFIGURATION REQUIRED
 
 **Status:** Code is production-ready and pushed to GitHub (commit cf94e5bd)  
-**Blocker:** Railway service needs Root Directory configuration
+**Blocker:** legacy hosting service needs Root Directory configuration
 
 ---
 
 ## WHAT'S READY ✅
 
-- ✅ Code updated for Railway (PORT, COMMIT_HASH, Firestore env var)
+- ✅ Code updated for legacy hosting (PORT, COMMIT_HASH, Firestore env var)
 - ✅ Health endpoint with version, commit, uptime, counts, firestore status
 - ✅ QR display endpoint: GET /api/whatsapp/qr/:accountId (HTML for easy scanning)
 - ✅ Pushed to GitHub (commit cf94e5bd)
-- ✅ Railway service exists and has domain
+- ✅ legacy hosting service exists and has domain
 
 ---
 
 ## WHAT'S NEEDED (1 ACTION)
 
-Railway service returns 404 because **Root Directory is not set**.
+legacy hosting service returns 404 because **Root Directory is not set**.
 
 ### OPTION A: Set Root Directory (RECOMMENDED, 30 seconds)
 
-1. Go to: https://railway.com/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
+1. Go to: https://legacy hosting.com/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
 2. Click "Settings"
 3. Scroll to "Source"
 4. Set **Root Directory:** `whatsapp-backend`
 5. Click "Save"
-6. Railway will auto-redeploy from GitHub
+6. legacy hosting will auto-redeploy from GitHub
 
-### OPTION B: Add RAILWAY_TOKEN (for programmatic access)
+### OPTION B: Add LEGACY_TOKEN (for programmatic access)
 
-1. Go to: https://railway.app/account/tokens
+1. Go to: https://legacy hosting.app/account/tokens
 2. Click "Create Token"
 3. Copy token
-4. Go to service: https://railway.com/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
+4. Go to service: https://legacy hosting.com/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
 5. Click "Variables"
-6. Add: `RAILWAY_TOKEN=<your_token>`
+6. Add: `LEGACY_TOKEN=<your_token>`
 7. Save
 
 ---
 
 ## AFTER CONFIGURATION
 
-Once Root Directory is set, Railway will:
+Once Root Directory is set, legacy hosting will:
 
-1. Auto-detect railway.toml in whatsapp-backend/
+1. Auto-detect legacy hosting.toml in whatsapp-backend/
 2. Build: `npm install`
 3. Start: `node server.js`
 4. Health check: `/health` every 20s
@@ -83,7 +83,7 @@ After configuration, I will run:
 
 ```bash
 # Test health endpoint
-curl https://whatsapp-backend-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # Expected response:
 {
@@ -108,7 +108,7 @@ curl https://whatsapp-backend-production.up.railway.app/health
 ## TIMELINE AFTER CONFIGURATION
 
 - Configuration: 30 seconds (you)
-- Deploy: 2-3 minutes (Railway auto)
+- Deploy: 2-3 minutes (legacy hosting auto)
 - Verification: 1 minute (me)
 - QR generation: 30 seconds (me)
 - QR scan: 2 minutes (you)
@@ -121,4 +121,4 @@ curl https://whatsapp-backend-production.up.railway.app/health
 
 ---
 
-**Waiting for:** Root Directory configuration in Railway service
+**Waiting for:** Root Directory configuration in legacy hosting service

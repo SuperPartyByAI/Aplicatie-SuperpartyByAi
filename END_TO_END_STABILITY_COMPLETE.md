@@ -125,8 +125,8 @@ final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
 - `threads/{threadId}` → Delete blocked
 - `threads/{threadId}/messages` → Delete blocked
 
-**Railway Persistence**:
-- Volume mount: `/app/sessions` (verified in Railway health)
+**legacy hosting Persistence**:
+- Volume mount: `/app/sessions` (verified in legacy hosting health)
 - Sessions survive restart ✅
 - Firestore retains all threads/messages ✅
 
@@ -341,7 +341,7 @@ firebase functions:log --limit → firebase functions:log --lines
 1. Pair QR (scan with real WhatsApp phone)
 2. Send message from client → appears in app
 3. Send from app → client receives
-4. Restart Railway → conversations persist
+4. Restart legacy hosting → conversations persist
 ```
 
 ---

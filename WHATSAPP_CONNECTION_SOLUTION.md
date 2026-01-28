@@ -2,7 +2,7 @@
 
 ## 🎯 Analiza Logs
 
-Din logs-urile Railway, văd **2 conturi**:
+Din logs-urile legacy hosting, văd **2 conturi**:
 
 ### ❌ Cont vechi corupt (`account_dev_cd7b11e308a59fd9ab810bce5faf8393`)
 ```

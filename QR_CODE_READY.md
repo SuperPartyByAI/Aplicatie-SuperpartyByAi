@@ -1,6 +1,6 @@
 # ✅ QR Code Generat - Gata pentru Scanare!
 
-## 🎉 Confirmare din Logs Railway
+## 🎉 Confirmare din Logs legacy hosting
 
 **Cont nou** (`account_dev_dde908a65501c63b124cb94c627e551d`):
 ```
@@ -55,7 +55,7 @@
 - [ ] Status: `qr_ready`?
 - [ ] Phone: `+407****97` (sau similar)?
 
-### În logs Railway:
+### În logs legacy hosting:
 - ✅ QR Code generated (length: 237)
 - ✅ phone: +407****97
 - ✅ Status: qr_ready

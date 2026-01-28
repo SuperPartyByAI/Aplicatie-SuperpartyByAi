@@ -5,7 +5,7 @@
 The WhatsApp integration has **two separate systems**:
 
 1. **Firefox Sessions (Manual)** - Local browser tabs using Firefox Containers
-2. **Backend Accounts (AI)** - Managed by Railway backend using Baileys library
+2. **Backend Accounts (AI)** - Managed by legacy hosting backend using Baileys library
 
 These are **completely separate** and do **NOT** sync automatically.
 
@@ -39,7 +39,7 @@ These are **completely separate** and do **NOT** sync automatically.
 ## Backend Accounts (AI)
 
 ### What it is:
-- **Managed by Railway backend** (Baileys library)
+- **Managed by legacy hosting backend** (Baileys library)
 - Stored in **Firestore** database
 - **AI-enabled** - supports operator inbox, automated responses
 - QR codes generated **in app** and displayed there
@@ -51,7 +51,7 @@ These are **completely separate** and do **NOT** sync automatically.
 - Message queuing and delivery
 
 ### Location:
-- Backend: Railway (`whatsapp-backend`)
+- Backend: legacy hosting (`whatsapp-backend`)
 - Database: Firestore (`accounts` collection)
 - App: Flutter `WhatsAppAccountsScreen`
 
@@ -69,7 +69,7 @@ These are **completely separate** and do **NOT** sync automatically.
 
 | Aspect | Firefox Sessions | Backend Accounts |
 |--------|-----------------|------------------|
-| **Location** | Local (Firefox) | Cloud (Railway + Firestore) |
+| **Location** | Local (Firefox) | Cloud (legacy hosting + Firestore) |
 | **AI Features** | ❌ No | ✅ Yes |
 | **App Integration** | ❌ No | ✅ Yes |
 | **QR Generation** | Browser (web.whatsapp.com) | App (backend) |
@@ -83,7 +83,7 @@ These are **completely separate** and do **NOT** sync automatically.
 **Firefox sessions are local browser tabs**, not backend accounts. The Flutter app only shows accounts from:
 
 ```
-Flutter App → Cloud Functions Proxy → Railway Backend → Firestore
+Flutter App → Cloud Functions Proxy → legacy hosting Backend → Firestore
 ```
 
 Firefox containers are **completely separate** and never touch the backend.
@@ -102,21 +102,21 @@ The backend can run in two modes:
 - ✅ Inbound message handling enabled
 
 ### Passive Mode
-- ⚠️ Another Railway instance holds lock
+- ⚠️ Another legacy hosting instance holds lock
 - ❌ Baileys connections NOT started
 - ❌ AI features disabled
 - ❌ Outbox processing disabled
 - ⚠️ Accounts visible but not functional
 
 **Why Passive?**
-- Multiple Railway deployments running simultaneously
+- Multiple legacy hosting deployments running simultaneously
 - Lock held by another instance (e.g., staging, old deployment)
 - Only one instance can be ACTIVE at a time (prevents conflicts)
 
 **How to Fix:**
-1. Check Railway Dashboard for multiple deployments
+1. Check legacy hosting Dashboard for multiple deployments
 2. Ensure only **one active deployment** in production
-3. Set Railway `numReplicas: 1` in `railway.json`
+3. Set legacy hosting `numReplicas: 1` in `legacy hosting.json`
 4. Redeploy single instance
 
 ---
@@ -131,7 +131,7 @@ The backend can run in two modes:
 
 ### Via API:
 ```bash
-curl -s https://whats-upp-production.up.railway.app/ready | jq
+curl -s https://whats-app-ompro.ro/ready | jq
 ```
 
 **Response (Active):**
@@ -167,7 +167,7 @@ curl -s https://whats-upp-production.up.railway.app/ready | jq
 **A:** Use Backend Accounts (add via Flutter app), not Firefox sessions.
 
 ### Q: Backend is PASSIVE, what do I do?
-**A:** Check Railway Dashboard for multiple deployments. Ensure only one active instance.
+**A:** Check legacy hosting Dashboard for multiple deployments. Ensure only one active instance.
 
 ### Q: Can I sync Firefox sessions with Backend?
 **A:** Not automatically. Firefox sessions are local browser tabs. Use Backend Accounts for cloud-synced AI features.

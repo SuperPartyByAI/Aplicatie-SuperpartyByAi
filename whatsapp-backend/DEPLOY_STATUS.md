@@ -12,46 +12,47 @@
 
 ---
 
-## ⚠️ Railway Deployment Required
+## ⚠️ Hetzner Deployment Required
 
-**Status**: Codul e pe GitHub, dar **trebuie deployat pe Railway** pentru a opri loop-ul.
+**Status**: Codul e pe GitHub, dar **trebuie deployat pe Hetzner** pentru a opri loop-ul.
 
-### **Opțiune 1: Auto-Deploy (dacă configurat)**
+### **Deploy pe Hetzner (SSH)**
 
-Dacă Railway e configurat să deployeze automat de pe `audit-whatsapp-30`:
-- Railway ar trebui să detecteze push-ul automat
-- Așteaptă 2-3 minute pentru build + deploy
-- Verifică "Deployments" în Railway Dashboard
+1. **Conectează-te la server**:
+   ```bash
+   ssh root@37.27.34.179
+   ```
 
-### **Opțiune 2: Manual Deployment (RECOMANDAT)**
+2. **Navighează la directorul backend**:
+   ```bash
+   cd /opt/whatsapp/Aplicatie-SuperpartyByAi/whatsapp-backend
+   ```
 
-Dacă Railway **NU** auto-deployează de pe `audit-whatsapp-30`:
+3. **Pull latest code**:
+   ```bash
+   git pull origin cursor/baileys-fix
+   ```
 
-1. **Deschide Railway Dashboard**:
-   - https://railway.app
-   - Selectează service **"Whats Upp"**
+4. **Install dependencies**:
+   ```bash
+   npm ci
+   ```
 
-2. **Verifică Branch Configuration**:
-   - Go to **"Settings"** → **"Source"**
-   - Verifică **"Branch"** setting
-   - Dacă e `main` sau alt branch (nu `audit-whatsapp-30`):
+5. **Restart service**:
+   ```bash
+   sudo systemctl restart whatsapp-backend
+   ```
 
-3. **Trigger Deployment Manual**:
-   - Go to **"Deployments"** tab
-   - Click **"Trigger Deployment"** (sau **"Redeploy"**)
-   - Selectează branch: **`audit-whatsapp-30`**
-   - Click **"Deploy"**
-
-4. **Așteaptă Deploy**:
-   - Build time: ~1-2 minute
-   - Deploy time: ~30 secunde
+6. **Așteaptă deploy**:
+   - Build time: ~1-2 minute (npm ci)
+   - Restart time: ~10-30 secunde
    - Total: ~2-3 minute
 
 ---
 
 ## ✅ Verification After Deploy
 
-**După deploy, verifică logs în Railway** (așteaptă 2-3 minute):
+**După deploy, verifică logs în legacy hosting** (așteaptă 2-3 minute):
 
 ### **✅ CORECT (după fix)**:
 ```
@@ -93,6 +94,6 @@ Dacă Railway **NU** auto-deployează de pe `audit-whatsapp-30`:
 
 ---
 
-**Status**: ⏳ **AWAITING RAILWAY DEPLOYMENT**
+**Status**: ⏳ **AWAITING HETZNER DEPLOYMENT**
 
-**Next Step**: Deploy la Railway (manual sau auto) → Verifică logs după 2-3 minute
+**Next Step**: Deploy pe Hetzner (SSH) → Verifică logs după 2-3 minute

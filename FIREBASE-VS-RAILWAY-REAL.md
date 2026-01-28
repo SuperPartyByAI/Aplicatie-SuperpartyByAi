@@ -1,4 +1,4 @@
-# 🔥 Firebase vs Railway pentru WhatsApp - Comparație REALĂ
+# 🔥 Firebase vs legacy hosting pentru WhatsApp - Comparație REALĂ
 
 ## 🎯 Întrebarea Ta:
 
@@ -12,7 +12,7 @@
 
 ### 1. Baza de Date (Firestore)
 
-| Aspect                 | Firebase  | Railway               | Adevăr |
+| Aspect                 | Firebase  | legacy hosting               | Adevăr |
 | ---------------------- | --------- | --------------------- | ------ |
 | **Firestore integrat** | ✅ Native | ❌ Trebuie configurat | 100%   |
 | **Latență**            | 10-50ms   | 100-200ms             | 90%    |
@@ -28,7 +28,7 @@
 - Account status
 - Logs
 
-Pe Firebase = **0 latență**, pe Railway = **API calls** (mai lent)
+Pe Firebase = **0 latență**, pe legacy hosting = **API calls** (mai lent)
 
 ---
 
@@ -43,7 +43,7 @@ Pe Firebase = **0 latență**, pe Railway = **API calls** (mai lent)
 | **Bandwidth** | $0-1      | 10GB gratuit                  |
 | **TOTAL**     | **$0-8**  | Pentru 20 conturi WhatsApp    |
 
-#### Railway:
+#### legacy hosting:
 
 | Item              | Cost/lună | Detalii                    |
 | ----------------- | --------- | -------------------------- |
@@ -69,20 +69,20 @@ Pe Firebase = **0 latență**, pe Railway = **API calls** (mai lent)
 | **Firestore latency** | 10-50ms  | Native            |
 | **Uptime**            | 99.95%   | SLA Google        |
 
-#### Railway:
+#### legacy hosting:
 
 | Metric                | Valoare   | Probă       |
 | --------------------- | --------- | ----------- |
 | **Cold start**        | 0s        | Always-on   |
 | **Requests**          | 50-100ms  | Testat      |
 | **Firestore latency** | 100-200ms | API calls   |
-| **Uptime**            | 99.9%     | SLA Railway |
+| **Uptime**            | 99.9%     | SLA legacy hosting |
 
-**Adevăr:** **90%** - Railway e **mai rapid** pentru requests, dar Firebase e **mai rapid** pentru Firestore
+**Adevăr:** **90%** - legacy hosting e **mai rapid** pentru requests, dar Firebase e **mai rapid** pentru Firestore
 
 **Trade-off:**
 
-- Railway: Mai rapid pentru API, mai lent pentru database
+- legacy hosting: Mai rapid pentru API, mai lent pentru database
 - Firebase: Mai lent la cold start, mai rapid pentru database
 
 ---
@@ -99,13 +99,13 @@ Pe Firebase = **0 latență**, pe Railway = **API calls** (mai lent)
 
 **Adevăr:** **100%** - A funcționat când era deployed
 
-#### Railway (Istoric Real):
+#### legacy hosting (Istoric Real):
 
 | Data      | Status       | Probă |
 | --------- | ------------ | ----- |
 | NICIODATĂ | ❌ Nu testat | -     |
 
-**Adevăr:** **100%** - Nu știm dacă merge pe Railway
+**Adevăr:** **100%** - Nu știm dacă merge pe legacy hosting
 
 ---
 
@@ -126,7 +126,7 @@ Pe Firebase = **0 latență**, pe Railway = **API calls** (mai lent)
 firebase deploy --only functions
 ```
 
-#### Railway:
+#### legacy hosting:
 
 | Task          | Timp  | Dificultate |
 | ------------- | ----- | ----------- |
@@ -141,7 +141,7 @@ firebase deploy --only functions
 git push  # Auto-deploy
 ```
 
-**Adevăr:** **95%** - Railway e **mai ușor** (auto-deploy)
+**Adevăr:** **95%** - legacy hosting e **mai ușor** (auto-deploy)
 
 ---
 
@@ -160,7 +160,7 @@ git push  # Auto-deploy
 
 **Soluție:** Keep-alive requests (ping la 5 min)
 
-#### Railway:
+#### legacy hosting:
 
 | Limitare       | Valoare   | Impact WhatsApp |
 | -------------- | --------- | --------------- |
@@ -169,7 +169,7 @@ git push  # Auto-deploy
 | **Concurrent** | Nelimitat | ✅ Perfect      |
 | **Cold start** | 0s        | ✅ Perfect      |
 
-**Adevăr:** **100%** - Railway **nu are cold start**
+**Adevăr:** **100%** - legacy hosting **nu are cold start**
 
 ---
 
@@ -185,7 +185,7 @@ git push  # Auto-deploy
 - ✅ Nu te deranjează cold start (2-5s)
 - ✅ Știi că a funcționat deja (26-27 Dec)
 
-**RAILWAY e mai bun dacă:**
+**LEGACY_HOSTING e mai bun dacă:**
 
 - ✅ Vrei zero cold start (always-on)
 - ✅ Vrei deployment mai simplu (auto)
@@ -228,11 +228,11 @@ git push  # Auto-deploy
 
 **Adevăr estimat:** **85%** (știm că a mers)
 
-### Opțiunea 2: Railway
+### Opțiunea 2: legacy hosting
 
 **Pași:**
 
-1. Deploy WhatsApp pe Railway (5 min)
+1. Deploy WhatsApp pe legacy hosting (5 min)
 2. Configurare Firestore API (2 min)
 3. Test conexiune WhatsApp (5 min)
 4. Monitor 24h
@@ -243,17 +243,17 @@ git push  # Auto-deploy
 
 ## 📊 Tabel Comparativ Final
 
-| Criteriu       | Firebase  | Railway      | Câștigător  |
+| Criteriu       | Firebase  | legacy hosting      | Câștigător  |
 | -------------- | --------- | ------------ | ----------- |
 | **Cost**       | $0-8      | $5-12        | 🔥 Firebase |
 | **Firestore**  | Native    | API          | 🔥 Firebase |
-| **Cold start** | 2-5s      | 0s           | 🚂 Railway  |
-| **Deployment** | Manual    | Auto         | 🚂 Railway  |
+| **Cold start** | 2-5s      | 0s           | 🚂 legacy hosting  |
+| **Deployment** | Manual    | Auto         | 🚂 legacy hosting  |
 | **Istoric**    | ✅ A mers | ❌ Nu testat | 🔥 Firebase |
 | **Uptime**     | 99.95%    | 99.9%        | 🔥 Firebase |
-| **Debug**      | Mediu     | Ușor         | 🚂 Railway  |
+| **Debug**      | Mediu     | Ușor         | 🚂 legacy hosting  |
 
-**Scor:** Firebase 5 - Railway 2
+**Scor:** Firebase 5 - legacy hosting 2
 
 ---
 

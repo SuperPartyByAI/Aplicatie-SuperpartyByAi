@@ -5,14 +5,14 @@
 **Symptom:** Flutter primește erori 500 generice "Backend service returned an error" fără detalii.
 
 **Root Cause:**
-- Firebase Functions proxy primește răspunsuri non-2xx de la Railway
+- Firebase Functions proxy primește răspunsuri non-2xx de la legacy hosting
 - Proxy-ul maschează erorile ca 500 generic
 - Proxy-ul loghează doar `statusCode` și `errorId` (scurt), nu body-ul complet
-- Detaliile reale sunt în Railway logs, dar nu sunt vizibile în Functions logs
+- Detaliile reale sunt în legacy hosting logs, dar nu sunt vizibile în Functions logs
 
 **Impact:**
-- Debugging dificil - nu știi de ce Railway returnează non-2xx
-- Trebuie să corelezi manual requestId între Flutter → Functions → Railway
+- Debugging dificil - nu știi de ce legacy hosting returnează non-2xx
+- Trebuie să corelezi manual requestId între Flutter → Functions → legacy hosting
 - Mesajele de eroare sunt generice și nu ajută la debugging
 
 ---
@@ -23,18 +23,18 @@
 **File:** `functions/whatsappProxy.js:915-959`
 
 **Modificări:**
-1. ✅ Loghează body-ul complet al răspunsului Railway pentru non-2xx (până la 500 chars)
+1. ✅ Loghează body-ul complet al răspunsului legacy hosting pentru non-2xx (până la 500 chars)
 2. ✅ Loghează detalii structurate: `error`, `message`, `status`, `accountId`
-3. ✅ Include detalii Railway în response către Flutter (pentru debugging)
+3. ✅ Include detalii legacy hosting în response către Flutter (pentru debugging)
 
 **Before:**
 ```javascript
-console.error(`[whatsappProxy/regenerateQr] Railway error: status=${response.statusCode}, errorId=${shortErrorId}, requestId=${requestId}`);
+console.error(`[whatsappProxy/regenerateQr] legacy hosting error: status=${response.statusCode}, errorId=${shortErrorId}, requestId=${requestId}`);
 ```
 
 **After:**
 ```javascript
-// CRITICAL: Log full Railway response body for non-2xx to diagnose root cause
+// CRITICAL: Log full legacy hosting response body for non-2xx to diagnose root cause
 const railwayBody = response.body || {};
 const railwayBodyStr = typeof railwayBody === 'string' 
   ? railwayBody 
@@ -43,21 +43,21 @@ const railwayBodyPreview = railwayBodyStr.length > 500
   ? railwayBodyStr.substring(0, 500) + '...' 
   : railwayBodyStr;
 
-console.error(`[whatsappProxy/regenerateQr] Railway error (non-2xx): status=${response.statusCode}, requestId=${requestId}`);
-console.error(`[whatsappProxy/regenerateQr] Railway error body: ${railwayBodyPreview}`);
-console.error(`[whatsappProxy/regenerateQr] Railway error details: error=${railwayBody.error || 'none'}, message=${railwayBody.message || 'none'}, status=${railwayBody.status || 'none'}, accountId=${railwayBody.accountId || 'none'}`);
+console.error(`[whatsappProxy/regenerateQr] legacy hosting error (non-2xx): status=${response.statusCode}, requestId=${requestId}`);
+console.error(`[whatsappProxy/regenerateQr] legacy hosting error body: ${railwayBodyPreview}`);
+console.error(`[whatsappProxy/regenerateQr] legacy hosting error details: error=${railwayBody.error || 'none'}, message=${railwayBody.message || 'none'}, status=${railwayBody.status || 'none'}, accountId=${railwayBody.accountId || 'none'}`);
 ```
 
 **Response Enhancement:**
 ```javascript
-// Include Railway error details for debugging (not just generic message)
+// Include legacy hosting error details for debugging (not just generic message)
 return res.status(httpStatus >= 400 && httpStatus < 500 ? httpStatus : 500).json({
   success: false,
   error: `UPSTREAM_HTTP_${httpStatus}`,
   message: response.body?.message || `Backend service returned an error (status: ${httpStatus})`,
   requestId: requestId,
-  hint: `Check Railway logs for requestId: ${requestId}`,
-  // Include Railway error code and status for debugging
+  hint: `Check legacy hosting logs for requestId: ${requestId}`,
+  // Include legacy hosting error code and status for debugging
   ...(response.body && typeof response.body === 'object' ? {
     backendError: response.body.error || response.body.errorCode,
     backendStatus: response.body.status,
@@ -74,14 +74,14 @@ return res.status(httpStatus >= 400 && httpStatus < 500 ? httpStatus : 500).json
 ### 1. Debugging Mai Ușor
 **Before:**
 ```
-[whatsappProxy/regenerateQr] Railway error: status=500, errorId=unknown, requestId=req_123
+[whatsappProxy/regenerateQr] legacy hosting error: status=500, errorId=unknown, requestId=req_123
 ```
 
 **After:**
 ```
-[whatsappProxy/regenerateQr] Railway error (non-2xx): status=500, requestId=req_123
-[whatsappProxy/regenerateQr] Railway error body: {"success":false,"error":"internal_error","message":"Connection already in progress","accountId":"account_xxx","requestId":"req_123"}
-[whatsappProxy/regenerateQr] Railway error details: error=internal_error, message=Connection already in progress, status=undefined, accountId=account_xxx
+[whatsappProxy/regenerateQr] legacy hosting error (non-2xx): status=500, requestId=req_123
+[whatsappProxy/regenerateQr] legacy hosting error body: {"success":false,"error":"internal_error","message":"Connection already in progress","accountId":"account_xxx","requestId":"req_123"}
+[whatsappProxy/regenerateQr] legacy hosting error details: error=internal_error, message=Connection already in progress, status=undefined, accountId=account_xxx
 ```
 
 ### 2. Flutter Primește Detalii
@@ -111,7 +111,7 @@ return res.status(httpStatus >= 400 && httpStatus < 500 ? httpStatus : 500).json
 
 ### 3. Corelare RequestId
 - Flutter generează `requestId` și îl trimite la proxy
-- Proxy forward-ează `requestId` la Railway
+- Proxy forward-ează `requestId` la legacy hosting
 - Toate logs includ `requestId` pentru corelare end-to-end
 
 ---
@@ -122,8 +122,8 @@ return res.status(httpStatus >= 400 && httpStatus < 500 ? httpStatus : 500).json
 ```bash
 # 1. Trigger regenerateQr care returnează 500
 # 2. Verifică Functions logs:
-# Expected: [whatsappProxy/regenerateQr] Railway error body: {...}
-# Expected: [whatsappProxy/regenerateQr] Railway error details: error=..., message=...
+# Expected: [whatsappProxy/regenerateQr] legacy hosting error body: {...}
+# Expected: [whatsappProxy/regenerateQr] legacy hosting error details: error=..., message=...
 ```
 
 ### Test 2: Verifică Response în Flutter
@@ -139,7 +139,7 @@ return res.status(httpStatus >= 400 && httpStatus < 500 ? httpStatus : 500).json
 # 2. Verifică requestId în toate logs:
 # Expected: Flutter: requestId=req_xxx
 # Expected: Functions: requestId=req_xxx
-# Expected: Railway: requestId=req_xxx
+# Expected: legacy hosting: requestId=req_xxx
 ```
 
 ---
@@ -156,12 +156,12 @@ return res.status(httpStatus >= 400 && httpStatus < 500 ? httpStatus : 500).json
 ```bash
 # Firebase Functions logs
 grep "req_1234567890" functions.log
-# Expected: [whatsappProxy/regenerateQr] Railway error body: {...}
+# Expected: [whatsappProxy/regenerateQr] legacy hosting error body: {...}
 ```
 
-### Pasul 3: Caută în Railway Logs
+### Pasul 3: Caută în legacy hosting Logs
 ```bash
-# Railway HTTP Logs
+# legacy hosting HTTP Logs
 # Filter: /api/whatsapp/regenerate-qr/
 # Search: req_1234567890
 # Expected: [req_1234567890] Regenerate QR request: accountId=...
@@ -179,21 +179,21 @@ grep "req_1234567890" functions.log
 
 1. **Deploy** fix la Firebase Functions
 2. **Test** - Trigger regenerateQr care returnează 500
-3. **Verifică** logs în Functions pentru detalii Railway
-4. **Corelează** requestId între Flutter → Functions → Railway
+3. **Verifică** logs în Functions pentru detalii legacy hosting
+4. **Corelează** requestId între Flutter → Functions → legacy hosting
 
 ---
 
 ## Root Cause Summary
 
-**Problema:** Proxy maschează erorile Railway ca 500 generic, fără detalii.
+**Problema:** Proxy maschează erorile legacy hosting ca 500 generic, fără detalii.
 
 **Fix:** 
-- ✅ Loghează body-ul complet al răspunsului Railway pentru non-2xx
-- ✅ Include detalii Railway în response către Flutter
-- ✅ Corelare requestId end-to-end (Flutter → Functions → Railway)
+- ✅ Loghează body-ul complet al răspunsului legacy hosting pentru non-2xx
+- ✅ Include detalii legacy hosting în response către Flutter
+- ✅ Corelare requestId end-to-end (Flutter → Functions → legacy hosting)
 
 **Beneficii:**
-- Debugging mai ușor - vezi exact ce returnează Railway
+- Debugging mai ușor - vezi exact ce returnează legacy hosting
 - Flutter primește detalii pentru error handling mai bun
 - Corelare requestId pentru tracing end-to-end

@@ -9,7 +9,7 @@
 ## A) Health Endpoint
 
 ```bash
-curl -s https://whats-upp-production.up.railway.app/health | jq
+curl -s https://whats-app-ompro.ro/health | jq
 ```
 
 ```json
@@ -93,7 +93,7 @@ account_f8bc6f83b05264a5: connected, hasQR=False  ✅ Connected
 
 1. Connected account has no event handlers (won't receive messages)
 2. Need to fix restoration logic first
-3. Manual Railway restart required (no API access)
+3. Manual legacy hosting restart required (no API access)
 
 ---
 

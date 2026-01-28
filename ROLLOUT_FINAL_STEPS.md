@@ -1,6 +1,6 @@
 # ROLLOUT_FINAL_STEPS.md
 
-**Scope:** GitHub → Firebase (rules/indexes/functions + secrets) → Railway (volume+env+redeploy) → Flutter (cap-coadă) → Acceptance → Onboarding 30 conturi  
+**Scope:** GitHub → Firebase (rules/indexes/functions + secrets) → legacy hosting (volume+env+redeploy) → Flutter (cap-coadă) → Acceptance → Onboarding 30 conturi  
 **Obiectiv:** Pair QR din app → sync conversații în Firestore → chat send/receive din app → CRM (extract event, save event, profil client, ask AI)
 
 ---
@@ -11,10 +11,10 @@
 1. Deschide PR:
    - https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/compare/main...audit-whatsapp-30
 2. Verifică în PR:
-   - backend WhatsApp (Railway) + functions proxy + rules/indexes
+   - backend WhatsApp (legacy hosting) + functions proxy + rules/indexes
    - Flutter: Inbox/Chat/Client Profile + CRM panel
 3. Merge în `main`.
-4. Confirmă că Railway e setat să deployeze din `main` (nu din branch).
+4. Confirmă că legacy hosting e setat să deployeze din `main` (nu din branch).
 
 ### 1.2 Fix: „Could not compare to origin/main”
 Dacă în terminal ai mesajul că nu există `origin/main`, fă:
@@ -29,8 +29,8 @@ Dacă remote nu are `main`, găsești branch-ul corect (ex: `master`) și schimb
 
 Dacă remote are `main` dar local nu: `git fetch origin main:refs/remotes/origin/main`
 
-### 1.3 Railway branch tracking (verificare)
-În Railway → Service → Settings / Deploy:
+### 1.3 legacy hosting branch tracking (verificare)
+În legacy hosting → Service → Settings / Deploy:
 - Repo conectat: `SuperPartyByAI/Aplicatie-SuperpartyByAi`
 - Branch: `main`
 - Auto deploy: `ON`
@@ -52,7 +52,7 @@ firebase use <PROJECT_ID>
 ### 2.2 Set secrets (minim)
 Setează URL-ul backend (valoare: `https://<backend-host>`):
 ```bash
-firebase functions:secrets:set RAILWAY_WHATSAPP_URL
+firebase functions:secrets:set LEGACY_WHATSAPP_URL
 # sau/și:
 firebase functions:secrets:set WHATSAPP_BACKEND_BASE_URL
 ```
@@ -75,15 +75,15 @@ firebase deploy --only firestore:rules,firestore:indexes,functions
 
 ---
 
-## 3) Railway config (WhatsApp backend)
+## 3) legacy hosting config (WhatsApp backend)
 
 ### 3.1 Persistent volume
-Railway → Service (whatsapp-backend) → Volumes → Add Volume:
-- `mountPath` = `/app/sessions` (conform `railway.toml`)
+legacy hosting → Service (whatsapp-backend) → Volumes → Add Volume:
+- `mountPath` = `/app/sessions` (conform `legacy hosting.toml`)
 - Redeploy după attach.
 
 ### 3.2 Env vars (minim)
-Railway → Variables:
+legacy hosting → Variables:
 - `SESSIONS_PATH=/app/sessions` (trebuie să bată cu mount path)
 - `FIREBASE_SERVICE_ACCOUNT_JSON=<json complet>`
 - (dacă e folosit) `ADMIN_TOKEN=<random-lung>`
@@ -102,19 +102,19 @@ Caută:
 - ✅ `/health 200` + `sessions_dir_writable=true`
 
 ### 3.4 Constrângere producție
-**1 singură instanță Railway** (fără scale-out) până când ownership/lease e implementat complet.
+**1 singură instanță legacy hosting** (fără scale-out) până când ownership/lease e implementat complet.
 
 ---
 
 ## 4) Smoke test commands (rapid, înainte de testele din app)
 
-Endpoints Railway directe includ `health`/`accounts`/`qr`/`dashboard` etc (documentate).
+Endpoints legacy hosting directe includ `health`/`accounts`/`qr`/`dashboard` etc (documentate).
 
 Setează:
 ```bash
-BASE="https://<railway-domain>"
+BASE="https://<legacy hosting-domain>"
 ```
-**Notă:** Înlocuiește `<railway-domain>` cu domeniul Railway real.
+**Notă:** Înlocuiește `<legacy hosting-domain>` cu domeniul legacy hosting real.
 
 ### 4.1 Health
 ```bash
@@ -276,7 +276,7 @@ Dacă e OK: continui până la 30.
    - verifici logs (nu ai reconnect loops)
    - verifici Firestore (threads/messages se populează)
 3. **După 10/20/30:**
-   - redeploy Railway (1–2 ori) → confirmi că NU cere re-pair (sessions persist pe volume)
+   - redeploy legacy hosting (1–2 ori) → confirmi că NU cere re-pair (sessions persist pe volume)
 
 ---
 
@@ -320,7 +320,7 @@ Nu implementa delete pentru `threads`/`messages`/`client profile`.
 ## Quick reference (smoke test ultra-rapid)
 
 ```bash
-BASE="https://<railway-domain>"
+BASE="https://<legacy hosting-domain>"
 curl -sS "$BASE/health"
 curl -sS "$BASE/api/whatsapp/accounts"
 # după pairing:

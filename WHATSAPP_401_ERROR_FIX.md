@@ -37,9 +37,9 @@ Contul vechi (`account_dev_904735e817756d2bac1328b0c556b2f9`) e corupt și se ș
 
 Dacă contul nou primește și el 401 după scan:
 
-**Sesiune coruptă în Railway**:
+**Sesiune coruptă în legacy hosting**:
 - Sesion file: `/app/sessions/account_dev_dde908a65501c63b124cb94c627e551d`
-- Trebuie șters din Railway (nu am acces direct)
+- Trebuie șters din legacy hosting (nu am acces direct)
 
 **Workaround**:
 - Șterge contul din app

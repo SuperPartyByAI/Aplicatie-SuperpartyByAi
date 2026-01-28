@@ -16,7 +16,7 @@
 - Clean up duplicate endpoint handlers
 - Remove debug logging
 
-**Commit**: `ac0c4ec8` → deployed to Railway
+**Commit**: `ac0c4ec8` → deployed to legacy hosting
 
 ---
 
@@ -62,7 +62,7 @@
 - Triggers on inbound message save
 - Includes `accountId`, `threadId`, `clientJid` for deep linking
 
-**Commit**: `29a29add` → deployed to Railway
+**Commit**: `29a29add` → deployed to legacy hosting
 
 ### Flutter Implementation
 **Added**:
@@ -97,7 +97,7 @@
 **Status**: 
 - ⚠️ macOS build blocked
 - ✅ Web version working
-- ✅ Backend working (Railway)
+- ✅ Backend working (legacy hosting)
 
 ---
 
@@ -139,10 +139,10 @@
 
 ## 🚀 Deployment Status
 
-### Backend (Railway)
+### Backend (legacy hosting)
 - **Latest Commit**: `29a29add` (push notifications)
 - **Status**: ✅ Deployed and healthy
-- **URL**: https://whats-upp-production.up.railway.app
+- **URL**: https://whats-app-ompro.ro
 
 ### Flutter (GitHub)
 - **Latest Commit**: `a6c359d7` (push notifications)
@@ -166,7 +166,7 @@
    - Try Option 1: Upgrade Firebase dependencies
    - Or Option 3: Build with Rosetta 2
 
-3. **Monitor Railway Logs**:
+3. **Monitor legacy hosting Logs**:
    - Check for FCM send success/failure
    - Verify no new errors after deployment
 

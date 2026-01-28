@@ -17,7 +17,7 @@ fi
 echo "Calling migration endpoint..."
 echo ""
 
-curl -X POST "https://whats-upp-production.up.railway.app/admin/migrate-lid-contacts" \
+curl -X POST "https://whats-app-ompro.ro/admin/migrate-lid-contacts" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" \
   -H "Content-Type: application/json" \
   -d "{\"dryRun\": ${DRY_RUN}}" \

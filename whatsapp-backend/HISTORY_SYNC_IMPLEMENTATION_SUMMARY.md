@@ -136,7 +136,7 @@
 If issues occur, disable via environment variable:
 
 ```bash
-# In Railway Variables:
+# In legacy hosting Variables:
 WHATSAPP_SYNC_FULL_HISTORY=false
 ```
 

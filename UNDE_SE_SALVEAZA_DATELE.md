@@ -119,7 +119,7 @@ Aplicația folosește un sistem **hybrid** de storage pentru durabilitate maxim�
 
 ### Volume Persistent (Local):
 ```bash
-# În Railway, verifică:
+# În legacy hosting, verifică:
 - Tab "Volumes" → whats-upp-volume
 - Mount Path: /app/sessions
 - Status: Active
@@ -128,7 +128,7 @@ Aplicația folosește un sistem **hybrid** de storage pentru durabilitate maxim�
 ### Firestore:
 ```bash
 # Verifică health endpoint:
-curl https://whats-upp-production.up.railway.app/health | jq .firestore
+curl https://whats-app-ompro.ro/health | jq .firestore
 
 # Așteptat:
 {

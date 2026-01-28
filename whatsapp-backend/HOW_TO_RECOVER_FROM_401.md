@@ -24,11 +24,11 @@ Backend automatically handles 401:
 ### Via API:
 ```bash
 # Reset session (wipes auth, sets needs_qr)
-curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/accounts/{accountId}/reset \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/accounts/{accountId}/reset \
   -H "Authorization: Bearer {token}"
 
 # Then regenerate QR
-curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/regenerate-qr/{accountId} \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/regenerate-qr/{accountId} \
   -H "Authorization: Bearer {token}"
 ```
 

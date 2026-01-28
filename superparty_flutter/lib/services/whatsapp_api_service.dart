@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -74,6 +75,33 @@ class WhatsAppApiService {
     const useFirebaseEmulator = bool.fromEnvironment('USE_FIREBASE_EMULATOR', defaultValue: false);
     const useEmulators = bool.fromEnvironment('USE_EMULATORS', defaultValue: false);
     return (useFirebaseEmulator || useEmulators) && kDebugMode;
+  }
+
+  /// True when running on iOS/Android simulator or when backend URL is a domain (not IP).
+  /// Simulators may have DNS resolution issues with direct backend access,
+  /// so we should use Firebase Functions proxy instead when backend URL is a domain.
+  bool _isSimulator() {
+    if (!kDebugMode) return false;
+    try {
+      if (Platform.isIOS || Platform.isAndroid) {
+        final backendUrl = _getBackendUrl();
+        // If backend URL is a domain (contains letters, not just IP), use proxy in debug mode
+        // to avoid DNS resolution issues on simulator
+        if (backendUrl.isNotEmpty) {
+          final uri = Uri.tryParse(backendUrl);
+          if (uri != null && uri.host.isNotEmpty) {
+            // Check if host is a domain (contains letters) vs IP (only digits and dots)
+            final isDomain = uri.host.contains(RegExp(r'[a-zA-Z]'));
+            if (isDomain) {
+              return true; // Use proxy for domain names in debug mode (simulator DNS issues)
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Platform check failed, assume not simulator
+    }
+    return false;
   }
 
   /// Get Functions URL (for proxy calls).
@@ -226,7 +254,8 @@ class WhatsAppApiService {
       // When USE_EMULATORS=true, always use Functions URL (projectId/region prefix).
       // Backend URL hits /api/whatsapp/accounts; emulator serves /{projectId}/{region}/whatsappProxyGetAccounts.
       // Using backendUrl for emulator host → 404 HTML, jsonDecode fails.
-      final useProxy = backendUrl.isEmpty || _isEmulatorMode();
+      // Also use proxy on iOS simulator (DNS resolution issues with direct backend access).
+      final useProxy = backendUrl.isEmpty || _isEmulatorMode() || _isSimulator();
       final String endpointUrl;
       final http.Response response;
       if (useProxy) {
@@ -795,7 +824,8 @@ class WhatsAppApiService {
       final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
       final backendUrl = _getBackendUrl();
       // When USE_EMULATORS=true, always use Functions URL (projectId/region prefix).
-      final useProxy = backendUrl.isEmpty || _isEmulatorMode();
+      // Also use proxy on iOS simulator (DNS resolution issues with direct backend access).
+      final useProxy = backendUrl.isEmpty || _isEmulatorMode() || _isSimulator();
       final String endpointUrl;
       final http.Response response;
       if (useProxy) {

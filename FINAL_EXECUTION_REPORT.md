@@ -15,7 +15,7 @@
 
 **Admin permanence**: ✅ **SOLVED** (custom claims + Firestore role, survives sign-out/sign-in)  
 **Region consistency**: ✅ **VERIFIED** (all callables use us-central1)  
-**Railway backend**: ✅ **HEALTHY**  
+**legacy hosting backend**: ✅ **HEALTHY**  
 **Flutter app**: ✅ **RUNNING** on emulator-5554
 
 ---
@@ -218,7 +218,7 @@ whatsappProxy*                  us-central1  https
 
 #### Created Files
 1. **ROLLOUT_COMMANDS_READY.sh** (executable script)
-   - Checks Railway /health endpoint
+   - Checks legacy hosting /health endpoint
    - Lists critical Cloud Functions
    - Verifies Firestore rules/indexes exist
    - Output: "PRE-FLIGHT CHECKS COMPLETE"
@@ -237,7 +237,7 @@ whatsappProxy*                  us-central1  https
 ```bash
 ./ROLLOUT_COMMANDS_READY.sh
 # Output:
-✅ Railway backend: HEALTHY (Firestore: connected)
+✅ legacy hosting backend: HEALTHY (Firestore: connected)
 ✅ All critical functions listed (10 functions verified)
 ✅ Firestore rules/indexes present
 ```
@@ -260,9 +260,9 @@ flutter devices
 # Result: ✅ sdk gphone64 arm64 (emulator-5554) RUNNING
 ```
 
-#### Railway Backend Health
+#### legacy hosting Backend Health
 ```bash
-curl https://whats-upp-production.up.railway.app/health | jq
+curl https://whats-app-ompro.ro/health | jq
 # Result:
 {
   "status": "healthy",
@@ -407,7 +407,7 @@ print('Custom claims: ${idTokenResult?.claims}');
 - Flutter app dependencies installed
 - Admin permanence mechanism active
 - Region consistency verified
-- Railway backend healthy
+- legacy hosting backend healthy
 - Emulator running
 - Pre-flight checks passing
 
@@ -427,7 +427,7 @@ print('Custom claims: ${idTokenResult?.claims}');
 4. Send: Send from app → client phone receives
 
 #### TEST 5: Restart Safety
-- Restart Railway → verify no data loss (Firestore is source of truth)
+- Restart legacy hosting → verify no data loss (Firestore is source of truth)
 
 #### TEST 6-9: CRM Flow
 6. Extract Event (draft from conversation)

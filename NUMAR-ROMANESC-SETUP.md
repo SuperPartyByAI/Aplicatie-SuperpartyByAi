@@ -27,7 +27,7 @@ Vrei ca oamenii să sune la **+40373805828** (sau alt număr românesc) și să 
 - ✅ Integrare directă cu sistemul existent
 - ✅ Configurare în 5 minute
 - ✅ Fără costuri suplimentare de integrare
-- ✅ Același backend Railway
+- ✅ Același backend legacy hosting
 
 **Dezavantaje:**
 
@@ -148,7 +148,7 @@ Vrei ca oamenii să sune la **+40373805828** (sau alt număr românesc) și să 
 **Cum funcționează:**
 
 1. Cumperi număr românesc de la Voxbone/Vonage/Plivo
-2. Configurezi webhook către backend-ul tău Railway
+2. Configurezi webhook către backend-ul tău legacy hosting
 3. Modifici puțin codul pentru a suporta API-ul lor (similar Twilio)
 
 **Avantaje:**
@@ -265,7 +265,7 @@ Telekom: *21*+12182204425#
 
 ### Pasul 3: Verifică Logs
 
-**Railway:**
+**legacy hosting:**
 
 ```
 Deployments → View Logs
@@ -316,7 +316,7 @@ Verifică ultimul apel
 
 3. **Verifică Logs** (2 minute):
    ```
-   Railway: Deployments → View Logs
+   legacy hosting: Deployments → View Logs
    Twilio: Monitor → Logs → Calls
    ```
 
@@ -391,7 +391,7 @@ Verifică ultimul apel
 - [ ] Activează call forwarding: _21_+12182204425#
 - [ ] Testează: sună la +40373805828
 - [ ] Verifică că AI răspunde
-- [ ] Verifică logs Railway și Twilio
+- [ ] Verifică logs legacy hosting și Twilio
 - [ ] Testează conversație completă
 
 ### Pentru Producție (DUPĂ):
@@ -407,7 +407,7 @@ Verifică ultimul apel
 
 **Status:** ✅ READY FOR TESTING (Call Forwarding)  
 **Număr Test:** +40373805828 → +12182204425  
-**Backend:** https://web-production-f0714.up.railway.app  
+**Backend:** https://whats-app-ompro.ro  
 **Cost Test:** ~€0.15-0.35/min
 
 🎉 **Activează call forwarding și testează ACUM!**

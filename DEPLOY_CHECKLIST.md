@@ -2,7 +2,7 @@
 
 ## Status: Fix-uri Gata pentru Deploy ✅
 
-Toate fix-urile sunt implementate în cod și gata pentru deploy. Logs-urile din Railway nu arată enhanced logging pentru că fix-urile nu sunt încă deploy-ate.
+Toate fix-urile sunt implementate în cod și gata pentru deploy. Logs-urile din legacy hosting nu arată enhanced logging pentru că fix-urile nu sunt încă deploy-ate.
 
 ---
 
@@ -35,7 +35,7 @@ Toate fix-urile sunt implementate în cod și gata pentru deploy. Logs-urile din
 **Test după deploy:**
 ```bash
 # Trigger regenerateQr → QR se generează → conexiunea se închide
-# Expected în Railway logs:
+# Expected în legacy hosting logs:
 # 🔌 [account_xxx] connection.update: close - UNKNOWN REASON (investigating...)
 # 🔌 [account_xxx] lastDisconnect object: {...}
 # 🔌 [account_xxx] error object: {...}
@@ -47,15 +47,15 @@ Toate fix-urile sunt implementate în cod și gata pentru deploy. Logs-urile din
 **Status:** ✅ Implementat, gata pentru deploy
 
 **Ce face:**
-- Loghează body-ul complet al răspunsului Railway pentru non-2xx (până la 500 chars)
-- Include detalii Railway în response către Flutter (backendError, backendStatus, backendMessage)
+- Loghează body-ul complet al răspunsului legacy hosting pentru non-2xx (până la 500 chars)
+- Include detalii legacy hosting în response către Flutter (backendError, backendStatus, backendMessage)
 
 **Test după deploy:**
 ```bash
 # Trigger regenerateQr care returnează 500
 # Expected în Functions logs:
-# [whatsappProxy/regenerateQr] Railway error body: {...}
-# [whatsappProxy/regenerateQr] Railway error details: error=..., message=...
+# [whatsappProxy/regenerateQr] legacy hosting error body: {...}
+# [whatsappProxy/regenerateQr] legacy hosting error details: error=..., message=...
 ```
 
 ### 4. Client Guard - Treat 202 as Success ✅
@@ -86,7 +86,7 @@ Toate fix-urile sunt implementate în cod și gata pentru deploy. Logs-urile din
 **Test după deploy:**
 ```bash
 # Call GET /accounts
-# Expected în Railway logs:
+# Expected în legacy hosting logs:
 # [GET /accounts/req_xxx] Request: waMode=active, lockReason=none
 # [GET /accounts/req_xxx] In-memory accounts: X
 # [GET /accounts/req_xxx] Firestore accounts: Y total
@@ -97,19 +97,19 @@ Toate fix-urile sunt implementate în cod și gata pentru deploy. Logs-urile din
 
 ## Pași de Deploy
 
-### 1. Deploy Railway Backend
+### 1. Deploy legacy hosting Backend
 ```bash
 cd whatsapp-backend
 git add server.js
 git commit -m "fix: regenerateQr idempotency + enhanced logging for unknown reason codes + GET /accounts logging"
 git push
-# Railway auto-deploys
+# legacy hosting auto-deploys
 ```
 
 **Verificare după deploy:**
 ```bash
 # Așteaptă 2-3 minute pentru deploy
-# Verifică Railway logs pentru:
+# Verifică legacy hosting logs pentru:
 # - Enhanced logging pentru "unknown" reason codes
 # - GET /accounts logging cu waMode, lockReason
 ```
@@ -124,8 +124,8 @@ firebase deploy --only functions:regenerateQr
 ```bash
 # Trigger regenerateQr care returnează 500
 # Verifică Functions logs pentru:
-# - Railway error body complet
-# - Railway error details structurate
+# - legacy hosting error body complet
+# - legacy hosting error details structurate
 ```
 
 ### 3. Deploy Flutter Client
@@ -159,7 +159,7 @@ flutter build apk --release
 ### Test 2: Enhanced Logging pentru "Unknown" Reason
 ```bash
 # 1. Trigger regenerateQr → QR se generează → conexiunea se închide
-# 2. Verifică Railway logs:
+# 2. Verifică legacy hosting logs:
 # Expected: 🔌 [account_xxx] connection.update: close - UNKNOWN REASON (investigating...)
 # Expected: 🔌 [account_xxx] lastDisconnect object: {...}
 # Expected: 🔌 [account_xxx] error object: {...}
@@ -170,8 +170,8 @@ flutter build apk --release
 ```bash
 # 1. Trigger regenerateQr care returnează 500
 # 2. Verifică Functions logs:
-# Expected: [whatsappProxy/regenerateQr] Railway error body: {...}
-# Expected: [whatsappProxy/regenerateQr] Railway error details: error=..., message=...
+# Expected: [whatsappProxy/regenerateQr] legacy hosting error body: {...}
+# Expected: [whatsappProxy/regenerateQr] legacy hosting error details: error=..., message=...
 ```
 
 ### Test 4: Account nu mai dispare
@@ -187,7 +187,7 @@ flutter build apk --release
 
 ## Verificare Pre-Deploy
 
-### Railway Backend
+### legacy hosting Backend
 ```bash
 # Verifică că fix-urile sunt în cod:
 grep -n "UNKNOWN REASON (investigating...)" whatsapp-backend/server.js
@@ -200,7 +200,7 @@ grep -n "Check Firestore if not in memory" whatsapp-backend/server.js
 ### Functions Proxy
 ```bash
 # Verifică că fix-urile sunt în cod:
-grep -n "Railway error body:" functions/whatsappProxy.js
+grep -n "legacy hosting error body:" functions/whatsappProxy.js
 # Expected: linia ~928
 ```
 
@@ -218,22 +218,22 @@ grep -n "202 already_in_progress - returning success" superparty_flutter/lib/ser
 După deploy, toate request-urile vor include `requestId` pentru corelare end-to-end:
 
 1. **Flutter:** Generează `requestId` în `whatsapp_api_service.dart`
-2. **Functions Proxy:** Forward `requestId` la Railway
-3. **Railway Backend:** Loghează `requestId` în toate endpoint-urile
+2. **Functions Proxy:** Forward `requestId` la legacy hosting
+3. **legacy hosting Backend:** Loghează `requestId` în toate endpoint-urile
 4. **Response:** Include `requestId` pentru debugging
 
 **Exemplu corelare:**
 ```
 Flutter: [WhatsAppApiService] regenerateQr: requestId=req_1234567890
 Functions: [whatsappProxy/regenerateQr] requestId=req_1234567890
-Railway: [regenerateQr/req_1234567890] QR regeneration started
+legacy hosting: [regenerateQr/req_1234567890] QR regeneration started
 ```
 
 ---
 
 ## Files Modified (Ready for Deploy)
 
-### Backend (Railway)
+### Backend (legacy hosting)
 1. ✅ `whatsapp-backend/server.js:3685-3700` - regenerateQr idempotency (Firestore check)
 2. ✅ `whatsapp-backend/server.js:1439-1457` - Enhanced logging pentru "unknown" reason codes
 3. ✅ `whatsapp-backend/server.js:3129-3215` - GET /accounts logging + PASSIVE mode
@@ -260,7 +260,7 @@ Railway: [regenerateQr/req_1234567890] QR regeneration started
 ## Comenzi Rapide
 
 ```bash
-# Deploy Railway Backend
+# Deploy legacy hosting Backend
 cd whatsapp-backend && git add server.js && git commit -m "fix: regenerateQr idempotency + enhanced logging" && git push
 
 # Deploy Firebase Functions

@@ -244,11 +244,11 @@ GET    /api/ultimate/proxy                  # List proxies
 - Status: Pushed to GitHub
 - All changes committed
 
-### Railway:
+### legacy hosting:
 
 - Auto-deploy: Enabled
 - Status: Pending deployment
-- URL: https://your-app.railway.app/
+- URL: https://your-app.legacy hosting.app/
 
 ### Firebase:
 
@@ -266,7 +266,7 @@ GET    /api/ultimate/proxy                  # List proxies
 # 1. Create Firebase project
 # 2. Enable Firestore
 # 3. Generate Service Account key
-# 4. Set FIREBASE_SERVICE_ACCOUNT in Railway
+# 4. Set FIREBASE_SERVICE_ACCOUNT in legacy hosting
 ```
 
 ### 2. Configurare Proxy (Optional, 15 min):

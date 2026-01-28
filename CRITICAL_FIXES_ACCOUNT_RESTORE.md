@@ -102,8 +102,8 @@ if (!restorableStatuses.includes(data.status)) {
 ### Test 1: Account Restore după Restart
 ```bash
 # 1. Add account → QR apare (status: qr_ready)
-# 2. Restart Railway backend
-# 3. Verifică Railway logs:
+# 2. Restart legacy hosting backend
+# 3. Verifică legacy hosting logs:
 # Expected: 📦 Found X accounts in Firestore (statuses: qr_ready, connecting, awaiting_scan, connected)
 # Expected: 🔄 [account_xxx] Restoring account (status: qr_ready)
 # Expected: Account rămâne vizibil după restart
@@ -112,7 +112,7 @@ if (!restorableStatuses.includes(data.status)) {
 ### Test 2: getAccounts după Restart
 ```bash
 # 1. Add account → QR apare (status: qr_ready)
-# 2. Restart Railway backend
+# 2. Restart legacy hosting backend
 # 3. Call getAccounts:
 # Expected: accountsCount=1 (nu 0)
 # Expected: Account status: qr_ready (nu dispare)
@@ -121,7 +121,7 @@ if (!restorableStatuses.includes(data.status)) {
 ### Test 3: regenerateQr după Restart
 ```bash
 # 1. Add account → QR apare (status: qr_ready)
-# 2. Restart Railway backend
+# 2. Restart legacy hosting backend
 # 3. Call regenerateQr:
 # Expected: 200 OK sau 202 "already in progress" (nu 500 "Account not found")
 ```
@@ -130,7 +130,7 @@ if (!restorableStatuses.includes(data.status)) {
 
 ## Logs Expected (După Deploy)
 
-### Railway Backend (După Restart)
+### legacy hosting Backend (După Restart)
 ```
 🔄 Restoring accounts from Firestore...
 📦 Found 1 accounts in Firestore (statuses: qr_ready, connecting, awaiting_scan, connected)

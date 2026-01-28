@@ -52,7 +52,7 @@ This generates `lib/firebase_options.dart` with Firebase API keys.
 
 ```powershell
 # Copy example
-Copy-Item RAILWAY-VARIABLES.env.example .env
+Copy-Item LEGACY_HOSTING-VARIABLES.env.example .env
 # Edit .env with your actual API keys
 ```
 
@@ -61,7 +61,7 @@ Copy-Item RAILWAY-VARIABLES.env.example .env
 - `OPENAI_API_KEY` - For AI chat features
 - `TWILIO_ACCOUNT_SID` - For WhatsApp/Voice features
 - `TWILIO_AUTH_TOKEN` - For WhatsApp/Voice features
-- Other service credentials as needed (see `RAILWAY-VARIABLES.env.example`)
+- Other service credentials as needed (see `LEGACY_HOSTING-VARIABLES.env.example`)
 
 **Status:** ❌ NOT committed (in `.gitignore`)
 

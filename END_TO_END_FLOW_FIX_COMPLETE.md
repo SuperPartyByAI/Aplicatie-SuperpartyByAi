@@ -3,7 +3,7 @@
 ## Root Causes
 
 ### 1. Functions Proxy Error Handling
-**Problem**: Proxy returns generic 500 for most non-2xx Railway responses, hiding real status codes (401, 403, etc.)
+**Problem**: Proxy returns generic 500 for most non-2xx legacy hosting responses, hiding real status codes (401, 403, etc.)
 - `regenerateQrHandler` already propagates 4xx correctly (line 960)
 - `getAccountsHandler` propagates 503/404/409/429 but not 401
 - `addAccountHandler` propagates 503 but not 401/403
@@ -156,8 +156,8 @@ if (currentStatus != null) {
 ### Phase 0: Setup
 - [ ] Pull repo, install deps
 - [ ] Run Firebase emulators OR point to real project
-- [ ] Set `WHATSAPP_RAILWAY_BASE_URL` for emulator
-- [ ] Run `whatsapp-backend/server.js` locally OR verify Railway deployment
+- [ ] Set `WHATSAPP_BACKEND_BASE_URL` for emulator
+- [ ] Run `whatsapp-backend/server.js` locally OR verify legacy hosting deployment
 - [ ] Check `/health` endpoint shows correct commit
 
 ### Phase 1: WhatsApp Connect Flow
@@ -171,7 +171,7 @@ if (currentStatus != null) {
 - [ ] **Backend**: Check logs show `nextRetryAt=null`, `retryCount=0`
 
 ### Phase 2: Error Handling
-- [ ] **Functions**: 401 from Railway → propagated as 401 (not 500)
+- [ ] **Functions**: 401 from legacy hosting → propagated as 401 (not 500)
 - [ ] **Functions**: 403/404/429 → propagated correctly
 - [ ] **Flutter**: 401 error → shows "needs re-pairing" message
 - [ ] **Flutter**: 500 error → shows error, stops retry loop
@@ -199,7 +199,7 @@ if (currentStatus != null) {
 ### Test Reset Endpoint
 ```bash
 curl -X POST \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts/ACCOUNT_ID/reset \
+  https://whats-app-ompro.ro/api/whatsapp/accounts/ACCOUNT_ID/reset \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json"
 ```
@@ -214,14 +214,14 @@ curl -X POST \
 
 ### Check Backend Health
 ```bash
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 ```
 
 ### Flutter Run with Logs
 ```bash
 cd superparty_flutter
 flutter run -d emulator-5554 \
-  --dart-define=WHATSAPP_BACKEND_URL=https://whats-upp-production.up.railway.app \
+  --dart-define=WHATSAPP_BACKEND_URL=https://whats-app-ompro.ro \
   2>&1 | tee /tmp/flutter_run.log
 ```
 

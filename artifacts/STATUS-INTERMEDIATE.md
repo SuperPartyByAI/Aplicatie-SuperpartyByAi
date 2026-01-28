@@ -31,7 +31,7 @@
 
 ### ⏳ FAZA 3: QUEUE/OUTBOX - IN PROGRESS
 
-**Status:** Code implemented, awaiting Railway deployment
+**Status:** Code implemented, awaiting legacy hosting deployment
 
 **Implementation:**
 
@@ -89,7 +89,7 @@
 
 ## BLOCKERS
 
-1. **Railway Deployment Delay:** Commit 04585e76 not yet deployed
+1. **legacy hosting Deployment Delay:** Commit 04585e76 not yet deployed
    - Workaround: Forced redeploy triggered
    - ETA: Next 10-15 minutes
 
@@ -101,7 +101,7 @@
 
 ## NEXT ACTIONS
 
-1. Monitor Railway deployment (check every 5 min)
+1. Monitor legacy hosting deployment (check every 5 min)
 2. Once deployed, execute queue test
 3. Monitor soak test progress (check every 30 min)
 4. Generate final reports when both complete

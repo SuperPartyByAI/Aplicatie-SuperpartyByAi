@@ -603,8 +603,9 @@ async function getAccountsHandler(req, res) {
   }
 
   try {
-    const employeeInfo = await requireEmployee(req, res);
-    if (!employeeInfo) return; // Response already sent (401/403)
+    // Super-admin only: exposes QR codes and sensitive data
+    const isSuperAdmin = await requireSuperAdmin(req, res);
+    if (!isSuperAdmin) return; // Response already sent (401/403)
 
     const backendBaseUrl = getBackendBaseUrl();
     if (!backendBaseUrl) {

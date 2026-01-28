@@ -6,7 +6,7 @@
 **Problem**: Auth stream timeout emite currentUser/null, dar AuthWrapper nu afișează UI explicit când snapshot e empty/timeout
 **Fix**: Adăugat `_buildAuthErrorScreen()` și `_buildAuthTimeoutScreen()` în AuthWrapper
 
-### 2. Railway regenerateQr 500 ✅
+### 2. legacy hosting regenerateQr 500 ✅
 **Problem**: `createConnection` poate arunca excepții sincrone când "already connecting"
 **Fix**: Adăugat check cu `connectionRegistry.tryAcquire()` și try-catch pentru sync errors
 
@@ -96,12 +96,12 @@ adb -s emulator-5554 logcat -d | grep -E "flutter.*Auth|flutter.*error|flutter.*
 ```bash
 # Test rapid regenerate (should return 202 if already connecting)
 curl -X POST \
-  https://whats-upp-production.up.railway.app/api/whatsapp/regenerate-qr/ACCOUNT_ID \
+  https://whats-app-ompro.ro/api/whatsapp/regenerate-qr/ACCOUNT_ID \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "X-Request-ID: test_$(date +%s)"
 ```
 
-### Check Backend Logs (Railway)
+### Check Backend Logs (legacy hosting)
 - Verify: `Already connecting (connectionRegistry check), skip createConnection`
 - Verify: No `Sync error in regenerateQr` messages
 - Verify: No unhandled exceptions

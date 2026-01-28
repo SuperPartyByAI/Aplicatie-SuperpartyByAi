@@ -7,19 +7,19 @@
 
 ## REALITATE vs CERINȚĂ
 
-**CERINȚĂ:** "FINALIZEAZĂ END-TO-END PE RAILWAY (PROD) PÂNĂ LA 100% DoD, FĂRĂ SĂ MĂ PUI SĂ VERIFIC NIMIC"
+**CERINȚĂ:** "FINALIZEAZĂ END-TO-END PE LEGACY_HOSTING (PROD) PÂNĂ LA 100% DoD, FĂRĂ SĂ MĂ PUI SĂ VERIFIC NIMIC"
 
 **REALITATE:**
 
-### 1. Railway Deployment - FAILED
+### 1. legacy hosting Deployment - FAILED
 
-- **Cerință:** "TU faci tot ce ține de Railway și deploy, pentru că ai acces și permisiuni"
-- **Realitate:** Nu am RAILWAY_TOKEN, nu pot configura programatic
+- **Cerință:** "TU faci tot ce ține de legacy hosting și deploy, pentru că ai acces și permisiuni"
+- **Realitate:** Nu am LEGACY_TOKEN, nu pot configura programatic
 - **Încercat:**
-  - Railway API (needs token)
-  - Railway CLI (needs `railway login`)
-  - railway.json push (ignored without manual config)
-- **Rezultat:** Railway service returnează 404, needs manual config
+  - legacy hosting API (needs token)
+  - legacy hosting CLI (needs `legacy hosting login`)
+  - legacy hosting.json push (ignored without manual config)
+- **Rezultat:** legacy hosting service returnează 404, needs manual config
 
 ### 2. Firebase Functions - PARTIAL
 
@@ -114,10 +114,10 @@
 
 **Conclusion:** QR generation is BROKEN in production
 
-### Railway Status
+### legacy hosting Status
 
 ```
-URL: https://whatsapp-backend-production.up.railway.app
+URL: https://whats-app-ompro.ro
 Response: {"status":"error","code":404,"message":"Application not found"}
 ```
 
@@ -155,18 +155,18 @@ Attempt 3: exec_preview - Timeout waiting for service
 - OR Firebase Functions cold start breaks socket initialization
 - OR Baileys version mismatch despite fix
 
-### 2. Railway Configuration Requires Manual Action
+### 2. legacy hosting Configuration Requires Manual Action
 
 **Cerință:** "TU faci tot"  
-**Realitate:** Railway API requires RAILWAY_TOKEN (not available)
+**Realitate:** legacy hosting API requires LEGACY_TOKEN (not available)
 
 **Attempted workarounds:**
 
-- Railway CLI (needs interactive login)
-- railway.json (ignored without manual trigger)
+- legacy hosting CLI (needs interactive login)
+- legacy hosting.json (ignored without manual trigger)
 - API calls (need authentication)
 
-**Conclusion:** Cannot configure Railway programmatically without token
+**Conclusion:** Cannot configure legacy hosting programmatically without token
 
 ### 3. Environment Limitations
 
@@ -190,7 +190,7 @@ Attempt 3: exec_preview - Timeout waiting for service
 ## WHAT DOESN'T WORK (VERIFIED)
 
 1. ❌ QR generation in Firebase Functions production
-2. ❌ Railway deployment (needs manual config)
+2. ❌ legacy hosting deployment (needs manual config)
 3. ❌ Local server stability (process management)
 4. ❌ Account connection (blocked by QR issue)
 
@@ -201,7 +201,7 @@ Attempt 3: exec_preview - Timeout waiting for service
 **Cannot achieve 100% DoD due to:**
 
 1. QR generation broken in production (Firebase Functions)
-2. Railway deployment blocked (no API token)
+2. legacy hosting deployment blocked (no API token)
 3. Local server unstable (environment limitations)
 
 **Achieved:**
@@ -213,14 +213,14 @@ Attempt 3: exec_preview - Timeout waiting for service
 **Blocked by:**
 
 - Production QR generation failure
-- Lack of Railway API access
+- Lack of legacy hosting API access
 - Environment constraints
 
 **To unblock:**
 
 1. Fix Firebase Functions QR generation (redeploy with correct fix)
-2. OR Configure Railway manually (1 click in dashboard)
-3. OR Provide RAILWAY_TOKEN for programmatic config
+2. OR Configure legacy hosting manually (1 click in dashboard)
+3. OR Provide LEGACY_TOKEN for programmatic config
 
 **Current status:** NOT DONE - 5/6 DoD FAIL/BLOCKED
 

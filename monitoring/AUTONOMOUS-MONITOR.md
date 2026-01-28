@@ -29,7 +29,7 @@ Robot complet autonom care gestionează infrastructura fără intervenție uman�
 
 ### 1. **Project Creation** 🏗️
 
-- Creează automat proiecte Railway când detectează nevoi
+- Creează automat proiecte legacy hosting când detectează nevoi
 - Template-uri pentru: Node.js, Python, Database, Redis, Monitoring
 - Configurare automată: env vars, build commands, deployment
 
@@ -80,7 +80,7 @@ AUTONOMOUS MONITOR
 │   ├── Intelligent Repair
 │   └── Auto-Scaling
 │
-├── Railway Project Creator
+├── legacy hosting Project Creator
 │   ├── Create projects
 │   ├── Create services
 │   ├── Set env vars
@@ -176,8 +176,8 @@ Learning: Pattern "consolidate" → confidence +10%
 ### Environment Variables
 
 ```bash
-# Railway API
-RAILWAY_TOKEN=your_token_here
+# legacy hosting API
+LEGACY_TOKEN=your_token_here
 
 # Autonomous Features
 AUTONOMOUS_MODE=true

@@ -1,17 +1,17 @@
-# 🔧 FIX: Setare ADMIN_TOKEN în Railway
+# 🔧 FIX: Setare ADMIN_TOKEN în legacy hosting
 
 ## ❌ Problema
 
 Backend-ul returnează **502 Bad Gateway** pentru că:
 
-1. **`ADMIN_TOKEN` lipsește** din Railway Variables
+1. **`ADMIN_TOKEN` lipsește** din legacy hosting Variables
 2. **Codul verifică** la pornire (linia 202-209 din `server.js`):
    ```javascript
    const ADMIN_TOKEN = process.env.ADMIN_TOKEN || (process.env.NODE_ENV === 'production' 
      ? null : generateRandomToken());
    
    if (!ADMIN_TOKEN) {
-     console.error('❌ ADMIN_TOKEN is required in production. Set it via Railway env var.');
+     console.error('❌ ADMIN_TOKEN is required in production. Set it via legacy hosting env var.');
      process.exit(1);  // ← Serverul se oprește aici!
    }
    ```
@@ -19,7 +19,7 @@ Backend-ul returnează **502 Bad Gateway** pentru că:
 
 ---
 
-## ✅ Soluție: Setează ADMIN_TOKEN în Railway
+## ✅ Soluție: Setează ADMIN_TOKEN în legacy hosting
 
 ### Pasul 1: Generați un token sigur
 
@@ -38,9 +38,9 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 
 ---
 
-### Pasul 2: Setează în Railway Dashboard
+### Pasul 2: Setează în legacy hosting Dashboard
 
-1. **Deschide**: https://railway.app/dashboard
+1. **Deschide**: https://legacy hosting.app/dashboard
 2. **Selectează proiectul**: WhatsApp backend
 3. **Click**: **"Variables"** tab (SAU **"Settings"** → **"Variables"**)
 4. **Adaugă variabilă nouă**:
@@ -51,16 +51,16 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 
 ---
 
-### Pasul 3: SAU via Railway CLI
+### Pasul 3: SAU via legacy hosting CLI
 
 ```bash
 cd /Users/universparty/Aplicatie-SuperpartyByAi/whatsapp-backend
 
 # Setează variabila
-railway variables set ADMIN_TOKEN="$(openssl rand -hex 32)"
+legacy hosting variables set ADMIN_TOKEN="$(openssl rand -hex 32)"
 
 # Verifică
-railway variables get ADMIN_TOKEN
+legacy hosting variables get ADMIN_TOKEN
 ```
 
 ---
@@ -71,10 +71,10 @@ După 1-2 minute (când backend-ul s-a redeploy-at):
 
 ```bash
 # Verifică health
-curl -s https://whats-upp-production.up.railway.app/health | jq
+curl -s https://whats-app-ompro.ro/health | jq
 
 # Verifică ready (returnează mode: active/passive)
-curl -s https://whats-upp-production.up.railway.app/ready | jq
+curl -s https://whats-app-ompro.ro/ready | jq
 ```
 
 **Răspuns așteptat pentru `/health`:**
@@ -102,15 +102,15 @@ curl -s https://whats-upp-production.up.railway.app/ready | jq
 
 Dacă încă returnează 502 după setarea `ADMIN_TOKEN`:
 
-1. **Verifică logs în Railway**:
+1. **Verifică logs în legacy hosting**:
    - Dashboard → Service → **"Logs"** tab
    - Caută: `❌ ADMIN_TOKEN is required...` → Token nu e setat corect
    - Caută: `🔐 ADMIN_TOKEN configured: ...` → Token e setat ✓
    - Caută: `Server started on port 8080` → Backend pornit ✓
 
-2. **Verifică variabile în Railway**:
+2. **Verifică variabile în legacy hosting**:
    ```bash
-   railway variables
+   legacy hosting variables
    ```
    Ar trebui să vezi `ADMIN_TOKEN` în listă.
 
@@ -142,7 +142,7 @@ Dacă încă returnează 502 după setarea `ADMIN_TOKEN`:
 ## ✅ Checklist
 
 - [ ] Generat token sigur (openssl rand -hex 32)
-- [ ] Setat `ADMIN_TOKEN` în Railway Variables
+- [ ] Setat `ADMIN_TOKEN` în legacy hosting Variables
 - [ ] Așteptat 1-2 minute pentru redeploy
 - [ ] Verificat `/health` returnează 200 OK
 - [ ] Verificat `/ready` returnează mode: active

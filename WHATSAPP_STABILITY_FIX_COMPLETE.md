@@ -339,21 +339,21 @@ flutter run -d emulator-5554 \
 ### Production-Like Test (curl)
 ```bash
 # 1. Check health
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # 2. Get accounts
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts
+  https://whats-app-ompro.ro/api/whatsapp/accounts
 
 # 3. Add account
 curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Test","phone":"+40712345678"}' \
-  https://whats-upp-production.up.railway.app/api/whatsapp/add-account
+  https://whats-app-ompro.ro/api/whatsapp/add-account
 
 # 4. regenerateQr (should return existing QR if valid)
 curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/regenerate-qr/ACCOUNT_ID
+  https://whats-app-ompro.ro/api/whatsapp/regenerate-qr/ACCOUNT_ID
 
 # 5. Verify no 500 spam (check logs for repeated 500s)
 ```
