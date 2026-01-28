@@ -278,6 +278,13 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
       ...(isInbound && tsClientMs ? { lastMessageAtMs: tsClientMs } : {}),
       ...(isInbound ? { lastMessagePreview: preview } : {}), // Keep for backward compatibility
       ...(isInbound ? { lastMessageText: preview } : {}), // New field name (preferred by frontend)
+      // CRITICAL FIX: Set lastMessageDirection consistently for both inbound and outbound
+      // This ensures Flutter inbox can distinguish between received and sent messages
+      ...(isInbound ? { lastMessageDirection: 'inbound' } : { lastMessageDirection: 'outbound' }),
+      // CRITICAL FIX: Set lastMessageSenderName for inbound messages (from extraFields or pushName)
+      // This helps Flutter display who sent the last message in group chats
+      ...(isInbound && extraFields?.senderName ? { lastMessageSenderName: extraFields.senderName } : {}),
+      ...(isInbound && extraFields?.lastSenderName && !extraFields?.senderName ? { lastMessageSenderName: extraFields.lastSenderName } : {}),
       // Always update updatedAt to track thread activity
       updatedAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
       // Set phoneE164 if available and not already set in threadOverrides (only for 1:1, not groups)
