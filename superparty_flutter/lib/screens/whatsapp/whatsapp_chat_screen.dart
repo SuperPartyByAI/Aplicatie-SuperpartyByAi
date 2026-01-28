@@ -1674,51 +1674,144 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                   );
                 }
 
-                return StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('threads')
-                      .doc(effectiveThreadId)
-                      .collection('messages')
-                      .orderBy('tsClient', descending: true)
-                      .limit(200)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  debugPrint('[ChatScreen] Stream error: ${snapshot.error}');
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Eroare la încărcarea mesajelor: ${snapshot.error}',
-                            style: TextStyle(color: Colors.red[700]),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: () {
-                              final returnRoute = widget.returnRoute ?? 
-                                  _extractFromQuery('returnRoute') ?? 
-                                  '/whatsapp/inbox';
-                              context.go(returnRoute);
-                            },
-                            child: const Text('Înapoi la Inbox'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text('No messages yet'));
-                }
+                // Wrap StreamBuilder in error boundary to prevent red screen
+                return Builder(
+                  builder: (context) {
+                    try {
+                      // First verify thread exists before querying messages
+                      return FutureBuilder<DocumentSnapshot>(
+                        future: FirebaseFirestore.instance
+                            .collection('threads')
+                            .doc(effectiveThreadId)
+                            .get(),
+                        builder: (context, threadSnapshot) {
+                          if (threadSnapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          
+                          if (threadSnapshot.hasError) {
+                            debugPrint('[ChatScreen] Error checking thread existence: ${threadSnapshot.error}');
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Eroare la verificarea thread-ului: ${threadSnapshot.error}',
+                                      style: TextStyle(color: Colors.red[700]),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        final returnRoute = widget.returnRoute ?? 
+                                            _extractFromQuery('returnRoute') ?? 
+                                            '/whatsapp/inbox';
+                                        context.go(returnRoute);
+                                      },
+                                      child: const Text('Înapoi la Inbox'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+                          
+                          if (!threadSnapshot.hasData || !threadSnapshot.data!.exists) {
+                            debugPrint('[ChatScreen] Thread does not exist: $effectiveThreadId');
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
+                                    const SizedBox(height: 16),
+                                    const Text(
+                                      'Thread-ul nu există încă.\nMesajele se vor sincroniza automat când vor ajunge.',
+                                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        final returnRoute = widget.returnRoute ?? 
+                                            _extractFromQuery('returnRoute') ?? 
+                                            '/whatsapp/inbox';
+                                        context.go(returnRoute);
+                                      },
+                                      child: const Text('Înapoi la Inbox'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+                          
+                          // Thread exists, now query messages
+                          return StreamBuilder<QuerySnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('threads')
+                                .doc(effectiveThreadId)
+                                .collection('messages')
+                                .orderBy('tsClient', descending: true)
+                                .limit(200)
+                                .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          if (snapshot.hasError) {
+                            debugPrint('[ChatScreen] Stream error: ${snapshot.error}');
+                            debugPrint('[ChatScreen] Error type: ${snapshot.error.runtimeType}');
+                            if (snapshot.error is FirebaseException) {
+                              final firebaseError = snapshot.error as FirebaseException;
+                              debugPrint('[ChatScreen] Firebase error code: ${firebaseError.code}');
+                              debugPrint('[ChatScreen] Firebase error message: ${firebaseError.message}');
+                            }
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Eroare la încărcarea mesajelor:\n${snapshot.error}',
+                                      style: TextStyle(color: Colors.red[700]),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        final returnRoute = widget.returnRoute ?? 
+                                            _extractFromQuery('returnRoute') ?? 
+                                            '/whatsapp/inbox';
+                                        context.go(returnRoute);
+                                      },
+                                      child: const Text('Înapoi la Inbox'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }
+                          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                            return const Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
+                                  SizedBox(height: 16),
+                                  Text('No messages yet', style: TextStyle(color: Colors.grey)),
+                                ],
+                              ),
+                            );
+                          }
 
                 final dedupedDocs = _dedupeMessageDocs(snapshot.data!.docs);
                 final currentMessageCount = dedupedDocs.length;
@@ -2014,10 +2107,42 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                       ),
                     );
                   },
-                );
-                  },
-                );
-              },
+                        );
+                      },
+                    );
+                  } catch (e, stackTrace) {
+                    debugPrint('[ChatScreen] Error building StreamBuilder: $e');
+                    debugPrint('[ChatScreen] Stack trace: $stackTrace');
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Eroare la inițializarea chat-ului: $e',
+                              style: TextStyle(color: Colors.red[700]),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () {
+                                final returnRoute = widget.returnRoute ?? 
+                                    _extractFromQuery('returnRoute') ?? 
+                                    '/whatsapp/inbox';
+                                context.go(returnRoute);
+                              },
+                              child: const Text('Înapoi la Inbox'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
             ),
           ),
 
