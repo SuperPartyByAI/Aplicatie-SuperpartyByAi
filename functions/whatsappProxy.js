@@ -263,27 +263,30 @@ let forwardRequest = function(url, options, body = null) {
     const isHttps = urlObj.protocol === 'https:';
     const client = isHttps ? https : http;
 
+    // Build headers: forward all from options.headers, ensuring Authorization is forwarded if present
+    const headers = { ...options.headers };
+    
+    // Explicitly forward Authorization if present (case-insensitive check)
+    // Node.js http/https will normalize to lowercase, but we ensure it's included
+    if (options.headers) {
+      const authHeader = options.headers['Authorization'] || options.headers['authorization'];
+      if (authHeader) {
+        headers['Authorization'] = authHeader;
+        // Log that we're forwarding Authorization (without logging the actual token)
+        const authPrefix = authHeader.length > 20 ? authHeader.substring(0, 20) + '...' : '***';
+        console.log(`[whatsappProxy/forwardRequest] Forwarding Authorization header (prefix: ${authPrefix})`);
+      } else {
+        console.log('[whatsappProxy/forwardRequest] No Authorization header in options.headers to forward');
+      }
+    }
+
     const requestOptions = {
       hostname: urlObj.hostname,
       port: urlObj.port || (isHttps ? 443 : 80),
       path: urlObj.pathname + urlObj.search,
       method: options.method || 'GET',
-      headers: {
-        ...options.headers,
-        // Forward Authorization when provided (e.g. backfill/delete); otherwise omit
-        'Authorization':
-          options.headers && options.headers['Authorization'] !== undefined
-            ? options.headers['Authorization']
-            : undefined,
-      },
+      headers,
     };
-
-    // Remove undefined headers
-    Object.keys(requestOptions.headers).forEach(key => {
-      if (requestOptions.headers[key] === undefined) {
-        delete requestOptions.headers[key];
-      }
-    });
 
     const req = client.request(requestOptions, (res) => {
       let data = '';
