@@ -113,12 +113,14 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   }
 
   /// Normalize phone number to E164 format (like backend does)
-  /// Examples: "+40737571397" -> "+40737571397", "0737571397" -> "+40737571397"
+  /// Examples: "+40737571397" -> "+40737571397", "0737571397" -> "+40737571397", "40737571397" -> "+40737571397"
   String? _normalizePhoneToE164(String? phone) {
     if (phone == null || phone.isEmpty) return null;
     // Remove all non-digit characters
     final digits = phone.replaceAll(RegExp(r'\D'), '');
-    // If starts with 0, replace with +40 (Romanian country code)
+    if (digits.isEmpty) return null;
+    
+    // If starts with 0 and has 10 digits, replace with +40 (Romanian country code)
     if (digits.startsWith('0') && digits.length == 10) {
       return '+4$digits';
     }
@@ -126,9 +128,13 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     if (digits.startsWith('4') && digits.length == 11) {
       return '+$digits';
     }
-    // If already has +, return as is
+    // If already has +, return as is (but normalize digits)
     if (phone.startsWith('+')) {
       return phone;
+    }
+    // If has 11 digits starting with 4, add +
+    if (digits.length == 11 && digits.startsWith('4')) {
+      return '+$digits';
     }
     return null;
   }
