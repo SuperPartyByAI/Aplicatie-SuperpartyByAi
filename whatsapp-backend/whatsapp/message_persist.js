@@ -273,6 +273,9 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
       // CRITICAL FIX: Only update lastMessageText and lastMessageAt for INBOUND messages
       // For outbound messages, preserve the existing lastMessageText/lastMessageAt (last received message)
       ...(isInbound && tsClientAt ? { lastMessageAt: tsClientAt } : {}),
+      // CRITICAL: Also set lastMessageAtMs (int milliseconds) for Flutter sorting
+      // Flutter threadTimeMs() prioritizes lastMessageAtMs over lastMessageAt
+      ...(isInbound && tsClientMs ? { lastMessageAtMs: tsClientMs } : {}),
       ...(isInbound ? { lastMessagePreview: preview } : {}), // Keep for backward compatibility
       ...(isInbound ? { lastMessageText: preview } : {}), // New field name (preferred by frontend)
       // Always update updatedAt to track thread activity
