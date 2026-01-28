@@ -76,6 +76,205 @@ jest.mock('firebase-admin', () => {
 
 const admin = require('firebase-admin');
 
+describe('WhatsApp Proxy /getAccountsStaff', () => {
+  let req;
+  let res;
+  let whatsappProxy;
+  let mockForwardRequest;
+  let mockStaffProfilesGet;
+
+  beforeEach(() => {
+    jest.resetModules();
+    whatsappProxy = require('../whatsappProxy');
+
+    mockForwardRequest = jest.fn().mockResolvedValue({
+      statusCode: 200,
+      body: {
+        success: true,
+        accounts: [
+          {
+            id: 'account1',
+            name: 'Test Account',
+            phone: '+40737571397',
+            status: 'connected',
+            qrCode: 'sensitive-qr-code-data',
+            pairingCode: 'sensitive-pairing-code',
+            pairing_url: 'sensitive-pairing-url',
+          },
+        ],
+      },
+    });
+    whatsappProxy._forwardRequest = mockForwardRequest;
+
+    req = {
+      method: 'GET',
+      headers: {
+        authorization: 'Bearer mock-token',
+      },
+      user: null,
+    };
+
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+      headersSent: false,
+    };
+
+    mockVerifyIdToken.mockResolvedValue({
+      uid: 'test-uid',
+      email: 'employee@example.com',
+    });
+
+    // Mock staffProfiles exists (employee)
+    mockStaffProfilesGet = jest.fn().mockResolvedValue({
+      exists: true,
+      data: () => ({ role: 'staff' }),
+    });
+    
+    // Override staffProfiles mock for this test suite
+    mockFirestore.collection.mockImplementation((name) => {
+      if (name === 'staffProfiles') {
+        return {
+          doc: jest.fn(() => ({
+            get: mockStaffProfilesGet,
+          })),
+        };
+      }
+      return mockFirestoreCollection(name);
+    });
+  });
+
+  it('should return 401 when no auth token', async () => {
+    req.headers.authorization = undefined;
+    mockVerifyIdToken.mockRejectedValue(new Error('Unauthorized'));
+
+    await whatsappProxy.getAccountsStaffHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'missing_auth_token',
+      })
+    );
+  });
+
+  it('should return 403 when user is not employee (no staffProfiles)', async () => {
+    mockStaffProfilesGet.mockResolvedValue({
+      exists: false,
+    });
+
+    await whatsappProxy.getAccountsStaffHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'employee_only',
+        message: 'Only employees can send messages',
+      })
+    );
+  });
+
+  it('should allow employee and sanitize response (remove QR/pairing fields)', async () => {
+    await whatsappProxy.getAccountsStaffHandler(req, res);
+
+    expect(mockForwardRequest).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    
+    // Verify response was sanitized (no qrCode, pairingCode, pairing_url)
+    const responseCall = res.json.mock.calls[0][0];
+    expect(responseCall.success).toBe(true);
+    expect(responseCall.accounts).toHaveLength(1);
+    
+    const account = responseCall.accounts[0];
+    expect(account.id).toBe('account1');
+    expect(account.name).toBe('Test Account');
+    expect(account.phone).toBe('+40737571397');
+    expect(account.status).toBe('connected');
+    
+    // Verify sensitive fields are removed
+    expect(account.qrCode).toBeUndefined();
+    expect(account.qr).toBeUndefined();
+    expect(account.pairingCode).toBeUndefined();
+    expect(account.pairing_code).toBeUndefined();
+    expect(account.pairingUrl).toBeUndefined();
+    expect(account.pairing_url).toBeUndefined();
+  });
+
+  it('should allow admin email (employee)', async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      uid: 'admin-uid',
+      email: 'ursache.andrei1995@gmail.com', // Super-admin
+    });
+
+    await whatsappProxy.getAccountsStaffHandler(req, res);
+
+    expect(mockForwardRequest).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('should handle backend errors correctly', async () => {
+    mockForwardRequest.mockResolvedValue({
+      statusCode: 500,
+      body: { success: false, error: 'backend_error' },
+    });
+
+    await whatsappProxy.getAccountsStaffHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'backend_error',
+      })
+    );
+  });
+
+  it('should sanitize multiple accounts', async () => {
+    mockForwardRequest.mockResolvedValue({
+      statusCode: 200,
+      body: {
+        success: true,
+        accounts: [
+          {
+            id: 'account1',
+            name: 'Account 1',
+            phone: '+40737571397',
+            status: 'connected',
+            qrCode: 'qr1',
+            pairingCode: 'pair1',
+          },
+          {
+            id: 'account2',
+            name: 'Account 2',
+            phone: '+40737571398',
+            status: 'disconnected',
+            qrCode: 'qr2',
+            pairing_url: 'url2',
+          },
+        ],
+      },
+    });
+
+    await whatsappProxy.getAccountsStaffHandler(req, res);
+
+    const responseCall = res.json.mock.calls[0][0];
+    expect(responseCall.accounts).toHaveLength(2);
+    
+    // Both accounts should be sanitized
+    responseCall.accounts.forEach((account) => {
+      expect(account.qrCode).toBeUndefined();
+      expect(account.pairingCode).toBeUndefined();
+      expect(account.pairing_url).toBeUndefined();
+      expect(account.id).toBeDefined();
+      expect(account.name).toBeDefined();
+      expect(account.phone).toBeDefined();
+      expect(account.status).toBeDefined();
+    });
+  });
+});
+
 describe('WhatsApp Proxy /getAccounts', () => {
   let req;
   let res;
