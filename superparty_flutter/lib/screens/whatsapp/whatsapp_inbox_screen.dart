@@ -143,14 +143,37 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
         .where((account) => account['status'] == 'connected')
         .toList();
     
+    if (kDebugMode) {
+      debugPrint('[WhatsAppInboxScreen] Total accounts: ${_accounts.length}');
+      debugPrint('[WhatsAppInboxScreen] Connected accounts: ${connectedAccounts.length}');
+      for (final acc in connectedAccounts) {
+        final phone = acc['phone'] as String?;
+        final normalized = _normalizePhoneToE164(phone);
+        debugPrint('[WhatsAppInboxScreen] Account: id=${acc['id']}, phone=$phone, normalized=$normalized, status=${acc['status']}');
+      }
+    }
+    
     // Pentru inbox personal: doar contul cu phone +40737571397
     final filteredAccounts = connectedAccounts.where((account) {
       final phone = account['phone'] as String?;
       final normalizedPhone = _normalizePhoneToE164(phone);
-      return normalizedPhone == myPhoneE164;
+      final matches = normalizedPhone == myPhoneE164;
+      if (kDebugMode && matches) {
+        debugPrint('[WhatsAppInboxScreen] ✅ Found personal account: id=${account['id']}, phone=$phone, normalized=$normalizedPhone');
+      }
+      return matches;
     }).toList();
     
-    // Dacă găsim contul personal, folosim doar el; altfel toate conturile conectate (fallback)
+    if (kDebugMode) {
+      debugPrint('[WhatsAppInboxScreen] Filtered accounts (personal): ${filteredAccounts.length}');
+      if (filteredAccounts.isEmpty) {
+        debugPrint('[WhatsAppInboxScreen] ⚠️ Personal account (+40737571397) not found in connected accounts!');
+        debugPrint('[WhatsAppInboxScreen] Will use all connected accounts as fallback.');
+      }
+    }
+    
+    // Pentru inbox personal: folosim doar contul personal dacă există
+    // Dacă nu există, folosim toate conturile (fallback pentru admin view)
     final accountsToUse = filteredAccounts.isNotEmpty 
         ? filteredAccounts 
         : connectedAccounts;
@@ -208,6 +231,9 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
           if (kDebugMode) {
             debugPrint(
                 '[WhatsAppInboxScreen] Thread stream update: accountId=$accountId threads=${threads.length}');
+            if (threads.isEmpty) {
+              debugPrint('[WhatsAppInboxScreen] ⚠️ No threads found for accountId=$accountId');
+            }
             // Log first thread's lastMessageAt and lastMessageText to debug sync
             if (threads.isNotEmpty) {
               final firstThread = threads[0];
