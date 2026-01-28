@@ -112,8 +112,50 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     super.dispose();
   }
 
+  /// Normalize phone number to E164 format (like backend does)
+  /// Examples: "+40737571397" -> "+40737571397", "0737571397" -> "+40737571397"
+  String? _normalizePhoneToE164(String? phone) {
+    if (phone == null || phone.isEmpty) return null;
+    // Remove all non-digit characters
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    // If starts with 0, replace with +40 (Romanian country code)
+    if (digits.startsWith('0') && digits.length == 10) {
+      return '+4$digits';
+    }
+    // If starts with 4 and has 11 digits, add +
+    if (digits.startsWith('4') && digits.length == 11) {
+      return '+$digits';
+    }
+    // If already has +, return as is
+    if (phone.startsWith('+')) {
+      return phone;
+    }
+    return null;
+  }
+
   void _startThreadListeners() {
-    final accountIds = _accounts
+    // FILTER: Inbox personal (0737571397) - doar contul personal conectat
+    // Staff Inbox - exclude personal (implementat separat în StaffInboxScreen)
+    const myPhoneE164 = '+40737571397';
+    
+    // Filtrează doar conturile conectate
+    final connectedAccounts = _accounts
+        .where((account) => account['status'] == 'connected')
+        .toList();
+    
+    // Pentru inbox personal: doar contul cu phone +40737571397
+    final filteredAccounts = connectedAccounts.where((account) {
+      final phone = account['phone'] as String?;
+      final normalizedPhone = _normalizePhoneToE164(phone);
+      return normalizedPhone == myPhoneE164;
+    }).toList();
+    
+    // Dacă găsim contul personal, folosim doar el; altfel toate conturile conectate (fallback)
+    final accountsToUse = filteredAccounts.isNotEmpty 
+        ? filteredAccounts 
+        : connectedAccounts;
+    
+    final accountIds = accountsToUse
         .map((account) => account['id'])
         .whereType<String>()
         .map((id) => id.trim())
@@ -148,7 +190,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
           .snapshots()
           .listen(
         (snapshot) {
-          final accountName = _accounts
+          final accountName = accountsToUse
                   .firstWhere(
                     (account) => account['id'] == accountId,
                     orElse: () => <String, dynamic>{},
