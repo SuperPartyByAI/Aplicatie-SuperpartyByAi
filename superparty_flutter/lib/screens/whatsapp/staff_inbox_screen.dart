@@ -555,8 +555,23 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
     _errorMessage = null;
 
     try {
+      // Check authentication first
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        if (kDebugMode) {
+          debugPrint('[StaffInboxScreen] No authenticated user - cannot load accounts');
+        }
+        if (mounted) {
+          setState(() {
+            _isLoadingAccounts = false;
+            _errorMessage = 'Eroare la încărcarea conturilor: [unauthorized] Missing token - Utilizatorul nu este autentificat. Te rugăm să te autentifici mai întâi.';
+          });
+        }
+        return;
+      }
+
       if (kDebugMode) {
-        debugPrint('[StaffInboxScreen] Loading accounts via getAccountsStaff...');
+        debugPrint('[StaffInboxScreen] Loading accounts via getAccountsStaff... (user: ${user.uid.substring(0, 8)}...)');
       }
       
       // Use staff-safe endpoint (employee-only, no QR codes)
