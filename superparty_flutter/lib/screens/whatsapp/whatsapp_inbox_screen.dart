@@ -38,6 +38,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   String _searchQuery = '';
   List<ThreadModel> _threads = [];
   String? _errorMessage;
+  bool _hasRunAutoBackfill = false; // Track if auto-backfill has run
   
   // Firestore thread streams (per account)
   final Map<String, StreamSubscription<QuerySnapshot>> _threadSubscriptions = {};
