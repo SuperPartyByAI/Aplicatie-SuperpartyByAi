@@ -1725,10 +1725,6 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
         }
 
         try {
-          console.log(
-            `📩 [${hashForLog(accountId)}] Processing message: remote=${hashForLog(remoteJid)} fromMe=${fromMe} msg=${hashForLog(messageId)} ts=${timestamp ? String(timestamp) : 'n/a'} type=${type || 'unknown'}`
-          );
-
           if (!msg.message) {
             console.log(`⚠️  [${hashForLog(accountId)}] Skipping message ${hashForLog(messageId)} - no content (msg.message is null/undefined)`);
             continue;
@@ -1738,7 +1734,11 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
           const isFromMe = msg.key.fromMe === true;
 
           // DEBUG: Log message structure for ALL inbound messages to diagnose sync issues
-          const { body, type } = extractBodyAndType(msg);
+          const { body, type: msgType } = extractBodyAndType(msg);
+          
+          console.log(
+            `📩 [${hashForLog(accountId)}] Processing message: remote=${hashForLog(remoteJid)} fromMe=${fromMe} msg=${hashForLog(messageId)} ts=${timestamp ? String(timestamp) : 'n/a'} type=${msgType || 'unknown'}`
+          );
           let protocolMsg = null;
           if (!isFromMe) {
             const msgKeys = Object.keys(msg.message || {});
