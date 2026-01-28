@@ -148,7 +148,7 @@ async function requireAuth(req, res) {
     console.error('[whatsappProxy/requireAuth] No token in Authorization header');
     res.status(401).json({
       success: false,
-      error: 'unauthorized',
+      error: 'missing_auth_token',
       message: 'Missing token',
     });
     return null;
