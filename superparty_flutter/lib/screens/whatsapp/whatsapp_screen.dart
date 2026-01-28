@@ -183,6 +183,17 @@ class _WhatsAppScreenState extends State<WhatsAppScreen> {
               );
             },
           ),
+          // Staff Inbox (all accounts except 0737571397)
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.people, color: Colors.orange),
+              title: const Text('Inbox Angajați'),
+              subtitle: const Text('Toate conversațiile (exclus contul personal)'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.go('/whatsapp/inbox-staff'),
+            ),
+          ),
                 ],
               );
             },

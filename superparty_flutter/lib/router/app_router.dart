@@ -20,6 +20,7 @@ import '../screens/whatsapp/whatsapp_accounts_screen.dart';
 import '../screens/whatsapp/whatsapp_inbox_screen.dart';
 import '../screens/whatsapp/my_inbox_screen.dart';
 import '../screens/whatsapp/employee_inbox_screen.dart';
+import '../screens/whatsapp/staff_inbox_screen.dart';
 import '../screens/whatsapp/whatsapp_chat_screen.dart';
 import '../screens/whatsapp/whatsapp_ai_settings_screen.dart';
 import '../screens/whatsapp/client_profile_screen.dart';
@@ -145,6 +146,13 @@ class AppRouter {
             builder: (context, state) => AuthGate(
               fromRoute: state.uri.toString(),
               child: const EmployeeInboxScreen(),
+            ),
+          ),
+          GoRoute(
+            path: 'inbox-staff',
+            builder: (context, state) => AuthGate(
+              fromRoute: state.uri.toString(),
+              child: const StaffInboxScreen(),
             ),
           ),
           GoRoute(
