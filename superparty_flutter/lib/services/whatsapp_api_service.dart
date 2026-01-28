@@ -199,6 +199,16 @@ class WhatsAppApiService {
     final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
     debugPrint('[WhatsAppApiService] sendViaProxy: AFTER response | statusCode=${response.statusCode} | content-type=$contentType | bodyLength=${response.body.length} | bodyPrefix=$bodyPrefix | requestId=$requestId');
 
+    // Handle 503 Service Unavailable (Functions not available)
+    if (response.statusCode == 503) {
+      if (contentType.contains('text/html') || bodyPrefix.isEmpty) {
+        throw NetworkException(
+          'Functions service unavailable (503). Functions may not be deployed or are temporarily down. Please check Firebase Functions deployment.',
+          code: 'service_unavailable',
+        );
+      }
+    }
+
     if (_isNonJsonResponse(response)) {
       _throwNonJsonNetworkException(response, endpointUrl);
     }

@@ -741,15 +741,23 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       );
       return;
     }
+    
+    // For personal inbox: use personal account only (+40737571397)
+    final myPhoneE164 = '+40737571397';
     final connected = _accounts
-        .where((a) => a['status'] == 'connected')
+        .where((a) {
+          final phone = a['phone'] as String?;
+          final normalized = _normalizePhoneToE164(phone);
+          return a['status'] == 'connected' && normalized == myPhoneE164;
+        })
         .map((a) => a['id'] as String?)
         .whereType<String>()
         .toList();
+    
     if (connected.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Niciun cont conectat pentru backfill.')),
+        const SnackBar(content: Text('Contul personal nu este conectat pentru backfill.')),
       );
       return;
     }

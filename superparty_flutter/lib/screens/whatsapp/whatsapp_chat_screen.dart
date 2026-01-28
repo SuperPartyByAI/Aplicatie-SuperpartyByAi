@@ -795,7 +795,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       if (mounted) {
         // Extract user-friendly error message
         String errorMessage = 'Eroare la trimiterea mesajului';
-        if (e.toString().contains('expected_json_got_html')) {
+        if (e.toString().contains('service_unavailable') || e.toString().contains('503')) {
+          errorMessage = 'Serviciul nu este disponibil (503). Functions poate să nu fie deploy-at. Verifică deployment-ul Firebase Functions.';
+        } else if (e.toString().contains('expected_json_got_html')) {
           errorMessage = 'Backend-ul nu răspunde corect (eroare 500). Verifică logurile backend-ului.';
         } else if (e.toString().contains('500')) {
           errorMessage = 'Eroare server (500). Backend-ul nu poate procesa mesajul.';
