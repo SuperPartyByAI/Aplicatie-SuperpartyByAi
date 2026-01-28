@@ -992,6 +992,11 @@ exports.whatsappProxyGetThreads = onRequest(
   wrapWithSecrets(whatsappProxy.getThreadsHandler, [whatsappBackendBaseUrl])
 );
 
+exports.whatsappProxyGetInbox = onRequest(
+  proxyOpts,
+  wrapWithSecrets(whatsappProxy.getInboxHandler, [whatsappBackendBaseUrl])
+);
+
 // whatsappProxyGetMessages removed: messages come only from Firestore threads/{threadId}/messages.
 // Flutter must not call this endpoint. Send uses whatsappProxySend.
 

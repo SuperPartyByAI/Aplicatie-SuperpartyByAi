@@ -843,6 +843,109 @@ async function getAccountsStaffHandler(req, res) {
 }
 
 /**
+ * GET /whatsappProxyGetInbox handler
+ *
+ * Get unified inbox (all messages from all threads) via backend proxy.
+ * RBAC: Employee-only.
+ */
+async function getInboxHandler(req, res) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({
+      success: false,
+      error: 'method_not_allowed',
+      message: 'Only GET method is allowed',
+    });
+  }
+
+  try {
+    const employeeInfo = await requireEmployee(req, res);
+    if (!employeeInfo) return; // Response already sent (401/403)
+
+    const backendBaseUrl = getBackendBaseUrl();
+    if (!backendBaseUrl) {
+      console.error('[whatsappProxy/getInbox] WHATSAPP_BACKEND_BASE_URL missing');
+      return res.status(500).json({
+        success: false,
+        error: 'configuration_missing',
+        message:
+          'WHATSAPP_BACKEND_BASE_URL must be set (Firebase secret or functions.config().whatsapp.backend_base_url)',
+      });
+    }
+
+    const accountId = (req.query.accountId || '').toString().trim();
+    const limit = Math.min(parseInt(req.query.limit || '100', 10) || 100, 500);
+
+    if (!accountId) {
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_request',
+        message: 'Missing required query param: accountId',
+      });
+    }
+
+    const backendUrl = `${backendBaseUrl}/api/whatsapp/inbox/${encodeURIComponent(accountId)}?limit=${limit}`;
+    const correlationId = req.headers['x-correlation-id'] || req.headers['x-request-id'] || `getInbox_${Date.now()}`;
+    console.log(`[whatsappProxy/getInbox] Calling backend: ${backendUrl}, correlationId=${correlationId}`);
+    
+    const response = await getForwardRequest()(backendUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Correlation-Id': correlationId,
+      },
+    });
+
+    const bodyIsObject = response.body && typeof response.body === 'object';
+    if (!bodyIsObject) {
+      const bodyPrefix = typeof response.body === 'string'
+        ? response.body.replace(/\s+/g, ' ').trim().substring(0, 200)
+        : '(non-string)';
+      console.error('[whatsappProxy/getInbox] Backend returned non-JSON (e.g. HTML). status=', response.statusCode, 'bodyPrefix=', bodyPrefix);
+      return res.status(502).json({
+        success: false,
+        error: 'invalid_backend_response',
+        message: 'Backend returned non-JSON (e.g. HTML/404 page). Check backend URL and proxy config.',
+        upstreamStatusCode: response.statusCode,
+        bodyPrefix,
+      });
+    }
+
+    // Forward response status and body
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return res.status(response.statusCode).json(response.body);
+    }
+
+    if (response.statusCode === 503) {
+      return res.status(503).json(response.body);
+    }
+    if (response.statusCode === 404) {
+      return res.status(404).json(response.body);
+    }
+    if (response.statusCode === 401) {
+      return res.status(401).json(response.body);
+    }
+    if (response.statusCode === 403) {
+      return res.status(403).json(response.body);
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: 'backend_error',
+      message: `Backend service returned an error (status: ${response.statusCode})`,
+      upstreamStatusCode: response.statusCode,
+      ...response.body,
+    });
+  } catch (error) {
+    console.error('[whatsappProxy/getInbox] Error:', error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'internal_error',
+      message: 'Internal server error',
+    });
+  }
+}
+
+/**
  * POST /whatsappProxyAddAccount handler
  * 
  * Add a new WhatsApp account via backend.
@@ -1198,6 +1301,7 @@ exports.getThreads = onRequest(
 );
 
 exports.getThreadsHandler = getThreadsHandler;
+exports.getInboxHandler = getInboxHandler;
 
 exports.addAccount = onRequest(
   {

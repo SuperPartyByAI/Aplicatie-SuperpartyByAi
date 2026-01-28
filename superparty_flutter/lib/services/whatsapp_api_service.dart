@@ -983,25 +983,55 @@ class WhatsAppApiService {
       }
 
       final token = await user.getIdToken();
-      final backendUrl = _requireBackendUrl();
+      final functionsUrl = _getFunctionsUrl();
       final requestId = _generateRequestId();
+
       final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
-      final endpointUrl = '$backendUrl/api/whatsapp/inbox/$accountId?limit=$limit';
-
-      debugPrint('[WhatsAppApiService] getInbox: CONFIG | backendUrl=$backendUrl | accountId=${_maskId(accountId)} | limit=$limit');
-      debugPrint('[WhatsAppApiService] getInbox: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId');
-
-      final response = await http
-          .get(
-            Uri.parse(endpointUrl),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'X-Request-ID': requestId,
-            },
-          )
-          .timeout(requestTimeout);
+      final backendUrl = _getBackendUrl();
+      
+      // Log configuration for debugging
+      try {
+        final app = Firebase.app();
+        final projectId = app.options.projectId;
+        debugPrint('[WhatsAppApiService] getInbox: CONFIG | backendUrl=$backendUrl | projectId=$projectId | accountId=${_maskId(accountId)} | isEmulatorMode=${_isEmulatorMode()} | isSimulator=${_isSimulator()} | limit=$limit');
+      } catch (e) {
+        debugPrint('[WhatsAppApiService] getInbox: CONFIG | backendUrl=$backendUrl | accountId=${_maskId(accountId)} | Firebase projectId unavailable: $e | limit=$limit');
+      }
+      
+      // When USE_EMULATORS=true, always use Functions URL (projectId/region prefix).
+      // Also use proxy on iOS simulator (DNS resolution issues with direct backend access).
+      final useProxy = backendUrl.isEmpty || _isEmulatorMode() || _isSimulator();
+      final String endpointUrl;
+      final http.Response response;
+      if (useProxy) {
+        endpointUrl = '$functionsUrl/whatsappProxyGetInbox?accountId=$accountId&limit=$limit';
+        debugPrint('[WhatsAppApiService] getInbox: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId | USING PROXY');
+        response = await http
+            .get(
+              Uri.parse(endpointUrl),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Request-ID': requestId,
+              },
+            )
+            .timeout(requestTimeout);
+      } else {
+        endpointUrl = '$backendUrl/api/whatsapp/inbox/$accountId?limit=$limit';
+        debugPrint('[WhatsAppApiService] getInbox: BEFORE request | endpointUrl=$endpointUrl | uid=$uidTruncated | tokenPresent=${(token?.length ?? 0) > 0} | requestId=$requestId | USING DIRECT HETZNER');
+        response = await http
+            .get(
+              Uri.parse(endpointUrl),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Request-ID': requestId,
+              },
+            )
+            .timeout(requestTimeout);
+      }
 
       final contentType = response.headers['content-type'] ?? 'unknown';
       final bodyPrefix = SafeJson.bodyPreview(response.body, max: 200);
