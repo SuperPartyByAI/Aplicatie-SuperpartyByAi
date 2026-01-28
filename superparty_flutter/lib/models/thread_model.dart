@@ -200,10 +200,11 @@ class ThreadModel {
 
   /// Initial for avatar when no profile picture. No "?" when we have number/name.
   String get initial {
-    // FIX: Folosește primul caracter din displayName chiar dacă arată ca număr de telefon
-    if (displayName.isNotEmpty) {
+    // If displayName is not empty and doesn't look like a phone number, use first char
+    if (displayName.isNotEmpty && !_looksLikePhone(displayName)) {
       return displayName[0].toUpperCase();
     }
+    // If displayName looks like phone or is empty, extract first digit from phone
     final p = phone;
     if (p != null && p.isNotEmpty) {
       final digits = p.replaceAll(RegExp(r'\D'), '');
