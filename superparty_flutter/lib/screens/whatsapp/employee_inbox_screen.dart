@@ -31,6 +31,8 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
   String? _errorMessage;
   String _searchQuery = '';
   List<ThreadModel> _threads = [];
+  bool _isBackfilling = false;
+  bool _hasRunAutoBackfill = false; // Track if auto-backfill has run
   
   // Firestore thread streams (per account)
   final Map<String, StreamSubscription<QuerySnapshot>> _threadSubscriptions = {};
@@ -80,6 +82,18 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
       if (_selectedAccountId != null) {
         _startThreadListener(_selectedAccountId!);
       }
+      
+      // Auto-backfill: sync old messages on first load (only once per session)
+      if (!_hasRunAutoBackfill && _employeeAccountIds.isNotEmpty) {
+        _hasRunAutoBackfill = true;
+        // Run backfill in background (don't block UI) for all connected accounts
+        _runAutoBackfillForAccounts().catchError((e) {
+          if (kDebugMode) {
+            debugPrint('[EmployeeInboxScreen] Auto-backfill failed: $e');
+          }
+          // Silently fail - user can manually trigger backfill if needed
+        });
+      }
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -114,10 +128,11 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
     _threadSubscriptions[accountId]?.cancel();
 
     // Listen to Firestore threads for this account
+    // NOTE: We don't use orderBy in query to avoid requiring composite index
+    // Instead, we sort in memory in _rebuildThreads()
     _threadSubscriptions[accountId] = FirebaseFirestore.instance
         .collection('threads')
         .where('accountId', isEqualTo: accountId)
-        .orderBy('lastMessageAt', descending: true)
         .limit(200)
         .snapshots()
         .listen(
@@ -147,6 +162,62 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
     });
   }
 
+  /// Parse timestamp from thread data (handles multiple formats)
+  int _threadTimeMs(Map<String, dynamic> thread) {
+    // Try lastMessageAtMs first (milliseconds)
+    final ms = thread['lastMessageAtMs'];
+    if (ms is int && ms > 0) return ms;
+    
+    // Try lastMessageAt (Firestore Timestamp or DateTime)
+    final ts = thread['lastMessageAt'];
+    if (ts == null) return 0;
+    
+    if (ts is Timestamp) {
+      return ts.millisecondsSinceEpoch;
+    }
+    
+    // Try toDate() method if available
+    try {
+      final dyn = ts as dynamic;
+      final dt = dyn.toDate?.call();
+      if (dt is DateTime) return dt.millisecondsSinceEpoch;
+    } catch (_) {}
+    
+    // Try DateTime directly
+    if (ts is DateTime) {
+      return ts.millisecondsSinceEpoch;
+    }
+    
+    // Try ISO string
+    if (ts is String) {
+      final parsed = DateTime.tryParse(ts);
+      if (parsed != null) return parsed.millisecondsSinceEpoch;
+    }
+    
+    // Try Firestore timestamp map format
+    if (ts is Map) {
+      final seconds = ts['_seconds'] ?? ts['seconds'];
+      if (seconds is int) {
+        return seconds * 1000;
+      }
+      final ms = ts['_milliseconds'] ?? ts['milliseconds'];
+      if (ms is int) return ms;
+    }
+    
+    // Try lastMessageTimestamp (seconds)
+    final timestamp = thread['lastMessageTimestamp'];
+    if (timestamp is int) {
+      // Assume milliseconds if > 1e12, otherwise seconds
+      if (timestamp > 1000000000000) {
+        return timestamp;
+      } else if (timestamp > 1000000000) {
+        return timestamp * 1000;
+      }
+    }
+    
+    return 0;
+  }
+
   void _rebuildThreads() {
     if (_selectedAccountId == null) {
       setState(() {
@@ -169,19 +240,24 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
       return true;
     }).toList();
 
+    // Sort by timestamp in memory (descending - newest first)
+    visibleThreads.sort((a, b) {
+      final aMs = _threadTimeMs(a);
+      final bMs = _threadTimeMs(b);
+      
+      // Sort descending by timestamp (newest first)
+      final timeCmp = bMs.compareTo(aMs);
+      if (timeCmp != 0) return timeCmp;
+      
+      // Stable sort: use threadId as tie-breaker
+      final aId = (a['id'] ?? a['threadId'] ?? a['clientJid'] ?? '').toString();
+      final bId = (b['id'] ?? b['threadId'] ?? b['clientJid'] ?? '').toString();
+      return aId.compareTo(bId);
+    });
+
     final models = visibleThreads
         .map((m) => ThreadModel.fromJson(Map<String, dynamic>.from(m)))
         .toList();
-
-    // Sort by lastMessageAt descending
-    models.sort((a, b) {
-      final aTime = a.lastMessageAt;
-      final bTime = b.lastMessageAt;
-      if (aTime == null && bTime == null) return 0;
-      if (aTime == null) return 1;
-      if (bTime == null) return -1;
-      return bTime.compareTo(aTime);
-    });
 
     if (mounted) {
       setState(() {
@@ -198,6 +274,59 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
     final digits = parts[0].replaceAll(RegExp(r'\D'), '');
     if (digits.length < 6 || digits.length > 15) return null;
     return '+$digits';
+  }
+
+  /// Auto-backfill for all connected employee accounts (fire-and-forget, run once per session)
+  Future<void> _runAutoBackfillForAccounts() async {
+    if (FirebaseAuth.instance.currentUser == null) return;
+    if (_isBackfilling) return;
+    
+    try {
+      // Get account details to check status
+      final response = await _apiService.getAccounts();
+      if (response['success'] != true) return;
+      
+      final accounts = (response['accounts'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>();
+      
+      // Filter to only connected accounts that are in employee's allowed list
+      final connectedAccountIds = accounts
+          .where((acc) {
+            final id = acc['id'] as String?;
+            final status = acc['status'] as String?;
+            return id != null && 
+                   _employeeAccountIds.contains(id) && 
+                   status == 'connected';
+          })
+          .map((acc) => acc['id'] as String?)
+          .whereType<String>()
+          .toList();
+      
+      if (connectedAccountIds.isEmpty) {
+        if (kDebugMode) {
+          debugPrint('[EmployeeInboxScreen] No connected accounts for auto-backfill');
+        }
+        return;
+      }
+      
+      // Run backfill for each connected account (fire-and-forget)
+      for (final accountId in connectedAccountIds) {
+        _apiService.backfillAccount(accountId: accountId).catchError((e, st) {
+          if (kDebugMode) {
+            debugPrint('[EmployeeInboxScreen] Auto-backfill failed for $accountId: $e');
+          }
+        });
+      }
+      
+      if (kDebugMode) {
+        debugPrint('[EmployeeInboxScreen] Auto-backfill started for ${connectedAccountIds.length} account(s)');
+      }
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('[EmployeeInboxScreen] Auto-backfill error: $e');
+        debugPrint('[EmployeeInboxScreen] Stack trace: $st');
+      }
+    }
   }
 
   Future<bool> _openWhatsAppForCall(String? phoneE164) async {

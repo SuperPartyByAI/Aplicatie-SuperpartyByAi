@@ -205,10 +205,16 @@ class ThreadModel {
       return displayName[0].toUpperCase();
     }
     // If displayName looks like phone or is empty, extract first digit from phone
+    // First try to extract from phone property
     final p = phone;
     if (p != null && p.isNotEmpty) {
       final digits = p.replaceAll(RegExp(r'\D'), '');
-      if (digits.isNotEmpty) return digits[0].toUpperCase();
+      if (digits.isNotEmpty) return digits[0];
+    }
+    // If phone is null but displayName looks like phone, extract first digit from displayName
+    if (displayName.isNotEmpty && _looksLikePhone(displayName)) {
+      final digits = displayName.replaceAll(RegExp(r'\D'), '');
+      if (digits.isNotEmpty) return digits[0];
     }
     // FIX: Dacă nici displayName nici phone nu există, încearcă să extragă din clientJid
     if (clientJid.isNotEmpty) {

@@ -2478,7 +2478,7 @@ function requireAdmin(req, res, next) {
 async function requireFirebaseAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, error: 'unauthorized', message: 'Missing token' });
+    return res.status(401).json({ success: false, error: 'missing_auth_token', message: 'Missing token' });
   }
 
   if (!admin.apps.length) {

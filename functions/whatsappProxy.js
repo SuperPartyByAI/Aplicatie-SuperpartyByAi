@@ -590,6 +590,7 @@ exports.send = onRequest(
     region: 'us-central1',
     cors: true,
     maxInstances: 1, // Reduce CPU quota pressure
+    memory: '256MiB', // Increased from default 128MiB - logs show 130-139 MiB usage causing OOM
   },
   sendHandler
 );

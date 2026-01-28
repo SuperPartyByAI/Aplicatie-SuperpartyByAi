@@ -959,12 +959,13 @@ const wrapWithSecrets = (handler, secrets) => {
 
 // Redeclare functions with secrets (override exports from whatsappProxy.js)
 // Light resources + maxInstances 1 to avoid "Quota exceeded for total allowable CPU" (us-central1)
+// whatsappProxySend needs 256MiB (was 128MiB) - logs show 130-139 MiB usage
 const proxyOpts = {
   region: 'us-central1',
   cors: true,
   minInstances: 0,
   maxInstances: 1,
-  memory: '128MiB',
+  memory: '256MiB', // Increased from 128MiB to prevent OOM errors
   cpu: 0.5,
   secrets: [whatsappBackendBaseUrl, whatsappBackendUrl],
 };
