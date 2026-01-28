@@ -700,6 +700,18 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
               _isLoadingThreads = false;
             });
           }
+          
+          // Auto-backfill: sync old messages on first load (only once per session)
+          if (!_hasRunAutoBackfill) {
+            _hasRunAutoBackfill = true;
+            // Run backfill in background (don't block UI)
+            _runBackfill().catchError((e) {
+              if (kDebugMode) {
+                debugPrint('[WhatsAppInboxScreen] Auto-backfill failed: $e');
+              }
+              // Silently fail - user can manually trigger backfill if needed
+            });
+          }
         }
       } else {
         final errorMsg = response['message'] as String? ?? 'Failed to load accounts';
