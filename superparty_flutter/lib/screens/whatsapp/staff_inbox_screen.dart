@@ -15,6 +15,8 @@ import '../../core/errors/app_exception.dart';
 import '../../core/config/env.dart';
 import '../../models/thread_model.dart';
 import '../../services/whatsapp_api_service.dart';
+import '../../utils/threads_query.dart';
+import '../../utils/inbox_schema_guard.dart';
 import '../debug/whatsapp_diagnostics_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -27,7 +29,8 @@ class StaffInboxScreen extends StatefulWidget {
   State<StaffInboxScreen> createState() => _StaffInboxScreenState();
 }
 
-class _StaffInboxScreenState extends State<StaffInboxScreen> {
+class _StaffInboxScreenState extends State<StaffInboxScreen>
+    with WidgetsBindingObserver {
   final WhatsAppApiService _apiService = WhatsAppApiService.instance;
 
   // Phone number to exclude: 0737571397 (normalized to digits only: 40737571397)
@@ -40,7 +43,9 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
   String _searchQuery = '';
   List<ThreadModel> _threads = [];
   String? _errorMessage;
-  
+  /// Set on Firestore stream error: 'failed-precondition' | 'permission-denied'
+  String? _firestoreErrorCode;
+
   // Firestore thread streams (per account)
   final Map<String, StreamSubscription<QuerySnapshot>> _threadSubscriptions = {};
   final Map<String, List<Map<String, dynamic>>> _threadsByAccount = {};
@@ -139,6 +144,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadAccounts();
     // Start auto-refresh timer: refresh threads every 10 seconds
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
@@ -157,6 +163,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _autoRefreshTimer?.cancel();
     _autoRefreshTimer = null;
     for (final subscription in _threadSubscriptions.values) {
@@ -165,6 +172,24 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
     _threadSubscriptions.clear();
     _activeAccountIds = {};
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state != AppLifecycleState.resumed) return;
+    if (!mounted) return;
+    // Sync visual when app returns to foreground (e.g. from phone background)
+    if (kDebugMode) {
+      debugPrint('[StaffInboxScreen] App resumed: refreshing accounts and threads');
+    }
+    _onAppResumed();
+  }
+
+  Future<void> _onAppResumed() async {
+    await _loadAccounts();
+    if (!mounted) return;
+    await _loadThreads(forceRefresh: true);
   }
 
   void _startThreadListeners() {
@@ -177,10 +202,16 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
       return !_shouldExcludeAccount(account);
     }).toList();
     
+    final accountIds = allowedAccounts
+        .map((account) => account['id'])
+        .whereType<String>()
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
     if (kDebugMode) {
-      debugPrint('[StaffInboxScreen] Total accounts: ${_accounts.length}');
-      debugPrint('[StaffInboxScreen] Connected accounts: ${connectedAccounts.length}');
-      debugPrint('[StaffInboxScreen] Allowed accounts (excluding personal): ${allowedAccounts.length}');
+      debugPrint('[StaffInboxScreen] accountIds queried: ${accountIds.toList()}');
+      debugPrint('[StaffInboxScreen] Total accounts: ${_accounts.length}; connected: ${connectedAccounts.length}; allowed: ${allowedAccounts.length}');
       for (final acc in connectedAccounts) {
         final phone = acc['phone'] as String?;
         final normalized = _normalizePhoneToDigits(phone);
@@ -189,12 +220,9 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
       }
     }
 
-    final accountIds = allowedAccounts
-        .map((account) => account['id'])
-        .whereType<String>()
-        .map((id) => id.trim())
-        .where((id) => id.isNotEmpty)
-        .toSet();
+    if (kDebugMode && accountIds.isEmpty) {
+      debugPrint('[StaffInboxScreen] 0 allowed account IDs (no thread listeners started)');
+    }
 
     if (accountIds.length == _activeAccountIds.length &&
         accountIds.containsAll(_activeAccountIds)) {
@@ -213,13 +241,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
     for (final accountId in accountIds) {
       if (_threadSubscriptions.containsKey(accountId)) continue;
 
-      final subscription = FirebaseFirestore.instance
-          .collection('threads')
-          .where('accountId', isEqualTo: accountId)
-          .orderBy('lastMessageAt', descending: true)
-          .limit(200)
-          .snapshots()
-          .listen(
+      final subscription = buildThreadsQuery(accountId).snapshots().listen(
         (snapshot) {
           final accountName = allowedAccounts
                   .firstWhere(
@@ -228,6 +250,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
                   )['name'] as String? ??
               accountId;
           final threads = snapshot.docs.map((doc) {
+            logThreadSchemaAnomalies(doc);
             return {
               'id': doc.id,
               ...doc.data(),
@@ -238,13 +261,37 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
           _threadsByAccount[accountId] = threads;
           if (kDebugMode) {
             debugPrint(
-                '[StaffInboxScreen] Thread stream update: accountId=$accountId threads=${threads.length}');
+                '[StaffInboxScreen] Thread stream snapshot accountId=$accountId docs=${threads.length}');
+            if (threads.isEmpty) {
+              debugPrint('[StaffInboxScreen] 0 docs for accountId=$accountId');
+            }
           }
           _rebuildThreadsFromCache();
         },
         onError: (error) {
           debugPrint(
               '[StaffInboxScreen] Thread stream error ($accountId): $error');
+          if (error is FirebaseException) {
+            debugPrint(
+                '[StaffInboxScreen] FirebaseException code=${error.code} message=${error.message}');
+            if (mounted) {
+              setState(() {
+                _firestoreErrorCode = error.code;
+                if (error.code == 'failed-precondition') {
+                  _errorMessage = 'Index mismatch. Verifică indexurile Firestore pentru threads.';
+                } else if (error.code == 'permission-denied') {
+                  _errorMessage = 'Rules/RBAC blocked. Nu ai permisiune de citire pe threads.';
+                } else {
+                  _errorMessage = 'Eroare Firestore: ${error.code} – ${error.message}';
+                }
+              });
+            }
+          } else if (mounted) {
+            setState(() {
+              _firestoreErrorCode = null;
+              _errorMessage = 'Eroare la încărcarea conversațiilor: $error';
+            });
+          }
         },
         cancelOnError: false,
       );
@@ -538,6 +585,10 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
       if (kDebugMode) {
         debugPrint('[StaffInboxScreen] Force refresh: re-subscribing listeners');
       }
+      setState(() {
+        _errorMessage = null;
+        _firestoreErrorCode = null;
+      });
       for (final subscription in _threadSubscriptions.values) {
         subscription.cancel();
       }
@@ -551,8 +602,11 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
   }
 
   Future<void> _loadAccounts() async {
-    setState(() => _isLoadingAccounts = true);
-    _errorMessage = null;
+    setState(() {
+      _isLoadingAccounts = true;
+      _errorMessage = null;
+      _firestoreErrorCode = null;
+    });
 
     try {
       if (kDebugMode) {
@@ -901,20 +955,32 @@ class _StaffInboxScreenState extends State<StaffInboxScreen> {
                       )
                     : _errorMessage != null
                         ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  _errorMessage!,
-                                  style: TextStyle(color: Colors.red[700]),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 16),
-                                ElevatedButton(
-                                  onPressed: () => _loadThreads(forceRefresh: true),
-                                  child: const Text('Retry'),
-                                ),
-                              ],
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    _errorMessage!,
+                                    style: TextStyle(color: Colors.red[700]),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  if (_firestoreErrorCode != null) ...[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Cod: $_firestoreErrorCode',
+                                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 16),
+                                  ElevatedButton(
+                                    onPressed: () => _loadThreads(forceRefresh: true),
+                                    child: const Text('Retry'),
+                                  ),
+                                ],
+                              ),
                             ),
                           )
                             : _threads.isEmpty

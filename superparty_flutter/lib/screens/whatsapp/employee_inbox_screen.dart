@@ -10,6 +10,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/thread_model.dart';
 import '../../services/whatsapp_api_service.dart';
 import '../../services/whatsapp_account_service.dart';
+import '../../utils/threads_query.dart';
+import '../../utils/inbox_schema_guard.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 /// Employee Inbox Screen - Shows threads from employee's assigned WhatsApp accounts
@@ -21,7 +23,8 @@ class EmployeeInboxScreen extends StatefulWidget {
   State<EmployeeInboxScreen> createState() => _EmployeeInboxScreenState();
 }
 
-class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
+class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
+    with WidgetsBindingObserver {
   final WhatsAppApiService _apiService = WhatsAppApiService.instance;
   final WhatsAppAccountService _accountService = WhatsAppAccountService.instance;
 
@@ -29,6 +32,8 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
   String? _selectedAccountId;
   bool _isLoading = true;
   String? _errorMessage;
+  /// Set on Firestore stream error: 'failed-precondition' | 'permission-denied'
+  String? _firestoreErrorCode;
   String _searchQuery = '';
   List<ThreadModel> _threads = [];
   bool _isBackfilling = false;
@@ -41,27 +46,42 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadEmployeeAccounts();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     for (final subscription in _threadSubscriptions.values) {
       subscription.cancel();
     }
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state != AppLifecycleState.resumed) return;
+    if (!mounted) return;
+    if (kDebugMode) {
+      debugPrint('[EmployeeInboxScreen] App resumed: refreshing accounts and threads');
+    }
+    _loadEmployeeAccounts();
+  }
+
   Future<void> _loadEmployeeAccounts() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _firestoreErrorCode = null;
     });
 
     try {
       final accountIds = await _accountService.getEmployeeWhatsAppAccountIds();
       
       if (accountIds.isEmpty) {
+        debugPrint('[EmployeeInboxScreen] getEmployeeWhatsAppAccountIds returned 0 (not employee or no accounts assigned)');
         setState(() {
           _isLoading = false;
           _errorMessage = 'Nu ai conturi WhatsApp de angajat configurate. Contactează administratorul.';
@@ -69,20 +89,17 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
         });
         return;
       }
+      debugPrint('[EmployeeInboxScreen] Option A (accountId + orderBy lastMessageAt). accountIds count=${accountIds.length}');
+      debugPrint('[EmployeeInboxScreen] Employee account IDs: $accountIds');
 
       setState(() {
         _employeeAccountIds = accountIds;
-        _selectedAccountId = accountIds.first; // Select first by default
+        _selectedAccountId = accountIds.first;
       });
 
-      // Load account details to show names in dropdown
       await _loadAccountDetails();
-      
-      // Start listening to threads for selected account
-      if (_selectedAccountId != null) {
-        _startThreadListener(_selectedAccountId!);
-      }
-      
+      _startThreadListeners();
+
       // Auto-backfill: sync old messages on first load (only once per session)
       if (!_hasRunAutoBackfill && _employeeAccountIds.isNotEmpty) {
         _hasRunAutoBackfill = true;
@@ -123,43 +140,74 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
     }
   }
 
-  void _startThreadListener(String accountId) {
-    // Cancel existing subscription for this account
-    _threadSubscriptions[accountId]?.cancel();
+  /// One stream per accountId via buildThreadsQuery; merge + sort in memory. Filters (hidden/archived/…) in memory only.
+  void _startThreadListeners() {
+    final accountIds = List<String>.from(_employeeAccountIds);
+    if (accountIds.isEmpty) {
+      setState(() => _isLoading = false);
+      return;
+    }
+    if (kDebugMode) {
+      debugPrint('[EmployeeInboxScreen] accountIds queried: $accountIds');
+    }
 
-    // Listen to Firestore threads for this account
-    // NOTE: We don't use orderBy in query to avoid requiring composite index
-    // Instead, we sort in memory in _rebuildThreads()
-    _threadSubscriptions[accountId] = FirebaseFirestore.instance
-        .collection('threads')
-        .where('accountId', isEqualTo: accountId)
-        .limit(200)
-        .snapshots()
-        .listen(
-      (snapshot) {
-        _threadsByAccount[accountId] = snapshot.docs.map((doc) {
-          return {
-            'id': doc.id,
-            ...doc.data(),
-            'accountId': accountId,
-          };
-        }).toList();
+    for (final id in _threadSubscriptions.keys.toList()) {
+      if (!accountIds.contains(id)) {
+        _threadSubscriptions[id]?.cancel();
+        _threadSubscriptions.remove(id);
+        _threadsByAccount.remove(id);
+      }
+    }
 
-        _rebuildThreads();
-      },
-      onError: (error) {
-        debugPrint('[EmployeeInboxScreen] Thread stream error ($accountId): $error');
-        if (mounted) {
-          setState(() {
-            _errorMessage = 'Eroare la încărcarea conversațiilor: $error';
-          });
-        }
-      },
-    );
+    for (final accountId in accountIds) {
+      if (_threadSubscriptions.containsKey(accountId)) continue;
 
-    setState(() {
-      _isLoading = false;
-    });
+      final sub = buildThreadsQuery(accountId).snapshots().listen(
+        (snapshot) {
+          if (kDebugMode) {
+            final n = snapshot.docs.length;
+            debugPrint('[EmployeeInboxScreen] Thread stream snapshot accountId=$accountId docs=$n');
+            if (n == 0) debugPrint('[EmployeeInboxScreen] 0 docs for accountId=$accountId');
+          }
+          _threadsByAccount[accountId] = snapshot.docs.map((doc) {
+            logThreadSchemaAnomalies(doc);
+            return {
+              'id': doc.id,
+              ...doc.data(),
+              'accountId': accountId,
+            };
+          }).toList();
+          _rebuildThreads();
+        },
+        onError: (error) {
+          debugPrint('[EmployeeInboxScreen] Thread stream error ($accountId): $error');
+          if (error is FirebaseException) {
+            debugPrint('[EmployeeInboxScreen] FirebaseException code=${error.code} message=${error.message}');
+            if (mounted) {
+              setState(() {
+                _firestoreErrorCode = error.code;
+                if (error.code == 'failed-precondition') {
+                  _errorMessage = 'Index mismatch. Verifică indexurile Firestore pentru threads.';
+                } else if (error.code == 'permission-denied') {
+                  _errorMessage = 'Rules/RBAC blocked. Nu ai permisiune de citire pe threads.';
+                } else {
+                  _errorMessage = 'Eroare Firestore: ${error.code} – ${error.message}';
+                }
+              });
+            }
+          } else if (mounted) {
+            setState(() {
+              _firestoreErrorCode = null;
+              _errorMessage = 'Eroare la încărcarea conversațiilor: $error';
+            });
+          }
+        },
+        cancelOnError: false,
+      );
+      _threadSubscriptions[accountId] = sub;
+    }
+
+    setState(() => _isLoading = false);
   }
 
   /// Parse timestamp from thread data (handles multiple formats)
@@ -219,17 +267,10 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
   }
 
   void _rebuildThreads() {
-    if (_selectedAccountId == null) {
-      setState(() {
-        _threads = [];
-      });
-      return;
-    }
-
-    final accountThreads = _threadsByAccount[_selectedAccountId] ?? [];
+    // Merge from all accounts (N queries), then filter in memory
+    final allThreads = _threadsByAccount.values.expand((list) => list).toList();
     
-    // Filter and deduplicate (simplified version)
-    final visibleThreads = accountThreads.where((thread) {
+    final visibleThreads = allThreads.where((thread) {
       final hidden = thread['hidden'] == true || thread['archived'] == true;
       final redirectTo = (thread['redirectTo'] as String? ?? '').trim();
       final clientJid = (thread['clientJid'] as String? ?? '').trim();
@@ -240,22 +281,23 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
       return true;
     }).toList();
 
-    // Sort by timestamp in memory (descending - newest first)
-    visibleThreads.sort((a, b) {
+    // Filter by selected account when dropdown is used (in-memory)
+    final toShow = _employeeAccountIds.length > 1 && _selectedAccountId != null
+        ? visibleThreads.where((t) => (t['accountId'] as String?) == _selectedAccountId).toList()
+        : visibleThreads;
+
+    // Sort by lastMessageAt desc (stable sort)
+    toShow.sort((a, b) {
       final aMs = _threadTimeMs(a);
       final bMs = _threadTimeMs(b);
-      
-      // Sort descending by timestamp (newest first)
       final timeCmp = bMs.compareTo(aMs);
       if (timeCmp != 0) return timeCmp;
-      
-      // Stable sort: use threadId as tie-breaker
       final aId = (a['id'] ?? a['threadId'] ?? a['clientJid'] ?? '').toString();
       final bId = (b['id'] ?? b['threadId'] ?? b['clientJid'] ?? '').toString();
       return aId.compareTo(bId);
     });
 
-    final models = visibleThreads
+    final models = toShow
         .map((m) => ThreadModel.fromJson(Map<String, dynamic>.from(m)))
         .toList();
 
@@ -315,6 +357,7 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
           if (kDebugMode) {
             debugPrint('[EmployeeInboxScreen] Auto-backfill failed for $accountId: $e');
           }
+          return <String, dynamic>{};
         });
       }
       
@@ -391,11 +434,16 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              if (_selectedAccountId != null) {
-                _startThreadListener(_selectedAccountId!);
-              } else {
-                _loadEmployeeAccounts();
+              setState(() {
+                _errorMessage = null;
+                _firestoreErrorCode = null;
+              });
+              for (final sub in _threadSubscriptions.values) {
+                sub.cancel();
               }
+              _threadSubscriptions.clear();
+              _threadsByAccount.clear();
+              _startThreadListeners();
             },
             tooltip: 'Refresh',
           ),
@@ -417,6 +465,13 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.red[700]),
                         ),
+                        if (_firestoreErrorCode != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Cod: $_firestoreErrorCode',
+                            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                          ),
+                        ],
                         const SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: _loadEmployeeAccounts,
@@ -452,11 +507,8 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
                           }).toList(),
                           onChanged: (String? newAccountId) {
                             if (newAccountId != null && newAccountId != _selectedAccountId) {
-                              setState(() {
-                                _selectedAccountId = newAccountId;
-                                _threads = []; // Clear while loading
-                              });
-                              _startThreadListener(newAccountId);
+                              setState(() => _selectedAccountId = newAccountId);
+                              _rebuildThreads();
                             }
                           },
                         ),
@@ -485,9 +537,16 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen> {
                           ? const Center(child: Text('Nu există conversații'))
                           : RefreshIndicator(
                               onRefresh: () async {
-                                if (_selectedAccountId != null) {
-                                  _startThreadListener(_selectedAccountId!);
+                                setState(() {
+                                  _errorMessage = null;
+                                  _firestoreErrorCode = null;
+                                });
+                                for (final sub in _threadSubscriptions.values) {
+                                  sub.cancel();
                                 }
+                                _threadSubscriptions.clear();
+                                _threadsByAccount.clear();
+                                _startThreadListeners();
                               },
                               child: ListView.builder(
                                 itemCount: filtered.length,

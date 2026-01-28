@@ -18,6 +18,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:path/path.dart' as path;
 
 import '../../services/whatsapp_api_service.dart';
+import '../../utils/inbox_schema_guard.dart';
 
 String getDisplayInitial(String name) {
   final trimmed = name.trim();
@@ -851,6 +852,16 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     );
   }
 
+  static String _mediaTypePlaceholder(String t) {
+    switch (t.toLowerCase()) {
+      case 'image': return 'Image';
+      case 'audio': return 'Audio';
+      case 'video': return 'Video';
+      case 'document': return 'Document';
+      default: return 'Media';
+    }
+  }
+
   /// Build message text with clickable links
   Widget _buildMessageText(String body, bool isOutbound) {
     // Check if body is a URL (starts with http://, https://, or maps.google.com)
@@ -1675,16 +1686,13 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                 }
 
                 // Wrap StreamBuilder in error boundary to prevent red screen
-                return Builder(
-                  builder: (context) {
-                    try {
-                      // First verify thread exists before querying messages
-                      return FutureBuilder<DocumentSnapshot>(
-                        future: FirebaseFirestore.instance
-                            .collection('threads')
-                            .doc(effectiveThreadId)
-                            .get(),
-                        builder: (context, threadSnapshot) {
+                // First verify thread exists before querying messages
+                return FutureBuilder<DocumentSnapshot>(
+                  future: FirebaseFirestore.instance
+                      .collection('threads')
+                      .doc(effectiveThreadId)
+                      .get(),
+                  builder: (context, threadSnapshot) {
                           if (threadSnapshot.connectionState == ConnectionState.waiting) {
                             return const Center(child: CircularProgressIndicator());
                           }
@@ -1760,93 +1768,101 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                                 .orderBy('tsClient', descending: true)
                                 .limit(200)
                                 .snapshots(),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const Center(child: CircularProgressIndicator());
-                          }
-                          if (snapshot.hasError) {
-                            debugPrint('[ChatScreen] Stream error: ${snapshot.error}');
-                            debugPrint('[ChatScreen] Error type: ${snapshot.error.runtimeType}');
-                            if (snapshot.error is FirebaseException) {
-                              final firebaseError = snapshot.error as FirebaseException;
-                              debugPrint('[ChatScreen] Firebase error code: ${firebaseError.code}');
-                              debugPrint('[ChatScreen] Firebase error message: ${firebaseError.message}');
-                            }
-                            return Center(
-                              child: Padding(
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const Center(child: CircularProgressIndicator());
+                              }
+                              if (snapshot.hasError) {
+                                debugPrint('[ChatScreen] Stream error: ${snapshot.error}');
+                                debugPrint('[ChatScreen] Error type: ${snapshot.error.runtimeType}');
+                                if (snapshot.error is FirebaseException) {
+                                  final firebaseError = snapshot.error as FirebaseException;
+                                  debugPrint('[ChatScreen] Firebase error code: ${firebaseError.code}');
+                                  debugPrint('[ChatScreen] Firebase error message: ${firebaseError.message}');
+                                }
+                                return Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'Eroare la încărcarea mesajelor:\n${snapshot.error}',
+                                          style: TextStyle(color: Colors.red[700]),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            final returnRoute = widget.returnRoute ?? 
+                                                _extractFromQuery('returnRoute') ?? 
+                                                '/whatsapp/inbox';
+                                            context.go(returnRoute);
+                                          },
+                                          child: const Text('Înapoi la Inbox'),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }
+                              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                                return const Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
+                                      SizedBox(height: 16),
+                                      Text('No messages yet', style: TextStyle(color: Colors.grey)),
+                                    ],
+                                  ),
+                                );
+                              }
+
+                              final dedupedDocs = _dedupeMessageDocs(snapshot.data!.docs);
+                              for (final doc in dedupedDocs) {
+                                logMessageSchemaAnomalies(doc);
+                              }
+                              final currentMessageCount = dedupedDocs.length;
+                              final hasNewMessages = currentMessageCount > _previousMessageCount;
+                              
+                              if (!_initialScrollDone && dedupedDocs.isNotEmpty) {
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  _scrollToBottom(force: true);
+                                });
+                                _initialScrollDone = true;
+                              } else if (hasNewMessages) {
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  _scrollToBottom();
+                                });
+                              }
+                              _previousMessageCount = currentMessageCount;
+
+                              return ListView.builder(
+                                controller: _scrollController,
+                                key: PageStorageKey('whatsapp-chat-${effectiveThreadId}'),
+                                reverse: true,
                                 padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'Eroare la încărcarea mesajelor:\n${snapshot.error}',
-                                      style: TextStyle(color: Colors.red[700]),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    ElevatedButton(
-                                      onPressed: () {
-                                        final returnRoute = widget.returnRoute ?? 
-                                            _extractFromQuery('returnRoute') ?? 
-                                            '/whatsapp/inbox';
-                                        context.go(returnRoute);
-                                      },
-                                      child: const Text('Înapoi la Inbox'),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }
-                          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                            return const Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
-                                  SizedBox(height: 16),
-                                  Text('No messages yet', style: TextStyle(color: Colors.grey)),
-                                ],
-                              ),
-                            );
-                          }
-
-                final dedupedDocs = _dedupeMessageDocs(snapshot.data!.docs);
-                final currentMessageCount = dedupedDocs.length;
-                final hasNewMessages = currentMessageCount > _previousMessageCount;
-                
-                if (!_initialScrollDone && dedupedDocs.isNotEmpty) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _scrollToBottom(force: true);
-                  });
-                  _initialScrollDone = true;
-                } else if (hasNewMessages) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _scrollToBottom();
-                  });
-                }
-                _previousMessageCount = currentMessageCount;
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  key: PageStorageKey('whatsapp-chat-${effectiveThreadId}'),
-                  reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: dedupedDocs.length,
-                  itemBuilder: (context, index) {
-                    
-                    final doc = dedupedDocs[index];
-                    final data = doc.data() as Map<String, dynamic>;
+                                itemCount: dedupedDocs.length,
+                                itemBuilder: (context, index) {
+                                  final doc = dedupedDocs[index];
+                                  final data = doc.data() as Map<String, dynamic>;
                     final messageKey = data['waMessageId'] as String? ??
                         data['clientMessageId'] as String? ??
                         doc.id;
                     
                     final direction = data['direction'] as String? ?? 'inbound';
-                    final body = data['body'] as String? ?? '';
+                    final bodyRaw = data['body'] as String? ?? '';
+                    final body = bodyRaw.trim();
                     final status = data['status'] as String?;
                     final media = data['media'] as Map<String, dynamic>?;
+                    final mediaType = data['mediaType'] as String? ?? (media != null ? media['type'] as String? : null);
+                    // Hide protocol/system messages with no text and no media
+                    if (body.isEmpty && mediaType == null) {
+                      return const SizedBox.shrink();
+                    }
                     // Extract sender name - try multiple fields
                     final senderName = data['senderName'] as String? ?? 
                                      data['lastSenderName'] as String? ??
@@ -2069,10 +2085,12 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                                           if (body.isNotEmpty) const SizedBox(height: 8),
                                         ],
                                       ],
-                                      // Show text body if present
+                                      // Show text body, or placeholder when media-only (no caption)
                                       if (body.isNotEmpty)
-                                        _buildMessageText(body, isOutbound),
-                                      if (body.isNotEmpty || (media != null && media['type'] != null)) const SizedBox(height: 4),
+                                        _buildMessageText(body, isOutbound)
+                                      else if (mediaType != null)
+                                        _buildMessageText(_mediaTypePlaceholder(mediaType), isOutbound),
+                                      if (body.isNotEmpty || mediaType != null) const SizedBox(height: 4),
                                       Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
@@ -2107,44 +2125,14 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                       ),
                     );
                   },
-                        );
-                      },
-                    );
-                  } catch (e, stackTrace) {
-                    debugPrint('[ChatScreen] Error building StreamBuilder: $e');
-                    debugPrint('[ChatScreen] Stack trace: $stackTrace');
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Eroare la inițializarea chat-ului: $e',
-                              style: TextStyle(color: Colors.red[700]),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () {
-                                final returnRoute = widget.returnRoute ?? 
-                                    _extractFromQuery('returnRoute') ?? 
-                                    '/whatsapp/inbox';
-                                context.go(returnRoute);
-                              },
-                              child: const Text('Înapoi la Inbox'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-                },
-              ),
-            ),
-          ),
+                );
+              },
+            );
+          },
+          );
+        },
+      ),
+    ),
 
           // Send input
           Container(

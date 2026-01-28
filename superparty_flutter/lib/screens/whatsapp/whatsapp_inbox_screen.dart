@@ -15,6 +15,8 @@ import '../../core/errors/app_exception.dart';
 import '../../core/config/env.dart';
 import '../../models/thread_model.dart';
 import '../../services/whatsapp_api_service.dart';
+import '../../utils/threads_query.dart';
+import '../../utils/inbox_schema_guard.dart';
 import '../debug/whatsapp_diagnostics_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -243,20 +245,15 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       _threadsByAccount.remove(accountId);
     }
 
+    if (kDebugMode) {
+      debugPrint('[WhatsAppInboxScreen] accountIds queried: $accountIds');
+    }
+
     int added = 0;
     for (final accountId in accountIds) {
       if (_threadSubscriptions.containsKey(accountId)) continue;
 
-      // CRITICAL FIX: Add orderBy and limit to improve performance
-      // Limit to 200 most recent threads (enough for most use cases, can be increased if needed)
-      // Firestore already sorts by lastMessageAt, so client-side sorting is minimal
-      final subscription = FirebaseFirestore.instance
-          .collection('threads')
-          .where('accountId', isEqualTo: accountId)
-          .orderBy('lastMessageAt', descending: true)
-          .limit(200)
-          .snapshots()
-          .listen(
+      final subscription = buildThreadsQuery(accountId).snapshots().listen(
         (snapshot) {
           final accountName = accountsToUse
                   .firstWhere(
@@ -265,6 +262,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                   )['name'] as String? ??
               accountId;
           final threads = snapshot.docs.map((doc) {
+            logThreadSchemaAnomalies(doc);
             return {
               'id': doc.id,
               ...doc.data(),
@@ -279,7 +277,6 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
             if (threads.isEmpty) {
               debugPrint('[WhatsAppInboxScreen] ⚠️ No threads found for accountId=$accountId');
             }
-            // Log first thread's lastMessageAt and lastMessageText to debug sync
             if (threads.isNotEmpty) {
               final firstThread = threads[0];
               final lastMessageAt = firstThread['lastMessageAt'];
@@ -308,8 +305,12 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
         onError: (error) {
           debugPrint(
               '[WhatsAppInboxScreen] Thread stream error ($accountId): $error');
+          if (error is FirebaseException) {
+            debugPrint(
+                '[WhatsAppInboxScreen] FirebaseException code=${error.code} message=${error.message}');
+          }
         },
-        cancelOnError: false, // Keep listening even on errors
+        cancelOnError: false,
       );
 
       _threadSubscriptions[accountId] = subscription;
