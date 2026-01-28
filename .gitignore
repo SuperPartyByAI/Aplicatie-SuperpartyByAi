@@ -161,9 +161,7 @@ GENEREAZA-TOKEN-FIREBASE.txt
 **/ios/Flutter/Flutter.framework/
 **/ios/Flutter/Flutter.podspec
 **/ios/ServiceDefinitions.json
-**/ios/Runner/GeneratedPluginRegistrant.*
-
-# Additional exclusions
+**/ios/Runner/GeneratedPluginRegistrant.*# Additional exclusions
 **/.firebase/
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
