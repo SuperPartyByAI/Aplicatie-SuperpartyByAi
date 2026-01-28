@@ -194,10 +194,6 @@ class _WhatsAppScreenState extends State<WhatsAppScreen> {
               onTap: () => context.go('/whatsapp/inbox-staff'),
             ),
           ),
-                ],
-              );
-            },
-          ),
           if (_isWhatsAppInstalled == false) ...[
             const SizedBox(height: 12),
             Container(

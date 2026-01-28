@@ -27,14 +27,14 @@ void main() {
     test('should use default when no dart-define is set', () {
       // When running without --dart-define, should use defaultHetzner
       final url = Env.whatsappBackendUrl;
-      // Default is http://37.27.34.179:8080
+      // Default is https://whats-app-ompro.ro
       // Note: This test may fail if dart-define IS set, so it's conditional
-      if (!url.contains('37.27.34.179')) {
+      if (!url.contains('whats-app-ompro.ro')) {
         // If dart-define was set, that's fine - just verify it's not empty
         expect(url, isNotEmpty);
       } else {
         // If using default, verify it's the expected default
-        expect(url, equals('http://37.27.34.179:8080'));
+        expect(url, equals('https://whats-app-ompro.ro'));
       }
     });
     

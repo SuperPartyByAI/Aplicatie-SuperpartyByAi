@@ -7,7 +7,7 @@
  * 3. WHATSAPP_BACKEND_URL (legacy)
  * 4. Firebase config (whatsapp.backend_base_url)
  * 
- * Default: http://37.27.34.179:8080 (Hetzner VPS)
+ * Default: https://whats-app-ompro.ro (Hetzner production)
  * 
  * Note: Railway references removed. Use Hetzner/Backend naming only.
  */
@@ -38,10 +38,10 @@ function getBackendBaseUrl() {
     // Ignore
   }
   
-  // Default: Hetzner VPS (if no config found, this prevents null errors)
-  const defaultBackendUrl = 'http://37.27.34.179:8080';
+  // Default: Hetzner production (if no config found, this prevents null errors)
+  const defaultBackendUrl = 'https://whats-app-ompro.ro';
   console.warn(
-    '[backend-url] No backend URL configured. Using default Hetzner VPS: ' + defaultBackendUrl +
+    '[backend-url] No backend URL configured. Using default Hetzner production: ' + defaultBackendUrl +
     '. Please set WHATSAPP_BACKEND_BASE_URL (or BACKEND_BASE_URL) in Firebase Functions secrets.'
   );
   return defaultBackendUrl;

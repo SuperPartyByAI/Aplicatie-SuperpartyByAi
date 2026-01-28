@@ -27,8 +27,8 @@ From the **repo root** (not `functions/` directory):
 # Optional: Kill processes on emulator ports if they're already running
 .\scripts\kill-emulators.ps1 --Force
 
-# Set environment variable (Hetzner backend)
-$env:WHATSAPP_BACKEND_URL = "http://37.27.34.179:8080"
+# Set environment variable (Hetzner production)
+$env:WHATSAPP_BACKEND_URL = "https://whats-app-ompro.ro"
 
 # Start emulators
 firebase.cmd emulators:start --config .\firebase.json --only firestore,functions,auth --project superparty-frontend

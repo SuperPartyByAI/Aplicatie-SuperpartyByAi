@@ -1,5 +1,5 @@
 {
   "whatsapp": {
-    "backend_base_url": "http://37.27.34.179:8080"
+    "backend_base_url": "https://whats-app-ompro.ro"
   }
 }

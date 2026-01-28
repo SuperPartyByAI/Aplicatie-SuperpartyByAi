@@ -51,7 +51,7 @@ rm -rf ios/.symlinks
 ### Step 2: Rebuild with Dart Define
 ```bash
 flutter pub get
-flutter run -d "iPhone 17 Pro" --dart-define=WHATSAPP_BACKEND_URL=http://37.27.34.179:8080
+flutter run -d "iPhone 17 Pro" --dart-define=WHATSAPP_BACKEND_URL=https://whats-app-ompro.ro
 ```
 
 ### Step 3: Verify Generated.xcconfig
@@ -65,7 +65,7 @@ You should see base64-encoded value. Decode to verify:
 cat ios/Flutter/Generated.xcconfig | grep DART_DEFINES | cut -d= -f2 | cut -d, -f1 | base64 -d
 ```
 
-Should output: `WHATSAPP_BACKEND_URL=http://37.27.34.179:8080`
+Should output: `WHATSAPP_BACKEND_URL=https://whats-app-ompro.ro`
 
 ### Step 4: If Still Failing - Code Fix
 
@@ -77,7 +77,7 @@ The current code should never throw because `defaultHetzner` is always set. Howe
 **Code changes made:**
 - Enhanced debug logging in `lib/core/config/env.dart`
 - Better error messages with all variable values
-- The default `http://37.27.34.179:8080` is guaranteed to be used if no dart-define is set
+- The default `https://whats-app-ompro.ro` is guaranteed to be used if no dart-define is set
 
 ## Extra Verification
 
@@ -87,19 +87,19 @@ The current code should never throw because `defaultHetzner` is always set. Howe
 
 The app already logs the backend URL at startup. After the fix, you'll see:
 ```
-[Main] WhatsApp backend URL: http://37.27.34.179:8080
+[Main] WhatsApp backend URL: https://whats-app-ompro.ro
 [Env] ===== WhatsApp Backend URL Resolution =====
 [Env] WHATSAPP_BACKEND_URL from dart-define: "(empty)"
 [Env] WHATSAPP_BACKEND_BASE_URL: "(empty)"
-[Env] Default Hetzner: "http://37.27.34.179:8080"
-[Env] Final resolved URL: "http://37.27.34.179:8080"
+[Env] Default Hetzner: "https://whats-app-ompro.ro"
+[Env] Final resolved URL: "https://whats-app-ompro.ro"
 [Env] ============================================
 ```
 
 If dart-define is set correctly, you'll see:
 ```
-[Env] WHATSAPP_BACKEND_URL from dart-define: "http://37.27.34.179:8080"
-[Env] Final resolved URL: "http://37.27.34.179:8080"
+[Env] WHATSAPP_BACKEND_URL from dart-define: "https://whats-app-ompro.ro"
+[Env] Final resolved URL: "https://whats-app-ompro.ro"
 ```
 
 ### Unit Test Suggestion
@@ -136,14 +136,14 @@ void main() {
     test('should use default when no dart-define is set', () {
       // When running without --dart-define, should use defaultHetzner
       final url = Env.whatsappBackendUrl;
-      // Default is http://37.27.34.179:8080
+      // Default is https://whats-app-ompro.ro
       // Note: This test may fail if dart-define IS set, so it's conditional
-      if (!url.contains('37.27.34.179')) {
+      if (!url.contains('whats-app-ompro.ro')) {
         // If dart-define was set, that's fine - just verify it's not empty
         expect(url, isNotEmpty);
       } else {
         // If using default, verify it's the expected default
-        expect(url, equals('http://37.27.34.179:8080'));
+        expect(url, equals('https://whats-app-ompro.ro'));
       }
     });
   });

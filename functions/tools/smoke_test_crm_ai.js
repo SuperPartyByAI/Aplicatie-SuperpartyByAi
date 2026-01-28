@@ -50,7 +50,7 @@ function runCommand(cmd) {
 
 async function checkBackendHealth() {
   return new Promise((resolve) => {
-    const base = process.env.WHATSAPP_BACKEND_URL || process.env.WHATSAPP_BACKEND_BASE_URL || 'http://37.27.34.179:8080';
+    const base = process.env.WHATSAPP_BACKEND_URL || process.env.WHATSAPP_BACKEND_BASE_URL || 'https://whats-app-ompro.ro';
     const url = `${base.replace(/\/$/, '')}/health`;
     const client = url.startsWith('https') ? https : http;
     client.get(url, { timeout: 10000 }, (res) => {

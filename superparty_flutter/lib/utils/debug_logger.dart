@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
-import 'package:flutter/foundation.dart' as foundation;
+import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb, debugPrint;
 
 /// Safe debug logger that works on all platforms (Web, Mobile, Desktop)
 /// Replaces hardcoded file paths with platform-agnostic logging
@@ -25,13 +25,13 @@ class DebugLogger {
       };
 
       // Use developer.log (works on all platforms, including Web)
-      foundation.developer.log(
+      developer.log(
         jsonEncode(logEntry),
         name: 'SuperParty',
       );
     } catch (e) {
       // Silently fail - logging should never break the app
-      foundation.debugPrint('DebugLogger error: $e');
+      debugPrint('DebugLogger error: $e');
     }
   }
 

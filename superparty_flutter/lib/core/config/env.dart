@@ -43,8 +43,8 @@ class Env {
     defaultValue: false,
   );
 
-  /// Default: Hetzner backend.
-  static const String _defaultWhatsAppBackendUrl = 'http://37.27.34.179:8080';
+  /// Default: Hetzner backend (production).
+  static const String _defaultWhatsAppBackendUrl = 'https://whats-app-ompro.ro';
 
   /// Base URL for WhatsApp backend (Hetzner).
   ///
