@@ -154,8 +154,7 @@ describe('WhatsApp Proxy /getAccountsStaff', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: false,
-        error: 'unauthorized',
-        message: 'Missing token',
+        error: 'missing_auth_token',
       })
     );
   });
@@ -322,8 +321,7 @@ describe('WhatsApp Proxy /getAccounts', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: false,
-        error: 'unauthorized',
-        message: 'Missing token',
+        error: 'missing_auth_token',
       })
     );
   });
@@ -409,8 +407,7 @@ describe('WhatsApp Proxy /addAccount', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: false,
-        error: 'unauthorized',
-        message: 'Missing token',
+        error: 'missing_auth_token',
       })
     );
   });
@@ -524,8 +521,7 @@ describe('WhatsApp Proxy /regenerateQr', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: false,
-        error: 'unauthorized',
-        message: 'Missing token',
+        error: 'missing_auth_token',
       })
     );
   });
@@ -702,8 +698,7 @@ describe('WhatsApp Proxy /send', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: false,
-        error: 'unauthorized',
-        message: 'Missing token',
+        error: 'missing_auth_token',
       })
     );
   });
