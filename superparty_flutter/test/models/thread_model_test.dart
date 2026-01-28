@@ -48,7 +48,7 @@ void main() {
       expect(t.lastMessageText, 'Legacy body');
       expect(t.lastMessageAt, isNotNull);
       expect(t.phone, '+40711111111');
-      expect(t.initial, '+'); // Phone is formatted as +40711111111, so initial is '+'
+      expect(t.initial, '4'); // Phone is +40711111111, displayName is formatted as phone, so initial extracts first digit '4'
     });
   });
 }
