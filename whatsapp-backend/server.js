@@ -2472,6 +2472,8 @@ const qrRegenerateLimiter = rateLimit({
 // In-memory store for active connections
 const connections = new Map();
 const reconnectAttempts = new Map();
+/** Account IDs currently being deleted. Disconnect handlers skip Firestore update + reconnect when set. */
+const recentlyDeletedIds = new Set();
 // Connection session ID counter per account (for debugging)
 const connectionSessionIds = new Map(); // accountId -> sessionId (incremental)
 
@@ -4523,6 +4525,11 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
       }
 
       if (connection === 'close') {
+        if (recentlyDeletedIds.has(accountId)) {
+          console.log(`🔌 [${accountId}] connection.update: close ignored (account deleted)`);
+          connectionRegistry.release(accountId);
+          return;
+        }
         // parseInt(rawReason)
         // reason !== DisconnectReason.loggedOut
         const error = lastDisconnect?.error;
@@ -9536,6 +9543,10 @@ app.delete('/api/whatsapp/accounts/:id', requireFirebaseAuth, accountLimiter, as
     }
     // Otherwise, safe to delete in PASSIVE mode (Firestore-only, disconnected/needs_qr)
 
+    // Mark as deleting so disconnect handler skips Firestore update + reconnect (avoids overwriting 'deleted')
+    recentlyDeletedIds.add(accountId);
+    setTimeout(() => recentlyDeletedIds.delete(accountId), 15000);
+
     // Close connection if exists in memory
     if (account) {
       console.log(`🔌 [DELETE ${accountId}] Closing socket connection...`);
@@ -10525,6 +10536,10 @@ async function restoreAccount(accountId, data) {
       }
 
       if (connection === 'close') {
+        if (recentlyDeletedIds.has(accountId)) {
+          console.log(`🔌 [${accountId}] connection.update: close ignored (restoreAccount, account deleted)`);
+          return;
+        }
         const shouldReconnect =
           lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
         const reason = lastDisconnect?.error?.output?.statusCode || 'unknown';
