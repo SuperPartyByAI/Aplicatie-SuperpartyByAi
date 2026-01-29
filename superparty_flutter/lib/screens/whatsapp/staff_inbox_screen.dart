@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/errors/app_exception.dart';
 import '../../core/config/env.dart';
+import '../../config/admin_phone.dart';
 import '../../models/thread_model.dart';
 import '../../services/whatsapp_api_service.dart';
 import '../../utils/threads_query.dart';
@@ -33,9 +34,6 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     with WidgetsBindingObserver {
   final WhatsAppApiService _apiService = WhatsAppApiService.instance;
 
-  // Phone number to exclude: 0737571397 (normalized to digits only: 40737571397)
-  static const String _excludedPhoneDigits = '40737571397';
-
   List<Map<String, dynamic>> _accounts = [];
   bool _isBackfilling = false;
   bool _isLoadingAccounts = true;
@@ -54,40 +52,13 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
   // Auto-refresh timer: refresh threads every 10 seconds to catch new messages
   Timer? _autoRefreshTimer;
 
-  /// Normalize phone number to digits only (like backend does)
-  /// Examples: "+40737571397" -> "40737571397", "0737571397" -> "40737571397", "40737571397" -> "40737571397"
-  String _normalizePhoneToDigits(String? phone) {
-    if (phone == null || phone.isEmpty) return '';
-    // Remove all non-digit characters
-    final digits = phone.replaceAll(RegExp(r'\D'), '');
-    if (digits.isEmpty) return '';
-    
-    // If starts with 0 and has 10 digits, replace with 4 (Romanian country code)
-    if (digits.startsWith('0') && digits.length == 10) {
-      return '4$digits';
-    }
-    
-    // If already starts with 4 and has 11 digits, return as is
-    if (digits.startsWith('4') && digits.length == 11) {
-      return digits;
-    }
-    
-    // If has 11 digits but doesn't start with 4, might be missing country code
-    // But we'll return as is to avoid false matches
-    return digits;
-  }
+  /// Auto-backfill once per session so istoricul de pe telefon apare automat.
+  bool _hasRunAutoBackfill = false;
 
-  /// Check if account should be excluded (phone matches excluded number)
+  /// Exclude admin phone (0737571397) from staff inbox. Uses config/admin_phone.
   bool _shouldExcludeAccount(Map<String, dynamic> account) {
-    final phone = account['phone'] as String? ?? '';
-    final normalized = _normalizePhoneToDigits(phone);
-    final shouldExclude = normalized == _excludedPhoneDigits;
-    
-    if (kDebugMode) {
-      debugPrint('[StaffInboxScreen] _shouldExcludeAccount: phone=$phone, normalized=$normalized, excluded=$shouldExclude, target=$_excludedPhoneDigits');
-    }
-    
-    return shouldExclude;
+    final phone = account['phone'] as String? ?? account['phoneNumber'] as String?;
+    return isAdminPhone(phone);
   }
 
   Future<void> _copyAuthTokensToClipboard() async {
@@ -141,10 +112,51 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     );
   }
 
+  /// One-time [AUTH] debug log on open (grep: [AUTH])
+  Future<void> _logAuthDiagnostics() async {
+    if (!kDebugMode) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      debugPrint('[AUTH] uid=null email=null (not signed in)');
+      return;
+    }
+    try {
+      final token = await user.getIdTokenResult(true);
+      final claims = token.claims ?? {};
+      final claimsKeys = claims.keys.where(
+        (k) => !['iat', 'exp', 'aud', 'iss', 'sub', 'auth_time', 'user_id', 'firebase'].contains(k),
+      ).toList();
+      final adminClaimPresent = claims['admin'] == true;
+
+      bool staffProfileExists = false;
+      String? staffProfileRole;
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('staffProfiles')
+            .doc(user.uid)
+            .get();
+        staffProfileExists = snap.exists;
+        if (snap.exists && snap.data() != null) {
+          staffProfileRole = snap.data()!['role'] as String?;
+        }
+      } catch (_) {}
+
+      debugPrint(
+        '[AUTH] uid=${user.uid} email=${user.email ?? "null"} '
+        'claimsKeys=$claimsKeys adminClaimPresent=$adminClaimPresent '
+        'staffProfileExists=$staffProfileExists staffProfileRole=$staffProfileRole',
+      );
+    } catch (e) {
+      debugPrint('[AUTH] uid=${user.uid} email=${user.email ?? "null"} error=$e');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Defer auth diagnostics to avoid Firestore/token work during initial load
+    Future.delayed(const Duration(milliseconds: 1500), _logAuthDiagnostics);
     _loadAccounts();
     // Start auto-refresh timer: refresh threads every 10 seconds
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
@@ -192,7 +204,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     await _loadThreads(forceRefresh: true);
   }
 
-  void _startThreadListeners() {
+  Future<void> _startThreadListeners() async {
     // Filter accounts: only connected accounts, excluding the one with phone 0737571397
     final connectedAccounts = _accounts
         .where((account) => account['status'] == 'connected')
@@ -210,18 +222,38 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
         .toSet();
 
     if (kDebugMode) {
-      debugPrint('[StaffInboxScreen] accountIds queried: ${accountIds.toList()}');
+      final statusByAccount = {
+        for (final a in allowedAccounts) (a['id'] as String? ?? ''): (a['status'] as String? ?? '?')
+      };
+      debugPrint('[StaffInboxScreen] DEBUG accountsCount=${allowedAccounts.length} accountIds=${accountIds.toList()} statusByAccount=$statusByAccount');
       debugPrint('[StaffInboxScreen] Total accounts: ${_accounts.length}; connected: ${connectedAccounts.length}; allowed: ${allowedAccounts.length}');
       for (final acc in connectedAccounts) {
-        final phone = acc['phone'] as String?;
-        final normalized = _normalizePhoneToDigits(phone);
+        final phone = acc['phone'] as String? ?? acc['phoneNumber'] as String?;
         final excluded = _shouldExcludeAccount(acc);
-        debugPrint('[StaffInboxScreen] Account: id=${acc['id']}, phone=$phone, normalized=$normalized, excluded=$excluded');
+        debugPrint('[StaffInboxScreen] Account: id=${acc['id']}, phone=$phone, excluded=$excluded, status=${acc['status']}');
       }
     }
 
-    if (kDebugMode && accountIds.isEmpty) {
-      debugPrint('[StaffInboxScreen] 0 allowed account IDs (no thread listeners started)');
+    if (accountIds.isEmpty) {
+      if (kDebugMode) {
+        debugPrint('[StaffInboxScreen] 0 allowed account IDs (no thread listeners started). Connected=${connectedAccounts.length}, excluded=admin phone.');
+      }
+      for (final sub in _threadSubscriptions.values) {
+        sub.cancel();
+      }
+      _threadSubscriptions.clear();
+      _threadsByAccount.clear();
+      _activeAccountIds = {};
+      if (mounted) {
+        setState(() {
+          _threads = [];
+          _isLoadingThreads = false;
+          _errorMessage = _accounts.isEmpty
+              ? null
+              : 'Toate conturile sunt deconectate sau excluse (admin). Conectează conturi în Manage Accounts.';
+        });
+      }
+      return;
     }
 
     if (accountIds.length == _activeAccountIds.length &&
@@ -235,6 +267,39 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
       _threadSubscriptions[accountId]?.cancel();
       _threadSubscriptions.remove(accountId);
       _threadsByAccount.remove(accountId);
+    }
+
+    final toAdd = accountIds.where((id) => !_threadSubscriptions.containsKey(id)).toList();
+    if (toAdd.isNotEmpty) {
+      try {
+        final futures = toAdd.map((accountId) async {
+          try {
+            final snap = await buildThreadsQuery(accountId)
+                .get(const GetOptions(source: Source.cache));
+            if (!mounted) return;
+            final accountName = allowedAccounts
+                    .firstWhere(
+                      (a) => a['id'] == accountId,
+                      orElse: () => <String, dynamic>{},
+                    )['name'] as String? ??
+                accountId;
+            final threads = snap.docs.map((doc) {
+              logThreadSchemaAnomalies(doc);
+              return {
+                'id': doc.id,
+                ...doc.data(),
+                'accountId': accountId,
+                'accountName': accountName,
+              };
+            }).toList();
+            if (threads.isNotEmpty && mounted) {
+              _threadsByAccount[accountId] = threads;
+              _rebuildThreadsFromCache();
+            }
+          } catch (_) { /* no cache */ }
+        });
+        await Future.wait(futures);
+      } catch (_) { /* ignore */ }
     }
 
     int added = 0;
@@ -359,13 +424,15 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
         .toList();
     
     if (kDebugMode) {
-      debugPrint('[StaffInboxScreen] Rebuild from cache: raw=${allThreads.length} deduped=${models.length}');
+      debugPrint('[StaffInboxScreen] Rebuild from cache: raw=${allThreads.length} deduped=${models.length} threadsCount=${models.length}');
       if (models.isNotEmpty) {
         final first = models.first;
         final last = models.length > 1 ? models.last : null;
         final firstTimeMs = threadTimeMs(dedupedMaps.first);
         final lastTimeMs = dedupedMaps.length > 1 ? threadTimeMs(dedupedMaps.last) : 0;
         debugPrint('[StaffInboxScreen] ✅ SORTED (stable): First=${first.displayName} (timeMs=$firstTimeMs) | Last=${last?.displayName ?? "N/A"} (timeMs=$lastTimeMs)');
+      } else if (_activeAccountIds.isNotEmpty) {
+        debugPrint('[StaffInboxScreen] 0 threads for accountIds=${_activeAccountIds.toList()}. Possible: no threads in Firestore for these accounts, or permission-denied (check FirebaseException).');
       }
     }
     if (mounted) {
@@ -479,12 +546,14 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
         thread['clientJid'],
         mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
       ).trim();
+      final tid = _readString(thread['id']).trim();
       final isLid = clientJid.endsWith('@lid');
       final isBroadcast = clientJid.endsWith('@broadcast');
       if (hidden) return false;
       if (redirectTo.isNotEmpty) return false;
       if (isLid && canonicalThreadId.isNotEmpty) return false;
       if (isBroadcast) return false;
+      if (tid.contains('[object Object]') || tid.contains('[obiect Obiect]')) return false;
       return true;
     }).toList();
 
@@ -582,6 +651,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
 
   Future<void> _loadThreads({bool forceRefresh = false}) async {
     if (forceRefresh) {
+      if (!mounted) return;
       if (kDebugMode) {
         debugPrint('[StaffInboxScreen] Force refresh: re-subscribing listeners');
       }
@@ -595,9 +665,12 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
       _threadSubscriptions.clear();
       _threadsByAccount.clear();
       _activeAccountIds.clear();
-      _startThreadListeners();
-      await Future.delayed(const Duration(milliseconds: 500));
+      await _startThreadListeners();
+      if (!mounted) return;
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
     }
+    if (!mounted) return;
     _rebuildThreadsFromCache();
   }
 
@@ -628,10 +701,9 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
         if (kDebugMode) {
           debugPrint('[StaffInboxScreen] Loaded ${accounts.length} accounts');
           for (final acc in accounts) {
-            final phone = acc['phone'] as String?;
-            final normalized = _normalizePhoneToDigits(phone);
+            final phone = acc['phone'] as String? ?? acc['phoneNumber'] as String?;
             final excluded = _shouldExcludeAccount(acc);
-            debugPrint('[StaffInboxScreen] Account: id=${acc['id']}, phone=$phone, normalized=$normalized, excluded=$excluded, status=${acc['status']}');
+            debugPrint('[StaffInboxScreen] Account: id=${acc['id']}, phone=$phone, excluded=$excluded, status=${acc['status']}');
           }
         }
 
@@ -648,6 +720,19 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
               _threads = <ThreadModel>[];
               _isLoadingThreads = false;
             });
+          } else {
+            // Auto-backfill la primul load: istoricul de pe telefon apare automat, fără buton
+            final allowed = accounts
+                .where((a) => !_shouldExcludeAccount(a) && a['status'] == 'connected')
+                .toList();
+            if (!_hasRunAutoBackfill && allowed.isNotEmpty) {
+              _hasRunAutoBackfill = true;
+              _runBackfill(silent: true).catchError((e) {
+                if (kDebugMode) {
+                  debugPrint('[StaffInboxScreen] Auto-backfill failed: $e');
+                }
+              });
+            }
           }
         }
       } else {
@@ -665,6 +750,9 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     } catch (e, stackTrace) {
       if (kDebugMode) {
         debugPrint('[StaffInboxScreen] Error loading accounts: $e');
+        if (e.toString().toLowerCase().contains('timeout')) {
+          debugPrint('[StaffInboxScreen] timeout');
+        }
         debugPrint('[StaffInboxScreen] Stack trace: $stackTrace');
       }
       if (mounted) {
@@ -682,59 +770,101 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     }
   }
 
-  Future<void> _runBackfill() async {
+  /// Run backfill for **all** connected staff accounts (same as admin – istoric complet).
+  /// When [silent] is true (auto-backfill), no SnackBars are shown.
+  Future<void> _runBackfill({bool silent = false}) async {
     if (FirebaseAuth.instance.currentUser == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Trebuie să fii autentificat.')),
-      );
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Trebuie să fii autentificat.')),
+        );
+      }
       return;
     }
-    final allowedAccounts = _accounts.where((account) {
-      return !_shouldExcludeAccount(account);
-    }).toList();
+    final allowedAccounts = _accounts
+        .where((a) => !_shouldExcludeAccount(a) && a['status'] == 'connected')
+        .toList();
     final connected = allowedAccounts
-        .where((a) => a['status'] == 'connected')
         .map((a) => a['id'] as String?)
         .whereType<String>()
+        .where((id) => id.isNotEmpty)
         .toList();
     if (connected.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Niciun cont conectat pentru backfill.')),
-      );
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Niciun cont conectat pentru backfill.')),
+        );
+      }
       return;
     }
-    final accountId = connected.first;
     if (_isBackfilling) return;
     setState(() => _isBackfilling = true);
+    int done = 0;
+    int failed = 0;
     try {
-      final res = await _apiService.backfillAccount(accountId: accountId);
-      if (kDebugMode) {
-        debugPrint('[StaffInboxScreen] backfill success: $res');
+      for (int i = 0; i < connected.length; i++) {
+        final accountId = connected[i];
+        if (!mounted) break;
+        if (!silent) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Backfill ${i + 1}/${connected.length}…'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+        try {
+          await _apiService.backfillAccount(accountId: accountId);
+          done++;
+          if (kDebugMode) {
+            debugPrint('[StaffInboxScreen] backfill success for $accountId');
+          }
+        } catch (e, st) {
+          failed++;
+          if (kDebugMode) {
+            debugPrint('[StaffInboxScreen] backfill error for $accountId: $e');
+            debugPrint('[StaffInboxScreen] stackTrace: $st');
+          }
+        }
+        if (i < connected.length - 1) {
+          await Future.delayed(const Duration(milliseconds: 800));
+        }
       }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Backfill pornit. Reîmprospătare liste…')),
-      );
       _startThreadListeners();
       _rebuildThreadsFromCache();
+      if (!mounted) return;
+      if (!silent) {
+        final msg = failed == 0
+            ? 'Backfill gata pentru $done conturi. Reîmprospătare…'
+            : 'Backfill: $done ok, $failed eșecuri. Reîmprospătare…';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: failed == 0 ? Colors.green[700] : Colors.orange[800],
+          ),
+        );
+      } else if (kDebugMode && (done > 0 || failed > 0)) {
+        debugPrint('[StaffInboxScreen] Auto-backfill done: $done ok, $failed failed');
+      }
     } catch (e, st) {
       if (kDebugMode) {
         debugPrint('[StaffInboxScreen] backfill error: $e');
         debugPrint('[StaffInboxScreen] backfill stackTrace: $st');
       }
       if (!mounted) return;
-      String msg;
-      if (e is UnauthorizedException || e is ForbiddenException) {
-        msg = 'Necesită super-admin.';
-      } else {
-        msg = e.toString();
+      if (!silent) {
+        String msg;
+        if (e is UnauthorizedException || e is ForbiddenException) {
+          msg = 'Acces refuzat. Trebuie să fii angajat sau admin.';
+        } else {
+          msg = e.toString();
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: Colors.red[700]),
+        );
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red[700]),
-      );
     } finally {
       if (mounted) setState(() => _isBackfilling = false);
     }
@@ -942,14 +1072,25 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
 
           // Threads list - all conversations from allowed accounts (excluding 0737571397)
           Expanded(
-            child: (_isLoadingThreads && _threads.isEmpty)
+            child: _isLoadingAccounts
                     ? const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             CircularProgressIndicator(),
                             SizedBox(height: 16),
-                            Text('Loading conversations...', style: TextStyle(color: Colors.grey)),
+                            Text('Se încarcă conturile...', style: TextStyle(color: Colors.grey)),
+                          ],
+                        ),
+                      )
+                    : (_isLoadingThreads && _threads.isEmpty)
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('Se încarcă conversațiile...', style: TextStyle(color: Colors.grey)),
                           ],
                         ),
                       )
@@ -985,20 +1126,39 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                           )
                             : _threads.isEmpty
                             ? Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Text('No conversations yet'),
-                                    const SizedBox(height: 16),
-                                    ElevatedButton.icon(
-                                      onPressed: () async {
-                                        await _loadAccounts();
-                                        await _loadThreads(forceRefresh: true);
-                                      },
-                                      icon: const Icon(Icons.refresh),
-                                      label: const Text('Refresh'),
-                                    ),
-                                  ],
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        _activeAccountIds.isEmpty
+                                            ? 'Nu există conturi conectate pentru Inbox Angajați.'
+                                            : 'Nu există conversații pentru conturile angajaților. Verifică Manage Accounts (conturi conectate) și că backend-ul scrie thread-uri pentru aceste conturi.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(color: Colors.grey[700], fontSize: 14),
+                                      ),
+                                      if (_activeAccountIds.isNotEmpty) ...[
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          'Backfill completează doar conversațiile existente. Pentru conversații noi: reconectează contul (QR) în Manage Accounts sau trimite/primește mesaje pe WhatsApp.',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                        ),
+                                      ],
+                                      const SizedBox(height: 16),
+                                      ElevatedButton.icon(
+                                        onPressed: () async {
+                                          await _loadAccounts();
+                                          await _loadThreads(forceRefresh: true);
+                                        },
+                                        icon: const Icon(Icons.refresh),
+                                        label: const Text('Reîmprospătare'),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               )
                             : Builder(
