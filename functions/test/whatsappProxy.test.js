@@ -3,13 +3,14 @@
 /**
  * Unit tests for WhatsApp Proxy QR Connect endpoints
  *
- * Tests authentication, authorization, input validation, and Railway forwarding.
+ * Tests authentication, authorization, input validation, and backend forwarding.
  */
 
 // Set env var before importing module (to avoid fail-fast in tests)
 // Note: For lazy-loading tests, we'll unset this to test missing config behavior
-process.env.WHATSAPP_RAILWAY_BASE_URL =
-  process.env.WHATSAPP_RAILWAY_BASE_URL || 'https://test-railway.invalid';
+// Set test backend URL (Hetzner default for tests)
+process.env.WHATSAPP_BACKEND_BASE_URL =
+  process.env.WHATSAPP_BACKEND_BASE_URL || 'http://37.27.34.179:8080';
 process.env.NODE_ENV = 'test';
 
 // Mock Firebase Admin BEFORE requiring it (Jest hoisting)
@@ -28,7 +29,7 @@ const mockFirestore = {
     if (name === 'staffProfiles') {
       return {
         doc: jest.fn(() => ({
-          get: jest.fn(),
+          get: jest.fn().mockResolvedValue({ exists: false }),
         })),
       };
     }
@@ -75,6 +76,205 @@ jest.mock('firebase-admin', () => {
 });
 
 const admin = require('firebase-admin');
+
+describe('WhatsApp Proxy /getAccountsStaff', () => {
+  let req;
+  let res;
+  let whatsappProxy;
+  let mockForwardRequest;
+  let mockStaffProfilesGet;
+
+  beforeEach(() => {
+    jest.resetModules();
+    whatsappProxy = require('../whatsappProxy');
+
+    mockForwardRequest = jest.fn().mockResolvedValue({
+      statusCode: 200,
+      body: {
+        success: true,
+        accounts: [
+          {
+            id: 'account1',
+            name: 'Test Account',
+            phone: '+40737571397',
+            status: 'connected',
+            qrCode: 'sensitive-qr-code-data',
+            pairingCode: 'sensitive-pairing-code',
+            pairing_url: 'sensitive-pairing-url',
+          },
+        ],
+      },
+    });
+    whatsappProxy._forwardRequest = mockForwardRequest;
+
+    req = {
+      method: 'GET',
+      headers: {
+        authorization: 'Bearer mock-token',
+      },
+      user: null,
+    };
+
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+      headersSent: false,
+    };
+
+    mockVerifyIdToken.mockResolvedValue({
+      uid: 'test-uid',
+      email: 'employee@example.com',
+    });
+
+    // Mock staffProfiles exists (employee)
+    mockStaffProfilesGet = jest.fn().mockResolvedValue({
+      exists: true,
+      data: () => ({ role: 'staff' }),
+    });
+    
+    // Override staffProfiles mock for this test suite
+    mockFirestore.collection.mockImplementation((name) => {
+      if (name === 'staffProfiles') {
+        return {
+          doc: jest.fn(() => ({
+            get: mockStaffProfilesGet,
+          })),
+        };
+      }
+      return mockFirestoreCollection(name);
+    });
+  });
+
+  it('should return 401 when no auth token', async () => {
+    req.headers.authorization = undefined;
+    mockVerifyIdToken.mockRejectedValue(new Error('Unauthorized'));
+
+    await whatsappProxy.getAccountsStaffHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'missing_auth_token',
+      })
+    );
+  });
+
+  it('should return 403 when user is not employee (no staffProfiles)', async () => {
+    mockStaffProfilesGet.mockResolvedValue({
+      exists: false,
+    });
+
+    await whatsappProxy.getAccountsStaffHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'employee_only',
+        message: 'Only employees can send messages',
+      })
+    );
+  });
+
+  it('should allow employee and sanitize response (remove QR/pairing fields)', async () => {
+    await whatsappProxy.getAccountsStaffHandler(req, res);
+
+    expect(mockForwardRequest).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    
+    // Verify response was sanitized (no qrCode, pairingCode, pairing_url)
+    const responseCall = res.json.mock.calls[0][0];
+    expect(responseCall.success).toBe(true);
+    expect(responseCall.accounts).toHaveLength(1);
+    
+    const account = responseCall.accounts[0];
+    expect(account.id).toBe('account1');
+    expect(account.name).toBe('Test Account');
+    expect(account.phone).toBe('+40737571397');
+    expect(account.status).toBe('connected');
+    
+    // Verify sensitive fields are removed
+    expect(account.qrCode).toBeUndefined();
+    expect(account.qr).toBeUndefined();
+    expect(account.pairingCode).toBeUndefined();
+    expect(account.pairing_code).toBeUndefined();
+    expect(account.pairingUrl).toBeUndefined();
+    expect(account.pairing_url).toBeUndefined();
+  });
+
+  it('should allow admin email (employee)', async () => {
+    mockVerifyIdToken.mockResolvedValue({
+      uid: 'admin-uid',
+      email: 'ursache.andrei1995@gmail.com', // Super-admin
+    });
+
+    await whatsappProxy.getAccountsStaffHandler(req, res);
+
+    expect(mockForwardRequest).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('should handle backend errors correctly', async () => {
+    mockForwardRequest.mockResolvedValue({
+      statusCode: 500,
+      body: { success: false, error: 'backend_error' },
+    });
+
+    await whatsappProxy.getAccountsStaffHandler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: 'backend_error',
+      })
+    );
+  });
+
+  it('should sanitize multiple accounts', async () => {
+    mockForwardRequest.mockResolvedValue({
+      statusCode: 200,
+      body: {
+        success: true,
+        accounts: [
+          {
+            id: 'account1',
+            name: 'Account 1',
+            phone: '+40737571397',
+            status: 'connected',
+            qrCode: 'qr1',
+            pairingCode: 'pair1',
+          },
+          {
+            id: 'account2',
+            name: 'Account 2',
+            phone: '+40737571398',
+            status: 'disconnected',
+            qrCode: 'qr2',
+            pairing_url: 'url2',
+          },
+        ],
+      },
+    });
+
+    await whatsappProxy.getAccountsStaffHandler(req, res);
+
+    const responseCall = res.json.mock.calls[0][0];
+    expect(responseCall.accounts).toHaveLength(2);
+    
+    // Both accounts should be sanitized
+    responseCall.accounts.forEach((account) => {
+      expect(account.qrCode).toBeUndefined();
+      expect(account.pairingCode).toBeUndefined();
+      expect(account.pairing_url).toBeUndefined();
+      expect(account.id).toBeDefined();
+      expect(account.name).toBeDefined();
+      expect(account.phone).toBeDefined();
+      expect(account.status).toBeDefined();
+    });
+  });
+});
 
 describe('WhatsApp Proxy /getAccounts', () => {
   let req;
@@ -144,7 +344,7 @@ describe('WhatsApp Proxy /getAccounts', () => {
     );
   });
 
-  it('should allow super-admin and forward request', async () => {
+  it('should allow super-admin and forward request (exposes QR codes)', async () => {
     mockForwardRequest.mockResolvedValue({
       statusCode: 200,
       body: { success: true, accounts: [{ id: 'acc1', name: 'Test', status: 'connected' }] },
@@ -407,6 +607,12 @@ describe('WhatsApp Proxy /send', () => {
 
     mockThreadRef = {
       get: jest.fn(),
+      set: jest.fn(),
+      collection: jest.fn(() => ({
+        doc: jest.fn(() => ({
+          set: jest.fn(),
+        })),
+      })),
     };
 
     mockOutboxRef = {
@@ -609,8 +815,8 @@ describe('WhatsApp Proxy /send', () => {
     mockTransaction.get.mockReset();
     // Mock transaction - thread first, then outbox
     mockTransaction.get
-      .mockResolvedValueOnce(threadSnap) // Thread read in transaction
-      .mockResolvedValueOnce(snap(false)); // Outbox check (not duplicate)
+      .mockResolvedValueOnce(snap(false)) // Outbox check (not duplicate)
+      .mockResolvedValueOnce(threadSnap); // Thread read in transaction
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -636,8 +842,8 @@ describe('WhatsApp Proxy /send', () => {
     mockTransaction.get.mockReset();
     // Mock transaction - thread first, then outbox
     mockTransaction.get
-      .mockResolvedValueOnce(threadSnap) // Thread read in transaction
-      .mockResolvedValueOnce(snap(false)); // Outbox check (not duplicate)
+      .mockResolvedValueOnce(snap(false)) // Outbox check (not duplicate)
+      .mockResolvedValueOnce(threadSnap); // Thread read in transaction
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -664,8 +870,8 @@ describe('WhatsApp Proxy /send', () => {
     // Reset transaction mocks
     mockTransaction.get.mockReset();
     mockTransaction.get
-      .mockResolvedValueOnce(threadSnapInTx) // Thread read in transaction
-      .mockResolvedValueOnce(snap(false)); // Outbox check (not duplicate)
+      .mockResolvedValueOnce(snap(false)) // Outbox check (not duplicate)
+      .mockResolvedValueOnce(threadSnapInTx); // Thread read in transaction
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -690,8 +896,8 @@ describe('WhatsApp Proxy /send', () => {
     mockTransaction.get.mockReset();
     // Mock transaction - thread first, then outbox (exists = duplicate)
     mockTransaction.get
-      .mockResolvedValueOnce(threadSnap) // Thread read in transaction
-      .mockResolvedValueOnce(snap(true)); // Outbox exists (duplicate)
+      .mockResolvedValueOnce(snap(true)) // Outbox exists (duplicate)
+      .mockResolvedValueOnce(threadSnap); // Thread read in transaction (unused)
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -717,8 +923,8 @@ describe('WhatsApp Proxy /send', () => {
     mockTransaction.get.mockReset();
     // Mock transaction - thread first, then outbox
     mockTransaction.get
-      .mockResolvedValueOnce(threadSnap) // Thread read in transaction
-      .mockResolvedValueOnce(snap(false)); // Outbox check (not duplicate)
+      .mockResolvedValueOnce(snap(false)) // Outbox check (not duplicate)
+      .mockResolvedValueOnce(threadSnap); // Thread read in transaction
 
     await whatsappProxy.sendHandler(req, res);
 
@@ -743,23 +949,23 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
 
   beforeEach(() => {
     // Save original env
-    originalEnv = process.env.WHATSAPP_RAILWAY_BASE_URL;
-    originalEnv = originalEnv ? { WHATSAPP_RAILWAY_BASE_URL: originalEnv } : {};
+    originalEnv = process.env.WHATSAPP_BACKEND_BASE_URL;
+    originalEnv = originalEnv ? { WHATSAPP_BACKEND_BASE_URL: originalEnv } : {};
   });
 
   afterEach(() => {
     // Restore original env
-    if (originalEnv.WHATSAPP_RAILWAY_BASE_URL) {
-      process.env.WHATSAPP_RAILWAY_BASE_URL = originalEnv.WHATSAPP_RAILWAY_BASE_URL;
+    if (originalEnv.WHATSAPP_BACKEND_BASE_URL) {
+      process.env.WHATSAPP_BACKEND_BASE_URL = originalEnv.WHATSAPP_BACKEND_BASE_URL;
     } else {
-      delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+      delete process.env.WHATSAPP_BACKEND_BASE_URL;
     }
     jest.resetModules();
   });
 
-  it('should NOT throw when requiring index.js without WHATSAPP_RAILWAY_BASE_URL', () => {
+  it('should NOT throw when requiring index.js without WHATSAPP_BACKEND_BASE_URL', () => {
     // Unset env var
-    delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+    delete process.env.WHATSAPP_BACKEND_BASE_URL;
     delete process.env.FIREBASE_CONFIG; // Also unset to avoid production check
 
     // Should not throw during require
@@ -769,11 +975,15 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
   });
 
   it('should return 500 error when getAccountsHandler called without base URL', async () => {
-    // Unset env var
-    delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+    // Unset backend URL env var
+    delete process.env.WHATSAPP_BACKEND_BASE_URL;
     delete process.env.FIREBASE_CONFIG;
 
+    // Mock getBackendBaseUrl to return null (no default)
     jest.resetModules();
+    jest.doMock('../lib/backend-url', () => ({
+      getBackendBaseUrl: jest.fn(() => null),
+    }));
     const whatsappProxy = require('../whatsappProxy');
 
     const req = {
@@ -801,16 +1011,21 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
       expect.objectContaining({
         success: false,
         error: 'configuration_missing',
-        message: expect.stringContaining('WHATSAPP_RAILWAY_BASE_URL'),
+        message: expect.stringContaining('WHATSAPP_BACKEND_BASE_URL'),
       })
     );
   });
 
   it('should return 500 error when addAccountHandler called without base URL', async () => {
-    delete process.env.WHATSAPP_RAILWAY_BASE_URL;
+    // Delete backend URL env var
+    delete process.env.WHATSAPP_BACKEND_BASE_URL;
     delete process.env.FIREBASE_CONFIG;
 
+    // Mock getBackendBaseUrl to return null
     jest.resetModules();
+    jest.mock('../lib/backend-url', () => ({
+      getBackendBaseUrl: jest.fn(() => null),
+    }));
     const whatsappProxy = require('../whatsappProxy');
 
     const req = {
@@ -842,17 +1057,27 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
       expect.objectContaining({
         success: false,
         error: 'configuration_missing',
-        message: expect.stringContaining('WHATSAPP_RAILWAY_BASE_URL'),
+        message: expect.stringContaining('WHATSAPP_BACKEND_BASE_URL'),
       })
     );
   });
 
   it('should work correctly when base URL is set via process.env', async () => {
-    process.env.WHATSAPP_RAILWAY_BASE_URL = 'https://test-railway.example.com';
+    // Set test env BEFORE resetting modules
+    const savedEnv = process.env.WHATSAPP_BACKEND_BASE_URL;
+    process.env.WHATSAPP_BACKEND_BASE_URL = 'http://37.27.34.179:8080';
+    delete process.env.BACKEND_BASE_URL;
 
+    // Reset modules to pick up new env vars
     jest.resetModules();
+    // Also reset the backend-url module mock if it exists
+    jest.doMock('../lib/backend-url', () => ({
+      getBackendBaseUrl: jest.fn(() => 'https://test-backend.example.com'),
+    }));
+    
     const whatsappProxy = require('../whatsappProxy');
 
+    // Mock must be set AFTER module is loaded
     const mockForwardRequest = jest.fn().mockResolvedValue({
       statusCode: 200,
       body: { success: true, accounts: [] },
@@ -879,10 +1104,24 @@ describe('WhatsApp Proxy - Lazy Loading (Module Import)', () => {
 
     await whatsappProxy.getAccountsHandler(req, res);
 
+    // Verify mock was called (it should be called via getForwardRequest())
+    expect(mockForwardRequest).toHaveBeenCalled();
     expect(mockForwardRequest).toHaveBeenCalledWith(
-      'https://test-railway.example.com/api/whatsapp/accounts',
-      expect.any(Object)
+      'https://test-backend.example.com/api/whatsapp/accounts',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+        }),
+      })
     );
     expect(res.status).toHaveBeenCalledWith(200);
+    
+    // Restore original env
+    if (savedEnv) {
+      process.env.WHATSAPP_BACKEND_BASE_URL = savedEnv;
+    } else {
+      delete process.env.WHATSAPP_BACKEND_BASE_URL;
+    }
   });
 });

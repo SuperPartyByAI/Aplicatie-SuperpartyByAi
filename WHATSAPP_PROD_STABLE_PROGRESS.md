@@ -31,7 +31,7 @@
   - Transaction-based claim (status=queued AND lease expired)
   - Lease TTL: 60 seconds
   - Lease refresh every 30s while sending
-  - Worker ID from `RAILWAY_DEPLOYMENT_ID` or `HOSTNAME`
+  - Worker ID from `LEGACY_DEPLOYMENT_ID` or `HOSTNAME`
 - **TODO**: Account connection leasing (not yet implemented)
 
 ## Remaining (PR2 Scope)
@@ -65,7 +65,7 @@
 ### 10. Runbook ⏳
 - Create `docs/WHATSAPP_PROD_RUNBOOK.md` with:
   - Required env vars (no values)
-  - Railway scaling guidance
+  - legacy hosting scaling guidance
   - Deployment steps
   - Verification checklist
   - Troubleshooting guide

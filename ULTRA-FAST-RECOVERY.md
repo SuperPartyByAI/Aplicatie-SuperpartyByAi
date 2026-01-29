@@ -9,7 +9,7 @@
 | Service fails           | 0s          | -                                                     |
 | Detection               | 10-20s      | Health check detects failure (2 consecutive failures) |
 | Instant failover        | <1s         | Circuit breaker activates fallback                    |
-| Auto-restart attempt 1  | 20-30s      | Railway restart command                               |
+| Auto-restart attempt 1  | 20-30s      | legacy hosting restart command                               |
 | Auto-restart attempt 2  | 30-40s      | Second restart attempt                                |
 | Auto-restart attempt 3  | 40-50s      | Third restart attempt                                 |
 | Auto-redeploy attempt 1 | 50s-2m50s   | Full redeploy from source                             |
@@ -85,7 +85,7 @@
 
 ### Step 1: Deploy Monitoring Service
 
-1. **Create new Railway service:**
+1. **Create new legacy hosting service:**
 
    ```
    Name: superparty-monitor
@@ -96,10 +96,10 @@
 2. **Add environment variables:**
 
    ```bash
-   RAILWAY_TOKEN=<your_railway_token>
-   BACKEND_URL=https://web-production-00dca9.up.railway.app
+   LEGACY_TOKEN=<your_legacy_token>
+   BACKEND_URL=https://whats-app-ompro.ro
    BACKEND_SERVICE_ID=<backend_service_id>
-   COQUI_API_URL=https://coqui-production-xyz.up.railway.app
+   COQUI_API_URL=https://whats-app-ompro.ro
    COQUI_SERVICE_ID=<coqui_service_id>
    ```
 
@@ -111,27 +111,27 @@
 
 4. **Deploy!**
 
-### Step 2: Get Railway Service IDs
+### Step 2: Get legacy hosting Service IDs
 
 ```bash
-# Install Railway CLI
-npm install -g @railway/cli
+# Install legacy hosting CLI
+npm install -g @legacy hosting/cli
 
 # Login
-railway login
+legacy hosting login
 
 # List services
-railway service list
+legacy hosting service list
 
 # Copy service IDs and add to environment variables
 ```
 
-### Step 3: Get Railway Token
+### Step 3: Get legacy hosting Token
 
-1. Go to Railway dashboard
+1. Go to legacy hosting dashboard
 2. Settings → Tokens
 3. Create new token
-4. Copy and add to `RAILWAY_TOKEN` env var
+4. Copy and add to `LEGACY_TOKEN` env var
 
 ### Step 4: Verify
 
@@ -197,7 +197,7 @@ This will:
 **ZERO additional cost!**
 
 - Monitoring service: Free tier (always running, minimal resources)
-- Railway API calls: Free (included in Railway plan)
+- legacy hosting API calls: Free (included in legacy hosting plan)
 - Health checks: Free (HTTP requests)
 
 ---
@@ -238,7 +238,7 @@ Success rate: 100%
 - **No manual intervention required** - system repairs itself
 - **Escalation strategy** - tries fastest methods first
 - **Guaranteed recovery** - rollback always works
-- **Zero cost** - uses existing Railway infrastructure
+- **Zero cost** - uses existing legacy hosting infrastructure
 - **Production ready** - battle-tested patterns
 
 ---

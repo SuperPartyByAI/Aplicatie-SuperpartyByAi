@@ -17,7 +17,7 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 
 ## Pre-requisites
 
-1. ✅ Backend Railway deploiat: https://whats-upp-production.up.railway.app
+1. ✅ Backend legacy hosting deploiat: https://whats-app-ompro.ro
 2. ✅ Frontend Firebase deploiat: https://superparty-frontend.web.app
 3. ✅ Cont WhatsApp conectat (status: connected)
 4. ✅ Telefon secundar pentru trimitere mesaje test
@@ -161,7 +161,7 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 
 **Pași:**
 
-1. Oprește backend Railway (sau simulează offline)
+1. Oprește backend legacy hosting (sau simulează offline)
 2. Trimite mesaj din aplicație: "Test offline"
 3. Observă statusul
 4. Repornește backend
@@ -183,7 +183,7 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 **Pași:**
 
 1. Cu aplicația deschisă și conversație activă
-2. Restart backend Railway (redeploy)
+2. Restart backend legacy hosting (redeploy)
 3. Așteaptă 30-60 secunde
 4. Trimite mesaj din telefon secundar
 5. Trimite mesaj din aplicație
@@ -243,7 +243,7 @@ Verificare end-to-end a funcționalității de messaging în aplicație:
 
 **Pași:**
 
-1. Deschide https://whats-upp-production.up.railway.app/health
+1. Deschide https://whats-app-ompro.ro/health
 2. Verifică output JSON
 
 **Rezultat așteptat:**

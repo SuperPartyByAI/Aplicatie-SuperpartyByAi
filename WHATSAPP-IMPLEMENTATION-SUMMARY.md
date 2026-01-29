@@ -212,10 +212,10 @@ WHATSAPP-QUICK-START.md         ✅ Quick start
 
 2. **Configure Firebase** (5 min)
    - Generate Service Account key
-   - Add to Railway: `FIREBASE_SERVICE_ACCOUNT`
+   - Add to legacy hosting: `FIREBASE_SERVICE_ACCOUNT`
 
-3. **Deploy to Railway** (automatic)
-   - Railway detects changes
+3. **Deploy to legacy hosting** (automatic)
+   - legacy hosting detects changes
    - Redeploys automatically (~30-60s)
 
 4. **Test System** (2 min)
@@ -352,7 +352,7 @@ Vezi WHATSAPP-SETUP-COMPLETE.md secțiunea "TROUBLESHOOTING"
 ### Logs
 
 ```
-Railway Dashboard → Logs
+legacy hosting Dashboard → Logs
 ```
 
 ---

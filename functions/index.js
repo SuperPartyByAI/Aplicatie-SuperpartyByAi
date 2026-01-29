@@ -1,7 +1,8 @@
 const { onRequest, onCall } = require('firebase-functions/v2/https');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { setGlobalOptions } = require('firebase-functions/v2');
 const { defineSecret } = require('firebase-functions/params');
-const functions = require('firebase-functions'); // Keep v1 for existing functions
+const functions = require('firebase-functions'); // HttpsError for callables
 
 // Initialize Sentry
 const { Sentry } = require('./sentry');
@@ -30,10 +31,12 @@ function getGroqClient(apiKey) {
 }
 
 // Set global options for v2 functions
-// Reduced maxInstances from 10 to 2 to avoid CPU quota during deployments
+// minInstances: 0 mandatory to avoid "Quota exceeded for total allowable CPU per project per region"
+// maxInstances kept low; per-function overrides for region/memory where needed
 setGlobalOptions({
   region: 'us-central1',
-  maxInstances: 2,
+  minInstances: 0,
+  maxInstances: 3,
 });
 
 // Deployment marker
@@ -91,7 +94,6 @@ const fs = require('fs');
 const distPath = require('path').join(__dirname, 'dist/index.js');
 if (fs.existsSync(distPath)) {
   try {
-    // eslint-disable-next-line global-require
     const staffCallables = require('./dist/index.js');
     exports.allocateStaffCode = staffCallables.allocateStaffCode;
     exports.finalizeStaffSetup = staffCallables.finalizeStaffSetup;
@@ -316,11 +318,25 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: Date.now() });
 });
 
-// REMOVED: 1st Gen function - cannot upgrade to 2nd Gen automatically
-// Use whatsappV4 instead (2nd Gen)
-// MANUAL STEP REQUIRED: Delete this function via Firebase Console before deploying
-// See: MANUAL_STEP_DELETE_OLD_WHATSAPP.md
-// exports.whatsapp = functions.https.onRequest(app);
+// Gen2 stub: whatsapp(us-central1). Deploy ONLY after deleting legacy Gen1:
+//   firebase functions:delete whatsapp --region us-central1 --force
+//   firebase deploy --only functions:whatsapp
+// invoker: 'public' allows unauthenticated access (410 legacy stub). Do NOT change whatsappProxy*.
+exports.whatsapp = onRequest(
+  {
+    region: 'us-central1',
+    minInstances: 0,
+    maxInstances: 1,
+    invoker: 'public',
+  },
+  (req, res) => {
+    res.status(410).json({
+      success: false,
+      error: 'deprecated',
+      message: 'This endpoint is deprecated. Use whatsappProxy* endpoints.',
+    });
+  }
+);
 
 // 2nd Gen version with all endpoints (deprecated - use whatsappV4)
 // exports.whatsappV2 = functions
@@ -336,21 +352,25 @@ app.get('/health', (req, res) => {
 // WhatsApp Backend v2 (2nd Gen)
 exports.whatsappV4 = onRequest(
   {
+    region: 'us-central1',
+    minInstances: 0,
+    maxInstances: 3,
     timeoutSeconds: 540,
     memory: '512MiB',
-    maxInstances: 2, // Reduced from 10 to avoid CPU quota pressure
   },
   app
 );
 
-// AI Chat with Groq/Llama + Smart Memory
+// AI Chat with Groq/Llama + Smart Memory (europe-west1 to free us-central1 CPU quota)
 const groqApiKey = defineSecret('GROQ_API_KEY');
 
 exports.chatWithAI = onCall(
   {
-    timeoutSeconds: 30, // Reduced from 60s
-    memory: '512MiB', // Increased for faster processing
-    maxInstances: 1, // Reduce CPU quota pressure
+    region: 'europe-west1',
+    minInstances: 0,
+    maxInstances: 3,
+    timeoutSeconds: 30,
+    memory: '512MiB',
     secrets: [groqApiKey],
   },
   async request => {
@@ -420,10 +440,18 @@ exports.chatWithAI = onCall(
 
       // Check for event creation intent
       const eventIntentPatterns = [
-        'vreau sa notez', 'vreau sa adaug', 'vreau sa creez',
-        'trebuie sa notez', 'am de notat', 'pot sa notez',
-        'vreau eveniment', 'vreau petrecere', 'am o petrecere',
-        'noteaza', 'adauga', 'creeaza'
+        'vreau sa notez',
+        'vreau sa adaug',
+        'vreau sa creez',
+        'trebuie sa notez',
+        'am de notat',
+        'pot sa notez',
+        'vreau eveniment',
+        'vreau petrecere',
+        'am o petrecere',
+        'noteaza',
+        'adauga',
+        'creeaza',
       ];
       const hasEventIntent = eventIntentPatterns.some(p => userText.includes(p));
 
@@ -440,15 +468,15 @@ exports.chatWithAI = onCall(
           mode: 'collecting_event',
           step: 'name',
           data: {},
-          createdAt: admin.firestore.FieldValue.serverTimestamp()
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
         };
         await stateRef.set(conversationState);
-        
+
         return {
           success: true,
           message: 'Perfect! 🎉 Pentru cine este petrecerea? (spune-mi numele)',
           sessionId: currentSessionId,
-          conversationState: 'collecting_event'
+          conversationState: 'collecting_event',
         };
       }
 
@@ -462,12 +490,12 @@ exports.chatWithAI = onCall(
           conversationState.step = 'age';
           conversationState.data = eventData;
           await stateRef.update(conversationState);
-          
+
           return {
             success: true,
             message: `Super! Câți ani are ${eventData.sarbatoritNume}?`,
             sessionId: currentSessionId,
-            conversationState: 'collecting_event'
+            conversationState: 'collecting_event',
           };
         }
 
@@ -478,19 +506,19 @@ exports.chatWithAI = onCall(
             conversationState.step = 'date';
             conversationState.data = eventData;
             await stateRef.update(conversationState);
-            
+
             return {
               success: true,
               message: 'Excelent! Ce dată va fi petrecerea? (format DD-MM-YYYY, ex: 15-01-2026)',
               sessionId: currentSessionId,
-              conversationState: 'collecting_event'
+              conversationState: 'collecting_event',
             };
           } else {
             return {
               success: true,
               message: 'Te rog să specifici vârsta (un număr, ex: 5)',
               sessionId: currentSessionId,
-              conversationState: 'collecting_event'
+              conversationState: 'collecting_event',
             };
           }
         }
@@ -498,25 +526,25 @@ exports.chatWithAI = onCall(
         if (step === 'date') {
           const dateRegex = /^\d{2}-\d{2}-\d{4}$/;
           const dateMatch = userText.match(/\d{2}-\d{2}-\d{4}/);
-          
+
           if (dateMatch && dateRegex.test(dateMatch[0])) {
             eventData.date = dateMatch[0];
             conversationState.step = 'address';
             conversationState.data = eventData;
             await stateRef.update(conversationState);
-            
+
             return {
               success: true,
               message: 'Perfect! Unde va fi petrecerea? (adresa completă)',
               sessionId: currentSessionId,
-              conversationState: 'collecting_event'
+              conversationState: 'collecting_event',
             };
           } else {
             return {
               success: true,
               message: 'Te rog să specifici data în format DD-MM-YYYY (ex: 15-01-2026)',
               sessionId: currentSessionId,
-              conversationState: 'collecting_event'
+              conversationState: 'collecting_event',
             };
           }
         }
@@ -526,7 +554,7 @@ exports.chatWithAI = onCall(
           conversationState.step = 'confirm';
           conversationState.data = eventData;
           await stateRef.update(conversationState);
-          
+
           const summary = `Gata! ✅ Iată ce am notat:
 
 📝 Eveniment pentru ${eventData.sarbatoritNume}, ${eventData.sarbatoritVarsta} ani
@@ -534,13 +562,13 @@ exports.chatWithAI = onCall(
 📍 Locație: ${eventData.address}
 
 Scrie "da" pentru a confirma și crea evenimentul, sau "anulează" pentru a renunța.`;
-          
+
           return {
             success: true,
             message: summary,
             sessionId: currentSessionId,
             conversationState: 'collecting_event',
-            eventPreview: eventData
+            eventPreview: eventData,
           };
         }
 
@@ -548,63 +576,76 @@ Scrie "da" pentru a confirma și crea evenimentul, sau "anulează" pentru a renu
           if (userText === 'da' || userText === 'confirm' || userText === 'confirma') {
             // Call chatEventOps to create event
             const chatEventOps = require('./chatEventOps');
-            
+
             const eventText = `Notează eveniment pentru ${eventData.sarbatoritNume}, ${eventData.sarbatoritVarsta} ani, pe ${eventData.date} la ${eventData.address}`;
-            
+
             try {
-              const eventResult = await chatEventOps({
-                data: {
-                  text: eventText,
-                  dryRun: false,
-                  clientRequestId: `interactive_${currentSessionId}_${Date.now()}`
+              const eventResult = await chatEventOps(
+                {
+                  data: {
+                    text: eventText,
+                    dryRun: false,
+                    clientRequestId: `interactive_${currentSessionId}_${Date.now()}`,
+                  },
+                  auth: request.auth,
                 },
-                auth: request.auth
-              }, {
-                status: () => ({ json: () => {} }),
-                json: (data) => data
-              });
-              
+                {
+                  status: () => ({ json: () => {} }),
+                  json: data => data,
+                }
+              );
+
               // Clear conversation state
               await stateRef.delete();
-              
+
               return {
                 success: true,
                 message: `🎉 Perfect! Evenimentul a fost creat cu succes! ✅\n\nPoți vedea detaliile în lista de evenimente.`,
                 sessionId: currentSessionId,
                 eventCreated: true,
-                eventId: eventResult.eventId
+                eventId: eventResult.eventId,
               };
             } catch (error) {
               console.error(`[${requestId}] Error creating event:`, error);
               await stateRef.delete();
-              
+
               return {
                 success: false,
                 message: `❌ A apărut o eroare la crearea evenimentului: ${error.message}`,
-                sessionId: currentSessionId
+                sessionId: currentSessionId,
               };
             }
           } else if (userText === 'anuleaza' || userText === 'nu' || userText === 'renunt') {
             await stateRef.delete();
-            
+
             return {
               success: true,
               message: 'OK, am anulat crearea evenimentului. Cu ce te mai pot ajuta? 😊',
-              sessionId: currentSessionId
+              sessionId: currentSessionId,
             };
           } else {
             return {
               success: true,
               message: 'Te rog să confirmi cu "da" sau să anulezi cu "nu"',
               sessionId: currentSessionId,
-              conversationState: 'collecting_event'
+              conversationState: 'collecting_event',
             };
           }
         }
       }
 
       // Check for short confirmation messages that might cause loops
-      const shortConfirmations = ['da', 'ok', 'bine', 'excelent', 'perfect', 'super', 'yes', 'no', 'nu'];
+      const shortConfirmations = [
+        'da',
+        'ok',
+        'bine',
+        'excelent',
+        'perfect',
+        'super',
+        'yes',
+        'no',
+        'nu',
+      ];
       const isShortConfirmation = shortConfirmations.includes(userText) || userText.length <= 3;
 
       // OPTIMIZATION: Check cache for common questions (skip if in conversation state)
@@ -876,61 +917,104 @@ exports.aiEventHandler = require('./aiEventHandler_v3').aiEventHandler;
 
 // WhatsApp Backend Proxy - QR Connect Routes Only
 const whatsappProxy = require('./whatsappProxy');
-// Define secret for Railway URL (v2 functions)
-const whatsappRailwayUrl = defineSecret('WHATSAPP_RAILWAY_BASE_URL');
+// Define secret for backend base URL (v2 functions) - Hetzner backend
+const whatsappBackendBaseUrl = defineSecret('WHATSAPP_BACKEND_BASE_URL');
 
 // Wrap handlers to inject secret into process.env for lazy-loading compatibility
-// This allows getRailwayBaseUrl() in whatsappProxy.js to find the value
-const wrapWithSecret = (handler, secret) => {
+// This allows getBackendBaseUrl() in lib/backend-url.js to find the value
+const wrapWithSecrets = (handler, secrets) => {
   return async (req, res) => {
-    // Inject secret value into process.env for getRailwayBaseUrl() to find it
-    if (secret && !process.env.WHATSAPP_RAILWAY_BASE_URL) {
-      try {
-        process.env.WHATSAPP_RAILWAY_BASE_URL = secret.value();
-      } catch (e) {
-        // Secret not available (emulator/local dev) - will use .runtimeconfig.json or env var
-        // This is OK - getRailwayBaseUrl() will fallback to functions.config()
+    try {
+      const secretList = Array.isArray(secrets) ? secrets : [secrets].filter(Boolean);
+      for (const secret of secretList) {
+        if (!secret) continue;
+        try {
+          const name = secret.name || '';
+          if (name === 'WHATSAPP_BACKEND_BASE_URL' && !process.env.WHATSAPP_BACKEND_BASE_URL) {
+            process.env.WHATSAPP_BACKEND_BASE_URL = secret.value();
+          }
+        } catch (e) {
+          // Secret not available (emulator/local dev) - will use .runtimeconfig.json or env var
+          // This is OK - getBackendBaseUrl() will fallback to functions.config()
+        }
+      }
+      return await handler(req, res);
+    } catch (error) {
+      // Catch any unhandled errors and return JSON instead of letting Firebase return HTML
+      console.error('[wrapWithSecrets] Unhandled error:', error.message);
+      console.error('[wrapWithSecrets] Error stack:', error.stack);
+      if (!res.headersSent) {
+        return res.status(500).json({
+          success: false,
+          error: 'internal_error',
+          message: 'Internal server error',
+        });
       }
     }
-    return handler(req, res);
   };
 };
 
 // Redeclare functions with secrets (override exports from whatsappProxy.js)
+// Light resources + maxInstances 1 to avoid "Quota exceeded for total allowable CPU" (us-central1)
+// whatsappProxySend needs 256MiB (was 128MiB) - logs show 130-139 MiB usage
+const proxyOpts = {
+  region: 'us-central1',
+  cors: true,
+  minInstances: 0,
+  maxInstances: 1,
+  memory: '256MiB', // Increased from 128MiB to prevent OOM errors
+  cpu: 0.5,
+  secrets: [whatsappBackendBaseUrl], // Only WHATSAPP_BACKEND_BASE_URL (standardized on Hetzner)
+  invoker: 'public', // Allow unauthenticated invocations (auth handled in code via requireAuth/requireEmployee)
+};
+
 exports.whatsappProxyGetAccounts = onRequest(
-  {
-    region: 'us-central1',
-    cors: true,
-    maxInstances: 1,
-    secrets: [whatsappRailwayUrl],
-  },
-  wrapWithSecret(whatsappProxy.getAccountsHandler, whatsappRailwayUrl)
+  proxyOpts,
+  wrapWithSecrets(whatsappProxy.getAccountsHandler, [whatsappBackendBaseUrl])
+);
+
+exports.whatsappProxyGetAccountsStaff = onRequest(
+  proxyOpts,
+  wrapWithSecrets(whatsappProxy.getAccountsStaffHandler, [whatsappBackendBaseUrl])
 );
 
 exports.whatsappProxyAddAccount = onRequest(
-  {
-    region: 'us-central1',
-    cors: true,
-    maxInstances: 1,
-    secrets: [whatsappRailwayUrl],
-  },
-  wrapWithSecret(whatsappProxy.addAccountHandler, whatsappRailwayUrl)
+  proxyOpts,
+  wrapWithSecrets(whatsappProxy.addAccountHandler, [whatsappBackendBaseUrl])
 );
 
 exports.whatsappProxyRegenerateQr = onRequest(
-  {
-    region: 'us-central1',
-    cors: true,
-    maxInstances: 1,
-    secrets: [whatsappRailwayUrl],
-  },
-  wrapWithSecret(whatsappProxy.regenerateQrHandler, whatsappRailwayUrl)
+  proxyOpts,
+  wrapWithSecrets(whatsappProxy.regenerateQrHandler, [whatsappBackendBaseUrl])
 );
 
-// Keep other functions as-is (they may not need secrets or use different config)
-exports.whatsappProxyDeleteAccount = whatsappProxy.deleteAccount;
-exports.whatsappProxyBackfillAccount = whatsappProxy.backfillAccount;
-exports.whatsappProxySend = whatsappProxy.send;
+exports.whatsappProxyGetThreads = onRequest(
+  proxyOpts,
+  wrapWithSecrets(whatsappProxy.getThreadsHandler, [whatsappBackendBaseUrl])
+);
+
+exports.whatsappProxyGetInbox = onRequest(
+  proxyOpts,
+  wrapWithSecrets(whatsappProxy.getInboxHandler, [whatsappBackendBaseUrl])
+);
+
+// whatsappProxyGetMessages removed: messages come only from Firestore threads/{threadId}/messages.
+// Flutter must not call this endpoint. Send uses whatsappProxySend.
+
+exports.whatsappProxyDeleteAccount = onRequest(
+  proxyOpts,
+  wrapWithSecrets(whatsappProxy.deleteAccountHandler, [whatsappBackendBaseUrl])
+);
+
+exports.whatsappProxyBackfillAccount = onRequest(
+  proxyOpts,
+  wrapWithSecrets(whatsappProxy.backfillAccountHandler, [whatsappBackendBaseUrl])
+);
+
+exports.whatsappProxySend = onRequest(
+  proxyOpts,
+  wrapWithSecrets(whatsappProxy.sendHandler, [whatsappBackendBaseUrl])
+);
 
 // Process outbox collection - send WhatsApp messages
 const processOutbox = require('./processOutbox');
@@ -940,7 +1024,8 @@ exports.processOutbox = processOutbox.processOutbox;
 exports.aggregateClientStats = require('./aggregateClientStats').aggregateClientStats;
 
 // WhatsApp event extraction from threads
-exports.whatsappExtractEventFromThread = require('./whatsappExtractEventFromThread').whatsappExtractEventFromThread;
+exports.whatsappExtractEventFromThread =
+  require('./whatsappExtractEventFromThread').whatsappExtractEventFromThread;
 
 // Client CRM AI questions
 exports.clientCrmAsk = require('./clientCrmAsk').clientCrmAsk;
@@ -957,7 +1042,9 @@ if (fs.existsSync(distIndexPath)) {
     }
   } catch (e) {
     if (process.env.NODE_ENV !== 'production' || process.env.DEBUG_DIST_LOAD === 'true') {
-      console.warn('⚠️ TypeScript callables not loaded (dist missing). Run: npm --prefix functions run build');
+      console.warn(
+        '⚠️ TypeScript callables not loaded (dist missing). Run: npm --prefix functions run build'
+      );
       console.warn(e?.message || e);
     }
   }

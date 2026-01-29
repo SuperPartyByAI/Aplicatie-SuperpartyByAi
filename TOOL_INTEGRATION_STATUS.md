@@ -45,7 +45,7 @@
 
 ### Uptime Monitoring
 
-- ⚠️ **Custom** - Railway health checks
+- ⚠️ **Custom** - legacy hosting health checks
 - ⚠️ **Firebase** - Built-in monitoring
 
 ### Caching
@@ -104,7 +104,7 @@ REDIS_URL=redis://your-redis-instance:6379
 - ❌ Database performance
 - ❌ Custom business metrics
 
-**Recommendation:** **Datadog** (better Railway integration)
+**Recommendation:** **Datadog** (better legacy hosting integration)
 
 **Implementation:**
 
@@ -216,7 +216,7 @@ app.get('/metrics', async (req, res) => {
 | Sentry         | $0 (Developer plan) | ✅ Active |
 | Better Stack   | $0 (Free tier)      | ✅ Active |
 | GitHub Actions | $0 (Free tier)      | ✅ Active |
-| Railway        | ~$5-20/month        | ✅ Active |
+| legacy hosting        | ~$5-20/month        | ✅ Active |
 | Firebase       | ~$0-10/month        | ✅ Active |
 | **Total**      | **~$5-30/month**    |           |
 
@@ -224,7 +224,7 @@ app.get('/metrics', async (req, res) => {
 
 | Service                          | Cost             | Priority | ROI    |
 | -------------------------------- | ---------------- | -------- | ------ |
-| Redis (Railway)                  | $5/month         | HIGH     | High   |
+| Redis (legacy hosting)                  | $5/month         | HIGH     | High   |
 | Datadog                          | $15-31/month     | MEDIUM   | High   |
 | Linear                           | $0 (Free tier)   | LOW      | Medium |
 | Prometheus/Grafana (self-hosted) | $0               | MEDIUM   | High   |
@@ -240,7 +240,7 @@ app.get('/metrics', async (req, res) => {
 1. ✅ **Redis Integration** - Distributed caching
    - Replace in-memory cache
    - Add session persistence
-   - Configure Railway Redis addon
+   - Configure legacy hosting Redis addon
 
 ### Phase 2: Enhanced Monitoring (Week 2)
 
@@ -284,8 +284,8 @@ app.get('/metrics', async (req, res) => {
 **Steps:**
 
 ```bash
-# 1. Add Redis to Railway
-railway add redis
+# 1. Add Redis to legacy hosting
+legacy hosting add redis
 
 # 2. Install client
 npm install ioredis
@@ -337,7 +337,7 @@ npm install prom-client
 **New Relic:**
 
 - More expensive than Datadog
-- Worse Railway integration
+- Worse legacy hosting integration
 - Overkill for current scale
 
 **Jira:**
@@ -377,14 +377,14 @@ npm install prom-client
 
 ## 🔧 Implementation Guide: Redis Cache
 
-### Step 1: Add Redis to Railway
+### Step 1: Add Redis to legacy hosting
 
 ```bash
-# In Railway dashboard or CLI
-railway add redis
+# In legacy hosting dashboard or CLI
+legacy hosting add redis
 
 # Get connection URL
-railway variables
+legacy hosting variables
 # Look for REDIS_URL
 ```
 
@@ -478,7 +478,7 @@ const accounts = await cache.getOrSet(
 ### Step 5: Add Environment Variable
 
 ```bash
-# Railway will auto-inject REDIS_URL
+# legacy hosting will auto-inject REDIS_URL
 # For local development:
 REDIS_URL=redis://localhost:6379
 ```

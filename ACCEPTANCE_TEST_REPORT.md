@@ -47,8 +47,8 @@ All critical functions deployed successfully:
 | whatsappProxyRegenerateQr | v2 | https | us-central1 | 256MB | nodejs20 |
 | whatsappProxySend | v2 | https | us-central1 | 256MB | nodejs20 |
 
-### 0.5 Railway Backend Health ✅
-**URL**: https://whats-upp-production.up.railway.app
+### 0.5 Hetzner Backend Health ✅
+**URL**: https://whats-app-ompro.ro
 
 ```json
 {
@@ -83,7 +83,7 @@ All critical functions deployed successfully:
 }
 ```
 
-**Railway Direct API**: `GET /api/whatsapp/accounts` returns:
+**Hetzner Direct API**: `GET /api/whatsapp/accounts` returns:
 ```json
 {"success":true,"accounts":[],"cached":false}
 ```
@@ -245,7 +245,7 @@ Expected fields: accountId, remoteJid, lastMessageTimestamp, unreadCount
    - Message persisted in Firestore:
      - direction: "outbound"
      - status: queued → sent → delivered (possibly read)
-   - Railway logs show send success
+   - Hetzner logs show send success
 
 **EVIDENCE TO COLLECT**:
 - [ ] Screenshot: Message sent in app
@@ -267,15 +267,15 @@ Expected fields: direction="outbound", status="sent"/"delivered"/"read"
 
 **MANUAL STEPS REQUIRED**:
 
-1. **Trigger Railway Restart**:
-   - Go to: Railway dashboard
+1. **Trigger Hetzner Restart**:
+   - Go to: Hetzner dashboard
    - Select: whats-upp-production service
    - Click: **Restart** or **Redeploy**
    - Wait: ~30-60 seconds for restart to complete
 
-2. **Verify Railway Health**:
+2. **Verify Hetzner Health**:
    ```bash
-   curl -sS https://whats-upp-production.up.railway.app/health | jq
+   curl -sS https://whats-app-ompro.ro/health | jq
    ```
    - Expected: `status: "healthy"`, `firestore: "connected"`
 
@@ -301,7 +301,7 @@ Expected fields: direction="outbound", status="sent"/"delivered"/"read"
 - ✅ New messages send/receive successfully
 
 **EVIDENCE TO COLLECT**:
-- [ ] Railway health after restart: PASS/FAIL
+- [ ] Hetzner health after restart: PASS/FAIL
 - [ ] Account reconnection: PASS/FAIL
 - [ ] Old messages preserved: PASS/FAIL
 - [ ] New messages work: PASS/FAIL
@@ -476,7 +476,7 @@ firebase functions:log --only clientCrmAsk --lines 200
 **RUN_ID**: T20260118_030620  
 **accountId**: (to be filled after Test 3.1)  
 **phoneE164 client**: (to be filled after Test 4.1)  
-**Railway health**: ✅ PASS  
+**Hetzner health**: ✅ PASS  
 **Functions list**: ✅ PASS  
 **Flutter analyze**: ✅ PASS (1 deprecation warning)
 

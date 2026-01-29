@@ -294,8 +294,8 @@ Vizibilitate:         100% (+100%) ⬆️⬆️⬆️⬆️⬆️
 
 ```bash
 # Multi-Region (opțional)
-PRIMARY_REGION_URL=https://whatsapp-primary.railway.app
-BACKUP_REGION_URL=https://whatsapp-backup.railway.app
+PRIMARY_REGION_URL=https://whatsapp-primary.legacy hosting.app
+BACKUP_REGION_URL=https://whatsapp-backup.legacy hosting.app
 
 # Message Batching (opțional, default: true)
 USE_MESSAGE_BATCHING=true
@@ -309,7 +309,7 @@ git commit -m "Add TIER 3 improvements"
 git push origin main
 ```
 
-Railway va detecta și redeploy automat.
+legacy hosting va detecta și redeploy automat.
 
 ---
 
@@ -330,7 +330,7 @@ curl -X POST https://YOUR-URL/api/whatsapp/add-account \
 ### Test 2: Persistent Queue
 
 ```bash
-# Restart Railway
+# Restart legacy hosting
 # Verifică în logs:
 📦 Restored X messages from queue
 ```
@@ -374,7 +374,7 @@ curl https://YOUR-URL/api/events?limit=10
 - [x] Documentație completă
 - [ ] Committed to git
 - [ ] Pushed to GitHub
-- [ ] Deployed to Railway
+- [ ] Deployed to legacy hosting
 - [ ] Testat în producție
 
 ---

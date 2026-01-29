@@ -41,7 +41,7 @@ console.log(`⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transit
 
 ## Action Required
 
-### Deploy Backend Fixes to Railway
+### Deploy Backend Fixes to legacy hosting
 ```bash
 cd whatsapp-backend
 git add server.js
@@ -76,7 +76,7 @@ git push origin main
 
 ## Verification After Deploy
 
-1. **Check commit hash**: Railway logs should show NEW commit (not `892419e6`)
+1. **Check commit hash**: legacy hosting logs should show NEW commit (not `892419e6`)
 2. **Test timeout**: După reason 515, verifică că NU apare "trecere la deconectare" când status e `qr_ready`
 3. **Test debug mode**: Call regenerateQr cu `X-Debug: true` header și verifică response includes `backendStatusCode`
 

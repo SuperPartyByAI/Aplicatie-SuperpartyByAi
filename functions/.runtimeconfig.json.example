@@ -1,5 +1,5 @@
 {
   "whatsapp": {
-    "railway_base_url": "https://your-railway-app.up.railway.app"
+    "backend_base_url": "https://whats-app-ompro.ro"
   }
 }

@@ -64,13 +64,13 @@
 
 ---
 
-### **3. Railway Backend (WhatsApp):**
+### **3. legacy hosting Backend (WhatsApp):**
 
 **Confirmed Features (from server.js):**
 - ✅ Message persistence: `messages.upsert` handler (Line 1319)
 - ✅ Receipts: `messages.update` + `message-receipt.update` (Line 1410, 1470)
 - ✅ History sync: `messaging-history.set` handler (Line 1252)
-- ✅ Sessions: `SESSIONS_PATH` env var (Line 311-314), volume mount `/app/sessions` (railway.toml Line 17)
+- ✅ Sessions: `SESSIONS_PATH` env var (Line 311-314), volume mount `/app/sessions` (legacy hosting.toml Line 17)
 - ✅ API endpoints: `/api/whatsapp/accounts`, `/api/whatsapp/threads/:accountId`, `/api/whatsapp/messages/:accountId/:threadId`, `/api/whatsapp/backfill/:accountId`
 
 ---
@@ -157,7 +157,7 @@ firebase deploy --only firestore,functions
 
 ---
 
-### **Railway (No Changes Needed):**
+### **legacy hosting (No Changes Needed):**
 
 **Backend is already running** (no new code changes for WhatsApp backend in this branch).
 

@@ -2,11 +2,11 @@
 
 ## Pasul 1: Creează Personal Token
 
-1. **Deschide:** https://railway.app/account/tokens
+1. **Deschide:** https://legacy hosting.app/account/tokens
    
    SAU:
    
-   - Railway Dashboard → Click pe profil (colț dreapta sus)
+   - legacy hosting Dashboard → Click pe profil (colț dreapta sus)
    - Settings → Tokens
 
 2. **IMPORTANT:** Selectează "**Personal**" (NU "Project"!)

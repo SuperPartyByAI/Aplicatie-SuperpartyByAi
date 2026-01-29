@@ -12,17 +12,17 @@ Redis caching cu automatic fallback la in-memory cache.
 
 ---
 
-## 🚀 Cum Să Adaugi Redis în Railway
+## 🚀 Cum Să Adaugi Redis în legacy hosting
 
-### Opțiunea 1: Railway Dashboard (Recomandat)
+### Opțiunea 1: legacy hosting Dashboard (Recomandat)
 
-1. **Deschide Railway Dashboard**
-   - Mergi la [railway.app](https://railway.app)
+1. **Deschide legacy hosting Dashboard**
+   - Mergi la [legacy hosting.app](https://legacy hosting.app)
    - Selectează proiectul tău
 
 2. **Adaugă Redis**
    - Click pe "New" → "Database" → "Add Redis"
-   - Railway va crea automat un Redis instance
+   - legacy hosting va crea automat un Redis instance
    - Va seta automat variabila `REDIS_URL`
 
 3. **Verifică Variabila**
@@ -31,28 +31,28 @@ Redis caching cu automatic fallback la in-memory cache.
    - Format: `redis://default:password@host:port`
 
 4. **Redeploy**
-   - Railway va redeploy automat
+   - legacy hosting va redeploy automat
    - Aplicația va detecta Redis și îl va folosi
 
 ---
 
-### Opțiunea 2: Railway CLI
+### Opțiunea 2: legacy hosting CLI
 
 ```bash
-# Install Railway CLI
-npm install -g @railway/cli
+# Install legacy hosting CLI
+npm install -g @legacy hosting/cli
 
 # Login
-railway login
+legacy hosting login
 
 # Link to project
-railway link
+legacy hosting link
 
 # Add Redis
-railway add redis
+legacy hosting add redis
 
 # Check variables
-railway variables
+legacy hosting variables
 
 # Deploy
 git push origin main
@@ -65,8 +65,8 @@ git push origin main
 ### 1. Check Logs
 
 ```bash
-# Railway logs
-railway logs
+# legacy hosting logs
+legacy hosting logs
 
 # Caută:
 # ✅ Redis connected successfully
@@ -76,7 +76,7 @@ railway logs
 
 ```bash
 # Get cache stats
-curl https://your-app.railway.app/api/cache/stats
+curl https://your-app.legacy hosting.app/api/cache/stats
 
 # Response:
 {
@@ -94,11 +94,11 @@ curl https://your-app.railway.app/api/cache/stats
 
 ```bash
 # First request (cache miss)
-curl https://your-app.railway.app/api/accounts
+curl https://your-app.legacy hosting.app/api/accounts
 # Response time: ~500ms
 
 # Second request (cache hit)
-curl https://your-app.railway.app/api/accounts
+curl https://your-app.legacy hosting.app/api/accounts
 # Response time: ~50ms (10x faster!)
 ```
 
@@ -151,10 +151,10 @@ npm start
 
 ## 📋 Environment Variables
 
-### Railway Production
+### legacy hosting Production
 
 ```bash
-# Railway setează automat când adaugi Redis
+# legacy hosting setează automat când adaugi Redis
 REDIS_URL=redis://default:password@host:port
 ```
 
@@ -274,7 +274,7 @@ Redis get: users (MISS)
 
 ## 💰 Costuri
 
-### Railway Redis Pricing
+### legacy hosting Redis Pricing
 
 - **Starter:** $5/month
   - 256MB RAM
@@ -298,7 +298,7 @@ Redis get: users (MISS)
 **Verifică:**
 
 1. `REDIS_URL` este setat corect
-2. Redis instance este running în Railway
+2. Redis instance este running în legacy hosting
 3. Logs pentru erori de conexiune
 
 **Soluție:**
@@ -320,7 +320,7 @@ Redis get: users (MISS)
 
 ```bash
 # Check cache type
-curl https://your-app.railway.app/api/cache/stats
+curl https://your-app.legacy hosting.app/api/cache/stats
 
 # Should show:
 # "type": "redis" (dacă Redis e conectat)
@@ -375,7 +375,7 @@ Database queries: 1 (67% reduction!)
 
 ## 🎯 Next Steps
 
-1. **Adaugă Redis în Railway** (5 minute)
+1. **Adaugă Redis în legacy hosting** (5 minute)
 2. **Verifică logs** pentru "Redis connected"
 3. **Test cache endpoint** `/api/cache/stats`
 4. **Monitor performance** (response times)
@@ -387,7 +387,7 @@ Database queries: 1 (67% reduction!)
 
 **Probleme?**
 
-- Check logs: `railway logs`
+- Check logs: `legacy hosting logs`
 - Check cache stats: `/api/cache/stats`
 - App va funcționa cu in-memory cache dacă Redis nu e disponibil
 

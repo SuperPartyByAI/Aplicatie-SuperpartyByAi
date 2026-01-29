@@ -61,7 +61,7 @@
 
 ### Frontend (kyc-app/)
 
-1. `355ecba4` - Connect ChatClienti to Railway backend
+1. `355ecba4` - Connect ChatClienti to legacy hosting backend
 2. `1d6aff41` - Implement real-time messaging with Firestore + outbox system
 3. `06ce1df4` - Simplify WhatsAppChatScreen to use ChatClientiRealtime
 4. `3e159f9a` - Add /accounts-management page + increase MAX_ACCOUNTS to 30
@@ -75,9 +75,9 @@
 
 ## 🏗️ Architecture
 
-### Backend (Railway)
+### Backend (legacy hosting)
 
-**URL**: https://whats-upp-production.up.railway.app
+**URL**: https://whats-app-ompro.ro
 
 **Key Components:**
 
@@ -213,7 +213,7 @@
 
 ### Deployment Status
 
-- ✅ Backend deployed on Railway (auto-deploy from main branch)
+- ✅ Backend deployed on legacy hosting (auto-deploy from main branch)
 - ✅ Frontend deployed on Firebase Hosting
 - ✅ All 3 pages accessible and functional
 
@@ -298,7 +298,7 @@
 
 - [ ] Monitor backend logs for errors
 - [ ] Check Firestore usage/costs
-- [ ] Verify Railway resource usage
+- [ ] Verify legacy hosting resource usage
 - [ ] Set up alerts for failures
 
 ### 5. Optional Enhancements
@@ -315,9 +315,9 @@
 
 ### Production URLs
 
-- Backend: https://whats-upp-production.up.railway.app
+- Backend: https://whats-app-ompro.ro
 - Frontend: https://superparty-frontend.web.app
-- Health: https://whats-upp-production.up.railway.app/health
+- Health: https://whats-app-ompro.ro/health
 
 ### GitHub
 
@@ -330,9 +330,9 @@
 - Console: https://console.firebase.google.com/project/superparty-frontend
 - Firestore: https://console.firebase.google.com/project/superparty-frontend/firestore
 
-### Railway
+### legacy hosting
 
-- Dashboard: https://railway.app (login required)
+- Dashboard: https://legacy hosting.app (login required)
 
 ---
 
@@ -356,7 +356,7 @@
 - Disconnect old socket before creating new one
 - Update Firestore status for proper cleanup
 
-### 4. Railway Deployment
+### 4. legacy hosting Deployment
 
 - Auto-deploy from GitHub main branch
 - ~60 seconds deploy time
@@ -391,7 +391,7 @@
 - Current: 1 account connected
 - Capacity: 30 accounts
 - Can increase to 50-100 without issues
-- Railway resources sufficient
+- legacy hosting resources sufficient
 
 ---
 
@@ -407,7 +407,7 @@
 - Backend: Node.js, Express, Baileys, Firebase Admin SDK
 - Frontend: React, Vite, Firebase SDK
 - Database: Firestore
-- Hosting: Railway (backend), Firebase Hosting (frontend)
+- Hosting: legacy hosting (backend), Firebase Hosting (frontend)
 - Version Control: Git, GitHub
 
 ---

@@ -59,8 +59,8 @@ Dependențe necesare (deja în package.json):
 Creează `.env` în `/workspaces/Aplicatie-SuperpartyByAi/monitoring/`:
 
 ```bash
-# Railway API Token
-RAILWAY_TOKEN=your_railway_token_here
+# legacy hosting API Token
+LEGACY_TOKEN=your_legacy_token_here
 
 # Project IDs (opțional, poți adăuga manual în dashboard)
 SUPERPARTY_PROJECT_ID=your_superparty_project_id
@@ -68,16 +68,16 @@ VOICE_PROJECT_ID=your_voice_project_id
 MONITORING_PROJECT_ID=your_monitoring_project_id
 ```
 
-**Cum obții Railway token:**
+**Cum obții legacy hosting token:**
 
-1. Mergi la [railway.app](https://railway.app)
+1. Mergi la [legacy hosting.app](https://legacy hosting.app)
 2. Settings → Tokens
 3. Create new token
 4. Copy token
 
 **Cum obții Project IDs:**
 
-1. Deschide proiectul în Railway
+1. Deschide proiectul în legacy hosting
 2. Settings → Project ID
 3. Copy ID
 
@@ -440,12 +440,12 @@ curl -X POST http://localhost:3001/api/projects \
 
 ---
 
-## 🚀 DEPLOY PE RAILWAY
+## 🚀 DEPLOY PE LEGACY_HOSTING
 
 ### **Pasul 1: Creează service pentru monitoring**
 
 ```bash
-# În Railway:
+# În legacy hosting:
 1. New Service
 2. GitHub Repo: Aplicatie-SuperpartyByAi
 3. Root Directory: monitoring
@@ -455,7 +455,7 @@ curl -X POST http://localhost:3001/api/projects \
 ### **Pasul 2: Adaugă environment variables**
 
 ```
-RAILWAY_TOKEN=your_token
+LEGACY_TOKEN=your_token
 SUPERPARTY_PROJECT_ID=id1
 VOICE_PROJECT_ID=id2
 MONITORING_PROJECT_ID=id3
@@ -464,10 +464,10 @@ PORT=3001
 
 ### **Pasul 3: Deploy**
 
-Railway va deploy automat. Dashboard va fi disponibil la:
+legacy hosting va deploy automat. Dashboard va fi disponibil la:
 
 ```
-https://your-monitoring-service.railway.app
+https://your-monitoring-service.legacy hosting.app
 ```
 
 ---
@@ -509,7 +509,7 @@ console.log(`Total instances: ${replicationStats.totalInstances}`);
 ## ✅ CHECKLIST IMPLEMENTARE
 
 - [ ] Instalat dependențele (`npm install`)
-- [ ] Configurat `.env` cu RAILWAY_TOKEN
+- [ ] Configurat `.env` cu LEGACY_TOKEN
 - [ ] Adăugat project IDs în `.env`
 - [ ] Pornit v7.0 (`node v7-start.js`)
 - [ ] Accesat dashboard (http://localhost:3001)
@@ -517,7 +517,7 @@ console.log(`Total instances: ${replicationStats.totalInstances}`);
 - [ ] Verificat că metrics se actualizează
 - [ ] Testat self-replication (simulează load)
 - [ ] Verificat learning (așteaptă 24h pentru pattern-uri)
-- [ ] Deploy pe Railway (opțional)
+- [ ] Deploy pe legacy hosting (opțional)
 
 ---
 
@@ -550,17 +550,17 @@ console.log(`Total instances: ${replicationStats.totalInstances}`);
 **Probleme?**
 
 1. Verifică logs în console
-2. Verifică că RAILWAY_TOKEN e corect
+2. Verifică că LEGACY_TOKEN e corect
 3. Verifică că project IDs sunt corecte
-4. Verifică că Railway API e accesibil
+4. Verifică că legacy hosting API e accesibil
 
 **Erori comune:**
 
 **"Failed to add project"**
-→ Verifică RAILWAY_TOKEN și project ID
+→ Verifică LEGACY_TOKEN și project ID
 
 **"Service not found"**
-→ Verifică că service-ul există în Railway
+→ Verifică că service-ul există în legacy hosting
 
 **"Dashboard not loading"**
 → Verifică că portul 3001 e liber

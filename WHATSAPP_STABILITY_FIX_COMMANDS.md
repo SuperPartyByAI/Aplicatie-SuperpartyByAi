@@ -88,26 +88,26 @@ flutter run -d emulator-5554 \
 export ADMIN_TOKEN="dev-token-..."
 
 # 1. Health check
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # 2. Get accounts
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts
+  https://whats-app-ompro.ro/api/whatsapp/accounts
 
 # 3. Add account (should return 503 if PASSIVE)
 curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"Test","phone":"+40712345678"}' \
-  https://whats-upp-production.up.railway.app/api/whatsapp/add-account
+  https://whats-app-ompro.ro/api/whatsapp/add-account
 
 # 4. regenerateQr (should return existing QR if valid, 202 if connecting, 429 if throttled)
 curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/regenerate-qr/ACCOUNT_ID
+  https://whats-app-ompro.ro/api/whatsapp/regenerate-qr/ACCOUNT_ID
 ```
 
 ### Verify After Deploy
 
-**Railway logs should show:**
+**legacy hosting logs should show:**
 - ✅ Commit hash is NEW (not `892419e6`)
 - ✅ PASSIVE mode guard logs: `⏸️  [requestId] PASSIVE mode guard`
 - ✅ Throttle logs: `ℹ️  [accountId] Regenerate throttled (Xs remaining)`

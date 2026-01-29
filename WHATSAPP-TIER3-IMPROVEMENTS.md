@@ -89,7 +89,7 @@ class WhatsAppManager {
 **Problema:**
 
 - Message queue în memory (max 1000 mesaje)
-- La crash Railway → mesaje pierdute
+- La crash legacy hosting → mesaje pierdute
 - Pierdere: 0.1% (1 mesaj la 1000)
 
 **Soluție:**
@@ -363,22 +363,22 @@ class WhatsAppManager {
 
 **Problema:**
 
-- 1 server Railway (US/EU)
+- 1 server legacy hosting (US/EU)
 - Dacă region down → downtime complet
 - Risc: 0.1% (1 oră/lună)
 
 **Soluție:**
 
 ```javascript
-// Deploy pe 2 regiuni Railway
+// Deploy pe 2 regiuni legacy hosting
 // Region 1: US West
 // Region 2: EU West
 
 class WhatsAppManager {
   constructor(io) {
     this.regions = [
-      { name: 'us-west', url: 'https://whatsapp-us.railway.app' },
-      { name: 'eu-west', url: 'https://whatsapp-eu.railway.app' },
+      { name: 'us-west', url: 'https://whatsapp-us.legacy hosting.app' },
+      { name: 'eu-west', url: 'https://whatsapp-eu.legacy hosting.app' },
     ];
     this.activeRegion = 0;
   }
@@ -402,11 +402,11 @@ class WhatsAppManager {
 
 - Uptime: 99.1% → 99.9% (+0.8%)
 - Failover automat între regiuni
-- Zero downtime la Railway issues
+- Zero downtime la legacy hosting issues
 
 **Cost:**
 
-- 2x cost Railway ($10/lună → $20/lună)
+- 2x cost legacy hosting ($10/lună → $20/lună)
 - Mai complex de gestionat
 
 **Adevăr:** **90%**

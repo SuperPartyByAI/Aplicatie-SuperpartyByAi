@@ -169,8 +169,8 @@ All prerequisites met:
 **Next Steps:**
 1. Merge PR `audit-whatsapp-30` → `main`
 2. Deploy Firebase (rules/indexes/functions)
-3. Set Firebase secrets (RAILWAY_WHATSAPP_URL)
-4. Redeploy Railway (volume + env vars)
+3. Set Firebase secrets (LEGACY_WHATSAPP_URL)
+4. Redeploy legacy hosting (volume + env vars)
 5. Run acceptance tests (2 accounts + 1 client)
 6. Onboard 30 accounts
 

@@ -57,7 +57,7 @@
 ## C. Security Verification (Already Completed, but Record It)
 
 - [x] `firebase-adminsdk.json` — DELETED from tracking
-- [x] `RAILWAY-VARIABLES-V7.env` — DELETED from tracking
+- [x] `LEGACY_HOSTING-VARIABLES-V7.env` — DELETED from tracking
 - [x] `functions/.runtimeconfig.json` — REMOVED from tracking (only `.example` remains)
 - [x] `.gitignore` — blocks env/runtimeconfig/backups
 - [x] Flutter — does not write directly to server-only collections (verified)

@@ -1,8 +1,8 @@
 # 🎉 WhatsApp Backend v2.0.0 - Local Testing Complete!
 
-**Status:** ✅ 100% Local Tests Passed - Ready for Railway Deployment  
+**Status:** ✅ 100% Local Tests Passed - Ready for legacy hosting Deployment  
 **Date:** 2025-12-29  
-**Code Version:** Railway v2.0.0
+**Code Version:** legacy hosting v2.0.0
 
 ---
 
@@ -53,21 +53,21 @@
 
 **Pending (3/6 DoD criteria):**
 
-- ⏳ Min 1 account connected (needs Railway + manual QR scan)
+- ⏳ Min 1 account connected (needs legacy hosting + manual QR scan)
 - ⏳ MTTR < 30s P95 (needs connected account)
 - ⏳ Message queue 100% delivery (needs connected account)
 
-**Blocker:** Railway deployment + manual WhatsApp QR scan required
+**Blocker:** legacy hosting deployment + manual WhatsApp QR scan required
 
 ---
 
 ## 🚀 What You Need to Do Next
 
-### Step 1: Deploy to Railway (10-15 minutes)
+### Step 1: Deploy to legacy hosting (10-15 minutes)
 
-**Easiest method: Railway Dashboard**
+**Easiest method: legacy hosting Dashboard**
 
-1. Go to [https://railway.app/dashboard](https://railway.app/dashboard)
+1. Go to [https://legacy hosting.app/dashboard](https://legacy hosting.app/dashboard)
 2. Click "New Project" → "Deploy from GitHub repo"
 3. Select: `SuperPartyByAI/Aplicatie-SuperpartyByAi`
 4. Configure:
@@ -84,7 +84,7 @@
 6. Click "Deploy" and wait 2-3 minutes
 7. Copy service URL from Settings → Domains
 
-**Detailed instructions:** See `RAILWAY-DEPLOY-INSTRUCTIONS.md`
+**Detailed instructions:** See `LEGACY_HOSTING-DEPLOY-INSTRUCTIONS.md`
 
 ---
 
@@ -92,7 +92,7 @@
 
 ```bash
 # Test health endpoint (replace YOUR-SERVICE with actual URL)
-curl https://YOUR-SERVICE.up.railway.app/health | jq .
+curl https://whats-app-ompro.ro/health | jq .
 
 # Expected response:
 {
@@ -108,12 +108,12 @@ curl https://YOUR-SERVICE.up.railway.app/health | jq .
 
 ```bash
 # 1. Add account
-curl -X POST https://YOUR-SERVICE.up.railway.app/api/whatsapp/add-account \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
   -d '{"phoneNumber": "+40700000001"}' | jq .
 
 # 2. Wait 3 seconds, get QR code
-curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | \
+curl https://whats-app-ompro.ro/api/whatsapp/accounts | \
   jq -r '.accounts[0].qrCode'
 
 # 3. Copy the QR data URL (starts with data:image/png;base64,...)
@@ -123,7 +123,7 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | \
 # 7. Wait for connection
 
 # 8. Verify connection
-curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | \
+curl https://whats-app-ompro.ro/api/whatsapp/accounts | \
   jq '.accounts[0].status'
 
 # Expected: "connected"
@@ -148,8 +148,8 @@ Once you have a connected account:
 All evidence and instructions are ready:
 
 1. **LOCAL-TEST-SUCCESS.md** - Full local test report (100% passed)
-2. **RAILWAY-DEPLOY-INSTRUCTIONS.md** - Step-by-step deployment guide
-3. **CURRENT-STATUS-RAILWAY.md** - Current status and next steps
+2. **LEGACY_HOSTING-DEPLOY-INSTRUCTIONS.md** - Step-by-step deployment guide
+3. **CURRENT-STATUS-LEGACY_HOSTING.md** - Current status and next steps
 4. **evidence-local-test.json** - Machine-readable test results
 5. **SUMMARY-FOR-USER.md** - This file
 
@@ -167,7 +167,7 @@ All evidence and instructions are ready:
 
 **What's blocking:**
 
-- Railway service not deployed yet (you need to do this)
+- legacy hosting service not deployed yet (you need to do this)
 - No connected WhatsApp accounts (needs manual QR scan)
 
 **Confidence level:** HIGH
@@ -178,7 +178,7 @@ All evidence and instructions are ready:
 
 **Time to production:** ~3 hours
 
-- Deploy to Railway: 15 min
+- Deploy to legacy hosting: 15 min
 - Connect account: 5 min
 - Production tests: 2-3 hours
 
@@ -188,7 +188,7 @@ All evidence and instructions are ready:
 
 **The code is ready. You just need to:**
 
-1. Deploy to Railway (follow `RAILWAY-DEPLOY-INSTRUCTIONS.md`)
+1. Deploy to legacy hosting (follow `LEGACY_HOSTING-DEPLOY-INSTRUCTIONS.md`)
 2. Scan one QR code with your phone
 3. Run production tests
 4. Achieve 100% production readiness
@@ -201,8 +201,8 @@ All evidence and instructions are ready:
 
 If you encounter issues:
 
-1. Check `RAILWAY-DEPLOY-INSTRUCTIONS.md` for troubleshooting
-2. Review Railway logs for specific errors
+1. Check `LEGACY_HOSTING-DEPLOY-INSTRUCTIONS.md` for troubleshooting
+2. Review legacy hosting logs for specific errors
 3. Verify Firebase credentials are correct
 4. Check that root directory is set to `whatsapp-backend`
 
@@ -211,7 +211,7 @@ If you encounter issues:
 ---
 
 **Generated:** 2025-12-29T12:20:00Z  
-**Code Version:** Railway v2.0.0  
+**Code Version:** legacy hosting v2.0.0  
 **Local Tests:** 7/7 PASSED (100%)  
 **Production Readiness:** 50% → Target: 100%  
-**Next Action:** Deploy to Railway
+**Next Action:** Deploy to legacy hosting

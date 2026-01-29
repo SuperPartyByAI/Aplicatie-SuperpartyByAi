@@ -1,4 +1,4 @@
-# ✅ Verificare Finală Configurare Railway
+# ✅ Verificare Finală Configurare legacy hosting
 
 ## Ce ai configurat până acum
 
@@ -33,7 +33,7 @@
 
 ## Verificare Rapidă
 
-### În Railway Dashboard
+### În legacy hosting Dashboard
 
 1. **Verifică Volume:**
    - Tab "**Volumes**" (stânga)
@@ -48,7 +48,7 @@
 ### Prin Health Endpoint
 
 ```bash
-curl https://whats-upp-production.up.railway.app/health | jq
+curl https://whats-app-ompro.ro/health | jq
 ```
 
 **Așteptat:**
@@ -82,7 +82,7 @@ curl https://whats-upp-production.up.railway.app/health | jq
 ## După verificare
 
 ✅ **Dacă ai AMBELE (Volume + `SESSIONS_PATH`):**
-- Railway va redeploy automat
+- legacy hosting va redeploy automat
 - Service-ul va porni corect
 - Health endpoint va returna `"sessions_dir_writable": true`
 
@@ -104,7 +104,7 @@ cd ~/Aplicatie-SuperpartyByAi
 
 Sau manual:
 ```bash
-curl https://whats-upp-production.up.railway.app/health | jq .sessions_dir_writable
+curl https://whats-app-ompro.ro/health | jq .sessions_dir_writable
 ```
 
 **Așteptat:** `true` ✅

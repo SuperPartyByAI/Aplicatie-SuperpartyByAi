@@ -73,7 +73,7 @@ maxConsecutiveFailures: 1; // 1 în loc de 2
 - Previne 50% din failures
 - Cost: $0
 
-### 5. **Multi-region failover** (Railway regions)
+### 5. **Multi-region failover** (legacy hosting regions)
 
 ```javascript
 // Primary: US West
@@ -81,9 +81,9 @@ maxConsecutiveFailures: 1; // 1 în loc de 2
 ```
 
 - Failover: <1s → **<100ms**
-- Cost: $0 (Railway free tier suportă multiple regions)
+- Cost: $0 (legacy hosting free tier suportă multiple regions)
 
-### 6. **Railway restart ultra-rapid**
+### 6. **legacy hosting restart ultra-rapid**
 
 ```json
 {
@@ -94,7 +94,7 @@ maxConsecutiveFailures: 1; // 1 în loc de 2
 }
 ```
 
-- Railway restart: 10s → **5s**
+- legacy hosting restart: 10s → **5s**
 - Cost: $0
 
 ---
@@ -157,10 +157,10 @@ Presupunem **10 failures/lună** (realist):
 
 Toate optimizările folosesc:
 
-- ✅ Railway features gratuite
+- ✅ legacy hosting features gratuite
 - ✅ Mai multe HTTP requests (gratuite)
-- ✅ Railway API calls (gratuite)
-- ✅ Multi-region (Railway free tier)
+- ✅ legacy hosting API calls (gratuite)
+- ✅ Multi-region (legacy hosting free tier)
 
 **ZERO costuri adiționale!**
 

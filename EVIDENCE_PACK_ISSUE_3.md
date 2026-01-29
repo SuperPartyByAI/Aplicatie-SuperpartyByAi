@@ -21,7 +21,7 @@
 ### 1. Backend Funcțional
 
 ```bash
-$ curl -s https://whats-upp-production.up.railway.app/health | python3 -m json.tool
+$ curl -s https://whats-app-ompro.ro/health | python3 -m json.tool
 {
     "status": "healthy",
     "version": "2.0.0",
@@ -41,7 +41,7 @@ $ curl -s https://whats-upp-production.up.railway.app/health | python3 -m json.t
 ### 2. Account Creation Works
 
 ```bash
-$ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-account \
+$ curl -X POST https://whats-app-ompro.ro/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
   -d '{"phone": "+40737571397", "name": "Test Account"}'
 
@@ -59,7 +59,7 @@ $ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-acco
 
 ### 3. QR Generation Works
 
-**URL:** https://whats-upp-production.up.railway.app/api/whatsapp/qr/account_dev_dde908a65501c63b124cb94c627e551d
+**URL:** https://whats-app-ompro.ro/api/whatsapp/qr/account_dev_dde908a65501c63b124cb94c627e551d
 
 ✅ QR code generat și disponibil  
 ✅ HTML page cu instrucțiuni de scanare  
@@ -107,7 +107,7 @@ private async attemptLockPromotion(): Promise<void> {
 ### ✅ Test 1: Health Endpoint
 
 ```bash
-curl -s https://whats-upp-production.up.railway.app/health
+curl -s https://whats-app-ompro.ro/health
 # Result: 200 OK, Firestore connected
 ```
 
@@ -140,31 +140,31 @@ curl -X POST .../api/whatsapp/add-account -d '{"phone": "+40123456789"}'
 
 1. Deschide WhatsApp pe telefon
 2. Settings → Linked Devices → Link a Device
-3. Scanează QR de la: https://whats-upp-production.up.railway.app/api/whatsapp/qr/account_dev_dde908a65501c63b124cb94c627e551d
+3. Scanează QR de la: https://whats-app-ompro.ro/api/whatsapp/qr/account_dev_dde908a65501c63b124cb94c627e551d
 
 ### Step 2: Verify Connection
 
 ```bash
-curl -s https://whats-upp-production.up.railway.app/health | python3 -m json.tool
+curl -s https://whats-app-ompro.ro/health | python3 -m json.tool
 # Expected: "connected": 1
 ```
 
 ### Step 3: Test Message Sending
 
 ```bash
-curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/send \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/send \
   -H "Content-Type: application/json" \
   -d '{
     "accountId": "account_dev_dde908a65501c63b124cb94c627e551d",
     "to": "+40737571397",
-    "message": "Test from Railway!"
+    "message": "Test from legacy hosting!"
   }'
 ```
 
 ### Step 4: Test Restart Persistence (3x)
 
 ```bash
-# Restart service in Railway Dashboard
+# Restart service in legacy hosting Dashboard
 # Verify session persists without QR scan
 ./test-restart-persistence.sh
 ```
@@ -204,6 +204,6 @@ Pentru confirmare finală, te rog să faci următoarele:
 1. **Scanează QR-ul** de la URL-ul de mai sus
 2. **Verifică health** după scanare (ar trebui să vezi `connected: 1`)
 3. **Testează trimitere mesaj** cu comanda de mai sus
-4. **Restart service** în Railway Dashboard (3x) și verifică că sesiunea persistă
+4. **Restart service** în legacy hosting Dashboard (3x) și verifică că sesiunea persistă
 
 Dacă toate acestea funcționează → Issue #3 este **100% RESOLVED**! 🎉

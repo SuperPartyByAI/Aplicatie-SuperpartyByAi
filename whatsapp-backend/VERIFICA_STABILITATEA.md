@@ -5,7 +5,7 @@
 ### 1. Verifică backend health:
 
 ```bash
-curl -s https://whats-upp-production.up.railway.app/health | jq
+curl -s https://whats-app-ompro.ro/health | jq
 ```
 
 **Rezultat OK:**
@@ -18,7 +18,7 @@ curl -s https://whats-upp-production.up.railway.app/health | jq
 ```bash
 export ADMIN_TOKEN=your-token
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq
+  https://whats-app-ompro.ro/api/whatsapp/accounts | jq
 ```
 
 **Rezultat OK:**
@@ -28,20 +28,20 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ### 3. Verifică logurile pentru restores:
 
-**Opțiunea 1: Railway Dashboard (recomandat)**
-- Deschide: https://railway.app/project
+**Opțiunea 1: legacy hosting Dashboard (recomandat)**
+- Deschide: https://legacy hosting.app/project
 - Selectează proiectul "Whats Upp"
 - Click pe service → Logs
 - Caută: `restore.*Firestore` sau `Session restored`
 
-**Opțiunea 2: Railway CLI (dacă e linkat)**
+**Opțiunea 2: legacy hosting CLI (dacă e linkat)**
 ```bash
 # Link proiectul mai întâi:
 cd whatsapp-backend
-railway link
+legacy hosting link
 
 # Apoi verifică logurile:
-railway logs | grep -i "restore.*Firestore\|Session restored" | tail -20
+legacy hosting logs | grep -i "restore.*Firestore\|Session restored" | tail -20
 ```
 
 **Rezultat OK:**
@@ -54,18 +54,18 @@ railway logs | grep -i "restore.*Firestore\|Session restored" | tail -20
 
 ### Test 1: Simulează redeploy
 
-**Pas 1:** Monitorează logurile (Railway Dashboard):
-- Deschide: https://railway.app/project
+**Pas 1:** Monitorează logurile (legacy hosting Dashboard):
+- Deschide: https://legacy hosting.app/project
 - Selectează "Whats Upp" → Service → Logs
-- SAU: `railway logs` (dacă e linkat)
+- SAU: `legacy hosting logs` (dacă e linkat)
 
-**Pas 2:** Redeploy backend (Railway Dashboard):
+**Pas 2:** Redeploy backend (legacy hosting Dashboard):
 - Click pe service → Deployments → Redeploy
-- SAU: `railway up` (dacă e linkat din whatsapp-backend/)
+- SAU: `legacy hosting up` (dacă e linkat din whatsapp-backend/)
 
 **Pas 3:** Verifică restore în loguri:
-- În Railway Dashboard → Logs
-- SAU: `railway logs | grep -i "restore.*Firestore" | tail -10`
+- În legacy hosting Dashboard → Logs
+- SAU: `legacy hosting logs | grep -i "restore.*Firestore" | tail -10`
 
 **✅ SUCCESS dacă:**
 - Apare `"🔄 [account_xxx] Disk session missing, attempting Firestore restore..."`
@@ -93,18 +93,18 @@ railway logs | grep -i "restore.*Firestore\|Session restored" | tail -20
 
 ```bash
 # 1. Health
-echo "Health:" && curl -s https://whats-upp-production.up.railway.app/health | jq -r '.status'
+echo "Health:" && curl -s https://whats-app-ompro.ro/health | jq -r '.status'
 
 # 2. Accounts (dacă ai token)
 export ADMIN_TOKEN=your-token
 echo "Accounts:" && curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts | \
+  https://whats-app-ompro.ro/api/whatsapp/accounts | \
   jq -r '.accounts[] | "\(.name // .id): \(.status)"'
 
 # 3. Recent restores (ultima oră)
-# Opțiunea 1: Railway Dashboard → Logs → Search "restore"
-# Opțiunea 2: Railway CLI (dacă e linkat)
-echo "Recent restores:" && railway logs | \
+# Opțiunea 1: legacy hosting Dashboard → Logs → Search "restore"
+# Opțiunea 2: legacy hosting CLI (dacă e linkat)
+echo "Recent restores:" && legacy hosting logs | \
   grep -c "restore.*Firestore" || echo "None (good - session stable)"
 ```
 

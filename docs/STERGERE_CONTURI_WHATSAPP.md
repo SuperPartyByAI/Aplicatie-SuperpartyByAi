@@ -65,10 +65,10 @@ Există **2 metode** pentru ștergerea conturilor WhatsApp:
    ```bash
    cd whatsapp-backend
    
-   # Opțiunea 1: Din Railway CLI
-   export ADMIN_TOKEN=$(railway variables | grep ADMIN_TOKEN | head -1 | awk -F'│' '{print $3}' | xargs)
-   
-   # Opțiunea 2: Manual (copiază token-ul din Railway Dashboard)
+   # Opțiunea 1: Din Hetzner server
+   export ADMIN_TOKEN=$(ssh root@37.27.34.179 "systemctl show whatsapp-backend -p Environment | grep -oP 'ADMIN_TOKEN=\K[^ ]+' | head -1")
+
+   # Opțiunea 2: Manual (copiază token-ul din Hetzner systemd config)
    export ADMIN_TOKEN='your-admin-token-here'
    ```
 
@@ -217,10 +217,11 @@ which jq
 cd whatsapp-backend
 
 # 2. Setează ADMIN_TOKEN
-export ADMIN_TOKEN=$(railway variables | grep ADMIN_TOKEN | head -1 | awk -F'│' '{print $3}' | xargs)
+# Get ADMIN_TOKEN from Hetzner server
+export ADMIN_TOKEN=$(ssh root@37.27.34.179 "systemctl show whatsapp-backend -p Environment | grep -oP 'ADMIN_TOKEN=\K[^ ]+' | head -1")
 
 # 3. Lista conturile cu status 'disconnected'
-curl -s https://whats-upp-production.up.railway.app/api/whatsapp/accounts \
+curl -s https://whats-app-ompro.ro/api/whatsapp/accounts \
   -H "Authorization: Bearer $ADMIN_TOKEN" | \
   jq -r '.accounts[] | select(.status == "disconnected") | "\(.id) - \(.name) - \(.phone)"'
 
@@ -242,7 +243,7 @@ După ștergere, verifică:
 ./scripts/delete_accounts.sh --list
 
 # Sau via API
-curl -s https://whats-upp-production.up.railway.app/api/whatsapp/accounts \
+curl -s https://whats-app-ompro.ro/api/whatsapp/accounts \
   -H "Authorization: Bearer $ADMIN_TOKEN" | \
   jq '.accounts | length'  # Număr conturi
 ```

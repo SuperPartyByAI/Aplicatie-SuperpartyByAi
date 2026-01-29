@@ -1,0 +1,144 @@
+Resolving dependencies...
+Downloading packages...
+  _flutterfire_internals 1.3.65 (1.3.66 available)
+  async 2.11.0 (2.13.0 available)
+  boolean_selector 2.1.1 (2.1.2 available)
+  cached_network_image 3.4.0 (3.4.1 available)
+  cached_network_image_platform_interface 4.1.0 (4.1.1 available)
+  cached_network_image_web 1.3.0 (1.3.1 available)
+  characters 1.4.0 (1.4.1 available)
+  cloud_firestore 6.1.1 (6.1.2 available)
+  cloud_firestore_platform_interface 7.0.5 (7.0.6 available)
+  cloud_firestore_web 5.1.1 (5.1.2 available)
+  cloud_functions 6.0.5 (6.0.6 available)
+  cloud_functions_platform_interface 5.8.8 (5.8.9 available)
+  cloud_functions_web 5.1.1 (5.1.2 available)
+  ffi 2.1.3 (2.1.5 available)
+  file_selector_linux 0.9.3+2 (0.9.4 available)
+  file_selector_macos 0.9.4+2 (0.9.5 available)
+  file_selector_platform_interface 2.6.2 (2.7.0 available)
+  file_selector_windows 0.9.3+4 (0.9.3+5 available)
+  firebase_app_check 0.4.1+3 (0.4.1+4 available)
+  firebase_app_check_platform_interface 0.2.1+3 (0.2.1+4 available)
+  firebase_app_check_web 0.2.2+1 (0.2.2+2 available)
+  firebase_auth 6.1.3 (6.1.4 available)
+  firebase_auth_platform_interface 8.1.5 (8.1.6 available)
+  firebase_auth_web 6.1.1 (6.1.2 available)
+  firebase_core 4.3.0 (4.4.0 available)
+  firebase_core_web 3.3.1 (3.4.0 available)
+  firebase_messaging 16.1.0 (16.1.1 available)
+  firebase_messaging_platform_interface 4.7.5 (4.7.6 available)
+  firebase_messaging_web 4.1.1 (4.1.2 available)
+  firebase_storage 13.0.5 (13.0.6 available)
+  firebase_storage_platform_interface 5.2.16 (5.2.17 available)
+  firebase_storage_web 3.11.1 (3.11.2 available)
+  flutter_cache_manager 3.4.0 (3.4.1 available)
+  flutter_foreground_task 6.5.0 (9.2.0 available)
+  flutter_lints 4.0.0 (6.0.0 available)
+  flutter_local_notifications 17.2.4 (19.5.0 available)
+  flutter_local_notifications_linux 4.0.1 (6.0.0 available)
+  flutter_local_notifications_platform_interface 7.2.0 (9.1.0 available)
+  flutter_plugin_android_lifecycle 2.0.26 (2.0.33 available)
+  flutter_svg 2.1.0 (2.2.3 available)
+  get_it 7.7.0 (9.2.0 available)
+  go_router 14.8.1 (17.0.1 available)
+  http_parser 4.0.2 (4.1.2 available)
+  image_picker 1.1.2 (1.2.1 available)
+  image_picker_android 0.8.12+21 (0.8.13+11 available)
+  image_picker_for_web 3.0.2 (3.1.1 available)
+  image_picker_ios 0.8.12+2 (0.8.13+3 available)
+  image_picker_linux 0.2.1+2 (0.2.2 available)
+  image_picker_macos 0.2.1+2 (0.2.2+1 available)
+  image_picker_platform_interface 2.10.1 (2.11.1 available)
+  image_picker_windows 0.2.1+1 (0.2.2 available)
+  intl 0.19.0 (0.20.2 available)
+  lints 4.0.0 (6.0.0 available)
+  matcher 0.12.17 (0.12.18 available)
+  material_color_utilities 0.11.1 (0.13.0 available)
+  meta 1.17.0 (1.18.0 available)
+  mime 1.0.6 (2.0.0 available)
+  package_info_plus 8.3.1 (9.0.0 available)
+  path_provider_android 2.2.15 (2.2.22 available)
+  path_provider_foundation 2.4.1 (2.6.0 available)
+  petitparser 6.0.2 (7.0.1 available)
+  rx 0.4.0 (0.5.0 available)
+  shared_preferences 2.2.3 (2.5.4 available)
+  shared_preferences_android 2.4.7 (2.4.18 available)
+  shared_preferences_foundation 2.5.4 (2.5.6 available)
+  source_span 1.10.0 (1.10.1 available)
+  sqflite 2.4.1 (2.4.2 available)
+  sqflite_android 2.4.0 (2.4.2+2 available)
+  sqflite_common 2.5.4+6 (2.5.6 available)
+  sqflite_darwin 2.4.1+1 (2.4.2 available)
+  string_scanner 1.2.0 (1.4.1 available)
+  synchronized 3.3.0+3 (3.4.0 available)
+  term_glyph 1.2.1 (1.2.2 available)
+  test_api 0.7.7 (0.7.9 available)
+  timezone 0.9.4 (0.11.0 available)
+  url_launcher 6.3.1 (6.3.2 available)
+  url_launcher_android 6.3.14 (6.3.28 available)
+  url_launcher_ios 6.3.3 (6.3.6 available)
+  url_launcher_linux 3.2.1 (3.2.2 available)
+  url_launcher_macos 3.2.2 (3.2.5 available)
+  url_launcher_windows 3.1.4 (3.1.5 available)
+  vector_graphics 1.1.18 (1.1.19 available)
+  vector_graphics_compiler 1.1.16 (1.1.20 available)
+  vm_service 14.2.5 (15.0.2 available)
+  web_socket_channel 2.4.0 (3.0.3 available)
+  win32 5.10.1 (5.15.0 available)
+  xml 6.5.0 (6.6.1 available)
+Got dependencies!
+87 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Analyzing superparty_flutter...                                 
+
+   info • Use 'const' for final variables initialized to a constant value • lib/core/config/env.dart:41:10 • prefer_const_declarations
+warning • Unused import: 'dart:io' • lib/screens/auth/auth_wrapper.dart:2:8 • unused_import
+   info • Use 'const' for final variables initialized to a constant value • lib/screens/auth/auth_wrapper.dart:139:11 • prefer_const_declarations
+warning • The declaration '_stopQrPolling' isn't referenced • lib/screens/whatsapp/whatsapp_accounts_screen.dart:209:8 • unused_element
+   info • Use 'const' for final variables initialized to a constant value • lib/screens/whatsapp/whatsapp_accounts_screen.dart:322:5 • prefer_const_declarations
+   info • Don't use 'BuildContext's across async gaps • lib/screens/whatsapp/whatsapp_accounts_screen.dart:617:32 • use_build_context_synchronously
+warning • The declaration '_openQrPage' isn't referenced • lib/screens/whatsapp/whatsapp_accounts_screen.dart:757:16 • unused_element
+   info • Use 'const' with the constructor to improve performance • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1070:15 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1071:24 • prefer_const_constructors
+   info • Use 'const' literals as arguments to constructors of '@immutable' classes • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1072:29 • prefer_const_literals_to_create_immutables
+   info • Use 'const' with the constructor to improve performance • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1073:21 • prefer_const_constructors
+   info • Use 'const' literals as arguments to constructors of '@immutable' classes • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1075:33 • prefer_const_literals_to_create_immutables
+   info • Use 'const' with the constructor to improve performance • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1076:25 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1079:34 • prefer_const_constructors
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1283:28 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1285:49 • deprecated_member_use
+   info • Use 'const' with the constructor to improve performance • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1394:19 • prefer_const_constructors
+   info • Use 'const' literals as arguments to constructors of '@immutable' classes • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1395:31 • prefer_const_literals_to_create_immutables
+   info • Use 'const' with the constructor to improve performance • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1471:19 • prefer_const_constructors
+   info • Use 'const' literals as arguments to constructors of '@immutable' classes • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1472:31 • prefer_const_literals_to_create_immutables
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1488:44 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1490:63 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1550:28 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1552:47 • deprecated_member_use
+   info • Use 'const' with the constructor to improve performance • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1554:14 • prefer_const_constructors
+   info • Use 'const' literals as arguments to constructors of '@immutable' classes • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1555:19 • prefer_const_literals_to_create_immutables
+   info • Use 'const' with the constructor to improve performance • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1558:11 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1559:20 • prefer_const_constructors
+   info • Use 'const' literals as arguments to constructors of '@immutable' classes • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1562:25 • prefer_const_literals_to_create_immutables
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1626:42 • deprecated_member_use
+   info • Use 'const' with the constructor to improve performance • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1692:14 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1693:16 • prefer_const_constructors
+   info • Use 'const' literals as arguments to constructors of '@immutable' classes • lib/screens/whatsapp/whatsapp_accounts_screen.dart:1695:21 • prefer_const_literals_to_create_immutables
+   info • Don't use 'BuildContext's across async gaps • lib/screens/whatsapp/whatsapp_chat_screen.dart:247:30 • use_build_context_synchronously
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/whatsapp/whatsapp_chat_screen.dart:957:45 • deprecated_member_use
+   info • Unnecessary braces in a string interpolation • lib/screens/whatsapp/whatsapp_chat_screen.dart:1094:54 • unnecessary_brace_in_string_interps
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/screens/whatsapp/whatsapp_chat_screen.dart:1192:61 • deprecated_member_use
+warning • The value of the field '_isLoadingAccounts' isn't used • lib/screens/whatsapp/whatsapp_inbox_screen.dart:29:8 • unused_field
+warning • Unnecessary cast • lib/screens/whatsapp/whatsapp_inbox_screen.dart:143:18 • unnecessary_cast
+   info • Use 'const' for final variables initialized to a constant value • lib/services/firebase_service.dart:65:7 • prefer_const_declarations
+   info • 'androidProvider' is deprecated and shouldn't be used. Use providerAndroid instead. This parameter will be removed in a future major release • lib/services/firebase_service.dart:214:13 • deprecated_member_use
+   info • 'appleProvider' is deprecated and shouldn't be used. Use providerApple instead. This parameter will be removed in a future major release • lib/services/firebase_service.dart:219:13 • deprecated_member_use
+   info • 'androidProvider' is deprecated and shouldn't be used. Use providerAndroid instead. This parameter will be removed in a future major release • lib/services/firebase_service.dart:231:13 • deprecated_member_use
+   info • 'appleProvider' is deprecated and shouldn't be used. Use providerApple instead. This parameter will be removed in a future major release • lib/services/firebase_service.dart:258:13 • deprecated_member_use
+   info • Use interpolation to compose strings and values • lib/services/whatsapp_backend_diagnostics_service.dart:111:106 • prefer_interpolation_to_compose_strings
+   info • Use interpolation to compose strings and values • lib/services/whatsapp_backend_diagnostics_service.dart:129:126 • prefer_interpolation_to_compose_strings
+   info • Use interpolation to compose strings and values • lib/services/whatsapp_backend_diagnostics_service.dart:137:64 • prefer_interpolation_to_compose_strings
+   info • Use interpolation to compose strings and values • lib/services/whatsapp_backend_diagnostics_service.dart:167:104 • prefer_interpolation_to_compose_strings
+   info • Use interpolation to compose strings and values • lib/services/whatsapp_manual_accounts_service.dart:87:12 • prefer_interpolation_to_compose_strings
+

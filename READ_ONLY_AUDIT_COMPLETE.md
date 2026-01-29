@@ -124,10 +124,10 @@ GoRoute(
 
 **Methods Found:**
 - ✅ `sendViaProxy()` - Line 64 (sends via Firebase Functions `/whatsappProxySend`)
-- ✅ `getAccounts()` - Line 118 (GET Railway backend)
-- ✅ `addAccount()` - Line 151 (POST Railway backend)
-- ✅ `regenerateQr()` - Line 189 (POST Railway backend)
-- ✅ `deleteAccount()` - Line 222 (DELETE Railway backend)
+- ✅ `getAccounts()` - Line 118 (GET legacy hosting backend)
+- ✅ `addAccount()` - Line 151 (POST legacy hosting backend)
+- ✅ `regenerateQr()` - Line 189 (POST legacy hosting backend)
+- ✅ `deleteAccount()` - Line 222 (DELETE legacy hosting backend)
 - ✅ `qrPageUrl()` - Line 255 (returns URL)
 
 **Missing Methods (CRM):**

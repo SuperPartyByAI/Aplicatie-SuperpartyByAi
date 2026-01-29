@@ -99,7 +99,7 @@
 ## Next Steps
 
 1. ✅ Code fixed locally
-2. ⏳ **Deploy to Railway** (commit + push)
+2. ⏳ **Deploy to legacy hosting** (commit + push)
 3. ⏳ **Verify** QR stays visible after temporary connection close
 
 ---

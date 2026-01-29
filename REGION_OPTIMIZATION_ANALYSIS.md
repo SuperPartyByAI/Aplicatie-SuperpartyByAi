@@ -153,7 +153,7 @@
 - HTTPS endpoints (whatsappV4, whatsappProxy*) URL changes:
   - Before: `us-central1-superparty-frontend.cloudfunctions.net`
   - After: `europe-west1-superparty-frontend.cloudfunctions.net`
-- Requires updating `RAILWAY_WHATSAPP_URL` secret
+- Requires updating `LEGACY_WHATSAPP_URL` secret
 - Requires updating Flutter app base URLs (if hardcoded)
 
 **Code changes:** 1 file (index.js)

@@ -2,7 +2,7 @@
 
 Service Python pentru voice cloning cu Coqui XTTS v2.
 
-## Deployment Railway
+## Deployment legacy hosting
 
 **Root Directory:** `coqui`
 

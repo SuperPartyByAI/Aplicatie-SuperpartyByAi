@@ -1,7 +1,7 @@
-# WhatsApp 30 Accounts - Railway Implementation Audit
+# WhatsApp 30 Accounts - Hetzner Implementation Audit
 
 **Generated:** 2025-01-27  
-**Goal:** Verify implementation is ready for stable 30-account operation on Railway
+**Goal:** Verify implementation is ready for stable 30-account operation on Hetzner
 
 ---
 
@@ -44,14 +44,14 @@ async function restoreAccountsFromDisk() { ... }
 ```javascript
 const authDir =
   process.env.SESSIONS_PATH ||
-  (process.env.RAILWAY_VOLUME_MOUNT_PATH
-    ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'baileys_auth')
+  (process.env.HETZNER_SESSIONS_PATH
+    ? path.join(process.env.HETZNER_SESSIONS_PATH, 'baileys_auth')
     : path.join(__dirname, '.baileys_auth'));
 ```
 
 **Priority:**
 1. ✅ `SESSIONS_PATH` env var (if set)
-2. ⚠️  `RAILWAY_VOLUME_MOUNT_PATH/baileys_auth` (if volume mounted)
+2. ⚠️  `HETZNER_SESSIONS_PATH/baileys_auth` (if volume mounted)
 3. ❌ Fallback: `./whatsapp-backend/.baileys_auth` (**EPHEMERAL**)
 
 **Session Structure:**
@@ -214,7 +214,7 @@ process.on('SIGTERM', async () => {
     "version": "2.0.0"
   },
   "storage": {
-    "path": "/data/sessions",
+    "path": "/var/lib/whatsapp-backend/sessions",
     "writable": true,
     "totalAccounts": 30
   },
@@ -252,15 +252,15 @@ process.on('SIGTERM', async () => {
 - ✅ Core functionality implemented (boot, reconnect, shutdown)
 - ✅ Session persistence with validation
 - ⚠️  Duplicate signal handlers (non-critical but should be fixed)
-- ❌ **BLOCKER:** No Railway volume configured yet (manual step required)
+- ❌ **BLOCKER:** No Hetzner volume configured yet (manual step required)
 - ⚠️  No staggered boot (30 accounts connect simultaneously - may trigger rate limits)
 
 ### Concrete Risks
 
-1. **🔴 BLOCKER: Railway Volume Not Configured**
+1. **🔴 BLOCKER: Hetzner Volume Not Configured**
    - **Risk:** If `SESSIONS_PATH` not set, sessions stored in ephemeral filesystem → lost on redeploy
    - **Evidence:** Code validates writability but falls back to `.baileys_auth` if `SESSIONS_PATH` not set
-   - **Fix:** Manual Railway setup required (see Railway Checklist below)
+   - **Fix:** Manual Hetzner setup required (see Hetzner Checklist below)
 
 2. **🟡 Concurrent Connection Storm on Boot**
    - **Risk:** All 30 accounts attempt to connect simultaneously on boot → WhatsApp rate limiting
@@ -288,17 +288,17 @@ process.on('SIGTERM', async () => {
 
 ---
 
-## 3. Railway Checklist (Manual UI Steps)
+## 3. Hetzner Checklist (Manual UI Steps)
 
 ### Step 1: Create Persistent Volume
 
-1. Open Railway dashboard: https://railway.app/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
+1. Open Hetzner dashboard: https://hetzner/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
 2. Click **Volumes** tab (left sidebar)
 3. Click **New Volume** button
 4. Configure:
    - **Name:** `whatsapp-sessions-volume`
    - **Size:** `1GB` (sufficient for 30 sessions + metadata)
-   - **Mount Path:** `/data/sessions` (exact path, must match)
+   - **Mount Path:** `/var/lib/whatsapp-backend/sessions` (exact path, must match)
 5. Click **Create**
 6. Wait 1-2 minutes for volume provisioning
 
@@ -308,15 +308,15 @@ process.on('SIGTERM', async () => {
 
 ### Step 2: Set Environment Variable
 
-1. In Railway dashboard, go to `whatsapp-backend` service
+1. In Hetzner dashboard, go to `whatsapp-backend` service
 2. Click **Variables** tab
 3. Click **+ New Variable**
 4. Add:
    - **Key:** `SESSIONS_PATH`
-   - **Value:** `/data/sessions` (must match mount path from Step 1)
+   - **Value:** `/var/lib/whatsapp-backend/sessions` (must match mount path from Step 1)
 5. Click **Save**
 
-**Railway will automatically redeploy after variable change.**
+**Hetzner will automatically redeploy after variable change.**
 
 ---
 
@@ -327,8 +327,8 @@ process.on('SIGTERM', async () => {
 3. Click latest deployment → **View Logs**
 4. Check logs for:
    ```
-   📁 SESSIONS_PATH: /data/sessions
-   📁 Auth directory: /data/sessions
+   📁 SESSIONS_PATH: /var/lib/whatsapp-backend/sessions
+   📁 Auth directory: /var/lib/whatsapp-backend/sessions
    📁 Sessions dir exists: true
    📁 Sessions dir writable: true
    ```
@@ -348,7 +348,7 @@ process.on('SIGTERM', async () => {
    - Check `/api/status/dashboard` - should show 30 connected accounts
 
 2. **Restart service:**
-   - Railway dashboard → Service → **Settings** → **Restart**
+   - Hetzner dashboard → Service → **Settings** → **Restart**
    - Watch logs for boot sequence:
      ```
      🔄 Restoring accounts from Firestore...
@@ -371,20 +371,20 @@ process.on('SIGTERM', async () => {
 
 **Current:** `/health` endpoint exists (line ~1380)
 
-**Railway Config:**
-- Health check path: `/health` (already set in `railway.json`)
-- Timeout: 30s (already set)
-- Interval: 20s (already set)
+**Hetzner Config:**
+- Health check path: `/health` (endpoint exists in server.js)
+- Service: systemd `whatsapp-backend.service`
+- Restart policy: `on-failure` (systemd default)
 
 **Enhancement Needed:** Add storage writability check to `/health` response (currently only checks service/Firestore).
 
 **Manual Steps:**
-1. Railway dashboard → Service → **Settings**
-2. Verify **Healthcheck Path:** `/health` (should be auto-detected from `railway.json`)
-3. Verify **Healthcheck Timeout:** 30s
-4. Verify **Healthcheck Interval:** 20s
+1. SSH to Hetzner: `ssh root@37.27.34.179`
+2. Verify service: `sudo systemctl status whatsapp-backend`
+3. Check health: `curl https://whats-app-ompro.ro/health`
+4. Verify logs: `sudo journalctl -u whatsapp-backend -n 50`
 
-✅ **No action needed** - Already configured in `railway.json`.
+✅ **No action needed** - Service configured via systemd.
 
 ---
 
@@ -392,18 +392,18 @@ process.on('SIGTERM', async () => {
 
 ### Onboarding Flow (First-Time Setup)
 
-**Assumption:** Railway volume is mounted at `/data/sessions` and `SESSIONS_PATH=/data/sessions` is set.
+**Assumption:** Hetzner persistent storage is mounted at `/var/lib/whatsapp-backend/sessions` and `SESSIONS_PATH=/var/lib/whatsapp-backend/sessions` is set.
 
 **Steps:**
 
-1. **Deploy service to Railway** (after volume setup)
+1. **Deploy service to Hetzner** (after storage setup)
    - Service starts with 0 accounts
    - Boot sequence: `restoreAccountsFromFirestore()` → `restoreAccountsFromDisk()` → finds 0 sessions
 
 2. **Add accounts one-by-one via API:**
    ```bash
    # For each account (1-30):
-   curl -X POST https://your-railway-url.railway.app/api/whatsapp/add-account \
+   curl -X POST https://whats-app-ompro.ro/api/whatsapp/add-account \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer ${ADMIN_TOKEN}" \
      -d '{
@@ -436,8 +436,9 @@ process.on('SIGTERM', async () => {
 
 5. **Verify session persists:**
    - Check: `/api/status/dashboard` → account status = "connected"
-   - Check Railway logs: `✅ [accountId] Connected! Session persisted at: /data/sessions/{accountId}/baileys_auth`
-   - Verify disk: Session files created at `/data/sessions/{accountId}/creds.json`
+   - Check Hetzner logs: `ssh root@37.27.34.179 "sudo journalctl -u whatsapp-backend -n 100 | grep Connected"`
+   - Expected: `✅ [accountId] Connected! Session persisted at: /var/lib/whatsapp-backend/sessions/{accountId}/baileys_auth``
+   - Verify disk: Session files created at `/var/lib/whatsapp-backend/sessions/{accountId}/creds.json`
 
 6. **Repeat for accounts 2-30:**
    - Repeat steps 2-5 for each account
@@ -512,7 +513,7 @@ if (!shouldReconnect) {
 
 1. **Check status:**
    ```bash
-   curl https://your-railway-url.railway.app/api/status/dashboard
+   curl https://whats-app-ompro.ro/api/status/dashboard
    ```
    - Find account with `status: "needs_qr"`
 
@@ -530,7 +531,7 @@ if (!shouldReconnect) {
    - Other 29 accounts remain "connected" (unaffected)
 
 **Isolation:**
-- ✅ Each account has separate session directory: `/data/sessions/{accountId}/`
+- ✅ Each account has separate session directory: `/var/lib/whatsapp-backend/sessions/{accountId}/`
 - ✅ Disconnecting one account does NOT affect others (line 4071-4076)
 - ✅ `createConnection()` is per-account (line 490)
 
@@ -662,27 +663,27 @@ npm test
 - No staggered boot (optional improvement)
 
 **❌ Blockers (Manual Setup Required):**
-- Railway persistent volume not configured
+- Hetzner persistent volume not configured
 - `SESSIONS_PATH` env var not set
 
 ---
 
 ### Verdict: 🟡 YELLOW
 
-**Status:** Mostly ready, requires Railway volume setup before production use.
+**Status:** Mostly ready, requires Hetzner volume setup before production use.
 
 **Action Items:**
-1. **IMMEDIATE (Manual):** Create Railway volume + set `SESSIONS_PATH` (see Railway Checklist)
+1. **IMMEDIATE (Manual):** Create Hetzner volume + set `SESSIONS_PATH` (see Hetzner Checklist)
 2. **RECOMMENDED (Code):** Remove duplicate signal handlers (Fix 1)
 3. **OPTIONAL (Code):** Add staggered boot connect (Fix 2)
 4. **OPTIONAL (Code):** Enhance health endpoint (Fix 3)
 
 ---
 
-### Railway Checklist Summary
+### Hetzner Checklist Summary
 
-1. ✅ Create volume: `whatsapp-sessions-volume` at `/data/sessions` (1GB)
-2. ✅ Set env var: `SESSIONS_PATH=/data/sessions`
+1. ✅ Create volume: `whatsapp-sessions-volume` at `/var/lib/whatsapp-backend/sessions` (1GB)
+2. ✅ Set env var: `SESSIONS_PATH=/var/lib/whatsapp-backend/sessions`
 3. ✅ Verify deployment logs show "writable: true"
 4. ✅ Test persistence: Restart service → all accounts reconnect
 

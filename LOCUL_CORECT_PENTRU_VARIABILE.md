@@ -27,10 +27,10 @@
 
 ---
 
-## Locul corect în Railway
+## Locul corect în legacy hosting
 
 ```
-Railway Dashboard
+legacy hosting Dashboard
 └── Project: "Whats Upp"
     └── Service: "whatsapp-backend"  ← AICI!
         ├── Deployments
@@ -42,7 +42,7 @@ Railway Dashboard
 
 **NU:**
 ```
-Railway Dashboard
+legacy hosting Dashboard
 └── Project Settings
     └── Shared Variables  ← NU AICI!
 ```
@@ -72,7 +72,7 @@ Railway Dashboard
 
 ### Pasul 1: Ieși din Project Settings
 - Click pe numele proiectului sau "←" pentru a ieși
-- Sau direct link: https://railway.app/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
+- Sau direct link: https://legacy hosting.app/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
 
 ### Pasul 2: Deschide Service-ul
 - Click pe service-ul `whatsapp-backend`

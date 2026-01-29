@@ -23,7 +23,7 @@
 ### Components
 
 ```
-Railway Container (Node.js)
+Hetzner Server (Node.js)
   ├── longrun-jobs-v2.js (scheduler)
   │   ├── Heartbeat job (60s interval)
   │   ├── Outbound probe (6h interval)
@@ -70,10 +70,10 @@ Railway Container (Node.js)
 
 ### Starting the System
 
-**Automatic (Railway deployment):**
+**Automatic (Hetzner systemd service):**
 
 ```bash
-# Railway automatically starts server.js
+# systemd automatically starts server.js on boot
 # longrun-jobs-v2.js initializes on boot
 # Distributed lock acquired by first instance
 ```
@@ -106,7 +106,7 @@ node server.js
 # Send SIGTERM to process
 kill -TERM <pid>
 
-# Or via Railway dashboard
+# Or via Hetzner SSH
 # Click "Stop" on service
 ```
 
@@ -121,26 +121,26 @@ kill -TERM <pid>
 **1. Check heartbeats (last hour):**
 
 ```bash
-curl https://whats-upp-production.up.railway.app/api/admin/longrun/heartbeats | jq '.count'
+curl https://whats-app-ompro.ro/api/admin/longrun/heartbeats | jq '.count'
 # Expected: ~60 (1 per minute)
 ```
 
 **2. Check config:**
 
 ```bash
-curl https://whats-upp-production.up.railway.app/api/admin/longrun/config | jq '.config'
+curl https://whats-app-ompro.ro/api/admin/longrun/config | jq '.config'
 ```
 
 **3. Check probes:**
 
 ```bash
-curl https://whats-upp-production.up.railway.app/api/admin/longrun/probes | jq '.count'
+curl https://whats-app-ompro.ro/api/admin/longrun/probes | jq '.count'
 ```
 
 **4. Check locks:**
 
 ```bash
-curl https://whats-upp-production.up.railway.app/api/admin/longrun/locks | jq '.locks'
+curl https://whats-app-ompro.ro/api/admin/longrun/locks | jq '.locks'
 ```
 
 ---
@@ -208,13 +208,13 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/locks | jq '.
 
 ```bash
 # Check if jobs are running
-curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
+curl https://whats-app-ompro.ro/health | jq '.uptime'
 
-# Check Railway logs
-railway logs --tail 100
+# Check Hetzner logs
+journalctl -u whatsapp-backend --tail 100
 
 # Check lock status
-curl https://whats-upp-production.up.railway.app/api/admin/longrun/locks | jq '.locks'
+curl https://whats-app-ompro.ro/api/admin/longrun/locks | jq '.locks'
 ```
 
 **Possible Causes:**
@@ -226,12 +226,12 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/locks | jq '.
 
 2. **Firestore connection failed**
    - Check `FIREBASE_SERVICE_ACCOUNT_JSON` env var
-   - Check Railway logs for "Firebase Admin initialization failed"
+   - Check Hetzner logs for "Firebase Admin initialization failed"
    - **Fix:** Verify credentials, redeploy
 
 3. **Job initialization failed**
    - Check logs for "Long-run jobs initialized"
-   - **Fix:** Restart Railway service
+   - **Fix:** Restart Hetzner service
 
 **Recovery:**
 
@@ -240,8 +240,9 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/locks | jq '.
 # Option 2: Manual lock release (Firestore Console)
 # Delete doc: wa_metrics/longrun/locks/heartbeat-scheduler
 
-# Option 3: Restart Railway service
-railway service restart
+# Option 3: Restart Hetzner service
+ssh root@37.27.34.179
+sudo systemctl restart whatsapp-backend
 ```
 
 ---
@@ -261,20 +262,20 @@ railway service restart
 cd whatsapp-backend
 node scripts/verify-longrun-dataquality.js
 
-# Check Railway uptime
-curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
+# Check Hetzner uptime
+curl https://whats-app-ompro.ro/health | jq '.uptime'
 ```
 
 **Possible Causes:**
 
-1. **Railway container restart**
-   - Check Railway dashboard for restart events
+1. **Hetzner service restart**
+   - Check systemd logs for restart events
    - Check `deploymentId` changes in heartbeat docs
    - **Expected:** 30-60s gap during restart
 
 2. **High CPU/memory usage**
    - Check `memoryRss` in heartbeat docs
-   - Railway Hobby plan: 512MB limit
+   - Hetzner server: check available memory
    - **Fix:** Upgrade plan or optimize memory usage
 
 3. **Firestore write throttling**
@@ -301,7 +302,7 @@ curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
 
 ```bash
 # Check recent probes
-curl https://whats-upp-production.up.railway.app/api/admin/longrun/probes | jq '.probes[] | select(.result=="FAIL")'
+curl https://whats-app-ompro.ro/api/admin/longrun/probes | jq '.probes[] | select(.result=="FAIL")'
 
 # Check probe type
 # - outbound: Firestore write test
@@ -347,8 +348,9 @@ curl https://whats-upp-production.up.railway.app/api/admin/longrun/probes | jq '
 # Check if rollup exists
 # Firestore Console: wa_metrics/longrun/rollups/{yyyy-mm-dd}
 
-# Check Railway logs for "Running daily rollup"
-railway logs --filter "daily rollup"
+# Check Hetzner logs for "Running daily rollup"
+ssh root@37.27.34.179
+sudo journalctl -u whatsapp-backend -f | grep "daily rollup"
 ```
 
 **Possible Causes:**
@@ -385,7 +387,7 @@ railway logs --filter "daily rollup"
 1. Verify lock is stuck:
 
    ```bash
-   curl https://whats-upp-production.up.railway.app/api/admin/longrun/locks | jq '.locks'
+   curl https://whats-app-ompro.ro/api/admin/longrun/locks | jq '.locks'
    # Check leaseUntilTs > now + 120s
    ```
 
@@ -394,16 +396,17 @@ railway logs --filter "daily rollup"
    - Navigate to: `wa_metrics/longrun/locks/heartbeat-scheduler`
    - Click "Delete document"
 
-3. Restart Railway service:
+3. Restart Hetzner service:
 
    ```bash
-   railway service restart
+   ssh root@37.27.34.179
+   sudo systemctl restart whatsapp-backend
    ```
 
 4. Verify heartbeats resume:
    ```bash
    # Wait 2 minutes
-   curl https://whats-upp-production.up.railway.app/api/admin/longrun/heartbeats | jq '.heartbeats[0]'
+   curl https://whats-app-ompro.ro/api/admin/longrun/heartbeats | jq '.heartbeats[0]'
    ```
 
 **Expected time:** 3-5 minutes
@@ -454,7 +457,7 @@ railway logs --filter "daily rollup"
 
 ### Procedure 4: Migrate to New Instance
 
-**When:** Railway deployment, new container
+**When:** Hetzner deployment, new service instance
 
 **Steps:**
 
@@ -468,8 +471,8 @@ railway logs --filter "daily rollup"
 
 3. Verify migration:
    ```bash
-   curl https://whats-upp-production.up.railway.app/api/admin/longrun/heartbeats | jq '.heartbeats[0].instanceId'
-   # Should match new RAILWAY_DEPLOYMENT_ID
+   curl https://whats-app-ompro.ro/api/admin/longrun/heartbeats | jq '.heartbeats[0].instanceId'
+   # Should match new deployment instance ID
    ```
 
 **Expected time:** 2-3 minutes (lock expiry + initialization)
@@ -548,11 +551,11 @@ railway logs --filter "daily rollup"
    git push origin main
    ```
 
-3. Railway auto-deploys
+3. Hetzner service restarts (systemd)
 
 4. Verify new version in heartbeats:
    ```bash
-   curl https://whats-upp-production.up.railway.app/api/admin/longrun/heartbeats | jq '.heartbeats[0].serviceVersion'
+   curl https://whats-app-ompro.ro/api/admin/longrun/heartbeats | jq '.heartbeats[0].serviceVersion'
    ```
 
 ---
@@ -565,7 +568,7 @@ railway logs --filter "daily rollup"
 
 - **Severity:** P2 (High)
 - **Response time:** 15 minutes
-- **Action:** Investigate Railway logs, check lock status
+- **Action:** Investigate Hetzner logs, check lock status
 
 **2. probe_fail**
 
@@ -603,7 +606,7 @@ railway logs --filter "daily rollup"
 
 **3. Investigation**
 
-- Check Railway logs
+- Check Hetzner logs (journalctl -u whatsapp-backend)
 - Query Firestore for related docs
 - Run diagnostic scripts
 
@@ -646,19 +649,19 @@ railway logs --filter "daily rollup"
 
 ```bash
 # Check system health
-curl https://whats-upp-production.up.railway.app/health | jq '.'
+curl https://whats-app-ompro.ro/health | jq '.'
 
 # Get heartbeat count (last hour)
-curl https://whats-upp-production.up.railway.app/api/admin/longrun/heartbeats | jq '.count'
+curl https://whats-app-ompro.ro/api/admin/longrun/heartbeats | jq '.count'
 
 # Get config
-curl https://whats-upp-production.up.railway.app/api/admin/longrun/config | jq '.config'
+curl https://whats-app-ompro.ro/api/admin/longrun/config | jq '.config'
 
 # Get probes
-curl https://whats-upp-production.up.railway.app/api/admin/longrun/probes | jq '.probes'
+curl https://whats-app-ompro.ro/api/admin/longrun/probes | jq '.probes'
 
 # Get locks
-curl https://whats-upp-production.up.railway.app/api/admin/longrun/locks | jq '.locks'
+curl https://whats-app-ompro.ro/api/admin/longrun/locks | jq '.locks'
 
 # Run data quality check
 cd whatsapp-backend

@@ -59,7 +59,7 @@
 ### 2. Test PASSIVE Mode Handling
 
 ```bash
-# Check Railway logs for:
+# Check legacy hosting logs for:
 1. Backend in PASSIVE mode (lock not acquired)
 2. Call regenerate QR endpoint
 3. Verify: 503 response with "instance_passive" error
@@ -74,7 +74,7 @@
 ### 3. Test Connection Close Reason 515
 
 ```bash
-# Monitor Railway logs:
+# Monitor legacy hosting logs:
 1. Create account
 2. Wait for QR
 3. If connection closes with reason 515:
@@ -123,7 +123,7 @@
 
 ```bash
 cd whatsapp-backend
-RAILWAY_URL=https://whats-upp-production.up.railway.app \
+LEGACY_URL=https://whats-app-ompro.ro \
 ADMIN_TOKEN=your-token \
 node test-smoke-reproduction.js
 ```
@@ -137,7 +137,7 @@ node test-smoke-reproduction.js
 
 - [ ] Deploy Flutter app with fixes
 - [ ] Deploy Firebase Functions with proxy fixes
-- [ ] Deploy Railway backend with regenerate QR fixes
+- [ ] Deploy legacy hosting backend with regenerate QR fixes
 - [ ] Monitor logs for requestId correlation
 - [ ] Verify no spam loops in logs
 - [ ] Verify PASSIVE mode returns 503 correctly
@@ -147,8 +147,8 @@ node test-smoke-reproduction.js
 ## Commands for Validation
 
 ```bash
-# Check Railway health
-curl -sS https://whats-upp-production.up.railway.app/health | jq
+# Check legacy hosting health
+curl -sS https://whats-app-ompro.ro/health | jq
 
 # Check Firebase Functions
 firebase functions:list | grep whatsappProxy

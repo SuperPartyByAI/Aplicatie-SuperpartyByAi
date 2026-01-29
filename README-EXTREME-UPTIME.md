@@ -20,16 +20,16 @@
 
 ```bash
 # 1. Copiază config extreme
-cp railway-extreme.json railway.json
+cp legacy hosting-extreme.json legacy hosting.json
 
-# 2. Creează monitoring service pe Railway
+# 2. Creează monitoring service pe legacy hosting
 # - Name: superparty-extreme-monitor
 # - Root Directory: /
 # - Start Command: node extreme-monitor.js
 
 # 3. Adaugă env vars:
-RAILWAY_TOKEN=<token_din_railway_settings>
-BACKEND_URL=https://web-production-00dca9.up.railway.app
+LEGACY_TOKEN=<token_din_legacy_settings>
+BACKEND_URL=https://whats-app-ompro.ro
 BACKEND_SERVICE_ID=<id_backend>
 COQUI_API_URL=<url_coqui>
 COQUI_SERVICE_ID=<id_coqui>
@@ -50,9 +50,9 @@ COQUI_SERVICE_ID=<id_coqui>
 
 ```bash
 # 1. Folosește config normal (deja există)
-# railway.json e deja configurat
+# legacy hosting.json e deja configurat
 
-# 2. Creează monitoring service pe Railway
+# 2. Creează monitoring service pe legacy hosting
 # - Name: superparty-monitor
 # - Root Directory: /
 # - Start Command: node ultra-fast-monitor.js
@@ -91,9 +91,9 @@ COQUI_SERVICE_ID=<id_coqui>
 
 ## 📋 PAȘI DETALIAȚI
 
-### **Pasul 1: Get Railway Token**
+### **Pasul 1: Get legacy hosting Token**
 
-1. Mergi la Railway Dashboard
+1. Mergi la legacy hosting Dashboard
 2. Settings → Tokens
 3. Create New Token
 4. Copiază token-ul
@@ -101,14 +101,14 @@ COQUI_SERVICE_ID=<id_coqui>
 ### **Pasul 2: Get Service IDs**
 
 ```bash
-# Instalează Railway CLI
-npm install -g @railway/cli
+# Instalează legacy hosting CLI
+npm install -g @legacy hosting/cli
 
 # Login
-railway login
+legacy hosting login
 
 # List services
-railway service list
+legacy hosting service list
 
 # Output:
 # backend-service (id: abc123)
@@ -117,7 +117,7 @@ railway service list
 
 ### **Pasul 3: Create Monitoring Service**
 
-1. Railway Dashboard → New Service
+1. legacy hosting Dashboard → New Service
 2. GitHub Repo → acest repo
 3. Root Directory: `/`
 4. Start Command:
@@ -127,10 +127,10 @@ railway service list
 ### **Pasul 4: Add Environment Variables**
 
 ```bash
-RAILWAY_TOKEN=<token_din_pasul_1>
-BACKEND_URL=https://web-production-00dca9.up.railway.app
+LEGACY_TOKEN=<token_din_pasul_1>
+BACKEND_URL=https://whats-app-ompro.ro
 BACKEND_SERVICE_ID=abc123
-COQUI_API_URL=https://coqui-production-xyz.up.railway.app
+COQUI_API_URL=https://whats-app-ompro.ro
 COQUI_SERVICE_ID=def456
 ```
 
@@ -226,7 +226,7 @@ this.config = {
 ### **Test manual:**
 
 ```bash
-# Oprește un service manual pe Railway
+# Oprește un service manual pe legacy hosting
 # Monitorul va detecta și va repara automat
 
 # Verifică logs pentru:
@@ -288,11 +288,11 @@ parallelRecovery: true;
 restartAttemptDelay: 5000; // în loc de 10000
 ```
 
-### **Problem: Railway API errors**
+### **Problem: legacy hosting API errors**
 
 **Verifică:**
 
-- ✅ RAILWAY_TOKEN e valid
+- ✅ LEGACY_TOKEN e valid
 - ✅ Service IDs sunt corecte
 - ✅ Token are permissions pentru restart/redeploy
 
@@ -302,10 +302,10 @@ restartAttemptDelay: 5000; // în loc de 10000
 
 | Component             | Cost                   |
 | --------------------- | ---------------------- |
-| Monitoring service    | $0 (Railway free tier) |
+| Monitoring service    | $0 (legacy hosting free tier) |
 | Health checks         | $0 (HTTP requests)     |
-| Railway API calls     | $0 (included)          |
-| Parallel recovery     | $0 (Railway feature)   |
+| legacy hosting API calls     | $0 (included)          |
+| Parallel recovery     | $0 (legacy hosting feature)   |
 | Predictive monitoring | $0 (logic in code)     |
 | **TOTAL**             | **$0**                 |
 
@@ -341,16 +341,16 @@ restartAttemptDelay: 5000; // în loc de 10000
 
 Dacă ai probleme:
 
-1. Verifică logs în Railway
+1. Verifică logs în legacy hosting
 2. Verifică env vars sunt setate corect
-3. Verifică Railway token e valid
+3. Verifică legacy hosting token e valid
 4. Testează manual cu `node extreme-monitor.js`
 
 ---
 
 ## ✅ CHECKLIST DEPLOYMENT
 
-- [ ] Railway token obținut
+- [ ] legacy hosting token obținut
 - [ ] Service IDs obținute
 - [ ] Monitoring service creat
 - [ ] Env vars adăugate

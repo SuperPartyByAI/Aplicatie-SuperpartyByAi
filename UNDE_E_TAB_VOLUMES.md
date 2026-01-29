@@ -44,7 +44,7 @@ Service: whatsapp-backend
 
 ### Opțiunea 2: Link direct
 
-Dacă Railway permite, tab-ul "Volumes" ar trebui să fie accesibil direct:
+Dacă legacy hosting permite, tab-ul "Volumes" ar trebui să fie accesibil direct:
 - Service → Tab "Volumes"
 
 ---
@@ -62,12 +62,12 @@ Când intri în tab-ul "Volumes", vei vedea:
 **Posibile cauze:**
 
 1. **Nu ai permisiuni** → Verifică dacă ești admin al proiectului
-2. **Planul Railway nu permite volume** → Verifică planul (volume-urile sunt disponibile pe majoritatea planurilor)
+2. **Planul legacy hosting nu permite volume** → Verifică planul (volume-urile sunt disponibile pe majoritatea planurilor)
 3. **Ești în alt loc** → Asigură-te că ești în service-ul `whatsapp-backend`, nu în Project Settings
 
 **Soluție:**
 - Verifică că ești în service-ul corect: `whatsapp-backend`
-- Verifică planul Railway (volume-urile sunt disponibile pe toate planurile, inclusiv free)
+- Verifică planul legacy hosting (volume-urile sunt disponibile pe toate planurile, inclusiv free)
 
 ---
 

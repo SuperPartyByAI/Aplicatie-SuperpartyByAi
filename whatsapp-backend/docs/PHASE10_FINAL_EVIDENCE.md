@@ -9,7 +9,7 @@ All W1-W18 requirements implemented with DoD-WA-1 through DoD-WA-12 verification
 ## 1. CURL /HEALTH (DoD-D-1)
 
 ```bash
-curl -i https://whats-upp-production.up.railway.app/health
+curl -i https://whats-app-ompro.ro/health
 ```
 
 **Expected Output**:
@@ -24,7 +24,7 @@ content-type: application/json
   "version": "2.0.0",
   "commit": "d6d605ee",
   "bootTimestamp": "2025-12-30T01:14:30.000Z",
-  "deploymentId": "railway-prod-xyz",
+  "deploymentId": "legacy hosting-prod-xyz",
   "uptime": 120,
   "timestamp": "2025-12-30T01:16:30.000Z",
   "accounts": {"total": 4, "connected": 4},
@@ -52,7 +52,7 @@ git rev-parse HEAD
 
 ```bash
 curl -H "Authorization: Bearer superparty2024" \
-  https://whats-upp-production.up.railway.app/api/longrun/status-now
+  https://whats-app-ompro.ro/api/longrun/status-now
 ```
 
 **Expected Output** (DoD-WA-1 - ALL FIELDS):
@@ -63,7 +63,7 @@ curl -H "Authorization: Bearer superparty2024" \
   "timestamp": "2025-12-30T01:16:30.000Z",
   "wa": {
     "waMode": "active",
-    "lockHolder": "railway-prod-abc123",
+    "lockHolder": "legacy hosting-prod-abc123",
     "lockLeaseUntil": 1735516890000,
     "leaseEpoch": 5,
     "waStatus": "CONNECTED",
@@ -107,7 +107,7 @@ curl -H "Authorization: Bearer superparty2024" \
 
 ```bash
 curl -H "Authorization: Bearer superparty2024" \
-  https://whats-upp-production.up.railway.app/api/longrun/firestore-write-test
+  https://whats-app-ompro.ro/api/longrun/firestore-write-test
 ```
 
 **Expected Output**:
@@ -131,7 +131,7 @@ curl -H "Authorization: Bearer superparty2024" \
 
 ```bash
 curl -X POST -H "Authorization: Bearer superparty2024" \
-  https://whats-upp-production.up.railway.app/api/longrun/bootstrap
+  https://whats-app-ompro.ro/api/longrun/bootstrap
 ```
 
 **Expected Output**:
@@ -166,7 +166,7 @@ curl -X POST -H "Authorization: Bearer superparty2024" \
 
 ```bash
 curl -H "Authorization: Bearer superparty2024" \
-  https://whats-upp-production.up.railway.app/api/longrun/verify/dataquality
+  https://whats-app-ompro.ro/api/longrun/verify/dataquality
 ```
 
 **Expected Output**:
@@ -189,7 +189,7 @@ curl -H "Authorization: Bearer superparty2024" \
 
 ```bash
 curl -H "Authorization: Bearer superparty2024" \
-  https://whats-upp-production.up.railway.app/api/longrun/verify/readiness
+  https://whats-app-ompro.ro/api/longrun/verify/readiness
 ```
 
 **Expected Output**:
@@ -243,7 +243,7 @@ wa_metrics/longrun/incidents/deploy_stuck_active
   "deployedSha": "abc12345",
   "firstDetectedAt": "2025-12-30T01:00:00.000Z",
   "lastCheckedAt": "2025-12-30T01:16:00.000Z",
-  "instructions": "Railway → Service → Deployments → Deploy Latest Commit"
+  "instructions": "legacy hosting → Service → Deployments → Deploy Latest Commit"
 }
 ```
 
@@ -259,7 +259,7 @@ wa_metrics/longrun/incidents/deploy_stuck_active
 
 ```json
 {
-  "holderInstanceId": "railway-prod-abc123",
+  "holderInstanceId": "legacy hosting-prod-abc123",
   "leaseUntil": 1735516890000,
   "leaseEpoch": 5,
   "updatedAt": "2025-12-30T01:16:00.000Z"
@@ -591,7 +591,7 @@ Event-loop stall triggers restart
 ## 11. DEPLOYMENT STATUS
 
 **Latest Commit**: `d6d605ee`  
-**Railway Status**: Deployed and running  
+**legacy hosting Status**: Deployed and running  
 **Health Check**: ✅ Passing  
 **Firestore**: ✅ Connected  
 **WA Mode**: Active (lock acquired)  

@@ -6,7 +6,7 @@ This guide provides step-by-step instructions for running the complete end-to-en
 ## Prerequisites
 - Firebase CLI installed and authenticated
 - Access to Firebase Console (superparty-frontend project)
-- Access to Railway dashboard
+- Access to legacy hosting dashboard
 - Flutter app installed and configured
 - Test WhatsApp account (WA-01)
 
@@ -19,7 +19,7 @@ bash test-whatsapp-e2e-complete.sh
 
 This will:
 - Check for old 1st gen WhatsApp function
-- Verify Railway backend health
+- Verify legacy hosting backend health
 - Verify Firebase Functions availability
 - Check Firestore rules protection
 - Generate a test report with manual test instructions
@@ -45,9 +45,9 @@ firebase functions:list | grep -i "whatsapp.*v1"
 
 ## Step 2: Verify Platform Configuration
 
-### Railway Backend
+### legacy hosting Backend
 ```bash
-curl -sS https://whats-upp-production.up.railway.app/health
+curl -sS https://whats-app-ompro.ro/health
 ```
 
 **Expected output:**
@@ -65,7 +65,7 @@ curl -sS https://whats-upp-production.up.railway.app/health
 }
 ```
 
-**Verify Railway Variables (in Railway dashboard):**
+**Verify legacy hosting Variables (in legacy hosting dashboard):**
 - `SESSIONS_PATH=/app/sessions` ✅
 - `FIREBASE_SERVICE_ACCOUNT_JSON=...` ✅ (must be set)
 - `ADMIN_TOKEN=...` (optional, if exists)
@@ -87,7 +87,7 @@ firebase functions:list | grep -i whatsapp
 
 **Verify secrets:**
 ```bash
-firebase functions:secrets:access RAILWAY_WHATSAPP_URL
+firebase functions:secrets:access LEGACY_WHATSAPP_URL
 firebase functions:secrets:access GROQ_API_KEY
 ```
 
@@ -214,7 +214,7 @@ firebase firestore:get threads/{threadId}/messages --order-by timestamp --limit 
 
 **Steps:**
 1. Note current message count in app
-2. Trigger Railway restart (via Railway dashboard: Redeploy)
+2. Trigger legacy hosting restart (via legacy hosting dashboard: Redeploy)
 3. Wait 2-3 minutes for restart
 4. In Flutter app: Refresh accounts list
 5. Verify:
@@ -347,25 +347,25 @@ After completing all tests, update the generated report with results:
 
 ## Troubleshooting
 
-### Railway Health Check Fails
-- Check Railway dashboard for service status
+### legacy hosting Health Check Fails
+- Check legacy hosting dashboard for service status
 - Verify environment variables are set
-- Check Railway logs for errors
+- Check legacy hosting logs for errors
 
 ### QR Code Not Appearing
-- Verify Railway backend is healthy
+- Verify legacy hosting backend is healthy
 - Check Firebase Functions logs
 - Verify `whatsappProxyRegenerateQr` function is deployed
 
 ### Messages Not Appearing
 - Check Firestore rules allow read access
-- Verify Railway backend is processing messages
+- Verify legacy hosting backend is processing messages
 - Check Firebase Functions logs for errors
 
 ### Account Disconnects After Restart
-- Verify `SESSIONS_PATH` is set correctly in Railway
-- Check Railway volume is mounted
-- Verify session files persist in Railway
+- Verify `SESSIONS_PATH` is set correctly in legacy hosting
+- Check legacy hosting volume is mounted
+- Verify session files persist in legacy hosting
 
 ### CRM Extraction Fails
 - Verify `GROQ_API_KEY` secret is set
@@ -382,7 +382,7 @@ After completing all tests, update the generated report with results:
      - Verify connected status
 
 2. **Monitor Production:**
-   - Set up alerts for Railway health
+   - Set up alerts for legacy hosting health
    - Monitor Firestore write operations
    - Track message delivery rates
 
@@ -395,7 +395,7 @@ After completing all tests, update the generated report with results:
 
 If tests fail:
 1. Check the generated test report
-2. Review Railway logs
+2. Review legacy hosting logs
 3. Review Firebase Functions logs
 4. Check Firestore rules and indexes
 5. Verify all secrets are set correctly

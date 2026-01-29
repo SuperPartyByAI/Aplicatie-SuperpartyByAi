@@ -10,8 +10,8 @@
 
 2. ✅ **Twilio Webhook** - Configurat automat
    - Număr: `+1 (218) 220-4425`
-   - Webhook: `https://web-production-f0714.up.railway.app/api/voice/incoming`
-   - Status: `https://web-production-f0714.up.railway.app/api/voice/status`
+   - Webhook: `https://whats-app-ompro.ro/api/voice/incoming`
+   - Status: `https://whats-app-ompro.ro/api/voice/status`
 
 3. ✅ **Credențiale** - Toate setate
    - OpenAI API Key ✅
@@ -21,10 +21,10 @@
 
 ## ⚠️ Ce MAI TREBUIE (1 minut manual):
 
-**Railway - Schimbă sursa serviciului:**
+**legacy hosting - Schimbă sursa serviciului:**
 
-1. Mergi la: https://railway.app
-2. Găsește serviciul: `web-production-f0714.up.railway.app`
+1. Mergi la: https://legacy hosting.app
+2. Găsește serviciul: `web-production-f0714.up.legacy hosting.app`
 3. Click **Settings** → **Source**
 4. Click **Disconnect** (dacă e conectat la alt repo)
 5. Click **Connect Repo**
@@ -32,11 +32,11 @@
 7. Branch: `master`
 8. Click **Connect**
 
-Railway va redeploya automat în 2-3 minute.
+legacy hosting va redeploya automat în 2-3 minute.
 
 ## 🎯 Test Final:
 
-După ce Railway termină deploy-ul:
+După ce legacy hosting termină deploy-ul:
 
 **Sună la: +1 (218) 220-4425**
 
@@ -48,7 +48,7 @@ Cu vocea Kasya (clonată cu Coqui XTTS).
 
 ## 📊 Verificare:
 
-După ce suni, verifică în Railway logs:
+După ce suni, verifică în legacy hosting logs:
 
 ```
 🚀 SuperParty Backend - WhatsApp + Voice
@@ -63,16 +63,16 @@ După ce suni, verifică în Railway logs:
 
 **Dacă nu răspunde:**
 
-- Verifică că Railway a terminat deploy-ul
+- Verifică că legacy hosting a terminat deploy-ul
 - Verifică că serviciul e conectat la `superparty-ai-backend`
 - Verifică logs pentru erori
 
 **Dacă răspunde dar nu e vocea Kasya:**
 
-- Verifică că Coqui service rulează pe: `https://web-production-00dca9.up.railway.app`
-- Verifică că `COQUI_API_URL` e setat în Railway Variables
+- Verifică că Coqui service rulează pe: `https://whats-app-ompro.ro`
+- Verifică că `COQUI_API_URL` e setat în legacy hosting Variables
 
 **Dacă se închide imediat:**
 
-- Verifică Railway logs pentru erori
+- Verifică legacy hosting logs pentru erori
 - Verifică că toate variabilele sunt setate corect

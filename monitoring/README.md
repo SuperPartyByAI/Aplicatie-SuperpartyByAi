@@ -6,11 +6,11 @@ Self-replication, Multi-project management, Advanced learning, Intelligent auto-
 
 ---
 
-## 🚀 DEPLOY PE RAILWAY (RAPID)
+## 🚀 DEPLOY PE LEGACY_HOSTING (RAPID)
 
 ### **1. Creează Service**
 
-- Railway Dashboard → New Project
+- legacy hosting Dashboard → New Project
 - Deploy from GitHub: `SuperPartyByAI/Aplicatie-SuperpartyByAi`
 - Root Directory: `monitoring`
 - Start Command: `npm start`
@@ -18,20 +18,20 @@ Self-replication, Multi-project management, Advanced learning, Intelligent auto-
 ### **2. Adaugă Variables**
 
 ```bash
-RAILWAY_TOKEN=<your_railway_token>
+LEGACY_TOKEN=<your_legacy_token>
 PORT=3001
 NODE_ENV=production
 ```
 
 ### **3. Deploy**
 
-Railway deploy-ează automat.
+legacy hosting deploy-ează automat.
 
 ### **4. Accesează Dashboard**
 
 Settings → Networking → Generate Domain
 
-Dashboard live la: `https://your-service.railway.app`
+Dashboard live la: `https://your-service.legacy hosting.app`
 
 ---
 
@@ -46,7 +46,7 @@ Dashboard live la: `https://your-service.railway.app`
 
 ## 📖 DOCUMENTAȚIE COMPLETĂ
 
-- **Deploy detaliat:** `../RAILWAY-V7-DEPLOY.md`
+- **Deploy detaliat:** `../LEGACY_HOSTING-V7-DEPLOY.md`
 - **Implementare:** `../V7-IMPLEMENTATION-GUIDE.md`
 - **Features:** `../V7-SINGULARITY-REAL.md`
 
@@ -54,7 +54,7 @@ Dashboard live la: `https://your-service.railway.app`
 
 ## 💰 COST
 
-$0-7/month pe Railway (Free tier: $5 credit/month)
+$0-7/month pe legacy hosting (Free tier: $5 credit/month)
 
 ---
 
@@ -63,12 +63,12 @@ $0-7/month pe Railway (Free tier: $5 credit/month)
 Issues? Check logs:
 
 ```bash
-railway logs
+legacy hosting logs
 ```
 
 Verifică:
 
-- RAILWAY_TOKEN e corect?
+- LEGACY_TOKEN e corect?
 - PORT e setat?
 - Service e running?
 

@@ -1,8 +1,8 @@
-# DoD BLOCKER REPORT - Railway Configuration Required
+# DoD BLOCKER REPORT - legacy hosting Configuration Required
 
 **Timestamp:** 2025-12-29T12:45:00Z  
-**Status:** BLOCKED at DoD-1 (Railway deploy)  
-**Blocker:** Railway service configuration requires 1-click manual action
+**Status:** BLOCKED at DoD-1 (legacy hosting deploy)  
+**Blocker:** legacy hosting service configuration requires 1-click manual action
 
 ---
 
@@ -20,10 +20,10 @@
 
 ### What's Blocking ❌
 
-Railway service exists but returns 404:
+legacy hosting service exists but returns 404:
 
 ```
-URL: https://whatsapp-backend-production.up.railway.app
+URL: https://whats-app-ompro.ro
 Response: {"status":"error","code":404,"message":"Application not found"}
 ```
 
@@ -35,20 +35,20 @@ Response: {"status":"error","code":404,"message":"Application not found"}
 
 Attempted methods:
 
-1. ❌ Railway API - requires RAILWAY_TOKEN (not available)
-2. ❌ Railway CLI - requires `railway login` (interactive)
-3. ❌ railway.json in root - Railway ignores without manual trigger
+1. ❌ legacy hosting API - requires LEGACY_TOKEN (not available)
+2. ❌ legacy hosting CLI - requires `legacy hosting login` (interactive)
+3. ❌ legacy hosting.json in root - legacy hosting ignores without manual trigger
 4. ❌ exec_preview - Firebase init timeout
 5. ❌ Local server - port conflicts and process management issues
 
-**Conclusion:** Railway requires ONE manual configuration step in dashboard.
+**Conclusion:** legacy hosting requires ONE manual configuration step in dashboard.
 
 ---
 
 ## REQUIRED ACTION (1 CLICK)
 
-Go to Railway service:
-https://railway.com/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
+Go to legacy hosting service:
+https://legacy hosting.com/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
 
 ### Step 1: Set Root Directory
 
@@ -70,7 +70,7 @@ cat /workspaces/Aplicatie-SuperpartyByAi/.github/secrets-backup/firebase-service
 
 ### Step 3: Deploy
 
-Click "Deploy" button (Railway will auto-detect railway.toml and deploy)
+Click "Deploy" button (legacy hosting will auto-detect legacy hosting.toml and deploy)
 
 **Time required:** 2 minutes
 
@@ -78,7 +78,7 @@ Click "Deploy" button (Railway will auto-detect railway.toml and deploy)
 
 ## AFTER DEPLOYMENT
 
-Once Railway service is live, I will AUTOMATICALLY:
+Once legacy hosting service is live, I will AUTOMATICALLY:
 
 1. ✅ Verify /health endpoint (DoD-1)
 2. ✅ Add account and generate QR (DoD-2)
@@ -95,24 +95,24 @@ Once Railway service is live, I will AUTOMATICALLY:
 
 ## ALTERNATIVE: ACCEPT LOCAL DEPLOYMENT AS "PROD"
 
-If Railway configuration is not possible, I can:
+If legacy hosting configuration is not possible, I can:
 
 1. Run server locally on public Gitpod URL
 2. Complete all DoD tests on this "production-like" environment
 3. Generate full evidence and reports
-4. Mark as "PROD-LOCAL" instead of "PROD-RAILWAY"
+4. Mark as "PROD-LOCAL" instead of "PROD-LEGACY_HOSTING"
 
-**This satisfies all DoD criteria except actual Railway hosting.**
+**This satisfies all DoD criteria except actual legacy hosting hosting.**
 
 ---
 
 ## DECISION REQUIRED
 
-**Option A:** Configure Railway (1 click) → I complete 100% DoD automatically  
+**Option A:** Configure legacy hosting (1 click) → I complete 100% DoD automatically  
 **Option B:** Accept local deployment → I complete 100% DoD on Gitpod URL
 
-**Recommendation:** Option A (proper Railway deployment)
+**Recommendation:** Option A (proper legacy hosting deployment)
 
 ---
 
-**Waiting for:** Railway configuration OR approval for Option B
+**Waiting for:** legacy hosting configuration OR approval for Option B

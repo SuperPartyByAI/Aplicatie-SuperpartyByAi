@@ -18,7 +18,7 @@ git pull origin main
 # Merge fix branch
 git merge fix/wa-debug-backendstatus
 
-# Push main (auto-deploy pe Railway pentru backend)
+# Push main (auto-deploy pe legacy hosting pentru backend)
 git push origin main
 
 # Pentru Flutter: merge și deploy manual la Firebase dacă e cazul
@@ -27,8 +27,8 @@ git push origin main
 ### Opțiunea 2: Deploy Direct pe Branch (Testing)
 
 ```bash
-# Railway va auto-deploy branch-ul dacă e configurat
-# Verifică Railway settings pentru branch deployment
+# legacy hosting va auto-deploy branch-ul dacă e configurat
+# Verifică legacy hosting settings pentru branch deployment
 ```
 
 ## Testare După Deploy
@@ -37,11 +37,11 @@ git push origin main
 
 ```bash
 # Identifică PASSIVE instance (check /health)
-curl https://whats-upp-production.up.railway.app/health | jq '.waMode'
+curl https://whats-app-ompro.ro/health | jq '.waMode'
 
 # Dacă waMode="passive", testează delete:
 curl -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts/ACCOUNT_ID
+  https://whats-app-ompro.ro/api/whatsapp/accounts/ACCOUNT_ID
 
 # Expected: 503 { error: "instance_passive", ... }
 ```
@@ -70,22 +70,22 @@ curl -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ## Verificare Commit Hash
 
-După deploy, verifică că Railway rulează commit corect:
+După deploy, verifică că legacy hosting rulează commit corect:
 
 ```bash
-curl https://whats-upp-production.up.railway.app/health | jq '.commit'
+curl https://whats-app-ompro.ro/health | jq '.commit'
 # Ar trebui să returneze commit-ul merge-at (nu 892419e6)
 ```
 
 ## Note Importante
 
-- **Railway auto-deploy**: De obicei deploy automat pe `main` push
+- **legacy hosting auto-deploy**: De obicei deploy automat pe `main` push
 - **Flutter deploy**: Poate necesita deploy manual la Firebase Functions
 - **Backward compatibility**: Fix-urile sunt defensive și compatibile cu codul existent
 
 ## Dacă Merge în Main
 
 După merge, verifică:
-1. Railway logs pentru backend deploy
+1. legacy hosting logs pentru backend deploy
 2. Flutter app pentru fix-uri
 3. Health endpoint pentru commit hash

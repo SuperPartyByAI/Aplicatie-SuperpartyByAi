@@ -69,8 +69,8 @@ tail -50 /tmp/flutter_live_logs.txt | grep -i "status.*connected\|Account:.*stat
 [WhatsAppAccountsScreen] Account: id=account_dev_xxx, status=connected, hasQR=false
 ```
 
-### Railway Backend Logs
-Verifică în Railway dashboard:
+### legacy hosting Backend Logs
+Verifică în legacy hosting dashboard:
 - `connection.update: open` - conexiune deschisă
 - `connection.update: connect` - conectat cu succes
 - Status în Firestore devine `connected`
@@ -88,12 +88,12 @@ Verifică în Railway dashboard:
 ### Status rămâne `qr_ready`
 1. Verifică că ai scanat QR code-ul corect
 2. Verifică conectivitatea internet (telefon + backend)
-3. Verifică Railway logs pentru erori
+3. Verifică legacy hosting logs pentru erori
 
 ### Status devine `disconnected`
 1. Probabil timeout (QR nefolosit > 60s)
 2. Regenerare QR și scanare rapidă
-3. Verifică Railway logs pentru detalii
+3. Verifică legacy hosting logs pentru detalii
 
 ---
 
@@ -104,9 +104,9 @@ Verifică în Railway dashboard:
 tail -50 /tmp/flutter_live_logs.txt | grep -i "Account:.*status"
 ```
 
-### Verificare Railway Logs
+### Verificare legacy hosting Logs
 ```
-Railway Dashboard → Deploy Logs → Căutare "connection.update"
+legacy hosting Dashboard → Deploy Logs → Căutare "connection.update"
 ```
 
 ### Verificare Firestore

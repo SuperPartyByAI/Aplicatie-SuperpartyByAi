@@ -1,8 +1,8 @@
-# ✅ LOCAL TEST SUCCESS - Railway v2.0.0 Code Verified
+# ✅ LOCAL TEST SUCCESS - legacy hosting v2.0.0 Code Verified
 
 **Generated:** 2025-12-29T12:16:00Z  
 **Environment:** Local test-local.js (port 8080)  
-**Code Version:** Railway v2.0.0 (commits 639acbb3, fd2a9842)
+**Code Version:** legacy hosting v2.0.0 (commits 639acbb3, fd2a9842)
 
 ---
 
@@ -10,7 +10,7 @@
 
 **LOCAL TESTS: 7/7 PASSED (100%)**
 
-All critical functionality verified locally before Railway deployment:
+All critical functionality verified locally before legacy hosting deployment:
 
 - ✅ QR generation works (18/18 accounts)
 - ✅ Multi-account support (18 simultaneous)
@@ -223,11 +223,11 @@ sock.ev.on('connection.update', async update => {
 
 ## Next Steps (Priority Order)
 
-### 1. Deploy to Railway (IMMEDIATE)
+### 1. Deploy to legacy hosting (IMMEDIATE)
 
-**Option A: Manual Deploy via Railway Dashboard**
+**Option A: Manual Deploy via legacy hosting Dashboard**
 
-1. Go to Railway dashboard
+1. Go to legacy hosting dashboard
 2. Create new service from GitHub repo
 3. Set root directory: `whatsapp-backend`
 4. Add environment variables:
@@ -236,22 +236,22 @@ sock.ev.on('connection.update', async update => {
    - `FIREBASE_CLIENT_EMAIL`
 5. Deploy
 
-**Option B: Railway CLI**
+**Option B: legacy hosting CLI**
 
 ```bash
 cd whatsapp-backend
-railway login
-railway link
-railway up
+legacy hosting login
+legacy hosting link
+legacy hosting up
 ```
 
-**Expected Result:** Service running at `https://*.up.railway.app`
+**Expected Result:** Service running at `https://whats-app-ompro.ro`
 
-### 2. Verify Railway Deployment
+### 2. Verify legacy hosting Deployment
 
 ```bash
 # Check health
-curl https://YOUR-SERVICE.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # Expected:
 # {"status":"healthy","accounts":{"total":0,"connected":0}}
@@ -261,12 +261,12 @@ curl https://YOUR-SERVICE.up.railway.app/health
 
 ```bash
 # Add account
-curl -X POST https://YOUR-SERVICE.up.railway.app/api/whatsapp/add-account \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
   -d '{"phoneNumber": "+40700000001"}'
 
 # Get QR code
-curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0].qrCode'
+curl https://whats-app-ompro.ro/api/whatsapp/accounts | jq '.accounts[0].qrCode'
 
 # Manual: Scan QR with WhatsApp app
 # Wait for status to change to "connected"
@@ -277,8 +277,8 @@ curl https://YOUR-SERVICE.up.railway.app/api/whatsapp/accounts | jq '.accounts[0
 **Requires:** 1 connected account
 
 ```bash
-# Simulate disconnect (restart Railway service)
-railway service restart
+# Simulate disconnect (restart legacy hosting service)
+legacy hosting service restart
 
 # Measure time to reconnect
 # Target: P95 < 30 seconds
@@ -290,7 +290,7 @@ railway service restart
 
 ```bash
 # Send message while connected
-curl -X POST https://YOUR-SERVICE.up.railway.app/api/whatsapp/send-message \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/send-message \
   -H "Content-Type: application/json" \
   -d '{"accountId": "account_XXX", "to": "+40700000002", "message": "Test 1"}'
 
@@ -325,8 +325,8 @@ curl -X POST https://YOUR-SERVICE.up.railway.app/api/whatsapp/send-message \
 
 **Commits:**
 
-- `fd2a9842` - Add Railway config for whatsapp-backend v2.0.0
-- `639acbb3` - Railway v2.0.0: Complete WhatsApp backend with Firestore + 18 accounts
+- `fd2a9842` - Add legacy hosting config for whatsapp-backend v2.0.0
+- `639acbb3` - legacy hosting v2.0.0: Complete WhatsApp backend with Firestore + 18 accounts
 
 **Pushed to:** `origin/main`
 
@@ -339,7 +339,7 @@ curl -X POST https://YOUR-SERVICE.up.railway.app/api/whatsapp/send-message \
 
 ## Conclusion
 
-**Local testing confirms Railway v2.0.0 code is production-ready for deployment.**
+**Local testing confirms legacy hosting v2.0.0 code is production-ready for deployment.**
 
 All critical bugs fixed:
 
@@ -348,11 +348,11 @@ All critical bugs fixed:
 - ✅ No 405 errors
 - ✅ State machine functional
 
-**Blocker:** Need Railway deployment + manual QR scan to complete remaining 3 DoD criteria.
+**Blocker:** Need legacy hosting deployment + manual QR scan to complete remaining 3 DoD criteria.
 
 **Confidence Level:** HIGH (100% local tests passed)
 
-**Recommendation:** Deploy to Railway immediately and proceed with manual QR scan.
+**Recommendation:** Deploy to legacy hosting immediately and proceed with manual QR scan.
 
 ---
 

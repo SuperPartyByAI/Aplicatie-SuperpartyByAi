@@ -1,28 +1,28 @@
-# 🔧 Reparare Backend Railway - Pași
+# 🔧 Reparare Backend legacy hosting - Pași
 
 ## ✅ Status actual
 - ✅ **Eroare de sintaxă REPARATĂ**: `server.js` nu mai are erori
 - ✅ **Commit și Push**: Modificările sunt pe GitHub
-- ⚠️  **Railway backend**: Încă returnează `502 Bad Gateway` - **necesită restart manual**
+- ⚠️  **legacy hosting backend**: Încă returnează `502 Bad Gateway` - **necesită restart manual**
 
 ---
 
-## 🚀 Pasul 1: Restart Railway Service
+## 🚀 Pasul 1: Restart legacy hosting Service
 
-### Opțiunea A: Railway Dashboard (RECOMANDAT)
-1. **Deschide**: https://railway.app/dashboard
-2. **Login** cu contul tău Railway
+### Opțiunea A: legacy hosting Dashboard (RECOMANDAT)
+1. **Deschide**: https://legacy hosting.app/dashboard
+2. **Login** cu contul tău legacy hosting
 3. **Selectează proiectul**: WhatsApp backend service
 4. **Click pe**:
    - `...` (menu) → **"Redeploy"** SAU
    - **"Restart Service"** (buton mare)
 5. **Așteaptă**: 2-3 minute pentru deploy
 
-### Opțiunea B: Railway CLI
+### Opțiunea B: legacy hosting CLI
 ```bash
 cd whatsapp-backend
-railway login
-railway up
+legacy hosting login
+legacy hosting up
 ```
 
 ---
@@ -32,13 +32,13 @@ railway up
 După 2-3 minute, verifică dacă backend-ul pornește:
 
 ```bash
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 ```
 
 **Răspuns așteptat:**
 - `200 OK` sau `{"status":"ok"}` → ✅ Backend funcționează!
 - `502 Bad Gateway` → ⚠️  Încă se pornește (mai așteaptă)
-- Eroare diferită → Verifică logs în Railway Dashboard
+- Eroare diferită → Verifică logs în legacy hosting Dashboard
 
 ---
 
@@ -63,11 +63,11 @@ flutter run -d macos
 
 ---
 
-## 📊 Verificare logs Railway
+## 📊 Verificare logs legacy hosting
 
 Dacă backend-ul încă nu pornește:
 
-1. **Railway Dashboard** → Service → **"Logs"** tab
+1. **legacy hosting Dashboard** → Service → **"Logs"** tab
 2. **Caută**:
    - ✅ `Server started on port 8080` → Backend pornit corect
    - ❌ `SyntaxError` → Problema nu e reparată (rar)
@@ -79,8 +79,8 @@ Dacă backend-ul încă nu pornește:
 ## 🔍 Diagnostic rapid
 
 ```bash
-# 1. Verifică Railway backend
-curl https://whats-upp-production.up.railway.app/health
+# 1. Verifică legacy hosting backend
+curl https://whats-app-ompro.ro/health
 
 # 2. Verifică Firebase Functions proxy (necesită auth)
 curl https://us-central1-superparty-frontend.cloudfunctions.net/whatsappProxyGetAccounts
@@ -93,7 +93,7 @@ curl http://localhost:8080/health
 
 ## 🎯 Pași următori
 
-1. ✅ **Restart Railway** (pasul 1)
+1. ✅ **Restart legacy hosting** (pasul 1)
 2. ⏳ **Așteaptă 2-3 minute**
 3. ✅ **Verifică health endpoint** (pasul 2)
 4. ✅ **Testează în Flutter pe macOS** (pasul 3)
@@ -103,9 +103,9 @@ curl http://localhost:8080/health
 
 ## 💡 Note
 
-- **Auto-deploy**: Railway poate avea auto-deploy activat din Git
-  - Verifică în Railway Dashboard → Settings → Source
-  - Dacă e activ, Railway ar trebui să deploy automat după push
+- **Auto-deploy**: legacy hosting poate avea auto-deploy activat din Git
+  - Verifică în legacy hosting Dashboard → Settings → Source
+  - Dacă e activ, legacy hosting ar trebui să deploy automat după push
   - Dacă nu, trebuie restart manual
 
 - **Sintaxă reparată**: Erorile din `server.js` au fost rezolvate:

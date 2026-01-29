@@ -10,7 +10,7 @@
 - Adăugat check `ConnectionState.done && !snapshot.hasData` pentru timeout case
 **File**: `superparty_flutter/lib/screens/auth/auth_wrapper.dart`
 
-### 2. Railway regenerateQr 500 on "Already Connecting" ✅ FIXED
+### 2. legacy hosting regenerateQr 500 on "Already Connecting" ✅ FIXED
 **Problem**: `createConnection` poate arunca excepții sincrone când "already connecting"
 **Solution**:
 - Adăugat check `connectionRegistry.tryAcquire()` înainte de cleanup/`createConnection`
@@ -79,6 +79,6 @@ flutter run -d emulator-5554 --dart-define=USE_EMULATORS=true
 
 ## Next Steps
 
-1. Deploy backend în Railway (push to git sau redeploy manual)
+1. Deploy backend în legacy hosting (push to git sau redeploy manual)
 2. Repornește Flutter app pentru a testa black screen fix
 3. Testează regenerateQr rapid tapping pentru a verifica stabilitate

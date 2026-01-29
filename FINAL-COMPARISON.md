@@ -96,8 +96,8 @@ TOTAL: <90 SECUNDE DOWNTIME ✅✅✅
 
 | Item               | Cost/lună              |
 | ------------------ | ---------------------- |
-| Monitoring service | $0 (Railway free tier) |
-| Auto-recovery      | $0 (Railway API)       |
+| Monitoring service | $0 (legacy hosting free tier) |
+| Auto-recovery      | $0 (legacy hosting API)       |
 | Downtime           | Minimal (4.3 min)      |
 | **TOTAL**          | **$0**                 |
 

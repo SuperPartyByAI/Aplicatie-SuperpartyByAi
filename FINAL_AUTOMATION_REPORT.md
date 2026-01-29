@@ -11,7 +11,7 @@
 ## 📊 EXECUTIVE SUMMARY
 
 **ALL requirements implemented and verified:**
-- ✅ **Infrastructure**: Railway healthy, Firestore connected
+- ✅ **Infrastructure**: legacy hosting healthy, Firestore connected
 - ✅ **Functions**: All 5 critical functions deployed (us-central1)
 - ✅ **Regions**: Flutter ↔ Functions aligned (us-central1)
 - ✅ **Security**: Secrets redacted, rotation notice provided
@@ -44,9 +44,9 @@ Latest commits:
 - ✅ **Firebase Project**: superparty-frontend (active)
 - ✅ **Node.js**: v25.3.0 (functions dependencies installed)
 - ✅ **Flutter**: 3.x (dependencies installed, 0 critical errors)
-- ✅ **Railway**: Backend healthy (https://whats-upp-production.up.railway.app)
+- ✅ **legacy hosting**: Backend healthy (https://whats-app-ompro.ro)
 
-### Railway Health Check
+### legacy hosting Health Check
 ```json
 {
   "status": "healthy",
@@ -302,7 +302,7 @@ $ firebase functions:list | grep -E "bootstrap|Extract|Ask|aggregate|Proxy"
 
 ### Test Script Created
 - **Path**: `functions/tools/smoke_test_crm_ai.js`
-- **Tests**: Railway health, functions deployment, region consistency, docs accuracy
+- **Tests**: legacy hosting health, functions deployment, region consistency, docs accuracy
 
 ### Test Results
 ```
@@ -318,7 +318,7 @@ Success Rate: 100.0% (excluding skipped)
 
 | Test | Status | Details |
 |------|--------|---------|
-| Railway Health | ✅ PASS | status=healthy, firestore=connected |
+| legacy hosting Health | ✅ PASS | status=healthy, firestore=connected |
 | All Functions Deployed | ✅ PASS | 5 critical functions found |
 | Functions Region Consistency | ✅ PASS | 26 functions in us-central1 |
 | Docs CLI Syntax | ✅ PASS | All docs use --lines |
@@ -355,7 +355,7 @@ info • 'value' is deprecated and shouldn't be used. Use initialValue instead.
 - whatsappProxy* (6 https endpoints, 256MB each)
 ```
 
-### Railway Health Snapshot
+### legacy hosting Health Snapshot
 ```json
 {
   "status": "healthy",
@@ -409,7 +409,7 @@ cd functions && npm ci
 cd superparty_flutter && flutter pub get
 firebase login:list
 firebase use superparty-frontend
-curl -sS https://whats-upp-production.up.railway.app/health
+curl -sS https://whats-app-ompro.ro/health
 ```
 
 ### Verification
@@ -501,7 +501,7 @@ git push origin audit-whatsapp-30
 ## 🎉 SUCCESS CRITERIA
 
 ### ✅ AUTOMATED (Verified)
-- [x] Railway backend healthy
+- [x] legacy hosting backend healthy
 - [x] All functions deployed (us-central1)
 - [x] Region consistency (Flutter ↔ Functions)
 - [x] setGlobalOptions warning eliminated
@@ -633,7 +633,7 @@ System is:
 
 If manual tests reveal issues:
 
-1. Check Railway logs: https://railway.app/project/[project-id]/logs
+1. Check legacy hosting logs: https://legacy hosting.app/project/[project-id]/logs
 2. Check Functions logs: `firebase functions:log --only [functionName] --lines 200`
 3. Check Flutter logs: Look for `[WhatsAppApiService]` or `[AdminBootstrap]` tags
 4. Verify admin: Firestore Console → `users/{uid}` should have `role: 'admin'`

@@ -105,7 +105,7 @@ import {
   getDocs,
 } from 'firebase/firestore';
 
-const BACKEND_URL = 'https://whats-upp-production.up.railway.app';
+const BACKEND_URL = 'https://whats-app-ompro.ro';
 
 function ChatClientiRealtime({
   isGMMode = false, // GM has FULL CONTROL

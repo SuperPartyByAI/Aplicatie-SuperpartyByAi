@@ -6,8 +6,8 @@
 [![CI Status](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions/workflows/ci.yml/badge.svg)](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions/workflows/ci.yml)
 [![Deploy Frontend](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions/workflows/deploy-frontend.yml/badge.svg)](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions/workflows/deploy-frontend.yml)
 [![Deploy WhatsApp](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions/workflows/deploy-whatsapp-functions.yml/badge.svg)](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/actions/workflows/deploy-whatsapp-functions.yml)
-[![Status](https://img.shields.io/badge/status-production-green.svg)](https://railway.app)
-[![Uptime](https://img.shields.io/badge/uptime-99.99%25-brightgreen.svg)](https://railway.app)
+[![Status](https://img.shields.io/badge/status-production-green.svg)](https://legacy hosting.app)
+[![Uptime](https://img.shields.io/badge/uptime-99.99%25-brightgreen.svg)](https://legacy hosting.app)
 
 ---
 
@@ -27,7 +27,7 @@ cd superparty_flutter && flutter pub get && cd ..
 # 1. Download google-services.json from Firebase Console
 # 2. Place at: superparty_flutter/android/app/google-services.json
 # 3. Run: cd superparty_flutter && flutterfire configure
-# 4. Create .env file from RAILWAY-VARIABLES.env.example
+# 4. Create .env file from LEGACY_HOSTING-VARIABLES.env.example
 
 # Start development
 npm run emu:fix  # One-command setup (Windows)
@@ -40,7 +40,7 @@ Before running the app, you must configure:
 
 - [ ] **Firebase Android Config**: Download `google-services.json` from [Firebase Console](https://console.firebase.google.com/project/superparty-frontend/settings/general) → Android app → Download config file → Place at `superparty_flutter/android/app/google-services.json`
 - [ ] **Firebase Flutter Config**: Run `cd superparty_flutter && flutterfire configure` to generate `firebase_options.dart`
-- [ ] **Environment Variables**: Copy `RAILWAY-VARIABLES.env.example` to `.env` and fill in your API keys (OpenAI, Twilio, etc.)
+- [ ] **Environment Variables**: Copy `LEGACY_HOSTING-VARIABLES.env.example` to `.env` and fill in your API keys (OpenAI, Twilio, etc.)
 
 **⚠️ These files are NOT committed to Git for security. See `SETUP_NEW_LAPTOP.md` for detailed setup instructions.**
 
@@ -253,7 +253,7 @@ flutter run
 
 ### Recommended Next Steps
 
-1. ✅ **Redis Implemented** - Add Redis to Railway (see REDIS_SETUP.md)
+1. ✅ **Redis Implemented** - Add Redis to legacy hosting (see REDIS_SETUP.md)
 2. ✅ **TanStack Query Implemented** - Frontend caching ready (see kyc-app/kyc-app/TANSTACK_QUERY_USAGE.md)
 3. **Add Monitoring** - Datadog or Prometheus (see RECOMMENDED_TOOLS.md)
 4. **Review Documentation** - See PRODUCTION_FEATURES.md for usage guides
@@ -263,7 +263,7 @@ flutter run
 **Redis (Backend Caching):**
 
 ```bash
-# Add Redis in Railway Dashboard
+# Add Redis in legacy hosting Dashboard
 # App will automatically detect and use it
 # See REDIS_SETUP.md for details
 ```
@@ -286,7 +286,7 @@ function MyComponent() {
 
 **Self-managing AI system** that operates without human intervention:
 
-- 🏗️ **Auto-creates Railway projects** when needed
+- 🏗️ **Auto-creates legacy hosting projects** when needed
 - 💻 **Modifies code** to fix issues automatically
 - 🧬 **Learns and evolves** from experience
 - 🔮 **Predicts problems** 4h in advance
@@ -311,7 +311,7 @@ function MyComponent() {
 /
 ├── monitoring/              - 🤖 AUTONOMOUS MONITOR v5.0
 │   ├── autonomous-monitor.js       - Main AI system
-│   ├── railway-project-creator.js  - Auto-creates projects
+│   ├── legacy hosting-project-creator.js  - Auto-creates projects
 │   ├── code-generator.js           - Auto-modifies code
 │   ├── self-evolution.js           - Learning system
 │   ├── predictive-scaling.js       - Anticipates needs
@@ -337,7 +337,7 @@ function MyComponent() {
 
 ---
 
-## 🚀 Deployment on Railway
+## 🚀 Deployment on legacy hosting
 
 ### Service 1: Autonomous Monitor (Primary)
 
@@ -346,7 +346,7 @@ function MyComponent() {
 git push origin main
 
 # Or manual deploy
-railway up
+legacy hosting up
 ```
 
 **Configuration:**
@@ -358,7 +358,7 @@ railway up
 **Required Environment Variables:**
 
 ```bash
-RAILWAY_TOKEN=your_token_here
+LEGACY_TOKEN=your_token_here
 AUTONOMOUS_MODE=true
 AUTO_CREATE_PROJECTS=true
 AUTO_MODIFY_CODE=true
@@ -413,7 +413,7 @@ AUTO_MODIFY_CODE=true
 
 ### 1. Autonomous Project Creation 🏗️
 
-Automatically creates Railway projects when needed:
+Automatically creates legacy hosting projects when needed:
 
 - Redis cache for slow responses
 - Database replicas for high load
@@ -464,7 +464,7 @@ Reduces infrastructure costs:
 ### Health Check
 
 ```bash
-GET https://your-monitor.railway.app/health
+GET https://your-monitor.legacy hosting.app/health
 ```
 
 **Response:**
@@ -486,7 +486,7 @@ GET https://your-monitor.railway.app/health
 ### Detailed Stats
 
 ```bash
-GET https://your-monitor.railway.app/stats
+GET https://your-monitor.legacy hosting.app/stats
 ```
 
 ---
@@ -498,11 +498,11 @@ GET https://your-monitor.railway.app/stats
 ```javascript
 // Set environment variables
 PROJECT_NAME_1=Web Production
-BACKEND_URL_1=https://project1.railway.app
+BACKEND_URL_1=https://project1.legacy hosting.app
 BACKEND_SERVICE_ID_1=service_id_1
 
 PROJECT_NAME_2=API Service
-BACKEND_URL_2=https://project2.railway.app
+BACKEND_URL_2=https://project2.legacy hosting.app
 BACKEND_SERVICE_ID_2=service_id_2
 
 // Monitor will automatically detect and monitor all projects
@@ -542,8 +542,8 @@ TRAFFIC_THRESHOLD=0.4         // Higher = less sensitive
 **Monitor not starting:**
 
 ```bash
-# Check RAILWAY_TOKEN
-echo $RAILWAY_TOKEN
+# Check LEGACY_TOKEN
+echo $LEGACY_TOKEN
 
 # Verify Node.js version
 node --version  # Should be >= 14.0.0
@@ -556,7 +556,7 @@ node --version  # Should be >= 14.0.0
 export CONFIDENCE_THRESHOLD=0.6
 
 # Check logs
-railway logs
+legacy hosting logs
 ```
 
 **High costs:**
@@ -566,7 +566,7 @@ railway logs
 export OPTIMIZATION_AGGRESSIVE=true
 
 # Review created projects
-railway projects
+legacy hosting projects
 ```
 
 ---
@@ -603,7 +603,7 @@ MIT License - See [LICENSE](LICENSE) file
 
 - **Issues:** [GitHub Issues](https://github.com/SuperPartyByAI/Aplicatie-SuperpartyByAi/issues)
 - **Documentation:** [AUTONOMOUS-FINAL.md](AUTONOMOUS-FINAL.md)
-- **Railway:** [Railway Dashboard](https://railway.app)
+- **legacy hosting:** [legacy hosting Dashboard](https://legacy hosting.app)
 
 ---
 

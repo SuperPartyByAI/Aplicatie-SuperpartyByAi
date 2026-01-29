@@ -47,6 +47,13 @@
 **Firestore Read:**
 - `threads` where `accountId` (realtime)
 
+**Thread schema (UI compat):** Flutter uses `ThreadModel` with fallbacks. Prefer:
+- `threadId` / `id`, `clientJid` / `jid` / `remoteJid`, `displayName` / `name` / `pushName`
+- `lastMessageText` / `lastMessagePreview` / `lastMessageBody`, `lastMessageAt` / `lastMessageAtMs` / `lastMessageTimestamp`
+- `profilePictureUrl` / `photoUrl` (optional). Backend writes `photoUrl` in `threads` when profile photos are fetched.
+
+**Backend:** Write both `lastMessageText` and `lastMessagePreview` (same value) when updating threads so old and new clients work. Backfill: `POST /api/whatsapp/backfill/:accountId` (via proxy `whatsappProxyBackfillAccount`) to repair threads; run per connected account if history is missing.
+
 ---
 
 ### **4. Chat (Send/Receive Messages)**
@@ -68,6 +75,13 @@
 **Firestore:**
 - Read: `threads/{threadId}/messages` (realtime stream)
 - Write: None from client (server-only via proxy)
+- We do **not** use `whatsappProxyGetMessages`. Messages come only from Firestore.
+
+**Rules & deploy:**
+- `outbox` has `allow create, update, delete: if false` (server-only). Client cannot write.
+- Send **must** go via `sendViaProxy()` → `whatsappProxySend` (Functions) → proxy creates outbox server-side.
+- If Flutter wrote directly to `outbox`, it would get permission denied. Deploy `whatsappProxySend` and set Functions secrets (`WHATSAPP_BACKEND_URL` or `WHATSAPP_BACKEND_BASE_URL`) so the proxy works.
+- **404/HTML** on proxy endpoints = function not deployed in the project/region you call, or wrong Firebase project. Fix: `firebase use <alias>`, `firebase deploy --only functions:whatsappProxySend,...`, `firebase functions:list | grep whatsappProxySend`.
 
 ---
 
@@ -127,6 +141,8 @@
 
 **Firestore Writes:**
 - None (read-only screen)
+
+**AI prompts:** System/user prompts for `whatsappExtractEventFromThread` and `clientCrmAsk` are stored in Firestore `app_config/ai_prompts` and editable from the app at **Admin → AI Prompts** (`/admin/ai-prompts`). See `functions/README.md` for schema and placeholders.
 
 ---
 
@@ -231,7 +247,7 @@ FirebaseFirestore.instance
   .collection('threads')
   .doc(threadId)
   .collection('messages')
-  .orderBy('tsClient', descending: false)
+  .orderBy('tsClient', descending: true)
   .limit(200)
 ```
 

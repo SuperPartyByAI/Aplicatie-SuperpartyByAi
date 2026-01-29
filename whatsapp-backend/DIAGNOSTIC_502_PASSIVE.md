@@ -43,7 +43,7 @@
 ```
 
 **Cauză:**
-- **Existență de DOUĂ instanțe Railway** rulate simultan
+- **Existență de DOUĂ instanțe backend** rulate simultan
 - Instance curentă: `40fa3479-c4af-4ec6-9ff4-39c88cc3efb6`
 - Lock holder (ACTIVE): `3a8e0c47-3d2a-4777-a0cb-fba99279432f` (altă instanță)
 - Doar una poate fi ACTIVE la un moment dat (previne conflicts)
@@ -58,58 +58,56 @@
 
 ## 🔧 Soluție
 
-### Pasul 1: Verifică Railway Deployments
+### Pasul 1: Verifică Instanțe Multiple pe Hetzner
 
-1. **Deschide**: https://railway.app/dashboard
-2. **Selectează**: Project "Whats Upp" → Service "Whats Upp"
-3. **Click**: "Deployments" tab
-4. **Verifică**: Sunt multiple deployments active?
+1. **SSH la server**:
+   ```bash
+   ssh root@37.27.34.179
+   ```
 
-**Dacă da:**
-- Oprește deployments mai vechi (celelalte instanțe)
-- Sau mergi în "Settings" → "Scaling" → asigură-te că `numReplicas: 1`
+2. **Verifică procese Node.js**:
+   ```bash
+   ps aux | grep "node.*server.js" | grep -v grep
+   ```
 
-### Pasul 2: Verifică railway.json
+3. **Verifică systemd service**:
+   ```bash
+   sudo systemctl status whatsapp-backend
+   ```
+
+**Dacă există multiple instanțe:**
+- Oprește procesele duplicate
+- Asigură-te că doar systemd service rulează
+
+### Pasul 2: Verifică Systemd Service
 
 ```bash
-cd /Users/universparty/Aplicatie-SuperpartyByAi
-cat railway.json
+ssh root@37.27.34.179
+sudo systemctl status whatsapp-backend
 ```
 
 **Verifică:**
-```json
-{
-  "deploy": {
-    "numReplicas": 1,  // ← Trebuie să fie 1
-    ...
-  }
-}
-```
+- Doar un proces activ
+- Service status: `active (running)`
 
-**Dacă e mai mare decât 1:**
-- Setează `numReplicas: 1`
-- Commit și push
-- Railway va redeploy cu o singură instanță
+**Dacă există probleme:**
+- Restart service: `sudo systemctl restart whatsapp-backend`
+- Verifică logs: `sudo journalctl -u whatsapp-backend -n 100`
 
-### Pasul 3: Redeploy pentru a avea o singură instanță
+### Pasul 3: Restart Service pentru o singură instanță
 
-**Opțiunea A: Railway Dashboard**
-1. Project → Service → "Deployments"
-2. Click "Redeploy" pe deployment-ul cel mai recent
+**SSH și restart:**
+1. SSH: `ssh root@37.27.34.179`
+2. Restart: `sudo systemctl restart whatsapp-backend`
 3. Așteaptă să se termine
 4. Verifică că doar o instanță e activă
 
-**Opțiunea B: Railway CLI**
-```bash
-cd /Users/universparty/Aplicatie-SuperpartyByAi
-railway up
-```
-
-### Pasul 4: Verificare după redeploy
+### Pasul 4: Verificare după restart
 
 **Verifică logs:**
 ```bash
-railway logs -n 50 | grep -E "mode=|PASSIVE|ACTIVE|lock"
+ssh root@37.27.34.179
+sudo journalctl -u whatsapp-backend -n 50 | grep -E "mode=|PASSIVE|ACTIVE|lock"
 ```
 
 **Așteptat (ACTIVE):**
@@ -126,7 +124,7 @@ railway logs -n 50 | grep -E "mode=|PASSIVE|ACTIVE|lock"
 
 **Verifică health:**
 ```bash
-curl -s https://whats-upp-production.up.railway.app/health | jq '{mode, waMode, lock}'
+curl -s https://whats-app-ompro.ro/health | jq '{mode, waMode, lock}'
 ```
 
 ---
@@ -150,9 +148,9 @@ curl -s https://whats-upp-production.up.railway.app/health | jq '{mode, waMode, 
 4. **`/ready` endpoint** ❌ - nu există în versiunea deployed (404)
 
 **Fix minim:**
-- Asigură-te că ai **o singură instanță Railway** (numReplicas: 1)
-- Oprește alte deployments/instanțe active
-- Redeploy pentru a deveni ACTIVE
+- Asigură-te că ai **o singură instanță backend** pe Hetzner
+- Oprește procesele duplicate
+- Restart service pentru a deveni ACTIVE
 
 **După fix:**
 - Backend va deveni ACTIVE
@@ -165,10 +163,11 @@ curl -s https://whats-upp-production.up.railway.app/health | jq '{mode, waMode, 
 **Pentru a verifica după fix:**
 ```bash
 # Verifică mode
-curl -s https://whats-upp-production.up.railway.app/health | jq '{mode, waMode, lock}'
+curl -s https://whats-app-ompro.ro/health | jq '{mode, waMode, lock}'
 
 # Verifică logs
-railway logs -n 50 | grep -E "mode=|ACTIVE|PASSIVE"
+ssh root@37.27.34.179
+sudo journalctl -u whatsapp-backend -n 50 | grep -E "mode=|ACTIVE|PASSIVE"
 ```
 
 **Dacă vezi `mode: "active"` sau `waMode: "active"` → ✅ Problema rezolvată!**

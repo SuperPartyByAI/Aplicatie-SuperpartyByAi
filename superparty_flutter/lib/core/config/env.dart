@@ -43,13 +43,15 @@ class Env {
     defaultValue: false,
   );
 
-  static const String _defaultWhatsAppBackendUrl =
-      'https://whats-upp-production.up.railway.app';
+  /// Default: Hetzner backend (production).
+  /// Hetzner IP: http://37.27.34.179:8080
+  /// Domain: https://whats-app-ompro.ro
+  static const String _defaultWhatsAppBackendUrl = 'http://37.27.34.179:8080';
 
-  /// Base URL for Railway `whatsapp-backend`.
+  /// Base URL for WhatsApp backend (Hetzner).
   ///
   /// Configure via:
-  /// `--dart-define=WHATSAPP_BACKEND_URL=https://your-service.up.railway.app`
+  /// `--dart-define=WHATSAPP_BACKEND_URL=https://your-backend-host`
   static final String whatsappBackendUrl = _normalizeBaseUrl(
     const String.fromEnvironment(
       'WHATSAPP_BACKEND_URL',
@@ -59,6 +61,9 @@ class Env {
 
   static String _normalizeBaseUrl(String raw) {
     var url = raw.trim();
+    if (url.isEmpty) {
+      return url;
+    }
     while (url.endsWith('/')) {
       url = url.substring(0, url.length - 1);
     }

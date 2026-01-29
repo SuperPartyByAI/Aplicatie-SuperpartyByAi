@@ -6,19 +6,35 @@
 
 ---
 
+## ✅ **Migration – WhatsApp CRM (GetMessages removed, Send via proxy)**
+
+Use this **before** full CRM tests to confirm the migrated flow.
+
+| Step | Action | Success |
+|------|--------|---------|
+| **Inbox refresh** | App → WhatsApp → Inbox → pull-to-refresh | Threads refresh from Firestore; no HTTP error |
+| **Chat stream Firestore** | Inbox → tap thread → Chat | Messages load from `threads/{threadId}/messages` stream; "No messages yet" if empty |
+| **Send via proxy** | Chat → type message → Send | Logs: `sendViaProxy` / `whatsappProxySend`; 2xx JSON response; "Message sent!" snackbar |
+| **No GetMessages** | Check debug logs while using Inbox/Chat | Zero requests to `whatsappProxyGetMessages` |
+
+**Config:** `WHATSAPP_BACKEND_URL` (or `WHATSAPP_BACKEND_BASE_URL`) set in Functions secrets; `whatsappProxySend` deployed.
+
+---
+
 ## 🔧 **0. Precondiții (Obligatoriu Înainte de Orice)**
 
-### **0.1 Railway (Backend WhatsApp)**
+### **0.1 Hetzner Backend (WhatsApp)**
 
 | Pas | Acțiune | Verificare | Expected |
 |-----|---------|------------|----------|
-| 0.1.1 | Volume mount: `/app/sessions` | Railway → Service → Volumes → Mount Path `/app/sessions` | ✅ Volume există și e montat |
-| 0.1.2 | Env var: `SESSIONS_PATH=/app/sessions` | Railway → Service → Variables → `SESSIONS_PATH` | ✅ `/app/sessions` |
-| 0.1.3 | Env var: `FIREBASE_SERVICE_ACCOUNT_JSON=...` | Railway → Service → Variables → `FIREBASE_SERVICE_ACCOUNT_JSON` | ✅ JSON valid (nu `null`) |
-| 0.1.4 | (Opțional) Env var: `ADMIN_TOKEN=...` | Railway → Service → Variables → `ADMIN_TOKEN` | ✅ Token setat dacă e folosit |
-| 0.1.5 | Deploy Railway → verifică logs: `sessions dir exists/writable true` | Railway → Deployments → Latest → Logs | ✅ `sessions dir exists/writable true` |
+| 0.1.1 | Persistent storage: `/var/lib/whatsapp-backend/sessions` | SSH → `ls -la /var/lib/whatsapp-backend/sessions` | ✅ Directory există și e writable |
+| 0.1.2 | Env var: `SESSIONS_PATH=/var/lib/whatsapp-backend/sessions` | SSH → `systemctl show whatsapp-backend -p Environment` | ✅ `/var/lib/whatsapp-backend/sessions` |
+| 0.1.3 | Env var: `FIREBASE_SERVICE_ACCOUNT_JSON=...` | SSH → `systemctl show whatsapp-backend -p Environment` | ✅ JSON valid (nu `null`) |
+| 0.1.4 | (Opțional) Env var: `ADMIN_TOKEN=...` | SSH → `systemctl show whatsapp-backend -p Environment` | ✅ Token setat dacă e folosit |
+| 0.1.5 | Deploy Hetzner → verifică logs: `sessions dir exists/writable true` | SSH → `journalctl -u whatsapp-backend -n 50` | ✅ `sessions dir exists/writable true` |
+| 0.1.6 | Health check | `GET https://whats-app-ompro.ro/health` | ✅ `sessions_dir_writable=true`, status 200 |
 
-**Railway Domain:** `whats-upp-production.up.railway.app` (sau domeniul tău real)
+**Hetzner Domain:** `https://whats-app-ompro.ro` (production)
 
 ---
 
@@ -37,9 +53,9 @@
 | Pas | Acțiune | Verificare | Expected |
 |-----|---------|------------|----------|
 | 0.3.1 | Login în app (Firebase Auth) | App → Login screen → autentificare | ✅ `Authorization: Bearer <token>` e trimis la backend |
-| 0.3.2 | (Opțional) Verifică backend URL | App → Settings / Config → `WHATSAPP_BACKEND_URL` | ✅ `https://whats-upp-production.up.railway.app` (sau domeniul real) |
+| 0.3.2 | (Opțional) Verifică backend URL | App → Settings / Config → `WHATSAPP_BACKEND_URL` | ✅ `https://whats-app-ompro.ro` (Hetzner production) |
 
-**⚠️ Note:** Dacă **Inbox/Chat screens nu există încă în UI**, testează doar Accounts (Test 1-2) și CRM backend (Test 7-10). Test 3-6 necesită Inbox/Chat implementat.
+**⚠️ Note:** Dacă Inbox/Chat lipsesc din UI, actualizează app la versiunea care include WhatsApp Inbox/Chat/Client Profile înainte de Testele 3-6.
 
 ---
 
@@ -76,9 +92,9 @@
 | Pas | UI Action | API Call | Firestore Check | Expected |
 |-----|-----------|----------|-----------------|----------|
 | 2.1 | (Pre-condiție) Contul e connected (Test 1) | - | `accounts/{accountId}` → `status = "connected"` | ✅ Pre-condiție satisfăcută |
-| 2.2 | Railway → Redeploy (sau restart service) | - | - | ✅ Service restartat |
+| 2.2 | Hetzner → Restart service | SSH → `sudo systemctl restart whatsapp-backend` | - | ✅ Service restartat |
 | 2.3 | App → WhatsApp → Accounts → Refresh | `GET /api/whatsapp/accounts` | `accounts/{accountId}` → `status = "connected"` (rămâne) | ✅ Status = connected, fără QR |
-| 2.4 | Verificare logs Railway | Railway → Deployments → Latest → Logs | Logs: NU apare `needs_qr` imediat după boot | ✅ Nu apare `needs_qr` pentru contul connected |
+| 2.4 | Verificare logs Hetzner | SSH → `journalctl -u whatsapp-backend -n 100` | Logs: NU apare `needs_qr` imediat după boot | ✅ Nu apare `needs_qr` pentru contul connected |
 
 **Firestore Exact Check:**
 ```javascript
@@ -230,7 +246,7 @@
 | Pas | UI Action | API Call | Firestore Check | Expected |
 |-----|-----------|----------|-----------------|----------|
 | 6.1 | App → WhatsApp → Chat → Send "Test restart safety" | `POST /api/whatsapp/send-message` | `outbox/{requestId}` → `status = "queued"` | ✅ Outbox doc creat |
-| 6.2 | **Imediat după:** Railway → Redeploy/restart | - | - | ✅ Service restartat în timp ce outbox procesează |
+| 6.2 | **Imediat după:** Hetzner → Redeploy/restart | - | - | ✅ Service restartat în timp ce outbox procesează |
 | 6.3 | Client verifică dacă a primit mesajul | - | - | ✅ Client primește **un singur mesaj** (nu duplicate) |
 | 6.4 | Verificare Firestore (manual) | - | Un singur doc `outbox/{requestId}` pentru aceeași cerere (nu duplicate) | ✅ Nu apare duplicate outbox docs |
 
@@ -264,7 +280,7 @@
 |-----|-----------|----------|-----------------|----------|
 | 7.1 | (Pre-condiție) Cont nou pair-at (cu conversații pe telefon) | - | `accounts/{accountId}` → `status = "connected"` | ✅ Cont connected cu istoric pe telefon |
 | 7.2 | Așteaptă 1-5 minute după connected | - | - | ✅ Backend procesează history sync |
-| 7.3 | Verificare logs Railway | Railway → Logs → Căutare `messaging-history.set` | Logs: `[accountId] messaging-history.set received` | ✅ History sync declanșat |
+| 7.3 | Verificare logs Hetzner | Hetzner → Logs → Căutare `messaging-history.set` | Logs: `[accountId] messaging-history.set received` | ✅ History sync declanșat |
 | 7.4 | Verificare Firestore (manual) | - | `threads/{threadId}/messages` → număr mesaje crește peste cele "noi" | ✅ Mesaje vechi populate |
 | 7.5 | (Opțional) Declanșează backfill manual | `POST /api/whatsapp/backfill/:accountId` (dacă există endpoint) | - | ✅ Backfill completat |
 
@@ -432,7 +448,7 @@
 ## 📋 **Checklist Rapid (Print & Check)**
 
 ### **Setup (0.1-0.3)**
-- [ ] Railway volume montat `/app/sessions`
+- [ ] Hetzner volume montat `/app/sessions`
 - [ ] `SESSIONS_PATH=/app/sessions` setat
 - [ ] `FIREBASE_SERVICE_ACCOUNT_JSON` setat
 - [ ] Firestore indexes deploy (`firebase deploy --only firestore:indexes`)

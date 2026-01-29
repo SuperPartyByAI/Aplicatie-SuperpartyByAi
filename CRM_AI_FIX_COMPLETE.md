@@ -103,9 +103,9 @@ $ flutter analyze
 # Impact: Non-blocking deprecation warning (not an error)
 ```
 
-### Railway Backend
+### legacy hosting Backend
 ```bash
-$ curl https://whats-upp-production.up.railway.app/health | jq
+$ curl https://whats-app-ompro.ro/health | jq
 {
   "status": "healthy",
   "firestore": { "status": "connected" },

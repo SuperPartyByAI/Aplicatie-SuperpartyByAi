@@ -18,33 +18,33 @@
 
 **Current Deployment:**
 
-- BAILEYS_BASE_URL: https://whats-upp-production.up.railway.app
+- BAILEYS_BASE_URL: https://whats-app-ompro.ro
 - Commit: e785232c
 - Mode: off (stable)
 - Status: healthy
 
 **Next Steps to Enable:**
 
-1. Set FIRESTORE_AUTH_STATE_MODE=creds_only in Railway env vars
+1. Set FIRESTORE_AUTH_STATE_MODE=creds_only in legacy hosting env vars
 2. Verify stability (no 502, logs clean)
 3. Set FIRESTORE_AUTH_STATE_MODE=full
 4. Test cold start recovery
 
 ---
 
-## OBIECTIV 2: 2 SERVICII RAILWAY SEPARATE
+## OBIECTIV 2: 2 SERVICII LEGACY_HOSTING SEPARATE
 
 **Status:** ⏳ PENDING
 
 **BAILEYS Service:** ✅ READY
 
-- URL: https://whats-upp-production.up.railway.app
+- URL: https://whats-app-ompro.ro
 - Status: healthy
 - Commit: e785232c
 
 **TWILIO Service:** ❌ NOT CREATED
 
-- Requires: New Railway service creation
+- Requires: New legacy hosting service creation
 - Requires: Twilio webhook implementation
 - Requires: URL mapping documentation
 
@@ -98,4 +98,4 @@
 
 **Generated:** 2025-12-29T14:30:00Z  
 **Commit:** e785232c  
-**BAILEYS_BASE_URL:** https://whats-upp-production.up.railway.app
+**BAILEYS_BASE_URL:** https://whats-app-ompro.ro

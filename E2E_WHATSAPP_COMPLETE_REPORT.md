@@ -43,9 +43,9 @@
 ### Backend URL Source:
 
 **File:** `superparty_flutter/lib/core/config/env.dart`
-- Default: `https://whats-upp-production.up.railway.app`
+- Default: `https://whats-app-ompro.ro`
 - Override: `--dart-define=WHATSAPP_BACKEND_URL=...`
-- ✅ Verified: Flutter uses Functions proxy, NOT direct Railway calls
+- ✅ Verified: Flutter uses Functions proxy, NOT direct legacy hosting calls
 
 ### Endpoints Verified:
 
@@ -55,7 +55,7 @@
 - ✅ `whatsappProxyRegenerateQr` (POST)
 - ✅ `whatsappProxySend` (POST)
 
-**Functions → Railway:**
+**Functions → legacy hosting:**
 - ✅ `/api/whatsapp/accounts` (GET)
 - ✅ `/api/whatsapp/add-account` (POST)
 - ✅ `/api/whatsapp/regenerate-qr/:accountId` (POST)
@@ -64,11 +64,11 @@
 
 ```bash
 # 1. Health check
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # 2. Status (requires ADMIN_TOKEN)
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/longrun/status-now
+  https://whats-app-ompro.ro/api/longrun/status-now
 
 # 3. Accounts (via Functions proxy with Firebase token)
 # Tested in Flutter app
@@ -214,7 +214,7 @@ FirebaseFirestore.instance.collection('evenimente').snapshots()
 ```bash
 # 1. Check backend status
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/longrun/status-now
+  https://whats-app-ompro.ro/api/longrun/status-now
 
 # Expected: { "waMode": "active" | "passive", "reason": "..." }
 
@@ -356,7 +356,7 @@ git apply E2E_WHATSAPP_COMPLETE_FIX.patch
 
 ```bash
 # Terminal 1: Start emulators
-export WHATSAPP_RAILWAY_BASE_URL='https://whats-upp-production.up.railway.app'
+export WHATSAPP_BACKEND_BASE_URL='https://whats-app-ompro.ro'
 firebase emulators:start --only firestore,functions,auth
 
 # Terminal 2: Run Flutter
@@ -396,7 +396,7 @@ adb -s emulator-5554 logcat | grep -iE "WhatsApp|whatsapp|endpoint|tokenPresent|
 ```bash
 # Check backend status (requires ADMIN_TOKEN)
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/longrun/status-now
+  https://whats-app-ompro.ro/api/longrun/status-now
 
 # Expected response:
 {
@@ -432,21 +432,21 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ### Production Backend:
 ```bash
-# Railway environment variables
+# legacy hosting environment variables
 ADMIN_TOKEN=<your-admin-token>
 FIREBASE_SERVICE_ACCOUNT_JSON=<firebase-credentials>
-WHATSAPP_RAILWAY_BASE_URL=https://whats-upp-production.up.railway.app  # Not needed (internal)
+WHATSAPP_BACKEND_BASE_URL=https://whats-app-ompro.ro  # Not needed (internal)
 ```
 
 ### Firebase Functions:
 ```bash
-firebase functions:secrets:set WHATSAPP_RAILWAY_BASE_URL
-# Value: https://whats-upp-production.up.railway.app
+firebase functions:secrets:set WHATSAPP_BACKEND_BASE_URL
+# Value: https://whats-app-ompro.ro
 ```
 
 ### Emulator:
 ```bash
-export WHATSAPP_RAILWAY_BASE_URL='https://whats-upp-production.up.railway.app'
+export WHATSAPP_BACKEND_BASE_URL='https://whats-app-ompro.ro'
 # OR use functions/.runtimeconfig.json
 ```
 
@@ -505,7 +505,7 @@ export WHATSAPP_RAILWAY_BASE_URL='https://whats-upp-production.up.railway.app'
 **Next Steps:**
 1. Apply patch
 2. Test in emulator
-3. Deploy backend to Railway
+3. Deploy backend to legacy hosting
 4. Deploy Functions to Firebase
 5. Test in production
 6. Monitor logs for 515 and passive mode transitions

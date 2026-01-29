@@ -57,7 +57,7 @@
 **Locație:** `lib/services/whatsapp_api_service.dart`
 
 **Metode existente:**
-- ✅ `getAccounts()` → `GET /api/whatsapp/accounts` (Railway backend)
+- ✅ `getAccounts()` → `GET /api/whatsapp/accounts` (legacy hosting backend)
 - ✅ `addAccount(name, phone)` → `POST /api/whatsapp/add-account`
 - ✅ `regenerateQr(accountId)` → `POST /api/whatsapp/regenerate-qr/:accountId`
 - ✅ `deleteAccount(accountId)` → `DELETE /api/whatsapp/accounts/:accountId`

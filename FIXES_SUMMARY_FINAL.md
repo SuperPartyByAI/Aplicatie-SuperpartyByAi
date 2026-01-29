@@ -39,7 +39,7 @@
    - ✅ `regenerateQrHandler` already had 4xx propagation
 
 6. **Correlation ID Forwarding**
-   - ✅ Forward `X-Correlation-Id` header to Railway
+   - ✅ Forward `X-Correlation-Id` header to legacy hosting
    - ✅ Log correlationId in all handlers
 
 ### Flutter (superparty_flutter)
@@ -122,4 +122,4 @@ Quick verification:
 1. ⏳ Apply second 401 handler fix (~line 5158) - same as first handler
 2. ⏳ Investigate AI scoring pipeline location
 3. ⏳ Test full flow end-to-end with verification checklist
-4. ⏳ Monitor Railway logs for 401 loop prevention
+4. ⏳ Monitor legacy hosting logs for 401 loop prevention

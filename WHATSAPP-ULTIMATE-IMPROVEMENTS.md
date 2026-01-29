@@ -19,7 +19,7 @@ Reconnect success:  95%
 - ⚠️ 2% risc detectie (protocol reverse-engineered)
 - ⚠️ 0.05% pierdere mesaje (crash înainte de save)
 - ⚠️ 5% reconnect fail (network issues)
-- ⚠️ 0.1% uptime loss (Railway/WhatsApp issues)
+- ⚠️ 0.1% uptime loss (legacy hosting/WhatsApp issues)
 
 ---
 
@@ -590,7 +590,7 @@ class WebhookNotifier {
 
 **Problema:**
 
-- Un server Railway pentru toate conturile
+- Un server legacy hosting pentru toate conturile
 - Overload la >50 conturi
 - Performance degradation
 
@@ -620,7 +620,7 @@ class AutoScaler {
   }
 
   async scaleUp() {
-    // Create new Railway service
+    // Create new legacy hosting service
     // Migrate half of accounts to new service
     // Update load balancer
   }
@@ -638,7 +638,7 @@ class AutoScaler {
 - Performance constant
 - Auto-scaling based on load
 
-**Efort:** 4 ore + cost Railway extra ($10/lună per service)
+**Efort:** 4 ore + cost legacy hosting extra ($10/lună per service)
 **Adevăr:** 90% (auto-scaling funcționează, dar complex)
 
 ---
@@ -690,7 +690,7 @@ Uptime:             99.99% (+5%) ⬆️⬆️⬆️⬆️⬆️
 | **Cascade failure**   | 1%            | MARE   | ❌ Nu                |
 | **Rate limit**        | 5%            | MEDIU  | ✅ Da                |
 | **Session expire**    | 5%            | MEDIU  | ✅ Da                |
-| **Railway down**      | 0.1%          | MARE   | ✅ Da (multi-region) |
+| **legacy hosting down**      | 0.1%          | MARE   | ✅ Da (multi-region) |
 | **Firestore down**    | 0.01%         | MARE   | ❌ Parțial           |
 | **Network issues**    | 1%            | MEDIU  | ✅ Da                |
 
@@ -705,7 +705,7 @@ Uptime:             99.99% (+5%) ⬆️⬆️⬆️⬆️⬆️
 | **Cascade failure**   | 0.1%          | MARE   | ✅ Da (circuit breaker)      |
 | **Rate limit**        | 0.5%          | MEDIU  | ✅ Da (intelligent limiting) |
 | **Session expire**    | 2%            | MEDIU  | ✅ Da (rotation)             |
-| **Railway down**      | 0.1%          | MARE   | ✅ Da (multi-region)         |
+| **legacy hosting down**      | 0.1%          | MARE   | ✅ Da (multi-region)         |
 | **Firestore down**    | 0.01%         | MARE   | ✅ Da (multiple backups)     |
 | **Network issues**    | 0.5%          | MEDIU  | ✅ Da (predictive health)    |
 

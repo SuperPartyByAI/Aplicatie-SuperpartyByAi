@@ -49,7 +49,7 @@
 #### **3. 🚀 Deploy automat**
 
 ```
-✅ Creează proiect Railway per site
+✅ Creează proiect legacy hosting per site
 ✅ Configurează domain
 ✅ SSL automat
 ✅ CDN (Cloudflare)
@@ -175,7 +175,7 @@ Cost: $0 (folosește infrastructure existentă)
 **E. Deploy (5 min)**
 
 ```
-✅ Creează proiect Railway
+✅ Creează proiect legacy hosting
 ✅ Deploy site
 ✅ Configurează domain (party-bucuresti.ro)
 ✅ SSL automat (Let's Encrypt)
@@ -413,14 +413,14 @@ Totul OK?"
 
 - Robotul: $0 (folosește infrastructure existentă)
 - Domenii: $10/domain/year = $300/year
-- Hosting: $0 (Railway free tier pentru static sites)
+- Hosting: $0 (legacy hosting free tier pentru static sites)
 - AI content: $50 (OpenAI API pentru content generation)
 
 **Total one-time: $350**
 
 **Monthly (mentenanță 30 siteuri):**
 
-- Hosting: $0-20/month (Railway)
+- Hosting: $0-20/month (legacy hosting)
 - AI content: $30/month (OpenAI pentru articole noi)
 - SEO tools: $50/month (Ahrefs/SEMrush API)
 - Backlinks: $100/month (outreach automation)

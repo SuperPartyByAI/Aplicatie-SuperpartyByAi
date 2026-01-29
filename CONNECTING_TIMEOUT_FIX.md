@@ -2,7 +2,7 @@
 
 ## Problem
 
-**From Railway logs:**
+**From legacy hosting logs:**
 ```
 ⏸️ [account_dev_dde908a65501c63b124cb94c627e551d] Faza de asociere (qr_ready), păstrarea contului (motiv: 515)
 💾 [account_dev_dde908a65501c63b124cb94c627e551d] Salvat în Firestore

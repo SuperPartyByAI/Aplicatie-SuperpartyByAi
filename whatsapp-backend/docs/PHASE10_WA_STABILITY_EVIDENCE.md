@@ -23,7 +23,7 @@ All hard requirements (W1-W6) and DoD requirements (DoD-WA-1 through DoD-WA-5) h
 ```javascript
 // Lock document structure
 {
-  holderInstanceId: "railway-prod-abc123",
+  holderInstanceId: "legacy hosting-prod-abc123",
   leaseUntil: 1735516800000,
   acquiredAt: Timestamp,
   updatedAt: Timestamp
@@ -98,7 +98,7 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
 ```javascript
 // State document at wa_metrics/longrun/state/wa_connection
 {
-  instanceId: "railway-prod-abc123",
+  instanceId: "legacy hosting-prod-abc123",
   waStatus: "DISCONNECTED",
   connectedAt: "2025-12-30T00:00:00Z",
   lastDisconnectAt: "2025-12-30T01:00:00Z",
@@ -155,7 +155,7 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
 1. Create incident `wa_reconnect_loop` with evidence
 2. Release distributed lock
 3. Exit process with code 1
-4. Railway restarts automatically
+4. legacy hosting restarts automatically
 
 **Evidence**:
 
@@ -164,7 +164,7 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
 {
   type: "wa_reconnect_loop",
   detectedAt: Timestamp,
-  instanceId: "railway-prod-abc123",
+  instanceId: "legacy hosting-prod-abc123",
   evidence: {
     retryCount: 10,
     lastDisconnectAt: "2025-12-30T01:00:00Z",
@@ -175,7 +175,7 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
   active: true,
   instructions: "Reconnect loop detected. Process will restart automatically.",
   runbook: {
-    step1: "Railway will restart the process automatically",
+    step1: "legacy hosting will restart the process automatically",
     step2: "Check logs after restart for connection status",
     step3: "If issue persists, check auth state and network",
     step4: "Consider manual intervention if >3 restarts in 1 hour"
@@ -206,7 +206,7 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
   active: true,
   firstDetectedAt: Timestamp,
   lastCheckedAt: Timestamp, // Updated every 60s
-  instanceId: "railway-prod-abc123",
+  instanceId: "legacy hosting-prod-abc123",
   evidence: {
     lastDisconnectAt: "2025-12-30T01:00:00Z",
     lastDisconnectReason: "connection_lost",
@@ -243,7 +243,7 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
     "authStateExists": true,
     "authKeyCount": 15,
     "lastAuthWriteAt": "2025-12-30T00:59:00Z",
-    "lockHolder": "railway-prod-abc123",
+    "lockHolder": "legacy hosting-prod-abc123",
     "lockLeaseUntil": 1735516800000
   },
   "state": { ... },
@@ -257,7 +257,7 @@ wa_metrics/longrun/baileys_auth/keys/session_abc123
 
 ```bash
 curl -H "X-Admin-Token: $ADMIN_TOKEN" \
-  https://your-app.railway.app/api/longrun/status-now | jq '.wa'
+  https://your-app.legacy hosting.app/api/longrun/status-now | jq '.wa'
 ```
 
 ### DoD-WA-2: Reconnect Backoff Evidence ✅
@@ -306,7 +306,7 @@ curl -H "X-Admin-Token: $ADMIN_TOKEN" \
 {
   type: "wa_logged_out_requires_pairing",
   detectedAt: Timestamp,
-  instanceId: "railway-prod-abc123",
+  instanceId: "legacy hosting-prod-abc123",
   lastDisconnectReason: "logged_out",
   retryCount: 0,
   active: true,
@@ -384,7 +384,7 @@ firebase firestore:get wa_metrics/longrun/incidents/wa_disconnect_stuck_active
 1. Create incident `wa_reconnect_loop`
 2. Release lock
 3. Exit process (code 1)
-4. Railway restarts
+4. legacy hosting restarts
 
 **Incident Evidence**:
 
@@ -392,7 +392,7 @@ firebase firestore:get wa_metrics/longrun/incidents/wa_disconnect_stuck_active
 {
   type: "wa_reconnect_loop",
   detectedAt: Timestamp,
-  instanceId: "railway-prod-abc123",
+  instanceId: "legacy hosting-prod-abc123",
   evidence: {
     retryCount: 10,
     lastDisconnectAt: "2025-12-30T01:00:00Z",
@@ -415,10 +415,10 @@ firebase firestore:get wa_metrics/longrun/incidents/wa_disconnect_stuck_active
 [WAAutoHeal] 🔄 Exiting process for controlled restart...
 ```
 
-**Railway Evidence**:
+**legacy hosting Evidence**:
 
 ```
-# Railway logs show:
+# legacy hosting logs show:
 Process exited with code 1
 Restarting process...
 Process started
@@ -430,9 +430,9 @@ Process started
 # Check incident exists
 firebase firestore:get wa_metrics/longrun/incidents/wa_reconnect_loop_*
 
-# Check Railway logs for restart
-railway logs | grep "exited with code 1"
-railway logs | grep "Restarting process"
+# Check legacy hosting logs for restart
+legacy hosting logs | grep "exited with code 1"
+legacy hosting logs | grep "Restarting process"
 ```
 
 ## Integration Manager
@@ -562,17 +562,17 @@ ec71bff8 - Add WA stability manager and update status-now (DoD-WA-1)
 985d5422 - Add WA stability verification script
 ```
 
-**All code deployed to Railway**: ✅
+**All code deployed to legacy hosting**: ✅
 
 ## Next Steps
 
 1. **Monitor in Production**:
-   - Watch Railway logs for connection events
+   - Watch legacy hosting logs for connection events
    - Check status-now endpoint regularly
    - Monitor Firestore for incidents
 
 2. **Test Scenarios**:
-   - Simulate disconnect (stop Railway briefly)
+   - Simulate disconnect (stop legacy hosting briefly)
    - Verify backoff behavior
    - Check incident creation
    - Confirm auto-heal triggers

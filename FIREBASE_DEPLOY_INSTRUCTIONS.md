@@ -80,7 +80,7 @@ firebase deploy --only firestore:indexes
 
 ### **Backend Code:**
 - Codul backend (`whatsapp-backend/server.js`) **nu necesită deploy Firebase**
-- Se deploy-ează normal pe Railway (commit + push → Railway redeploy)
+- Se deploy-ează normal pe legacy hosting (commit + push → legacy hosting redeploy)
 
 ---
 

@@ -71,7 +71,7 @@ Revine la US West când e gata
 - Users NU observă
 - **300x mai rapid**
 
-**Cost:** $0 (Railway suportă multiple regions)
+**Cost:** $0 (legacy hosting suportă multiple regions)
 
 ---
 
@@ -102,7 +102,7 @@ Consensus-based alerting:
 - Redundanță completă
 - Dacă 1 monitor pică, ceilalți continuă
 
-**Cost:** $0 (Railway free tier)
+**Cost:** $0 (legacy hosting free tier)
 
 ---
 
@@ -232,7 +232,7 @@ Blue-Green deployment:
 - **Zero risc** (testează cu trafic real)
 - **Rollback instant**
 
-**Cost:** $0 (Railway feature)
+**Cost:** $0 (legacy hosting feature)
 
 ---
 

@@ -49,26 +49,26 @@ Implements WhatsApp QR connect functionality from Flutter with **server-side sec
 - **No client-side security checks** (Flutter removed email check)
 
 ### 2. Config Method ✅
-- Supports **both** `functions.config().whatsapp.railway_base_url` (v1) and `process.env.WHATSAPP_RAILWAY_BASE_URL` (v2)
+- Supports **both** `functions.config().whatsapp.backend_base_url` (v1) and `process.env.WHATSAPP_LEGACY_BASE_URL` (v2)
 - Fail-fast only in production (allows tests to mock)
 - Set via:
   ```bash
   # v2 functions:
-  firebase functions:secrets:set WHATSAPP_RAILWAY_BASE_URL
+  firebase functions:secrets:set WHATSAPP_LEGACY_BASE_URL
   
   # v1 functions:
-  firebase functions:config:set whatsapp.railway_base_url="https://whats-upp-production.up.railway.app"
+  firebase functions:config:set whatsapp.backend_base_url="https://whats-app-ompro.ro"
   ```
 
 ### 3. Fail-Fast Doesn't Break Tests ✅
-- Tests set `process.env.WHATSAPP_RAILWAY_BASE_URL` before importing module
+- Tests set `process.env.WHATSAPP_LEGACY_BASE_URL` before importing module
 - Fail-fast only triggers in production (`NODE_ENV === 'production'` or `FIREBASE_CONFIG` present)
 
 ### 4. Proxy Safety ✅
 - **Timeout**: 30 seconds enforced
 - **No sensitive logging**: Only error messages logged, not full error objects
 - **Safe errors**: Non-2xx responses return generic "Backend service returned an error" (no leak)
-- **No auth forwarding**: Client Authorization header not forwarded to Railway
+- **No auth forwarding**: Client Authorization header not forwarded to legacy hosting
 
 ### 5. Flutter Authorization Header ✅
 - All methods call `FirebaseAuth.instance.currentUser?.getIdToken()`
@@ -92,10 +92,10 @@ Expected: Auth/validation tests pass (some may fail on forwardRequest mocking, b
 1. Set environment variable (choose one):
    ```bash
    # v2 functions (recommended):
-   firebase functions:secrets:set WHATSAPP_RAILWAY_BASE_URL
+   firebase functions:secrets:set WHATSAPP_LEGACY_BASE_URL
    
    # v1 functions:
-   firebase functions:config:set whatsapp.railway_base_url="https://whats-upp-production.up.railway.app"
+   firebase functions:config:set whatsapp.backend_base_url="https://whats-app-ompro.ro"
    ```
 
 2. Deploy Functions:

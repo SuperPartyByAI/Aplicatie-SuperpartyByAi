@@ -153,11 +153,11 @@ curl -X POST https://us-central1-superparty-frontend.cloudfunctions.net/whatsapp
 
 ---
 
-### Opțiunea 3: Folosește Railway (alternativă)
+### Opțiunea 3: Folosește legacy hosting (alternativă)
 
-**Status Railway:**
+**Status legacy hosting:**
 
-- URL: `https://whats-upp-production.up.railway.app`
+- URL: `https://whats-app-ompro.ro`
 - Status: `online`
 - Version: `1.0.0`
 - Accounts: 1 (status: connecting)
@@ -252,7 +252,7 @@ După deploy, testează:
 **NU folosi soluții temporare!**
 
 - ❌ NU ignora problema de deploy
-- ❌ NU folosi Railway ca workaround fără să migrezi complet
+- ❌ NU folosi legacy hosting ca workaround fără să migrezi complet
 - ❌ NU lăsa codul nedeployed
 
 **Obiectiv:** WhatsApp 100% funcțional pe Firebase, long-term, cu toate endpoint-urile.

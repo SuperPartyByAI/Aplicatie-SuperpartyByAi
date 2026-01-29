@@ -22,8 +22,8 @@ Hardened WhatsApp QR connect feature with server-side RBAC enforcement, input va
 - All routes use middleware for consistent auth handling
 
 ### 3. Configuration Safety
-- **Before**: Hardcoded fallback URL `https://whats-upp-production.up.railway.app`
-- **After**: Fail-fast if `WHATSAPP_RAILWAY_BASE_URL` env var is missing
+- **Before**: Hardcoded fallback URL `https://whats-app-ompro.ro`
+- **After**: Fail-fast if `WHATSAPP_BACKEND_BASE_URL` env var is missing
 - **Error**: Throws on module load if env var not set (prevents accidental prod URL usage)
 
 ### 4. Input Validation
@@ -31,7 +31,7 @@ Hardened WhatsApp QR connect feature with server-side RBAC enforcement, input va
   - Required, non-empty string
   - Minimum 10 characters
   - Format validation (digits and + only)
-  - Normalized before forwarding to Railway
+  - Normalized before forwarding to legacy hosting
 - **Name validation**:
   - Required, non-empty string
   - Maximum 100 characters
@@ -54,7 +54,7 @@ Hardened WhatsApp QR connect feature with server-side RBAC enforcement, input va
 - `functions/whatsappProxy.js`:
   - Added `validatePhone()`, `validateName()` functions
   - Added `requireAuth()`, `requireEmployee()`, `requireSuperAdmin()` middleware
-  - Removed hardcoded Railway URL fallback
+  - Removed hardcoded legacy hosting URL fallback
   - Updated all routes to use middleware
   - Added input validation to all routes
 
@@ -82,7 +82,7 @@ Hardened WhatsApp QR connect feature with server-side RBAC enforcement, input va
 - Invalid phone format
 - Missing accountId
 
-✅ **Fail-fast on missing config**: Module throws error if `WHATSAPP_RAILWAY_BASE_URL` not set
+✅ **Fail-fast on missing config**: Module throws error if `WHATSAPP_BACKEND_BASE_URL` not set
 
 ✅ **Server-side enforcement**: All security checks happen in Functions, not Flutter
 
@@ -90,7 +90,7 @@ Hardened WhatsApp QR connect feature with server-side RBAC enforcement, input va
 
 ```bash
 # Required (no fallback)
-WHATSAPP_RAILWAY_BASE_URL=https://whats-upp-production.up.railway.app
+WHATSAPP_BACKEND_BASE_URL=https://whats-app-ompro.ro
 
 # Optional (for additional admin emails)
 ADMIN_EMAILS=admin1@example.com,admin2@example.com
@@ -98,9 +98,9 @@ ADMIN_EMAILS=admin1@example.com,admin2@example.com
 
 ## Deployment Checklist
 
-- [ ] Set `WHATSAPP_RAILWAY_BASE_URL` in Firebase Functions config
+- [ ] Set `WHATSAPP_BACKEND_BASE_URL` in Firebase Functions config
 - [ ] Deploy Functions: `firebase deploy --only functions:whatsappProxyGetAccounts,functions:whatsappProxyAddAccount,functions:whatsappProxyRegenerateQr`
-- [ ] Verify Functions logs show no "WHATSAPP_RAILWAY_BASE_URL environment variable is required" errors
+- [ ] Verify Functions logs show no "WHATSAPP_BACKEND_BASE_URL environment variable is required" errors
 - [ ] Test with non-admin user: should get 403 on admin routes
 - [ ] Test with invalid input: should get 400
 - [ ] Test with missing token: should get 401

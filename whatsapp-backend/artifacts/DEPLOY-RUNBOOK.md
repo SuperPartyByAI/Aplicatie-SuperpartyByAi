@@ -1,4 +1,4 @@
-# DEPLOY RUNBOOK - Railway WhatsApp Backend
+# DEPLOY RUNBOOK - Hetzner WhatsApp Backend
 
 ## Problem: Deploy Stuck (Commit Mismatch)
 
@@ -12,88 +12,132 @@
 **Detection:**
 
 - Deploy Guard creates incident `deploy_stuck` after 10 minutes of mismatch
-- Check: `curl https://whats-upp-production.up.railway.app/health | jq '.commit'`
+- Check: `curl https://whats-app-ompro.ro/health | jq '.commit'`
 - Compare with: `git log --oneline -1` (latest commit)
 
 ---
 
-## Solution A: Railway UI (RECOMMENDED)
+## Solution A: SSH Deploy Script (RECOMMENDED)
 
 **Steps:**
 
-1. Go to: https://railway.app/project/<your-project-id>
-2. Click on "whatsapp-backend" service
-3. Click "Deployments" tab
-4. Find latest commit (check commit message matches GitHub)
-5. Click "Redeploy" button
-6. Wait 60-90 seconds for build + deploy
-7. Verify: `curl https://whats-upp-production.up.railway.app/health | jq '.commit'`
-8. Confirm commit hash matches latest
+1. Connect to Hetzner server:
+   ```bash
+   ssh root@37.27.34.179
+   ```
 
-**If "Approval Required" appears:**
+2. Navigate to backend directory:
+   ```bash
+   cd /opt/whatsapp/Aplicatie-SuperpartyByAi/whatsapp-backend
+   ```
 
-- Click "Approve" button
-- Wait for deploy to complete
+3. Run deploy script:
+   ```bash
+   RESTART_AFTER_UPDATE=true bash scripts/server-update-safe.sh
+   ```
+
+4. Wait 60-90 seconds for npm install + restart
+5. Verify: `curl https://whats-app-ompro.ro/health | jq '.commit'`
+6. Confirm commit hash matches latest
+
+**If script doesn't restart automatically:**
+
+```bash
+sudo systemctl restart whatsapp-backend
+```
 
 ---
 
-## Solution B: Railway CLI
+## Solution B: Manual SSH Deploy
 
 **One-time setup:**
 
 ```bash
-npm install -g @railway/cli
-railway login
+ssh root@37.27.34.179
 ```
 
 **Deploy commands:**
 
 ```bash
-cd /path/to/Aplicatie-SuperpartyByAi
-railway link  # Select project + service when prompted
-railway up --service whatsapp-backend
+cd /opt/whatsapp/Aplicatie-SuperpartyByAi/whatsapp-backend
+
+# Stash any local changes
+git stash -u
+
+# Fetch and checkout latest
+git fetch origin cursor/baileys-fix
+git checkout cursor/baileys-fix
+git reset --hard origin/cursor/baileys-fix
+
+# Install dependencies
+npm ci
+
+# Restart service
+sudo systemctl restart whatsapp-backend
 ```
 
 **Verify:**
 
 ```bash
-curl https://whats-upp-production.up.railway.app/health | jq '.commit'
+curl https://whats-app-ompro.ro/health | jq '.commit'
 ```
 
 **Check logs if deploy fails:**
 
 ```bash
-railway logs --service whatsapp-backend
+sudo journalctl -u whatsapp-backend -f --lines 100
 ```
 
 ---
 
 ## Solution C: Force Push (Nuclear Option)
 
-**When to use:** Railway not detecting commits
+**When to use:** Server not detecting commits
 
 ```bash
 cd /path/to/Aplicatie-SuperpartyByAi
-git commit --allow-empty -m "trigger: force Railway redeploy"
-git push origin main
+git commit --allow-empty -m "trigger: force Hetzner redeploy"
+git push origin cursor/baileys-fix
+```
+
+**Then SSH and deploy:**
+
+```bash
+ssh root@37.27.34.179
+cd /opt/whatsapp/Aplicatie-SuperpartyByAi/whatsapp-backend
+git pull origin cursor/baileys-fix
+npm ci
+sudo systemctl restart whatsapp-backend
 ```
 
 **Wait 90 seconds, then verify:**
 
 ```bash
-curl https://whats-upp-production.up.railway.app/health | jq '.commit'
+curl https://whats-app-ompro.ro/health | jq '.commit'
 ```
 
 ---
 
 ## Solution D: Manual Restart (Last Resort)
 
-**Railway UI:**
+**SSH to server:**
 
-1. Go to service settings
-2. Click "Restart" button
-3. Wait for service to come back up
-4. Verify `/health`
+```bash
+ssh root@37.27.34.179
+sudo systemctl restart whatsapp-backend
+```
+
+**Wait for service to come back up:**
+
+```bash
+sudo systemctl status whatsapp-backend
+```
+
+**Verify `/health`:**
+
+```bash
+curl https://whats-app-ompro.ro/health
+```
 
 **Note:** This does NOT deploy new code, only restarts current deployment.
 
@@ -105,16 +149,16 @@ After any deploy solution:
 
 ```bash
 # 1. Check commit hash
-curl https://whats-upp-production.up.railway.app/health | jq '.commit'
+curl https://whats-app-ompro.ro/health | jq '.commit'
 
 # 2. Check new endpoints (should NOT be 404)
-curl "https://whats-upp-production.up.railway.app/api/longrun/status-now?token=YOUR_TOKEN"
+curl "https://whats-app-ompro.ro/api/longrun/status-now?token=YOUR_TOKEN"
 
 # 3. Check boot timestamp (should be recent)
-curl https://whats-upp-production.up.railway.app/health | jq '.bootTimestamp'
+curl https://whats-app-ompro.ro/health | jq '.bootTimestamp'
 
 # 4. Check uptime (should be low, < 5 minutes)
-curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
+curl https://whats-app-ompro.ro/health | jq '.uptime'
 ```
 
 ---
@@ -123,11 +167,14 @@ curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
 
 ### Issue: Build fails silently
 
-**Symptoms:** Railway shows "Deploying..." but never completes
+**Symptoms:** Service shows "active" but code not updated
 
 **Solution:**
 
-1. Check Railway build logs for errors
+1. Check systemd logs for errors:
+   ```bash
+   sudo journalctl -u whatsapp-backend -n 100
+   ```
 2. Common causes:
    - Missing dependencies in package.json
    - Syntax errors in new code
@@ -140,25 +187,50 @@ curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
    npm start  # Test locally
    ```
 
-### Issue: Wrong root directory
+### Issue: Wrong branch
 
-**Symptoms:** Railway builds but doesn't find code
-
-**Solution:**
-
-1. Check railway.json or railway.toml
-2. Verify `build.buildCommand` includes `cd whatsapp-backend`
-3. Verify `deploy.startCommand` includes `cd whatsapp-backend`
-
-### Issue: Watch paths too restrictive
-
-**Symptoms:** Changes to certain files don't trigger deploy
+**Symptoms:** Deploy succeeds but code doesn't match
 
 **Solution:**
 
-1. Railway Settings → Watch Paths
-2. Ensure includes: `whatsapp-backend/**`
-3. Or remove watch paths to watch entire repo
+1. Check current branch on server:
+   ```bash
+   ssh root@37.27.34.179
+   cd /opt/whatsapp/Aplicatie-SuperpartyByAi/whatsapp-backend
+   git branch
+   ```
+2. Verify branch matches deployment target (usually `cursor/baileys-fix`)
+3. Checkout correct branch:
+   ```bash
+   git checkout cursor/baileys-fix
+   git pull origin cursor/baileys-fix
+   npm ci
+   sudo systemctl restart whatsapp-backend
+   ```
+
+### Issue: Service won't start
+
+**Symptoms:** `systemctl restart` fails or service crashes
+
+**Solution:**
+
+1. Check service status:
+   ```bash
+   sudo systemctl status whatsapp-backend
+   ```
+2. Check logs for errors:
+   ```bash
+   sudo journalctl -u whatsapp-backend -n 200
+   ```
+3. Common causes:
+   - Port 8080 already in use
+   - Missing environment variables
+   - Firestore credentials invalid
+4. Fix and restart:
+   ```bash
+   sudo systemctl restart whatsapp-backend
+   sudo systemctl status whatsapp-backend
+   ```
 
 ---
 
@@ -188,14 +260,10 @@ curl https://whats-upp-production.up.railway.app/health | jq '.uptime'
 
 **If all solutions fail:**
 
-1. Check Railway status page: https://status.railway.app
-2. Check Railway Discord: https://discord.gg/railway
-3. File Railway support ticket with:
-   - Project ID
-   - Service name
-   - Commit hash stuck on
-   - Expected commit hash
-   - Build logs (if available)
+1. Check Hetzner server status via SSH
+2. Verify network connectivity: `ping 37.27.34.179`
+3. Check systemd service: `sudo systemctl status whatsapp-backend`
+4. Review logs: `sudo journalctl -u whatsapp-backend -n 500`
 
 ---
 
@@ -206,19 +274,19 @@ After successful deploy:
 1. **Verify evidence endpoints:**
 
    ```bash
-   curl "https://whats-upp-production.up.railway.app/api/longrun/status-now?token=YOUR_TOKEN"
+   curl "https://whats-app-ompro.ro/api/longrun/status-now?token=YOUR_TOKEN"
    ```
 
 2. **Run bootstrap:**
 
    ```bash
-   curl -X POST "https://whats-upp-production.up.railway.app/api/longrun/bootstrap?token=YOUR_TOKEN"
+   curl -X POST "https://whats-app-ompro.ro/api/longrun/bootstrap?token=YOUR_TOKEN"
    ```
 
 3. **Check Firestore docs created:**
    - wa_metrics/longrun/runs/{runKey}
    - wa_metrics/longrun/state/current
-   - wa_metrics/longrun/probes/\* (bootstrap probes)
+   - wa_metrics/longrun/probes/* (bootstrap probes)
 
 4. **Monitor for 10 minutes:**
    - Check heartbeats continue
@@ -231,21 +299,33 @@ After successful deploy:
 
 **If new deploy breaks production:**
 
-1. **Railway UI:**
-   - Go to Deployments
-   - Find last known good deployment
-   - Click "Redeploy"
+1. **SSH to server:**
+
+   ```bash
+   ssh root@37.27.34.179
+   cd /opt/whatsapp/Aplicatie-SuperpartyByAi/whatsapp-backend
+   ```
 
 2. **Git revert:**
 
    ```bash
-   git revert HEAD
-   git push origin main
+   git log --oneline -10  # Find last good commit
+   git checkout <last-good-commit-hash>
+   npm ci
+   sudo systemctl restart whatsapp-backend
    ```
 
-3. **Verify rollback:**
+3. **Or revert in repo and redeploy:**
+
    ```bash
-   curl https://whats-upp-production.up.railway.app/health
+   git revert HEAD
+   git push origin cursor/baileys-fix
+   # Then follow Solution A or B above
+   ```
+
+4. **Verify rollback:**
+   ```bash
+   curl https://whats-app-ompro.ro/health
    ```
 
 ---
@@ -255,27 +335,46 @@ After successful deploy:
 **For major changes:**
 
 1. Announce maintenance window
-2. Set service to "Sleep" in Railway (optional)
-3. Deploy changes
+2. SSH to server and stop service (optional):
+   ```bash
+   sudo systemctl stop whatsapp-backend
+   ```
+3. Deploy changes (Solution A or B)
 4. Test thoroughly
-5. Wake service
+5. Start service if stopped:
+   ```bash
+   sudo systemctl start whatsapp-backend
+   ```
 6. Monitor for 30 minutes
 
 ---
 
 ## Logs Access
 
-**Railway UI:**
-
-- Service → Logs tab
-- Filter by level (error, warn, info)
-- Search for specific terms
-
-**Railway CLI:**
+**SSH to server:**
 
 ```bash
-railway logs --service whatsapp-backend --tail 100
-railway logs --service whatsapp-backend --follow
+ssh root@37.27.34.179
+```
+
+**Systemd logs:**
+
+```bash
+# Last 100 lines
+sudo journalctl -u whatsapp-backend -n 100
+
+# Follow logs (real-time)
+sudo journalctl -u whatsapp-backend -f
+
+# Filter by level
+sudo journalctl -u whatsapp-backend -p err
+```
+
+**Application logs:**
+
+```bash
+# If logs are written to file
+tail -f /var/log/whatsapp-backend/app.log
 ```
 
 **Firestore incidents:**
@@ -297,10 +396,26 @@ Deploy is successful when:
 - ✅ Uptime is low (< 5 minutes)
 - ✅ No deploy_stuck incidents
 - ✅ Heartbeats continue writing
-- ✅ No error logs in Railway
+- ✅ No error logs in systemd
 
 ---
 
-**Last Updated:** 2025-12-29  
-**Version:** 1.0  
+## Server Information
+
+**Hetzner Server:**
+- IP: `37.27.34.179`
+- Domain: `https://whats-app-ompro.ro`
+- Service: `whatsapp-backend` (systemd)
+- Path: `/opt/whatsapp/Aplicatie-SuperpartyByAi/whatsapp-backend`
+- Branch: `cursor/baileys-fix`
+
+**Health Check:**
+```bash
+curl https://whats-app-ompro.ro/health
+```
+
+---
+
+**Last Updated:** 2026-01-28  
+**Version:** 2.0 (Hetzner)  
 **Maintainer:** Ona AI

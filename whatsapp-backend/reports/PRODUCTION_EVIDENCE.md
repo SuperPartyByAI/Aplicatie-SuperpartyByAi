@@ -2,7 +2,7 @@
 
 **Date:** 2025-12-29  
 **Service:** WhatsApp Backend (Baileys)  
-**Base URL:** https://whats-upp-production.up.railway.app  
+**Base URL:** https://whats-app-ompro.ro  
 **Commit:** 7c439325
 
 ---
@@ -184,7 +184,7 @@ Setup Guide: docs/PROBE_SENDER_SETUP.md
 | 2   | 22:28:21 | 22:29:47 | 86s      | 0         |
 | 3   | 22:34:47 | 22:45:30 | 643s     | 9         |
 
-**Gap 3 Explanation:** Railway deployment restart (expected behavior)
+**Gap 3 Explanation:** legacy hosting deployment restart (expected behavior)
 
 ---
 
@@ -377,7 +377,7 @@ d900ea6f - docs: long-run production artifacts (READY+COLLECTING)
 - [x] Documentation (PROBE_SENDER setup)
 - [x] Coverage >80% (81.1% achieved)
 - [x] Restart-safe (verified)
-- [x] Production deployment (Railway)
+- [x] Production deployment (legacy hosting)
 
 ---
 
@@ -420,7 +420,7 @@ All core requirements met:
 
 **Evidence:** 43 heartbeats, 1 probe, 3 sequential instances, 0 overlaps, 0 duplicates
 
-**Deployment:** https://whats-upp-production.up.railway.app
+**Deployment:** https://whats-app-ompro.ro
 
 **Commit:** 7c439325
 

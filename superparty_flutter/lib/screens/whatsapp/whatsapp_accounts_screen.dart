@@ -4,6 +4,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:crypto/crypto.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:path/path.dart' as path;
@@ -13,6 +16,10 @@ import '../../services/whatsapp_web_launcher.dart';
 import '../../services/whatsapp_manual_accounts_service.dart';
 import '../../core/config/env.dart';
 import '../../core/errors/app_exception.dart';
+import '../../services/admin_service.dart';
+import '../debug/whatsapp_diagnostics_screen.dart';
+import 'whatsapp_ai_settings_screen.dart';
+import 'whatsapp_backfill_diagnostic_screen.dart';
 
 /// WhatsApp Accounts Management Screen
 /// 
@@ -51,12 +58,68 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   bool _isAddingAccount = false;
   final Set<String> _regeneratingQr = {}; // accountId -> in-flight
   final Set<String> _deletingAccount = {}; // accountId -> in-flight
+  final Set<String> _backfilling = {}; // accountId -> in-flight
   final Set<String> _openingFirefox = {}; // accountId -> in-flight
   final Set<String> _autoOpenedFirefox = {}; // accountId -> auto-opened Firefox (prevent duplicates)
   int _loadRequestToken = 0;
+  bool _loadInFlight = false;
   Timer? _qrPollingTimer; // Timer for polling QR code generation
-  
+
+  bool _isAdmin = false;
+  final AdminService _adminService = AdminService();
+
   static const String _waUrl = 'https://web.whatsapp.com';
+  
+  Future<void> _copyAuthTokensToClipboard() async {
+    if (!kDebugMode) return;
+    final idToken = await FirebaseAuth.instance.currentUser?.getIdToken(true);
+    String? appCheckToken;
+    try {
+      appCheckToken = await FirebaseAppCheck.instance.getToken(true);
+    } catch (e) {
+      appCheckToken = null;
+      debugPrint('[WhatsAppDebug] appCheckToken error: ${e.runtimeType}');
+    }
+    final idTokenLen = idToken?.length ?? 0;
+    final idTokenDotCount = idToken == null ? 0 : '.'.allMatches(idToken).length;
+    final idTokenHash = idToken == null || idToken.isEmpty
+        ? 'none'
+        : sha256.convert(utf8.encode(idToken)).toString().substring(0, 8);
+    final appCheckLen = appCheckToken?.length ?? 0;
+    final appCheckHash = appCheckToken == null || appCheckToken.isEmpty
+        ? 'none'
+        : sha256.convert(utf8.encode(appCheckToken)).toString().substring(0, 8);
+    debugPrint(
+      '[WhatsAppDebug] idTokenLen=$idTokenLen, idTokenDotCount=$idTokenDotCount, idTokenHash=$idTokenHash',
+    );
+    debugPrint('[WhatsAppDebug] appCheckLen=$appCheckLen, appCheckHash=$appCheckHash');
+
+    if (idToken == null || idToken.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ID token unavailable'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    await Clipboard.setData(
+      ClipboardData(text: 'ID=$idToken\nAPP=${appCheckToken ?? ''}\n'),
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          appCheckToken == null || appCheckToken.isEmpty
+              ? 'Copied ID token (AppCheck unavailable)'
+              : 'Copied tokens',
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
   
   /// Get path to firefox-container script
   /// 
@@ -96,6 +159,9 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   @override
   void initState() {
     super.initState();
+    _adminService.isCurrentUserAdmin().then((ok) {
+      if (mounted) setState(() => _isAdmin = ok);
+    });
     if (_isManualOnly) {
       _loadManualAccounts();
     } else {
@@ -111,49 +177,30 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
     super.dispose();
   }
   
-  /// Start polling for QR code generation and connection status
-  /// Polls every 2 seconds for:
-  /// - Accounts with status 'connecting' or 'qr_ready' without QR code (to get QR)
-  /// - Accounts with 'qr_ready' status (to detect when scanned and connected)
+  /// Start polling for QR code generation and connection status.
+  /// Polls every 5s when accounts are waiting for QR/scan. In-flight guard: skip if _loadAccounts already running.
   void _startQrPolling() {
     _qrPollingTimer?.cancel();
-    _qrPollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+    _qrPollingTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
       }
-      
-      // Check if any account is waiting for QR code OR has QR ready (awaiting scan)
+      if (_isLoading) return;
       final hasWaitingAccounts = _accounts.any((account) {
         final status = account['status'] as String? ?? '';
         final qrCode = account['qrCode'] as String?;
-        // Poll if:
-        // 1. Status is connecting/qr_ready and no QR code yet (waiting for QR generation)
-        // 2. Status is qr_ready with QR code (waiting for scan - check if connected)
-        return (status == 'connecting' || status == 'qr_ready') && 
-               ((qrCode == null || qrCode.isEmpty) || status == 'qr_ready');
+        return (status == 'connecting' || status == 'qr_ready') &&
+            ((qrCode == null || qrCode.isEmpty) || status == 'qr_ready');
       });
-      
-      if (hasWaitingAccounts) {
-        if (kDebugMode) {
-          debugPrint('[WhatsAppAccountsScreen] Auto-polling: checking QR codes and connection status...');
-        }
-        // Refresh accounts to check for new QR codes or connection updates
-        _loadAccounts().catchError((error) {
-          if (kDebugMode) {
-            debugPrint('[WhatsAppAccountsScreen] Polling refresh error: $error');
-          }
-        });
-      } else {
-        // No accounts waiting - keep timer running (might add new account later)
+      if (!hasWaitingAccounts) return;
+      if (kDebugMode) {
+        debugPrint('[WhatsAppAccountsScreen] Auto-polling: checking QR codes and connection status...');
       }
+      _loadAccounts().catchError((error) {
+        if (kDebugMode) debugPrint('[WhatsAppAccountsScreen] Polling refresh error: $error');
+      });
     });
-  }
-  
-  /// Stop polling for QR codes (when all accounts have QR or are connected)
-  void _stopQrPolling() {
-    _qrPollingTimer?.cancel();
-    _qrPollingTimer = null;
   }
   
   Future<void> _checkBackendDiagnostics() async {
@@ -335,8 +382,9 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
   }
 
   Future<void> _loadAccounts() async {
+    if (_loadInFlight) return;
+    _loadInFlight = true;
     final myToken = ++_loadRequestToken;
-    
     setState(() {
       _isLoading = true;
       _error = null;
@@ -446,13 +494,15 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           errorMessage = 'Error: ${e.toString()}';
         }
         
-        // Check if error is related to backend being down (502) or passive (503)
+        // Check if error is related to backend being down (502), passive (503), or HTML/non-JSON
         String? backendStatusHint;
         if (e is NetworkException) {
           if (e.code == '502' || e.message.contains('502')) {
-            backendStatusHint = 'Backend is down (502 Bad Gateway). Check Railway service status.';
+            backendStatusHint = 'Backend is down (502 Bad Gateway). Check backend service status.';
           } else if (e.code == '503' || e.message.contains('503') || e.message.contains('passive')) {
             backendStatusHint = 'Backend is in PASSIVE mode (503). Another instance holds the lock.';
+          } else if (e.code == 'expected_json_got_html' || e.message.contains('Expected JSON, got HTML')) {
+            backendStatusHint = 'Backend returned HTML instead of JSON. Check Functions URL, 404, or proxy config.';
           }
         }
         
@@ -481,6 +531,8 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           debugPrint('[WhatsAppAccountsScreen] _loadAccounts: widget not mounted, cannot setState');
         }
       }
+    } finally {
+      _loadInFlight = false;
     }
   }
 
@@ -554,10 +606,12 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           
           // Reload immediately to show account with 'connecting' status
           await _loadAccounts();
-          
+
+          if (!mounted) return;
+
           // Polling timer will automatically refresh accounts every 2 seconds
           // No need for manual delays - polling handles it
-          
+
           // Show message that QR code will appear automatically
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -696,23 +750,38 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _deletingAccount.remove(accountId));
     }
   }
 
-  Future<void> _openQrPage(String accountId) async {
-    final url = _apiService.qrPageUrl(accountId);
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not open QR page: $url'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+  /// Trigger backfill via Functions proxy (super-admin only). UI hides button for non-admin.
+  Future<void> _backfillAccount(String accountId) async {
+    if (_backfilling.contains(accountId) || _isAddingAccount) return;
+    setState(() => _backfilling.add(accountId));
+
+    try {
+      final res = await _apiService.backfillAccountViaProxy(accountId: accountId);
+      if (!mounted) return;
+      final msg = res['message'] as String? ?? 'Backfill started (runs asynchronously)';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.green),
+      );
+      debugPrint('[WhatsAppAccountsScreen] backfillAccount: success requestId=${res['requestId']}');
+    } catch (e) {
+      if (!mounted) return;
+      String msg = e.toString();
+      if (e is NetworkException && e.code == 'configuration_missing') {
+        msg = 'Functions missing WHATSAPP_BACKEND_URL / WHATSAPP_BACKEND_BASE_URL secret. Set backend URL in Firebase Functions env.';
+      } else if (e is AppException) {
+        msg = e.message;
       }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Backfill failed: $msg'), backgroundColor: Colors.red, duration: const Duration(seconds: 5)),
+      );
+      debugPrint('[WhatsAppAccountsScreen] backfillAccount: error $e');
+    } finally {
+      if (mounted) setState(() => _backfilling.remove(accountId));
     }
   }
 
@@ -1058,61 +1127,133 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
               ),
             ],
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Firefox button for macOS - show for qr_ready, connecting, or connected
-                if (Platform.isMacOS && ['qr_ready', 'connecting', 'connected', 'awaiting_scan'].contains(status))
-                  TextButton.icon(
-                    onPressed: _openingFirefox.contains(id) || _isAddingAccount
-                        ? null
-                        : () => _openInFirefoxContainer(id, name),
-                    icon: _openingFirefox.contains(id)
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 360;
+                final hasLeft = (Platform.isMacOS &&
+                        ['qr_ready', 'connecting', 'connected', 'awaiting_scan'].contains(status)) ||
+                    (!Platform.isMacOS && showQr);
+                final leftChild = Platform.isMacOS &&
+                        ['qr_ready', 'connecting', 'connected', 'awaiting_scan'].contains(status)
+                    ? TextButton.icon(
+                        onPressed: _openingFirefox.contains(id) || _isAddingAccount
+                            ? null
+                            : () => _openInFirefoxContainer(id, name),
+                        icon: _openingFirefox.contains(id)
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.open_in_browser, size: 18),
+                        label: Text(
+                          _openingFirefox.contains(id)
+                              ? 'Opening...'
+                              : (isNarrow ? 'Firefox' : 'Open in Firefox'),
+                        ),
+                      )
+                    : (!Platform.isMacOS && showQr)
+                        ? Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'Firefox only on macOS',
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
                           )
-                        : const Icon(Icons.open_in_browser, size: 18),
-                    label: Text(_openingFirefox.contains(id) ? 'Opening...' : 'Open in Firefox'),
-                  )
-                else if (!Platform.isMacOS && showQr)
-                  // Show info for non-macOS
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'Firefox only on macOS',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  )
-                else
-                  const SizedBox.shrink(),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+                        : const SizedBox.shrink();
+                final actionButtons = [
+                  TextButton.icon(
+                    onPressed: _regeneratingQr.contains(id) || _isAddingAccount
+                        ? null
+                        : () => _regenerateQr(id),
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: Text(isNarrow ? 'Regen' : 'Regenerate QR'),
+                  ),
+                  TextButton.icon(
+                    onPressed: _isAddingAccount
+                        ? null
+                        : () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => WhatsAppAiSettingsScreen(accountId: id),
+                              ),
+                            );
+                          },
+                    icon: const Icon(Icons.smart_toy_outlined, size: 18),
+                    label: Text(isNarrow ? 'AI' : 'Setări AI'),
+                  ),
+                  if (_isAdmin && status == 'connected') ...[
                     TextButton.icon(
-                      onPressed: _regeneratingQr.contains(id) || _isAddingAccount
+                      onPressed: _backfilling.contains(id) || _isAddingAccount
                           ? null
-                          : () => _regenerateQr(id),
-                      icon: const Icon(Icons.refresh, size: 18),
-                      label: const Text('Regenerate QR'),
+                          : () => _backfillAccount(id),
+                      icon: _backfilling.contains(id)
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.history, size: 18),
+                      label: Text(_backfilling.contains(id) ? 'Backfill…' : 'Backfill history'),
                     ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      onPressed: _deletingAccount.contains(id) || _isAddingAccount
-                          ? null
-                          : () => _deleteAccount(id, name),
-                      icon: const Icon(Icons.delete_outline, size: 20),
-                      color: Colors.red,
-                      tooltip: 'Delete account',
+                    if (kDebugMode)
+                      IconButton(
+                        onPressed: _isAddingAccount
+                            ? null
+                            : () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => WhatsAppBackfillDiagnosticScreen(accountId: id),
+                                  ),
+                                );
+                              },
+                        icon: const Icon(Icons.bug_report_outlined, size: 18),
+                        tooltip: 'Verify Firestore (debug)',
+                      ),
+                  ],
+                  IconButton(
+                    onPressed: _deletingAccount.contains(id) || _isAddingAccount
+                        ? null
+                        : () => _deleteAccount(id, name),
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    color: Colors.red,
+                    tooltip: 'Delete account',
+                  ),
+                ];
+                if (isNarrow) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (hasLeft) leftChild,
+                      if (hasLeft) const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: actionButtons,
+                      ),
+                    ],
+                  );
+                }
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    if (hasLeft) leftChild else const SizedBox.shrink(),
+                    Flexible(
+                      child: Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: actionButtons,
+                      ),
                     ),
                   ],
-                ),
-              ],
+                );
+              },
             ),
           ],
         ),
@@ -1216,7 +1357,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
       bannerTitle = 'Backend Status Unknown';
       String errorDetails = diagnostics.error ?? 'Could not determine backend status.';
       if (diagnostics.error != null && diagnostics.error!.contains('502')) {
-        errorDetails = 'Backend is down (502 Bad Gateway). Check Railway service status.';
+        errorDetails = 'Backend is down (502 Bad Gateway). Check backend service status.';
       }
       bannerMessage = errorDetails;
     }
@@ -1351,7 +1492,7 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'These accounts are managed by the Railway backend (Baileys). '
+                    'These accounts are managed by the WhatsApp backend (Baileys). '
                     'They enable AI features and operator inbox.',
                     style: TextStyle(
                       fontSize: 12,
@@ -1747,6 +1888,31 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
               onPressed: _runDoctor,
               tooltip: 'Diagnostics',
             ),
+            if (kDebugMode)
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                onSelected: (value) {
+                  if (value == 'copy_auth_tokens') {
+                    _copyAuthTokensToClipboard();
+                  } else if (value == 'diagnostics') {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const WhatsAppDiagnosticsScreen(),
+                      ),
+                    );
+                  }
+                },
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: 'copy_auth_tokens',
+                    child: Text('Copy Auth Tokens'),
+                  ),
+                  PopupMenuItem(
+                    value: 'diagnostics',
+                    child: Text('Diagnostics'),
+                  ),
+                ],
+              ),
             if (Platform.isMacOS)
               IconButton(
                 icon: const Icon(Icons.science),
@@ -1778,6 +1944,31 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                 _checkBackendDiagnostics();
               },
               tooltip: 'Refresh',
+            ),
+          if (kDebugMode)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+              if (value == 'copy_auth_tokens') {
+                _copyAuthTokensToClipboard();
+              } else if (value == 'diagnostics') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const WhatsAppDiagnosticsScreen(),
+                  ),
+                );
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                value: 'copy_auth_tokens',
+                child: Text('Copy Auth Tokens'),
+                ),
+                PopupMenuItem(
+                value: 'diagnostics',
+                child: Text('Diagnostics'),
+                ),
+              ],
             ),
         ],
       ),

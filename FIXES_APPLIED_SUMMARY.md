@@ -108,7 +108,7 @@ npm test
 **Terminal 1: Start Emulators**
 ```powershell
 cd "C:\Users\ursac\OneDrive\Desktop\Aplicatie-SuperpartyByAi"
-$env:WHATSAPP_RAILWAY_BASE_URL = "https://whats-upp-production.up.railway.app"
+$env:WHATSAPP_BACKEND_BASE_URL = "https://whats-app-ompro.ro"
 firebase.cmd emulators:start --config .\firebase.json --only firestore,functions,auth --project superparty-frontend
 ```
 

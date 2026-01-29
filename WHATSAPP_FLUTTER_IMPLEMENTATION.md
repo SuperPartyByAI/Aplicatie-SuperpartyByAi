@@ -46,7 +46,7 @@ Implemented WhatsApp in-app module in Flutter that mirrors the web flow:
 5. `superparty_flutter/lib/services/whatsapp_api_service.dart`
    - Added `getAccounts()` method (uses Functions proxy)
    - Updated `addAccount()` and `regenerateQr()` to use Functions proxy
-   - `deleteAccount()` still uses direct Railway call (not in proxy yet)
+   - `deleteAccount()` still uses direct legacy hosting call (not in proxy yet)
 
 6. `superparty_flutter/test/whatsapp/accounts_screen_test.dart`
    - Test for super-admin guard logic
@@ -56,8 +56,8 @@ Implemented WhatsApp in-app module in Flutter that mirrors the web flow:
    - `getAccounts`: Employees allowed (for inbox)
    - `addAccount`: Super-admin only
    - `regenerateQr`: Super-admin only
-   - Forwards to Railway backend with auth checks
-   - Uses secret `RAILWAY_WHATSAPP_URL` (fallback to hardcoded URL)
+   - Forwards to legacy hosting backend with auth checks
+   - Uses secret `LEGACY_WHATSAPP_URL` (fallback to hardcoded URL)
 
 2. `functions/index.js`
    - Exports: `whatsappProxyGetAccounts`, `whatsappProxyAddAccount`, `whatsappProxyRegenerateQr`
@@ -88,9 +88,9 @@ Implemented WhatsApp in-app module in Flutter that mirrors the web flow:
 
 ---
 
-## Railway Backend Auth
+## legacy hosting Backend Auth
 
-**Confirmed:** Railway `/api/whatsapp/accounts` does NOT require token (line 1968 in `whatsapp-backend/server.js`).
+**Confirmed:** legacy hosting `/api/whatsapp/accounts` does NOT require token (line 1968 in `whatsapp-backend/server.js`).
 
 **Security:** Functions proxy enforces auth anyway:
 - Employees can read accounts (for inbox)
@@ -153,8 +153,8 @@ npm test -- whatsappProxy.test.js
 
 **Functions Secret Required:**
 ```bash
-firebase functions:secrets:set RAILWAY_WHATSAPP_URL
-# Value: https://whats-upp-production.up.railway.app
+firebase functions:secrets:set LEGACY_WHATSAPP_URL
+# Value: https://whats-app-ompro.ro
 ```
 
 **Or use fallback:** Code falls back to hardcoded URL if secret not set.
@@ -171,7 +171,7 @@ firebase functions:secrets:set RAILWAY_WHATSAPP_URL
 
 ## Next Steps (Optional)
 
-1. Add `deleteAccount` to Functions proxy (currently direct Railway call)
+1. Add `deleteAccount` to Functions proxy (currently direct legacy hosting call)
 2. Add error handling UI for proxy failures
 3. Add loading states for accounts screen
 4. Add retry logic for failed outbox writes
@@ -181,4 +181,4 @@ firebase functions:secrets:set RAILWAY_WHATSAPP_URL
 
 **Status:** ✅ Implementation complete  
 **Collections:** `threads`, `threads/{threadId}/messages`, `outbox`  
-**Railway Auth:** No token required (proxy enforces auth anyway)
+**legacy hosting Auth:** No token required (proxy enforces auth anyway)

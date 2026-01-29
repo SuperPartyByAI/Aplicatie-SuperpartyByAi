@@ -5,7 +5,7 @@
 ### Ce am testat:
 ```bash
 # Test cu curl - backend primește corect:
-curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-account \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
   -d '{"name":"Test Real","phone":"+40712345678"}'
 
@@ -21,7 +21,7 @@ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-accoun
 
 ## 🎯 Cauză Probabilă
 
-**Backend Railway** (whats-upp-production) are un bug:
+**Backend legacy hosting** (whats-upp-production) are un bug:
 - Când generează QR code, resetează `phone` la `+40700000000` (număr de test default)
 - Probabil există un placeholder/test number hardcodat în backend code
 
@@ -30,7 +30,7 @@ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-accoun
 ## 🔧 Soluții
 
 ### Soluția 1: Fix Backend (Recomandat)
-**Trebuie să verifici backend code Railway**:
+**Trebuie să verifici backend code legacy hosting**:
 - Caută unde se generează QR code
 - Verifică dacă există un default `+40700000000` hardcodat
 - Asigură-te că `phone` din request e păstrat când se generează QR
@@ -60,16 +60,16 @@ curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-accoun
 ### 1. Verifică ce se întâmplă în backend:
 ```bash
 # Adaugă cont cu număr real
-curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/add-account \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
   -d '{"name":"Debug","phone":"+40712345678"}'
 
 # Verifică imediat după:
-curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts
+curl https://whats-app-ompro.ro/api/whatsapp/accounts
 
 # Așteaptă 10 secunde (generare QR), verifică din nou:
 sleep 10
-curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts
+curl https://whats-app-ompro.ro/api/whatsapp/accounts
 ```
 
 **Dacă după generare QR, `phone` devine `+40700000000`** → confirmă bug-ul în backend.
@@ -81,8 +81,8 @@ curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts
   - La creare: ar trebui să fie `+40712345678`
   - După QR generation: verifică dacă e `+40700000000`
 
-### 3. Verifică Railway Logs:
-- Railway Dashboard → Logs
+### 3. Verifică legacy hosting Logs:
+- legacy hosting Dashboard → Logs
 - Caută loguri când se generează QR code
 - Verifică dacă există vreun cod care setează `phone = "+40700000000"`
 
@@ -121,7 +121,7 @@ const phone = req.body.phone;
 
 ```bash
 # Test: Adaugă cont și verifică imediat
-ACCOUNT_RESPONSE=$(curl -sS -X POST "https://whats-upp-production.up.railway.app/api/whatsapp/add-account" \
+ACCOUNT_RESPONSE=$(curl -sS -X POST "https://whats-app-ompro.ro/api/whatsapp/add-account" \
   -H "Content-Type: application/json" \
   -d '{"name":"Debug Test","phone":"+40712345678"}')
 
@@ -132,7 +132,7 @@ echo "$ACCOUNT_RESPONSE" | python3 -m json.tool | grep '"phone"'
 sleep 5
 
 echo "După 5 secunde (după QR generation):"
-curl -sS "https://whats-upp-production.up.railway.app/api/whatsapp/accounts" | python3 -m json.tool | grep '"phone"'
+curl -sS "https://whats-app-ompro.ro/api/whatsapp/accounts" | python3 -m json.tool | grep '"phone"'
 ```
 
 **Dacă `phone` devine `+40700000000` după 5 secunde** → bug confirmat în backend.
@@ -141,16 +141,16 @@ curl -sS "https://whats-upp-production.up.railway.app/api/whatsapp/accounts" | p
 
 ## 🚨 Concluzie
 
-**Problema e în backend Railway**, nu în Flutter.
+**Problema e în backend legacy hosting**, nu în Flutter.
 
 **Flutter trimite corect** numărul către backend, dar **backend resetează numărul** când generează QR code.
 
-**Fix-ul trebuie făcut în backend Railway code** (nu am acces la acest cod din Flutter repo).
+**Fix-ul trebuie făcut în backend legacy hosting code** (nu am acces la acest cod din Flutter repo).
 
 ---
 
 **Pași următori**:
-1. Verifică backend Railway code pentru QR generation
+1. Verifică backend legacy hosting code pentru QR generation
 2. Fix codul care resetează `phone` la `+40700000000`
 3. Testează din nou cu număr real
 4. Confirmă că `phone` rămâne corect după QR generation

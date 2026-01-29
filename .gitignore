@@ -6,7 +6,6 @@ node_modules/
 .firebase-token
 .secrets/
 secrets-backup/
-.railway-credentials
 COMPLETE-CONFIG.txt
 YOUR-ENV-VARS.txt
 FINAL-ENV-VARS.txt
@@ -29,11 +28,8 @@ service-account-key.json
 .env.*
 .env.local
 *.env
-RAILWAY-VARIABLES-*.env
-**/RAILWAY-VARIABLES-*.env
 # Keep example files
 !*.env.example
-!RAILWAY-VARIABLES.env.example
 
 # Firebase Admin SDK / service accounts (never commit)
 **/*adminsdk*.json
@@ -135,7 +131,38 @@ devtools_options.yaml
 
 # Temporary files with secrets (must not commit)
 FINAL-SIMPLE-STEPS.txt
-COPY-PASTE-RAILWAY.txt
 COMPLETE-CONFIG.txt
 *CONFIG.txt
 *ENV-VARS.txt
+*TOKEN*.txt
+DEPLOY-CU-TOKEN.txt
+GENEREAZA-TOKEN-FIREBASE.txt
+
+# Additional security exclusions
+**/auth_info*
+**/creds.json
+**/.baileys_auth*
+**/baileys_auth*
+**/auth_info_*
+**/creds_*
+**/whatsapp-sessions/
+**/whatsapp_sessions/
+
+# Large build artifacts (already covered but explicit)
+**/build/
+**/dist/
+**/.dart_tool/
+**/.gradle/
+**/DerivedData/
+**/android/.cxx/
+**/android/app/build/
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Flutter.framework/
+**/ios/Flutter/Flutter.podspec
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*# Additional exclusions
+**/.firebase/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/coverage/

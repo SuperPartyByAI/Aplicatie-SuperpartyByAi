@@ -1,7 +1,7 @@
 # Roadmap: Prod-Ready (Backend + Flutter Integration)
 
 **Status:** Backend stable (commit `59a5ea84`), Flutter code exists, integration pending  
-**Target:** 30 WhatsApp accounts on Railway + Flutter app management
+**Target:** 30 WhatsApp accounts on legacy hosting + Flutter app management
 
 ---
 
@@ -26,7 +26,7 @@
 - Docs: `RUNBOOK_WHATSAPP_SYNC.md` + implementation summaries
 
 ### Ops Notes
-- Single instance Railway (don't scale >1 until account-lease implemented)
+- Single instance legacy hosting (don't scale >1 until account-lease implemented)
 - Firestore indexes deploy required: `firebase deploy --only firestore:indexes`
 - UI may see "duplicates" from old threads (backward incompatible threadId)
 
@@ -63,12 +63,12 @@ firebase deploy --only firestore:indexes
 
 ---
 
-## ✅ **3. Railway Deploy (OBLIGATORIU)**
+## ✅ **3. legacy hosting Deploy (OBLIGATORIU)**
 
 **Status:** ✅ Backend code ready, needs env vars + redeploy
 
 ### 3.1 Volume + Sessions
-- ✅ Volume mount: `/app/sessions` (from `railway.toml`)
+- ✅ Volume mount: `/app/sessions` (from `legacy hosting.toml`)
 - ✅ Env: `SESSIONS_PATH=/app/sessions`
 
 ### 3.2 Firestore
@@ -84,7 +84,7 @@ firebase deploy --only firestore:indexes
 - `WHATSAPP_HISTORY_SYNC_DRY_RUN=false`
 
 **Redeploy Service:**
-- Railway Dashboard → Service → Deploy → Redeploy
+- legacy hosting Dashboard → Service → Deploy → Redeploy
 
 **Verificare Logs:**
 ```
@@ -95,7 +95,7 @@ History sync: enabled (WHATSAPP_SYNC_FULL_HISTORY=true)
 
 **Verificare Health:**
 ```bash
-curl https://your-service.railway.app/health
+curl https://your-service.legacy hosting.app/health
 # Expected: {"status":"healthy","sessions_dir_writable":true,"firestore":"connected"}
 ```
 
@@ -123,24 +123,24 @@ curl https://your-service.railway.app/health
 **Teste cu curl:**
 ```bash
 # 1. Health
-curl https://your-service.railway.app/health
+curl https://your-service.legacy hosting.app/health
 
 # 2. Add account
-curl -X POST https://your-service.railway.app/api/whatsapp/add-account \
+curl -X POST https://your-service.legacy hosting.app/api/whatsapp/add-account \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{"name":"WA-01","phone":"+40712345678"}'
 
 # 3. Get accounts
-curl https://your-service.railway.app/api/whatsapp/accounts \
+curl https://your-service.legacy hosting.app/api/whatsapp/accounts \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 
 # 4. Get QR
-curl https://your-service.railway.app/api/whatsapp/qr/{accountId} \
+curl https://your-service.legacy hosting.app/api/whatsapp/qr/{accountId} \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 
 # 5. Dashboard
-curl https://your-service.railway.app/api/status/dashboard
+curl https://your-service.legacy hosting.app/api/status/dashboard
 ```
 
 **Gata când:**
@@ -163,7 +163,7 @@ curl https://your-service.railway.app/api/status/dashboard
 **Config existent:**
 ```dart
 // lib/core/config/env.dart (linia 34-46)
-static const String _defaultWhatsAppBackendUrl = 'https://whats-upp-production.up.railway.app';
+static const String _defaultWhatsAppBackendUrl = 'https://whats-app-ompro.ro';
 static final String whatsappBackendUrl = _normalizeBaseUrl(
   'WHATSAPP_BACKEND_URL',  // Override via --dart-define
   defaultValue: _defaultWhatsAppBackendUrl,
@@ -207,7 +207,7 @@ static final String whatsappBackendUrl = _normalizeBaseUrl(
 **Actions (Finalizare):**
 1. ✅ Backend endpoints verified - no auth required ✅
 2. ⚠️ **ADD:** `backfillAccount()` method în `whatsapp_api_service.dart` pentru endpoint nou
-3. ⚠️ **VERIFY:** Config `whatsappBackendUrl` în Flutter matches Railway domain
+3. ⚠️ **VERIFY:** Config `whatsappBackendUrl` în Flutter matches legacy hosting domain
 
 **Gata când:**
 - ✅ Din Flutter poți: adăuga cont → vezi QR → scanezi → vezi connected ✅
@@ -243,17 +243,17 @@ static final String whatsappBackendUrl = _normalizeBaseUrl(
 
 ## 📋 **Checklist Final**
 
-### Backend (Railway)
+### Backend (legacy hosting)
 - [ ] PR merged în `main`
 - [ ] Firestore indexes deployed ("Ready")
-- [ ] Railway env vars setate (SESSIONS_PATH, FIREBASE_SERVICE_ACCOUNT_JSON, ADMIN_TOKEN)
-- [ ] Railway redeploy successful
+- [ ] legacy hosting env vars setate (SESSIONS_PATH, FIREBASE_SERVICE_ACCOUNT_JSON, ADMIN_TOKEN)
+- [ ] legacy hosting redeploy successful
 - [ ] `/health` = 200, logs: "sessions dir writable: true"
 - [ ] API endpoints testate cu curl (add-account, accounts, qr, dashboard)
 
 ### Flutter Integration
 - [x] `whatsapp_api_service.dart` verificat - NO auth headers (backend nu cere) ✅
-- [x] `whatsappBackendUrl` configurat (`https://whats-upp-production.up.railway.app`) ✅
+- [x] `whatsappBackendUrl` configurat (`https://whats-app-ompro.ro`) ✅
 - [x] Endpoint-urile principale apelate (getAccounts, addAccount, regenerateQr, deleteAccount) ✅
 - [ ] Backfill endpoint în service (optional - poate fi adăugat după) ⚠️
 - [x] QR display funcționează în Flutter (via `qr_flutter` package) ✅
@@ -264,7 +264,7 @@ static final String whatsappBackendUrl = _normalizeBaseUrl(
 - [ ] 30 conturi onboarded (WA-01..WA-30)
 - [ ] Toate connected după restart
 - [ ] Firestore populated (threads/messages)
-- [ ] Single instance Railway (nu scale >1)
+- [ ] Single instance legacy hosting (nu scale >1)
 
 ---
 
@@ -276,7 +276,7 @@ static final String whatsappBackendUrl = _normalizeBaseUrl(
 **Next Steps:**
 1. PR merge în `main`
 2. Firestore indexes deploy
-3. Railway deploy cu env vars
+3. legacy hosting deploy cu env vars
 4. Verifică Flutter integration (auth + endpoints)
 5. Teste manuale (30 conturi)
 

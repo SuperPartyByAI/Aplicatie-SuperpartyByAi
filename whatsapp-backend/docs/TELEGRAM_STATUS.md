@@ -64,7 +64,7 @@ telegramAlerts = new TelegramAlerts(botToken, chatId);
 
 ### Required Environment Variables
 
-Set in Railway:
+Set in legacy hosting:
 
 ```bash
 TELEGRAM_BOT_TOKEN=<your_bot_token>
@@ -86,11 +86,11 @@ TELEGRAM_CHAT_ID=<your_chat_id>
      ```
      Look for `"chat":{"id":-123456789}`
 
-3. **Configure Railway**:
+3. **Configure legacy hosting**:
 
    ```bash
-   railway variables set TELEGRAM_BOT_TOKEN="your_token"
-   railway variables set TELEGRAM_CHAT_ID="your_chat_id"
+   legacy hosting variables set TELEGRAM_BOT_TOKEN="your_token"
+   legacy hosting variables set TELEGRAM_CHAT_ID="your_chat_id"
    ```
 
 4. **Verify**:
@@ -190,7 +190,7 @@ this.app.post('/api/longrun/test-telegram', this.verifyToken.bind(this), async (
 ### Verify in Logs
 
 ```bash
-railway logs | grep TelegramAlerts
+legacy hosting logs | grep TelegramAlerts
 ```
 
 Expected output:
@@ -208,7 +208,7 @@ Expected output:
 | Integration   | ✅ Complete | `lib/longrun-jobs-v2.js` |
 | Alert Types   | ✅ 6 types  | All implemented          |
 | Throttling    | ✅ Active   | 1-hour cooldown          |
-| Configuration | ⚠️ Pending  | Needs Railway env vars   |
+| Configuration | ⚠️ Pending  | Needs legacy hosting env vars   |
 | Testing       | ⚠️ Pending  | Needs bot token setup    |
 
 ## Next Steps
@@ -217,7 +217,7 @@ Expected output:
    - Create bot via @BotFather
    - Get chat ID
 
-2. **Configure Railway** (2 min):
+2. **Configure legacy hosting** (2 min):
    - Set TELEGRAM_BOT_TOKEN
    - Set TELEGRAM_CHAT_ID
 

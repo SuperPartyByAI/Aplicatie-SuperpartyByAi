@@ -1,8 +1,8 @@
-# Status Health Check - Railway
+# Status Health Check - legacy hosting
 
 ## Verificare Imediată
 
-**Endpoint**: `https://whats-upp-production.up.railway.app/health`
+**Endpoint**: `https://whats-app-ompro.ro/health`
 
 ### Status Actual (17:33 EET)
 
@@ -32,7 +32,7 @@
 
 ### Concluzie Din Loguri Anterioare
 
-Din logurile Railway (17:26):
+Din logurile legacy hosting (17:26):
 ```
 [WABootstrap] Semnal inițiat de închidere corectă = SIGTERM
 SIGNTERM primit, închidere conexiuni...
@@ -49,7 +49,7 @@ Oprirea containerului
 # Check every 15s until healthy
 while true; do
   date
-  curl -s https://whats-upp-production.up.railway.app/health | jq -r '.commit // .code // .message'
+  curl -s https://whats-app-ompro.ro/health | jq -r '.commit // .code // .message'
   echo
   sleep 15
 done
@@ -59,7 +59,7 @@ done
 
 ```bash
 # Check once
-curl -s https://whats-upp-production.up.railway.app/health | jq '{commit, status, code, message}'
+curl -s https://whats-app-ompro.ro/health | jq '{commit, status, code, message}'
 
 # Expected după deploy:
 # {"commit": "96a06c5e", "status": "healthy", ...}
@@ -67,7 +67,7 @@ curl -s https://whats-upp-production.up.railway.app/health | jq '{commit, status
 
 ### 3. Dacă Rămâne 502 (> 5 minute)
 
-**Verificări în Railway Dashboard**:
+**Verificări în legacy hosting Dashboard**:
 
 1. **Deployments** tab:
    - Ultimul deploy: commit `96a06c5e`?
@@ -87,7 +87,7 @@ curl -s https://whats-upp-production.up.railway.app/health | jq '{commit, status
 După ce `/health` returnează 200 (nu 502):
 
 ```bash
-curl -s https://whats-upp-production.up.railway.app/health | jq -r '.commit'
+curl -s https://whats-app-ompro.ro/health | jq -r '.commit'
 
 # Expected: "96a06c5e"
 # Dacă e "d4f4998a": merge sau branch mismatch
@@ -99,4 +99,4 @@ curl -s https://whats-upp-production.up.railway.app/health | jq -r '.commit'
 
 **Acțiune**: Așteaptă 2-5 minute și verifică din nou `/health`.
 
-**Dacă rămâne 502 după 5 minute**: Verifică Railway Dashboard pentru erori de build/start.
+**Dacă rămâne 502 după 5 minute**: Verifică legacy hosting Dashboard pentru erori de build/start.

@@ -41,7 +41,7 @@ Recent commit: e34cab54 fix(flutter): update callable region to europe-west1
 
 ⚠️ **OLD v1 FUNCTION DETECTED**: `whatsapp` (2048MB, v1 architecture)
 
-### Railway Backend Health
+### legacy hosting Backend Health
 ```json
 {
   "status": "healthy",
@@ -195,7 +195,7 @@ flutter run -d emulator-5554
 2. **Inbox** (verify threads appear)
 3. **Receive** (client → WA account)
 4. **Send** (app → client)
-5. **Restart Safety** (Railway restart, no data loss)
+5. **Restart Safety** (legacy hosting restart, no data loss)
 6. **CRM Extract** (draft event)
 7. **CRM Save** (create event in Firestore)
 8. **CRM Aggregate** (automatic trigger, verify clients update)
@@ -246,7 +246,7 @@ firebase functions:log --only functionName --lines 200  # ❌ Invalid
 - ✅ Region consistency: ALL callables → us-central1
 - ✅ Firebase.json: predeploy hooks added
 - ✅ Flutter analysis: PASS
-- ✅ Railway backend: HEALTHY
+- ✅ legacy hosting backend: HEALTHY
 - ✅ Android emulator: RUNNING (emulator-5554)
 - ✅ Flutter app: LAUNCHED (visible in emulator)
 

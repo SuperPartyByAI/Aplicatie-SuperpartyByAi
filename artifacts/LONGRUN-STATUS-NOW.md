@@ -2,7 +2,7 @@
 
 **Timestamp:** 2025-12-29T22:33:30Z  
 **Commit:** 3d4adc99  
-**Deployment:** Production Railway
+**Deployment:** Production legacy hosting
 
 ## STATUS: ✅ READY + COLLECTING
 

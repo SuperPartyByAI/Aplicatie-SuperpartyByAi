@@ -1,6 +1,6 @@
 {
   "whatsapp": {
-    "railway_base_url": "https://whats-upp-production.up.railway.app"
+    "backend_base_url": "http://37.27.34.179:8080"
   },
   "openai": {
     "key": "YOUR_OPENAI_API_KEY"

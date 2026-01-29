@@ -3,7 +3,7 @@
 ## Current Status
 
 ### Backend Deployed: `892419e6`
-- **Commit**: `892419e6` (deployed on Railway)
+- **Commit**: `892419e6` (deployed on legacy hosting)
 - **Version**: `v2.0.0`
 - **Status**: ⚠️ **Fixes NOT deployed yet** - needs commit + push
 
@@ -14,7 +14,7 @@
 
 ### Logs Analysis
 
-**From Railway logs (commit 892419e6):**
+**From legacy hosting logs (commit 892419e6):**
 ```
 ✅ QR generated successfully (237 bytes)
 ✅ Status preserved correctly: qr_ready (reason 515)
@@ -34,7 +34,7 @@ git push origin main  # or your branch
 ```
 
 ### 2. Verify Deploy
-After Railway redeploys, check logs for:
+After legacy hosting redeploys, check logs for:
 - `Already connecting (connectionRegistry check), skip createConnection` - confirms fix is active
 - No `Sync error in regenerateQr` messages - confirms sync error handling works
 
@@ -70,7 +70,7 @@ Test:
 ## Verification Checklist
 
 After backend deploy:
-- [ ] Railway logs show new commit hash (not `892419e6`)
+- [ ] legacy hosting logs show new commit hash (not `892419e6`)
 - [ ] regenerateQr returns 200/202 (not 500) when "already connecting"
-- [ ] No unhandled exceptions in Railway logs
+- [ ] No unhandled exceptions in legacy hosting logs
 - [ ] Flutter shows error/timeout screens (not black screen)

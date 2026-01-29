@@ -1,4 +1,4 @@
-# 🔧 FIX: ADMIN_TOKEN nu e citit din Railway Variables
+# 🔧 FIX: ADMIN_TOKEN nu e citit din legacy hosting Variables
 
 ## ❌ Problema
 
@@ -7,14 +7,14 @@
 🔐 ADMIN_TOKEN configured: dev-token-...
 ```
 
-Asta înseamnă că `ADMIN_TOKEN` din Railway Variables **NU e citit**!
+Asta înseamnă că `ADMIN_TOKEN` din legacy hosting Variables **NU e citit**!
 Serverul folosește token-ul dev generat aleatoriu (linia 205 din `server.js`).
 
 ## 🔍 Cauza
 
-Variabila `ADMIN_TOKEN` e setată în Railway Variables, dar **NU e propagată în container** la runtime.
+Variabila `ADMIN_TOKEN` e setată în legacy hosting Variables, dar **NU e propagată în container** la runtime.
 
-În Railway, variabilele pot fi setate la **3 niveluri**:
+În legacy hosting, variabilele pot fi setate la **3 niveluri**:
 1. **Project** (toate serviciile din proiect)
 2. **Service** (doar un serviciu specific)
 3. **Environment** (doar într-un anumit environment)
@@ -25,9 +25,9 @@ Variabila `ADMIN_TOKEN` e setată în Railway Variables, dar **NU e propagată �
 
 ## ✅ Soluție: Setează ADMIN_TOKEN la nivel de SERVICE
 
-### Pasul 1: Railway Dashboard
+### Pasul 1: legacy hosting Dashboard
 
-1. **Deschide**: https://railway.app/dashboard
+1. **Deschide**: https://legacy hosting.app/dashboard
 2. **Selectează proiectul**: "Whats Upp"
 3. **⚠️ IMPORTANT: Selectează SERVICE-ul** (nu proiectul)
    - Click pe **service-ul** "Whats Upp" din listă
@@ -47,7 +47,7 @@ După 2-3 minute, verifică logs:
 
 ```bash
 cd /Users/universparty/Aplicatie-SuperpartyByAi/whatsapp-backend
-railway logs --tail 50 | grep "🔐"
+legacy hosting logs --tail 50 | grep "🔐"
 ```
 
 **Așteptat:**
@@ -60,26 +60,26 @@ railway logs --tail 50 | grep "🔐"
 🔐 ADMIN_TOKEN configured: dev-token-...
 ```
 
-→ Variabila **NU e propagată** corect. Verifică din nou în Railway Dashboard că e setată la **nivel de SERVICE**.
+→ Variabila **NU e propagată** corect. Verifică din nou în legacy hosting Dashboard că e setată la **nivel de SERVICE**.
 
 ---
 
-## ✅ Alternativă: Railway CLI (cu service specificat)
+## ✅ Alternativă: legacy hosting CLI (cu service specificat)
 
 ```bash
 cd /Users/universparty/Aplicatie-SuperpartyByAi/whatsapp-backend
 
 # Verifică service-ul curent
-railway status
+legacy hosting status
 
 # Setează variabila pentru service-ul curent
-railway variables set ADMIN_TOKEN="8df59afe1ca9387674e2b72c42460e3a3d2dea96833af6d3d9b840ff48ddfea3"
+legacy hosting variables set ADMIN_TOKEN="8df59afe1ca9387674e2b72c42460e3a3d2dea96833af6d3d9b840ff48ddfea3"
 
 # Verifică
-railway variables | grep ADMIN_TOKEN
+legacy hosting variables | grep ADMIN_TOKEN
 
 # Redeploy
-railway up
+legacy hosting up
 ```
 
 ---
@@ -95,7 +95,7 @@ railway up
 
 ### Cauza 3: NODE_ENV nu e "production"
 - **Verificare**: Codul verifică `process.env.NODE_ENV === 'production'`
-- **Soluție**: Verifică în Railway că `NODE_ENV=production` e setat
+- **Soluție**: Verifică în legacy hosting că `NODE_ENV=production` e setat
 
 ---
 
@@ -104,17 +104,17 @@ railway up
 După setarea corectă și redeploy:
 
 ```bash
-# 1. Verifică variabila în Railway
-railway variables | grep ADMIN_TOKEN
+# 1. Verifică variabila în legacy hosting
+legacy hosting variables | grep ADMIN_TOKEN
 
 # 2. Verifică logs să vezi token-ul corect
-railway logs --tail 100 | grep "🔐"
+legacy hosting logs --tail 100 | grep "🔐"
 
 # 3. Verifică health
-curl -s https://whats-upp-production.up.railway.app/health | jq
+curl -s https://whats-app-ompro.ro/health | jq
 
 # 4. Verifică ready
-curl -s https://whats-upp-production.up.railway.app/ready | jq
+curl -s https://whats-app-ompro.ro/ready | jq
 ```
 
 **Dacă logs arată `8df59afe1c...` și health returnează `200 OK` → ✅ Problema rezolvată!**

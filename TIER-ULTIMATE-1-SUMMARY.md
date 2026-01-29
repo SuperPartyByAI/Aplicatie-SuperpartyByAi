@@ -281,17 +281,17 @@ curl http://localhost:3000/api/ultimate/rate-limiter
 
 ## 🔄 DEPLOYMENT
 
-### Railway:
+### legacy hosting:
 
 ```bash
 # Automatic deploy on push
 git push origin main
 
 # Check logs
-railway logs
+legacy hosting logs
 
 # Check status
-curl https://your-app.railway.app/
+curl https://your-app.legacy hosting.app/
 ```
 
 ### Local:

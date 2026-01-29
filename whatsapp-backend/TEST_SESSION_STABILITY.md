@@ -2,9 +2,9 @@
 
 ## Setup Pre-test
 
-1. **Verifică Railway Volume (recomandat):**
+1. **Verifică legacy hosting Volume (recomandat):**
    ```bash
-   # Railway Dashboard -> Volumes
+   # legacy hosting Dashboard -> Volumes
    # Verifică că există volume cu mount path: /data/sessions
    # Verifică că SESSIONS_PATH=/data/sessions este setat
    ```
@@ -17,7 +17,7 @@
 
 3. **Verifică backend e ACTIVE mode:**
    ```bash
-   curl -i https://whats-upp-production.up.railway.app/ready | jq
+   curl -i https://whats-app-ompro.ro/ready | jq
    # Trebuie să returneze: { "ready": true, "mode": "active" }
    ```
 
@@ -29,26 +29,26 @@
 
 **Pas 1:** Verifică sesiunea există pe disk:
 ```bash
-# Local sau via Railway CLI
-railway run --service whatsapp-backend -- sh -c "ls -la /data/sessions/account_*"
+# Local sau via legacy hosting CLI
+legacy hosting run --service whatsapp-backend -- sh -c "ls -la /data/sessions/account_*"
 ```
 
 **Pas 2:** Simulează pierderea sesiunii (șterge manual pentru test):
 ```bash
 # NU face asta în production! Doar pentru test.
-railway run --service whatsapp-backend -- sh -c "rm -rf /data/sessions/account_*"
+legacy hosting run --service whatsapp-backend -- sh -c "rm -rf /data/sessions/account_*"
 ```
 
 **Pas 3:** Redeploy backend sau restart:
 ```bash
-railway restart
+legacy hosting restart
 # SAU
-railway up
+legacy hosting up
 ```
 
 **Pas 4:** Verifică logurile pentru restore:
 ```bash
-railway logs --service whatsapp-backend | grep -i "restore\|Firestore"
+legacy hosting logs --service whatsapp-backend | grep -i "restore\|Firestore"
 # Trebuie să vezi:
 # "🔄 [account_xxx] Disk session missing, attempting Firestore restore..."
 # "✅ [account_xxx] Session restored from Firestore (X files)"
@@ -57,7 +57,7 @@ railway logs --service whatsapp-backend | grep -i "restore\|Firestore"
 **Pas 5:** Verifică account e conectat (nu necesita QR nou):
 ```bash
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq
+  https://whats-app-ompro.ro/api/whatsapp/accounts | jq
 # Status trebuie să fie "connected" (NU "qr_ready")
 ```
 
@@ -74,7 +74,7 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 **Pas 1:** Monitorează logurile pentru logout:
 ```bash
-railway logs --service whatsapp-backend --follow | grep -i "logout\|loggedOut\|401"
+legacy hosting logs --service whatsapp-backend --follow | grep -i "logout\|loggedOut\|401"
 ```
 
 **Pas 2:** Simulează logout temporar:
@@ -83,7 +83,7 @@ railway logs --service whatsapp-backend --follow | grep -i "logout\|loggedOut\|4
 
 **Pas 3:** Verifică retry logic:
 ```bash
-railway logs --service whatsapp-backend | grep -i "retry.*logout\|retry.*401"
+legacy hosting logs --service whatsapp-backend | grep -i "retry.*logout\|retry.*401"
 # Trebuie să vezi:
 # "⚠️  [account_xxx] Terminal logout (401), retry 1/2 with restore..."
 # "🔄 [account_xxx] Retrying connection in 5000ms with session restore..."
@@ -91,14 +91,14 @@ railway logs --service whatsapp-backend | grep -i "retry.*logout\|retry.*401"
 
 **Pas 4:** Verifică sesiunea NU e ștearsă după primul logout:
 ```bash
-railway run --service whatsapp-backend -- sh -c "ls -la /data/sessions/account_*"
+legacy hosting run --service whatsapp-backend -- sh -c "ls -la /data/sessions/account_*"
 # Session trebuie să existe (nu e ștearsă imediat)
 ```
 
 **Pas 5:** Verifică reconnect reușit:
 ```bash
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq
+  https://whats-app-ompro.ro/api/whatsapp/accounts | jq
 # După retry, status trebuie să fie "connected" (NU "needs_qr")
 ```
 
@@ -115,19 +115,19 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 **Pas 1:** Monitorează health check:
 ```bash
-railway logs --service whatsapp-backend --follow | grep -i "health\|stale\|restore"
+legacy hosting logs --service whatsapp-backend --follow | grep -i "health\|stale\|restore"
 ```
 
 **Pas 2:** Simulează corupție sesiune (testare manuală):
 ```bash
 # NU face asta în production! Doar pentru test.
-railway run --service whatsapp-backend -- sh -c "rm /data/sessions/account_*/creds.json"
+legacy hosting run --service whatsapp-backend -- sh -c "rm /data/sessions/account_*/creds.json"
 ```
 
 **Pas 3:** Așteaptă health check (runează la fiecare 60s):
 ```bash
 # Așteaptă 60-120 secunde
-railway logs --service whatsapp-backend | grep -i "Session health check\|restore.*Firestore"
+legacy hosting logs --service whatsapp-backend | grep -i "Session health check\|restore.*Firestore"
 # Trebuie să vezi:
 # "⚠️  [account_xxx] Session health check: socket disconnected but status is connected"
 # "🔄 [account_xxx] Session health check: restoring missing disk session from Firestore..."
@@ -137,7 +137,7 @@ railway logs --service whatsapp-backend | grep -i "Session health check\|restore
 **Pas 4:** Verifică account e încă conectat:
 ```bash
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq
+  https://whats-app-ompro.ro/api/whatsapp/accounts | jq
 # Status trebuie să rămână "connected"
 ```
 
@@ -154,13 +154,13 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 **Pas 1:** Verifică backend mode:
 ```bash
-curl -i https://whats-upp-production.up.railway.app/ready | jq
+curl -i https://whats-app-ompro.ro/ready | jq
 # Verifică: { "mode": "active" | "passive" }
 ```
 
 **Pas 2:** Monitorează lock status:
 ```bash
-railway logs --service whatsapp-backend --follow | grep -i "passive\|active\|lock"
+legacy hosting logs --service whatsapp-backend --follow | grep -i "passive\|active\|lock"
 ```
 
 **Pas 3:** Simulează PASSIVE mode (opțional):
@@ -170,13 +170,13 @@ railway logs --service whatsapp-backend --follow | grep -i "passive\|active\|loc
 **Pas 4:** Verifică accounts blocate:
 ```bash
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq
+  https://whats-app-ompro.ro/api/whatsapp/accounts | jq
 # Account-urile în "connecting" sunt blocate în passive mode
 ```
 
 **Pas 5:** Când lock-ul e liberat (backend devine ACTIVE):
 ```bash
-railway logs --service whatsapp-backend | grep -i "ACTIVE MODE\|Auto-Reconnect\|wa-bootstrap:active"
+legacy hosting logs --service whatsapp-backend | grep -i "ACTIVE MODE\|Auto-Reconnect\|wa-bootstrap:active"
 # Trebuie să vezi:
 # "[WABootstrap] ✅ ACTIVE MODE - lock acquired after retry"
 # "🔄 [Auto-Reconnect] ACTIVE mode detected, checking for stuck connections..."
@@ -187,7 +187,7 @@ railway logs --service whatsapp-backend | grep -i "ACTIVE MODE\|Auto-Reconnect\|
 ```bash
 # După 10-30 secunde
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts | jq
+  https://whats-app-ompro.ro/api/whatsapp/accounts | jq
 # Status trebuie să se schimbe din "connecting" în "connected"
 ```
 
@@ -206,20 +206,20 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```bash
 # Setup monitoring (exemplu cu watch):
 watch -n 60 'curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts | \
+  https://whats-app-ompro.ro/api/whatsapp/accounts | \
   jq ".accounts[] | {id, status, lastDisconnectedAt}"'
 ```
 
 **Pas 2:** Verifică loguri pentru probleme:
 ```bash
-railway logs --service whatsapp-backend --since 24h | \
+legacy hosting logs --service whatsapp-backend --since 24h | \
   grep -i "error\|failed\|disconnected\|needs_qr" | \
   grep -v "health check" | tail -20
 ```
 
 **Pas 3:** Verifică sesiune stability metrics:
 ```bash
-railway logs --service whatsapp-backend --since 24h | \
+legacy hosting logs --service whatsapp-backend --since 24h | \
   grep -i "restore.*Firestore\|Session health\|stability" | tail -10
 ```
 
@@ -234,7 +234,7 @@ curl -X POST \
     "to": "+40712345678",
     "message": "Test stability"
   }' \
-  https://whats-upp-production.up.railway.app/api/whatsapp/send-message
+  https://whats-app-ompro.ro/api/whatsapp/send-message
 ```
 
 **✅ Test PASSED dacă:**
@@ -259,26 +259,26 @@ echo ""
 
 # 1. Check backend mode
 echo "1. Backend Mode:"
-curl -s https://whats-upp-production.up.railway.app/ready | \
+curl -s https://whats-app-ompro.ro/ready | \
   jq -r '"Mode: \(.mode), Ready: \(.ready), Instance: \(.instanceId)"'
 echo ""
 
 # 2. Check accounts status
 echo "2. Accounts Status:"
 curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/whatsapp/accounts | \
+  https://whats-app-ompro.ro/api/whatsapp/accounts | \
   jq -r '.accounts[] | "  - \(.name): \(.status) (QR: \(if .qrCode then "yes" else "no" end))"'
 echo ""
 
 # 3. Check recent restores (last hour)
 echo "3. Recent Session Restores (last hour):"
-railway logs --service whatsapp-backend --since 1h 2>/dev/null | \
+legacy hosting logs --service whatsapp-backend --since 1h 2>/dev/null | \
   grep -c "Session restored from Firestore" || echo "  None (good - session stable)"
 echo ""
 
 # 4. Check for errors
 echo "4. Recent Errors (last hour):"
-railway logs --service whatsapp-backend --since 1h 2>/dev/null | \
+legacy hosting logs --service whatsapp-backend --since 1h 2>/dev/null | \
   grep -i "error.*session\|failed.*restore" | tail -5 || echo "  None (good)"
 echo ""
 
@@ -322,13 +322,13 @@ chmod +x quick_stability_check.sh
 
 2. **Verifică logurile pentru erori:**
    ```bash
-   railway logs --service whatsapp-backend | \
+   legacy hosting logs --service whatsapp-backend | \
      grep -i "Firestore restore failed\|restore.*error" | tail -10
    ```
 
 3. **Verifică SESSIONS_PATH e writable:**
    ```bash
-   railway run --service whatsapp-backend -- sh -c \
+   legacy hosting run --service whatsapp-backend -- sh -c \
      "test -w /data/sessions && echo 'writable' || echo 'NOT writable'"
    ```
 
@@ -336,7 +336,7 @@ chmod +x quick_stability_check.sh
 
 1. **Verifică MAX_LOGOUT_RETRIES e setat:**
    ```bash
-   railway variables --service whatsapp-backend | grep MAX_LOGOUT
+   legacy hosting variables --service whatsapp-backend | grep MAX_LOGOUT
    # Trebuie: MAX_LOGOUT_RETRIES=2 (default)
    ```
 

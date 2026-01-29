@@ -82,9 +82,9 @@ git push origin main
 4. Generează Service Account key
 5. Copiază JSON content
 
-### Pas 3: Railway Config (2 min)
+### Pas 3: legacy hosting Config (2 min)
 
-1. Accesează [Railway Dashboard](https://railway.app)
+1. Accesează [legacy hosting Dashboard](https://legacy hosting.app)
 2. Găsește serviciul tău
 3. Variables → New Variable:
    - Name: `FIREBASE_SERVICE_ACCOUNT`
@@ -120,13 +120,13 @@ curl http://localhost:5002/
 1. **Verifică Health Check**
 
    ```bash
-   curl https://YOUR-RAILWAY-URL.railway.app/
+   curl https://YOUR-LEGACY_HOSTING-URL.legacy hosting.app/
    ```
 
 2. **Adaugă Cont WhatsApp**
 
    ```bash
-   curl -X POST https://YOUR-RAILWAY-URL.railway.app/api/whatsapp/add-account \
+   curl -X POST https://YOUR-LEGACY_HOSTING-URL.legacy hosting.app/api/whatsapp/add-account \
      -H "Content-Type: application/json" \
      -d '{"name": "SuperParty Main", "phone": "+40792864811"}'
    ```
@@ -138,17 +138,17 @@ curl http://localhost:5002/
 
 4. **Verifică Conectare**
    ```bash
-   curl https://YOUR-RAILWAY-URL.railway.app/api/whatsapp/accounts
+   curl https://YOUR-LEGACY_HOSTING-URL.legacy hosting.app/api/whatsapp/accounts
    ```
 
 ---
 
 ## 📊 MONITORING
 
-### Verifică Logs Railway:
+### Verifică Logs legacy hosting:
 
 ```
-Railway Dashboard → Logs
+legacy hosting Dashboard → Logs
 ```
 
 **Ce să cauți:**

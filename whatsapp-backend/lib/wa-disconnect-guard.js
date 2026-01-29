@@ -109,7 +109,7 @@ class WADisconnectGuard {
             step2: 'Review logs for disconnect reason',
             step3: 'Check if auth state is valid',
             step4: 'Consider manual restart if auto-reconnect failing',
-            step5: 'Check network connectivity and Railway status',
+            step5: 'Check network connectivity and Hetzner backend status',
           },
         });
 

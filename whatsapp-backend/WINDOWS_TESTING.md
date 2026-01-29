@@ -4,22 +4,22 @@
 
 1. **Node.js installed** (you have v24.11.1 ✅)
 2. **Git repository cloned** to your Windows machine
-3. **ADMIN_TOKEN** from Railway environment variables
+3. **ADMIN_TOKEN** from legacy hosting environment variables
 
 ## Get Your Admin Token
 
-### Option 1: From Railway Dashboard
+### Option 1: From legacy hosting Dashboard
 
-1. Go to https://railway.app
+1. Go to https://legacy hosting.app
 2. Open your project
 3. Click "Variables" tab
 4. Find `ADMIN_TOKEN` value
 5. Copy it
 
-### Option 2: From Railway CLI
+### Option 2: From legacy hosting CLI
 
 ```bash
-railway variables get ADMIN_TOKEN
+legacy hosting variables get ADMIN_TOKEN
 ```
 
 ## Run the Test
@@ -66,7 +66,7 @@ railway variables get ADMIN_TOKEN
 ========================================
 WA STATUS TEST
 ========================================
-Base URL: https://whats-upp-production.up.railway.app
+Base URL: https://whats-app-ompro.ro
 Token: dev-token-...
 
 Fetching status-now...
@@ -81,7 +81,7 @@ nextRetryAt: null
 authStore: firestore
 authStateExists: true
 authKeyCount: 15
-lockHolder: railway-prod-abc123
+lockHolder: legacy hosting-prod-abc123
 
 === Field Verification ===
 ✅ waMode
@@ -137,14 +137,14 @@ Full response saved to wa-status.json
 ### Error: "Cannot reach server"
 
 ```
-❌ Error: getaddrinfo ENOTFOUND whats-upp-production.up.railway.app
+❌ Error: getaddrinfo ENOTFOUND whats-upp-production.up.legacy hosting.app
 ⚠️ Cannot reach server. Check BASE_URL.
 ```
 
 **Solution**:
 
 - Check your internet connection
-- Verify Railway app is running: https://whats-upp-production.up.railway.app/health
+- Verify legacy hosting app is running: https://whats-app-ompro.ro/health
 
 ### Error: "Cannot find module"
 
@@ -182,7 +182,7 @@ node scripts\test-wa-status.js
 If you have curl installed on Windows:
 
 ```cmd
-curl -H "X-Admin-Token: YOUR_ADMIN_TOKEN_HERE" https://whats-upp-production.up.railway.app/api/longrun/status-now
+curl -H "X-Admin-Token: YOUR_ADMIN_TOKEN_HERE" https://whats-app-ompro.ro/api/longrun/status-now
 ```
 
 ## What to Look For
@@ -214,10 +214,10 @@ After verifying the status:
 2. **If DISCONNECTED**:
    - Check `retryCount` and `nextRetryAt`
    - Wait for auto-reconnect
-   - Check Railway logs if retryCount > 5
+   - Check legacy hosting logs if retryCount > 5
 
 3. **If NEEDS_PAIRING**:
-   - Go to: https://whats-upp-production.up.railway.app/api/whatsapp/qr
+   - Go to: https://whats-app-ompro.ro/api/whatsapp/qr
    - Scan QR code with WhatsApp mobile app
 
 4. **If Passive Mode**:
@@ -228,6 +228,6 @@ After verifying the status:
 
 If you encounter issues:
 
-1. Check Railway logs: `railway logs`
-2. Verify app is running: https://whats-upp-production.up.railway.app/health
+1. Check legacy hosting logs: `legacy hosting logs`
+2. Verify app is running: https://whats-app-ompro.ro/health
 3. Check Firestore for incidents: `wa_metrics/longrun/incidents`

@@ -74,7 +74,7 @@
 # 2. Enable Firestore Database
 # 3. Generate Service Account key (Settings > Service Accounts)
 # 4. Copy JSON content
-# 5. Set in Railway: FIREBASE_SERVICE_ACCOUNT = <JSON>
+# 5. Set in legacy hosting: FIREBASE_SERVICE_ACCOUNT = <JSON>
 ```
 
 ### 2. Configurare Proxy (Optional, 15 min):

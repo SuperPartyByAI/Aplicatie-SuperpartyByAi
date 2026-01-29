@@ -55,7 +55,7 @@ arch -x86_64 flutter build macos
 
 ## Status
 - **Web version**: ✅ Working (not affected)
-- **Backend**: ✅ Working (Railway)
+- **Backend**: ✅ Working (legacy hosting)
 - **macOS build**: ⚠️  Blocked by `-G` flag
 - **Workaround**: Use Option 2 or 3 for immediate testing
 

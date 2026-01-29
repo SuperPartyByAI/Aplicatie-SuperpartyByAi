@@ -61,6 +61,11 @@ post_install do |installer|
         config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'
       end
       
+      # Fix for audio_session module not found: force DEFINES_MODULE=YES
+      if target.name == 'audio_session'
+        config.build_settings['DEFINES_MODULE'] = 'YES'
+      end
+      
       # Fix gRPC/abseil C++ template parsing errors
       if target.name.match?(/^(gRPC-Core|gRPC-C\+\+|abseil|BoringSSL-GRPC)/)
         # Add warning suppression for C++17 template keyword issue

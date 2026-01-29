@@ -135,7 +135,7 @@
     - Auth
     - **Status:** Production
 
-23. **Railway** ✅
+23. **legacy hosting** ✅
     - Backend hosting
     - **Status:** Production
 
@@ -451,7 +451,7 @@ SAU
 - Security: Rate Limiter
 - Development: Git, GitHub, GitHub Actions, VS Code
 - Alerting: Slack, Discord
-- Infrastructure: Firebase, Railway
+- Infrastructure: Firebase, legacy hosting
 - Frontend: React, Vite, Router, Service Worker, Socket.io
 
 ---
@@ -526,7 +526,7 @@ Pot implementa **Redis + TanStack Query** în următoarele 4-6 ore:
 
 **Partea 1: Redis (2-4 ore)**
 
-- Add Redis to Railway
+- Add Redis to legacy hosting
 - Create redis-cache.js
 - Update server.js
 - Test and deploy

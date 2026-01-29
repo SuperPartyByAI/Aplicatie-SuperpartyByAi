@@ -14,7 +14,7 @@ The **PROBE_SENDER** account is required for **inbound probe** testing. It sends
 
 ### Method 1: Environment Variable (Recommended)
 
-Set the `PROBE_SENDER_ACCOUNT_ID` environment variable in Railway:
+Set the `PROBE_SENDER_ACCOUNT_ID` environment variable in legacy hosting:
 
 ```bash
 PROBE_SENDER_ACCOUNT_ID=account_1767042206934
@@ -36,7 +36,7 @@ The inbound probe job will automatically detect accounts with `role="probe_sende
 Create an account with ID containing `probe_sender`:
 
 ```bash
-curl -X POST https://whats-upp-production.up.railway.app/api/whatsapp/accounts \
+curl -X POST https://whats-app-ompro.ro/api/whatsapp/accounts \
   -H "Content-Type: application/json" \
   -d '{"accountId": "probe_sender_001"}'
 ```
@@ -76,7 +76,7 @@ Latest probe:
 
 **Solution:**
 
-1. Check account status: `curl https://whats-upp-production.up.railway.app/api/whatsapp/accounts`
+1. Check account status: `curl https://whats-app-ompro.ro/api/whatsapp/accounts`
 2. Verify account is connected
 3. Verify role is set (Method 1, 2, or 3)
 4. Restart service to reload configuration

@@ -1,7 +1,7 @@
-# WhatsApp 30 Accounts - Railway Stability Readiness
+# WhatsApp 30 Accounts - Hetzner Stability Readiness
 
 **Generated:** 2025-01-27  
-**Goal:** Long-term stable 30 WhatsApp Web sessions on Railway (server-based, not dependent on laptop)
+**Goal:** Long-term stable 30 WhatsApp Web sessions on Hetzner (server-based, not dependent on laptop)
 
 ---
 
@@ -19,7 +19,7 @@
 - `whatsapp-backend/lib/persistence/firestore-auth.js` - Firestore backup layer
 - `whatsapp-backend/lib/wa-bootstrap.js` - Bootstrap utilities
 - `whatsapp-backend/lib/wa-stability-manager.js` - Stability/reconnection logic
-- `railway.json` - Railway deployment configuration
+- systemd service - Hetzner deployment configuration
 
 **Responsibilities:**
 - **Session Storage:** `useMultiFileAuthState()` from Baileys (line 520, 3153)
@@ -34,15 +34,15 @@
 ```javascript
 const authDir =
   process.env.SESSIONS_PATH ||
-  (process.env.RAILWAY_VOLUME_MOUNT_PATH
-    ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'baileys_auth')
+  (process.env.HETZNER_SESSIONS_PATH
+    ? path.join(process.env.HETZNER_SESSIONS_PATH, 'baileys_auth')
     : path.join(__dirname, '.baileys_auth'));
 ```
 
 **Current Behavior:**
 1. ✅ Uses `SESSIONS_PATH` env var if set
-2. ⚠️  Falls back to `RAILWAY_VOLUME_MOUNT_PATH/baileys_auth` (if volume mounted)
-3. ❌ Final fallback: `./whatsapp-backend/.baileys_auth` (**EPHEMERAL on Railway**)
+2. ⚠️  Falls back to `HETZNER_SESSIONS_PATH/baileys_auth` (if volume mounted)
+3. ❌ Final fallback: `./whatsapp-backend/.baileys_auth` (**EPHEMERAL on Hetzner**)
 
 **Session Structure:**
 - Per account: `{authDir}/{accountId}/creds.json`
@@ -54,7 +54,7 @@ const authDir =
 - ✅ Backup on `saveCreds()`: Wraps Baileys saveCreds to also write to Firestore `wa_sessions` collection (lines 523-551, 3156-3180)
 - ✅ Restore: `restoreAccount()` can restore from Firestore if disk session missing (lines 3112-3138)
 
-**Risk:** If `SESSIONS_PATH` is not set and no Railway volume is mounted, sessions are stored in ephemeral container filesystem → **sessions lost on redeploy**.
+**Risk:** If `SESSIONS_PATH` is not set and no Hetzner volume is mounted, sessions are stored in ephemeral container filesystem → **sessions lost on redeploy**.
 
 ### C) Multi-Account Architecture
 
@@ -95,37 +95,37 @@ const authDir =
 - ✅ Saves to Firestore `accounts` collection
 - ✅ Creates session directory on disk
 
-### D) Railway Deploy Assumptions
+### D) Hetzner Deploy Assumptions
 
 **Configuration:**
-- ✅ `railway.json` exists (root level)
+- ✅ `legacy hosting.json` exists (root level)
 - ✅ Builder: Nixpacks (auto-detects Node.js)
 - ✅ Start command: `cd whatsapp-backend && node server.js`
 - ✅ Health check: `/health` (30s timeout, 20s interval)
 
 **Required Environment Variables:**
-- ✅ `PORT` - Railway injects automatically
+- ✅ `PORT` - Hetzner injects automatically
 - ⚠️  `SESSIONS_PATH` - **CRITICAL** - must be set to persistent volume path
 - ✅ `FIREBASE_SERVICE_ACCOUNT_JSON` - Firestore credentials
 - ✅ `ADMIN_TOKEN` - Optional, for protected endpoints
-- ⚠️  `RAILWAY_VOLUME_MOUNT_PATH` - **MAY BE USED** if `SESSIONS_PATH` not set
+- ⚠️  `HETZNER_SESSIONS_PATH` - **MAY BE USED** if `SESSIONS_PATH` not set
 
 **Persistent Volume:**
-- ❌ **NOT FOUND:** No explicit Railway volume mount configuration in code
-- ⚠️  **ASSUMED:** Volume must be created manually via Railway dashboard
+- ❌ **NOT FOUND:** No explicit Hetzner volume mount configuration in code
+- ⚠️  **ASSUMED:** Volume must be created manually via Hetzner dashboard
 - ⚠️  **GAP:** No verification that volume is mounted and writable on startup
 
 ---
 
-## PHASE 2: Railway Stability Requirements
+## PHASE 2: Hetzner Stability Requirements
 
-### MUST-HAVE (for stability on Railway)
+### MUST-HAVE (for stability on Hetzner)
 
 #### 1. Persistent Volume Mounted
 **Status:** ❌ **MISSING**  
-**Requirement:** Railway volume must be mounted at a fixed path (e.g., `/data/sessions`)  
+**Requirement:** Hetzner volume must be mounted at a fixed path (e.g., `/data/sessions`)  
 **Current:** Falls back to ephemeral `.baileys_auth` if `SESSIONS_PATH` not set  
-**Fix:** Create Railway volume manually, set `SESSIONS_PATH=/data/sessions`
+**Fix:** Create Hetzner volume manually, set `SESSIONS_PATH=/data/sessions`
 
 #### 2. SESSIONS_PATH Points to Volume
 **Status:** ⚠️  **PARTIAL**  
@@ -212,7 +212,7 @@ app.get('/api/status/dashboard', async (req, res) => {
 });
 ```
 
-#### 7. Healthcheck Endpoint for Railway
+#### 7. Healthcheck Endpoint for Hetzner
 **Status:** ✅ **IMPLEMENTED**  
 **Current:** `/health` endpoint exists (line ~1380)  
 **Returns:**
@@ -263,7 +263,7 @@ app.get('/api/status/dashboard', async (req, res) => {
 
 ### Primary Recommendation: Baileys (No Browser) ✅
 
-**Decision:** **BAILEYS (NO BROWSER)** - This is the correct and stable approach for Railway.
+**Decision:** **BAILEYS (NO BROWSER)** - This is the correct and stable approach for Hetzner.
 
 **Rationale:**
 1. ✅ **Already in use:** Codebase uses `@whiskeysockets/baileys` v7.0.0-rc.9
@@ -273,7 +273,7 @@ app.get('/api/status/dashboard', async (req, res) => {
 5. ✅ **Faster:** Direct WebSocket connection to WhatsApp servers
 6. ✅ **Persistent sessions:** Baileys auth state persists to disk (creds.json)
 
-**Firefox/Chrome WhatsApp Web on Railway:**
+**Firefox/Chrome WhatsApp Web on Hetzner:**
 - ❌ Requires GUI/headless browser (Playwright/Puppeteer)
 - ❌ High RAM usage (200-500MB per browser instance = 6-15GB for 30 accounts)
 - ❌ Fragile: Browser crashes, memory leaks, reconnection issues
@@ -289,7 +289,7 @@ app.get('/api/status/dashboard', async (req, res) => {
 
 | Item | Current State (File/Line) | Risk | Fix Needed (Exact Change) |
 |------|---------------------------|------|---------------------------|
-| **Persistent Volume** | No explicit Railway volume config | 🔴 **HIGH** | Manual: Create Railway volume, mount at `/data/sessions`, set `SESSIONS_PATH=/data/sessions` |
+| **Persistent Volume** | No explicit Hetzner volume config | 🔴 **HIGH** | Manual: Create Hetzner volume, mount at `/data/sessions`, set `SESSIONS_PATH=/data/sessions` |
 | **SESSIONS_PATH Validation** | Checks env var exists but no writability check on startup | 🔴 **HIGH** | Add startup validation: If `SESSIONS_PATH` not writable, fail fast with clear error |
 | **Boot Auto-Load from Disk** | Only restores from Firestore (`restoreAccountsFromFirestore` line 3520) | 🔴 **HIGH** | Add disk scan in boot sequence: Scan `authDir` for directories with `creds.json`, restore all found |
 | **Per-Account Status Dashboard** | `/api/whatsapp/accounts` exists but basic format | 🟡 **MEDIUM** | Add `/api/status/dashboard` endpoint with detailed per-account status (CONNECTED/QR_REQUIRED/etc.) |
@@ -310,7 +310,7 @@ app.get('/api/status/dashboard', async (req, res) => {
 if (!isWritable) {
   console.error('❌ CRITICAL: Auth directory is not writable!');
   console.error(`   Path: ${authDir}`);
-  console.error('   Check: SESSIONS_PATH env var and Railway volume mount');
+  console.error('   Check: SESSIONS_PATH env var and Hetzner volume mount');
   process.exit(1);
 }
 ```
@@ -519,11 +519,11 @@ process.on('SIGTERM', async () => {
 
 ---
 
-## PHASE 6: Railway Manual Setup Steps
+## PHASE 6: Hetzner Manual Setup Steps
 
 ### Step 1: Create Persistent Volume
 
-1. Open Railway dashboard: https://railway.app/project/be379927-9034-4a4d-8e35-4fbdfe258fc0
+1. SSH to Hetzner server: `ssh root@37.27.34.179`
 2. Navigate to `whatsapp-backend` service
 3. Go to **Volumes** tab
 4. Click **New Volume**
@@ -544,26 +544,26 @@ process.on('SIGTERM', async () => {
 
 ### Step 2: Set Environment Variable
 
-1. In Railway dashboard, go to `whatsapp-backend` service → **Variables** tab
+1. In Hetzner dashboard, go to `whatsapp-backend` service → **Variables** tab
 2. Add new variable:
    - **Key:** `SESSIONS_PATH`
    - **Value:** `/data/sessions`
 3. Save
 
-**Railway will automatically redeploy after variable change**
+**Hetzner will automatically redeploy after variable change**
 
 ---
 
 ### Step 3: Verify Restart/Redeploy Persistence
 
 1. **Test restart:**
-   - In Railway dashboard, click **Restart** on `whatsapp-backend` service
+   - In Hetzner dashboard, click **Restart** on `whatsapp-backend` service
    - Watch logs for boot sequence
    - Verify: All 30 accounts reconnect automatically (no manual QR scans)
 
 2. **Test redeploy:**
    - Push a code change (or empty commit)
-   - Watch Railway deploy logs
+   - Watch Hetzner deploy logs
    - Verify: All sessions restored from `/data/sessions` volume
 
 **Expected Logs:**
@@ -580,12 +580,12 @@ process.on('SIGTERM', async () => {
 
 ### Step 4: Verify Instance Resources
 
-1. In Railway dashboard, check service settings
+1. In Hetzner dashboard, check service settings
 2. Verify:
    - **Memory:** At least 1GB (2GB recommended)
    - **CPU:** 1 vCPU (2 vCPU recommended)
 
-**Current Railway Plan:** Check in dashboard (Starter/Developer plan typically has 1-2GB RAM)
+**Current Hetzner Plan:** Check in dashboard (Starter/Developer plan typically has 1-2GB RAM)
 
 **Resource Usage:**
 - Per Baileys connection: ~10-20MB
@@ -604,12 +604,12 @@ process.on('SIGTERM', async () => {
 3. **Auto-Reconnect:** Health monitoring + stale connection recovery ✅
 4. **Boot Sequence:** Restores accounts from Firestore on startup ✅
 5. **Graceful Shutdown:** SIGTERM handler exists (needs enhancement) ✅
-6. **Health Check:** `/health` endpoint for Railway ✅
+6. **Health Check:** `/health` endpoint for Hetzner ✅
 7. **Admin Protection:** `requireAdmin` middleware with token ✅
 
 ### ❌ Missing (Critical Gaps)
 
-1. **Persistent Volume:** No Railway volume configured → **MANUAL SETUP REQUIRED**
+1. **Persistent Volume:** No Hetzner volume configured → **MANUAL SETUP REQUIRED**
 2. **Disk Boot Scan:** Only restores from Firestore, ignores disk sessions → **CODE FIX NEEDED**
 3. **Status Dashboard:** No `/api/status/dashboard` endpoint → **CODE FIX NEEDED**
 4. **Shutdown Flush:** SIGTERM doesn't flush sessions → **CODE FIX NEEDED**
@@ -624,8 +624,8 @@ process.on('SIGTERM', async () => {
 
 ## Next Steps (Priority Order)
 
-### IMMEDIATE (Manual - Railway Dashboard)
-1. Create Railway persistent volume (Step 1 above)
+### IMMEDIATE (Manual - Hetzner Dashboard)
+1. Create Hetzner persistent volume (Step 1 above)
 2. Set `SESSIONS_PATH=/data/sessions` env var (Step 2 above)
 
 ### HIGH PRIORITY (Code Changes - Small, Safe)
@@ -642,9 +642,9 @@ process.on('SIGTERM', async () => {
 
 ## Verification Checklist
 
-After implementing fixes and Railway setup:
+After implementing fixes and Hetzner setup:
 
-- [ ] Railway volume created and mounted at `/data/sessions`
+- [ ] Hetzner volume created and mounted at `/data/sessions`
 - [ ] `SESSIONS_PATH=/data/sessions` env var set
 - [ ] Startup logs show: "Sessions dir writable: true"
 - [ ] Boot sequence restores all 30 accounts from disk

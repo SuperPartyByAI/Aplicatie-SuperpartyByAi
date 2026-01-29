@@ -1,7 +1,8 @@
 # Hardening Implementation Summary
 
-**Date:** 2026-01-17  
-**Branch:** `audit-whatsapp-30`
+**Date:** 2026-01-26  
+**Branch:** `main`  
+**Backend:** Hetzner (no legacy hosting).
 
 ---
 
@@ -9,91 +10,67 @@
 
 ### **1. Security: Delete Account via Proxy (Super-Admin Only)**
 
-**Problem:** Flutter `deleteAccount()` called Railway backend directly, bypassing Firebase auth checks.
+**Problem:** Flutter `deleteAccount()` called the WhatsApp backend directly, bypassing Firebase auth.
 
 **Solution:**
-- Added `whatsappProxyDeleteAccount` callable in `functions/whatsappProxy.js`
-- Requires super-admin authentication (`requireSuperAdmin`)
-- Updated `WhatsAppApiService.deleteAccount()` to call Functions proxy instead of Railway direct
-- Enforces security: only super-admin can delete accounts
+- `whatsappProxyDeleteAccount` in `functions/whatsappProxy.js`
+- Requires super-admin auth (`requireSuperAdmin`)
+- `WhatsAppApiService.deleteAccount()` calls Functions proxy, not backend direct
+- Forwards `Authorization` (Firebase ID token) to backend when provided
 
-**Files Changed:**
-- `functions/whatsappProxy.js` (added `deleteAccountHandler`, exported `deleteAccount`)
-- `functions/index.js` (exported `whatsappProxyDeleteAccount`)
-- `superparty_flutter/lib/services/whatsapp_api_service.dart` (updated `deleteAccount()` to use proxy)
+**Files:** `whatsappProxy.js`, `index.js`, `whatsapp_api_service.dart`
 
 ---
 
-### **2. Security: Backfill Account via Proxy (Optional)**
+### **2. Security: Backfill Account via Proxy**
 
-**Problem:** Backfill endpoint was only accessible via Railway admin token, not integrated with Firebase auth.
+**Problem:** Backfill was only via backend admin token, not Firebase auth.
 
 **Solution:**
-- Added `whatsappProxyBackfillAccount` callable in `functions/whatsappProxy.js`
-- Requires super-admin authentication
-- Forwards to Railway `POST /api/whatsapp/backfill/:accountId`
+- `whatsappProxyBackfillAccount` in `functions/whatsappProxy.js`
+- Requires super-admin auth
+- Forwards to backend `POST /api/whatsapp/backfill/:accountId`
+- Forwards incoming `Authorization` (Firebase ID token) to backend; no `ADMIN_TOKEN`
 
-**Files Changed:**
-- `functions/whatsappProxy.js` (added `backfillAccountHandler`, exported `backfillAccount`)
-- `functions/index.js` (exported `whatsappProxyBackfillAccount`)
-
-**Note:** Flutter UI button for backfill can be added later if needed.
+**Files:** `whatsappProxy.js`, `index.js`
 
 ---
 
 ### **3. Flutter Schema Verification**
 
-**Verified:**
-- ✅ Inbox query uses `orderBy('lastMessageAt', descending: true)` → index exists in `firestore.indexes.json`
-- ✅ Chat query uses `orderBy('tsClient')` → field exists in backend (`saveMessageToFirestore` writes `tsClient`)
-- ✅ Client Profile query uses `orderBy('date', descending: true)` where `phoneE164` → index exists
-- ✅ Send uses `sendViaProxy()` (not direct Firestore writes)
-- ✅ Save Event writes with `createdBy`, `schemaVersion`, `isArchived=false` (passes rules)
+- ✅ Inbox: `orderBy('lastMessageAt', descending: true)`; index exists
+- ✅ Chat: `orderBy('tsClient')`; backend writes `tsClient`
+- ✅ Client Profile: `orderBy('date', descending: true)` where `phoneE164`
+- ✅ Send uses `sendViaProxy()` (not direct Firestore)
+- ✅ Save Event: `createdBy`, `schemaVersion`, `isArchived=false`
 
 ---
 
 ## 🔍 **Audit Results**
 
-### **Callable Exports (Confirmed):**
-- ✅ `whatsappExtractEventFromThread` (region: us-central1)
-- ✅ `clientCrmAsk` (region: us-central1)
+### **Proxy Exports (all use `WHATSAPP_BACKEND_BASE_URL` secret):**
 - ✅ `whatsappProxyGetAccounts`
 - ✅ `whatsappProxyAddAccount`
 - ✅ `whatsappProxyRegenerateQr`
-- ✅ `whatsappProxyDeleteAccount` (NEW)
-- ✅ `whatsappProxyBackfillAccount` (NEW)
+- ✅ `whatsappProxyGetThreads`
+- ✅ `whatsappProxyDeleteAccount`
+- ✅ `whatsappProxyBackfillAccount`
 - ✅ `whatsappProxySend`
 
-### **Firestore Indexes (Confirmed):**
-- ✅ `threads`: `accountId ASC, lastMessageAt DESC` (for Inbox)
-- ✅ `evenimente`: `phoneE164 ASC, date DESC` (for Client Profile)
-- ✅ Additional indexes for `isArchived`, `assignedTo`, etc.
+### **Callables:**
+- ✅ `whatsappExtractEventFromThread`, `clientCrmAsk`
 
-### **Security Rules (Confirmed):**
-- ✅ `threads/{threadId}`: `allow delete: if false` (NEVER DELETE)
-- ✅ `threads/{threadId}/messages/{messageId}`: `allow delete: if false` (NEVER DELETE)
-- ✅ `outbox`: server-only writes (client blocked)
+### **Security Rules**
+- ✅ `threads` / `messages` / `outbox`: never delete; outbox server-only writes
 - ✅ `evenimente`: create requires `createdBy == uid`, `isArchived == false`, `schemaVersion in [2, 3]`
-
----
-
-## 📝 **Remaining Tasks = 0 (Production Ready)**
-
-All hardening items implemented:
-- ✅ Delete account secured (proxy + super-admin)
-- ✅ Backfill secured (proxy + super-admin) [optional]
-- ✅ Flutter schema matches backend
-- ✅ Indexes verified
-- ✅ Security rules enforced
-- ✅ No Flutter analyze errors
 
 ---
 
 ## 🚀 **Next Steps**
 
 1. **Deploy:** Follow `RUNBOOK_DEPLOY_PROD.md`
-2. **Test:** Run acceptance tests (2 accounts + 1 client)
-3. **Onboard:** Start with 30 accounts (1 instance Railway)
+2. **Test:** Acceptance tests (2 accounts + 1 client)
+3. **Onboard:** 30 accounts (1 backend instance)
 
 ---
 

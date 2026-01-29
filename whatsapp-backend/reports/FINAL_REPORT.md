@@ -1,4 +1,4 @@
-🔍 Fetching data from https://whats-upp-production.up.railway.app
+🔍 Fetching data from https://whats-app-ompro.ro
 ✅ Fetched 43 heartbeats, 1 probes
 ✅ Report saved to /workspaces/Aplicatie-SuperpartyByAi/whatsapp-backend/reports/longrun-report-1767049700563.md
 
@@ -6,7 +6,7 @@
 
 **Generated:** 2025-12-29T23:08:20.562Z
 
-**Base URL:** https://whats-upp-production.up.railway.app
+**Base URL:** https://whats-app-ompro.ro
 
 ---
 

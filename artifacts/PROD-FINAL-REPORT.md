@@ -1,8 +1,8 @@
 # PRODUCTION DEPLOYMENT - FINAL REPORT
 
 **Timestamp:** 2025-12-29T13:30:00Z  
-**Environment:** Railway Production  
-**URL:** https://whats-upp-production.up.railway.app
+**Environment:** legacy hosting Production  
+**URL:** https://whats-app-ompro.ro
 
 ---
 
@@ -23,9 +23,9 @@
 
 ## EVIDENCE
 
-### DoD-1: Railway Deploy
+### DoD-1: legacy hosting Deploy
 
-**URL:** https://whats-upp-production.up.railway.app
+**URL:** https://whats-app-ompro.ro
 
 **curl /health:**
 
@@ -53,7 +53,7 @@
 **Status:** qr_ready → connected  
 **QR Length:** 6335 bytes  
 **Generation Time:** 30s  
-**Display URL:** https://whats-upp-production.up.railway.app/api/whatsapp/qr/account_1767014419146
+**Display URL:** https://whats-app-ompro.ro/api/whatsapp/qr/account_1767014419146
 
 ### DoD-3: Connected Account
 
@@ -122,7 +122,7 @@
 ## CONCLUSION
 
 **Production Deployment:** ✅ SUCCESS  
-**Railway URL:** https://whats-upp-production.up.railway.app  
+**legacy hosting URL:** https://whats-app-ompro.ro  
 **Connected Accounts:** 1/18  
 **Firestore:** Connected  
 **DoD Progress:** 5/6 PASS (83%)

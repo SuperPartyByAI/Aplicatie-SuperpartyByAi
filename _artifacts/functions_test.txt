@@ -1,0 +1,173 @@
+
+> superparty-whatsapp-functions@5.0.0 test
+> jest
+
+  console.log
+    [whatsappProxy/getAccounts] Backend URL: https://test-backend.invalid...
+
+      at Object.log [as getAccountsHandler] (whatsappProxy.js:613:15)
+
+  console.log
+    [whatsappProxy/getAccounts] Calling backend: https://test-backend.invalid/api/whatsapp/accounts, correlationId=getAccounts_1769045652713
+
+      at Object.log [as getAccountsHandler] (whatsappProxy.js:618:15)
+
+  console.log
+    [whatsappProxy/regenerateQr] Calling backend: https://test-backend.invalid/api/whatsapp/regenerate-qr/account123, requestId=proxy_1769045653110, correlationId=proxy_1769045653110, debugMode=false
+
+      at Object.log [as regenerateQrHandler] (whatsappProxy.js:1227:15)
+
+  console.log
+    [whatsappProxy/regenerateQr] Backend response: status=200, errorId=unknown, requestId=proxy_1769045653110, debugMode=false
+
+      at Object.log [as regenerateQrHandler] (whatsappProxy.js:1242:15)
+
+  console.warn
+    [Sentry Profiling] You are using a Node.js version that does not have prebuilt binaries ([object Object]). The @sentry/profiling-node package only has prebuilt support for the following LTS versions of Node.js: 16, 18, 20, 22, 24. To use the @sentry/profiling-node package with this version of Node.js, you will need to compile the native addon from source. See: https://github.com/getsentry/sentry-javascript/tree/develop/packages/profiling-node#building-the-package-from-source
+
+      15 |
+      16 |   integrations: [
+    > 17 |     nodeProfilingIntegration(),
+         |     ^
+      18 |     Sentry.consoleIntegration({ levels: ['warn', 'error'] }),
+      19 |   ],
+      20 |
+
+      at node_modules/@sentry/profiling-node/src/integration.ts:636:106
+      at Module.consoleSandbox (node_modules/@sentry/core/src/utils/debug-logger.ts:63:12)
+      at consoleSandbox (node_modules/@sentry/profiling-node/src/integration.ts:634:106)
+      at Object.nodeProfilingIntegration (sentry.js:17:5)
+      at Object.require (index.js:8:20)
+      at require (__tests__/index-import.test.js:56:7)
+      at Object.<anonymous> (node_modules/expect/build/index.js:1824:9)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:2235:93)
+      at Object.toThrow (__tests__/index-import.test.js:57:12)
+
+  console.log
+    🚀 Firebase Functions starting - BUILD_SHA=unknown
+
+      at console.log (node_modules/@sentry/core/src/instrument/console.ts:39:14)
+
+  console.log
+    ✅ Staff/Admin callables exported
+
+      at console.log (node_modules/@sentry/core/src/instrument/console.ts:39:14)
+
+  console.log
+    ✅ Loaded TypeScript callables from dist/index.js
+
+      at console.log (node_modules/@sentry/core/src/instrument/console.ts:39:14)
+
+  console.warn
+    [Sentry Profiling] You are using a Node.js version that does not have prebuilt binaries ([object Object]). The @sentry/profiling-node package only has prebuilt support for the following LTS versions of Node.js: 16, 18, 20, 22, 24. To use the @sentry/profiling-node package with this version of Node.js, you will need to compile the native addon from source. See: https://github.com/getsentry/sentry-javascript/tree/develop/packages/profiling-node#building-the-package-from-source
+
+      15 |
+      16 |   integrations: [
+    > 17 |     nodeProfilingIntegration(),
+         |     ^
+      18 |     Sentry.consoleIntegration({ levels: ['warn', 'error'] }),
+      19 |   ],
+      20 |
+
+      at console.warn (node_modules/@sentry/core/src/instrument/console.ts:39:14)
+      at node_modules/@sentry/profiling-node/src/integration.ts:636:106
+      at Module.consoleSandbox (node_modules/@sentry/core/src/utils/debug-logger.ts:63:12)
+      at consoleSandbox (node_modules/@sentry/profiling-node/src/integration.ts:634:106)
+      at Object.nodeProfilingIntegration (sentry.js:17:5)
+      at Object.require (index.js:8:20)
+      at require (__tests__/index-import.test.js:68:7)
+      at Object.<anonymous> (node_modules/expect/build/index.js:1824:9)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:2235:93)
+      at Object.toThrow (__tests__/index-import.test.js:69:12)
+
+  console.log
+    🚀 Firebase Functions starting - BUILD_SHA=unknown
+
+      at console.<anonymous> (node_modules/@sentry/core/src/instrument/console.ts:39:14)
+
+  console.log
+    ✅ Staff/Admin callables exported
+
+      at console.<anonymous> (node_modules/@sentry/core/src/instrument/console.ts:39:14)
+
+  console.log
+    ✅ Loaded TypeScript callables from dist/index.js
+
+      at console.<anonymous> (node_modules/@sentry/core/src/instrument/console.ts:39:14)
+
+  console.warn
+    [Sentry Profiling] You are using a Node.js version that does not have prebuilt binaries ([object Object]). The @sentry/profiling-node package only has prebuilt support for the following LTS versions of Node.js: 16, 18, 20, 22, 24. To use the @sentry/profiling-node package with this version of Node.js, you will need to compile the native addon from source. See: https://github.com/getsentry/sentry-javascript/tree/develop/packages/profiling-node#building-the-package-from-source
+
+      15 |
+      16 |   integrations: [
+    > 17 |     nodeProfilingIntegration(),
+         |     ^
+      18 |     Sentry.consoleIntegration({ levels: ['warn', 'error'] }),
+      19 |   ],
+      20 |
+
+      at node_modules/@sentry/profiling-node/src/integration.ts:636:106
+      at Module.consoleSandbox (node_modules/@sentry/core/src/utils/debug-logger.ts:63:12)
+      at consoleSandbox (node_modules/@sentry/profiling-node/src/integration.ts:634:106)
+      at Object.nodeProfilingIntegration (sentry.js:17:5)
+      at Object.require (index.js:8:20)
+      at require (test/whatsappProxy.test.js:773:7)
+      at Object.<anonymous> (node_modules/expect/build/index.js:1824:9)
+      at Object.throwingMatcher [as toThrow] (node_modules/expect/build/index.js:2235:93)
+      at Object.toThrow (test/whatsappProxy.test.js:774:12)
+
+  console.log
+    🚀 Firebase Functions starting - BUILD_SHA=unknown
+
+      at console.log (node_modules/@sentry/core/src/instrument/console.ts:39:14)
+
+  console.log
+    ✅ Staff/Admin callables exported
+
+      at console.log (node_modules/@sentry/core/src/instrument/console.ts:39:14)
+
+  console.log
+    ✅ Loaded TypeScript callables from dist/index.js
+
+      at console.log (node_modules/@sentry/core/src/instrument/console.ts:39:14)
+
+  console.error
+    [whatsappProxy/getAccounts] WHATSAPP_BACKEND_URL missing
+
+      602 |       const backendBaseUrl = getBackendBaseUrl();
+      603 |       if (!backendBaseUrl) {
+    > 604 |         console.error('[whatsappProxy/getAccounts] WHATSAPP_BACKEND_URL missing');
+          |                 ^
+      605 |         console.error('[whatsappProxy/getAccounts] process.env.WHATSAPP_BACKEND_URL:', process.env.WHATSAPP_BACKEND_URL ? 'SET' : 'NOT SET');
+      606 |         return res.status(500).json({
+      607 |           success: false,
+
+      at console.error (node_modules/@sentry/core/src/instrument/console.ts:39:14)
+      at Object.error [as getAccountsHandler] (whatsappProxy.js:604:17)
+      at Object.<anonymous> (test/whatsappProxy.test.js:803:5)
+
+  console.error
+    [whatsappProxy/getAccounts] process.env.WHATSAPP_BACKEND_URL: NOT SET
+
+      603 |       if (!backendBaseUrl) {
+      604 |         console.error('[whatsappProxy/getAccounts] WHATSAPP_BACKEND_URL missing');
+    > 605 |         console.error('[whatsappProxy/getAccounts] process.env.WHATSAPP_BACKEND_URL:', process.env.WHATSAPP_BACKEND_URL ? 'SET' : 'NOT SET');
+          |                 ^
+      606 |         return res.status(500).json({
+      607 |           success: false,
+      608 |           error: 'configuration_missing',
+
+      at console.error (node_modules/@sentry/core/src/instrument/console.ts:39:14)
+      at Object.error [as getAccountsHandler] (whatsappProxy.js:605:17)
+      at Object.<anonymous> (test/whatsappProxy.test.js:803:5)
+
+  console.log
+    [whatsappProxy/getAccounts] Backend URL: https://test-backend.example.c...
+
+      at console.log (node_modules/@sentry/core/src/instrument/console.ts:39:14)
+
+  console.log
+    [whatsappProxy/getAccounts] Calling backend: https://test-backend.example.com/api/whatsapp/accounts, correlationId=getAccounts_1769045654430
+
+      at console.log (node_modules/@sentry/core/src/instrument/console.ts:39:14)
+

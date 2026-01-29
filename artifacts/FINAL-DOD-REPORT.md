@@ -1,7 +1,7 @@
 # FINAL DoD REPORT - Baileys WhatsApp Backend
 
 **Generated:** 2025-12-29T18:15:00Z  
-**Service:** https://whats-upp-production.up.railway.app  
+**Service:** https://whats-app-ompro.ro  
 **Final Commit:** 50bc36bf
 
 ---
@@ -91,7 +91,7 @@ store.bind(sock.ev); // CRITICAL: Bind store to socket
 
 ### FAZA 2: COLD START RECOVERY ✅ PASS
 
-**Test:** Trigger Railway redeploy and verify accounts restore from Firestore without rescan.
+**Test:** Trigger legacy hosting redeploy and verify accounts restore from Firestore without rescan.
 
 **Pre-Restart State:**
 
@@ -249,7 +249,7 @@ Response: {"error":"Unauthorized: Missing token"}
 - ✅ Health endpoint with metrics
 - ✅ Fingerprint tracking (version, commit, bootTimestamp)
 - ✅ Firestore as single source of truth
-- ✅ Railway deployment automated
+- ✅ legacy hosting deployment automated
 
 **Missing (Post-DoD):**
 

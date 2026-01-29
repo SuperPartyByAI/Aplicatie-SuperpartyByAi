@@ -1,7 +1,7 @@
 # WhatsApp 30 Accounts - Production Readiness Verification
 
 **Generated:** 2025-01-27  
-**Goal:** Verify production-readiness for 30-account Railway deployment
+**Goal:** Verify production-readiness for 30-account Hetzner deployment
 
 ---
 
@@ -29,7 +29,7 @@ git status
 **File:** `whatsapp-backend/server.js`  
 **Main entry:** `server.js` (4697 lines)  
 **Start command:** `node server.js` (from `package.json` line 7)  
-**Railway config:** `railway.json` → `startCommand: "cd whatsapp-backend && node server.js"`
+**Hetzner config:** systemd service → `ExecStart=/usr/bin/node /opt/whatsapp/Aplicatie-SuperpartyByAi/whatsapp-backend/server.js`
 
 **Evidence:**
 ```json
@@ -134,7 +134,7 @@ const sortedSessionDirs = sessionDirs.sort((a, b) => a.localeCompare(b));
 **Evidence: Runtime writability check (line 1392-1403)**
 ```javascript
 // Line 1392-1403
-// Check sessions directory writability at runtime (critical for Railway stability)
+// Check sessions directory writability at runtime (critical for Hetzner stability)
 let sessionsDirWritable = false;
 try {
   if (fs.existsSync(authDir)) {
@@ -219,7 +219,7 @@ if (attempts < MAX_RECONNECT_ATTEMPTS) {
 
 ## Storage/Persistence Safety
 
-**Status:** ✅ **SAFE** (with Railway volume setup required)
+**Status:** ✅ **SAFE** (with Hetzner volume setup required)
 
 **Location:** `whatsapp-backend/server.js` line 311-352
 
@@ -228,15 +228,15 @@ if (attempts < MAX_RECONNECT_ATTEMPTS) {
 // Line 313-317
 const authDir =
   process.env.SESSIONS_PATH ||
-  (process.env.RAILWAY_VOLUME_MOUNT_PATH
-    ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'baileys_auth')
+  (process.env.HETZNER_SESSIONS_PATH
+    ? path.join(process.env.HETZNER_SESSIONS_PATH, 'baileys_auth')
     : path.join(__dirname, '.baileys_auth'));
 ```
 
 **Priority:**
 1. ✅ `SESSIONS_PATH` env var (if set)
-2. ⚠️  `RAILWAY_VOLUME_MOUNT_PATH/baileys_auth` (if volume mounted)
-3. ❌ Fallback: `./whatsapp-backend/.baileys_auth` (**EPHEMERAL on Railway**)
+2. ⚠️  `HETZNER_SESSIONS_PATH/baileys_auth` (if volume mounted)
+3. ❌ Fallback: `./whatsapp-backend/.baileys_auth` (**EPHEMERAL on Hetzner**)
 
 **Evidence 2: Startup validation (line 344-352)**
 ```javascript
@@ -245,8 +245,8 @@ const authDir =
 if (!isWritable) {
   console.error('❌ CRITICAL: Auth directory is not writable!');
   console.error(`   Path: ${authDir}`);
-  console.error('   Check: SESSIONS_PATH env var and Railway volume mount');
-  console.error('   Fix: Create Railway volume and set SESSIONS_PATH=/data/sessions');
+  console.error('   Check: SESSIONS_PATH env var and Hetzner volume mount');
+  console.error('   Fix: Create Hetzner volume and set SESSIONS_PATH=/data/sessions');
   process.exit(1);
 }
 ```
@@ -585,7 +585,7 @@ bash tool/forbid_named_navigator.sh
 
 ---
 
-## Verdict: 🟢 READY (with Railway setup required)
+## Verdict: 🟢 READY (with Hetzner setup required)
 
 ### Status Summary
 
@@ -608,11 +608,11 @@ bash tool/forbid_named_navigator.sh
 
 ---
 
-## Railway Manual Checklist
+## Hetzner Manual Checklist
 
 ### Step 1: Create Persistent Volume
 
-1. Open Railway dashboard: https://railway.app/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
+1. Open Hetzner dashboard: https://hetzner/project/be379927-9034-4a4d-8e35-4fbdfe258fc0/service/bac72d7a-eeca-4dda-acd9-6b0496a2184f
 2. Navigate to **Volumes** tab (left sidebar)
 3. Click **New Volume**
 4. Configure:
@@ -628,14 +628,14 @@ bash tool/forbid_named_navigator.sh
 
 ### Step 2: Set Environment Variable
 
-1. Railway dashboard → `whatsapp-backend` service → **Variables** tab
+1. Hetzner dashboard → `whatsapp-backend` service → **Variables** tab
 2. Click **+ New Variable**
 3. Add:
    - **Key:** `SESSIONS_PATH`
    - **Value:** `/data/sessions` (must match mount path from Step 1)
 4. Click **Save**
 
-**Railway will automatically redeploy after variable change.**
+**Hetzner will automatically redeploy after variable change.**
 
 ---
 
@@ -665,7 +665,7 @@ bash tool/forbid_named_navigator.sh
 
 1. Check health endpoint:
    ```bash
-   curl https://your-railway-url.railway.app/health
+   curl https://your-legacy hosting-url.hetzner/health
    ```
 
 2. **Expected response:**
@@ -688,7 +688,7 @@ bash tool/forbid_named_navigator.sh
 
 1. Check status dashboard:
    ```bash
-   curl https://your-railway-url.railway.app/api/status/dashboard
+   curl https://whats-app-ompro.ro/api/status/dashboard
    ```
 
 2. **Expected response:**
@@ -715,7 +715,7 @@ bash tool/forbid_named_navigator.sh
 **After 30 accounts are connected:**
 
 1. **Restart service:**
-   - Railway dashboard → Service → **Settings** → **Restart**
+   - Hetzner dashboard → Service → **Settings** → **Restart**
    - Watch logs for boot sequence:
      ```
      🔄 Restoring accounts from Firestore...
@@ -737,10 +737,10 @@ bash tool/forbid_named_navigator.sh
 
 ## Missing Items (Manual Steps Only)
 
-**❌ Railway Volume:** Not created yet (manual step required)  
+**❌ Hetzner Volume:** Not created yet (manual step required)  
 **❌ SESSIONS_PATH env var:** Not set yet (manual step required)
 
-**All code requirements are met.** Only manual Railway configuration is missing.
+**All code requirements are met.** Only manual Hetzner configuration is missing.
 
 ---
 
@@ -765,14 +765,14 @@ bash tool/forbid_named_navigator.sh
 
 ### Deployment Status: 🟡 YELLOW
 
-**Reason:** Railway volume and env var not configured yet (manual steps required)
+**Reason:** Hetzner volume and env var not configured yet (manual steps required)
 
 **Action Required:**
-1. Create Railway volume at `/data/sessions` (Step 1)
+1. Create Hetzner volume at `/data/sessions` (Step 1)
 2. Set `SESSIONS_PATH=/data/sessions` env var (Step 2)
 3. Redeploy and verify logs (Step 3-5)
 
-**After Railway setup:** Status becomes 🟢 **GREEN**
+**After Hetzner setup:** Status becomes 🟢 **GREEN**
 
 ---
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Manual mode allows operators to manage WhatsApp Web sessions via Firefox containers without requiring backend integration (Railway/Baileys). This mode is useful when:
+Manual mode allows operators to manage WhatsApp Web sessions via Firefox containers without requiring backend integration (Hetzner/Baileys). This mode is useful when:
 
 - Backend services are unavailable
 - You want to use WhatsApp Web manually without AI features

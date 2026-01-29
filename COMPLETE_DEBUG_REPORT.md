@@ -12,7 +12,7 @@
 
 ---
 
-## A) WhatsApp Backend (Railway) - FIXED ✅
+## A) WhatsApp Backend (legacy hosting) - FIXED ✅
 
 ### Root Cause 1: Pairing Phase Reconnect Missing
 
@@ -97,7 +97,7 @@
 {
   success: true,
   accounts: [...],
-  instanceId: "railway_xxx",
+  instanceId: "legacy_xxx",
   waMode: "active" | "passive",
   requestId: "req_1234567890"
 }
@@ -139,13 +139,13 @@
 ### Root Cause 2: 500 Backend Error Nu Include Detalii
 
 **Problem:**
-- Functions proxy ascundea mesajul real de la Railway
+- Functions proxy ascundea mesajul real de la legacy hosting
 - Flutter primea doar "Backend service returned an error"
 
 **Fix Applied:**
 
 **File:** `functions/whatsappProxy.js`
-- ✅ Logging detaliat pentru Railway response
+- ✅ Logging detaliat pentru legacy hosting response
 - ✅ Propagă `backendError` și `backendMessage` în răspuns
 - ✅ Special handling pentru 503 (propagă mesajul complet)
 
@@ -164,9 +164,9 @@
 ### Root Cause 3: Base URL Verification
 
 **Status:** ✅ Verified
-- Flutter folosește `Env.whatsappBackendUrl` (default: `https://whats-upp-production.up.railway.app`)
+- Flutter folosește `Env.whatsappBackendUrl` (default: `https://whats-app-ompro.ro`)
 - Override: `--dart-define=WHATSAPP_BACKEND_URL=...`
-- Flutter folosește Functions proxy, NU direct Railway (corect)
+- Flutter folosește Functions proxy, NU direct legacy hosting (corect)
 
 ---
 
@@ -352,7 +352,7 @@ git apply COMPLETE_DEBUG_FIX.patch
 
 ```bash
 # Terminal 1: Start emulators
-export WHATSAPP_RAILWAY_BASE_URL='https://whats-upp-production.up.railway.app'
+export WHATSAPP_LEGACY_BASE_URL='https://whats-app-ompro.ro'
 firebase emulators:start --only firestore,functions,auth
 
 # Terminal 2: Run Flutter
@@ -390,7 +390,7 @@ adb -s emulator-5554 logcat | grep -iE "WhatsApp|whatsapp|515|passive|pairing|ti
 ```bash
 # Check backend status (requires ADMIN_TOKEN)
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://whats-upp-production.up.railway.app/api/longrun/status-now
+  https://whats-app-ompro.ro/api/longrun/status-now
 
 # Expected response:
 {
@@ -409,7 +409,7 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ```bash
 # 1. Health check
-curl https://whats-upp-production.up.railway.app/health
+curl https://whats-app-ompro.ro/health
 
 # 2. Accounts (via Functions proxy with Firebase token)
 # Tested in Flutter app
@@ -475,7 +475,7 @@ curl -X POST \
 
 ## External Config Required
 
-### Production Backend (Railway):
+### Production Backend (legacy hosting):
 ```bash
 ADMIN_TOKEN=<your-admin-token>
 FIREBASE_SERVICE_ACCOUNT_JSON=<firebase-credentials>
@@ -483,14 +483,14 @@ FIREBASE_SERVICE_ACCOUNT_JSON=<firebase-credentials>
 
 ### Firebase Functions:
 ```bash
-firebase functions:secrets:set WHATSAPP_RAILWAY_BASE_URL
-# Value: https://whats-upp-production.up.railway.app
+firebase functions:secrets:set WHATSAPP_LEGACY_BASE_URL
+# Value: https://whats-app-ompro.ro
 ```
 
 ### Flutter (Optional):
 ```bash
 # Override backend URL (if needed)
-flutter run --dart-define=WHATSAPP_BACKEND_URL=https://custom-url.up.railway.app
+flutter run --dart-define=WHATSAPP_BACKEND_URL=https://whats-app-ompro.ro
 ```
 
 ---
@@ -560,7 +560,7 @@ Flutter: Purple SnackBar "Backend în mod PASSIVE. Lock nu este achiziționat. R
 **Next Steps:**
 1. Apply patch
 2. Test in emulator
-3. Deploy backend to Railway
+3. Deploy backend to legacy hosting
 4. Deploy Functions to Firebase
 5. Test in production
 6. Monitor logs for 515, PASSIVE mode, and pairing phase transitions

@@ -49,7 +49,7 @@ Scenario: Vineri seara, 10 evenimente simultane
 
 **Implementare:**
 
-- Railway API pentru create/delete services
+- legacy hosting API pentru create/delete services
 - Load balancer (Cloudflare)
 - Metrics monitoring (CPU, RAM, response time)
 - Auto-scaling rules
@@ -96,7 +96,7 @@ Economie: 30% cost reduction
 **Implementare:**
 
 - Dashboard React în SuperParty
-- Railway API pentru toate proiectele
+- legacy hosting API pentru toate proiectele
 - Centralized logging (Loki)
 - Centralized metrics (Prometheus)
 
@@ -268,7 +268,7 @@ Plus:
 **Implementare:**
 
 - GeoIP detection
-- Multi-region deployment (Railway)
+- Multi-region deployment (legacy hosting)
 - Intelligent routing (Cloudflare)
 - Regional optimization
 

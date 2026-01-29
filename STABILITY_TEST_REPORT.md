@@ -53,7 +53,7 @@
     "clientJid": "40737571397@s.whatsapp.net"
   }
   ```
-- Railway logs confirmed: `Updated message 3EB05633487A87334037E6 status to delivered`
+- legacy hosting logs confirmed: `Updated message 3EB05633487A87334037E6 status to delivered`
 
 **Conclusion**: Message flow **working perfectly** ✅
 
@@ -89,12 +89,12 @@
 1. Send a WhatsApp message **TO** +40 737 571 397 from another phone
 2. Backend will detect inbound message
 3. FCM notification will be sent to registered devices
-4. Check Railway logs for: `📱 [account_prod_...] FCM sent: X/Y success`
+4. Check legacy hosting logs for: `📱 [account_prod_...] FCM sent: X/Y success`
 
 **Monitor command**:
 ```bash
 cd /Users/universparty/Aplicatie-SuperpartyByAi/whatsapp-backend && \
-railway logs --tail 100 | grep -E "FCM sent|messages.upsert"
+legacy hosting logs --tail 100 | grep -E "FCM sent|messages.upsert"
 ```
 
 **Note**: To fully test, you need:
@@ -106,7 +106,7 @@ railway logs --tail 100 | grep -E "FCM sent|messages.upsert"
 
 ### Test 5: Error Monitoring ⚠️
 
-**Objective**: Check for critical errors in Railway logs
+**Objective**: Check for critical errors in legacy hosting logs
 
 **Results**:
 - ⚠️ **Non-critical warning found**: `history_sync_failed`
@@ -135,9 +135,9 @@ railway logs --tail 100 | grep -E "FCM sent|messages.upsert"
 **Objective**: Verify Baileys session is backed up to Firestore
 
 **Results**:
-- Railway logs show: `💾 [account_prod_e08819ba086fc2b9e779ee9cfe708bb3] Saved to Firestore`
+- legacy hosting logs show: `💾 [account_prod_e08819ba086fc2b9e779ee9cfe708bb3] Saved to Firestore`
 - Session backup working as expected
-- Allows reconnect after Railway restart/redeploy
+- Allows reconnect after legacy hosting restart/redeploy
 
 **Conclusion**: Session backup **working correctly** ✅
 
@@ -159,7 +159,7 @@ railway logs --tail 100 | grep -E "FCM sent|messages.upsert"
 1. **Push Notifications**: Need inbound message to verify FCM
 2. **Long-term Stability**: Monitor connection over 24+ hours
 3. **High Load**: Test with multiple accounts (10+)
-4. **Reconnect After Restart**: Restart Railway and verify auto-reconnect
+4. **Reconnect After Restart**: Restart legacy hosting and verify auto-reconnect
 
 ---
 
@@ -184,7 +184,7 @@ railway logs --tail 100 | grep -E "FCM sent|messages.upsert"
 
 - **Connection Uptime**: 100% (during 15-min test)
 - **Message Send Success Rate**: 100% (1/1)
-- **API Response Time**: ~4-6 seconds (includes Railway cold start)
+- **API Response Time**: ~4-6 seconds (includes legacy hosting cold start)
 - **Firestore Save Success**: 100% (messages)
 - **Session Backup Success**: 100%
 
@@ -202,4 +202,4 @@ All core features working as expected. The `history_sync` warning is a known Bai
 
 **Generated**: 2026-01-19 13:00 UTC  
 **Backend Commit**: `4df72862` (cleanup: remove debug logging from DELETE endpoint)  
-**Railway Instance**: `e3803621-f242-455f-81f4-995f25b4a564`
+**legacy hosting Instance**: `e3803621-f242-455f-81f4-995f25b4a564`

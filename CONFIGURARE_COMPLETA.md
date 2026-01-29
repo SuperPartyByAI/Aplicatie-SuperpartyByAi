@@ -1,4 +1,4 @@
-# ✅ Configurare Completă Railway
+# ✅ Configurare Completă legacy hosting
 
 ## Ce ai configurat
 
@@ -24,10 +24,10 @@
 
 ### 2. Verificare Health Endpoint
 
-După ce Railway redeploy (1-2 minute), testează:
+După ce legacy hosting redeploy (1-2 minute), testează:
 
 ```bash
-curl https://whats-upp-production.up.railway.app/health | jq
+curl https://whats-app-ompro.ro/health | jq
 ```
 
 **Așteptat:**
@@ -43,7 +43,7 @@ curl https://whats-upp-production.up.railway.app/health | jq
 
 ## Ce se întâmplă acum
 
-1. **Railway redeploy automat** după ce ai schimbat `SESSIONS_PATH`
+1. **legacy hosting redeploy automat** după ce ai schimbat `SESSIONS_PATH`
 2. **Aplicația pornește** și verifică dacă `/app/sessions` este writable
 3. **Dacă totul e OK:** Service-ul va răspunde la health endpoint
 4. **Dacă e OK:** `sessions_dir_writable: true` ✅
@@ -52,7 +52,7 @@ curl https://whats-upp-production.up.railway.app/health | jq
 
 ## Dacă încă nu funcționează
 
-### Verifică în Railway Dashboard:
+### Verifică în legacy hosting Dashboard:
 
 1. **Tab "Deployments":**
    - Ultimul deployment are status verde (success)?

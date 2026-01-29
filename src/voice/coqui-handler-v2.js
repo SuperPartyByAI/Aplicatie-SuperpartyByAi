@@ -9,7 +9,7 @@ const crypto = require('crypto');
  */
 class CoquiHandler {
   constructor() {
-    this.apiUrl = process.env.COQUI_API_URL || 'https://web-production-00dca9.up.railway.app';
+    this.apiUrl = process.env.COQUI_API_URL || null;
     this.tempDir = path.join(__dirname, '../../temp');
     this.cacheDir = path.join(__dirname, '../../cache');
     this.enabled = false;
@@ -123,6 +123,10 @@ class CoquiHandler {
   }
 
   async checkAvailability() {
+    if (!this.apiUrl) {
+      this.enabled = false;
+      return;
+    }
     try {
       const startTime = Date.now();
       const response = await fetch(`${this.apiUrl}/health`, {
@@ -189,6 +193,9 @@ class CoquiHandler {
     }
 
     try {
+      if (!this.apiUrl) {
+        throw new Error('COQUI_API_URL is not configured');
+      }
       // Check cache first
       const cacheKey = this.getCacheKey(text);
       const cachedFile = path.join(this.cacheDir, `${cacheKey}.wav`);

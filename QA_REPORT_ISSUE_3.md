@@ -23,7 +23,7 @@ Issue #3 requested stabilization of WhatsApp (Baileys) integration with Firebase
 **Evidence:**
 
 - `SESSIONS_PATH` environment variable configured
-- Session persistence to Railway Volume
+- Session persistence to legacy hosting Volume
 - Fallback mechanism implemented
 - Code location: `whatsapp-backend/server.js`
 

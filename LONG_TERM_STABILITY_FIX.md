@@ -2,7 +2,7 @@
 
 **Date**: 2026-01-19  
 **Commit**: `23b3ecd5`  
-**Issue**: Accounts lost from memory after Railway redeploy/restart
+**Issue**: Accounts lost from memory after legacy hosting redeploy/restart
 
 ---
 
@@ -10,7 +10,7 @@
 
 ### What Happened:
 1. User creates WhatsApp account, scans QR → account saved to **Firestore** + **memory** ✅
-2. Railway redeploys backend (e.g., code change, instance restart)
+2. legacy hosting redeploys backend (e.g., code change, instance restart)
 3. New backend instance starts in **PASSIVE mode** (lock held by old instance)
 4. `restoreAccountsFromFirestore()` is called, but **returns immediately** because `canStartBaileys() = false` in PASSIVE mode ❌
 5. Old instance releases lock → new instance acquires lock (becomes ACTIVE)
@@ -62,7 +62,7 @@ process.on('wa-bootstrap:active', async ({ instanceId }) => {
 ## 🎯 Benefits (Long-Term Stability)
 
 ### Before Fix (Temporary Workarounds):
-- ❌ Manual Railway redeploy after every instance change
+- ❌ Manual legacy hosting redeploy after every instance change
 - ❌ Delete + recreate account every time
 - ❌ Accounts disappear unpredictably
 - ❌ User has to re-scan QR frequently
@@ -70,7 +70,7 @@ process.on('wa-bootstrap:active', async ({ instanceId }) => {
 ### After Fix (Permanent Solution):
 - ✅ **Automatic restoration** on lock acquisition
 - ✅ **Works across all scenarios**:
-  - Railway redeploys
+  - legacy hosting redeploys
   - Instance restarts
   - Multiple instances competing for lock
   - Network blips causing lock release/reacquisition
@@ -174,7 +174,7 @@ curl "https://YOUR_BACKEND/api/status/dashboard" \
 - ✅ Fail-safe: if event never fires, behavior = old behavior (no worse)
 
 ### Expected Outcome:
-- **Immediate**: Accounts survive Railway redeploys
+- **Immediate**: Accounts survive legacy hosting redeploys
 - **Long-term**: Zero-maintenance WhatsApp account persistence
 - **User Experience**: Seamless, reliable messaging
 
@@ -184,10 +184,10 @@ curl "https://YOUR_BACKEND/api/status/dashboard" \
 
 **Status**: ✅ **Deployed to Production**  
 **Commit**: `23b3ecd5`  
-**Railway Build**: https://railway.com/project/.../service/.../id=b797f9d3-4cab-4dbc-9ecf-03b83f4dc936
+**legacy hosting Build**: https://legacy hosting.com/project/.../service/.../id=b797f9d3-4cab-4dbc-9ecf-03b83f4dc936
 
 **Next Steps:**
-1. ✅ Monitor Railway logs for `[Auto-Restore]` messages (wait ~2-5 min for PASSIVE→ACTIVE transition)
+1. ✅ Monitor legacy hosting logs for `[Auto-Restore]` messages (wait ~2-5 min for PASSIVE→ACTIVE transition)
 2. ✅ Test `/send-message` with existing account (should work now)
 3. ✅ Create new account, deploy backend, verify account survives
 4. ✅ Update stability test report

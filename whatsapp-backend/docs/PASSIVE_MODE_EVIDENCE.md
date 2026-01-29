@@ -9,7 +9,7 @@ PASSIVE MODE is now **HARD GATING** in main flow - not a flag/note/TODO.
 ## 1. CURL /HEALTH (DEPLOYED)
 
 ```bash
-curl -i https://whats-upp-production.up.railway.app/health
+curl -i https://whats-app-ompro.ro/health
 ```
 
 **Output**:
@@ -329,7 +329,7 @@ async checkInboundDedupe(waMessageId) {
 b1805b83 - Add fencing checks to outbox and inbound (W11)
 ```
 
-**Deployed**: ✅ Railway (commit b1805b83)
+**Deployed**: ✅ legacy hosting (commit b1805b83)
 
 ---
 

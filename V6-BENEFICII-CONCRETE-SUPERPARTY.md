@@ -30,7 +30,7 @@
 Coqui voice generation:
 - 5-10 secunde per request
 - CPU intensive (80% usage)
-- Cost: $20/month Railway
+- Cost: $20/month legacy hosting
 - User experience: "Loading..."
 ```
 
@@ -60,7 +60,7 @@ Rezultat:
 
 ```
 Analiză automată:
-→ Coqui Railway: $20/month, 5-10s latency
+→ Coqui legacy hosting: $20/month, 5-10s latency
 → AWS Polly: $4/month (1M chars), 1s latency
 → Google TTS: $4/month, 0.5s latency
 
@@ -114,7 +114,7 @@ Acțiune ACUM (3 luni înainte):
 Rezultat:
 ✅ Zero downtime la peak
 ✅ Smooth scaling până la 500 users
-✅ Cost: $0 (Railway free tier)
+✅ Cost: $0 (legacy hosting free tier)
 ✅ Clienți fericiți
 ```
 
@@ -253,7 +253,7 @@ Economie: 2h → 5min = $100 saved per incident
 **Situația actuală:**
 
 ```
-Railway bill:
+legacy hosting bill:
 → Backend: $10/month
 → Voice: $20/month
 → Database: $5/month

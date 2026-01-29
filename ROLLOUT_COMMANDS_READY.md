@@ -10,7 +10,7 @@
 
 ### Backend Health
 ```bash
-curl -sS https://whats-upp-production.up.railway.app/health | jq
+curl -sS https://whats-app-ompro.ro/health | jq
 ```
 **Expected**: `status: "healthy"`, `firestore.status: "connected"`, `accounts.max: 30`
 
@@ -202,7 +202,7 @@ Firebase Console → Firestore → threads/{threadId}/messages
 
 3. **Expected Result**:
    - Firestore: message with direction="outbound", status="sent"/"delivered"
-   - Railway logs show send success
+   - legacy hosting logs show send success
 
 **Evidence**:
 - [ ] Screenshot: Sent message in app
@@ -218,13 +218,13 @@ firebase functions:log --only whatsappProxySend --lines 200
 ---
 
 ### TEST 5: Restart Safety (No Lost Conversations)
-1. **Trigger Railway Restart**:
-   - Railway Dashboard → whats-upp-production → **Restart**
+1. **Trigger legacy hosting Restart**:
+   - legacy hosting Dashboard → whats-upp-production → **Restart**
    - Wait ~60 seconds
 
-2. **Verify Railway Health**:
+2. **Verify legacy hosting Health**:
    ```bash
-   curl -sS https://whats-upp-production.up.railway.app/health | jq '.status'
+   curl -sS https://whats-app-ompro.ro/health | jq '.status'
    ```
    **Expected**: `"healthy"`
 
@@ -246,7 +246,7 @@ firebase functions:log --only whatsappProxySend --lines 200
    - ✅ New messages work
 
 **Evidence**:
-- [ ] Railway health after restart: PASS/FAIL
+- [ ] legacy hosting health after restart: PASS/FAIL
 - [ ] Auto-reconnect: PASS/FAIL
 - [ ] Messages preserved: PASS/FAIL
 
@@ -337,7 +337,7 @@ firebase functions:log --only clientCrmAsk --lines 200
 ## 📊 FINAL CHECKLIST
 
 ### Infrastructure
-- [ ] Railway backend: HEALTHY
+- [ ] legacy hosting backend: HEALTHY
 - [ ] Firebase Functions: all deployed us-central1
 - [ ] Old v1 "whatsapp" function: DELETED
 - [ ] Flutter region: us-central1 (fixed)

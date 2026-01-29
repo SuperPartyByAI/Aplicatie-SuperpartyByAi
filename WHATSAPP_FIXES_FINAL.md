@@ -49,7 +49,7 @@
 **File:** `functions/whatsappProxy.js`
 - Logs upstream status + short error ID
 - Returns: `{ code: "UPSTREAM_HTTP_<status>", requestId, hint }`
-- Forwards requestId to Railway
+- Forwards requestId to legacy hosting
 
 ### 3. Backend Robust Regenerate
 **File:** `whatsapp-backend/server.js`
@@ -76,12 +76,12 @@
 # Expected: No spam loop, cooldown after failure
 
 # 2. Test PASSIVE Mode
-# Check Railway logs for PASSIVE mode
+# Check legacy hosting logs for PASSIVE mode
 # Call regenerate QR → Should return 503
 # Expected: Structured error with requestId
 
 # 3. Test Connection Close 515
-# Monitor Railway logs during pairing
+# Monitor legacy hosting logs during pairing
 # Expected: Full error object logged, account preserved
 
 # 4. Test Events Page
@@ -94,7 +94,7 @@
 ```bash
 # 1. Run smoke test
 cd whatsapp-backend
-RAILWAY_URL=https://whats-upp-production.up.railway.app \
+LEGACY_URL=https://whats-app-ompro.ro \
 ADMIN_TOKEN=your-token \
 node test-smoke-reproduction.js
 
@@ -103,12 +103,12 @@ node test-smoke-reproduction.js
 # 📋 Request IDs for correlation: [list of IDs]
 
 # 2. Check logs for requestId correlation
-# Flutter → Functions → Railway
+# Flutter → Functions → legacy hosting
 # All should have same requestId
 
 # 3. Verify no spam loops
 # Check Flutter logs for "cooldown active" messages
-# Check Railway logs for duplicate regenerate requests
+# Check legacy hosting logs for duplicate regenerate requests
 
 # 4. Verify PASSIVE mode handling
 # If backend in PASSIVE mode, regenerate should return 503
@@ -119,7 +119,7 @@ node test-smoke-reproduction.js
 
 ### Health Check
 ```bash
-curl -sS https://whats-upp-production.up.railway.app/health | jq '.status, .waMode, .lock.owner'
+curl -sS https://whats-app-ompro.ro/health | jq '.status, .waMode, .lock.owner'
 ```
 **Expected:** `"healthy"`, `"active"` (or `"passive"`), lock owner ID
 

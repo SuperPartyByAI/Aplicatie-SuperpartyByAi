@@ -2,20 +2,21 @@
 
 **IMPORTANT:** This file contains ONLY variable names and metadata. NO actual values.
 
-## Railway Services
+## Hetzner Services
 
 ### whatsapp-backend (Production)
 
-**Service:** `whats-upp-production.up.railway.app`  
-**Environment:** Production
+**Service:** `https://whats-app-ompro.ro`  
+**Environment:** Production  
+**Host:** Hetzner VPS (37.27.34.179)
 
 | Variable Name                   | Stored In         | Used By                    | Owner                  | Rotation Period |
 | ------------------------------- | ----------------- | -------------------------- | ---------------------- | --------------- |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | Railway Variables | whatsapp-backend           | Firebase Project Owner | 90 days         |
-| `ADMIN_TOKEN`                   | Railway Variables | whatsapp-backend           | Project Owner          | 60 days         |
-| `OPENAI_API_KEY`                | Railway Variables | whatsapp-backend (if used) | OpenAI Account Owner   | 90 days         |
-| `TWILIO_ACCOUNT_SID`            | Railway Variables | whatsapp-backend (if used) | Twilio Account Owner   | N/A             |
-| `TWILIO_AUTH_TOKEN`             | Railway Variables | whatsapp-backend (if used) | Twilio Account Owner   | 90 days         |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | systemd Environment | whatsapp-backend           | Firebase Project Owner | 90 days         |
+| `ADMIN_TOKEN`                   | systemd Environment | whatsapp-backend           | Project Owner          | 60 days         |
+| `OPENAI_API_KEY`                | systemd Environment | whatsapp-backend (if used) | OpenAI Account Owner   | 90 days         |
+| `TWILIO_ACCOUNT_SID`            | systemd Environment | whatsapp-backend (if used) | Twilio Account Owner   | N/A             |
+| `TWILIO_AUTH_TOKEN`             | systemd Environment | whatsapp-backend (if used) | Twilio Account Owner   | 90 days         |
 
 ### voice-backend (Production)
 
@@ -24,13 +25,13 @@
 
 | Variable Name         | Stored In         | Used By                  | Owner                    | Rotation Period |
 | --------------------- | ----------------- | ------------------------ | ------------------------ | --------------- |
-| `OPENAI_API_KEY`      | Railway Variables | voice-backend            | OpenAI Account Owner     | 90 days         |
-| `ELEVENLABS_API_KEY`  | Railway Variables | voice-backend            | ElevenLabs Account Owner | 90 days         |
-| `ELEVENLABS_VOICE_ID` | Railway Variables | voice-backend            | ElevenLabs Account Owner | N/A             |
-| `TWILIO_ACCOUNT_SID`  | Railway Variables | voice-backend            | Twilio Account Owner     | N/A             |
-| `TWILIO_AUTH_TOKEN`   | Railway Variables | voice-backend            | Twilio Account Owner     | 90 days         |
-| `TWILIO_PHONE_NUMBER` | Railway Variables | voice-backend            | Twilio Account Owner     | N/A             |
-| `COQUI_API_KEY`       | Railway Variables | voice-backend (fallback) | Coqui Account Owner      | 90 days         |
+| `OPENAI_API_KEY`      | systemd Environment | voice-backend            | OpenAI Account Owner     | 90 days         |
+| `ELEVENLABS_API_KEY`  | systemd Environment | voice-backend            | ElevenLabs Account Owner | 90 days         |
+| `ELEVENLABS_VOICE_ID` | systemd Environment | voice-backend            | ElevenLabs Account Owner | N/A             |
+| `TWILIO_ACCOUNT_SID`  | systemd Environment | voice-backend            | Twilio Account Owner     | N/A             |
+| `TWILIO_AUTH_TOKEN`   | Hetzner Variables | voice-backend            | Twilio Account Owner     | 90 days         |
+| `TWILIO_PHONE_NUMBER` | Hetzner Variables | voice-backend            | Twilio Account Owner     | N/A             |
+| `COQUI_API_KEY`       | Hetzner Variables | voice-backend (fallback) | Coqui Account Owner      | 90 days         |
 
 ## Firebase/GCP
 
@@ -46,10 +47,10 @@
 
 ### Authentication
 
-**Railway → Firebase:**
+**Hetzner → Firebase:**
 
 - Method: Service Account JSON
-- Variable: `FIREBASE_SERVICE_ACCOUNT_JSON` (Railway Variables)
+- Variable: `FIREBASE_SERVICE_ACCOUNT_JSON` (Hetzner Variables)
 - Service Account Email: `firebase-adminsdk-*@superparty-frontend.iam.gserviceaccount.com`
 - Roles Required:
   - Firestore Data Editor
@@ -71,7 +72,7 @@
 
 | Service      | Owner/Admin | Account Email | Notes                |
 | ------------ | ----------- | ------------- | -------------------- |
-| Railway      | TBD         | TBD           | Hosting platform     |
+| Hetzner      | TBD         | TBD           | Hosting platform     |
 | Firebase/GCP | TBD         | TBD           | Database & Functions |
 | Twilio       | TBD         | TBD           | Voice & SMS          |
 | OpenAI       | TBD         | TBD           | GPT-4o API           |
@@ -82,12 +83,12 @@
 
 **Implementation:** Hybrid (Disk + Firestore backup)
 
-### Railway (whatsapp-backend)
+### Hetzner (whatsapp-backend)
 
 - **Auth State:** Filesystem (useMultiFileAuthState)
 - **Sessions Path:** `/app/.baileys_auth` (ephemeral - needs Volume)
 - **Volume:** ❌ NOT CONFIGURED (P1 priority)
-- **Recommended:** Mount Railway Volume at `/data/.baileys_auth`
+- **Recommended:** Mount Hetzner Volume at `/data/.baileys_auth`
 - **ENV Variable:** `SESSIONS_PATH` (to be added)
 
 ### Firebase Functions (whatsappV4)
@@ -100,7 +101,7 @@
 ## Security Notes
 
 1. **Never commit secrets to repository**
-2. **Use Railway Variables / Firebase Config for all secrets**
+2. **Use Hetzner Variables / Firebase Config for all secrets**
 3. **Rotate credentials every 60-90 days**
 4. **Service accounts should have minimal required permissions**
 5. **Monitor for unauthorized access in GCP IAM logs**
@@ -110,7 +111,7 @@
 When rotating credentials:
 
 1. Generate new credential in service provider
-2. Update Railway Variables / Firebase Config
+2. Update Hetzner Variables / Firebase Config
 3. Wait for deployment to complete
 4. Verify service health
 5. Revoke old credential
@@ -120,4 +121,4 @@ When rotating credentials:
 
 - **Date:** 2025-12-31
 - **By:** Ona (AI Agent)
-- **Reason:** P0 fix - Railway crash loop due to invalid Firebase credentials
+- **Reason:** P0 fix - Hetzner crash loop due to invalid Firebase credentials

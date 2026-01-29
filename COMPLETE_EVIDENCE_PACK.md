@@ -2,7 +2,7 @@
 
 **Date:** 2026-01-17  
 **Branch:** `audit-whatsapp-30`  
-**Goal:** Complete read-only evidence of Flutter UI, Railway backend, and Firebase/Functions CRM
+**Goal:** Complete read-only evidence of Flutter UI, legacy hosting backend, and Firebase/Functions CRM
 
 ---
 
@@ -640,7 +640,7 @@ import '../core/config/env.dart';
 import '../core/errors/app_exception.dart';
 import '../core/utils/retry.dart';
 
-/// Service for interacting with Railway WhatsApp backend directly.
+/// Service for interacting with legacy hosting WhatsApp backend directly.
 class WhatsAppApiService {
   static final WhatsAppApiService _instance = WhatsAppApiService._internal();
   factory WhatsAppApiService() => _instance;
@@ -719,12 +719,12 @@ class WhatsAppApiService {
     });
   }
 
-  /// Get list of WhatsApp accounts from Railway backend.
+  /// Get list of WhatsApp accounts from legacy hosting backend.
   Future<Map<String, dynamic>> getAccounts() async {
     // ... (GET /api/whatsapp/accounts)
   }
 
-  /// Add a new WhatsApp account via Railway backend.
+  /// Add a new WhatsApp account via legacy hosting backend.
   Future<Map<String, dynamic>> addAccount({
     required String name,
     required String phone,
@@ -774,16 +774,16 @@ grep -RIn "extractEventFromThread|clientCrmAsk|getClientProfile|clients/|evenime
 
 ---
 
-### 6) Railway Backend Sanity
+### 6) legacy hosting Backend Sanity
 
 **Files:**
 ```
-whatsapp-backend/railway.toml ✅
+whatsapp-backend/legacy hosting.toml ✅
 whatsapp-backend/package.json ✅
 whatsapp-backend/server.js ✅ (188646 bytes, syntax OK)
 ```
 
-**railway.toml:**
+**legacy hosting.toml:**
 ```
 [build]
 builder = "NIXPACKS"
@@ -858,8 +858,8 @@ firebase deploy --only functions:aggregateClientStats,functions:whatsappExtractE
 firebase deploy --only functions
 ```
 
-**Railway:**
-- No code changes needed (backend CRM functions are Firebase Functions, not Railway)
+**legacy hosting:**
+- No code changes needed (backend CRM functions are Firebase Functions, not legacy hosting)
 - Ensure env vars: `SESSIONS_PATH=/app/sessions`, `FIREBASE_SERVICE_ACCOUNT_JSON=...`
 
 ---

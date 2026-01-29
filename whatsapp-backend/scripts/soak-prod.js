@@ -1,6 +1,6 @@
 const https = require('https');
 
-const API_URL = 'https://whats-upp-production.up.railway.app';
+const API_URL = process.env.BAILEYS_BASE_URL || 'http://37.27.34.179:8080';
 const DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
 const HEARTBEAT_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 

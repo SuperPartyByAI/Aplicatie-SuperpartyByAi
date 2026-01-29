@@ -2,9 +2,9 @@
 
 ## Critical Endpoints to Monitor
 
-### 1. WhatsApp Backend (Railway)
+### 1. WhatsApp Backend (legacy hosting)
 
-- **URL**: `https://aplicatie-superpartybyai-production-d067.up.railway.app/health`
+- **URL**: `https://whats-app-ompro.ro/health`
 - **Method**: GET
 - **Expected**: 200 OK
 - **Check Interval**: 30 seconds
@@ -26,9 +26,9 @@
 - **Check Interval**: 60 seconds
 - **Alert**: Email/Slack when down
 
-### 4. Railway v7 Monitor
+### 4. legacy hosting v7 Monitor
 
-- **URL**: `https://v7-singularity-monitor-production.up.railway.app/health`
+- **URL**: `https://whats-app-ompro.ro/health`
 - **Method**: GET
 - **Expected**: 200 OK
 - **Check Interval**: 30 seconds

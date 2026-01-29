@@ -8,7 +8,7 @@
 
 ---
 
-## Evidence from Railway Logs
+## Evidence from legacy hosting Logs
 
 ### ✅ **Old 401-Looping Account DELETED**
 
