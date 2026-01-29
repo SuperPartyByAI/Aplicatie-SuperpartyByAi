@@ -1089,12 +1089,14 @@ async function addAccountHandler(req, res) {
         });
       }
 
-      // Forward to backend with normalized values
+      // Forward to backend with normalized values (include Authorization so backend can verify)
       const backendUrl = `${backendBaseUrl}/api/whatsapp/add-account`;
+      const authHeader = req.headers.authorization || req.headers.Authorization;
       const response = await getForwardRequest()(backendUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(authHeader ? { Authorization: authHeader } : {}),
         },
       }, {
         name: nameValidation.normalized,
