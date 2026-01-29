@@ -3502,6 +3502,7 @@ async function backfillAccountMessages(accountId) {
   try {
     console.log(`📚 [${accountId}] Starting backfill for recent threads...`);
 
+    // Backfill NEVER creates threads; only fills messages for existing ones.
     // Get recent active threads for this account (ordered by lastMessageAt desc)
     const threadsSnapshot = await db
       .collection('threads')
@@ -3511,7 +3512,7 @@ async function backfillAccountMessages(accountId) {
       .get();
 
     if (threadsSnapshot.empty) {
-      console.log(`📚 [${accountId}] No threads found for backfill`);
+      console.log(`📚 [${accountId}] No threads found for backfill (backfill never creates threads; re-pair to create)`);
       return { success: true, threads: 0, messages: 0 };
     }
 
@@ -4986,15 +4987,15 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
     // History sync handler (ingest full conversation history on pairing/re-pair)
     const onHistorySync = async history => {
       try {
-        console.log(`📚 [${accountId}] messaging-history.set event received`);
-        
+        const { chats, contacts, messages } = history || {};
+        const nChats = !chats ? 0 : (Array.isArray(chats) ? chats.length : Object.keys(chats).length);
+        console.log(`📚 [${accountId}] messaging-history.set event received; history chats: ${nChats}`);
+
         if (!firestoreAvailable || !db) {
           console.log(`⚠️  [${accountId}] Firestore not available, skipping history sync`);
           return;
         }
 
-        const { chats, contacts, messages } = history || {};
-        
         let historyMessages = [];
         let historyChats = [];
 
@@ -5018,8 +5019,18 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
         // Create thread placeholders from history.chats so Inbox shows all chats
         // and backfill can fill them. Run before processing messages. Use raw chats
         // (array or object) so we preserve jid-as-key when Baileys uses object form.
-        if (chats && (Array.isArray(chats) ? chats.length : Object.keys(chats).length)) {
-          await ensureThreadsFromHistoryChats(accountId, chats);
+        let threadResult = { created: 0, skipped: 0, errors: 0 };
+        if (chats && nChats > 0) {
+          threadResult = await ensureThreadsFromHistoryChats(accountId, chats);
+        }
+        console.log(`📚 [${accountId}] messaging-history.set, Thread placeholders from history chats: ${threadResult.created} created.`);
+        if (threadResult.created === 0 && nChats > 0) {
+          const reason = threadResult.dryRun
+            ? 'dry run (HISTORY_SYNC_DRY_RUN)'
+            : (threadResult.skipped > 0 ? 'all existed or skipped' : 'errors during create');
+          console.log(`📚 [${accountId}] messaging-history.set, 0 created — reason: ${reason}.`);
+        } else if (nChats === 0) {
+          console.log(`📚 [${accountId}] messaging-history.set, 0 created — reason: history empty (no chats).`);
         }
 
         // Process messages in batches
@@ -8030,6 +8041,15 @@ app.post('/api/whatsapp/add-account', requireFirebaseAuth, accountLimiter, async
 
     console.log(`[${requestId}] Add account: accountId=${accountId}, instanceId=${instanceId}, waMode=${isActive ? 'active' : 'passive'}`);
 
+    // Ensure new account exists in Firestore immediately so GET /accounts includes it
+    // (overlay only applies to Firestore accounts). createConnection will merge later.
+    await saveAccountToFirestore(accountId, {
+      name,
+      phoneE164: canonicalPhoneNum || phone || null,
+      status: 'connecting',
+      createdAt: new Date().toISOString(),
+    });
+
     // Create connection (async, will emit QR later)
     createConnection(accountId, name, phone).catch(err => {
       console.error(`❌ [${accountId}] Failed to create:`, err.message);
@@ -9566,6 +9586,17 @@ app.delete('/api/whatsapp/accounts/:id', requireFirebaseAuth, accountLimiter, as
       }
     }
 
+    // Wipe session directory so re-add with same phone produces QR (no restored session)
+    try {
+      const sessionPath = path.join(authDir, accountId);
+      if (fs.existsSync(sessionPath)) {
+        fs.rmSync(sessionPath, { recursive: true, force: true });
+        console.log(`🗑️  [DELETE ${accountId}] Session directory removed (re-add will require QR)`);
+      }
+    } catch (wipeErr) {
+      console.error(`⚠️  [DELETE ${accountId}] Session wipe failed:`, wipeErr.message);
+    }
+
     console.log(`✅ [DELETE ${accountId}] Account deletion completed successfully`);
     res.json({ 
       success: true, 
@@ -10623,15 +10654,15 @@ async function restoreAccount(accountId, data) {
     // History sync handler (ingest full conversation history on pairing/re-pair)
     const onHistorySync = async history => {
       try {
-        console.log(`📚 [${accountId}] messaging-history.set event received (restoreAccount)`);
-        
+        const { chats, contacts, messages } = history || {};
+        const nChats = !chats ? 0 : (Array.isArray(chats) ? chats.length : Object.keys(chats).length);
+        console.log(`📚 [${accountId}] messaging-history.set event received (restoreAccount); history chats: ${nChats}`);
+
         if (!firestoreAvailable || !db) {
           console.log(`⚠️  [${accountId}] Firestore not available, skipping history sync`);
           return;
         }
 
-        const { chats, contacts, messages } = history || {};
-        
         let historyMessages = [];
         let historyChats = [];
 
@@ -10655,8 +10686,18 @@ async function restoreAccount(accountId, data) {
         // Create thread placeholders from history.chats so Inbox shows all chats
         // and backfill can fill them. Run before processing messages. Use raw chats
         // (array or object) so we preserve jid-as-key when Baileys uses object form.
-        if (chats && (Array.isArray(chats) ? chats.length : Object.keys(chats).length)) {
-          await ensureThreadsFromHistoryChats(accountId, chats);
+        let threadResult = { created: 0, skipped: 0, errors: 0 };
+        if (chats && nChats > 0) {
+          threadResult = await ensureThreadsFromHistoryChats(accountId, chats);
+        }
+        console.log(`📚 [${accountId}] messaging-history.set, Thread placeholders from history chats: ${threadResult.created} created.`);
+        if (threadResult.created === 0 && nChats > 0) {
+          const reason = threadResult.dryRun
+            ? 'dry run (HISTORY_SYNC_DRY_RUN)'
+            : (threadResult.skipped > 0 ? 'all existed or skipped' : 'errors during create');
+          console.log(`📚 [${accountId}] messaging-history.set, 0 created — reason: ${reason}.`);
+        } else if (nChats === 0) {
+          console.log(`📚 [${accountId}] messaging-history.set, 0 created — reason: history empty (no chats).`);
         }
 
         // Process messages in batches
