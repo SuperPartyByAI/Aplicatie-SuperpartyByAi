@@ -278,12 +278,12 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
       // Only set clientJid if it's not already in threadOverrides (preserve existing)
       clientJid: threadOverrides.clientJid || resolvedClientJid || null,
       isLid: isLid || false, // Indexable field for filtering @lid threads in queries
-      // CRITICAL FIX: Only update lastMessageText and lastMessageAt for INBOUND messages
-      // For outbound messages, preserve the existing lastMessageText/lastMessageAt (last received message)
-      ...(isInbound && tsClientAt ? { lastMessageAt: tsClientAt } : {}),
-      // CRITICAL: Also set lastMessageAtMs (int milliseconds) for Flutter sorting
-      // Flutter threadTimeMs() prioritizes lastMessageAtMs over lastMessageAt
-      ...(isInbound && tsClientMs ? { lastMessageAtMs: tsClientMs } : {}),
+      // CRITICAL: Always set lastMessageAt/lastMessageAtMs for BOTH inbound and outbound.
+      // Inbox query uses orderBy('lastMessageAt'). Firestore excludes docs missing the orderBy
+      // field; threads created/updated only via outbound would otherwise never appear in Inbox.
+      ...(tsClientAt ? { lastMessageAt: tsClientAt } : {}),
+      ...(tsClientMs != null ? { lastMessageAtMs: tsClientMs } : {}),
+      // Only update lastMessageText/lastMessagePreview for INBOUND (preserve last received for display).
       ...(isInbound ? { lastMessagePreview: preview } : {}), // Keep for backward compatibility
       ...(isInbound ? { lastMessageText: preview } : {}), // New field name (preferred by frontend)
       // CRITICAL FIX: Set lastMessageDirection consistently for both inbound and outbound
@@ -323,7 +323,7 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
         console.log(`📥 [${accountIdShort}] Updated thread ${threadIdShort} (INBOUND): lastMessageAt=${tsClientAt ? 'Timestamp' : 'null'}, lastMessageText=null (no preview)`);
       }
     } else {
-      console.log(`📤 [${accountIdShort}] Thread ${threadIdShort} (OUTBOUND): lastMessageText/lastMessageAt NOT updated (preserving last received message)`);
+      console.log(`📤 [${accountIdShort}] Thread ${threadIdShort} (OUTBOUND): lastMessageAt updated for sort; lastMessageText preserved (last received)`);
     }
   } else {
     // No real content or protocol-only message - skip thread update but still log for debugging
