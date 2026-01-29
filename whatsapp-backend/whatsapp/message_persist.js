@@ -106,6 +106,10 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
   if (!db || !opts?.accountId || !opts.threadId || !msg?.key) return null;
 
   const { accountId, clientJid, threadId, direction } = opts;
+  if (typeof threadId !== 'string' || threadId.includes('[object Object]') || threadId.includes('[obiect Obiect]')) {
+    console.warn(`[message_persist] Skipping write: invalid threadId (accountId=${accountId ? `${accountId.slice(0, 8)}...` : 'null'})`);
+    return null;
+  }
   const { extraFields = {}, threadOverrides = {}, messageIdOverride } = options;
   const { body, type } = extractBodyAndType(msg);
   const ts = computeTsClient({ messageTimestamp: msg?.messageTimestamp });
@@ -155,10 +159,14 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
       };
     }
   }
-  // CRITICAL: Use message timestamp (not serverTimestamp) for lastMessageAt to preserve correct ordering
-  // Only fallback to current time if messageTimestamp is completely missing (should be rare)
-  const tsClientAt = ts?.tsClientAt || null; // Don't use Timestamp.now() - prefer null if timestamp missing
-  const tsClientMs = ts?.tsClientMs ?? null; // Don't use Date.now() - prefer null if timestamp missing
+  // CRITICAL: Use message timestamp (not serverTimestamp) for lastMessageAt to preserve correct ordering.
+  // orderBy('tsClient') excludes docs with null tsClient, so we MUST set a fallback to avoid "missing" messages in chat.
+  let tsClientAt = ts?.tsClientAt || null;
+  let tsClientMs = ts?.tsClientMs ?? null;
+  if (tsClientAt == null && admin?.firestore?.Timestamp) {
+    tsClientAt = admin.firestore.Timestamp.now();
+    tsClientMs = tsClientMs ?? Date.now();
+  }
 
   const stable = computeStableIds(msg);
   // CRITICAL: Prefer msg.key.id as doc.id for stability and backfill compatibility

@@ -74,6 +74,11 @@ function forwardRequest(url, options, body = null) {
 
 /**
  * Firestore trigger: Process outbox documents when created
+ *
+ * DISABLED BY DEFAULT. The WhatsApp backend (Hetzner) outbox worker processes
+ * Firestore `outbox` directly (status=queued, nextAttemptAt<=now). This trigger
+ * would POST to /api/whatsapp/send-message but lacks backend auth, causing 401
+ * and failed delivery. Set OUTBOX_PROCESSOR_ENABLED=true only if you fix auth.
  */
 async function processOutboxHandler(event) {
   const snapshot = event.data;
@@ -82,37 +87,13 @@ async function processOutboxHandler(event) {
     return;
   }
 
-  if (process.env.OUTBOX_PROCESSOR_ENABLED === 'false') {
-    console.log('[processOutbox] OUTBOX_PROCESSOR_ENABLED=false, skipping');
+  if (process.env.OUTBOX_PROCESSOR_ENABLED !== 'true') {
+    console.log('[processOutbox] Disabled (use OUTBOX_PROCESSOR_ENABLED=true to enable). Backend outbox worker processes outbox.');
     return;
   }
 
   const outboxDoc = snapshot.data();
   const requestId = event.params.requestId || snapshot.id;
-
-  // #region agent log
-  const fs = require('fs');
-  try {
-    fs.appendFileSync(
-      '/Users/universparty/.cursor/debug.log',
-      JSON.stringify({
-        location: 'processOutbox.js:98',
-        message: 'processOutbox triggered',
-        data: {
-          requestId,
-          status: outboxDoc.status,
-          hasThreadId: !!outboxDoc.threadId,
-          hasAccountId: !!outboxDoc.accountId,
-        },
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        hypothesisId: 'H5',
-      }) + '\n'
-    );
-  } catch (e) {
-    /* ignore */
-  }
-  // #endregion
 
   console.log(`[processOutbox] Processing outbox doc: ${requestId}, status=${outboxDoc.status}`);
 
@@ -178,24 +159,6 @@ async function processOutboxHandler(event) {
     );
 
     console.log(`[processOutbox] Backend response: status=${response.statusCode}`);
-
-    // #region agent log
-    try {
-      fs.appendFileSync(
-        '/Users/universparty/.cursor/debug.log',
-        JSON.stringify({
-          location: 'processOutbox.js:172',
-          message: 'Backend response',
-          data: { requestId, statusCode: response.statusCode, body: response.body },
-          timestamp: Date.now(),
-          sessionId: 'debug-session',
-          hypothesisId: 'H7',
-        }) + '\n'
-      );
-    } catch (e) {
-      /* ignore */
-    }
-    // #endregion
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       // Success - update status to 'sent'

@@ -12,6 +12,7 @@ const admin = require('firebase-admin');
 const https = require('https');
 const http = require('http');
 const { getBackendBaseUrl } = require('./lib/backend-url');
+const { ADMIN_PHONE, isAdminPhone, normalizePhone } = require('./lib/admin_phone');
 
 // Super admin email
 const SUPER_ADMIN_EMAIL = 'ursache.andrei1995@gmail.com';
@@ -19,12 +20,6 @@ const SUPER_ADMIN_EMAIL = 'ursache.andrei1995@gmail.com';
 // Backend base URL is resolved lazily via lib/backend-url.js
 
 const REQUEST_TIMEOUT_MS = 30000; // 30 seconds
-
-// Get admin emails from environment
-function getAdminEmails() {
-  const envEmails = process.env.ADMIN_EMAILS || '';
-  return envEmails.split(',').map(e => e.trim()).filter(Boolean);
-}
 
 // Extract Firebase ID token from request
 function extractIdToken(req) {
@@ -72,15 +67,15 @@ async function verifyAppCheckToken(token) {
   }
 }
 
-// Check if user is employee
+// Check if user is employee: SUPER_ADMIN_EMAIL only OR staffProfiles/{uid} exists. No ADMIN_EMAILS.
 async function isEmployee(uid, email) {
-  const adminEmails = [SUPER_ADMIN_EMAIL, ...getAdminEmails()];
-  if (adminEmails.includes(email)) {
+  const norm = (e) => (e || '').trim().toLowerCase();
+  if (norm(email) === norm(SUPER_ADMIN_EMAIL)) {
     return {
       isEmployee: true,
       role: 'admin',
       isGmOrAdmin: true,
-      isSuperAdmin: email === SUPER_ADMIN_EMAIL,
+      isSuperAdmin: true,
     };
   }
 
@@ -338,6 +333,51 @@ function getForwardRequest() {
   return exports._forwardRequest;
 }
 
+/**
+ * GET /whatsappWhoAmI — Debug "who am I" (auth + role summary).
+ * Requires Firebase ID token (same as other proxy endpoints). No secrets in response.
+ */
+async function whatsappWhoAmIHandler(req, res) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ success: false, error: 'method_not_allowed', message: 'Only GET allowed' });
+  }
+  const requestId = req.headers['x-request-id'] || req.headers['x-correlation-id'] || `whoami_${Date.now()}`;
+  console.log(`[whatsappWhoAmI] requestId=${requestId}`);
+
+  const decoded = await requireAuth(req, res);
+  if (!decoded) return;
+
+  const uid = decoded.uid;
+  const email = decoded.email || null;
+  const claims = decoded || {};
+  const claimsKeys = Object.keys(claims).filter(
+    (k) => !['iat', 'exp', 'aud', 'iss', 'sub', 'auth_time', 'user_id', 'firebase'].includes(k)
+  );
+  const isAdmin = (email || '').trim().toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+
+  let staffProfileExists = false;
+  let staffProfileRole = null;
+  try {
+    const staffSnap = await admin.firestore().collection('staffProfiles').doc(uid).get();
+    staffProfileExists = staffSnap.exists;
+    if (staffProfileExists && staffSnap.data()) {
+      staffProfileRole = staffSnap.data().role ?? null;
+    }
+  } catch (e) {
+    console.warn('[whatsappWhoAmI] staffProfiles read error:', e.message);
+  }
+
+  return res.status(200).json({
+    uid,
+    email,
+    isAdmin,
+    isEmployee: staffProfileExists,
+    claimsKeys,
+    staffProfileExists,
+    staffProfileRole,
+  });
+}
+
 // Check if user is employee (for send endpoint)
 async function requireEmployee(req, res) {
   const decoded = await requireAuth(req, res);
@@ -527,6 +567,20 @@ async function sendHandler(req, res) {
       const latestThreadDoc = await transaction.get(threadRef);
       const latestThreadData = latestThreadDoc.data();
 
+      // Duplicate guard (transactional): same text + outbound + within 2s → skip create
+      try {
+        const lastText = (latestThreadData?.lastMessageText || latestThreadData?.lastMessagePreview || '').trim();
+        const lastDir = (latestThreadData?.lastMessageDirection || '').toLowerCase();
+        const lastAt = latestThreadData?.lastMessageAt;
+        let lastMs = null;
+        if (lastAt && typeof lastAt.toMillis === 'function') lastMs = lastAt.toMillis();
+        else if (lastAt && typeof lastAt._seconds === 'number') lastMs = lastAt._seconds * 1000;
+        if (lastMs && lastText === text && (lastDir === 'outbound' || lastDir === 'out') && Date.now() - lastMs < 2000) {
+          duplicate = true;
+          return;
+        }
+      } catch (_) { /* ignore */ }
+
       // Write 1: Set ownerUid if needed (atomic)
       if (shouldSetOwner && !latestThreadData?.ownerUid) {
         transaction.update(threadRef, {
@@ -549,6 +603,7 @@ async function sendHandler(req, res) {
         nextAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         createdByUid: uid,
+        clientMessageId,
       };
 
       transaction.set(outboxRef, outboxData);
@@ -668,7 +723,9 @@ async function getAccountsHandler(req, res) {
         },
       });
     } catch (error) {
+      const isTimeout = /timeout|ETIMEDOUT|timed out/i.test(String(error.message || error.code || ''));
       console.error('[whatsappProxy/getAccounts] Backend request failed:', error.message);
+      if (isTimeout) console.error('[whatsappProxy/getAccounts] timeout');
       console.error('[whatsappProxy/getAccounts] Error stack:', error.stack);
       return res.status(502).json({
         success: false,
@@ -694,6 +751,13 @@ async function getAccountsHandler(req, res) {
     }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
+      const body = response.body;
+      const waMode = body && typeof body === 'object' ? body.waMode : undefined;
+      const accountsCount = (body && Array.isArray(body.accounts) ? body.accounts.length : 0);
+      console.log(`[whatsappProxy/getAccounts] success | accountsCount=${accountsCount} | waMode=${waMode ?? 'n/a'}`);
+      if (waMode === 'passive') {
+        console.log('[whatsappProxy/getAccounts] BACKEND PASSIVE – no sync until active. Set backend URL to Hetzner (WHATSAPP_BACKEND_BASE_URL).');
+      }
       return res.status(response.statusCode).json(response.body);
     }
 
@@ -793,20 +857,37 @@ async function getAccountsStaffHandler(req, res) {
     }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      // Sanitize response: remove sensitive data (QR codes, pairing codes)
       const sanitizedBody = { ...response.body };
       if (sanitizedBody.accounts && Array.isArray(sanitizedBody.accounts)) {
-        sanitizedBody.accounts = sanitizedBody.accounts.map((account) => {
-          const sanitized = { ...account };
-          // Remove sensitive fields
-          delete sanitized.qr;
-          delete sanitized.qrCode;
-          delete sanitized.pairingCode;
-          delete sanitized.pairing_code;
-          delete sanitized.pairingUrl;
-          delete sanitized.pairing_url;
-          return sanitized;
+        const before = sanitizedBody.accounts.length;
+        const sanitized = sanitizedBody.accounts.map((account) => {
+          const s = { ...account };
+          delete s.qr;
+          delete s.qrCode;
+          delete s.pairingCode;
+          delete s.pairing_code;
+          delete s.pairingUrl;
+          delete s.pairing_url;
+          return s;
         });
+        const filtered = sanitized.filter((a) => {
+          const match = isAdminPhone(a.phone || a.phoneNumber || a.msisdn);
+          if (match) {
+            const aid = a.id || a.accountId || '?';
+            const ph = normalizePhone(a.phone || a.phoneNumber || a.msisdn || '');
+            const last4 = ph.length >= 4 ? ph.slice(-4) : '????';
+            console.log(`[getAccountsStaff] Filtered admin-only account: accountId=${aid}, phoneLast4=${last4}`);
+          }
+          return !match;
+        });
+        sanitizedBody.accounts = filtered;
+        console.log(`[getAccountsStaff] Accounts before=${before} after=${filtered.length} (excluded admin phone ${ADMIN_PHONE})`);
+      }
+      const waMode = sanitizedBody.waMode;
+      const accountsCount = (sanitizedBody.accounts || []).length;
+      console.log(`[whatsappProxy/getAccountsStaff] success | accountsCount=${accountsCount} | waMode=${waMode ?? 'n/a'}`);
+      if (waMode === 'passive') {
+        console.log('[whatsappProxy/getAccountsStaff] BACKEND PASSIVE – no sync until active. WHATSAPP_BACKEND_BASE_URL → Hetzner.');
       }
       return res.status(response.statusCode).json(sanitizedBody);
     }
@@ -838,7 +919,9 @@ async function getAccountsStaffHandler(req, res) {
       ...response.body,
     });
   } catch (error) {
+    const isTimeout = /timeout|ETIMEDOUT|timed out/i.test(String(error.message || error.code || ''));
     console.error('[whatsappProxy/getAccountsStaff] Error:', error.message);
+    if (isTimeout) console.error('[whatsappProxy/getAccountsStaff] timeout');
     return res.status(500).json({
       success: false,
       error: 'internal_error',
@@ -1151,9 +1234,9 @@ async function deleteAccountHandler(req, res) {
 
 /**
  * POST /whatsappProxyBackfillAccount handler
- * 
+ *
  * Trigger backfill for a WhatsApp account via backend.
- * Requires super-admin authentication.
+ * RBAC: Employee or super-admin (so staff can run backfill from Inbox Angajați).
  */
 async function backfillAccountHandler(req, res) {
   if (req.method !== 'POST') {
@@ -1165,9 +1248,8 @@ async function backfillAccountHandler(req, res) {
   }
 
   try {
-    // Require super-admin auth
-    const isSuperAdmin = await requireSuperAdmin(req, res);
-    if (!isSuperAdmin) return; // Response already sent (401/403)
+    const employeeInfo = await requireEmployee(req, res);
+    if (!employeeInfo) return; // Response already sent (401/403)
 
     // Lazy-load backend base URL
     const backendBaseUrl = getBackendBaseUrl();
@@ -1297,6 +1379,8 @@ exports.getAccountsHandler = getAccountsHandler;
 
 // Export staff handler
 exports.getAccountsStaffHandler = getAccountsStaffHandler;
+
+exports.whatsappWhoAmIHandler = whatsappWhoAmIHandler;
 
 exports.getThreads = onRequest(
   {

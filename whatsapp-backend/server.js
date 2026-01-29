@@ -284,6 +284,18 @@ function buildCanonicalThreadId(accountId, canonicalKey, phoneDigits = null) {
 }
 
 /**
+ * Ensure value is a valid JID string. Prevents [object Object] in threadIds.
+ * @param {*} value - remoteJid or similar from msg.key
+ * @returns {string|null}
+ */
+function ensureJidString(value) {
+  if (value == null) return null;
+  const s = typeof value === 'string' ? value.trim() : String(value);
+  if (!s || s === '[object Object]' || s.includes('[object Object]') || s === '[obiect Obiect]' || s.includes('[obiect Obiect]')) return null;
+  return s;
+}
+
+/**
  * Find existing thread by phone digits/E164 to avoid duplicates
  * @param {string} accountId - Account ID
  * @param {string} phoneDigits - Phone digits (without +)
@@ -1023,18 +1035,18 @@ function validateCompleteMessage(text, minLength, maxLength) {
 async function maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType }) {
   const startTime = Date.now();
   const messageId = msg?.key?.id;
-  const remoteJid = msg?.key?.remoteJid;
+  const remoteJid = ensureJidString(msg?.key?.remoteJid);
   const fromMe = msg?.key?.fromMe === true;
   const isGroup = remoteJid?.endsWith('@g.us') === true;
   
   // Generate trace ID for this request
   const traceId = messageId || `trace_${Date.now()}_${Math.random().toString(36).substring(7)}`;
   
-  // Canonicalize client key and extract phone info
+  // Canonicalize client key and extract phone info (pass string only; canonicalClientKey returns null for non-string)
   const { canonicalKey, phoneDigits, phoneE164 } = await canonicalClientKey(remoteJid, accountId);
   const canonicalThreadId = canonicalKey ? buildCanonicalThreadId(accountId, canonicalKey, phoneDigits) : null;
   
-  // Use canonical thread ID, fallback to saved threadId or legacy format
+  // Use canonical thread ID, fallback to saved threadId or legacy format (never [object Object])
   let threadId = canonicalThreadId || saved?.threadId || (remoteJid ? `${accountId}__${remoteJid}` : null);
   const clientJid = remoteJid;
   
@@ -1815,10 +1827,11 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
           // OPTIMIZATION: Trigger immediate fetch when historySyncNotification is received
           // This reduces latency by fetching messages immediately instead of waiting for periodic sync
           // Guardrails: debounce/throttle to avoid overloading (max 1 fetch per 10s per thread)
-          if (!isFromMe && protocolMsg && protocolMsg.type === 5) {
+          const fromSafe = ensureJidString(from);
+          if (!isFromMe && protocolMsg && protocolMsg.type === 5 && fromSafe) {
             // protocolType=5 is historySyncNotification
             // Trigger immediate fetch for this thread to get new messages
-            const threadId = `${accountId}__${from}`;
+            const threadId = `${accountId}__${fromSafe}`;
             
             // Guardrail: Check if we recently fetched for this thread (debounce 10s)
             const immediateFetchKey = `${accountId}__${threadId}`;
@@ -1839,7 +1852,7 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
                 immediateFetchTimestamps.set(immediateFetchKey, now);
                 
                 // Fire fetch in background (non-blocking)
-                fetchMessagesFromWA(sock, from, 10, { db, accountId })
+                fetchMessagesFromWA(sock, fromSafe, 10, { db, accountId })
                   .then(messages => {
                     immediateFetchInFlight.delete(immediateFetchKey);
                     if (messages && messages.length > 0) {
@@ -1875,8 +1888,15 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
           if (!isFromMe && isProtocolHistorySync(msg)) {
             // historySyncNotification (protocolType=5) - skip saving as message
             // We already triggered immediate fetch above, so just skip message persistence
-            console.log(`⏭️  [${hashForLog(accountId)}] Skipping protocol message (historySyncNotification) - not saving as real message: msgId=${hashForLog(messageId)} thread=${hashForLog(`${accountId}__${from}`)}`);
+            console.log(`⏭️  [${hashForLog(accountId)}] Skipping protocol message (historySyncNotification) - not saving as real message: msgId=${hashForLog(messageId)} thread=${hashForLog(fromSafe ? `${accountId}__${fromSafe}` : 'invalid-jid')}`);
             continue; // Skip to next message in batch
+          }
+
+          // Skip persisting outbound (fromMe): already saved by proxy (optimistic) + outbox worker (sent).
+          // Persisting again would create a duplicate doc (waMessageId) and show the same message 2–3x.
+          if (isFromMe) {
+            console.log(`⏭️  [${hashForLog(accountId)}] Skipping persist for outbound (fromMe) msgId=${hashForLog(messageId)} – already from proxy+worker`);
+            continue;
           }
 
           let saved = null;
@@ -2979,8 +2999,12 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       return null;
     }
 
-    const from = msg.key.remoteJid;
-    
+    const from = ensureJidString(msg.key.remoteJid);
+    if (!from) {
+      console.warn(`[${hashForLog(accountId)}] Skipping message: remoteJid invalid or [object Object]`);
+      return null;
+    }
+
     // Canonicalize thread ID to avoid duplicates
     const { canonicalKey, phoneDigits, phoneE164 } = await canonicalClientKey(from, accountId);
     const canonicalThreadId = canonicalKey ? buildCanonicalThreadId(accountId, canonicalKey, phoneDigits) : null;
@@ -3166,6 +3190,95 @@ function convertLongToNumber(value) {
   return Number(value) || 0;
 }
 
+/**
+ * Create thread placeholders from history.chats so we have threads for every chat
+ * even when no messages are saved (all skipped). Enables Inbox to show all chats
+ * and backfill to fill them later.
+ * @param {string} accountId
+ * @param {Array<{ id?: string; jid?: string; name?: string }>} historyChats
+ * @returns {{ created: number; skipped: number; errors: number }}
+ */
+async function ensureThreadsFromHistoryChats(accountId, historyChats) {
+  if (!firestoreAvailable || !db || !accountId) {
+    return { created: 0, skipped: 0, errors: 0 };
+  }
+  if (HISTORY_SYNC_DRY_RUN) {
+    console.log(`🧪 [${hashForLog(accountId)}] DRY RUN: Would create thread placeholders from ${historyChats.length} chats`);
+    return { created: 0, skipped: 0, errors: 0, dryRun: true };
+  }
+  const BATCH_SIZE = 500;
+  let created = 0;
+  let skipped = 0;
+  let errors = 0;
+  let chats;
+  if (Array.isArray(historyChats)) {
+    chats = historyChats;
+  } else if (historyChats && typeof historyChats === 'object') {
+    chats = Object.entries(historyChats).map(([k, v]) => {
+      const o = (v && typeof v === 'object') ? { ...v } : {};
+      o.id = o.id ?? k;
+      o.jid = o.jid ?? k;
+      o.name = o.name ?? o.subject ?? null;
+      return o;
+    });
+  } else {
+    chats = [];
+  }
+  const seen = new Set();
+  for (let i = 0; i < chats.length; i += BATCH_SIZE) {
+    const batch = db.batch();
+    const chunk = chats.slice(i, i + BATCH_SIZE);
+    let added = 0;
+    for (const c of chunk) {
+      try {
+        const raw = c?.id ?? c?.jid ?? c?.key?.remoteJid;
+        const jid = ensureJidString(raw);
+        if (!jid || typeof jid !== 'string' || jid.trim() === '') {
+          skipped++;
+          continue;
+        }
+        const threadId = `${accountId}__${jid}`;
+        if (threadId.includes('[object Object]') || threadId.includes('[obiect Obiect]')) {
+          skipped++;
+          continue;
+        }
+        if (seen.has(threadId)) {
+          skipped++;
+          continue;
+        }
+        seen.add(threadId);
+        const ref = db.collection('threads').doc(threadId);
+        const now = admin.firestore.Timestamp.now();
+        const displayName = typeof c?.name === 'string' && c.name.trim() ? c.name.trim() : null;
+        batch.set(ref, {
+          accountId,
+          clientJid: jid,
+          updatedAt: now,
+          lastMessageAt: now,
+          lastMessageAtMs: now.toMillis(),
+          ...(displayName ? { displayName } : {}),
+        }, { merge: true });
+        added++;
+      } catch (e) {
+        errors++;
+      }
+    }
+    if (added > 0) {
+      try {
+        await batch.commit();
+        created += added;
+      } catch (e) {
+        console.error(`❌ [${hashForLog(accountId)}] ensureThreadsFromHistoryChats batch commit failed:`, e.message);
+        errors += added;
+      }
+    }
+  }
+  if (chats.length > 0) {
+    console.log(`📇 [${hashForLog(accountId)}] Thread placeholders from history chats: ${created} created, ${skipped} skipped, ${errors} errors`);
+  }
+  return { created, skipped, errors };
+}
+
 // Helper: Process messages in batch (for history sync)
 // Uses Firestore batch writes (max 500 ops per batch)
 async function saveMessagesBatch(accountId, messages, source = 'history') {
@@ -3187,7 +3300,12 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
         skipped++;
         continue;
       }
-      const from = msg.key.remoteJid;
+      const from = ensureJidString(msg.key.remoteJid);
+      if (!from) {
+        console.warn(`[${hashForLog(accountId)}] History sync: skipping message with invalid remoteJid (msgId=${msg?.key?.id ? hashForLog(msg.key.id) : 'no-id'})`);
+        skipped++;
+        continue;
+      }
       const threadId = `${accountId}__${from}`;
       const direction = msg.key.fromMe ? 'outbound' : 'inbound'; // Use 'inbound'/'outbound' for consistency with Flutter
       
@@ -3311,10 +3429,11 @@ async function saveContactsBatch(accountId, contacts) {
 
     for (const contact of batchContacts) {
       try {
-        if (!contact.id) continue;
+        const contactJid = ensureJidString(contact.id);
+        if (!contactJid) continue;
 
-        const contactRef = db.collection('contacts').doc(`${accountId}__${contact.id}`);
-        const rawJid = typeof contact.id === 'string' ? contact.id : '';
+        const contactRef = db.collection('contacts').doc(`${accountId}__${contactJid}`);
+        const rawJid = contactJid;
         const isPhoneJid = rawJid.endsWith('@s.whatsapp.net') || rawJid.endsWith('@c.us');
         const rawDigits = isPhoneJid ? (rawJid.split('@')[0]?.replace(/\D/g, '') || '') : '';
         const phoneE164 = rawDigits ? `+${rawDigits}` : null;
@@ -3322,11 +3441,11 @@ async function saveContactsBatch(accountId, contacts) {
         // CRITICAL FIX: Try to get profile picture URL if not already in contact
         // This ensures contacts collection has profile pictures for sync
         let imgUrl = contact.imgUrl || null;
-        if (!imgUrl && contact.id) {
+        if (!imgUrl && contactJid) {
           try {
             const account = connections.get(accountId);
             if (account && account.sock) {
-              const photoUrl = await account.sock.profilePictureUrl(contact.id, 'image').catch(() => null);
+              const photoUrl = await account.sock.profilePictureUrl(contactJid, 'image').catch(() => null);
               if (photoUrl) imgUrl = photoUrl;
             }
           } catch (e) {
@@ -3336,7 +3455,7 @@ async function saveContactsBatch(accountId, contacts) {
         
         batch.set(contactRef, {
           accountId,
-          jid: contact.id,
+          jid: contactJid,
           name: contact.name || contact.notify || null,
           notify: contact.notify || null,
           verifiedName: contact.verifiedName || null,
@@ -3348,7 +3467,7 @@ async function saveContactsBatch(accountId, contacts) {
 
         saved++;
       } catch (error) {
-        console.error(`❌ [${accountId}] Failed to add contact ${contact.id} to batch:`, error.message);
+        console.error(`❌ [${accountId}] Failed to add contact ${contactJid} to batch:`, error.message);
         errors++;
       }
     }
@@ -4896,6 +5015,13 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
           historyChats = Object.values(chats);
         }
 
+        // Create thread placeholders from history.chats so Inbox shows all chats
+        // and backfill can fill them. Run before processing messages. Use raw chats
+        // (array or object) so we preserve jid-as-key when Baileys uses object form.
+        if (chats && (Array.isArray(chats) ? chats.length : Object.keys(chats).length)) {
+          await ensureThreadsFromHistoryChats(accountId, chats);
+        }
+
         // Process messages in batches
         if (historyMessages.length > 0) {
           console.log(`📚 [${accountId}] Starting history sync: ${historyMessages.length} messages`);
@@ -4919,9 +5045,9 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
           console.log(`⚠️  [${accountId}] History sync: No messages found in history`);
         }
 
-        // Optionally save chats metadata (for future reference)
+        // Chats: we create thread placeholders via ensureThreadsFromHistoryChats above
         if (historyChats.length > 0 && !HISTORY_SYNC_DRY_RUN) {
-          console.log(`📚 [${accountId}] History sync: ${historyChats.length} chats found (metadata only, not persisted separately)`);
+          console.log(`📚 [${accountId}] History sync: ${historyChats.length} chats → thread placeholders created`);
         }
 
         // 📇 Save contacts to Firestore
@@ -4954,7 +5080,8 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
           try {
             const messageKey = update.key;
             const messageId = messageKey.id;
-            const remoteJid = messageKey.remoteJid;
+            const remoteJidRaw = messageKey.remoteJid;
+            const remoteJid = ensureJidString(remoteJidRaw);
             const updateData = update.update || {};
 
             // Extract status from update (status: 2 = delivered, 3 = read)
@@ -4972,7 +5099,7 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
               }
             }
 
-            // Update message in Firestore if status changed
+            // Update message in Firestore if status changed (skip if remoteJid invalid e.g. [object Object])
             if (status && remoteJid) {
               const threadId = `${accountId}__${remoteJid}`;
               const canonicalId = await resolveMessageDocId(db, accountId, messageId, messageId);
@@ -5015,10 +5142,10 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
           try {
             const receiptKey = receipt.key;
             const messageId = receiptKey.id;
-            const remoteJid = receiptKey.remoteJid;
+            const remoteJid = ensureJidString(receiptKey.remoteJid);
             const receiptData = receipt.receipt || {};
 
-            // Extract read receipts
+            // Extract read receipts (skip if remoteJid invalid e.g. [object Object])
             if (receiptData.readTimestamp && remoteJid) {
               const threadId = `${accountId}__${remoteJid}`;
               const canonicalId = await resolveMessageDocId(db, accountId, messageId, messageId);
@@ -10525,6 +10652,13 @@ async function restoreAccount(accountId, data) {
           historyChats = Object.values(chats);
         }
 
+        // Create thread placeholders from history.chats so Inbox shows all chats
+        // and backfill can fill them. Run before processing messages. Use raw chats
+        // (array or object) so we preserve jid-as-key when Baileys uses object form.
+        if (chats && (Array.isArray(chats) ? chats.length : Object.keys(chats).length)) {
+          await ensureThreadsFromHistoryChats(accountId, chats);
+        }
+
         // Process messages in batches
         if (historyMessages.length > 0) {
           console.log(`📚 [${accountId}] Starting history sync: ${historyMessages.length} messages`);
@@ -10548,9 +10682,9 @@ async function restoreAccount(accountId, data) {
           console.log(`⚠️  [${accountId}] History sync: No messages found in history`);
         }
 
-        // Optionally save chats metadata (for future reference)
+        // Chats: we create thread placeholders via ensureThreadsFromHistoryChats above
         if (historyChats.length > 0 && !HISTORY_SYNC_DRY_RUN) {
-          console.log(`📚 [${accountId}] History sync: ${historyChats.length} chats found (metadata only, not persisted separately)`);
+          console.log(`📚 [${accountId}] History sync: ${historyChats.length} chats → thread placeholders created`);
         }
 
         // 📇 Save contacts to Firestore
@@ -10586,7 +10720,8 @@ async function restoreAccount(accountId, data) {
           try {
             const messageKey = update.key;
             const messageId = messageKey.id;
-            const remoteJid = messageKey.remoteJid;
+            const remoteJidRaw = messageKey.remoteJid;
+            const remoteJid = ensureJidString(remoteJidRaw);
             const updateData = update.update || {};
 
             // Extract status from update (status: 2 = delivered, 3 = read)
@@ -10604,7 +10739,7 @@ async function restoreAccount(accountId, data) {
               }
             }
 
-            // Update message in Firestore if status changed
+            // Update message in Firestore if status changed (skip if remoteJid invalid e.g. [object Object])
             if (status && remoteJid) {
               const threadId = `${accountId}__${remoteJid}`;
               const canonicalId = await resolveMessageDocId(db, accountId, messageId, messageId);
@@ -10647,10 +10782,10 @@ async function restoreAccount(accountId, data) {
           try {
             const receiptKey = receipt.key;
             const messageId = receiptKey.id;
-            const remoteJid = receiptKey.remoteJid;
+            const remoteJid = ensureJidString(receiptKey.remoteJid);
             const receiptData = receipt.receipt || {};
 
-            // Extract read receipts
+            // Extract read receipts (skip if remoteJid invalid e.g. [object Object])
             if (receiptData.readTimestamp && remoteJid) {
               const threadId = `${accountId}__${remoteJid}`;
               const canonicalId = await resolveMessageDocId(db, accountId, messageId, messageId);
@@ -11838,26 +11973,36 @@ app.listen(PORT, '0.0.0.0', async () => {
             leaseUntil: null, // Release lease
           });
 
-          // Also persist message to thread (idempotent)
+          // Update existing optimistic message doc (proxy uses requestId as doc id). Do NOT create a new doc.
           if (threadId && firestoreAvailable && db) {
-            const messageDocId = data.clientMessageId || requestId;
-            const rawOutbound = {
-              key: { id: result.key.id, remoteJid: toJid, fromMe: true },
-              message: payload || { conversation: body || '' },
-              messageTimestamp: Math.floor(Date.now() / 1000),
-              clientMessageId: data.clientMessageId || null,
-              requestId,
-            };
-            await writeMessageIdempotent(
-              db,
-              { accountId, clientJid: toJid, threadId, direction: 'out' },
-              rawOutbound,
-              { extraFields: { status: 'sent' }, messageIdOverride: messageDocId }
-            );
-            console.log(
-              `🧾 [${accountId}] Outbox sent docId=${messageDocId} waMessageId=${result.key.id} clientMessageId=${data.clientMessageId || ''}`
-            );
-            logThreadWrite('outbox-sent', accountId, toJid, threadId);
+            try {
+              const messageRef = db
+                .collection('threads')
+                .doc(threadId)
+                .collection('messages')
+                .doc(requestId);
+              const existing = await messageRef.get();
+              if (existing.exists) {
+                await messageRef.update({
+                  status: 'sent',
+                  providerMessageId: result.key.id,
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+                console.log(
+                  `🧾 [${accountId}] Outbox sent: updated messages/${requestId} → status=sent, providerMessageId=${result.key.id}`
+                );
+              } else {
+                console.warn(
+                  `⚠️  [${accountId}] Outbox sent: no optimistic doc messages/${requestId}, skipping thread update`
+                );
+              }
+              logThreadWrite('outbox-sent', accountId, toJid, threadId);
+            } catch (updateErr) {
+              console.error(
+                `⚠️  [${accountId}] Failed to update optimistic message ${requestId}:`,
+                updateErr.message
+              );
+            }
           }
         } catch (error) {
           console.error(
