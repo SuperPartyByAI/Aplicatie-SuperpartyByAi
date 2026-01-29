@@ -12,10 +12,51 @@
  */
 
 import { createRequire } from 'module';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
+import path from 'path';
 
 const require = createRequire(import.meta.url);
 const admin = require('firebase-admin');
+
+function loadServiceAccount() {
+  const cwd = process.cwd();
+  const tryPath = (p) => {
+    if (!p || !existsSync(p)) return null;
+    try {
+      const raw = readFileSync(p, 'utf8');
+      const j = JSON.parse(raw);
+      if (j && j.private_key && j.client_email) return j;
+    } catch (_) {}
+    return null;
+  };
+  const tryJson = (raw) => {
+    try {
+      const j = typeof raw === 'string' ? JSON.parse(raw.trim()) : raw;
+      if (j && j.private_key && j.client_email) return j;
+    } catch (_) {}
+    return null;
+  };
+  const gac = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (gac) { const v = tryPath(gac); if (v) return { serviceAccount: v, source: 'GOOGLE_APPLICATION_CREDENTIALS' }; }
+  const fpath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+  if (fpath) { const v = tryPath(fpath); if (v) return { serviceAccount: v, source: 'FIREBASE_SERVICE_ACCOUNT_PATH' }; }
+  const fjson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (fjson) {
+    const s = fjson.trim();
+    const v = (s.startsWith('{') || s.startsWith('[')) ? tryJson(s) : tryPath(s);
+    if (v) return { serviceAccount: v, source: 'FIREBASE_SERVICE_ACCOUNT_JSON' };
+  }
+  for (const rel of ['functions/serviceAccountKey.json', 'whatsapp-backend/serviceAccountKey.json', 'serviceAccountKey.json']) {
+    const v = tryPath(path.join(cwd, rel));
+    if (v) return { serviceAccount: v, source: rel };
+  }
+  const up = path.join(cwd, '..');
+  for (const rel of ['functions/serviceAccountKey.json', 'whatsapp-backend/serviceAccountKey.json']) {
+    const v = tryPath(path.join(up, rel));
+    if (v) return { serviceAccount: v, source: `../${rel}` };
+  }
+  return null;
+}
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -87,19 +128,25 @@ async function run() {
     process.exit(1);
   }
 
+  const loaded = loadServiceAccount();
   let app;
   try {
-    app = admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-      projectId: project,
-    });
+    if (loaded) {
+      app = admin.initializeApp({
+        credential: admin.credential.cert(loaded.serviceAccount),
+        projectId: project,
+      });
+      if (process.env.DEBUG_AUDIT) console.log(`   Credentials: ${loaded.source}`);
+    } else {
+      app = admin.initializeApp({
+        credential: admin.credential.applicationDefault(),
+        projectId: project,
+      });
+    }
   } catch (e) {
     console.error('❌ Firebase Admin init failed:', e.message);
     console.error('');
-    console.error('Use one of:');
-    console.error('  • gcloud auth application-default login');
-    console.error('    Then: cd functions && node ../scripts/migrate_threads_backfill_lastMessageAt.mjs --project superparty-frontend --accountId <ID> [--dryRun|--apply]');
-    console.error('  • export GOOGLE_APPLICATION_CREDENTIALS=/path/to/serviceAccountKey.json');
+    console.error('Use one of: GOOGLE_APPLICATION_CREDENTIALS / serviceAccountKey.json or gcloud ADC. See VERIFICATION_WHATSAPP_INBOX.md.');
     process.exit(1);
   }
 
@@ -121,8 +168,25 @@ async function run() {
       console.error(`❌ accountId=${accountId} query failed: ${e.message}`);
       const msg = String(e.message || '');
       if (/default credentials|Could not load.*credential/i.test(msg)) {
-        console.error('   Credentials: run  gcloud auth application-default login');
-        console.error('   Then:  cd functions && node ../scripts/migrate_threads_backfill_lastMessageAt.mjs --project superparty-frontend --accountId <ID> [--dryRun|--apply]');
+        console.error(`
+No valid credentials — query did NOT run. Fix creds then re-run.
+
+Option 1 (ADC):
+  gcloud auth application-default login --scopes=https://www.googleapis.com/auth/cloud-platform --no-browser
+  gcloud config set project superparty-frontend
+  gcloud auth application-default set-quota-project superparty-frontend
+  ls -la ~/.config/gcloud/application_default_credentials.json
+  cd /path/to/Aplicatie-SuperpartyByAi/functions
+  node ../scripts/migrate_threads_backfill_lastMessageAt.mjs --project superparty-frontend --accountId <ID> [--dryRun|--apply]
+
+Option 2 (service account JSON):
+  export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your-service-account.json"
+  cd /path/to/Aplicatie-SuperpartyByAi/functions
+  node ../scripts/migrate_threads_backfill_lastMessageAt.mjs --project superparty-frontend --accountId <ID> [--dryRun|--apply]
+
+See VERIFICATION_WHATSAPP_INBOX.md for full details.
+`.trim());
+        process.exit(1);
       }
       continue;
     }
