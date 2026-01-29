@@ -3487,6 +3487,66 @@ async function saveContactsBatch(accountId, contacts) {
   return { saved, errors };
 }
 
+// Helper: Enrich threads with displayName/photo from contacts (run after history sync).
+// Updates threads that lack a valid displayName so Inbox shows real contact names.
+async function enrichThreadsFromContacts(accountId) {
+  if (!firestoreAvailable || !db || !accountId) return { updated: 0, skipped: 0, errors: 0 };
+  if (HISTORY_SYNC_DRY_RUN) return { updated: 0, skipped: 0, errors: 0 };
+
+  const LIMIT = 1000;
+  const snap = await db.collection('threads').where('accountId', '==', accountId).limit(LIMIT).get();
+  let updated = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  for (const threadDoc of snap.docs) {
+    const d = threadDoc.data();
+    const clientJid = d.clientJid || null;
+    if (!clientJid) { skipped++; continue; }
+
+    try {
+      const contactRef = db.collection('contacts').doc(`${accountId}__${clientJid}`);
+      const contactDoc = await contactRef.get();
+      if (!contactDoc.exists) { skipped++; continue; }
+
+      const c = contactDoc.data() || {};
+      const contactName = (c.name || c.notify || c.verifiedName || '').trim();
+      const contactPhotoUrl = (c.imgUrl || '').trim();
+      const currentDisplayName = (d.displayName || '').trim();
+      const currentPhotoUrl = (d.profilePictureUrl || d.photoUrl || '').trim();
+
+      const needsName = contactName.length > 0 && (
+        currentDisplayName.length === 0 ||
+        currentDisplayName === (clientJid.split('@')[0] || '') ||
+        /^\+?[\d\s\-\(\)]+$/.test(currentDisplayName)
+      );
+      const needsPhoto = contactPhotoUrl.length > 0 && currentPhotoUrl !== contactPhotoUrl;
+
+      if (!needsName && !needsPhoto) { skipped++; continue; }
+
+      const updateData = {};
+      if (needsName) {
+        updateData.displayName = contactName;
+        updateData.displayNameUpdatedAt = admin.firestore.FieldValue.serverTimestamp();
+      }
+      if (needsPhoto) {
+        updateData.profilePictureUrl = contactPhotoUrl;
+        updateData.photoUrl = contactPhotoUrl;
+        updateData.photoUpdatedAt = admin.firestore.FieldValue.serverTimestamp();
+      }
+      await threadDoc.ref.update(updateData);
+      updated++;
+    } catch (e) {
+      errors++;
+    }
+  }
+
+  if (updated > 0 || errors > 0) {
+    console.log(`📇 [${hashForLog(accountId)}] enrichThreadsFromContacts: ${updated} updated, ${skipped} skipped, ${errors} errors`);
+  }
+  return { updated, skipped, errors };
+}
+
 // Helper: Backfill messages for an account (best-effort gap filling after reconnect)
 // Fetches recent messages from active threads to fill gaps
 async function backfillAccountMessages(accountId) {
@@ -3592,6 +3652,11 @@ async function backfillAccountMessages(accountId) {
     }).catch(err => console.error(`❌ [${accountId}] Failed to update backfill marker:`, err.message));
 
     console.log(`✅ [${accountId}] Backfill complete: ${threadsSnapshot.size} threads, ${totalMessages} messages, ${totalErrors} errors`);
+
+    // Enrich threads from contacts automatically (no manual sync)
+    await enrichThreadsFromContacts(accountId).catch(err =>
+      console.error(`❌ [${accountId}] enrichThreadsFromContacts after backfill:`, err.message)
+    );
 
     return {
       success: true,
@@ -3857,6 +3922,28 @@ function initRecentSync() {
   console.log('[recent-sync] initialized');
 }
 initRecentSync();
+
+const ENRICH_INTERVAL_MS = parseInt(process.env.ENRICH_CONTACTS_INTERVAL_MS || '1800000', 10); // 30 min default
+let enrichTimer = null;
+
+function startPeriodicEnrich() {
+  if (enrichTimer) return;
+  enrichTimer = setInterval(async () => {
+    if (!waBootstrap.canProcessOutbox()) return;
+    if (!firestoreAvailable || !db) return;
+    const accountIds = [...connections.entries()]
+      .filter(([, a]) => a && a.status === 'connected')
+      .map(([id]) => id);
+    if (accountIds.length === 0) return;
+    for (const accountId of accountIds) {
+      await enrichThreadsFromContacts(accountId).catch(err =>
+        console.error(`❌ [${accountId}] periodic enrich:`, err.message)
+      );
+    }
+  }, ENRICH_INTERVAL_MS);
+  console.log(`📇 [enrich] periodic enrich started (interval=${ENRICH_INTERVAL_MS / 60000}min)`);
+}
+startPeriodicEnrich();
 
 /**
  * Clear account session (disk + Firestore backup)
@@ -5040,9 +5127,14 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
           console.log(`📚 [${accountId}] messaging-history.set, 0 created — reason: history empty (no chats).`);
         }
 
-        // Process messages in batches
+        // Process messages in batches (newest first so recent messages appear sooner as import progresses)
         if (historyMessages.length > 0) {
-          console.log(`📚 [${accountId}] Starting history sync: ${historyMessages.length} messages`);
+          historyMessages.sort((a, b) => {
+            const tsA = extractTimestampMs(a?.messageTimestamp) ?? 0;
+            const tsB = extractTimestampMs(b?.messageTimestamp) ?? 0;
+            return tsB - tsA; // desc: newest first
+          });
+          console.log(`📚 [${accountId}] Starting history sync: ${historyMessages.length} messages (newest first)`);
           const result = await saveMessagesBatch(accountId, historyMessages, 'history_sync');
           
           console.log(`✅ [${accountId}] History sync complete: ${result.saved} saved, ${result.skipped} skipped, ${result.errors} errors`);
@@ -5072,6 +5164,11 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
         if (contacts) {
           await saveContactsBatch(accountId, contacts);
         }
+
+        // 📇 Enrich threads with contact names so Inbox shows real contacts
+        await enrichThreadsFromContacts(accountId).catch(err =>
+          console.error(`❌ [${accountId}] enrichThreadsFromContacts failed:`, err.message)
+        );
 
       } catch (error) {
         console.error(`❌ [${accountId}] History sync error:`, error.message);
@@ -10715,9 +10812,14 @@ async function restoreAccount(accountId, data) {
           console.log(`📚 [${accountId}] messaging-history.set, 0 created — reason: history empty (no chats).`);
         }
 
-        // Process messages in batches
+        // Process messages in batches (newest first so recent messages appear sooner as import progresses)
         if (historyMessages.length > 0) {
-          console.log(`📚 [${accountId}] Starting history sync: ${historyMessages.length} messages`);
+          historyMessages.sort((a, b) => {
+            const tsA = extractTimestampMs(a?.messageTimestamp) ?? 0;
+            const tsB = extractTimestampMs(b?.messageTimestamp) ?? 0;
+            return tsB - tsA; // desc: newest first
+          });
+          console.log(`📚 [${accountId}] Starting history sync: ${historyMessages.length} messages (newest first)`);
           const result = await saveMessagesBatch(accountId, historyMessages, 'history_sync');
           
           console.log(`✅ [${accountId}] History sync complete: ${result.saved} saved, ${result.skipped} skipped, ${result.errors} errors`);
@@ -10747,6 +10849,11 @@ async function restoreAccount(accountId, data) {
         if (contacts) {
           await saveContactsBatch(accountId, contacts);
         }
+
+        // 📇 Enrich threads with contact names so Inbox shows real contacts
+        await enrichThreadsFromContacts(accountId).catch(err =>
+          console.error(`❌ [${accountId}] enrichThreadsFromContacts failed:`, err.message)
+        );
 
       } catch (error) {
         console.error(`❌ [${accountId}] History sync error:`, error.message);

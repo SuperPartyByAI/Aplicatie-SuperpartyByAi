@@ -13,6 +13,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/errors/app_exception.dart';
 import '../../core/config/env.dart';
+import '../../config/admin_config.dart';
+import '../../config/admin_phone.dart';
 import '../../models/thread_model.dart';
 import '../../services/whatsapp_api_service.dart';
 import '../../utils/threads_query.dart';
@@ -48,7 +50,11 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   /// Account IDs we last started listeners for. Skip re-subscribe when unchanged.
   Set<String> _activeAccountIds = {};
   
-  // Auto-refresh timer: refresh threads every 10 seconds to catch new messages
+  /// Admin-only screen: if non-admin reaches route, show Forbidden (no listeners/backfill).
+  bool _forbidden = false;
+  /// Guard: do not show main UI or Forbidden until admin check has completed.
+  bool _adminCheckDone = false;
+  
   Timer? _autoRefreshTimer;
 
   Future<void> _copyAuthTokensToClipboard() async {
@@ -105,20 +111,39 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   @override
   void initState() {
     super.initState();
+    _checkAdminAndLoad();
+  }
+
+  /// Admin-only (email-only via admin_config). If not admin: Forbidden, no listeners/backfill/timer.
+  Future<void> _checkAdminAndLoad() async {
+    final email = FirebaseAuth.instance.currentUser?.email ?? '';
+    final allowed = email.trim().toLowerCase() == adminEmail.toLowerCase();
+    if (kDebugMode) {
+      debugPrint('[RBAC] AdminInbox allowed=$allowed email=${email.isEmpty ? 'null' : email}');
+    }
+    if (!mounted) return;
+    setState(() {
+      _adminCheckDone = true;
+      _forbidden = !allowed;
+    });
+    if (!allowed) return;
     _loadAccounts();
-    // Start auto-refresh timer: refresh threads every 10 seconds
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       if (mounted && _accounts.isNotEmpty) {
-        // Only refresh if we have connected accounts
         final hasConnected = _accounts.any((a) => a['status'] == 'connected');
         if (hasConnected) {
           if (kDebugMode) {
             debugPrint('[WhatsAppInboxScreen] Auto-refresh: refreshing threads (10s interval)');
           }
-          _loadThreads(forceRefresh: false); // Force refresh to re-subscribe listeners
+          _loadThreads(forceRefresh: false);
         }
       }
     });
+  }
+
+  bool _isAdminEmail() {
+    final email = FirebaseAuth.instance.currentUser?.email ?? '';
+    return email.trim().toLowerCase() == adminEmail.toLowerCase();
   }
 
   @override
@@ -174,63 +199,34 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
   }
 
   void _startThreadListeners() {
-    // FILTER: Inbox personal (0737571397) - doar contul personal conectat
-    // Staff Inbox - exclude personal (implementat separat în StaffInboxScreen)
-    const myPhoneE164 = '+40737571397';
-    
-    // Filtrează doar conturile conectate
+    // Inbox Admin: only admin phone (0737571397). Uses config/admin_phone.
     final connectedAccounts = _accounts
         .where((account) => account['status'] == 'connected')
         .toList();
-    
-    if (kDebugMode) {
-      debugPrint('[WhatsAppInboxScreen] Total accounts: ${_accounts.length}');
-      debugPrint('[WhatsAppInboxScreen] Connected accounts: ${connectedAccounts.length}');
-      for (final acc in connectedAccounts) {
-        final phone = acc['phone'] as String?;
-        final normalized = _normalizePhoneToE164(phone);
-        debugPrint('[WhatsAppInboxScreen] Account: id=${acc['id']}, phone=$phone, normalized=$normalized, status=${acc['status']}');
-      }
-    }
-    
-    // Pentru inbox personal: doar contul cu phone +40737571397
-    // IMPORTANT: Nu folosim fallback - dacă nu găsim contul personal, lista rămâne goală
+
     final filteredAccounts = connectedAccounts.where((account) {
-      final phone = account['phone'] as String?;
-      final normalizedPhone = _normalizePhoneToE164(phone);
-      final matches = normalizedPhone == myPhoneE164;
-      if (kDebugMode) {
-        debugPrint('[WhatsAppInboxScreen] Checking account: id=${account['id']}, phone=$phone, normalized=$normalizedPhone, matches=$matches');
-        if (matches) {
-          debugPrint('[WhatsAppInboxScreen] ✅ Found personal account: id=${account['id']}, phone=$phone, normalized=$normalizedPhone');
-        }
-      }
-      return matches;
+      final phone = account['phone'] as String? ?? account['phoneNumber'] as String?;
+      return isAdminPhone(phone);
     }).toList();
-    
-    if (kDebugMode) {
-      debugPrint('[WhatsAppInboxScreen] Filtered accounts (personal): ${filteredAccounts.length}');
-      if (filteredAccounts.isEmpty) {
-        debugPrint('[WhatsAppInboxScreen] ⚠️ Personal account (+40737571397) not found in connected accounts!');
-        debugPrint('[WhatsAppInboxScreen] Available phones:');
-        for (final acc in connectedAccounts) {
-          final phone = acc['phone'] as String?;
-          final normalized = _normalizePhoneToE164(phone);
-          debugPrint('[WhatsAppInboxScreen]   - phone=$phone, normalized=$normalized, id=${acc['id']}');
-        }
-      }
-    }
-    
-    // Pentru inbox personal: folosim DOAR contul personal (nu fallback)
-    // Dacă nu există, lista rămâne goală (nu arată toate conturile)
+
     final accountsToUse = filteredAccounts;
-    
     final accountIds = accountsToUse
         .map((account) => account['id'])
         .whereType<String>()
         .map((id) => id.trim())
         .where((id) => id.isNotEmpty)
         .toSet();
+
+    if (kDebugMode) {
+      final statusByAccount = {
+        for (final a in accountsToUse) (a['id'] as String? ?? ''): (a['status'] as String? ?? '?')
+      };
+      debugPrint('[WhatsAppInboxScreen] DEBUG accountsCount=${accountsToUse.length} accountIds=$accountIds statusByAccount=$statusByAccount');
+      debugPrint('[WhatsAppInboxScreen] Total accounts: ${_accounts.length}, connected: ${connectedAccounts.length}, filtered (admin phone): ${filteredAccounts.length}');
+      if (filteredAccounts.isEmpty) {
+        debugPrint('[WhatsAppInboxScreen] No account matching admin phone $adminPhone');
+      }
+    }
 
     if (accountIds.length == _activeAccountIds.length &&
         accountIds.containsAll(_activeAccountIds)) {
@@ -243,10 +239,6 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       _threadSubscriptions[accountId]?.cancel();
       _threadSubscriptions.remove(accountId);
       _threadsByAccount.remove(accountId);
-    }
-
-    if (kDebugMode) {
-      debugPrint('[WhatsAppInboxScreen] accountIds queried: $accountIds');
     }
 
     int added = 0;
@@ -391,7 +383,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
         .toList();
     
     if (kDebugMode) {
-      debugPrint('[WhatsAppInboxScreen] Rebuild from cache: raw=${allThreads.length} deduped=${models.length}');
+      debugPrint('[WhatsAppInboxScreen] Rebuild from cache: raw=${allThreads.length} deduped=${models.length} threadsCount=${models.length}');
       if (models.isNotEmpty) {
         final first = models.first;
         final last = models.length > 1 ? models.last : null;
@@ -531,12 +523,14 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
         thread['clientJid'],
         mapKeys: const ['canonicalJid', 'jid', 'clientJid', 'remoteJid'],
       ).trim();
+      final tid = _readString(thread['id']).trim();
       final isLid = clientJid.endsWith('@lid');
       final isBroadcast = clientJid.endsWith('@broadcast');
       if (hidden) return false;
       if (redirectTo.isNotEmpty) return false;
       if (isLid && canonicalThreadId.isNotEmpty) return false;
       if (isBroadcast) return false;
+      if (tid.contains('[object Object]') || tid.contains('[obiect Obiect]')) return false;
       return true;
     }).toList();
 
@@ -730,6 +724,9 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     } catch (e, stackTrace) {
       if (kDebugMode) {
         debugPrint('[WhatsAppInboxScreen] Error loading accounts: $e');
+        if (e.toString().toLowerCase().contains('timeout')) {
+          debugPrint('[WhatsAppInboxScreen] timeout');
+        }
         debugPrint('[WhatsAppInboxScreen] Stack trace: $stackTrace');
       }
       if (mounted) {
@@ -755,23 +752,27 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
       );
       return;
     }
+    if (!_isAdminEmail()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Doar admin. Backfill restricționat.')),
+      );
+      return;
+    }
     
-    // For personal inbox: use personal account only (+40737571397)
-    final myPhoneE164 = '+40737571397';
     final connected = _accounts
         .where((a) {
-          final phone = a['phone'] as String?;
-          final normalized = _normalizePhoneToE164(phone);
-          return a['status'] == 'connected' && normalized == myPhoneE164;
+          final phone = a['phone'] as String? ?? a['phoneNumber'] as String?;
+          return a['status'] == 'connected' && isAdminPhone(phone);
         })
         .map((a) => a['id'] as String?)
         .whereType<String>()
         .toList();
-    
+
     if (connected.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Contul personal nu este conectat pentru backfill.')),
+        const SnackBar(content: Text('Contul admin nu este conectat pentru backfill.')),
       );
       return;
     }
@@ -825,6 +826,25 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     if (trimmed.isEmpty) return false;
     if (trimmed.contains('@')) return true;
     return RegExp(r'^\+?[\d\s\-\(\)]{6,}$').hasMatch(trimmed);
+  }
+
+  /// True when thread has no real name/phone (we'd show "Contact"/"Grup"/"Conversație").
+  bool _isPlaceholderOnly(ThreadModel t) {
+    final name = t.displayName.trim();
+    final ph = (t.normalizedPhone ?? t.phone ?? '').trim();
+    return name.isEmpty && ph.isEmpty;
+  }
+
+  /// Fallback only when both displayName and phone are empty (removes blank titles).
+  String _threadTitleFallback(ThreadModel t) {
+    final jid = t.clientJid;
+    if (jid.isEmpty) return 'Conversație';
+    final parts = jid.split('@');
+    final local = parts.isNotEmpty ? parts[0] : '';
+    if (local.isEmpty) return 'Conversație';
+    if (jid.endsWith('@g.us')) return 'Grup';
+    if (jid.contains('@lid')) return 'Contact';
+    return local.length > 20 ? '${local.substring(0, 17)}…' : local;
   }
 
   /// Check if displayName looks like a protocol message or system message
@@ -917,6 +937,56 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_adminCheckDone) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('WhatsApp Inbox'),
+          backgroundColor: const Color(0xFF25D366),
+          leading: IconButton(
+            icon: const Icon(Icons.home, color: Colors.white),
+            onPressed: () => context.go('/home'),
+            tooltip: 'Acasă',
+          ),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_forbidden) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('WhatsApp Inbox'),
+          backgroundColor: const Color(0xFF25D366),
+          leading: IconButton(
+            icon: const Icon(Icons.home, color: Colors.white),
+            onPressed: () => context.go('/home'),
+            tooltip: 'Acasă',
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.block, size: 64, color: Colors.red[700]),
+                const SizedBox(height: 16),
+                Text(
+                  'Acces interzis. Doar admin.',
+                  style: TextStyle(fontSize: 18, color: Colors.red[700]),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () => context.go('/home'),
+                  child: const Text('Înapoi'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     // Debug: Show backend URL in debug mode
     final backendUrl = Env.whatsappBackendUrl;
     
@@ -1053,26 +1123,35 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                           )
                             : _threads.isEmpty
                             ? Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Text('No conversations yet'),
-                                    const SizedBox(height: 16),
-                                    ElevatedButton.icon(
-                                      onPressed: () async {
-                                        await _loadAccounts();
-                                        await _loadThreads(forceRefresh: true);
-                                      },
-                                      icon: const Icon(Icons.refresh),
-                                      label: const Text('Refresh'),
-                                    ),
-                                  ],
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Text('No conversations yet'),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'Backfill only fills existing threads. For new ones: re-pair the account (QR) in Manage Accounts or send/receive messages on WhatsApp.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      ElevatedButton.icon(
+                                        onPressed: () async {
+                                          await _loadAccounts();
+                                          await _loadThreads(forceRefresh: true);
+                                        },
+                                        icon: const Icon(Icons.refresh),
+                                        label: const Text('Refresh'),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               )
                             : Builder(
                                 builder: (context) {
                                   final q = _searchQuery.toLowerCase();
-                                  final filtered = q.isEmpty
+                                  var base = q.isEmpty
                                       ? _threads
                                       : _threads.where((t) {
                                           final jid = t.clientJid.toLowerCase();
@@ -1084,10 +1163,15 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                               msg.contains(q) ||
                                               ph.contains(q);
                                         }).toList();
+                                  final filtered = base.where((t) => !_isPlaceholderOnly(t)).toList();
 
                                   if (filtered.isEmpty) {
-                                    return const Center(
-                                      child: Text('No conversations match search query'),
+                                    return Center(
+                                      child: Text(
+                                        q.isEmpty
+                                            ? 'Nicio conversație cu nume sau număr. Reîmperechează contul pentru a importa contactele.'
+                                            : 'No conversations match search query',
+                                      ),
                                     );
                                   }
 
@@ -1119,19 +1203,19 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                           }
                                         }
                                         // Use normalizedPhone first, then fallback to phone getter
-                                        final ph = t.normalizedPhone ?? t.phone ?? '';
+                                        final ph = (t.normalizedPhone ?? t.phone ?? '').trim();
                                         final showPhone = ph.isNotEmpty &&
-                                            (t.displayName.isEmpty ||
-                                                t.displayName == ph ||
-                                                RegExp(r'^\+?[\d\s\-\(\)]+$').hasMatch(t.displayName));
+                                            (t.displayName.trim().isEmpty ||
+                                                t.displayName.trim() == ph ||
+                                                RegExp(r'^\+?[\d\s\-\(\)]+$').hasMatch(t.displayName.trim()));
                                         final subtitleParts = <String>[];
                                         if (showPhone) subtitleParts.add(ph);
-                                        if (t.lastMessageText.isNotEmpty) {
+                                        if (t.lastMessageText.trim().isNotEmpty) {
                                           if (subtitleParts.isNotEmpty) subtitleParts.add('•');
-                                          subtitleParts.add(t.lastMessageText);
+                                          subtitleParts.add(t.lastMessageText.trim());
                                         }
                                         final subtitle = subtitleParts.isEmpty
-                                            ? (ph.isNotEmpty ? ph : ' ')
+                                            ? (ph.isNotEmpty ? ph : 'Fără mesaje')
                                             : subtitleParts.join(' ');
 
                                         return ListTile(
@@ -1156,22 +1240,21 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                                 flex: 3,
                                                 child: Text(
                                                   () {
-                                                    // Filter out protocol messages - use fallback if displayName looks like protocol message
-                                                    if (t.displayName.isNotEmpty && _looksLikeProtocolMessage(t.displayName)) {
-                                                      // Use phone number as fallback if available
-                                                      final ph = t.normalizedPhone ?? t.phone ?? '';
+                                                    if (t.displayName.trim().isNotEmpty && _looksLikeProtocolMessage(t.displayName)) {
+                                                      final ph = (t.normalizedPhone ?? t.phone ?? '').trim();
                                                       if (ph.isNotEmpty) return ph;
-                                                      // Otherwise use clientJid or empty
-                                                      final jid = t.clientJid ?? '';
+                                                      final jid = t.clientJid;
                                                       if (jid.isNotEmpty) {
                                                         final phoneFromJid = _extractPhoneFromJid(jid);
-                                                        return phoneFromJid ?? jid.split('@')[0] ?? '';
+                                                        final x = (phoneFromJid ?? (jid.split('@').isNotEmpty ? jid.split('@')[0] : '')).trim();
+                                                        return x.isEmpty ? _threadTitleFallback(t) : x;
                                                       }
-                                                      return '';
+                                                      return _threadTitleFallback(t);
                                                     }
-                                                    return t.displayName.isNotEmpty
-                                                        ? t.displayName
-                                                        : (t.normalizedPhone ?? t.phone ?? '');
+                                                    final label = t.displayName.trim().isNotEmpty
+                                                        ? t.displayName.trim()
+                                                        : (t.normalizedPhone ?? t.phone ?? '').trim();
+                                                    return label.isEmpty ? _threadTitleFallback(t) : label;
                                                   }(),
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.bold,

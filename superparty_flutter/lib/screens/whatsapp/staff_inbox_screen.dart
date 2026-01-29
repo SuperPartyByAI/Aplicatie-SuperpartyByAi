@@ -16,6 +16,7 @@ import '../../core/config/env.dart';
 import '../../config/admin_phone.dart';
 import '../../models/thread_model.dart';
 import '../../services/whatsapp_api_service.dart';
+import '../../utils/staff_inbox_empty_state.dart';
 import '../../utils/threads_query.dart';
 import '../../utils/inbox_schema_guard.dart';
 import '../debug/whatsapp_diagnostics_screen.dart';
@@ -330,6 +331,9 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
             if (threads.isEmpty) {
               debugPrint('[StaffInboxScreen] 0 docs for accountId=$accountId');
             }
+            debugPrint(
+                '[Firebase-inbox-audit] StaffInbox threads result: accountId=$accountId '
+                'count=${threads.length}');
           }
           _rebuildThreadsFromCache();
         },
@@ -339,6 +343,9 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
           if (error is FirebaseException) {
             debugPrint(
                 '[StaffInboxScreen] FirebaseException code=${error.code} message=${error.message}');
+            debugPrint(
+                '[Firebase-inbox-audit] Firestore threads error: accountId=$accountId '
+                'code=${error.code} message=${error.message}');
             if (mounted) {
               setState(() {
                 _firestoreErrorCode = error.code;
@@ -370,6 +377,11 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
       debugPrint(
           '[StaffInboxScreen] Thread listeners updated: active=$accountIds '
           'cancelled=$staleIds added=$added');
+    }
+    if (kDebugMode && added > 0) {
+      debugPrint(
+          '[Firebase-inbox-audit] StaffInbox threads query: accountIds=$accountIds, '
+          'collection=threads, where=accountId==<id>, orderBy=lastMessageAt desc, limit=200');
     }
   }
 
@@ -887,6 +899,26 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     return RegExp(r'^\+?[\d\s\-\(\)]{6,}$').hasMatch(trimmed);
   }
 
+  /// True when thread has no real name/phone (we'd show "Contact"/"Grup"/"Conversație").
+  /// Used to hide placeholder-only threads and show only real contacts.
+  bool _isPlaceholderOnly(ThreadModel t) {
+    final name = t.displayName.trim();
+    final ph = (t.normalizedPhone ?? t.phone ?? '').trim();
+    return name.isEmpty && ph.isEmpty;
+  }
+
+  /// Fallback only when both displayName and phone are empty (removes blank "Last" etc.).
+  String _threadTitleFallback(ThreadModel t) {
+    final jid = t.clientJid;
+    if (jid.isEmpty) return 'Conversație';
+    final parts = jid.split('@');
+    final local = parts.isNotEmpty ? parts[0] : '';
+    if (local.isEmpty) return 'Conversație';
+    if (jid.endsWith('@g.us')) return 'Grup';
+    if (jid.contains('@lid')) return 'Contact';
+    return local.length > 20 ? '${local.substring(0, 17)}…' : local;
+  }
+
   bool _looksLikeProtocolMessage(String displayName) {
     final trimmed = displayName.trim().toUpperCase();
     if (trimmed.isEmpty) return false;
@@ -1136,16 +1168,44 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                       Text(
                                         _activeAccountIds.isEmpty
                                             ? 'Nu există conturi conectate pentru Inbox Angajați.'
-                                            : 'Nu există conversații pentru conturile angajaților. Verifică Manage Accounts (conturi conectate) și că backend-ul scrie thread-uri pentru aceste conturi.',
+                                            : 'Nu apar conversații / mesaje din istoric pentru conturile conectate.',
                                         textAlign: TextAlign.center,
                                         style: TextStyle(color: Colors.grey[700], fontSize: 14),
                                       ),
-                                      if (_activeAccountIds.isNotEmpty) ...[
-                                        const SizedBox(height: 12),
-                                        Text(
-                                          'Backfill completează doar conversațiile existente. Pentru conversații noi: reconectează contul (QR) în Manage Accounts sau trimite/primește mesaje pe WhatsApp.',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                      if (showRepairCallout(_activeAccountIds.length, _threads.length)) ...[
+                                        const SizedBox(height: 16),
+                                        Container(
+                                          padding: const EdgeInsets.all(14),
+                                          decoration: BoxDecoration(
+                                            color: Colors.blue.shade50,
+                                            borderRadius: BorderRadius.circular(10),
+                                            border: Border.all(color: Colors.blue.shade200),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Pentru a importa conversațiile și istoricul:',
+                                                style: TextStyle(
+                                                  color: Colors.blue.shade900,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                '1. Manage Accounts → Disconnect la fiecare cont\n'
+                                                '2. Connect → scanează QR din nou (WhatsApp → Linked devices → Link a device)\n'
+                                                '3. La reconectare se importă lista de chat-uri și mesajele.',
+                                                style: TextStyle(color: Colors.blue.shade800, fontSize: 12, height: 1.4),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                'Sync/Backfill completează doar conversațiile deja existente; nu creează altele noi.',
+                                                style: TextStyle(color: Colors.blue.shade700, fontSize: 11, fontStyle: FontStyle.italic),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ],
                                       const SizedBox(height: 16),
@@ -1164,7 +1224,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                             : Builder(
                                 builder: (context) {
                                   final q = _searchQuery.toLowerCase();
-                                  final filtered = q.isEmpty
+                                  var base = q.isEmpty
                                       ? _threads
                                       : _threads.where((t) {
                                           final jid = t.clientJid.toLowerCase();
@@ -1176,10 +1236,16 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                               msg.contains(q) ||
                                               ph.contains(q);
                                         }).toList();
+                                  // Show only real contacts (hide "Contact"/"Grup"/"Conversație" placeholders)
+                                  final filtered = base.where((t) => !_isPlaceholderOnly(t)).toList();
 
                                   if (filtered.isEmpty) {
-                                    return const Center(
-                                      child: Text('No conversations match search query'),
+                                    return Center(
+                                      child: Text(
+                                        q.isEmpty
+                                            ? 'Nicio conversație cu nume sau număr. Reîmperechează contul pentru a importa contactele.'
+                                            : 'No conversations match search query',
+                                      ),
                                     );
                                   }
 
@@ -1210,19 +1276,19 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                             timeText = DateFormat('dd/MM').format(t.lastMessageAt!);
                                           }
                                         }
-                                        final ph = t.normalizedPhone ?? t.phone ?? '';
+                                        final ph = (t.normalizedPhone ?? t.phone ?? '').trim();
                                         final showPhone = ph.isNotEmpty &&
-                                            (t.displayName.isEmpty ||
-                                                t.displayName == ph ||
-                                                RegExp(r'^\+?[\d\s\-\(\)]+$').hasMatch(t.displayName));
+                                            (t.displayName.trim().isEmpty ||
+                                                t.displayName.trim() == ph ||
+                                                RegExp(r'^\+?[\d\s\-\(\)]+$').hasMatch(t.displayName.trim()));
                                         final subtitleParts = <String>[];
                                         if (showPhone) subtitleParts.add(ph);
-                                        if (t.lastMessageText.isNotEmpty) {
+                                        if (t.lastMessageText.trim().isNotEmpty) {
                                           if (subtitleParts.isNotEmpty) subtitleParts.add('•');
-                                          subtitleParts.add(t.lastMessageText);
+                                          subtitleParts.add(t.lastMessageText.trim());
                                         }
                                         final subtitle = subtitleParts.isEmpty
-                                            ? (ph.isNotEmpty ? ph : ' ')
+                                            ? (ph.isNotEmpty ? ph : 'Fără mesaje')
                                             : subtitleParts.join(' ');
 
                                         return ListTile(
@@ -1247,19 +1313,21 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                                 flex: 3,
                                                 child: Text(
                                                   () {
-                                                    if (t.displayName.isNotEmpty && _looksLikeProtocolMessage(t.displayName)) {
-                                                      final ph = t.normalizedPhone ?? t.phone ?? '';
+                                                    if (t.displayName.trim().isNotEmpty && _looksLikeProtocolMessage(t.displayName)) {
+                                                      final ph = (t.normalizedPhone ?? t.phone ?? '').trim();
                                                       if (ph.isNotEmpty) return ph;
-                                                      final jid = t.clientJid ?? '';
+                                                      final jid = t.clientJid;
                                                       if (jid.isNotEmpty) {
                                                         final phoneFromJid = _extractPhoneFromJid(jid);
-                                                        return phoneFromJid ?? jid.split('@')[0] ?? '';
+                                                        final x = (phoneFromJid ?? (jid.split('@').isNotEmpty ? jid.split('@')[0] : '')).trim();
+                                                        return x.isEmpty ? _threadTitleFallback(t) : x;
                                                       }
-                                                      return '';
+                                                      return _threadTitleFallback(t);
                                                     }
-                                                    return t.displayName.isNotEmpty
-                                                        ? t.displayName
-                                                        : (t.normalizedPhone ?? t.phone ?? '');
+                                                    final label = t.displayName.trim().isNotEmpty
+                                                        ? t.displayName.trim()
+                                                        : (t.normalizedPhone ?? t.phone ?? '').trim();
+                                                    return label.isEmpty ? _threadTitleFallback(t) : label;
                                                   }(),
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.bold,

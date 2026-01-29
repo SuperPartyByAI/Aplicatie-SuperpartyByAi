@@ -108,8 +108,14 @@ class ThreadModel {
         'lastMessage',
       ],
     );
-    final normalizedPhone = _readString(json['normalizedPhone']).trim();
-    final phone = normalizedPhone.isNotEmpty ? normalizedPhone : _extractPhoneFromJid(jid);
+    // Backend writes phoneE164/phone/phoneNumber; rarely normalizedPhone. Use all.
+    final normalizedPhone = _readFirst(
+      json,
+      ['normalizedPhone', 'phoneE164', 'phone', 'phoneNumber'],
+    ).trim();
+    final phone = normalizedPhone.isNotEmpty
+        ? normalizedPhone
+        : _extractPhoneFromJid(jid);
 
     // SAFETY NET: If displayName looks like message text (equals lastMessageText),
     // treat it as invalid and force fallback to phone
