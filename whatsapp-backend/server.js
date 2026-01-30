@@ -1456,22 +1456,20 @@ STIL
     const hasNewFields = logic || restrictions || pricing || faq || extraction;
 
     if (hasNewFields) {
-      accountPrompt = `
-INSTRUCȚIUNI PRINCIPALE:
-${logic}
+      const parts = [];
 
-RESTRICȚII (CE NU AI VOIE SĂ FACI):
-${restrictions}
+      if (logic) parts.push(`INSTRUCȚIUNI PRINCIPALE:\n${logic}`);
+      if (restrictions) parts.push(`RESTRICȚII (CE NU AI VOIE SĂ FACI):\n${restrictions}`);
+      if (pricing) parts.push(`PREȚURI, PACHETE ȘI INFORMAȚII BUSINESS:\n${pricing}`);
+      if (faq) parts.push(`ÎNTREBĂRI FRECVENTE:\n${faq}`);
+      if (extraction) parts.push(`INSTRUCȚIUNI EXTRAGERE DATE CLIENȚI:\n${extraction}`);
 
-PREȚURI, PACHETE ȘI INFORMAȚII BUSINESS:
-${pricing}
+      // Add a mandatory instruction to ensure the AI replies
+      parts.push(
+        `\nSARCINĂ OBLIGATORIE:\nFolosind instrucțiunile de mai sus, răspunde la mesajul utilizatorului. Dacă nu ai informații, spune politicos că nu știi.`
+      );
 
-ÎNTREBĂRI FRECVENTE:
-${faq}
-
-INSTRUCȚIUNI EXTRAGERE DATE CLIENȚI:
-${extraction}
-`.trim();
+      accountPrompt = parts.join('\n\n');
     } else {
       // Fallback for backward compatibility
       accountPrompt =
