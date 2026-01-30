@@ -900,14 +900,15 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   void _scrollToBottom({bool force = false}) {
     if (!_scrollController.hasClients) return;
     final pos = _scrollController.position;
-    final nearBottom = (pos.maxScrollExtent - pos.pixels) < 200;
+    // When reverse is true, the bottom is at 0.0
+    final nearBottom = pos.pixels < 200;
     if (!force && !nearBottom) return;
     if (force) {
-      _scrollController.jumpTo(pos.maxScrollExtent);
+      _scrollController.jumpTo(0.0);
       return;
     }
     _scrollController.animateTo(
-      pos.maxScrollExtent,
+      0.0,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
     );
@@ -1973,7 +1974,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                               return ListView.builder(
                                 controller: _scrollController,
                                 key: ValueKey('whatsapp-chat-$effectiveThreadId'),
-                                reverse: false,
+                                reverse: true,
                                 padding: const EdgeInsets.all(16),
                                 itemCount: dedupedDocs.length,
                                 itemBuilder: (context, index) {
