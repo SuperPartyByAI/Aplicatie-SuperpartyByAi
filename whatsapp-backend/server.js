@@ -1011,11 +1011,11 @@ async function generateAutoReplyText(groqKey, messages, maxTokens = 500) {
   // Log message structure for debugging (roles only)
   const roles = messages.map(m => m.role).join(' -> ');
   console.log(
-    `[AutoReply][AI_DEBUG] Sending request: model=mixtral-8x7b-32768 roles=${roles} msgs=${messages.length}`
+    `[AutoReply][AI_DEBUG] Sending request: model=llama-3.1-8b-instant roles=${roles} msgs=${messages.length}`
   );
 
   const completion = await groq.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
+    model: 'llama-3.1-8b-instant',
     temperature: 0.2,
     max_tokens: maxTokens, // Sufficient for complete messages without truncation
     messages,
