@@ -658,7 +658,7 @@ async function fetchProfilePhotoUrl(accountId, clientJid) {
 }
 
 const AI_REPLY_COOLDOWN_MS = 10 * 1000;
-const AI_REPLY_MIN_CHARS = 50; // Minimum pentru mesaje (poate fi scurt dar complet)
+const AI_REPLY_MIN_CHARS = 20; // Minimum pentru mesaje (permite răspunsuri scurte dar complete)
 const AI_REPLY_MAX_CHARS = 200; // Maximum absolut - dacă depășește, nu trimite
 const AI_REPLY_DEDUPE_TTL_MS = 10 * 60 * 1000;
 const AI_CONTEXT_MESSAGE_LIMIT = parseInt(process.env.AI_CONTEXT_MESSAGE_LIMIT || '50'); // Numărul de mesaje pentru context (configurabil)
