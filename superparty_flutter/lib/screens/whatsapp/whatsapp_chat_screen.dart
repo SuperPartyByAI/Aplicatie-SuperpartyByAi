@@ -1156,15 +1156,26 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Se obține locația...')),
+        const SnackBar(content: Text('Se obține locația precisă...')),
       );
 
-      final position = await Geolocator.getCurrentPosition();
+      // Get position with high accuracy and a timeout to avoid hanging
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.best,
+        timeLimit: const Duration(seconds: 10),
+      ).catchError((e) async {
+        // Fallback to last known position if current position fails or times out
+        debugPrint('[ChatScreen] Error getting current position, trying last known: $e');
+        return await Geolocator.getLastKnownPosition() ?? 
+               await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
+      });
+
       final lat = position.latitude;
       final lng = position.longitude;
 
-      // Send Google Maps link as text (varianta minimă)
-      final locationLink = 'https://maps.google.com/?q=$lat,$lng';
+      // Send Google Maps link as text
+      // Force '.' as decimal separator to ensure compatibility with Google Maps
+      final locationLink = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
       _messageController.text = locationLink;
       await _sendMessage();
     } catch (e) {
