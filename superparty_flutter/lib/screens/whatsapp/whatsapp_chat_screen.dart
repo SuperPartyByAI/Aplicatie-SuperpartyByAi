@@ -886,11 +886,37 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     final pos = _scrollController.position;
     final nearBottom = (pos.maxScrollExtent - pos.pixels) < 200;
     if (!force && !nearBottom) return;
+    if (force) {
+      _scrollController.jumpTo(pos.maxScrollExtent);
+      return;
+    }
     _scrollController.animateTo(
       pos.maxScrollExtent,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
     );
+  }
+
+  void _scheduleScrollToBottom({bool force = false, int retries = 3}) {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) {
+        if (retries > 0) {
+          Future.delayed(const Duration(milliseconds: 80), () {
+            _scheduleScrollToBottom(force: force, retries: retries - 1);
+          });
+        }
+        return;
+      }
+      final max = _scrollController.position.maxScrollExtent;
+      if (max <= 0 && retries > 0) {
+        Future.delayed(const Duration(milliseconds: 80), () {
+          _scheduleScrollToBottom(force: force, retries: retries - 1);
+        });
+        return;
+      }
+      _scrollToBottom(force: force);
+    });
   }
 
   static String _mediaTypePlaceholder(String t) {
@@ -1285,7 +1311,8 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       final direction = _asString(data['direction']) ?? 'inbound';
       final body = (_asString(data['body'], field: 'body') ?? '').trim();
       final tsMillis = _extractSortMillis(data);
-      final tsRounded = tsMillis > 0 ? (tsMillis / 1000).floor() : null;
+      final bucketSeconds = direction == 'outbound' ? 5 : 1;
+      final tsRounded = tsMillis > 0 ? (tsMillis / (bucketSeconds * 1000)).floor() : null;
       final fallbackKey = 'fallback:$direction|$body|$tsRounded';
 
       final primaryKey = stableKeyHash?.isNotEmpty == true
@@ -1777,6 +1804,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                   _lastThreadKey = effectiveThreadId;
                   _initialScrollDone = false;
                   _previousMessageCount = 0;
+                  _scheduleScrollToBottom(force: true);
                 }
 
                 // Wrap StreamBuilder in error boundary to prevent red screen
@@ -1923,14 +1951,10 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                               final hasNewMessages = currentMessageCount > _previousMessageCount;
                               
                               if (!_initialScrollDone && dedupedDocs.isNotEmpty) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                  _scrollToBottom(force: true);
-                                });
+                                _scheduleScrollToBottom(force: true);
                                 _initialScrollDone = true;
                               } else if (hasNewMessages) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                  _scrollToBottom();
-                                });
+                                _scheduleScrollToBottom();
                               }
                               _previousMessageCount = currentMessageCount;
 
