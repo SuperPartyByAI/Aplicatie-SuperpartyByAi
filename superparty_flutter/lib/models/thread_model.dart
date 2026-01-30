@@ -16,6 +16,8 @@ class ThreadModel {
   final String? canonicalThreadId;
   final String? groupSubject;
   final String? lastMessageSenderName;
+  /// 'inbound' | 'outbound' – who wrote the last message (so "Tu" vs contact/number).
+  final String? lastMessageDirection;
 
   const ThreadModel({
     required this.threadId,
@@ -32,6 +34,7 @@ class ThreadModel {
     this.canonicalThreadId,
     this.groupSubject,
     this.lastMessageSenderName,
+    this.lastMessageDirection,
   });
 
   static String _readString(dynamic value, {List<String> mapKeys = const []}) {
@@ -179,6 +182,9 @@ class ThreadModel {
     if (photoUrl != null) photoUrl = photoUrl.trim();
     if (photoUrl != null && photoUrl.isEmpty) photoUrl = null;
 
+    final lastDir = _readString(json['lastMessageDirection']).trim().toLowerCase();
+    final lastMessageDirection = (lastDir == 'inbound' || lastDir == 'outbound') ? lastDir : null;
+
     return ThreadModel(
       threadId: resolvedId.isEmpty ? '' : resolvedId,
       displayName: displayName,
@@ -194,6 +200,7 @@ class ThreadModel {
       canonicalThreadId: _readString(json['canonicalThreadId']).trim().isEmpty ? null : _readString(json['canonicalThreadId']).trim(),
       groupSubject: groupSubject.isEmpty ? null : groupSubject,
       lastMessageSenderName: lastSender.isEmpty ? null : lastSender,
+      lastMessageDirection: lastMessageDirection,
     );
   }
 

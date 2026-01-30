@@ -2,25 +2,25 @@
  * Server-side auto backfill: production-safe.
  *
  * - On connect: trigger initial backfill (10–40s jitter).
- * - Periodic: every AUTO_BACKFILL_INTERVAL_MS, run for connected accounts.
- * - Distributed lock: Firestore lease per account (autoBackfillLeaseUntil, etc.).
+ * - Periodic: every WHATSAPP_BACKFILL_INTERVAL_SECONDS (or AUTO_BACKFILL_INTERVAL_MS).
+ * - Distributed lock: Firestore lease on accounts/{accountId} (autoBackfillLeaseUntil, autoBackfillLeaseHolder, autoBackfillLeaseAcquiredAt).
  * - Eligibility: sort by lastAutoBackfillAt asc; max accounts per tick, max concurrency.
- * - Cooldown: success 6h; attempt backoff 10–15 min for retry after failure.
- * - Status: running → ok/error in lastAutoBackfillStatus.
- * - Instance ID: INSTANCE_ID env, else hostname+pid.
+ * - Cooldown: WHATSAPP_BACKFILL_COOLDOWN_MINUTES or success 1h; attempt backoff 10 min.
+ * - Status: running → ok/error in lastAutoBackfillStatus / lastBackfillStatus.
+ * - ENV: WHATSAPP_AUTO_BACKFILL_ENABLED, WHATSAPP_BACKFILL_INTERVAL_SECONDS, WHATSAPP_BACKFILL_CONCURRENCY, WHATSAPP_BACKFILL_COOLDOWN_MINUTES.
  * - Scheduler: start once; skip in PASSIVE mode.
  */
 
 const os = require('os');
 
-const DEFAULT_COOLDOWN_SUCCESS_MS = 1 * 60 * 60 * 1000; // 1h (reduced from 6h for more frequent sync)
+const DEFAULT_COOLDOWN_SUCCESS_MS = 1 * 60 * 60 * 1000; // 1h
 const DEFAULT_ATTEMPT_BACKOFF_MS = 10 * 60 * 1000; // 10 min
 const DEFAULT_INTERVAL_MS = 12 * 60 * 1000; // 12 min
 const DEFAULT_LEASE_MS = 15 * 60 * 1000; // 15 min
 const INITIAL_DELAY_MIN_MS = 10000;
 const INITIAL_DELAY_MAX_MS = 40000;
-const DEFAULT_MAX_ACCOUNTS_PER_TICK = 4; // Process all connected accounts per tick (increased from 3)
-const DEFAULT_MAX_CONCURRENCY = 2; // Allow 2 concurrent backfills (increased from 1 for faster sync)
+const DEFAULT_MAX_ACCOUNTS_PER_TICK = 4;
+const DEFAULT_MAX_CONCURRENCY = 2;
 
 function maskId(id) {
   if (!id || typeof id !== 'string') return '?';
@@ -46,31 +46,47 @@ function getInstanceId() {
  * @param {(id: string) => Promise<{ success: boolean; threads?: number; messages?: number; errors?: number; error?: string }>} ctx.runBackfill
  * @param {(id: string, data: object) => Promise<void>} ctx.saveAccountMeta - merge into accounts/{id}
  * @param {(id: string) => Promise<AccountMeta | null>} ctx.getAccountMeta
+ * @param {(id: string, opts?: { limit?: number }) => Promise<{ updatedThreads: number; scanned: number; errors: number; durationMs: number } | void>} [ctx.runRepair] - optional; run after backfill (thread lastActivity repair)
  */
 function createAutoBackfill(ctx) {
   const instanceId = ctx.instanceId || getInstanceId();
-  const cooldownSuccessMs = parseInt(
-    process.env.AUTO_BACKFILL_COOLDOWN_SUCCESS_MS || String(DEFAULT_COOLDOWN_SUCCESS_MS),
+  // WHATSAPP_* ENV (preferred) with fallback to AUTO_BACKFILL_*
+  const cooldownMinutes = parseInt(
+    process.env.WHATSAPP_BACKFILL_COOLDOWN_MINUTES ||
+      process.env.AUTO_BACKFILL_COOLDOWN_MINUTES ||
+      '',
     10
   );
+  const cooldownSuccessMs =
+    Number.isFinite(cooldownMinutes) && cooldownMinutes > 0
+      ? cooldownMinutes * 60 * 1000
+      : parseInt(
+          process.env.AUTO_BACKFILL_COOLDOWN_SUCCESS_MS || String(DEFAULT_COOLDOWN_SUCCESS_MS),
+          10
+        );
   const attemptBackoffMs = parseInt(
     process.env.AUTO_BACKFILL_ATTEMPT_BACKOFF_MS || String(DEFAULT_ATTEMPT_BACKOFF_MS),
     10
   );
-  const intervalMs = parseInt(
-    process.env.AUTO_BACKFILL_INTERVAL_MS || String(DEFAULT_INTERVAL_MS),
-    10
-  );
+  const intervalSeconds = parseInt(process.env.WHATSAPP_BACKFILL_INTERVAL_SECONDS || '', 10);
+  const intervalMs =
+    Number.isFinite(intervalSeconds) && intervalSeconds > 0
+      ? intervalSeconds * 1000
+      : parseInt(process.env.AUTO_BACKFILL_INTERVAL_MS || String(DEFAULT_INTERVAL_MS), 10);
   const leaseMs = parseInt(process.env.AUTO_BACKFILL_LEASE_MS || String(DEFAULT_LEASE_MS), 10);
   const maxAccountsPerTick = parseInt(
     process.env.AUTO_BACKFILL_MAX_ACCOUNTS_PER_TICK || String(DEFAULT_MAX_ACCOUNTS_PER_TICK),
     10
   );
   const maxConcurrency = parseInt(
-    process.env.AUTO_BACKFILL_MAX_CONCURRENCY || String(DEFAULT_MAX_CONCURRENCY),
+    process.env.WHATSAPP_BACKFILL_CONCURRENCY ||
+      process.env.AUTO_BACKFILL_MAX_CONCURRENCY ||
+      String(DEFAULT_MAX_CONCURRENCY),
     10
   );
-  const enabled = process.env.AUTO_BACKFILL_ENABLED !== 'false';
+  const enabled =
+    process.env.WHATSAPP_AUTO_BACKFILL_ENABLED !== 'false' &&
+    process.env.AUTO_BACKFILL_ENABLED !== 'false';
 
   const inFlight = new Set();
   let activeBackfills = 0;
@@ -83,7 +99,7 @@ function createAutoBackfill(ctx) {
   }
 
   /**
-   * Acquire distributed lease for account. Returns true if acquired.
+   * Acquire distributed lease for account on accounts/{accountId}. Returns true if acquired.
    * @param {string} accountId
    * @returns {Promise<boolean>}
    */
@@ -114,6 +130,9 @@ function createAutoBackfill(ctx) {
         );
         acquired = true;
       });
+      if (!acquired) {
+        console.log(`📚 [auto-backfill] ${maskId(accountId)} Lock busy (lease not expired)`);
+      }
       return acquired;
     } catch (e) {
       console.warn(`📚 [auto-backfill] ${maskId(accountId)} lease acquire error:`, e.message);
@@ -122,7 +141,7 @@ function createAutoBackfill(ctx) {
   }
 
   /**
-   * Release lease (best-effort). Or let it expire.
+   * Release lease (best-effort). Clear lease fields on accounts/{accountId}.
    * @param {string} accountId
    */
   async function releaseBackfillLease(accountId) {
@@ -205,13 +224,16 @@ function createAutoBackfill(ctx) {
     try {
       await ctx.saveAccountMeta(accountId, {
         lastAutoBackfillStatus: runningStatus,
+        lastBackfillStatus: 'running',
         lastAutoBackfillAttemptAt: ctx.timestamp(),
       });
     } catch (e) {
       console.warn(`📚 [auto-backfill] ${masked} save running status error:`, e.message);
     }
 
-    console.log(`📚 [auto-backfill] ${masked} start trigger=${trigger} holder=${instanceId}`);
+    console.log(
+      `📚 [auto-backfill] Backfill start accountId=${masked} trigger=${trigger} holder=${instanceId}`
+    );
 
     try {
       const result = await ctx.runBackfill(accountId);
@@ -227,20 +249,35 @@ function createAutoBackfill(ctx) {
         durationMs,
         ...(result.error ? { errorCode: 'backfill_error', errorMessage: result.error } : {}),
       };
+      const statusLabel = finalStatus.ok ? 'success' : 'error';
+      const stats = { threads, messages, errors: result.errors ?? 0, durationMs };
 
       await ctx.saveAccountMeta(accountId, {
         lastAutoBackfillStatus: finalStatus,
+        lastBackfillStatus: statusLabel,
+        lastBackfillError: result.error || null,
+        lastBackfillStats: stats,
         ...(result.success === true
           ? {
               lastAutoBackfillSuccessAt: ctx.timestamp(),
               lastAutoBackfillAt: ctx.timestamp(),
+              lastBackfillAt: ctx.timestamp(),
             }
           : {}),
       });
 
       console.log(
-        `📚 [auto-backfill] ${masked} end duration=${durationMs}ms threads=${threads} messages=${messages} holder=${instanceId}`
+        `📚 [auto-backfill] Backfill end accountId=${masked} threads=${threads} messages=${messages} durationMs=${durationMs} holder=${instanceId}`
       );
+
+      if (typeof ctx.runRepair === 'function') {
+        try {
+          await ctx.runRepair(accountId, {});
+        } catch (repairErr) {
+          console.warn(`📚 [auto-backfill] ${masked} runRepair error:`, repairErr.message);
+        }
+      }
+
       return { ran: true, durationMs, messages, threads };
     } catch (err) {
       const durationMs = Date.now() - start;
@@ -252,10 +289,27 @@ function createAutoBackfill(ctx) {
         durationMs,
       };
       try {
-        await ctx.saveAccountMeta(accountId, { lastAutoBackfillStatus: finalStatus });
+        await ctx.saveAccountMeta(accountId, {
+          lastAutoBackfillStatus: finalStatus,
+          lastBackfillStatus: 'error',
+          lastBackfillError: err.message,
+          lastBackfillStats: { durationMs },
+        });
       } catch (e) {
         console.warn(`📚 [auto-backfill] ${masked} saveAccountMeta error:`, e.message);
       }
+
+      if (typeof ctx.runRepair === 'function') {
+        try {
+          await ctx.runRepair(accountId, { limit: 50 });
+        } catch (repairErr) {
+          console.warn(
+            `📚 [auto-backfill] ${masked} runRepair error (after backfill error):`,
+            repairErr.message
+          );
+        }
+      }
+
       console.error(`📚 [auto-backfill] ${masked} error after ${durationMs}ms:`, err.message);
       return { ran: true, error: err.message, durationMs };
     } finally {
@@ -332,7 +386,7 @@ function createAutoBackfill(ctx) {
 
         const eligible = metaList.slice(0, maxAccountsPerTick).map(x => x.id);
         console.log(
-          `📚 [auto-backfill] tick connected=${ids.length} eligible=${eligible.length} instance=${instanceId}`
+          `📚 [auto-backfill] AutoBackfill tick: eligibleAccounts=${eligible.length} connected=${ids.length} instance=${instanceId}`
         );
         for (const id of eligible) {
           while (activeBackfills >= maxConcurrency) {

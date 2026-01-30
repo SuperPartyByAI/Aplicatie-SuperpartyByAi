@@ -88,7 +88,8 @@ class RoleService {
 
   Future<bool> canSeeEmployeeInbox() async {
     await _ensureLoaded();
-    return (_cachedEmployee ?? false) || (_cachedAdmin ?? false);
+    // Employee inbox is visible to any authenticated user (admin or non-admin).
+    return _auth.currentUser != null;
   }
 
   Future<bool> canSeeAdminInbox() async {
@@ -99,10 +100,9 @@ class RoleService {
   Future<({bool canSeeAdminInbox, bool canSeeEmployeeInbox})> inboxVisibility() async {
     await _ensureLoaded();
     final admin = _cachedAdmin ?? false;
-    final employee = _cachedEmployee ?? false;
-    final canSeeEmployee = employee || admin;
+    final canSeeEmployee = _auth.currentUser != null;
     if (kDebugMode) {
-      debugPrint('[RoleService] inboxVisibility isAdmin=$admin isEmployee=$employee canSeeAdminInbox=$admin canSeeEmployeeInbox=$canSeeEmployee');
+      debugPrint('[RoleService] inboxVisibility isAdmin=$admin canSeeAdminInbox=$admin canSeeEmployeeInbox=$canSeeEmployee');
     }
     return (
       canSeeAdminInbox: admin,

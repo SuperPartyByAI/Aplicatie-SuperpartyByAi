@@ -136,9 +136,7 @@ COMPLETE-CONFIG.txt
 *ENV-VARS.txt
 *TOKEN*.txt
 DEPLOY-CU-TOKEN.txt
-GENEREAZA-TOKEN-FIREBASE.txt
-
-# Additional security exclusions
+GENEREAZA-TOKEN-FIREBASE.txt# Additional security exclusions
 **/auth_info*
 **/creds.json
 **/.baileys_auth*

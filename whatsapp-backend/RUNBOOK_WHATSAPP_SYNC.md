@@ -33,15 +33,22 @@ None (feature enabled by default)
 | `WHATSAPP_BACKFILL_COUNT` | `100` | Maximum messages to backfill per thread |
 | `WHATSAPP_BACKFILL_THREADS` | `50` | Maximum threads to process during backfill |
 | `WHATSAPP_HISTORY_SYNC_DRY_RUN` | `false` | If `true`, logs sync counts but doesn't write to Firestore |
-| `AUTO_BACKFILL_ENABLED` | `true` | Enable server-side auto backfill (on connect + periodic) |
-| `AUTO_BACKFILL_INTERVAL_MS` | `720000` (12 min) | Periodic tick interval |
-| `AUTO_BACKFILL_COOLDOWN_SUCCESS_MS` | `21600000` (6 h) | Skip if last **success** within this window |
-| `AUTO_BACKFILL_ATTEMPT_BACKOFF_MS` | `600000` (10 min) | Min time between **attempts** (retry after failure) |
-| `AUTO_BACKFILL_LEASE_MS` | `900000` (15 min) | Firestore lease duration per account |
-| `AUTO_BACKFILL_MAX_ACCOUNTS_PER_TICK` | `3` | Max accounts to consider per periodic tick |
-| `AUTO_BACKFILL_MAX_CONCURRENCY` | `1` | Max concurrent backfills globally |
-| `INSTANCE_ID` | `hostname-pid` | Instance identifier for lease holder and logs |
-| `WHATSAPP_BACKFILL_MESSAGES_PER_THREAD` | `20` | Max messages to fetch per thread during backfill |
+| `WHATSAPP_AUTO_BACKFILL_ENABLED` | `true` | Enable server-side auto backfill (on connect + periodic). Set `false` to disable. |
+| `WHATSAPP_BACKFILL_INTERVAL_SECONDS` | (or `AUTO_BACKFILL_INTERVAL_MS`) | Periodic tick interval (seconds preferred; fallback 12 min in ms). |
+| `WHATSAPP_BACKFILL_CONCURRENCY` | `2` | Max concurrent backfills globally. |
+| `WHATSAPP_BACKFILL_COOLDOWN_MINUTES` | (or `AUTO_BACKFILL_COOLDOWN_SUCCESS_MS`) | Cooldown after success (minutes preferred; fallback 1h in ms). |
+| `WHATSAPP_BACKFILL_THREADS` | `50` | Max threads to process per backfill run. |
+| `WHATSAPP_BACKFILL_COUNT` | `100` | Max messages to backfill per thread (cap). |
+| `WHATSAPP_BACKFILL_MAX_DAYS` | (optional) | Max age in days for thread activity (informational / future use). |
+| `AUTO_BACKFILL_ENABLED` | `true` | Legacy: enable auto backfill (both WHATSAPP_* and this must not be `false`). |
+| `AUTO_BACKFILL_INTERVAL_MS` | `720000` (12 min) | Legacy: periodic tick interval. |
+| `AUTO_BACKFILL_COOLDOWN_SUCCESS_MS` | `3600000` (1 h) | Legacy: skip if last **success** within this window. |
+| `AUTO_BACKFILL_ATTEMPT_BACKOFF_MS` | `600000` (10 min) | Min time between **attempts** (retry after failure). |
+| `AUTO_BACKFILL_LEASE_MS` | `900000` (15 min) | Lock duration per account (whatsapp_backfill_locks). |
+| `AUTO_BACKFILL_MAX_ACCOUNTS_PER_TICK` | `4` | Max accounts to consider per periodic tick. |
+| `AUTO_BACKFILL_MAX_CONCURRENCY` | `2` | Legacy: max concurrent backfills (overridden by WHATSAPP_BACKFILL_CONCURRENCY). |
+| `INSTANCE_ID` | `hostname-pid` | Instance identifier for lock holder and logs. |
+| `WHATSAPP_BACKFILL_MESSAGES_PER_THREAD` | `20` | Max messages to fetch per thread during backfill. |
 | `RECENT_SYNC_ENABLED` | `true` | Enable gap-filler (lightweight recent sync) |
 | `RECENT_SYNC_INTERVAL_MS` | `120000` (2 min) | Gap-filler tick interval |
 | `RECENT_SYNC_LOOKBACK_MS` | `21600000` (6 h) | Lookback window (informational) |
@@ -49,6 +56,9 @@ None (feature enabled by default)
 | `RECENT_SYNC_MAX_MESSAGES_PER_THREAD` | `20` | Max messages per thread |
 | `RECENT_SYNC_MAX_CONCURRENCY` | `1` | Max concurrent recent-sync runs |
 | `RECENT_SYNC_LEASE_MS` | `300000` (5 min) | Lease duration per account for recent-sync |
+| `AUTO_REPAIR_THREADS_ENABLED` | `true` | Run thread last-activity repair after each backfill (sets lastMessageAt/lastMessageAtMs from latest message). |
+| `AUTO_REPAIR_THREADS_LIMIT_PER_RUN` | `200` | Max threads to repair per run (incremental). |
+| `AUTO_REPAIR_COOLDOWN_MINUTES` | `60` | Min minutes between repair runs per account (stored in accounts/{id}.lastAutoRepairAt). |
 
 ### Setting (Hetzner / env)
 
@@ -92,6 +102,8 @@ Example file: `whatsapp-backend/env.auto-backfill.example`.
 
 - **Idempotency:** All operations use message ID as document ID, ensuring no duplicates even if sync/backfill runs multiple times.
 
+- **Thread ID canonicalization:** History sync and message persistence use the same canonical JID for `threadId` (e.g. `@c.us` → `@s.whatsapp.net` via `canonicalizeJid` in `ensureThreadsFromHistoryChats` and `saveMessagesBatch`). This ensures messages from history sync land in the same thread as placeholders created from chats, and as realtime messages (canonicalClientKey handles `@c.us`).
+
 - **Realtime (primary):** `messages.upsert` → `saveMessageToFirestore` → Firestore `threads/{id}`, `threads/{id}/messages/{id}`. Logs: `[realtime] accountId=... remoteJid=... msg=... ts=... type=... writeOK=true|false`. Diagnostics: `accounts/{id}.lastRealtimeIngestAt`, `lastRealtimeMessageAt`, `lastRealtimeError`.
 
 - **Gap-filler (recent-sync):** Periodic job (default 2 min) fetches last N messages from recent threads via `fetchMessagesFromWA`, writes via `saveMessagesBatch`. Lease per account (`recentSyncLeaseUntil` etc.). Log tag: `[recent-sync]`.
@@ -124,7 +136,7 @@ Example file: `whatsapp-backend/env.auto-backfill.example`.
 - `lastHistorySyncResult`: `{ saved, skipped, errors, total, dryRun }`
 - `lastBackfillAt` (timestamp)
 - `lastBackfillResult`: `{ threads, messages, errors, threadResults }`
-- **Auto backfill:** `lastAutoBackfillAt`, `lastAutoBackfillSuccessAt`, `lastAutoBackfillAttemptAt`, `lastAutoBackfillStatus`
+- **Auto backfill:** `lastAutoBackfillAt`, `lastAutoBackfillSuccessAt`, `lastAutoBackfillAttemptAt`, `lastAutoBackfillStatus`, `lastBackfillAt`, `lastBackfillStatus` (running/success/error), `lastBackfillError`, `lastBackfillStats` (threads, messages, errors, durationMs)
 - **Lease (distributed lock):** `autoBackfillLeaseUntil`, `autoBackfillLeaseHolder`, `autoBackfillLeaseAcquiredAt`
 - **Realtime diagnostics:** `lastRealtimeIngestAt` (serverTimestamp, updated on each messages.upsert), `lastRealtimeMessageAt` (timestamp from message), `lastRealtimeError` (optional, when Firestore write fails).
 - **Recent-sync (gap-filler):** `lastRecentSyncAt`, `lastRecentSyncResult`; lease `recentSyncLeaseUntil`, `recentSyncLeaseHolder`, `recentSyncLeaseAcquiredAt`.
@@ -232,6 +244,20 @@ POST /api/whatsapp/backfill/account_prod_...
 
 **Note:** Backfill runs asynchronously. Check `accounts/{accountId}.lastBackfillResult` in Firestore for results.
 
+### POST /api/admin/backfill/:accountId (admin-only)
+
+**Purpose:** Enqueue backfill for an account (same as auto-backfill run; requires admin token).
+
+**Request:** `POST /api/admin/backfill/account_prod_...` with admin auth.
+
+**Response:** `{ "success": true, "message": "Backfill enqueued", "accountId": "..." }`.
+
+### GET /api/admin/backfill/:accountId/status (admin-only)
+
+**Purpose:** Get last backfill status for an account.
+
+**Response:** `lastBackfillAt`, `lastBackfillStatus` (running/success/error), `lastBackfillError`, `lastBackfillStats` (threads, messages, errors, durationMs).
+
 ---
 
 ## Server-side auto backfill
@@ -242,7 +268,7 @@ History sync and backfill run **automatically** on the backend (no Flutter/user 
 
 1. **On connect:** When an account becomes `connected`, an **initial** backfill is scheduled (10–40s jitter).
 2. **Periodic:** Every `AUTO_BACKFILL_INTERVAL_MS`, the server runs a tick. **PASSIVE mode:** tick is skipped when lock not held.
-3. **Distributed lock:** Per-account Firestore lease (`autoBackfillLeaseUntil`, `autoBackfillLeaseHolder`, `autoBackfillLeaseAcquiredAt`). Only one instance runs backfill per account; others skip.
+3. **Distributed lock:** Per-account Firestore collection `whatsapp_backfill_locks/{accountId}` with fields `ownerId`, `expiresAtMs`, `startedAt`. Only one instance runs backfill per account; others skip. Lock is released on completion or expiry.
 4. **Eligibility:** Connected accounts sorted by `lastAutoBackfillAt` asc (oldest first). At most `AUTO_BACKFILL_MAX_ACCOUNTS_PER_TICK` per tick; at most `AUTO_BACKFILL_MAX_CONCURRENCY` running at once.
 5. **Cooldown:** Skip if last **success** &lt; `AUTO_BACKFILL_COOLDOWN_SUCCESS_MS` (6 h). Skip if last **attempt** &lt; `AUTO_BACKFILL_ATTEMPT_BACKOFF_MS` (10 min) for retry-after-failure.
 6. **Status:** Before run → `lastAutoBackfillStatus: { running: true, ... }`; on success → `lastAutoBackfillSuccessAt`, `lastAutoBackfillAt`, `{ ok: true, running: false, ... }`; on error → `{ ok: false, running: false, errorCode, errorMessage, ... }` (no success timestamp).
@@ -262,7 +288,7 @@ History sync and backfill run **automatically** on the backend (no Flutter/user 
 ### Where to see status
 
 - **Firestore:** `accounts/{accountId}` → `lastAutoBackfillAt`, `lastAutoBackfillSuccessAt`, `lastAutoBackfillAttemptAt`, `lastAutoBackfillStatus`, lease fields; **realtime:** `lastRealtimeIngestAt`, `lastRealtimeMessageAt`, `lastRealtimeError`; **recent-sync:** `lastRecentSyncAt`, `lastRecentSyncResult`, `recentSyncLeaseUntil`, `recentSyncLeaseHolder`.
-- **Logs:** `📚 [auto-backfill]` tick/start/end; `[realtime] accountId=… remoteJid=… msg=… ts=… writeOK=…`; `[recent-sync]` start/end with threads/messages/durationMs.
+- **Logs:** `📚 [auto-backfill] AutoBackfill tick: eligibleAccounts=N`; `Backfill start accountId=…` / `Backfill end accountId=… threads=… messages=… durationMs=…`; `[backfill-lock]` acquired/busy/released; `[schema-guard]` missing lastMessageAt/lastMessageAtMs after backfill update; `[realtime]` and `[recent-sync]` as before.
 - **Endpoints:** `GET /ready` (mode, instanceId); `GET /diag` (instanceId, mode, `latestRealtime` for up to 3 connected accounts).
 
 ### Flutter
@@ -795,6 +821,28 @@ Then in Firestore:
 - **`threads/{threadId}/messages`** → new docs / count increases.
 - **`threads/{threadId}.lastBackfillAt`** → updated.
 - **`accounts/{accountId}.lastBackfillResult`** → `threads`, `messages`, `errors`.
+
+### 4b) Manual repair threads (inbox order)
+
+If **Employee Inbox** shows clients mixed (e.g. December, November, July) or "who wrote last" is missing, run the **repair-threads** endpoint once. It recalculates `lastMessageAt` / `lastMessageAtMs` from the latest message in each thread so order matches WhatsApp.
+
+**Request (all connected accounts):**
+```bash
+curl -X POST "http://YOUR_BACKEND:8080/admin/repair-threads" \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+**Request (single account, optional limit):**
+```bash
+curl -X POST "http://YOUR_BACKEND:8080/admin/repair-threads" \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"accountId":"ACCOUNT_ID","limit":500}'
+```
+
+Response: `{ "success": true, "results": [ { "accountId", "updatedThreads", "scanned", "errors", "durationMs" } ] }`. Then refresh the Flutter app (pull-to-refresh or reopen Employee Inbox).
 
 ### 5) Why “today/yesterday” might be missing
 

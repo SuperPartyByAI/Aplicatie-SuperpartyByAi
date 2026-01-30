@@ -160,21 +160,25 @@ describe('WhatsApp Proxy /getAccountsStaff', () => {
     );
   });
 
-  it('should return 403 when user is not employee (no staffProfiles)', async () => {
+  it('should allow authenticated user even without staffProfiles', async () => {
     mockStaffProfilesGet.mockResolvedValue({
       exists: false,
     });
 
     await whatsappProxy.getAccountsStaffHandler(req, res);
 
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({
-        success: false,
-        error: 'employee_only',
-        message: 'Only employees can send messages',
-      })
-    );
+    expect(mockForwardRequest).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+    const responseCall = res.json.mock.calls[0][0];
+    expect(responseCall.success).toBe(true);
+    expect(responseCall.accounts).toHaveLength(1);
+    const account = responseCall.accounts[0];
+    expect(account.qrCode).toBeUndefined();
+    expect(account.qr).toBeUndefined();
+    expect(account.pairingCode).toBeUndefined();
+    expect(account.pairing_code).toBeUndefined();
+    expect(account.pairingUrl).toBeUndefined();
+    expect(account.pairing_url).toBeUndefined();
   });
 
   it('should allow employee and sanitize response (remove QR/pairing fields)', async () => {

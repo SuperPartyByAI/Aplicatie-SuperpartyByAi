@@ -25,6 +25,7 @@ const {
   computeStableIds,
 } = require('./whatsapp/message_persist');
 const { fetchMessagesFromWA } = require('./lib/fetch-messages-wa');
+const { canonicalizeJid } = require('./lib/wa-canonical');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 
@@ -126,6 +127,70 @@ function logThreadWrite(source, accountId, clientJid, threadId) {
 }
 
 /**
+ * Update only thread lastMessageAt/lastMessageAtMs for outbound (fromMe) when we skip
+ * persisting the message. Ensures inbox order matches WhatsApp: last message (inbound OR
+ * outbound) moves thread to top.
+ * @param {FirebaseFirestore.Firestore} db
+ * @param {string} accountId
+ * @param {string} threadId
+ * @param {object} msg - Baileys message (msg.messageTimestamp used)
+ */
+/**
+ * @param {object} [options] - Optional. { body?: string } for lastMessageText preview.
+ */
+async function updateThreadLastMessageForOutbound(db, accountId, threadId, msg, options = {}) {
+  if (!db || !threadId || !msg) return;
+  const tsMs = extractTimestampMs(msg?.messageTimestamp);
+  const nowMs = Date.now();
+  const useMs = tsMs ?? nowMs;
+  const ref = db.collection('threads').doc(threadId);
+  let existingLastMs = null;
+  try {
+    const snap = await ref.get();
+    if (snap.exists) {
+      const d = snap.data() || {};
+      if (d.lastMessageAtMs != null && (typeof d.lastMessageAtMs === 'number' || typeof d.lastMessageAtMs === 'bigint')) {
+        existingLastMs = Number(d.lastMessageAtMs);
+      } else if (d.lastMessageAt && typeof d.lastMessageAt.toMillis === 'function') {
+        existingLastMs = d.lastMessageAt.toMillis();
+      }
+    }
+  } catch (_) {}
+  if (existingLastMs != null && useMs < existingLastMs) return;
+  const tsClientAt = admin?.firestore?.Timestamp?.fromMillis?.(useMs) ?? null;
+  const body = options?.body;
+  const preview = (typeof body === 'string' && body.trim()) ? body.trim().slice(0, 100).replace(/\s+/g, ' ') : '[Message]';
+  const payload = {
+    lastMessageAt: tsClientAt,
+    lastMessageAtMs: useMs,
+    lastMessageDirection: 'outbound',
+    lastMessageText: preview,
+    lastMessagePreview: preview,
+    updatedAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
+  };
+  if (payload.updatedAt === null) delete payload.updatedAt;
+  await ref.set(payload, { merge: true });
+
+  // Schema guard: canonical "last activity" = lastMessageAt (+ lastMessageAtMs). Must be set inbound+outbound.
+  ref.get()
+    .then((snap) => {
+      if (!snap.exists) return;
+      const d = snap.data() || {};
+      if (d.lastMessageAt == null) {
+        console.warn(
+          `[schema-guard] Thread ${hashForLog(threadId)} missing canonical lastMessageAt after outbound update (accountId=${hashForLog(accountId)})`
+        );
+      }
+      if (d.lastMessageAt != null && (d.lastMessageAtMs == null || d.lastMessageAtMs === 0)) {
+        console.warn(
+          `[schema-guard] Thread ${hashForLog(threadId)} has lastMessageAt but missing lastMessageAtMs after outbound (accountId=${hashForLog(accountId)})`
+        );
+      }
+    })
+    .catch(() => {});
+}
+
+/**
  * Update accounts/{accountId} realtime diagnostics (lastRealtimeIngestAt, lastRealtimeMessageAt, lastRealtimeError).
  * Best-effort, non-blocking; logs on Firestore error.
  */
@@ -212,6 +277,18 @@ async function canonicalClientKey(remoteJid, accountId) {
   // Groups: return as-is
   if (remoteJid.endsWith('@g.us')) {
     return { canonicalKey: remoteJid, phoneDigits: null, phoneE164: null };
+  }
+
+  // @c.us (legacy): normalize to s.whatsapp.net so threadId matches history sync
+  if (remoteJid.endsWith('@c.us')) {
+    const phoneDigits = extractDigits(remoteJid.split('@')[0] || '');
+    if (phoneDigits) {
+      return {
+        canonicalKey: `${phoneDigits}@s.whatsapp.net`,
+        phoneDigits,
+        phoneE164: `+${phoneDigits}`,
+      };
+    }
   }
 
   // @s.whatsapp.net: extract phone digits
@@ -1760,7 +1837,7 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
           const { body, type: msgType } = extractBodyAndType(msg);
           
           console.log(
-            `📩 [${hashForLog(accountId)}] Processing message: remote=${hashForLog(remoteJid)} fromMe=${fromMe} msg=${hashForLog(messageId)} ts=${timestamp ? String(timestamp) : 'n/a'} type=${msgType || 'unknown'}`
+            `📩 [${hashForLog(accountId)}] Processing message: remote=${hashForLog(remoteJid)} fromMe=${isFromMe} msg=${hashForLog(messageId)} ts=${timestamp ? String(timestamp) : 'n/a'} type=${msgType || 'unknown'}`
           );
           let protocolMsg = null;
           if (!isFromMe) {
@@ -1892,11 +1969,12 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
             continue; // Skip to next message in batch
           }
 
-          // Skip persisting outbound (fromMe): already saved by proxy (optimistic) + outbox worker (sent).
-          // Persisting again would create a duplicate doc (waMessageId) and show the same message 2–3x.
+          // Persist outbound (fromMe) too: when user sends FROM PHONE, message is not in Firestore yet.
+          // When sent from app, outbox worker already wrote with msg.key.id – we write again with same id (idempotent, no duplicate).
           if (isFromMe) {
-            console.log(`⏭️  [${hashForLog(accountId)}] Skipping persist for outbound (fromMe) msgId=${hashForLog(messageId)} – already from proxy+worker`);
-            continue;
+            console.log(
+              `📤 [${hashForLog(accountId)}] OUTBOUND (from phone/app): will persist to Firestore remoteJid=${hashForLog(remoteJid)} msgId=${hashForLog(messageId)} fromSafe=${fromSafe ? hashForLog(fromSafe) : 'null'}`
+            );
           }
 
           let saved = null;
@@ -1908,11 +1986,21 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
             saved = await saveMessageToFirestore(accountId, msg, false, sock);
             if (saved) {
               console.log(
-                `✅ [${hashForLog(accountId)}] Message saved successfully: msgId=${hashForLog(saved.messageId)} threadId=${hashForLog(saved.threadId)}`
+                `✅ [${hashForLog(accountId)}] Message saved successfully: msgId=${hashForLog(saved.messageId)} threadId=${hashForLog(saved.threadId)}${isFromMe ? ' (OUTBOUND – from phone/app, will sync in app)' : ''}`
               );
+              // Outbound: ensure thread activity is on the same thread that has the message (canonical).
+              if (isFromMe && firestoreAvailable && db && saved.threadId) {
+                try {
+                  await updateThreadLastMessageForOutbound(db, accountId, saved.threadId, msg, {
+                    body: saved.messageBody || null,
+                  });
+                } catch (e) {
+                  console.warn(`⚠️  [${hashForLog(accountId)}] Thread update after outbound save failed: ${e.message}`);
+                }
+              }
             } else {
               console.warn(
-                `⚠️  [${hashForLog(accountId)}] saveMessageToFirestore returned null for msg=${hashForLog(messageId)} - message may be filtered or invalid`
+                `⚠️  [${hashForLog(accountId)}] saveMessageToFirestore returned null for msg=${hashForLog(messageId)} fromMe=${isFromMe} - message may be filtered or invalid`
               );
             }
           } catch (writeErr) {
@@ -2160,6 +2248,36 @@ const MAX_ACCOUNTS = 30;
 const connectionHealth = new Map(); // accountId -> { lastEventAt, lastMessageAt, reconnectCount, isStale }
 const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000; // 5 minutes without events = stale
 const HEALTH_CHECK_INTERVAL = 60 * 1000; // Check every 60 seconds
+/** Debounce: last time we triggered recovery due to "Connection Closed" (from backfill/sync) */
+const lastRecoveryOnClosedAt = new Map(); // accountId -> timestamp
+const RECOVERY_ON_CLOSED_DEBOUNCE_MS = 60 * 1000; // 1 minute
+
+/**
+ * Returns true if the error indicates the WhatsApp socket is already closed
+ * (e.g. backfill/sync fails with "Connection Closed" without connection.update close event).
+ */
+function isConnectionClosedError(err) {
+  if (!err || !err.message) return false;
+  const msg = String(err.message).toLowerCase();
+  const code = err.code;
+  if (msg.includes('connection closed')) return true;
+  if (code === 'ECONNRESET' || code === 'EPIPE' || code === 'ETIMEDOUT') return true;
+  if (msg.includes('socket hang up') || msg.includes('econnreset') || msg.includes('epipe')) return true;
+  return false;
+}
+
+/**
+ * Trigger reconnection when we detect socket is closed (e.g. from backfill failure).
+ * Debounced per account to avoid multiple recoveries in one backfill run.
+ */
+function triggerRecoveryOnConnectionClosed(accountId) {
+  const now = Date.now();
+  const last = lastRecoveryOnClosedAt.get(accountId) || 0;
+  if (now - last < RECOVERY_ON_CLOSED_DEBOUNCE_MS) return;
+  lastRecoveryOnClosedAt.set(accountId, now);
+  console.log(`🔌 [${accountId}] Connection closed detected (e.g. backfill), triggering auto-recovery...`);
+  recoverStaleConnection(accountId).catch(e => console.error(`❌ [${accountId}] Recovery on closed failed:`, e.message));
+}
 
 // Session stability tracking
 const sessionStability = new Map(); // accountId -> { lastRestoreAt, restoreCount, lastStableAt }
@@ -2582,6 +2700,7 @@ const BOOT_TIMESTAMP = new Date().toISOString();
 const longrunJobsModule = require('./lib/longrun-jobs-v2');
 const { createAutoBackfill, getInstanceId } = require('./lib/wa-auto-backfill');
 const { createRecentSync } = require('./lib/wa-recent-sync');
+const { deriveLastActivityFromMessage: deriveLastActivityFromMessageLib } = require('./lib/wa-thread-repair');
 const longrunJobsInstance = null;
 
 // Long-run schema and evidence endpoints
@@ -2653,6 +2772,15 @@ const RECENT_SYNC_MAX_CONCURRENCY = parseInt(
   10
 );
 const HISTORY_SYNC_DRY_RUN = process.env.WHATSAPP_HISTORY_SYNC_DRY_RUN === 'true';
+const AUTO_REPAIR_THREADS_ENABLED = process.env.AUTO_REPAIR_THREADS_ENABLED !== 'false';
+const AUTO_REPAIR_THREADS_LIMIT_PER_RUN = parseInt(
+  process.env.AUTO_REPAIR_THREADS_LIMIT_PER_RUN || '200',
+  10
+);
+const AUTO_REPAIR_COOLDOWN_MINUTES = parseInt(
+  process.env.AUTO_REPAIR_COOLDOWN_MINUTES || '60',
+  10
+);
 console.log(`📚 History sync: ${SYNC_FULL_HISTORY ? 'enabled' : 'disabled'} (WHATSAPP_SYNC_FULL_HISTORY=${SYNC_FULL_HISTORY})`);
 if (HISTORY_SYNC_DRY_RUN) {
   console.log(`🧪 History sync DRY RUN mode: enabled (will log but not write)`);
@@ -3239,7 +3367,10 @@ async function ensureThreadsFromHistoryChats(accountId, historyChats) {
           skipped++;
           continue;
         }
-        const threadId = `${accountId}__${jid}`;
+        // Use canonical JID so threadId matches saveMessagesBatch (c.us -> s.whatsapp.net)
+        const { canonicalJid: canonical } = canonicalizeJid(jid);
+        const clientJid = canonical || jid;
+        const threadId = `${accountId}__${clientJid}`;
         if (threadId.includes('[object Object]') || threadId.includes('[obiect Obiect]')) {
           skipped++;
           continue;
@@ -3254,7 +3385,7 @@ async function ensureThreadsFromHistoryChats(accountId, historyChats) {
         const displayName = typeof c?.name === 'string' && c.name.trim() ? c.name.trim() : null;
         batch.set(ref, {
           accountId,
-          clientJid: jid,
+          clientJid,
           updatedAt: now,
           lastMessageAt: now,
           lastMessageAtMs: now.toMillis(),
@@ -3308,7 +3439,10 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
         skipped++;
         continue;
       }
-      const threadId = `${accountId}__${from}`;
+      // Use canonical JID so threadId matches ensureThreadsFromHistoryChats (c.us -> s.whatsapp.net)
+      const { canonicalJid: canonicalFrom } = canonicalizeJid(from);
+      const clientJid = canonicalFrom || from;
+      const threadId = `${accountId}__${clientJid}`;
       const direction = msg.key.fromMe ? 'outbound' : 'inbound'; // Use 'inbound'/'outbound' for consistency with Flutter
       
       // DEBUG: Log message structure for history sync to see if text messages come through
@@ -3376,7 +3510,7 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
       
       await writeMessageIdempotent(
         db,
-        { accountId, clientJid: from, threadId, direction },
+        { accountId, clientJid, threadId, direction },
         msg,
         {
           extraFields: {
@@ -3547,6 +3681,175 @@ async function enrichThreadsFromContacts(accountId) {
   return { updated, skipped, errors };
 }
 
+// Repair step: set thread lastMessageAt/lastMessageAtMs from latest message in subcollection if missing/0.
+// Used after backfill so inbox order = WhatsApp phone order.
+async function repairThreadLastMessageFromSubcollection(db, threadId) {
+  if (!db || !threadId) return { repaired: false };
+  const col = db.collection('threads').doc(threadId).collection('messages');
+  let snap;
+  try {
+    snap = await col.orderBy('tsClient', 'desc').limit(1).get();
+  } catch (_) {
+    try {
+      snap = await col.orderBy('createdAt', 'desc').limit(1).get();
+    } catch (e) {
+      return { repaired: false, error: e.message };
+    }
+  }
+  if (snap.empty) return { repaired: false };
+  const d = snap.docs[0].data();
+  const ts = d.tsClient && typeof d.tsClient.toMillis === 'function'
+    ? d.tsClient
+    : d.createdAt && typeof d.createdAt.toMillis === 'function'
+      ? d.createdAt
+      : null;
+  if (!ts) return { repaired: false };
+  const tsMs = typeof ts.toMillis === 'function' ? ts.toMillis() : null;
+  if (tsMs == null) return { repaired: false };
+  const threadRef = db.collection('threads').doc(threadId);
+  const threadSnap = await threadRef.get();
+  if (!threadSnap.exists) return { repaired: false };
+  const threadData = threadSnap.data() || {};
+  const hasValidLastMessageAt = threadData.lastMessageAt && typeof threadData.lastMessageAt.toMillis === 'function';
+  const hasValidLastMessageAtMs = typeof threadData.lastMessageAtMs === 'number' && threadData.lastMessageAtMs > 0;
+  if (hasValidLastMessageAt && hasValidLastMessageAtMs) return { repaired: false };
+  try {
+    const update = {};
+    if (!hasValidLastMessageAt) update.lastMessageAt = ts;
+    if (!hasValidLastMessageAtMs) update.lastMessageAtMs = tsMs;
+    if (Object.keys(update).length === 0) return { repaired: false };
+    await threadRef.set(update, { merge: true });
+    return { repaired: true };
+  } catch (e) {
+    console.warn(`[schema-guard] SchemaGuard missing lastMessageAt/lastMessageAtMs after backfill update: thread=${threadId} error=${e.message}`);
+    return { repaired: false, error: e.message };
+  }
+}
+
+function deriveLastActivityFromMessage(msgData, admin) {
+  return deriveLastActivityFromMessageLib(msgData, admin);
+}
+
+/**
+ * Repair threads for an account: set lastMessageAt/lastMessageAtMs from latest message
+ * for threads where they are missing or 0. Incremental, bounded per run.
+ * @param {import('@google-cloud/firestore').Firestore} db
+ * @param {string} accountId
+ * @param {{ limit?: number }} opts - limit threads per run (default AUTO_REPAIR_THREADS_LIMIT_PER_RUN)
+ * @returns {Promise<{ updatedThreads: number, scanned: number, errors: number, durationMs: number }>}
+ */
+async function repairThreadsLastActivityForAccount(db, accountId, opts = {}) {
+  const limit = Math.min(Math.max(1, opts.limit ?? AUTO_REPAIR_THREADS_LIMIT_PER_RUN), 500);
+  const start = Date.now();
+  let updatedThreads = 0;
+  let scanned = 0;
+  let errors = 0;
+
+  if (!db || !accountId) {
+    return { updatedThreads: 0, scanned: 0, errors: 1, durationMs: Date.now() - start };
+  }
+
+  const fetchLimit = Math.min(Math.max(limit * 2, 200), 500);
+  let snapshot;
+  try {
+    snapshot = await db
+      .collection('threads')
+      .where('accountId', '==', accountId)
+      .limit(fetchLimit)
+      .get();
+  } catch (e) {
+    console.warn(`[repair] accountId=${hashForLog(accountId)} query error:`, e.message);
+    return { updatedThreads: 0, scanned: 0, errors: 1, durationMs: Date.now() - start };
+  }
+
+  const eligible = [];
+  snapshot.docs.forEach((doc) => {
+    scanned += 1;
+    const d = doc.data() || {};
+    const hasValidLastMessageAt = d.lastMessageAt && typeof d.lastMessageAt.toMillis === 'function';
+    const hasValidLastMessageAtMs = typeof d.lastMessageAtMs === 'number' && d.lastMessageAtMs > 0;
+    if (!hasValidLastMessageAt || !hasValidLastMessageAtMs) {
+      eligible.push({ threadId: doc.id, data: d });
+    }
+  });
+  let toProcess = eligible.slice(0, limit);
+
+  // Also repair "stale" threads: lastMessageAt is older than latest message in subcollection (e.g. Dec thread with newer messages).
+  let staleSnapshot;
+  try {
+    staleSnapshot = await db
+      .collection('threads')
+      .where('accountId', '==', accountId)
+      .orderBy('lastMessageAt', 'asc')
+      .limit(Math.min(100, limit))
+      .get();
+  } catch (staleErr) {
+    // Index may not exist for asc; skip stale pass
+    staleSnapshot = { docs: [], empty: true };
+  }
+  if (!staleSnapshot.empty) {
+    const staleLimit = Math.min(50, limit);
+    for (let i = 0; i < Math.min(staleSnapshot.docs.length, staleLimit); i++) {
+      const doc = staleSnapshot.docs[i];
+      const d = doc.data() || {};
+      const threadLastMs = typeof d.lastMessageAtMs === 'number' ? d.lastMessageAtMs : (d.lastMessageAt && typeof d.lastMessageAt.toMillis === 'function' ? d.lastMessageAt.toMillis() : 0);
+      if (threadLastMs > 0) {
+        toProcess.push({ threadId: doc.id, data: d, staleCheck: true, threadLastMs });
+      }
+    }
+  }
+
+  if (toProcess.length === 0) {
+    const durationMs = Date.now() - start;
+    console.log(`[repair] end accountId=${hashForLog(accountId)} updatedThreads=0 scanned=${scanned} durationMs=${durationMs}`);
+    return { updatedThreads: 0, scanned, errors: 0, durationMs };
+  }
+
+  console.log(`[repair] start accountId=${hashForLog(accountId)} toProcess=${toProcess.length} limit=${limit}`);
+
+  for (const item of toProcess) {
+    const { threadId, data: d, staleCheck, threadLastMs } = item;
+    const threadIdOnly = threadId;
+    try {
+      const col = db.collection('threads').doc(threadIdOnly).collection('messages');
+      let msgSnap;
+      try {
+        msgSnap = await col.orderBy('tsClient', 'desc').limit(1).get();
+      } catch (_) {
+        try {
+          msgSnap = await col.orderBy('createdAt', 'desc').limit(1).get();
+        } catch (e2) {
+          errors += 1;
+          continue;
+        }
+      }
+      if (msgSnap.empty) continue;
+      const msgData = msgSnap.docs[0].data();
+      const derived = deriveLastActivityFromMessage(msgData, admin);
+      if (!derived) continue;
+      const currentMs = (d && typeof d.lastMessageAtMs === 'number' && d.lastMessageAtMs > 0) ? d.lastMessageAtMs : (threadLastMs || 0);
+      if (staleCheck && derived.lastMessageAtMs <= currentMs) continue;
+      const threadRef = db.collection('threads').doc(threadIdOnly);
+      await threadRef.set(
+        {
+          lastMessageAt: derived.lastMessageAt,
+          lastMessageAtMs: derived.lastMessageAtMs,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      updatedThreads += 1;
+    } catch (e) {
+      errors += 1;
+      console.warn(`[repair] thread=${threadIdOnly} error:`, e.message);
+    }
+  }
+
+  const durationMs = Date.now() - start;
+  console.log(`[repair] end accountId=${hashForLog(accountId)} updatedThreads=${updatedThreads} scanned=${scanned} durationMs=${durationMs}`);
+  return { updatedThreads, scanned, errors, durationMs };
+}
+
 // Helper: Backfill messages for an account (best-effort gap filling after reconnect)
 // Fetches recent messages from active threads to fill gaps
 async function backfillAccountMessages(accountId) {
@@ -3622,6 +3925,9 @@ async function backfillAccountMessages(accountId) {
               `❌ [${accountId}] Backfill failed for thread ${threadId}:`,
               threadError.message
             );
+            if (isConnectionClosedError(threadError)) {
+              triggerRecoveryOnConnectionClosed(accountId);
+            }
             threadResults.push({ threadId, status: 'error', error: threadError.message });
             return { saved: 0, errors: 1, threadId, status: 'error' };
           }
@@ -3638,6 +3944,22 @@ async function backfillAccountMessages(accountId) {
       if (i + CONCURRENCY < threadsSnapshot.docs.length) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
+    }
+
+    // Repair step: set lastMessageAt/lastMessageAtMs from latest message for threads that have messages but missing/0
+    let repairedCount = 0;
+    for (const tr of threadResults) {
+      const threadId = tr.threadId;
+      if (!threadId) continue;
+      try {
+        const out = await repairThreadLastMessageFromSubcollection(db, threadId);
+        if (out.repaired) repairedCount += 1;
+      } catch (e) {
+        console.warn(`[schema-guard] SchemaGuard missing lastMessageAt/lastMessageAtMs after backfill update: thread=${threadId} error=${e.message}`);
+      }
+    }
+    if (repairedCount > 0) {
+      console.log(`📚 [${accountId}] Repair step: updated lastMessageAt/lastMessageAtMs for ${repairedCount} threads`);
     }
 
     // Update account metadata
@@ -3666,6 +3988,9 @@ async function backfillAccountMessages(accountId) {
     };
   } catch (error) {
     console.error(`❌ [${accountId}] Backfill error:`, error.message);
+    if (isConnectionClosedError(error)) {
+      triggerRecoveryOnConnectionClosed(accountId);
+    }
     await logIncident(accountId, 'backfill_failed', { error: error.message });
     return { success: false, error: error.message };
   }
@@ -3825,6 +4150,9 @@ async function runRecentSyncForAccount(accountId) {
         console.warn(
           `[recent-sync] ${hashForLog(accountId)} thread ${hashForLog(threadDoc.id)} fetch error: ${e.message}`
         );
+        if (isConnectionClosedError(e)) {
+          triggerRecoveryOnConnectionClosed(accountId);
+        }
       }
     }
 
@@ -3849,6 +4177,9 @@ async function runRecentSyncForAccount(accountId) {
   } catch (err) {
     const durationMs = Date.now() - start;
     console.error(`[recent-sync] ${hashForLog(accountId)} error: ${err.message} durationMs=${durationMs}`);
+    if (isConnectionClosedError(err)) {
+      triggerRecoveryOnConnectionClosed(accountId);
+    }
     return {
       success: false,
       threads: 0,
@@ -3891,6 +4222,34 @@ function initAutoBackfill() {
         autoBackfillLeaseHolder: raw?.autoBackfillLeaseHolder,
         autoBackfillLeaseAcquiredAt: raw?.autoBackfillLeaseAcquiredAt,
       };
+    },
+    runRepair: async (accountId, opts = {}) => {
+      if (!AUTO_REPAIR_THREADS_ENABLED || !firestoreAvailable || !db) return;
+      const cooldownMs = (Number.isFinite(AUTO_REPAIR_COOLDOWN_MINUTES) && AUTO_REPAIR_COOLDOWN_MINUTES > 0
+        ? AUTO_REPAIR_COOLDOWN_MINUTES
+        : 60) * 60 * 1000;
+      try {
+        const accSnap = await db.collection('accounts').doc(accountId).get();
+        if (accSnap.exists) {
+          const raw = accSnap.data() || {};
+          const lastAt = raw.lastAutoRepairAt;
+          const lastMs = lastAt && typeof lastAt.toMillis === 'function' ? lastAt.toMillis() : (lastAt?._seconds != null ? lastAt._seconds * 1000 : null);
+          if (lastMs != null && Date.now() - lastMs < cooldownMs) return;
+        }
+        const limit = opts.limit ?? AUTO_REPAIR_THREADS_LIMIT_PER_RUN;
+        const result = await repairThreadsLastActivityForAccount(db, accountId, { limit });
+        await saveAccountToFirestore(accountId, {
+          lastAutoRepairAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastAutoRepairResult: {
+            updatedThreads: result.updatedThreads,
+            scanned: result.scanned,
+            errors: result.errors,
+            durationMs: result.durationMs,
+          },
+        });
+      } catch (e) {
+        console.warn(`[repair] runRepair for accountId=${hashForLog(accountId)} error:`, e.message);
+      }
     },
   });
 }
@@ -6764,6 +7123,8 @@ app.post('/admin/fix-thread-summary/:accountId', async (req, res) => {
 
       if (ts) {
         update.lastMessageAt = ts;
+        const tsMs = typeof ts.toMillis === 'function' ? ts.toMillis() : (ts._seconds != null ? (ts._seconds || 0) * 1000 : null);
+        if (tsMs != null) update.lastMessageAtMs = tsMs;
       }
 
       const tsStr = ts ? ts.toDate().toISOString() : 'null';
@@ -6804,6 +7165,47 @@ app.post('/admin/fix-thread-summary/:accountId', async (req, res) => {
     });
   } catch (error) {
     console.error(`❌ Fix thread summary failed:`, error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin-only: Repair thread lastMessageAt/lastMessageAtMs so inbox order matches WhatsApp (fix mixed Dec/Nov/Jul).
+// POST /admin/repair-threads  Body: { accountId?: string, limit?: number }  — if no accountId, runs for all connected.
+app.post('/admin/repair-threads', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+    const token = (authHeader.substring(7) || '').trim();
+    if (!token || token !== (ADMIN_TOKEN || '').trim()) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+    if (!firestoreAvailable || !db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const accountId = body.accountId || req.query.accountId || null;
+    const limit = Math.min(500, Math.max(1, parseInt(body.limit || req.query.limit || '500', 10) || 500));
+    const accountIds = accountId
+      ? [accountId]
+      : [...connections.entries()].filter(([, a]) => a && a.status === 'connected').map(([id]) => id);
+    if (accountIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'No accountId provided and no connected accounts; nothing to repair.',
+        results: [],
+      });
+    }
+    const results = [];
+    for (const id of accountIds) {
+      const result = await repairThreadsLastActivityForAccount(db, id, { limit });
+      results.push({ accountId: id, ...result });
+    }
+    console.log(`🔧 [ADMIN] repair-threads completed for ${accountIds.length} account(s):`, results);
+    return res.status(200).json({ success: true, results });
+  } catch (error) {
+    console.error('❌ [ADMIN] repair-threads failed:', error.message);
     return res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -8684,6 +9086,65 @@ app.post('/api/whatsapp/backfill/:accountId', requireFirebaseAuth, accountLimite
       success: true,
       message: 'Backfill started (runs asynchronously)',
       accountId,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin: trigger backfill for an account (admin-only; backfill remains automatic)
+app.post('/api/admin/backfill/:accountId', requireAdmin, async (req, res) => {
+  const passiveGuard = await checkPassiveModeGuard(req, res);
+  if (passiveGuard) return;
+  try {
+    const { accountId } = req.params;
+    const account = connections.get(accountId);
+    if (!account) {
+      return res.status(404).json({ success: false, error: 'account_not_found', message: 'Account not found', accountId });
+    }
+    if (account.status !== 'connected') {
+      return res.status(409).json({
+        success: false,
+        error: 'invalid_state',
+        message: 'Account must be connected to backfill messages',
+        currentStatus: account.status,
+        accountId,
+      });
+    }
+    autoBackfill.runAutoBackfillForAccount(accountId, { isInitial: true, trigger: 'connect' }).catch(err =>
+      console.error(`❌ [${accountId}] Admin backfill run error:`, err.message)
+    );
+    res.json({ success: true, message: 'Backfill enqueued', accountId });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin: get backfill status for an account
+app.get('/api/admin/backfill/:accountId/status', requireAdmin, async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    if (!firestoreAvailable || !db) {
+      return res.status(503).json({ success: false, error: 'firestore_unavailable' });
+    }
+    const snap = await db.collection('accounts').doc(accountId).get();
+    if (!snap.exists) {
+      return res.status(404).json({ success: false, error: 'account_not_found', accountId });
+    }
+    const d = snap.data() || {};
+    const toIso = (v) => {
+      if (!v) return null;
+      if (typeof v.toDate === 'function') return v.toDate().toISOString();
+      if (v._seconds != null) return new Date((v._seconds || 0) * 1000).toISOString();
+      return null;
+    };
+    res.json({
+      success: true,
+      accountId,
+      lastBackfillAt: toIso(d.lastBackfillAt || d.lastAutoBackfillSuccessAt),
+      lastBackfillStatus: d.lastBackfillStatus || (d.lastAutoBackfillStatus?.running ? 'running' : (d.lastAutoBackfillStatus?.ok ? 'success' : 'error')),
+      lastBackfillError: d.lastBackfillError || d.lastAutoBackfillStatus?.errorMessage || null,
+      lastBackfillStats: d.lastBackfillStats || (d.lastAutoBackfillStatus ? { threads: d.lastAutoBackfillStatus.threads, messages: d.lastAutoBackfillStatus.messages, errors: d.lastAutoBackfillStatus.errors, durationMs: d.lastAutoBackfillStatus.durationMs } : null),
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -12156,9 +12617,16 @@ app.listen(PORT, '0.0.0.0', async () => {
                 );
               } else {
                 console.warn(
-                  `⚠️  [${accountId}] Outbox sent: no optimistic doc messages/${requestId}, skipping thread update`
+                  `⚠️  [${accountId}] Outbox sent: no optimistic doc messages/${requestId}, updating thread only`
                 );
               }
+              // Always update thread activity so conversation rises in Inbox (last message = top).
+              const outboundMsg = {
+                messageTimestamp: result.key?.timestamp ?? Math.floor(Date.now() / 1000),
+              };
+              await updateThreadLastMessageForOutbound(db, accountId, threadId, outboundMsg, {
+                body: body || (payload && typeof payload.text === 'string' ? payload.text : null),
+              });
               logThreadWrite('outbox-sent', accountId, toJid, threadId);
             } catch (updateErr) {
               console.error(
