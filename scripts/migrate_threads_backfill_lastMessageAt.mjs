@@ -5,9 +5,11 @@
  * Default: DRY RUN (no writes). Use --apply to write.
  * CLI: --project <id> [--accountId <id> ... | --accountIdsFile <path>] [--dryRun] [--apply]
  *
- * For each thread where lastMessageAt is missing or not a Timestamp:
+ * For employee-only backfill, pass employee account IDs via --accountIdsFile (one per line).
+ *
+ * For each thread where lastMessageAt is missing or not a Timestamp, or lastMessageAtMs is missing:
  * - Query threads/{threadId}/messages by tsClient desc (fallback createdAt desc)
- * - Set thread.lastMessageAt to latest message timestamp.
+ * - Set thread.lastMessageAt and thread.lastMessageAtMs from latest message (or from lastMessageAt if only *Ms missing).
  * Never modifies accountId. Prints: scannedThreads, wouldUpdate/updated, skipped.
  */
 
@@ -196,31 +198,44 @@ See VERIFICATION_WHATSAPP_INBOX.md for full details.
       const d = td.data();
       stats.scannedThreads += 1;
 
-      if (isFirestoreTimestamp(d.lastMessageAt)) {
+      const hasValidLastMessageAt = isFirestoreTimestamp(d.lastMessageAt);
+      const hasValidLastMessageAtMs = typeof d.lastMessageAtMs === 'number' && d.lastMessageAtMs > 0;
+      if (hasValidLastMessageAt && hasValidLastMessageAtMs) {
         continue; // nothing to do
       }
 
-      const { ts, err } = await getLatestMessageTimestamp(db, threadId);
-      if (err) {
-        stats.skipped.push({ threadId, reason: `messages fetch error: ${err}` });
-        continue;
-      }
+      let ts = hasValidLastMessageAt ? d.lastMessageAt : null;
       if (!ts) {
-        stats.skipped.push({ threadId, reason: 'no messages or no tsClient/createdAt' });
-        continue;
+        const out = await getLatestMessageTimestamp(db, threadId);
+        if (out.err) {
+          stats.skipped.push({ threadId, reason: `messages fetch error: ${out.err}` });
+          continue;
+        }
+        if (!out.ts) {
+          stats.skipped.push({ threadId, reason: 'no messages or no tsClient/createdAt' });
+          continue;
+        }
+        ts = out.ts;
       }
+
+      const tsMs = typeof ts.toMillis === 'function' ? ts.toMillis() : (ts._seconds != null ? (ts._seconds || 0) * 1000 : null);
+      const update = {};
+      if (!hasValidLastMessageAt) update.lastMessageAt = ts;
+      if (!hasValidLastMessageAtMs && tsMs != null) update.lastMessageAtMs = tsMs;
+
+      if (Object.keys(update).length === 0) continue;
 
       stats.wouldUpdate += 1;
       if (apply) {
         try {
-          await db.collection('threads').doc(threadId).update({ lastMessageAt: ts });
+          await db.collection('threads').doc(threadId).update(update);
           stats.updated += 1;
-          console.log(`   ✅ updated ${threadId} lastMessageAt`);
+          console.log(`   ✅ updated ${threadId} ${Object.keys(update).join(' + ')}`);
         } catch (e) {
           stats.skipped.push({ threadId, reason: `update failed: ${e.message}` });
         }
       } else {
-        console.log(`   [dry-run] would update ${threadId} lastMessageAt`);
+        console.log(`   [dry-run] would update ${threadId} ${Object.keys(update).join(' + ')}`);
       }
     }
   }

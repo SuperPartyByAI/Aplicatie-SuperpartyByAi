@@ -126,6 +126,50 @@ function logThreadWrite(source, accountId, clientJid, threadId) {
 }
 
 /**
+ * Update only thread lastMessageAt/lastMessageAtMs for outbound (fromMe) when we skip
+ * persisting the message. Ensures inbox order matches WhatsApp: last message (inbound OR
+ * outbound) moves thread to top.
+ * @param {FirebaseFirestore.Firestore} db
+ * @param {string} accountId
+ * @param {string} threadId
+ * @param {object} msg - Baileys message (msg.messageTimestamp used)
+ */
+async function updateThreadLastMessageForOutbound(db, accountId, threadId, msg) {
+  if (!db || !threadId || !msg) return;
+  const tsMs = extractTimestampMs(msg?.messageTimestamp);
+  const nowMs = Date.now();
+  const useMs = tsMs ?? nowMs;
+  const tsClientAt = admin?.firestore?.Timestamp?.fromMillis?.(useMs) ?? null;
+  const payload = {
+    lastMessageAt: tsClientAt,
+    lastMessageAtMs: useMs,
+    lastMessageDirection: 'outbound',
+    updatedAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
+  };
+  if (payload.updatedAt === null) delete payload.updatedAt;
+  const ref = db.collection('threads').doc(threadId);
+  await ref.set(payload, { merge: true });
+
+  // Schema guard: canonical "last activity" = lastMessageAt (+ lastMessageAtMs). Must be set inbound+outbound.
+  ref.get()
+    .then((snap) => {
+      if (!snap.exists) return;
+      const d = snap.data() || {};
+      if (d.lastMessageAt == null) {
+        console.warn(
+          `[schema-guard] Thread ${hashForLog(threadId)} missing canonical lastMessageAt after outbound update (accountId=${hashForLog(accountId)})`
+        );
+      }
+      if (d.lastMessageAt != null && (d.lastMessageAtMs == null || d.lastMessageAtMs === 0)) {
+        console.warn(
+          `[schema-guard] Thread ${hashForLog(threadId)} has lastMessageAt but missing lastMessageAtMs after outbound (accountId=${hashForLog(accountId)})`
+        );
+      }
+    })
+    .catch(() => {});
+}
+
+/**
  * Update accounts/{accountId} realtime diagnostics (lastRealtimeIngestAt, lastRealtimeMessageAt, lastRealtimeError).
  * Best-effort, non-blocking; logs on Firestore error.
  */
@@ -1894,7 +1938,17 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
 
           // Skip persisting outbound (fromMe): already saved by proxy (optimistic) + outbox worker (sent).
           // Persisting again would create a duplicate doc (waMessageId) and show the same message 2–3x.
+          // Still update thread lastMessageAt/lastMessageAtMs so inbox order matches WhatsApp (last msg = top).
           if (isFromMe) {
+            if (firestoreAvailable && db && fromSafe) {
+              const outboundThreadId = `${accountId}__${fromSafe}`;
+              try {
+                await updateThreadLastMessageForOutbound(db, accountId, outboundThreadId, msg);
+                console.log(`📤 [${hashForLog(accountId)}] [schema-guard] Thread ${hashForLog(outboundThreadId)} lastMessageAt set (outbound) – skip message persist`);
+              } catch (e) {
+                console.warn(`⚠️  [${hashForLog(accountId)}] Thread-only update for outbound failed: ${e.message}`);
+              }
+            }
             console.log(`⏭️  [${hashForLog(accountId)}] Skipping persist for outbound (fromMe) msgId=${hashForLog(messageId)} – already from proxy+worker`);
             continue;
           }
@@ -6764,6 +6818,8 @@ app.post('/admin/fix-thread-summary/:accountId', async (req, res) => {
 
       if (ts) {
         update.lastMessageAt = ts;
+        const tsMs = typeof ts.toMillis === 'function' ? ts.toMillis() : (ts._seconds != null ? (ts._seconds || 0) * 1000 : null);
+        if (tsMs != null) update.lastMessageAtMs = tsMs;
       }
 
       const tsStr = ts ? ts.toDate().toISOString() : 'null';

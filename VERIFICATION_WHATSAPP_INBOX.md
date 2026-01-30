@@ -6,7 +6,8 @@ All three inbox screens use the **same** canonical helper:
 
 - **`superparty_flutter/lib/utils/threads_query.dart`**  
   `buildThreadsQuery(accountId)` =  
-  `collection('threads').where('accountId', isEqualTo: accountId).orderBy('lastMessageAt', descending: true).limit(200)`
+  `collection('threads').where('accountId', isEqualTo: accountId).orderBy('lastMessageAt', descending: true).limit(1000)`  
+  Index: `accountId` ASC + `lastMessageAt` DESC (see `firestore.indexes.json`). `lastMessageAt` = canonical last activity (inbound+outbound).
 
 - **WhatsApp Inbox (canonical):** `whatsapp_inbox_screen.dart` → `buildThreadsQuery(accountId).snapshots().listen(...)`
 - **Employee Inbox:** `employee_inbox_screen.dart` → `buildThreadsQuery(accountId).snapshots().listen(...)`
@@ -53,6 +54,81 @@ Doar **2 linii** din log la deschiderea Inbox Angajați:
 2. orice `FirebaseException code=...` (dacă există)
 
 Cu ele se poate spune exact care dintre cele 3 cazuri e și ce schimbare minimă mai lipsește.
+
+---
+
+## Employee inbox order = phone order
+
+Ordinea conversațiilor în **Inbox Angajați** (și Staff / WhatsApp Inbox) trebuie să fie **identică** cu WhatsApp pe telefon: thread-ul cu **ultimul mesaj** (inbound sau outbound) pe primul loc.
+
+### De ce e corect acum
+
+- **Câmp canonic „last activity”:** `lastMessageAt` + `lastMessageAtMs` se actualizează pentru **inbound și outbound** (`message_persist.js` la persist, `updateThreadLastMessageForOutbound` când skip persist pentru outbound).
+- **Query:** `orderBy(lastMessageAt, desc).limit(1000)` — index `accountId` ASC + `lastMessageAt` DESC. Ordinea reflectă ultima activitate, deci top-N e corect.
+- **Sortare client:** `threadTimeMs` din `thread_sort_utils.dart`, prioritate: `lastMessageAtMs` → `lastMessageAt` → `updatedAt` → `lastMessageTimestamp` → `0`. Tie-breaker stabil pe thread id. Folosit de Employee, Staff, WhatsApp Inbox.
+
+### Comenzi de verificare
+
+```bash
+# Flutter
+cd superparty_flutter
+dart analyze lib/utils/thread_sort_utils.dart lib/utils/threads_query.dart lib/screens/whatsapp/employee_inbox_screen.dart lib/screens/whatsapp/staff_inbox_screen.dart lib/screens/whatsapp/whatsapp_inbox_screen.dart
+flutter build apk --debug
+```
+
+```bash
+# Backend lint (whatsapp-backend)
+cd whatsapp-backend && npm run lint
+```
+
+```bash
+# Backfill (dry-run apoi apply)
+cd Aplicatie-SuperpartyByAi
+node scripts/migrate_threads_backfill_lastMessageAt.mjs --project superparty-frontend --accountId <ACCOUNT_ID> --dryRun
+node scripts/migrate_threads_backfill_lastMessageAt.mjs --project superparty-frontend --accountId <ACCOUNT_ID> --apply
+# sau --accountIdsFile <path> (un accountId per linie) pentru conturile angajaților
+```
+
+### Pași manuali
+
+- **(a) Outbound:** Alege o conversație **B** care nu e prima. Trimite un mesaj **outbound** în B (din app / integrare). Verifică că **B** urcă pe **locul 1** în Inbox Angajați.
+- **(b) Inbound:** Alege o conversație **A** care nu e prima. Primește un mesaj **inbound** în A (de pe telefon). Verifică că **A** urcă pe **locul 1** în Inbox Angajați.
+- **(c) Firestore:** Deschide `threads/{threadId}`. După un mesaj (inbound sau outbound), confirmă că `lastMessageAt` și `lastMessageAtMs` sunt actualizate.
+
+### Schema-guard (backend)
+
+După update outbound-only pe thread, backend-ul verifică (fire-and-forget) că thread-ul are câmpul canonic. Dacă lipsește, apare în log:
+
+- `[schema-guard] Thread <hash> missing canonical lastMessageAt after outbound update (accountId=<hash>)`
+- `[schema-guard] Thread <hash> has lastMessageAt but missing lastMessageAtMs after outbound (accountId=<hash>)`
+
+**Unde se citește:** `server.js` ~154–168 (`updateThreadLastMessageForOutbound` → `ref.get()` schema-guard).
+
+### Fișiere relevante
+
+| Fișier | Ce face |
+|--------|---------|
+| `whatsapp-backend/whatsapp/message_persist.js` | Setează `lastMessageAt` / `lastMessageAtMs` inbound+outbound (liniile 281–288); `lastInboundAt` / `lastInboundAtMs` doar inbound. |
+| `whatsapp-backend/server.js` | `updateThreadLastMessageForOutbound` (liniile 137–170): setează canonical + schema-guard. |
+| `superparty_flutter/lib/utils/threads_query.dart` | `buildThreadsQuery`: `orderBy(lastMessageAt, desc).limit(1000)` (liniile 8–11), doc index. |
+| `superparty_flutter/lib/utils/thread_sort_utils.dart` | `threadTimeMs` (liniile 8–31), `parseAnyTimestamp` (liniile 34–57); canonical last activity. |
+| `superparty_flutter/lib/screens/whatsapp/employee_inbox_screen.dart` | Sort desc `threadTimeMs` + tie-break thread id (liniile 254–264). |
+| `scripts/migrate_threads_backfill_lastMessageAt.mjs` | Backfill `lastMessageAt` + `lastMessageAtMs` (derive din ultimul mesaj sau din `lastMessageAt` existent); `--dryRun` / `--apply`, `--accountIdsFile` (liniile 10–12, 168–195). |
+
+### De ce repară "phone order" și query-ul
+
+- **Query:** `orderBy(lastMessageAt)` + `lastMessageAt` actualizat inbound+outbound → thread-urile **nu sunt excluse** din rezultate când outbound. Limit 1000 e suficient; top‑N e **corect** pentru că orderBy reflectă ultima activitate.
+- **Sort client:** Fallback `updatedAt` acoperă edge case-uri când canonical lipsește (thread-uri vechi, migrări), dar acum canonical e mereu setat.
+- **No "dispare din top"**: Thread-ul care primește outbound urcă în query (serverside) și apoi e sortat corect client (threadTimeMs). Înainte, outbound nu actualiza `lastMessageAt` → thread-ul nu urca în query → putea să dispară din top 200.
+
+### Rezultate verificare (rulat local)
+
+| Comandă | Rezultat |
+|---------|----------|
+| `dart format ...` | 0 fișiere modificate (deja formatate) |
+| `dart analyze ...` | **0 erori** în fișierele modificate; 8 warnings preexistente în `employee_inbox_screen` (unused vars, curly braces, etc.) |
+| `flutter build apk --debug` | **✓ Built** `build/app/outputs/flutter-apk/app-debug.apk` (19.5s) |
+| `npm run lint` (backend) | Erori preexistente în alte fișiere; **0 erori noi** în `message_persist.js`, `server.js` |
 
 ---
 
