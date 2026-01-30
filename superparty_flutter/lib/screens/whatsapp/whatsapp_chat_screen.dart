@@ -1183,17 +1183,44 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         const SnackBar(content: Text('Se obține locația precisă...')),
       );
 
-      // Get position with high accuracy and a timeout to avoid hanging
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.best,
-        timeLimit: const Duration(seconds: 10),
-      ).catchError((e) async {
-        // Fallback to last known position if current position fails or times out
-        debugPrint('[ChatScreen] Error getting current position, trying last known: $e');
-        return await Geolocator.getLastKnownPosition() ?? 
-               await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
-      });
+      // Request precise location on iOS (if reduced accuracy is enabled)
+      try {
+        final accuracy = await Geolocator.getLocationAccuracy();
+        if (accuracy == LocationAccuracyStatus.reduced) {
+          await Geolocator.requestTemporaryFullAccuracy(purposeKey: 'share_location');
+        }
+      } catch (_) {
+        // Ignore if not supported on current platform
+      }
 
+      Position? position;
+      try {
+        position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 10),
+        );
+      } catch (e) {
+        debugPrint('[ChatScreen] Error getting current position, trying last known: $e');
+        position = await Geolocator.getLastKnownPosition();
+      }
+
+      if (position == null) {
+        try {
+          position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.low,
+            timeLimit: const Duration(seconds: 10),
+          );
+        } catch (_) {}
+      }
+
+      if (position == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Nu pot obține locația curentă. Verifică setările de locație.'), backgroundColor: Colors.red),
+          );
+        }
+        return;
+      }
       final lat = position.latitude;
       final lng = position.longitude;
 
