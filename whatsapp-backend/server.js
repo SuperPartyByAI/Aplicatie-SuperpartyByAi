@@ -1276,10 +1276,10 @@ async function maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType }
     return;
   }
 
-  // GATE 6: Doar mesaje text (conversation/extendedText)
+  // GATE 6: Doar mesaje text (conversation/extendedText/text)
   const { type: msgType, body } = extractBodyAndType(msg);
   const text = (body || '').toString().trim();
-  if (!text || (msgType !== 'conversation' && msgType !== 'extendedText')) {
+  if (!text || (msgType !== 'conversation' && msgType !== 'extendedText' && msgType !== 'text')) {
     logSkip('skipped_nonText', {
       hasText: text ? 'true' : 'false',
       messageType: msgType || 'null',
