@@ -1183,12 +1183,14 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       }
 
       Position? position;
+      bool usedLastKnown = false;
       try {
         position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high,
           timeLimit: const Duration(seconds: 10),
         );
       } catch (_) {
+        usedLastKnown = true;
         position = await Geolocator.getLastKnownPosition();
       }
 
@@ -1200,8 +1202,22 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         }
         return;
       }
+      if (usedLastKnown && position.timestamp != null) {
+        final age = DateTime.now().difference(position.timestamp!);
+        if (age.inMinutes >= 2) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Locația curentă nu este disponibilă (ultimul fix prea vechi).'), backgroundColor: Colors.orange),
+            );
+          }
+          return;
+        }
+      }
       final lat = position.latitude;
       final lng = position.longitude;
+      if (kDebugMode) {
+        debugPrint('[ChatScreen] Location: lat=$lat lng=$lng accuracy=${position.accuracy}m usedLastKnown=$usedLastKnown');
+      }
 
       // Send Google Maps link as text (varianta minimă)
       final locationLink = 'https://maps.google.com/?q=$lat,$lng';
