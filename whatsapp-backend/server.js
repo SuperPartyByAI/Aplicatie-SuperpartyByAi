@@ -1817,7 +1817,7 @@ STIL
       lastHistoryItem.body === currentMsgBody &&
       lastHistoryItem.fromMe === false;
 
-    if (currentMsgBody && !isCurrentInHistory && !info.fromMe) {
+    if (currentMsgBody && !isCurrentInHistory && !fromMe) {
       console.log(
         `[AutoReply][Context] traceId=${traceId} Appending current message to history context manually`
       );
