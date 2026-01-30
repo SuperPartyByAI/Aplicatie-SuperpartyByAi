@@ -160,10 +160,25 @@ async function fetchMessagesFromWA(sock, jid, limit, opts = {}) {
     console.log(`[fetch-messages-wa] LID resolved: ${jid} -> ${resolvedJid}`);
   }
 
-  // 2) Find anchor
-  const threadId = `${accountId}__${jid}`;
-  const ref = db.collection('threads').doc(threadId).collection('messages');
-  const oldestSnap = await ref.orderBy('tsClient', 'asc').limit(1).get();
+  // 2) Find anchor - try both JIDs to be safe (canonical is preferred)
+  const threadIdRaw = `${accountId}__${jid}`;
+  const threadIdCanon = `${accountId}__${resolvedJid}`;
+
+  // Best effort: find if thread exists under either ID
+  let threadId = threadIdCanon;
+  let messagesRef = db.collection('threads').doc(threadIdCanon).collection('messages');
+  let oldestSnap = await messagesRef.orderBy('tsClient', 'asc').limit(1).get();
+
+  if (oldestSnap.empty && threadIdRaw !== threadIdCanon) {
+    // Try raw JID if different
+    const rawRef = db.collection('threads').doc(threadIdRaw).collection('messages');
+    const rawSnap = await rawRef.orderBy('tsClient', 'asc').limit(1).get();
+    if (!rawSnap.empty) {
+      oldestSnap = rawSnap;
+      messagesRef = rawRef;
+      threadId = threadIdRaw;
+    }
+  }
 
   let oldestMsgKey = undefined;
   let reason = oldestSnap.empty ? 'empty_thread' : 'none';
@@ -197,7 +212,7 @@ async function fetchMessagesFromWA(sock, jid, limit, opts = {}) {
     // First fetch (seed if no anchor)
     if (!oldestMsgKey) {
       console.log(
-        `[seed] threadId=${threadId}, jid=${jid}, resolvedJid=${resolvedJid}, reason=${reason}`
+        `[seed] threadId=${threadId} jid=${jid} resolvedJid=${resolvedJid} reason=${reason}`
       );
     }
 

@@ -1016,6 +1016,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
       final bytes = await image.readAsBytes();
       final caption = _messageController.text.trim();
+      final fileName = image.name; // Use the name from XFile
       final downloadUrl = await _uploadFile(bytes, fileName, contentType: 'image/jpeg');
 
       if (downloadUrl != null && mounted) {
@@ -1052,6 +1053,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
       final bytes = await image.readAsBytes();
       final caption = _messageController.text.trim();
+      final fileName = image.name; // Use the name from XFile
       final downloadUrl = await _uploadFile(bytes, fileName, contentType: 'image/jpeg');
 
       if (downloadUrl != null && mounted) {
