@@ -82,7 +82,7 @@ function canonicalPhone(input) {
 function generateAccountId(phone) {
   const canonical = canonicalPhone(phone);
   const hash = crypto.createHash('sha256').update(canonical).digest('hex').substring(0, 32);
-  
+
   // Use stable namespace (not NODE_ENV which can differ between instances)
   // Default to 'prod' for backwards compatibility with existing accounts
   const namespace = process.env.ACCOUNT_NAMESPACE || 'prod';
@@ -109,7 +109,7 @@ function isProtocolHistorySync(msg) {
 
   // Check for historySyncNotification (protocolType=5)
   const hasHistorySync = !!protocol?.historySyncNotification || protocol?.type === 5;
-  
+
   // Check if message is protocol-only (only has protocolMessage key, no real content)
   const protocolOnly = keys.length === 1 && keys[0] === 'protocolMessage';
 
@@ -132,11 +132,11 @@ function logThreadWrite(source, accountId, clientJid, threadId) {
 async function updateRealtimeDiagnostics(accountId, opts) {
   if (!firestoreAvailable || !db) return;
   const { writeOK, messageTimestamp, error } = opts;
-  const tsMs = messageTimestamp != null ? extractTimestampMs(messageTimestamp) : null;
+  const tsMs = messageTimestamp !== null ? extractTimestampMs(messageTimestamp) : null;
   const payload = {
     lastRealtimeIngestAt: admin.firestore.FieldValue.serverTimestamp(),
   };
-  if (tsMs != null) {
+  if (tsMs !== null) {
     payload.lastRealtimeMessageAt = admin.firestore.Timestamp.fromMillis(tsMs);
   }
   if (writeOK === false && error) {
@@ -222,7 +222,7 @@ async function canonicalClientKey(remoteJid, accountId) {
       return {
         canonicalKey: `${phoneDigits}@s.whatsapp.net`,
         phoneDigits,
-        phoneE164
+        phoneE164,
       };
     }
   }
@@ -231,17 +231,17 @@ async function canonicalClientKey(remoteJid, accountId) {
   if (isLidJid(remoteJid)) {
     const sessionPath = path.join(authDir, accountId);
     let phoneE164 = resolvePhoneE164FromLid(sessionPath, remoteJid);
-    
+
     // If not found in mapping, try to extract from metadata (if available in message context)
     // Note: This function is called with just remoteJid, so metadata extraction would need to be passed separately
     // For now, we rely on the mapping file, but the caller can pass additional metadata if needed
-    
+
     if (phoneE164) {
       const phoneDigits = extractDigits(phoneE164);
       return {
         canonicalKey: `${phoneDigits}@s.whatsapp.net`, // Use canonical format
         phoneDigits,
-        phoneE164
+        phoneE164,
       };
     }
     // Fallback: keep @lid if phone cannot be resolved
@@ -249,7 +249,7 @@ async function canonicalClientKey(remoteJid, accountId) {
     return {
       canonicalKey: remoteJid,
       phoneDigits: null,
-      phoneE164: null
+      phoneE164: null,
     };
   }
 
@@ -257,7 +257,7 @@ async function canonicalClientKey(remoteJid, accountId) {
   return {
     canonicalKey: remoteJid,
     phoneDigits: null,
-    phoneE164: null
+    phoneE164: null,
   };
 }
 
@@ -272,13 +272,13 @@ async function canonicalClientKey(remoteJid, accountId) {
  */
 function buildCanonicalThreadId(accountId, canonicalKey, phoneDigits = null) {
   if (!accountId || !canonicalKey) return null;
-  
+
   // For 1:1 contacts with phoneDigits, use phoneDigits-based canonical format
   // This ensures same phone = same threadId regardless of JID type (@lid vs @s.whatsapp.net)
   if (phoneDigits && canonicalKey.endsWith('@s.whatsapp.net')) {
     return `${accountId}__${phoneDigits}@s.whatsapp.net`;
   }
-  
+
   // For groups or @lid without phone, use canonicalKey as-is
   return `${accountId}__${canonicalKey}`;
 }
@@ -291,7 +291,14 @@ function buildCanonicalThreadId(accountId, canonicalKey, phoneDigits = null) {
 function ensureJidString(value) {
   if (value == null) return null;
   const s = typeof value === 'string' ? value.trim() : String(value);
-  if (!s || s === '[object Object]' || s.includes('[object Object]') || s === '[obiect Obiect]' || s.includes('[obiect Obiect]')) return null;
+  if (
+    !s ||
+    s === '[object Object]' ||
+    s.includes('[object Object]') ||
+    s === '[obiect Obiect]' ||
+    s.includes('[obiect Obiect]')
+  )
+    return null;
   return s;
 }
 
@@ -327,39 +334,47 @@ async function findExistingThreadByPhone(accountId, phoneDigits, phoneE164) {
 
     for (const searchTerm of searchTerms) {
       // Try phoneE164 field
-      const query1 = threadsRef
-        .where('phoneE164', '==', searchTerm)
-        .limit(10);
+      const query1 = threadsRef.where('phoneE164', '==', searchTerm).limit(10);
       const snap1 = await query1.get();
-      
+
       for (const doc of snap1.docs) {
         const data = doc.data();
         const docThreadId = doc.id;
         // Verify it's for the same account
         if (!docThreadId.startsWith(`${accountId}__`)) continue;
-        
+
         // Use autoReplyLastClientReplyAt (most recent interaction) or updatedAt or createdAt
         const lastRaw = data.autoReplyLastClientReplyAt || data.updatedAt || data.createdAt || null;
-        if (!bestMatch || (lastRaw && (!bestLastRaw || (lastRaw.toMillis ? lastRaw.toMillis() : lastRaw) > (bestLastRaw.toMillis ? bestLastRaw.toMillis() : bestLastRaw)))) {
+        if (
+          !bestMatch ||
+          (lastRaw &&
+            (!bestLastRaw ||
+              (lastRaw.toMillis ? lastRaw.toMillis() : lastRaw) >
+                (bestLastRaw.toMillis ? bestLastRaw.toMillis() : bestLastRaw)))
+        ) {
           bestMatch = { threadId: docThreadId, threadData: data };
           bestLastRaw = lastRaw;
         }
       }
 
       // Try phone field
-      const query2 = threadsRef
-        .where('phone', '==', searchTerm)
-        .limit(10);
+      const query2 = threadsRef.where('phone', '==', searchTerm).limit(10);
       const snap2 = await query2.get();
-      
+
       for (const doc of snap2.docs) {
         const data = doc.data();
         const docThreadId = doc.id;
         if (!docThreadId.startsWith(`${accountId}__`)) continue;
-        
+
         // Use autoReplyLastClientReplyAt (most recent interaction) or updatedAt or createdAt
         const lastRaw = data.autoReplyLastClientReplyAt || data.updatedAt || data.createdAt || null;
-        if (!bestMatch || (lastRaw && (!bestLastRaw || (lastRaw.toMillis ? lastRaw.toMillis() : lastRaw) > (bestLastRaw.toMillis ? bestLastRaw.toMillis() : bestLastRaw)))) {
+        if (
+          !bestMatch ||
+          (lastRaw &&
+            (!bestLastRaw ||
+              (lastRaw.toMillis ? lastRaw.toMillis() : lastRaw) >
+                (bestLastRaw.toMillis ? bestLastRaw.toMillis() : bestLastRaw)))
+        ) {
           bestMatch = { threadId: docThreadId, threadData: data };
           bestLastRaw = lastRaw;
         }
@@ -468,7 +483,7 @@ async function backfillProfilePhotosForAccount(accountId, threads, { limit = 12 
     for (const thread of threads) {
       if (processed >= limit) break;
       const clientJid = normalizeClientJid(thread.clientJid || thread.client_jid || thread.id);
-    if (!clientJid || clientJid === 'status@broadcast') {
+      if (!clientJid || clientJid === 'status@broadcast') {
         continue;
       }
       const cacheKey = `${accountId}__${clientJid}`;
@@ -672,22 +687,22 @@ function extractPreferredNameFromMessage(text) {
     .toLowerCase()
     .replace(/^(îmi place|să îmi spui|să mă chemi|să îmi zici|îmi zici|spune-mi|cheamă-mă)\s+/i, '')
     .trim();
-  
+
   // Remove trailing punctuation
   cleaned = cleaned.replace(/[.,!?;:]+$/, '').trim();
-  
+
   if (!cleaned || cleaned.length < 2) return null;
-  
+
   // Take first word only (preferred name should be short)
   const words = cleaned.split(/\s+/).filter(w => w.length > 0);
   if (words.length === 0) return null;
-  
+
   const preferredName = words[0].charAt(0).toUpperCase() + words[0].slice(1);
-  
+
   // Validate: at least 2 chars, not just numbers, max 30 chars
   if (preferredName.length < 2 || preferredName.length > 30) return null;
   if (/^\d+$/.test(preferredName)) return null;
-  
+
   return preferredName;
 }
 
@@ -700,24 +715,22 @@ function extractNameFromMessage(text) {
     .toLowerCase()
     .replace(/^(mă numesc|sunt|eu sunt|numele meu este|numele e|mă cheamă)\s+/i, '')
     .trim();
-  
+
   // Remove trailing punctuation
   cleaned = cleaned.replace(/[.,!?;:]+$/, '').trim();
-  
+
   if (!cleaned || cleaned.length < 2) return null;
-  
+
   // Split into words
   const words = cleaned.split(/\s+/).filter(w => w.length > 0);
   if (words.length === 0) return null;
-  
+
   // Extract full name (all words, capitalized)
-  const fullName = words
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-  
+  const fullName = words.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+
   // Validate full name: max 50 chars
   if (fullName.length > 50) return null;
-  
+
   // Extract first name (prenume)
   // Strategy for Romanian names:
   // - Single word: that's the first name
@@ -726,7 +739,7 @@ function extractNameFromMessage(text) {
   //   - Less common: "Nume Prenume" -> use last word
   //   - Heuristic: If last word ends with common first name endings and first doesn't, use last
   // - 3+ words: Use first word (most common pattern)
-  
+
   let firstName;
   if (words.length === 1) {
     // Single word - that's the first name
@@ -735,13 +748,17 @@ function extractNameFromMessage(text) {
     // Two words: could be "Ion Popescu" (normal) or "Ursache Andrei" (reverse)
     const firstWord = words[0].charAt(0).toUpperCase() + words[0].slice(1);
     const lastWord = words[1].charAt(0).toUpperCase() + words[1].slice(1);
-    
+
     // Common Romanian first name endings (helps detect prenume)
     // Most Romanian first names end in: u, a, e, i, o, ă, â, î
     const commonFirstNameEndings = ['u', 'a', 'e', 'i', 'o', 'ă', 'â', 'î'];
-    const firstEndsCommon = commonFirstNameEndings.some(ending => firstWord.toLowerCase().endsWith(ending));
-    const lastEndsCommon = commonFirstNameEndings.some(ending => lastWord.toLowerCase().endsWith(ending));
-    
+    const firstEndsCommon = commonFirstNameEndings.some(ending =>
+      firstWord.toLowerCase().endsWith(ending)
+    );
+    const lastEndsCommon = commonFirstNameEndings.some(ending =>
+      lastWord.toLowerCase().endsWith(ending)
+    );
+
     // Decision logic:
     // - If last word looks like a first name (ends with common ending) AND first doesn't -> use last (reverse order)
     // - Otherwise -> use first (normal order "Prenume Nume")
@@ -756,10 +773,10 @@ function extractNameFromMessage(text) {
     // Will ask for preferred name later if needed
     firstName = words[0].charAt(0).toUpperCase() + words[0].slice(1);
   }
-  
+
   // Validate first name: at least 2 chars, not just numbers
   if (firstName.length < 2 || /^\d+$/.test(firstName)) return null;
-  
+
   return { firstName, fullName };
 }
 
@@ -831,7 +848,7 @@ function wireSocketEvents({
   console.log(
     `[WA][wire] accountId=${accountId} messages.upsert=${getListenerCount(sock, 'messages.upsert')} connection.update=${getListenerCount(sock, 'connection.update')} creds.update=${getListenerCount(sock, 'creds.update')}`
   );
-  
+
   // Initialize real message tracking for this account
   if (!global.lastRealMessageTime) {
     global.lastRealMessageTime = new Map();
@@ -854,26 +871,26 @@ function buildAiContextMessages(systemPrompt, history) {
  */
 function buildEnrichedSystemPrompt(basePrompt, contactInfo, conversationMeta) {
   let enrichedPrompt = basePrompt;
-  
+
   // Adaugă separator
   enrichedPrompt += '\n\n---\n\n';
   enrichedPrompt += 'CONTACT CONTEXT:\n';
-  
+
   // Informații despre contact
   enrichedPrompt += `- Vorbești cu: ${contactInfo.name}`;
   if (contactInfo.phone) {
     enrichedPrompt += ` (${contactInfo.phone})`;
   }
   enrichedPrompt += '\n';
-  
+
   // Tip contact
   const contactTypeMap = {
-    'group': 'grup',
-    'linked_device': 'linked_device',
-    'phone': 'telefon'
+    group: 'grup',
+    linked_device: 'linked_device',
+    phone: 'telefon',
   };
   enrichedPrompt += `- Tip contact: ${contactTypeMap[contactInfo.type] || contactInfo.type}\n`;
-  
+
   // Metadata conversație
   if (conversationMeta.firstMessageDate) {
     let date;
@@ -887,16 +904,20 @@ function buildEnrichedSystemPrompt(basePrompt, contactInfo, conversationMeta) {
     } else {
       date = new Date(conversationMeta.firstMessageDate);
     }
-    
+
     if (date && !isNaN(date.getTime())) {
-      const dateStr = date.toLocaleDateString('ro-RO', { year: 'numeric', month: 'long', day: 'numeric' });
+      const dateStr = date.toLocaleDateString('ro-RO', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
       enrichedPrompt += `- Conversația a început: ${dateStr}\n`;
     }
   }
-  
+
   enrichedPrompt += `- Total mesaje în conversație: ${conversationMeta.messageCount}\n`;
   enrichedPrompt += `- Context folosit: ultimele ${AI_CONTEXT_MESSAGE_LIMIT} mesaje\n`;
-  
+
   return enrichedPrompt;
 }
 
@@ -911,13 +932,18 @@ async function generateAutoReplyText(groqKey, messages, maxTokens = 500) {
   });
   const raw = completion?.choices?.[0]?.message?.content || '';
   if (typeof raw !== 'string') return '';
-  
+
   const finishReason = completion?.choices?.[0]?.finish_reason || 'unknown';
   if (finishReason === 'length') {
-    console.warn(`[AutoReply][AI] traceId=unknown finishReason=length message_truncated_by_model maxTokens=${maxTokens}`);
+    console.warn(
+      `[AutoReply][AI] traceId=unknown finishReason=length message_truncated_by_model maxTokens=${maxTokens}`
+    );
   }
-  
-  return raw.trim().replace(/```[\s\S]*?```/g, '').trim();
+
+  return raw
+    .trim()
+    .replace(/```[\s\S]*?```/g, '')
+    .trim();
 }
 
 /**
@@ -932,38 +958,39 @@ async function generateAutoReplyText(groqKey, messages, maxTokens = 500) {
  */
 function splitMessageSafely(text, maxChars = null) {
   if (!text || typeof text !== 'string') return [];
-  
+
   const WA_MAX_CHARS = maxChars || parseInt(process.env.WA_MAX_CHARS || '3000', 10);
   const trimmed = text.trim();
-  
+
   if (trimmed.length <= WA_MAX_CHARS) {
     return [trimmed];
   }
-  
+
   const chunks = [];
   let remaining = trimmed;
-  
+
   while (remaining.length > WA_MAX_CHARS) {
     let chunk = remaining.substring(0, WA_MAX_CHARS);
     let cutPoint = WA_MAX_CHARS;
-    
+
     // Try to split at paragraph boundary first
     const lastParagraph = chunk.lastIndexOf('\n\n');
-    if (lastParagraph > WA_MAX_CHARS * 0.5) { // Only if it's not too early
+    if (lastParagraph > WA_MAX_CHARS * 0.5) {
+      // Only if it's not too early
       cutPoint = lastParagraph + 2;
       chunk = remaining.substring(0, cutPoint);
     } else {
       // Try to split at sentence boundary
       const sentenceEndings = ['. ', '! ', '? ', '\n'];
       let bestCut = -1;
-      
+
       for (const ending of sentenceEndings) {
         const lastIndex = chunk.lastIndexOf(ending);
         if (lastIndex > WA_MAX_CHARS * 0.5 && lastIndex > bestCut) {
           bestCut = lastIndex + ending.length;
         }
       }
-      
+
       if (bestCut > 0) {
         cutPoint = bestCut;
         chunk = remaining.substring(0, cutPoint);
@@ -976,53 +1003,61 @@ function splitMessageSafely(text, maxChars = null) {
         }
       }
     }
-    
+
     if (chunk.trim().length > 0) {
       chunks.push(chunk.trim());
     }
-    
+
     remaining = remaining.substring(cutPoint).trim();
   }
-  
+
   if (remaining.length > 0) {
     chunks.push(remaining);
   }
-  
+
   return chunks.filter(chunk => chunk.length > 0);
 }
 
 function validateCompleteMessage(text, minLength, maxLength) {
   if (!text || typeof text !== 'string') return null;
   const trimmed = text.trim();
-  
+
   // Dacă mesajul este prea scurt, nu trimite
   if (trimmed.length < minLength) {
-    console.log(`[AutoReply][Skip] Message too short: ${trimmed.length} chars (min=${minLength}), skipping`);
+    console.log(
+      `[AutoReply][Skip] Message too short: ${trimmed.length} chars (min=${minLength}), skipping`
+    );
     return null;
   }
-  
+
   // Dacă mesajul depășește MAX, nu trimite (mai bine să nu răspundă decât să trunchiem)
   if (trimmed.length > maxLength) {
-    console.log(`[AutoReply][Skip] Message too long: ${trimmed.length} chars (max=${maxLength}), skipping to avoid truncation`);
+    console.log(
+      `[AutoReply][Skip] Message too long: ${trimmed.length} chars (max=${maxLength}), skipping to avoid truncation`
+    );
     return null;
   }
-  
+
   // Verifică dacă se termină cu propoziție completă (. ! ?)
   const endsWithSentence = /[.!?]\s*$/.test(trimmed);
-  
+
   if (endsWithSentence) {
-    console.log(`[AutoReply][Validate] Message complete and valid: ${trimmed.length} chars (ends with sentence)`);
+    console.log(
+      `[AutoReply][Validate] Message complete and valid: ${trimmed.length} chars (ends with sentence)`
+    );
     return trimmed;
   }
-  
+
   // Dacă nu se termină cu propoziție completă, nu trimite
-  console.log(`[AutoReply][Skip] Message incomplete (no sentence end): ${trimmed.length} chars, skipping`);
+  console.log(
+    `[AutoReply][Skip] Message incomplete (no sentence end): ${trimmed.length} chars, skipping`
+  );
   return null;
 }
 
 /**
  * Auto-Reply Handler - End-to-End Implementation
- * 
+ *
  * Gate-uri de securitate:
  * 1. Nu răspunde la propriile mesaje (fromMe)
  * 2. Nu răspunde în grupuri (g.us)
@@ -1038,32 +1073,43 @@ async function maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType }
   const remoteJid = ensureJidString(msg?.key?.remoteJid);
   const fromMe = msg?.key?.fromMe === true;
   const isGroup = remoteJid?.endsWith('@g.us') === true;
-  
+
   // Generate trace ID for this request
   const traceId = messageId || `trace_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-  
+
   // Canonicalize client key and extract phone info (pass string only; canonicalClientKey returns null for non-string)
   const { canonicalKey, phoneDigits, phoneE164 } = await canonicalClientKey(remoteJid, accountId);
-  const canonicalThreadId = canonicalKey ? buildCanonicalThreadId(accountId, canonicalKey, phoneDigits) : null;
-  
+  const canonicalThreadId = canonicalKey
+    ? buildCanonicalThreadId(accountId, canonicalKey, phoneDigits)
+    : null;
+
   // Use canonical thread ID, fallback to saved threadId or legacy format (never [object Object])
-  let threadId = canonicalThreadId || saved?.threadId || (remoteJid ? `${accountId}__${remoteJid}` : null);
+  let threadId =
+    canonicalThreadId || saved?.threadId || (remoteJid ? `${accountId}__${remoteJid}` : null);
   const clientJid = remoteJid;
-  
+
   // Extract JID type for logging
-  const jidType = isLidJid(remoteJid) ? 'lid' : isUserJid(remoteJid) ? 'user' : remoteJid?.endsWith('@g.us') ? 'group' : 'unknown';
-  
+  const jidType = isLidJid(remoteJid)
+    ? 'lid'
+    : isUserJid(remoteJid)
+      ? 'user'
+      : remoteJid?.endsWith('@g.us')
+        ? 'group'
+        : 'unknown';
+
   // Log canonicalization details (before Firestore read)
   const participant = msg?.key?.participant || null;
-  console.log(`[AutoReply][Trace] traceId=${traceId} accountId=${hashForLog(accountId)} remoteJid=${hashForLog(remoteJid)} participant=${participant ? hashForLog(participant) : 'null'} jidType=${jidType} isGroup=${isGroup} fromMe=${fromMe} eventType=${eventType || 'null'} messageAgeSec=${ageSec !== null ? String(ageSec) : 'null'} phoneDigits=${phoneDigits || 'null'} phoneE164=${phoneE164 || 'null'} canonicalKey=${hashForLog(canonicalKey)} canonicalThreadId=${hashForLog(canonicalThreadId)} computedThreadId=${hashForLog(threadId)}`);
-  
+  console.log(
+    `[AutoReply][Trace] traceId=${traceId} accountId=${hashForLog(accountId)} remoteJid=${hashForLog(remoteJid)} participant=${participant ? hashForLog(participant) : 'null'} jidType=${jidType} isGroup=${isGroup} fromMe=${fromMe} eventType=${eventType || 'null'} messageAgeSec=${ageSec !== null ? String(ageSec) : 'null'} phoneDigits=${phoneDigits || 'null'} phoneE164=${phoneE164 || 'null'} canonicalKey=${hashForLog(canonicalKey)} canonicalThreadId=${hashForLog(canonicalThreadId)} computedThreadId=${hashForLog(threadId)}`
+  );
+
   // Helper pentru logging structurat
   const logSkip = (reason, extra = {}) => {
     const tsMs = extractTimestampMs(msg?.messageTimestamp);
     const ageSec = tsMs ? Math.floor((Date.now() - tsMs) / 1000) : null;
     const { type: msgType, body } = extractBodyAndType(msg);
     const textLen = (body || '').toString().trim().length;
-    
+
     const logData = {
       reason,
       accountId: hashForLog(accountId),
@@ -1077,22 +1123,24 @@ async function maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType }
       messageType: msgType || 'null',
       ...extra,
     };
-    
+
     const logStr = Object.entries(logData)
       .map(([k, v]) => `${k}=${v}`)
       .join(' ');
-    
+
     console.log(`[AutoReply][skip] ${logStr}`);
   };
-  
-  console.log(`[AutoReply][Trace] traceId=${traceId} entry accountId=${hashForLog(accountId)} messageId=${messageId ? hashForLog(messageId) : 'no-id'} saved=${!!saved} eventType=${eventType || 'null'} fromMe=${fromMe}`);
-  
+
+  console.log(
+    `[AutoReply][Trace] traceId=${traceId} entry accountId=${hashForLog(accountId)} messageId=${messageId ? hashForLog(messageId) : 'no-id'} saved=${!!saved} eventType=${eventType || 'null'} fromMe=${fromMe}`
+  );
+
   // GATE 1: Validare input
   if (!msg || !saved) {
     logSkip('skipped_input', { msg: msg ? 'true' : 'false', saved: saved ? 'true' : 'false' });
     return;
   }
-  
+
   // GATE 2: STRICT - Nu răspunde la propriile mesaje (outbound) sau în grupuri
   if (fromMe) {
     logSkip('skipped_fromMe', { note: 'outbound_message_from_app' });
@@ -1106,123 +1154,158 @@ async function maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType }
     logSkip('skipped_invalidJid', { remoteJid: remoteJid ? hashForLog(remoteJid) : 'null' });
     return;
   }
-  
+
   // GATE 3: Doar mesaje fresh (age window check) - skip mesaje vechi după reconnect
   // CRITICAL FIX: Nu mai blocăm pe eventType=append, ci verificăm age window
   // Astfel, mesajele inbound reale din append batch vor fi procesate dacă sunt fresh
   const tsMs = extractTimestampMs(msg?.messageTimestamp);
   const ageMs = tsMs ? Date.now() - tsMs : null;
   const ageSec = ageMs ? Math.floor(ageMs / 1000) : null;
-  
+
   if (!isFreshMessage(msg?.messageTimestamp)) {
-    logSkip('skipped_notFresh', { 
+    logSkip('skipped_notFresh', {
       ageMs: ageMs ? String(ageMs) : 'null',
       ageSec: ageSec !== null ? String(ageSec) : 'null',
       timestamp: msg?.messageTimestamp ? String(msg.messageTimestamp) : 'null',
       eventType: eventType || 'null',
-      note: 'message_too_old_age_window_check'
+      note: 'message_too_old_age_window_check',
     });
     return;
   }
-  
+
   // Log eventType for debugging but don't block
   if (eventType && eventType !== 'notify') {
-    console.log(`[AutoReply][Trace] traceId=${traceId} eventType=${eventType} ageSec=${ageSec !== null ? String(ageSec) : 'null'} processing_fresh_inbound`);
+    console.log(
+      `[AutoReply][Trace] traceId=${traceId} eventType=${eventType} ageSec=${ageSec !== null ? String(ageSec) : 'null'} processing_fresh_inbound`
+    );
   }
-  
+
   // GATE 5: Idempotency - dedupe per messageId (nu trimite de 2 ori pentru același messageId)
   if (isDedupeHit(messageId)) {
-    logSkip('skipped_dedupe', { messageId: messageId ? hashForLog(messageId) : 'null', note: 'already_processed' });
+    logSkip('skipped_dedupe', {
+      messageId: messageId ? hashForLog(messageId) : 'null',
+      note: 'already_processed',
+    });
     return;
   }
-  
+
   // GATE 6: Doar mesaje text (conversation/extendedText)
   const { type: msgType, body } = extractBodyAndType(msg);
   const text = (body || '').toString().trim();
   if (!text || (msgType !== 'conversation' && msgType !== 'extendedText')) {
-    logSkip('skipped_nonText', { 
+    logSkip('skipped_nonText', {
       hasText: text ? 'true' : 'false',
       messageType: msgType || 'null',
-      note: 'only_text_messages_supported'
+      note: 'only_text_messages_supported',
     });
     return;
   }
-  
+
   // GATE 7: Firestore disponibil
   if (!firestoreAvailable || !db) {
-    logSkip('skipped_noFirestore', { 
-      firestoreAvailable: firestoreAvailable ? 'true' : 'false', 
-      db: db ? 'true' : 'false' 
+    logSkip('skipped_noFirestore', {
+      firestoreAvailable: firestoreAvailable ? 'true' : 'false',
+      db: db ? 'true' : 'false',
     });
     return;
   }
 
   try {
-    console.log(`[AutoReply][Trace] traceId=${traceId} entering try block accountId=${hashForLog(accountId)} threadId=${hashForLog(threadId)}`);
-    
+    console.log(
+      `[AutoReply][Trace] traceId=${traceId} entering try block accountId=${hashForLog(accountId)} threadId=${hashForLog(threadId)}`
+    );
+
     // GATE 8: Verifică setările auto-reply (account-level și thread-level)
     const [accountDoc, threadDoc] = await Promise.all([
       db.collection('accounts').doc(accountId).get(),
-      db.collection('threads').doc(threadId).get()
+      db.collection('threads').doc(threadId).get(),
     ]);
 
-    console.log(`[AutoReply][Trace] traceId=${traceId} firestoreQueriesCompleted threadDocPath=threads/${threadId} threadDocExists=${threadDoc.exists}`);
-    
+    console.log(
+      `[AutoReply][Trace] traceId=${traceId} firestoreQueriesCompleted threadDocPath=threads/${threadId} threadDocExists=${threadDoc.exists}`
+    );
+
     // Log after Firestore read
-    console.log(`[AutoReply][Trace] traceId=${traceId} threadDocExists=${threadDoc.exists} pickedExistingThreadId=${pickedExistingThread ? hashForLog(actualThreadId) : 'null'}`);
+    console.log(
+      `[AutoReply][Trace] traceId=${traceId} threadDocExists=${threadDoc.exists} pickedExistingThreadId=${pickedExistingThread ? hashForLog(actualThreadId) : 'null'}`
+    );
 
     // Load thread data early for name checking
-    let threadData = threadDoc.exists ? (threadDoc.data() || {}) : {};
+    let threadData = threadDoc.exists ? threadDoc.data() || {} : {};
     let actualThreadId = threadId;
     let pickedExistingThread = false;
 
     // FALLBACK: If thread doc doesn't exist and we have phone info, try to find existing thread
     if (!threadDoc.exists && phoneDigits && canonicalThreadId) {
-      console.log(`[AutoReply][Trace] traceId=${traceId} threadDocMissing attemptingFallback phoneDigits=${phoneDigits} phoneE164=${phoneE164 || 'null'}`);
-      
+      console.log(
+        `[AutoReply][Trace] traceId=${traceId} threadDocMissing attemptingFallback phoneDigits=${phoneDigits} phoneE164=${phoneE164 || 'null'}`
+      );
+
       const existing = await findExistingThreadByPhone(accountId, phoneDigits, phoneE164);
       if (existing.threadId && existing.threadData) {
         actualThreadId = existing.threadId;
         threadData = existing.threadData;
         pickedExistingThread = true;
-        console.log(`[AutoReply][Trace] traceId=${traceId} pickedExistingThread threadId=${hashForLog(actualThreadId)} phoneDigits=${phoneDigits} phoneE164=${phoneE164 || 'null'}`);
-        
+        console.log(
+          `[AutoReply][Trace] traceId=${traceId} pickedExistingThread threadId=${hashForLog(actualThreadId)} phoneDigits=${phoneDigits} phoneE164=${phoneE164 || 'null'}`
+        );
+
         // Update threadId for rest of function
         threadId = actualThreadId;
       } else {
-        console.log(`[AutoReply][Trace] traceId=${traceId} noExistingThreadFound phoneDigits=${phoneDigits} phoneE164=${phoneE164 || 'null'} willCreateNew`);
+        console.log(
+          `[AutoReply][Trace] traceId=${traceId} noExistingThreadFound phoneDigits=${phoneDigits} phoneE164=${phoneE164 || 'null'} willCreateNew`
+        );
       }
     }
 
-    console.log(`[AutoReply][Trace] traceId=${traceId} threadDataLoaded actualThreadId=${hashForLog(actualThreadId)} exists=${threadDoc.exists} pickedExisting=${pickedExistingThread} hasFirstName=${!!threadData.firstName} hasDisplayName=${!!threadData.displayName} hasPendingNameRequest=${!!threadData.pendingNameRequest} hasPendingPreferredName=${!!threadData.pendingPreferredName}`);
-    
+    console.log(
+      `[AutoReply][Trace] traceId=${traceId} threadDataLoaded actualThreadId=${hashForLog(actualThreadId)} exists=${threadDoc.exists} pickedExisting=${pickedExistingThread} hasFirstName=${!!threadData.firstName} hasDisplayName=${!!threadData.displayName} hasPendingNameRequest=${!!threadData.pendingNameRequest} hasPendingPreferredName=${!!threadData.pendingPreferredName}`
+    );
+
     // IMPORTANT: Only check firstName, not displayName
     // displayName might be auto-set by WhatsApp/Baileys (phone number, contact name, etc.)
     // We only consider it a "real name" if firstName is explicitly set by us
-    const hasName = (threadData.firstName && typeof threadData.firstName === 'string' && threadData.firstName.trim().length > 0);
+    const hasName =
+      threadData.firstName &&
+      typeof threadData.firstName === 'string' &&
+      threadData.firstName.trim().length > 0;
     const pendingNameRequest = threadData.pendingNameRequest === true;
     const pendingPreferredName = threadData.pendingPreferredName === true;
-    
+
     // Determine source of name for prompt
-    const nameSource = threadData.firstName ? 'firstName' : (threadData.displayName ? 'displayName' : 'fallback');
-    
+    const nameSource = threadData.firstName
+      ? 'firstName'
+      : threadData.displayName
+        ? 'displayName'
+        : 'fallback';
+
     // Log name capture state
-    const nameAction = !hasName && !pendingNameRequest && !pendingPreferredName ? 'willAsk' :
-                      pendingNameRequest ? 'awaitingName' :
-                      pendingPreferredName ? 'awaitingPreferred' :
-                      hasName ? 'hasName' : 'unknown';
-    console.log(`[AutoReply][Name] traceId=${traceId} hasFirstName=${hasName} pendingNameRequest=${pendingNameRequest} pendingPreferredName=${pendingPreferredName} nameSource=${nameSource} action=${nameAction}`);
-    
+    const nameAction =
+      !hasName && !pendingNameRequest && !pendingPreferredName
+        ? 'willAsk'
+        : pendingNameRequest
+          ? 'awaitingName'
+          : pendingPreferredName
+            ? 'awaitingPreferred'
+            : hasName
+              ? 'hasName'
+              : 'unknown';
+    console.log(
+      `[AutoReply][Name] traceId=${traceId} hasFirstName=${hasName} pendingNameRequest=${pendingNameRequest} pendingPreferredName=${pendingPreferredName} nameSource=${nameSource} action=${nameAction}`
+    );
+
     const accountData = accountDoc.data() || {};
     const accountAutoReplyEnabled = accountData.autoReplyEnabled === true;
-    
+
     // Auto-set security prompt if missing (from env or minimal fallback)
     if (!accountData.autoReplyPrompt || !accountData.autoReplyPrompt.trim()) {
       // Try to load from env first (preferred)
       const envPrompt = process.env.AI_SECURITY_PROMPT_TEMPLATE;
-      const defaultSecurityPrompt = envPrompt && envPrompt.trim() 
-        ? envPrompt.trim()
-        : `Scrii ca și cum ai fi Andrei, persoană reală, din echipa Superparty.
+      const defaultSecurityPrompt =
+        envPrompt && envPrompt.trim()
+          ? envPrompt.trim()
+          : `Scrii ca și cum ai fi Andrei, persoană reală, din echipa Superparty.
 
 IDENTITATE
 - NU spui niciodată că ești AI/bot/asistent virtual/automatizare.
@@ -1251,36 +1334,44 @@ STIL
 - Nu inventezi. Dacă nu știi: „Nu sunt sigur acum" + exact 1 întrebare de clarificare.
 - Închei întotdeauna cu o propoziție completă (., ? sau !).`;
 
-      await db.collection('accounts').doc(accountId).set({
-        autoReplyPrompt: defaultSecurityPrompt,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-      
+      await db.collection('accounts').doc(accountId).set(
+        {
+          autoReplyPrompt: defaultSecurityPrompt,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
       const promptSource = envPrompt ? 'env' : 'fallback';
-      console.log(`[AutoReply][Prompt] traceId=${traceId} autoSetSecurityPrompt accountId=${hashForLog(accountId)} promptSource=${promptSource} promptLength=${defaultSecurityPrompt.length}`);
-      
+      console.log(
+        `[AutoReply][Prompt] traceId=${traceId} autoSetSecurityPrompt accountId=${hashForLog(accountId)} promptSource=${promptSource} promptLength=${defaultSecurityPrompt.length}`
+      );
+
       // Update accountData for use below
       accountData.autoReplyPrompt = defaultSecurityPrompt;
     }
-    
-    const accountPrompt = typeof accountData.autoReplyPrompt === 'string' && accountData.autoReplyPrompt.trim().length > 0
-      ? accountData.autoReplyPrompt.trim()
-      : null;
+
+    const accountPrompt =
+      typeof accountData.autoReplyPrompt === 'string' &&
+      accountData.autoReplyPrompt.trim().length > 0
+        ? accountData.autoReplyPrompt.trim()
+        : null;
 
     const threadAiEnabled = threadData.aiEnabled === true;
-    const threadPrompt = typeof threadData.aiSystemPrompt === 'string' && threadData.aiSystemPrompt.trim().length > 0
-      ? threadData.aiSystemPrompt.trim()
-      : null;
+    const threadPrompt =
+      typeof threadData.aiSystemPrompt === 'string' && threadData.aiSystemPrompt.trim().length > 0
+        ? threadData.aiSystemPrompt.trim()
+        : null;
 
     // Prioritate: thread-level > account-level
     const isAiEnabled = threadAiEnabled || accountAutoReplyEnabled;
-    
+
     console.log(
       `[AutoReply][Trace] traceId=${traceId} settingsCheck accountId=${hashForLog(accountId)} actualThreadId=${hashForLog(actualThreadId)} ` +
-      `accountEnabled=${accountAutoReplyEnabled} threadEnabled=${threadAiEnabled} ` +
-      `isAiEnabled=${isAiEnabled} accountPrompt=${accountPrompt ? 'set' : 'notSet'}`
+        `accountEnabled=${accountAutoReplyEnabled} threadEnabled=${threadAiEnabled} ` +
+        `isAiEnabled=${isAiEnabled} accountPrompt=${accountPrompt ? 'set' : 'notSet'}`
     );
-    
+
     // GATE 8: Auto-reply enabled (account-level sau thread-level)
     // Verifică: accounts/{accountId}.autoReplyEnabled și threads/{threadId}.aiEnabled
     // Dacă câmpul lipsește, considerăm false (nu trimite auto-reply)
@@ -1290,7 +1381,7 @@ STIL
         threadEnabled: threadAiEnabled ? 'true' : 'false',
         accountHasField: accountDoc.exists && 'autoReplyEnabled' in accountData ? 'true' : 'false',
         threadHasField: threadDoc.exists && 'aiEnabled' in threadData ? 'true' : 'false',
-        note: 'auto_reply_not_enabled'
+        note: 'auto_reply_not_enabled',
       });
       return;
     }
@@ -1298,17 +1389,19 @@ STIL
     // GATE: Check if we need to ask for name FIRST (before processing name responses)
     // This must be after security gates but before AI reply generation
     if (!hasName && !pendingNameRequest && !pendingPreferredName) {
-      console.log(`[AutoReply][Trace] traceId=${traceId} needToAskName hasName=${hasName} pendingNameRequest=${pendingNameRequest} pendingPreferredName=${pendingPreferredName}`);
-      const nameRequestMessage = "Salut! Cum te numești? 😊";
+      console.log(
+        `[AutoReply][Trace] traceId=${traceId} needToAskName hasName=${hasName} pendingNameRequest=${pendingNameRequest} pendingPreferredName=${pendingPreferredName}`
+      );
+      const nameRequestMessage = 'Salut! Cum te numești? 😊';
       await sock.sendMessage(remoteJid, { text: nameRequestMessage });
-      
+
       // Mark as asked - ensure thread exists with phone info if we picked existing thread
       const updateData = {
         pendingNameRequest: true,
         nameRequestedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
-      
+
       // If we have phone info and thread didn't exist, save it
       if (phoneDigits || phoneE164) {
         if (phoneE164) updateData.phoneE164 = phoneE164;
@@ -1317,13 +1410,17 @@ STIL
           updateData.phoneNumber = phoneE164 || `+${phoneDigits}`;
         }
       }
-      
+
       await db.collection('threads').doc(actualThreadId).set(updateData, { merge: true });
-      
-      console.log(`[AutoReply][Name] traceId=${traceId} action=askedName threadId=${hashForLog(actualThreadId)} phoneDigits=${phoneDigits || 'null'}`);
+
+      console.log(
+        `[AutoReply][Name] traceId=${traceId} action=askedName threadId=${hashForLog(actualThreadId)} phoneDigits=${phoneDigits || 'null'}`
+      );
       return; // Skip normal AI reply
     } else {
-      console.log(`[AutoReply][Trace] traceId=${traceId} skippingNameRequest hasName=${hasName} pendingNameRequest=${pendingNameRequest} pendingPreferredName=${pendingPreferredName}`);
+      console.log(
+        `[AutoReply][Trace] traceId=${traceId} skippingNameRequest hasName=${hasName} pendingNameRequest=${pendingNameRequest} pendingPreferredName=${pendingPreferredName}`
+      );
     }
 
     // GATE: Check if this is a preferred name response (after asking "Cum îți place să îți spun?")
@@ -1338,23 +1435,25 @@ STIL
           // fullName already saved from previous step
           pendingPreferredName: false,
           preferredNameSavedAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
-        
+
         // Ensure phone info is saved
         if (phoneE164) updateData.phoneE164 = phoneE164;
         if (phoneDigits) {
           updateData.phone = phoneE164 || `+${phoneDigits}`;
           updateData.phoneNumber = phoneE164 || `+${phoneDigits}`;
         }
-        
+
         await db.collection('threads').doc(actualThreadId).set(updateData, { merge: true });
-        
+
         // Send confirmation
         const confirmation = `Perfect, ${preferredName}! 😊`;
         await sock.sendMessage(remoteJid, { text: confirmation });
-        
-        console.log(`[AutoReply][Name] traceId=${traceId} action=savedPreferred preferredName=${preferredName} threadId=${hashForLog(actualThreadId)}`);
+
+        console.log(
+          `[AutoReply][Name] traceId=${traceId} action=savedPreferred preferredName=${preferredName} threadId=${hashForLog(actualThreadId)}`
+        );
         return; // Skip normal AI reply
       }
       // If extraction failed, continue with normal reply
@@ -1366,7 +1465,7 @@ STIL
       if (nameData) {
         // Check if name has 3+ words (multiple names)
         const wordCount = nameData.fullName.split(/\s+/).length;
-        
+
         if (wordCount >= 3) {
           // Multiple names - ask for preferred name
           // Save fullName first
@@ -1375,23 +1474,25 @@ STIL
             pendingNameRequest: false,
             pendingPreferredName: true, // Ask for preferred name
             nameSavedAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           };
-          
+
           // Ensure phone info is saved
           if (phoneE164) updateData.phoneE164 = phoneE164;
           if (phoneDigits) {
             updateData.phone = phoneE164 || `+${phoneDigits}`;
             updateData.phoneNumber = phoneE164 || `+${phoneDigits}`;
           }
-          
+
           await db.collection('threads').doc(actualThreadId).set(updateData, { merge: true });
-          
+
           // Ask for preferred name
           const preferredNameQuestion = `Văd că ai mai multe nume (${nameData.fullName}). Cum îți place să îți spun? 😊`;
           await sock.sendMessage(remoteJid, { text: preferredNameQuestion });
-          
-          console.log(`[AutoReply][Name] traceId=${traceId} action=askedPreferred fullName=${nameData.fullName} threadId=${hashForLog(actualThreadId)}`);
+
+          console.log(
+            `[AutoReply][Name] traceId=${traceId} action=askedPreferred fullName=${nameData.fullName} threadId=${hashForLog(actualThreadId)}`
+          );
           return; // Skip normal AI reply
         } else {
           // 1-2 words - use extracted firstName directly
@@ -1401,23 +1502,25 @@ STIL
             fullName: nameData.fullName,
             pendingNameRequest: false,
             nameSavedAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           };
-          
+
           // Ensure phone info is saved
           if (phoneE164) updateData.phoneE164 = phoneE164;
           if (phoneDigits) {
             updateData.phone = phoneE164 || `+${phoneDigits}`;
             updateData.phoneNumber = phoneE164 || `+${phoneDigits}`;
           }
-          
+
           await db.collection('threads').doc(actualThreadId).set(updateData, { merge: true });
-          
+
           // Send confirmation using first name
           const confirmation = `Mulțumesc, ${nameData.firstName}! 😊`;
           await sock.sendMessage(remoteJid, { text: confirmation });
-          
-          console.log(`[AutoReply][Name] traceId=${traceId} action=savedName firstName=${nameData.firstName} fullName=${nameData.fullName} threadId=${hashForLog(actualThreadId)}`);
+
+          console.log(
+            `[AutoReply][Name] traceId=${traceId} action=savedName firstName=${nameData.firstName} fullName=${nameData.fullName} threadId=${hashForLog(actualThreadId)}`
+          );
           return; // Skip normal AI reply
         }
       }
@@ -1427,7 +1530,9 @@ STIL
     // GATE 9: Comenzi speciale (stop/dezactiveaza) - dezactivează auto-reply pentru thread
     const normalized = normalizeTextForCommand(text);
     if (normalized === 'stop' || normalized === 'dezactiveaza') {
-      console.log(`[AutoReply][Trace] traceId=${traceId} commandDetected command=${normalized} threadId=${hashForLog(actualThreadId)}`);
+      console.log(
+        `[AutoReply][Trace] traceId=${traceId} commandDetected command=${normalized} threadId=${hashForLog(actualThreadId)}`
+      );
       await db.collection('threads').doc(actualThreadId).set(
         {
           aiEnabled: false,
@@ -1446,10 +1551,10 @@ STIL
     if (lastReplyMs && Date.now() - lastReplyMs < AI_REPLY_COOLDOWN_MS) {
       const remainingMs = AI_REPLY_COOLDOWN_MS - (Date.now() - lastReplyMs);
       const remainingSec = Math.floor(remainingMs / 1000);
-      logSkip('skipped_cooldown_thread', { 
+      logSkip('skipped_cooldown_thread', {
         remainingSec: String(remainingSec),
         lastReplyAt: lastReplyAt ? String(lastReplyAt) : 'null',
-        note: 'thread_cooldown_active_10s'
+        note: 'thread_cooldown_active_10s',
       });
       return;
     }
@@ -1460,10 +1565,10 @@ STIL
     if (lastClientReplyMs && Date.now() - lastClientReplyMs < AI_REPLY_COOLDOWN_MS) {
       const remainingMs = AI_REPLY_COOLDOWN_MS - (Date.now() - lastClientReplyMs);
       const remainingSec = Math.floor(remainingMs / 1000);
-      logSkip('skipped_cooldown_clientJid', { 
+      logSkip('skipped_cooldown_clientJid', {
         remainingSec: String(remainingSec),
         lastClientReplyAt: lastClientReplyAt ? String(lastClientReplyAt) : 'null',
-        note: 'client_cooldown_active_10s'
+        note: 'client_cooldown_active_10s',
       });
       return;
     }
@@ -1475,7 +1580,9 @@ STIL
       return;
     }
 
-    console.log(`[AutoReply][Trace] traceId=${traceId} allGatesPassed generatingReply actualThreadId=${hashForLog(actualThreadId)}`);
+    console.log(
+      `[AutoReply][Trace] traceId=${traceId} allGatesPassed generatingReply actualThreadId=${hashForLog(actualThreadId)}`
+    );
 
     // Construiește context: ultimele N mesaje din thread (configurabil via AI_CONTEXT_MESSAGE_LIMIT)
     const historySnap = await db
@@ -1485,7 +1592,7 @@ STIL
       .orderBy('tsSort', 'desc')
       .limit(AI_CONTEXT_MESSAGE_LIMIT)
       .get();
-    
+
     // Obține prima dată când s-a scris (pentru metadata conversație)
     const firstMessageSnap = await db
       .collection('threads')
@@ -1494,7 +1601,7 @@ STIL
       .orderBy('tsServer', 'asc')
       .limit(1)
       .get();
-    
+
     const firstMessage = firstMessageSnap.docs[0]?.data();
     const firstMessageDate = firstMessage?.tsServer || firstMessage?.createdAt || null;
 
@@ -1519,8 +1626,11 @@ STIL
       fullName: threadData.fullName || null, // Store but don't use in conversations
       phone: threadData.phoneE164 || threadData.phone || threadData.phoneNumber || null,
       jid: clientJid,
-      type: clientJid.includes('@g.us') ? 'group' : 
-            clientJid.includes('@lid') ? 'linked_device' : 'phone'
+      type: clientJid.includes('@g.us')
+        ? 'group'
+        : clientJid.includes('@lid')
+          ? 'linked_device'
+          : 'phone',
     };
 
     // If no name at all, we should have asked already (handled above)
@@ -1528,17 +1638,15 @@ STIL
     if (!contactInfo.name) {
       contactInfo.name = 'tu'; // Generic fallback, but this shouldn't happen if logic is correct
     }
-    
+
     // Metadata conversație
     const conversationMeta = {
       messageCount: historySnap.size,
-      firstMessageDate: firstMessageDate
+      firstMessageDate: firstMessageDate,
     };
 
     // Prioritate prompt: thread > account > env default (fără hardcoded fallback)
-    const basePrompt = threadPrompt ||
-      accountPrompt ||
-      process.env.AI_DEFAULT_SYSTEM_PROMPT;
+    const basePrompt = threadPrompt || accountPrompt || process.env.AI_DEFAULT_SYSTEM_PROMPT;
 
     if (!basePrompt) {
       throw new Error('AI_DEFAULT_SYSTEM_PROMPT not set and no Firestore prompt found');
@@ -1546,22 +1654,28 @@ STIL
 
     // Log prompt source and hash/length (not full text)
     const promptSource = threadPrompt ? 'thread' : accountPrompt ? 'account' : 'env';
-    const promptHash = basePrompt ? crypto.createHash('sha256').update(basePrompt).digest('hex').substring(0, 8) : 'none';
+    const promptHash = basePrompt
+      ? crypto.createHash('sha256').update(basePrompt).digest('hex').substring(0, 8)
+      : 'none';
     const promptLength = basePrompt ? basePrompt.length : 0;
-    console.log(`[AutoReply][Prompt] traceId=${traceId} promptSource=${promptSource} promptLength=${promptLength} promptHash=${promptHash} nameSource=${nameSource}`);
-    
+    console.log(
+      `[AutoReply][Prompt] traceId=${traceId} promptSource=${promptSource} promptLength=${promptLength} promptHash=${promptHash} nameSource=${nameSource}`
+    );
+
     // Construiește promptul îmbunătățit cu context despre contact și conversație
     const systemPrompt = buildEnrichedSystemPrompt(basePrompt, contactInfo, conversationMeta);
 
     const messages = buildAiContextMessages(systemPrompt, history);
     const aiStart = Date.now();
-    
+
     // Get max_tokens from env or use default (sufficient for complete messages)
     const maxTokens = parseInt(process.env.AI_MAX_TOKENS || '500', 10);
-    console.log(`[AutoReply][AI] traceId=${traceId} called=true model=llama-3.3-70b-versatile maxTokens=${maxTokens} historyLength=${history.length} promptLength=${systemPrompt.length}`);
-    
+    console.log(
+      `[AutoReply][AI] traceId=${traceId} called=true model=llama-3.3-70b-versatile maxTokens=${maxTokens} historyLength=${history.length} promptLength=${systemPrompt.length}`
+    );
+
     const replyText = await generateAutoReplyText(groqKey.trim(), messages, maxTokens);
-    
+
     if (!replyText || !replyText.trim()) {
       console.log(`[AutoReply][Skip] traceId=${traceId} noReplyGenerated`);
       return;
@@ -1570,7 +1684,7 @@ STIL
     // Validează mesajul: trimite DOAR dacă este complet (se termină cu propoziție)
     // NU trunchiază niciodată - dacă nu este complet sau prea lung, skip
     const finalReply = validateCompleteMessage(replyText, AI_REPLY_MIN_CHARS, AI_REPLY_MAX_CHARS);
-    
+
     if (!finalReply) {
       console.log(`[AutoReply][Skip] traceId=${traceId} messageValidationFailed`);
       return;
@@ -1578,10 +1692,10 @@ STIL
 
     // GATE 13: Verifică dacă socket-ul este disponibil
     if (!sock || typeof sock.sendMessage !== 'function') {
-      logSkip('skipped_noSocket', { 
+      logSkip('skipped_noSocket', {
         sock: sock ? 'true' : 'false',
-        sendMessage: (sock && typeof sock.sendMessage === 'function') ? 'true' : 'false',
-        note: 'socket_not_available'
+        sendMessage: sock && typeof sock.sendMessage === 'function' ? 'true' : 'false',
+        note: 'socket_not_available',
       });
       return;
     }
@@ -1589,14 +1703,16 @@ STIL
     // Split message if too long (safe splitting without cutting sentences)
     const messageChunks = splitMessageSafely(finalReply);
     const totalChars = finalReply.length;
-    
-    console.log(`[AutoReply][Send] traceId=${traceId} sendingReply accountId=${hashForLog(accountId)} clientJid=${hashForLog(clientJid)} totalChars=${totalChars} chunks=${messageChunks.length}`);
-    
+
+    console.log(
+      `[AutoReply][Send] traceId=${traceId} sendingReply accountId=${hashForLog(accountId)} clientJid=${hashForLog(clientJid)} totalChars=${totalChars} chunks=${messageChunks.length}`
+    );
+
     if (messageChunks.length === 0) {
       console.log(`[AutoReply][Skip] traceId=${traceId} noChunksToSend`);
       return;
     }
-    
+
     // Send chunks sequentially
     let lastSendResult = null;
     for (let i = 0; i < messageChunks.length; i++) {
@@ -1608,13 +1724,15 @@ STIL
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       } catch (chunkError) {
-        console.error(`[AutoReply][Error] traceId=${traceId} chunk=${i + 1}/${messageChunks.length} error=${chunkError.message}`);
+        console.error(
+          `[AutoReply][Error] traceId=${traceId} chunk=${i + 1}/${messageChunks.length} error=${chunkError.message}`
+        );
         // Continue with next chunk even if one fails
       }
     }
-    
+
     const sendResult = lastSendResult;
-    
+
     // Marchează dedupe pentru a evita procesarea duplicată
     markDedupe(messageId);
 
@@ -1626,7 +1744,7 @@ STIL
       autoReplyLastMessageId: messageId,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
-    
+
     // If we have phone info and thread was new, save it
     if ((phoneDigits || phoneE164) && !threadDoc.exists && !pickedExistingThread) {
       if (phoneE164) updateData.phoneE164 = phoneE164;
@@ -1635,7 +1753,7 @@ STIL
         updateData.phoneNumber = phoneE164 || `+${phoneDigits}`;
       }
     }
-    
+
     await db.collection('threads').doc(actualThreadId).set(updateData, { merge: true });
 
     // Salvează mesajul outbound în Firestore pentru idempotency (doar primul chunk dacă e split)
@@ -1643,37 +1761,48 @@ STIL
       const outboundMessageId = sendResult.key.id;
       const outboundThreadId = actualThreadId;
       try {
-        await db.collection('threads').doc(outboundThreadId).collection('messages').doc(outboundMessageId).set({
-          accountId,
-          threadId: outboundThreadId,
-          messageId: outboundMessageId,
-          body: finalReply, // Save full message, not just first chunk
-          type: 'conversation',
-          fromMe: true,
-          direction: 'outbound',
-          tsSort: admin.firestore.FieldValue.serverTimestamp(),
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          autoReply: true,
-          autoReplyToMessageId: messageId,
-          chunksCount: messageChunks.length > 1 ? messageChunks.length : undefined,
-        }, { merge: true });
+        await db
+          .collection('threads')
+          .doc(outboundThreadId)
+          .collection('messages')
+          .doc(outboundMessageId)
+          .set(
+            {
+              accountId,
+              threadId: outboundThreadId,
+              messageId: outboundMessageId,
+              body: finalReply, // Save full message, not just first chunk
+              type: 'conversation',
+              fromMe: true,
+              direction: 'outbound',
+              tsSort: admin.firestore.FieldValue.serverTimestamp(),
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              autoReply: true,
+              autoReplyToMessageId: messageId,
+              chunksCount: messageChunks.length > 1 ? messageChunks.length : undefined,
+            },
+            { merge: true }
+          );
       } catch (saveError) {
-        console.warn(`[AutoReply][Error] traceId=${traceId} failedToSaveOutbound error=${saveError.message}`);
+        console.warn(
+          `[AutoReply][Error] traceId=${traceId} failedToSaveOutbound error=${saveError.message}`
+        );
       }
     }
 
     const totalLatencyMs = Date.now() - startTime;
     const aiLatencyMs = Date.now() - aiStart;
     const jidSuffix = remoteJid.includes('@') ? remoteJid.split('@')[1] : remoteJid;
-    
+
     console.log(
       `[AutoReply][Trace] traceId=${traceId} success accountId=${hashForLog(accountId)} actualThreadId=${hashForLog(actualThreadId)} ` +
-      `jid=@${jidSuffix} msg=${hashForLog(messageId)} replyLen=${totalChars} chunks=${messageChunks.length} ` +
-      `aiLatency=${aiLatencyMs}ms totalLatency=${totalLatencyMs}ms pickedExistingThread=${pickedExistingThread}`
+        `jid=@${jidSuffix} msg=${hashForLog(messageId)} replyLen=${totalChars} chunks=${messageChunks.length} ` +
+        `aiLatency=${aiLatencyMs}ms totalLatency=${totalLatencyMs}ms pickedExistingThread=${pickedExistingThread}`
     );
-    
   } catch (error) {
-    console.error(`[AutoReply][Error] traceId=${traceId} accountId=${hashForLog(accountId)} messageId=${hashForLog(messageId)} error=${error.message}`);
+    console.error(
+      `[AutoReply][Error] traceId=${traceId} accountId=${hashForLog(accountId)} messageId=${hashForLog(messageId)} error=${error.message}`
+    );
     console.error(`[AutoReply][Error] traceId=${traceId} stack:`, error.stack);
     // Nu aruncăm eroarea mai departe pentru a nu opri procesarea altor mesaje
   }
@@ -1694,7 +1823,7 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
     console.log(
       `📨 [${hashForLog(accountId)}] Processing ${newMessages.length} message(s) in real-time (type=${type || 'unknown'})`
     );
-    
+
     // DEBUG: Log message types in batch to see if text messages come through
     const messageTypes = newMessages.map(msg => {
       const msgKeys = Object.keys(msg.message || {});
@@ -1704,15 +1833,15 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
       const fromMe = msg.key?.fromMe === true;
       return `${fromMe ? 'OUT' : 'IN'}:${hasConversation ? 'conv' : ''}${hasExtendedText ? 'ext' : ''}${hasProtocol ? 'proto' : ''}[${msgKeys.join(',')}]`;
     });
-    
+
     // Count real vs protocol messages for health monitoring
     const realMessageCount = newMessages.filter(msg => !isProtocolHistorySync(msg)).length;
     const protocolCount = newMessages.length - realMessageCount;
-    
+
     console.log(
       `🔍 [${hashForLog(accountId)}] BATCH DEBUG: type=${type} total=${newMessages.length} real=${realMessageCount} protocol=${protocolCount} messageTypes=[${messageTypes.join('|')}]`
     );
-    
+
     // CRITICAL FIX: Nu mai blocăm pe eventType=append
     // Verificarea age window se face în maybeHandleAiAutoReply pentru fiecare mesaj individual
     // Astfel, mesajele inbound reale din append batch vor fi procesate dacă sunt fresh
@@ -1749,7 +1878,9 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
 
         try {
           if (!msg.message) {
-            console.log(`⚠️  [${hashForLog(accountId)}] Skipping message ${hashForLog(messageId)} - no content (msg.message is null/undefined)`);
+            console.log(
+              `⚠️  [${hashForLog(accountId)}] Skipping message ${hashForLog(messageId)} - no content (msg.message is null/undefined)`
+            );
             continue;
           }
 
@@ -1758,7 +1889,7 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
 
           // DEBUG: Log message structure for ALL inbound messages to diagnose sync issues
           const { body, type: msgType } = extractBodyAndType(msg);
-          
+
           console.log(
             `📩 [${hashForLog(accountId)}] Processing message: remote=${hashForLog(remoteJid)} fromMe=${fromMe} msg=${hashForLog(messageId)} ts=${timestamp ? String(timestamp) : 'n/a'} type=${msgType || 'unknown'}`
           );
@@ -1773,13 +1904,24 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
               protocolMsg = msg.message?.protocolMessage || {};
               const protocolKeys = Object.keys(protocolMsg);
               const protocolType = protocolMsg.type || 'unknown';
-              console.log(`🔍 [${hashForLog(accountId)}] INBOUND PROTOCOL MESSAGE DEBUG: msgId=${hashForLog(messageId)} type=${type} bodyLen=${(body || '').length} messageKeys=[${msgKeys.join(',')}] protocolKeys=[${protocolKeys.join(',')}] protocolType=${protocolType} hasConversation=${hasConversation} hasExtendedText=${hasExtendedText} body=${(body || '').substring(0, 50)}`);
+              console.log(
+                `🔍 [${hashForLog(accountId)}] INBOUND PROTOCOL MESSAGE DEBUG: msgId=${hashForLog(messageId)} type=${type} bodyLen=${(body || '').length} messageKeys=[${msgKeys.join(',')}] protocolKeys=[${protocolKeys.join(',')}] protocolType=${protocolType} hasConversation=${hasConversation} hasExtendedText=${hasExtendedText} body=${(body || '').substring(0, 50)}`
+              );
             } else {
-              console.log(`🔍 [${hashForLog(accountId)}] INBOUND MESSAGE DEBUG: msgId=${hashForLog(messageId)} type=${type} bodyLen=${(body || '').length} messageKeys=[${msgKeys.join(',')}] hasConversation=${hasConversation} hasExtendedText=${hasExtendedText} body=${(body || '').substring(0, 50)}`);
+              console.log(
+                `🔍 [${hashForLog(accountId)}] INBOUND MESSAGE DEBUG: msgId=${hashForLog(messageId)} type=${type} bodyLen=${(body || '').length} messageKeys=[${msgKeys.join(',')}] hasConversation=${hasConversation} hasExtendedText=${hasExtendedText} body=${(body || '').substring(0, 50)}`
+              );
             }
-          } else if (type === 'text' || type === 'conversation' || msg.message?.conversation || msg.message?.extendedTextMessage) {
+          } else if (
+            type === 'text' ||
+            type === 'conversation' ||
+            msg.message?.conversation ||
+            msg.message?.extendedTextMessage
+          ) {
             const msgKeys = Object.keys(msg.message || {});
-            console.log(`🔍 [${hashForLog(accountId)}] TEXT MESSAGE DEBUG: msgId=${hashForLog(messageId)} type=${type} bodyLen=${(body || '').length} messageKeys=[${msgKeys.join(',')}] hasConversation=${!!msg.message?.conversation} hasExtendedText=${!!msg.message?.extendedTextMessage?.text}`);
+            console.log(
+              `🔍 [${hashForLog(accountId)}] TEXT MESSAGE DEBUG: msgId=${hashForLog(messageId)} type=${type} bodyLen=${(body || '').length} messageKeys=[${msgKeys.join(',')}] hasConversation=${!!msg.message?.conversation} hasExtendedText=${!!msg.message?.extendedTextMessage?.text}`
+            );
           }
 
           console.log(
@@ -1793,10 +1935,12 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
             const dedupeRef = db.collection('inboundDedupe').doc(inboundDedupeKey);
 
             try {
-              await db.runTransaction(async (transaction) => {
+              await db.runTransaction(async transaction => {
                 const dedupeDoc = await transaction.get(dedupeRef);
                 if (dedupeDoc.exists) {
-                  console.log(`⏭️  [${hashForLog(accountId)}] Message ${hashForLog(messageId)} already processed (dedupe), skipping - this is normal for duplicate events`);
+                  console.log(
+                    `⏭️  [${hashForLog(accountId)}] Message ${hashForLog(messageId)} already processed (dedupe), skipping - this is normal for duplicate events`
+                  );
                   shouldSkip = true;
                   return;
                 }
@@ -1810,7 +1954,9 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
                   processedAt: admin.firestore.FieldValue.serverTimestamp(),
                   expiresAt: ttlTimestamp,
                 });
-                console.log(`✅ [${hashForLog(accountId)}] Dedupe key set for message ${hashForLog(messageId)} - proceeding with save`);
+                console.log(
+                  `✅ [${hashForLog(accountId)}] Dedupe key set for message ${hashForLog(messageId)} - proceeding with save`
+                );
               });
             } catch (dedupeError) {
               console.error(
@@ -1832,55 +1978,82 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
             // protocolType=5 is historySyncNotification
             // Trigger immediate fetch for this thread to get new messages
             const threadId = `${accountId}__${fromSafe}`;
-            
+
             // Guardrail: Check if we recently fetched for this thread (debounce 10s)
             const immediateFetchKey = `${accountId}__${threadId}`;
             const lastFetchTime = immediateFetchTimestamps.get(immediateFetchKey) || 0;
             const now = Date.now();
             const timeSinceLastFetch = now - lastFetchTime;
             const DEBOUNCE_MS = 10000; // 10 seconds
-            
+
             if (timeSinceLastFetch < DEBOUNCE_MS) {
-              console.log(`⏸️  [${hashForLog(accountId)}] Immediate fetch throttled for thread ${hashForLog(threadId)} (last fetch ${Math.floor(timeSinceLastFetch / 1000)}s ago, min ${DEBOUNCE_MS / 1000}s)`);
+              console.log(
+                `⏸️  [${hashForLog(accountId)}] Immediate fetch throttled for thread ${hashForLog(threadId)} (last fetch ${Math.floor(timeSinceLastFetch / 1000)}s ago, min ${DEBOUNCE_MS / 1000}s)`
+              );
             } else if (immediateFetchInFlight.has(immediateFetchKey)) {
-              console.log(`⏸️  [${hashForLog(accountId)}] Immediate fetch already in-flight for thread ${hashForLog(threadId)}, skipping`);
+              console.log(
+                `⏸️  [${hashForLog(accountId)}] Immediate fetch already in-flight for thread ${hashForLog(threadId)}, skipping`
+              );
             } else {
-              console.log(`⚡ [${hashForLog(accountId)}] Detected historySyncNotification (protocolType=5) for thread ${hashForLog(threadId)}, triggering immediate fetch...`);
-              if (sock && typeof sock.fetchMessageHistory === 'function' && firestoreAvailable && db) {
+              console.log(
+                `⚡ [${hashForLog(accountId)}] Detected historySyncNotification (protocolType=5) for thread ${hashForLog(threadId)}, triggering immediate fetch...`
+              );
+              if (
+                sock &&
+                typeof sock.fetchMessageHistory === 'function' &&
+                firestoreAvailable &&
+                db
+              ) {
                 // Mark as in-flight and update timestamp
                 immediateFetchInFlight.add(immediateFetchKey);
                 immediateFetchTimestamps.set(immediateFetchKey, now);
-                
+
                 // Fire fetch in background (non-blocking)
                 fetchMessagesFromWA(sock, fromSafe, 10, { db, accountId })
                   .then(messages => {
                     immediateFetchInFlight.delete(immediateFetchKey);
                     if (messages && messages.length > 0) {
-                      console.log(`⚡ [${hashForLog(accountId)}] Immediate fetch triggered by historySyncNotification: fetched ${messages.length} messages for thread ${hashForLog(threadId)}`);
+                      console.log(
+                        `⚡ [${hashForLog(accountId)}] Immediate fetch triggered by historySyncNotification: fetched ${messages.length} messages for thread ${hashForLog(threadId)}`
+                      );
                       // Save fetched messages
                       saveMessagesBatch(accountId, messages, 'history_sync_immediate')
                         .then(result => {
-                          console.log(`✅ [${hashForLog(accountId)}] Immediate fetch saved: ${result.saved} saved, ${result.skipped} skipped, syncSource=history_sync_immediate`);
+                          console.log(
+                            `✅ [${hashForLog(accountId)}] Immediate fetch saved: ${result.saved} saved, ${result.skipped} skipped, syncSource=history_sync_immediate`
+                          );
                         })
                         .catch(err => {
-                          console.error(`❌ [${hashForLog(accountId)}] Immediate fetch save failed:`, err.message);
+                          console.error(
+                            `❌ [${hashForLog(accountId)}] Immediate fetch save failed:`,
+                            err.message
+                          );
                         });
                     } else {
-                      console.log(`⚠️  [${hashForLog(accountId)}] Immediate fetch returned 0 messages for thread ${hashForLog(threadId)}`);
+                      console.log(
+                        `⚠️  [${hashForLog(accountId)}] Immediate fetch returned 0 messages for thread ${hashForLog(threadId)}`
+                      );
                     }
                   })
                   .catch(err => {
                     immediateFetchInFlight.delete(immediateFetchKey);
                     // Best-effort: log but don't fail message processing
-                    console.warn(`⚠️  [${hashForLog(accountId)}] Immediate fetch failed for historySyncNotification:`, err.message);
+                    console.warn(
+                      `⚠️  [${hashForLog(accountId)}] Immediate fetch failed for historySyncNotification:`,
+                      err.message
+                    );
                   });
               } else {
-                console.warn(`⚠️  [${hashForLog(accountId)}] Cannot trigger immediate fetch: sock=${!!sock} fetchMessageHistory=${sock && typeof sock.fetchMessageHistory === 'function'} firestore=${firestoreAvailable} db=${!!db}`);
+                console.warn(
+                  `⚠️  [${hashForLog(accountId)}] Cannot trigger immediate fetch: sock=${!!sock} fetchMessageHistory=${sock && typeof sock.fetchMessageHistory === 'function'} firestore=${firestoreAvailable} db=${!!db}`
+                );
               }
             }
           } else if (!isFromMe && protocolMsg) {
             // Debug: log if protocolMsg exists but type is not 5
-            console.log(`🔍 [${hashForLog(accountId)}] Protocol message detected but type is not 5: type=${protocolMsg.type || 'unknown'} msgId=${hashForLog(messageId)}`);
+            console.log(
+              `🔍 [${hashForLog(accountId)}] Protocol message detected but type is not 5: type=${protocolMsg.type || 'unknown'} msgId=${hashForLog(messageId)}`
+            );
           }
 
           // FIX: Skip protocol messages (historySyncNotification) - they are signals, not real messages
@@ -1888,14 +2061,18 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
           if (!isFromMe && isProtocolHistorySync(msg)) {
             // historySyncNotification (protocolType=5) - skip saving as message
             // We already triggered immediate fetch above, so just skip message persistence
-            console.log(`⏭️  [${hashForLog(accountId)}] Skipping protocol message (historySyncNotification) - not saving as real message: msgId=${hashForLog(messageId)} thread=${hashForLog(fromSafe ? `${accountId}__${fromSafe}` : 'invalid-jid')}`);
+            console.log(
+              `⏭️  [${hashForLog(accountId)}] Skipping protocol message (historySyncNotification) - not saving as real message: msgId=${hashForLog(messageId)} thread=${hashForLog(fromSafe ? `${accountId}__${fromSafe}` : 'invalid-jid')}`
+            );
             continue; // Skip to next message in batch
           }
 
           // Skip persisting outbound (fromMe): already saved by proxy (optimistic) + outbox worker (sent).
           // Persisting again would create a duplicate doc (waMessageId) and show the same message 2–3x.
           if (isFromMe) {
-            console.log(`⏭️  [${hashForLog(accountId)}] Skipping persist for outbound (fromMe) msgId=${hashForLog(messageId)} – already from proxy+worker`);
+            console.log(
+              `⏭️  [${hashForLog(accountId)}] Skipping persist for outbound (fromMe) msgId=${hashForLog(messageId)} – already from proxy+worker`
+            );
             continue;
           }
 
@@ -1944,7 +2121,7 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
             console.log(
               `💾 [${hashForLog(accountId)}] Message saved: ${hashForLog(saved.messageId)} thread=${hashForLog(saved.threadId)} bodyLen=${saved.messageBody?.length || 0} direction=${isFromMe ? 'OUTBOUND' : 'INBOUND'}`
             );
-            
+
             // Track real message receipt time for health monitoring (not protocol messages)
             if (!isProtocolHistorySync(msg)) {
               if (!global.lastRealMessageTime) {
@@ -1952,7 +2129,7 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
               }
               global.lastRealMessageTime.set(accountId, Date.now());
             }
-            
+
             await ensurePhoneE164ForLidThread(accountId, saved.threadId, from);
 
             // STRICT: Auto-reply DOAR pentru mesaje INBOUND (client → WA conectat)
@@ -1962,7 +2139,7 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
             const { type: msgType, body } = extractBodyAndType(msg);
             const textLen = (body || '').toString().trim().length;
             const threadIdForLog = saved.threadId || `${accountId}__${from}`;
-            
+
             // Helper pentru logging structurat în handleMessagesUpsert
             const logSkipEarly = (reason, extra = {}) => {
               const logData = {
@@ -1978,14 +2155,14 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
                 messageType: msgType || 'null',
                 ...extra,
               };
-              
+
               const logStr = Object.entries(logData)
                 .map(([k, v]) => `${k}=${v}`)
                 .join(' ');
-              
+
               console.log(`[AutoReply][skip] ${logStr}`);
             };
-            
+
             if (isFromMe) {
               logSkipEarly('skipped_fromMe', { note: 'outbound_message_from_app' });
             } else if (!saved.messageBody) {
@@ -1993,9 +2170,11 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
             } else {
               // INBOUND message with body - proceed with FCM and auto-reply
               const displayName = saved.displayName || null;
-              
+
               // Send FCM notification (non-blocking for auto-reply)
-              console.log(`[AutoReply] 📱 Sending FCM notification: account=${hashForLog(accountId)} msg=${hashForLog(msg?.key?.id)}`);
+              console.log(
+                `[AutoReply] 📱 Sending FCM notification: account=${hashForLog(accountId)} msg=${hashForLog(msg?.key?.id)}`
+              );
               try {
                 await sendWhatsAppNotification(
                   accountId,
@@ -2008,17 +2187,25 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
               } catch (fcmError) {
                 console.warn(`[AutoReply] ⚠️  FCM failed (continuing): ${fcmError.message}`);
               }
-              
+
               // Trigger auto-reply (runs in parallel, doesn't block FCM)
               // IMPORTANT: Verifică explicit că eventType este 'notify' (nu 'append' sau alte tipuri)
-              console.log(`[AutoReply] 🚀 Triggering auto-reply: account=${hashForLog(accountId)} msg=${hashForLog(msg?.key?.id)} thread=${hashForLog(saved.threadId)} eventType=${type} fromMe=${isFromMe}`);
-              maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType: type }).catch(err => {
-                console.error(`[AutoReply] ❌ Auto-reply error: account=${hashForLog(accountId)} msg=${hashForLog(msg?.key?.id)} error=${err.message}`);
-                console.error(`[AutoReply] Stack:`, err.stack);
-              });
+              console.log(
+                `[AutoReply] 🚀 Triggering auto-reply: account=${hashForLog(accountId)} msg=${hashForLog(msg?.key?.id)} thread=${hashForLog(saved.threadId)} eventType=${type} fromMe=${isFromMe}`
+              );
+              maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType: type }).catch(
+                err => {
+                  console.error(
+                    `[AutoReply] ❌ Auto-reply error: account=${hashForLog(accountId)} msg=${hashForLog(msg?.key?.id)} error=${err.message}`
+                  );
+                  console.error(`[AutoReply] Stack:`, err.stack);
+                }
+              );
             }
           } else {
-            console.log(`⚠️  [${hashForLog(accountId)}] saveMessageToFirestore returned null for ${hashForLog(messageId)}`);
+            console.log(
+              `⚠️  [${hashForLog(accountId)}] saveMessageToFirestore returned null for ${hashForLog(messageId)}`
+            );
           }
         } finally {
           if (dedupeKey) {
@@ -2031,12 +2218,13 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
       }
     }
   } catch (eventError) {
-    console.error(`❌ [${hashForLog(accountId)}] Error in messages.upsert handler:`, eventError.message);
+    console.error(
+      `❌ [${hashForLog(accountId)}] Error in messages.upsert handler:`,
+      eventError.message
+    );
     console.error(`❌ [${accountId}] Stack:`, eventError.stack);
   }
 }
-
-
 
 /**
  * Find accountId by phone (with backwards compatibility)
@@ -2047,7 +2235,7 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
 async function findAccountIdByPhone(phone) {
   const canonical = canonicalPhone(phone);
   const hash = crypto.createHash('sha256').update(canonical).digest('hex').substring(0, 32);
-  
+
   if (!firestoreAvailable || !db) {
     // Fallback: try stable id only
     const stableId = `account_prod_${hash}`;
@@ -2071,7 +2259,9 @@ async function findAccountIdByPhone(phone) {
   for (const legacyId of legacyIds) {
     const legacyDoc = await db.collection('accounts').doc(legacyId).get();
     if (legacyDoc.exists) {
-      console.log(`ℹ️  Found account with legacy id: ${legacyId} (migrating to stable id: ${stableId})`);
+      console.log(
+        `ℹ️  Found account with legacy id: ${legacyId} (migrating to stable id: ${stableId})`
+      );
       // Optionally migrate to stable id (copy data, but don't delete legacy)
       // For now, just return legacy id
       return legacyId;
@@ -2113,7 +2303,9 @@ class AccountConnectionRegistry {
       const age = Date.now() - (existing.connectingSince || Date.now());
       if (age > this.CONNECTING_TTL_MS) {
         // Stale lock - force release to prevent deadlock
-        console.log(`⚠️  [${accountId}] Stale connecting lock (${Math.round(age / 1000)}s old), forcing release`);
+        console.log(
+          `⚠️  [${accountId}] Stale connecting lock (${Math.round(age / 1000)}s old), forcing release`
+        );
         this.locks.delete(accountId);
       } else {
         console.log(`⚠️  [${accountId}] Already connecting, skipping duplicate`);
@@ -2137,7 +2329,11 @@ class AccountConnectionRegistry {
    * Mark connection as established
    */
   markConnected(accountId) {
-    this.locks.set(accountId, { connecting: false, connectedAt: Date.now(), connectingSince: null });
+    this.locks.set(accountId, {
+      connecting: false,
+      connectedAt: Date.now(),
+      connectingSince: null,
+    });
     console.log(`✅ [${accountId}] Connection lock: marked as connected`);
   }
 
@@ -2166,9 +2362,11 @@ const sessionStability = new Map(); // accountId -> { lastRestoreAt, restoreCoun
 
 // Admin token for protected endpoints
 // CRITICAL: In production, ADMIN_TOKEN must be set via env var (no random fallback)
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || (process.env.NODE_ENV === 'production' 
-  ? null // Fail fast in prod if missing
-  : 'dev-token-' + Math.random().toString(36).substring(7)); // Random only in dev
+const ADMIN_TOKEN =
+  process.env.ADMIN_TOKEN ||
+  (process.env.NODE_ENV === 'production'
+    ? null // Fail fast in prod if missing
+    : 'dev-token-' + Math.random().toString(36).substring(7)); // Random only in dev
 if (!ADMIN_TOKEN) {
   console.error('❌ ADMIN_TOKEN is required in production. Set it via environment variables.');
   process.exit(1);
@@ -2199,8 +2397,7 @@ if (!admin.apps.length) {
     const { serviceAccount, sourceLabel, attempts } = loadServiceAccount();
     if (serviceAccount) {
       const storageBucket =
-        process.env.FIREBASE_STORAGE_BUCKET ||
-        `${serviceAccount.project_id}.firebasestorage.app`;
+        process.env.FIREBASE_STORAGE_BUCKET || `${serviceAccount.project_id}.firebasestorage.app`;
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         storageBucket,
@@ -2272,14 +2469,15 @@ app.use(express.json());
 // but those will be available when the route is actually called (not when defined)
 let handleGetAccounts;
 function defineHandleGetAccounts() {
-  handleGetAccounts = async function(req, res) {
+  handleGetAccounts = async function (req, res) {
     const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
-    
+
     // Get WA status and mode (non-blocking, best-effort)
     let status, instanceId, isActive, lockReason;
     try {
       status = await waBootstrap.getWAStatus();
-      instanceId = status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
+      instanceId =
+        status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
       isActive = waBootstrap.isActiveMode();
       lockReason = status.reason || null;
     } catch (error) {
@@ -2288,10 +2486,12 @@ function defineHandleGetAccounts() {
       isActive = false;
       lockReason = 'status_check_failed';
     }
-    
+
     // Log request with mode info
-    console.log(`📋 [GET /accounts/${requestId}] Request: waMode=${isActive ? 'active' : 'passive'}, instanceId=${instanceId}, lockReason=${lockReason || 'none'}`);
-    
+    console.log(
+      `📋 [GET /accounts/${requestId}] Request: waMode=${isActive ? 'active' : 'passive'}, instanceId=${instanceId}, lockReason=${lockReason || 'none'}`
+    );
+
     try {
       // Try cache first (if enabled)
       if (featureFlags.isEnabled('API_CACHING')) {
@@ -2300,9 +2500,9 @@ function defineHandleGetAccounts() {
 
         if (cached) {
           console.log(`📋 [GET /accounts/${requestId}] Cache hit: ${cached.length} accounts`);
-          return res.json({ 
-            success: true, 
-            accounts: cached, 
+          return res.json({
+            success: true,
+            accounts: cached,
             cached: true,
             instanceId: instanceId,
             waMode: isActive ? 'active' : 'passive',
@@ -2370,10 +2570,16 @@ function defineHandleGetAccounts() {
 
       const accounts = Array.from(accountsById.values());
       if (firestoreAvailable && db) {
-        console.log(`📋 [GET /accounts/${requestId}] In-memory accounts: ${accountIdsInMemory.size}`);
-        console.log(`📋 [GET /accounts/${requestId}] Total accounts (memory + Firestore): ${accounts.length}`);
+        console.log(
+          `📋 [GET /accounts/${requestId}] In-memory accounts: ${accountIdsInMemory.size}`
+        );
+        console.log(
+          `📋 [GET /accounts/${requestId}] Total accounts (memory + Firestore): ${accounts.length}`
+        );
       } else {
-        console.log(`⚠️  [GET /accounts/${requestId}] Firestore not available - returning in-memory accounts only`);
+        console.log(
+          `⚠️  [GET /accounts/${requestId}] Firestore not available - returning in-memory accounts only`
+        );
       }
 
       // Cache if enabled
@@ -2381,22 +2587,28 @@ function defineHandleGetAccounts() {
         const ttl = featureFlags.get('CACHE_TTL_SECONDS', 30) * 1000;
         await cache.set('whatsapp:accounts', accounts, ttl);
       }
-      
-      res.json({ 
-        success: true, 
-        accounts, 
+
+      res.json({
+        success: true,
+        accounts,
         cached: false,
         instanceId: instanceId,
         waMode: isActive ? 'active' : 'passive',
         lockReason: lockReason,
         requestId: requestId,
       });
-      
-      console.log(`✅ [GET /accounts/${requestId}] Response: ${accounts.length} accounts, waMode=${isActive ? 'active' : 'passive'}`);
+
+      console.log(
+        `✅ [GET /accounts/${requestId}] Response: ${accounts.length} accounts, waMode=${isActive ? 'active' : 'passive'}`
+      );
     } catch (error) {
-      console.error(`❌ [GET /accounts/${requestId}] Error:`, error.message, error.stack?.substring(0, 200));
-      res.status(500).json({ 
-        success: false, 
+      console.error(
+        `❌ [GET /accounts/${requestId}] Error:`,
+        error.message,
+        error.stack?.substring(0, 200)
+      );
+      res.status(500).json({
+        success: false,
         error: error.message,
         requestId: requestId,
         hint: `Check server logs for requestId: ${requestId}`,
@@ -2413,7 +2625,7 @@ defineHandleGetAccounts();
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Async error handler wrapper (prevents unhandled promise rejections in routes)
-const asyncHandler = (fn) => {
+const asyncHandler = fn => {
   return (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };
@@ -2500,7 +2712,9 @@ function requireAdmin(req, res, next) {
 async function requireFirebaseAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, error: 'missing_auth_token', message: 'Missing token' });
+    return res
+      .status(401)
+      .json({ success: false, error: 'missing_auth_token', message: 'Missing token' });
   }
 
   if (!admin.apps.length) {
@@ -2532,9 +2746,7 @@ const RECONNECT_TIMEOUT_MS = 60000;
 
 // Auth directory: use SESSIONS_PATH env var
 // Priority: SESSIONS_PATH > local fallback
-const authDir =
-  process.env.SESSIONS_PATH ||
-  path.join(__dirname, '.baileys_auth');
+const authDir = process.env.SESSIONS_PATH || path.join(__dirname, '.baileys_auth');
 
 // Ensure directory exists at startup
 if (!fs.existsSync(authDir)) {
@@ -2573,9 +2785,7 @@ if (!isWritable) {
 
 const VERSION = '2.0.0';
 let COMMIT_HASH =
-  process.env.GIT_COMMIT_SHA?.slice(0, 8) ||
-  process.env.COMMIT_HASH?.slice(0, 8) ||
-  null;
+  process.env.GIT_COMMIT_SHA?.slice(0, 8) || process.env.COMMIT_HASH?.slice(0, 8) || null;
 const BOOT_TIMESTAMP = new Date().toISOString();
 
 // Long-run jobs (production-grade v2)
@@ -2603,12 +2813,14 @@ console.log(`📊 Max accounts: ${MAX_ACCOUNTS}`);
 // Listen for ACTIVE mode transition to auto-reconnect stuck accounts
 process.on('wa-bootstrap:active', async ({ instanceId }) => {
   console.log(`🔄 [Auto-Reconnect] ACTIVE mode detected, checking for stuck connections...`);
-  
+
   // Reconnect accounts that were stuck during passive mode
   for (const [accountId, account] of connections.entries()) {
     if (['connecting', 'reconnecting', 'disconnected'].includes(account.status)) {
-      console.log(`🔄 [${accountId}] Auto-reconnecting after ACTIVE mode transition (status: ${account.status})`);
-      
+      console.log(
+        `🔄 [${accountId}] Auto-reconnecting after ACTIVE mode transition (status: ${account.status})`
+      );
+
       // Small delay to avoid overwhelming the system
       setTimeout(() => {
         if (connections.has(accountId)) {
@@ -2618,42 +2830,30 @@ process.on('wa-bootstrap:active', async ({ instanceId }) => {
           }
         }
       }, Math.random() * 2000); // Random delay 0-2s per account
-        }
-      }
-    });
+    }
+  }
+});
 
 // History sync configuration
 const SYNC_FULL_HISTORY = process.env.WHATSAPP_SYNC_FULL_HISTORY !== 'false'; // Default: true
 const BACKFILL_COUNT = parseInt(process.env.WHATSAPP_BACKFILL_COUNT || '100', 10);
-const BACKFILL_THREADS = parseInt(process.env.WHATSAPP_BACKFILL_THREADS || '50', 10);
-const BACKFILL_MESSAGES_PER_THREAD = parseInt(
-  process.env.WHATSAPP_BACKFILL_MESSAGES_PER_THREAD || '20',
-  10
-);
+const BACKFILL_THREADS = parseInt(process.env.WHATSAPP_BACKFILL_THREADS || '100', 10);
+const BACKFILL_EMPTY_THREADS = parseInt(process.env.WHATSAPP_BACKFILL_EMPTY_THREADS || '50', 10);
+const BACKFILL_MESSAGES_PER_THREAD = parseInt();
 
 const RECENT_SYNC_ENABLED = process.env.RECENT_SYNC_ENABLED !== 'false';
-const RECENT_SYNC_INTERVAL_MS = parseInt(
-  process.env.RECENT_SYNC_INTERVAL_MS || '120000',
-  10
-);
-const RECENT_SYNC_LOOKBACK_MS = parseInt(
-  process.env.RECENT_SYNC_LOOKBACK_MS || '21600000',
-  10
-);
-const RECENT_SYNC_MAX_THREADS = parseInt(
-  process.env.RECENT_SYNC_MAX_THREADS || '30',
-  10
-);
+const RECENT_SYNC_INTERVAL_MS = parseInt(process.env.RECENT_SYNC_INTERVAL_MS || '120000', 10);
+const RECENT_SYNC_LOOKBACK_MS = parseInt(process.env.RECENT_SYNC_LOOKBACK_MS || '21600000', 10);
+const RECENT_SYNC_MAX_THREADS = parseInt(process.env.RECENT_SYNC_MAX_THREADS || '30', 10);
 const RECENT_SYNC_MAX_MESSAGES_PER_THREAD = parseInt(
   process.env.RECENT_SYNC_MAX_MESSAGES_PER_THREAD || '20',
   10
 );
-const RECENT_SYNC_MAX_CONCURRENCY = parseInt(
-  process.env.RECENT_SYNC_MAX_CONCURRENCY || '1',
-  10
-);
+const RECENT_SYNC_MAX_CONCURRENCY = parseInt(process.env.RECENT_SYNC_MAX_CONCURRENCY || '1', 10);
 const HISTORY_SYNC_DRY_RUN = process.env.WHATSAPP_HISTORY_SYNC_DRY_RUN === 'true';
-console.log(`📚 History sync: ${SYNC_FULL_HISTORY ? 'enabled' : 'disabled'} (WHATSAPP_SYNC_FULL_HISTORY=${SYNC_FULL_HISTORY})`);
+console.log(
+  `📚 History sync: ${SYNC_FULL_HISTORY ? 'enabled' : 'disabled'} (WHATSAPP_SYNC_FULL_HISTORY=${SYNC_FULL_HISTORY})`
+);
 if (HISTORY_SYNC_DRY_RUN) {
   console.log(`🧪 History sync DRY RUN mode: enabled (will log but not write)`);
 }
@@ -2789,31 +2989,31 @@ async function logIncident(accountId, type, details) {
  */
 async function sendWhatsAppNotification(accountId, threadId, clientJid, messageBody, displayName) {
   if (!firestoreAvailable || !db) return;
-  
+
   try {
     // Get all users with FCM tokens (admin users who manage WhatsApp)
-    const usersSnapshot = await db.collection('users')
+    const usersSnapshot = await db
+      .collection('users')
       .where('fcmToken', '!=', null)
       .where('notificationsEnabled', '==', true)
       .get();
-    
+
     if (usersSnapshot.empty) {
       console.log(`📱 [${accountId}] No FCM tokens found for notifications`);
       return;
     }
-    
+
     const tokens = usersSnapshot.docs.map(doc => doc.data().fcmToken).filter(Boolean);
-    
+
     if (tokens.length === 0) {
       console.log(`📱 [${accountId}] No valid FCM tokens`);
       return;
     }
-    
+
     // Truncate message body for notification
-    const truncatedBody = messageBody.length > 100 
-      ? messageBody.substring(0, 100) + '...' 
-      : messageBody;
-    
+    const truncatedBody =
+      messageBody.length > 100 ? messageBody.substring(0, 100) + '...' : messageBody;
+
     const message = {
       notification: {
         title: `${displayName || 'WhatsApp Message'}`,
@@ -2828,13 +3028,15 @@ async function sendWhatsAppNotification(accountId, threadId, clientJid, messageB
       },
       tokens,
     };
-    
+
     const response = await admin.messaging().sendEachForMulticast(message);
     console.log(`📱 [${accountId}] FCM sent: ${response.successCount}/${tokens.length} success`);
-    
+
     if (response.failureCount > 0) {
-      console.warn(`📱 [${accountId}] FCM failures: ${response.failureCount}`, 
-        response.responses.filter(r => !r.success).map(r => r.error?.message));
+      console.warn(
+        `📱 [${accountId}] FCM failures: ${response.failureCount}`,
+        response.responses.filter(r => !r.success).map(r => r.error?.message)
+      );
     }
   } catch (error) {
     console.error(`❌ [${accountId}] FCM send error:`, error.message);
@@ -2870,13 +3072,20 @@ function guessExtension(mimeType, fallbackType) {
 }
 
 function hashThreadId(threadId) {
-  return crypto.createHash('sha1').update(String(threadId || '')).digest('hex');
+  return crypto
+    .createHash('sha1')
+    .update(String(threadId || ''))
+    .digest('hex');
 }
 
 function normalizeLongToNumber(value) {
   if (!value) return 0;
   if (typeof value === 'number') return value;
-  if (value && typeof value === 'object' && ('low' in value || 'high' in value || 'toNumber' in value)) {
+  if (
+    value &&
+    typeof value === 'object' &&
+    ('low' in value || 'high' in value || 'toNumber' in value)
+  ) {
     try {
       return typeof value.toNumber === 'function' ? value.toNumber() : Number(value);
     } catch (_) {
@@ -2931,9 +3140,7 @@ async function uploadMediaToStorage({ accountId, threadId, messageId, mediaType,
   let signedUrl = null;
   try {
     const expiresAt = Date.now() + 1000 * 60 * 60 * 24 * 30; // 30 days
-    const res = await bucket
-      .file(storagePath)
-      .getSignedUrl({ action: 'read', expires: expiresAt });
+    const res = await bucket.file(storagePath).getSignedUrl({ action: 'read', expires: expiresAt });
     signedUrl = res[0] || null;
   } catch (error) {
     console.warn(`⚠️  [${hashForLog(accountId)}] Signed URL failed: ${error.message}`);
@@ -3003,15 +3210,19 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
 
     const from = ensureJidString(msg.key.remoteJid);
     if (!from) {
-      console.warn(`[${hashForLog(accountId)}] Skipping message: remoteJid invalid or [object Object]`);
+      console.warn(
+        `[${hashForLog(accountId)}] Skipping message: remoteJid invalid or [object Object]`
+      );
       return null;
     }
 
     // Canonicalize thread ID to avoid duplicates
     const { canonicalKey, phoneDigits, phoneE164 } = await canonicalClientKey(from, accountId);
-    const canonicalThreadId = canonicalKey ? buildCanonicalThreadId(accountId, canonicalKey, phoneDigits) : null;
+    const canonicalThreadId = canonicalKey
+      ? buildCanonicalThreadId(accountId, canonicalKey, phoneDigits)
+      : null;
     const threadId = canonicalThreadId || `${accountId}__${from}`;
-    
+
     const isFromMe = msg.key.fromMe === true;
     const direction = isFromMe ? 'outbound' : 'inbound'; // Use 'inbound'/'outbound' for consistency with Flutter
     const { body } = extractBodyAndType(msg);
@@ -3054,9 +3265,10 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       let shouldSetDisplayName = !existingDisplayName;
       if (existingDisplayName && typeof existingDisplayName === 'string') {
         // Check if existing displayName looks invalid (likely message text)
-        const isInvalid = existingDisplayName.length > 100 || // Too long, likely message text
-                         existingDisplayName.includes('\n') || // Contains newlines, likely message text
-                         existingDisplayName.length < 2; // Too short, likely invalid
+        const isInvalid =
+          existingDisplayName.length > 100 || // Too long, likely message text
+          existingDisplayName.includes('\n') || // Contains newlines, likely message text
+          existingDisplayName.length < 2; // Too short, likely invalid
         shouldSetDisplayName = isInvalid;
       }
 
@@ -3094,7 +3306,8 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
           const metadata = await sock.groupMetadata(from);
           const participantInfo = metadata?.participants?.find(p => p.id === participant);
           if (participantInfo) {
-            senderName = participantInfo.name || participantInfo.notify || participant.split('@')[0] || null;
+            senderName =
+              participantInfo.name || participantInfo.notify || participant.split('@')[0] || null;
           } else {
             // Fallback: use pushName or participant phone
             senderName = msg.pushName || participant.split('@')[0] || null;
@@ -3131,12 +3344,18 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
       logThreadWrite('inbound', accountId, from, threadId);
       // Log canonicalization for debugging
       if (canonicalThreadId && canonicalThreadId !== `${accountId}__${from}`) {
-        console.log(`[saveMessage] canonicalized threadId: ${hashForLog(`${accountId}__${from}`)} -> ${hashForLog(canonicalThreadId)} phoneDigits=${phoneDigits || 'null'}`);
-        
+        console.log(
+          `[saveMessage] canonicalized threadId: ${hashForLog(`${accountId}__${from}`)} -> ${hashForLog(canonicalThreadId)} phoneDigits=${phoneDigits || 'null'}`
+        );
+
         // CRITICAL FIX: Set redirectTo on old thread (@lid) to point to canonical thread
         // This ensures Flutter app redirects to the correct thread with all messages
         const oldThreadId = `${accountId}__${from}`;
-        if (oldThreadId !== canonicalThreadId && typeof from === 'string' && from.endsWith('@lid')) {
+        if (
+          oldThreadId !== canonicalThreadId &&
+          typeof from === 'string' &&
+          from.endsWith('@lid')
+        ) {
           try {
             const oldThreadRef = db.collection('threads').doc(oldThreadId);
             const oldThreadDoc = await oldThreadRef.get();
@@ -3144,17 +3363,24 @@ async function saveMessageToFirestore(accountId, msg, isFromHistory = false, soc
               const oldThreadData = oldThreadDoc.data();
               // Only set redirectTo if it's not already set or if it points to a different thread
               if (!oldThreadData?.redirectTo || oldThreadData.redirectTo !== canonicalThreadId) {
-                await oldThreadRef.set({
-                  redirectTo: canonicalThreadId,
-                  canonicalThreadId: canonicalThreadId,
-                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                }, { merge: true });
-                console.log(`[saveMessage] Set redirectTo on old thread ${hashForLog(oldThreadId)} -> ${hashForLog(canonicalThreadId)}`);
+                await oldThreadRef.set(
+                  {
+                    redirectTo: canonicalThreadId,
+                    canonicalThreadId: canonicalThreadId,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  },
+                  { merge: true }
+                );
+                console.log(
+                  `[saveMessage] Set redirectTo on old thread ${hashForLog(oldThreadId)} -> ${hashForLog(canonicalThreadId)}`
+                );
               }
             }
           } catch (redirectError) {
             // Best-effort: log but don't fail message save
-            console.warn(`[saveMessage] Failed to set redirectTo on old thread: ${redirectError.message}`);
+            console.warn(
+              `[saveMessage] Failed to set redirectTo on old thread: ${redirectError.message}`
+            );
           }
         }
       }
@@ -3180,7 +3406,11 @@ function convertLongToNumber(value) {
   // If it's already a number, return it
   if (typeof value === 'number') return value;
   // If it's a Long object (from protobuf), convert to number
-  if (value && typeof value === 'object' && ('low' in value || 'high' in value || 'toNumber' in value)) {
+  if (
+    value &&
+    typeof value === 'object' &&
+    ('low' in value || 'high' in value || 'toNumber' in value)
+  ) {
     try {
       return typeof value.toNumber === 'function' ? value.toNumber() : Number(value);
     } catch (e) {
@@ -3205,7 +3435,9 @@ async function ensureThreadsFromHistoryChats(accountId, historyChats) {
     return { created: 0, skipped: 0, errors: 0 };
   }
   if (HISTORY_SYNC_DRY_RUN) {
-    console.log(`🧪 [${hashForLog(accountId)}] DRY RUN: Would create thread placeholders from ${historyChats.length} chats`);
+    console.log(
+      `🧪 [${hashForLog(accountId)}] DRY RUN: Would create thread placeholders from ${historyChats.length} chats`
+    );
     return { created: 0, skipped: 0, errors: 0, dryRun: true };
   }
   const BATCH_SIZE = 500;
@@ -3217,7 +3449,7 @@ async function ensureThreadsFromHistoryChats(accountId, historyChats) {
     chats = historyChats;
   } else if (historyChats && typeof historyChats === 'object') {
     chats = Object.entries(historyChats).map(([k, v]) => {
-      const o = (v && typeof v === 'object') ? { ...v } : {};
+      const o = v && typeof v === 'object' ? { ...v } : {};
       o.id = o.id ?? k;
       o.jid = o.jid ?? k;
       o.name = o.name ?? o.subject ?? null;
@@ -3252,14 +3484,18 @@ async function ensureThreadsFromHistoryChats(accountId, historyChats) {
         const ref = db.collection('threads').doc(threadId);
         const now = admin.firestore.Timestamp.now();
         const displayName = typeof c?.name === 'string' && c.name.trim() ? c.name.trim() : null;
-        batch.set(ref, {
-          accountId,
-          clientJid: jid,
-          updatedAt: now,
-          lastMessageAt: now,
-          lastMessageAtMs: now.toMillis(),
-          ...(displayName ? { displayName } : {}),
-        }, { merge: true });
+        batch.set(
+          ref,
+          {
+            accountId,
+            clientJid: jid,
+            updatedAt: now,
+            lastMessageAt: now,
+            lastMessageAtMs: now.toMillis(),
+            ...(displayName ? { displayName } : {}),
+          },
+          { merge: true }
+        );
         added++;
       } catch (e) {
         errors++;
@@ -3270,13 +3506,18 @@ async function ensureThreadsFromHistoryChats(accountId, historyChats) {
         await batch.commit();
         created += added;
       } catch (e) {
-        console.error(`❌ [${hashForLog(accountId)}] ensureThreadsFromHistoryChats batch commit failed:`, e.message);
+        console.error(
+          `❌ [${hashForLog(accountId)}] ensureThreadsFromHistoryChats batch commit failed:`,
+          e.message
+        );
         errors += added;
       }
     }
   }
   if (chats.length > 0) {
-    console.log(`📇 [${hashForLog(accountId)}] Thread placeholders from history chats: ${created} created, ${skipped} skipped, ${errors} errors`);
+    console.log(
+      `📇 [${hashForLog(accountId)}] Thread placeholders from history chats: ${created} created, ${skipped} skipped, ${errors} errors`
+    );
   }
   return { created, skipped, errors };
 }
@@ -3304,13 +3545,15 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
       }
       const from = ensureJidString(msg.key.remoteJid);
       if (!from) {
-        console.warn(`[${hashForLog(accountId)}] History sync: skipping message with invalid remoteJid (msgId=${msg?.key?.id ? hashForLog(msg.key.id) : 'no-id'})`);
+        console.warn(
+          `[${hashForLog(accountId)}] History sync: skipping message with invalid remoteJid (msgId=${msg?.key?.id ? hashForLog(msg.key.id) : 'no-id'})`
+        );
         skipped++;
         continue;
       }
       const threadId = `${accountId}__${from}`;
       const direction = msg.key.fromMe ? 'outbound' : 'inbound'; // Use 'inbound'/'outbound' for consistency with Flutter
-      
+
       // DEBUG: Log message structure for history sync to see if text messages come through
       const { body, type } = extractBodyAndType(msg);
       const msgKeys = Object.keys(msg.message || {});
@@ -3319,31 +3562,44 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
       const hasProtocol = !!msg.message?.protocolMessage;
       const protocolMsg = hasProtocol ? msg.message?.protocolMessage : null;
       const protocolType = protocolMsg?.type;
-      
+
       if (!msg.key.fromMe) {
-        console.log(`🔍 [${hashForLog(accountId)}] HISTORY SYNC INBOUND: msgId=${hashForLog(msg.key.id)} type=${type} bodyLen=${(body || '').length} messageKeys=[${msgKeys.join(',')}] hasConversation=${hasConversation} hasExtendedText=${hasExtendedText} hasProtocol=${hasProtocol} protocolType=${protocolType || 'N/A'} body=${(body || '').substring(0, 50)}`);
+        console.log(
+          `🔍 [${hashForLog(accountId)}] HISTORY SYNC INBOUND: msgId=${hashForLog(msg.key.id)} type=${type} bodyLen=${(body || '').length} messageKeys=[${msgKeys.join(',')}] hasConversation=${hasConversation} hasExtendedText=${hasExtendedText} hasProtocol=${hasProtocol} protocolType=${protocolType || 'N/A'} body=${(body || '').substring(0, 50)}`
+        );
       }
-      
+
       // FIX: Skip protocol messages (historySyncNotification) - they are signals, not real messages
       if (isProtocolHistorySync(msg)) {
         const skipReason = 'protocolMessage_historySyncNotification';
-        console.log(`⏭️  [${hashForLog(accountId)}] Skipping protocol message in batch: msgId=${hashForLog(msg.key.id)} reason=${skipReason} thread=${hashForLog(threadId)}`);
+        console.log(
+          `⏭️  [${hashForLog(accountId)}] Skipping protocol message in batch: msgId=${hashForLog(msg.key.id)} reason=${skipReason} thread=${hashForLog(threadId)}`
+        );
         skipped++;
         continue;
       }
-      
+
       // Skip messages without real content (no conversation, no extendedText, no media)
       // Allowlist: only save messages with actual content
-      const hasText = hasConversation || hasExtendedText || (typeof body === 'string' && body.trim().length > 0);
-      const hasMedia = !!(msg.message?.imageMessage || msg.message?.videoMessage || msg.message?.audioMessage || msg.message?.documentMessage || msg.message?.stickerMessage);
-      
+      const hasText =
+        hasConversation || hasExtendedText || (typeof body === 'string' && body.trim().length > 0);
+      const hasMedia = !!(
+        msg.message?.imageMessage ||
+        msg.message?.videoMessage ||
+        msg.message?.audioMessage ||
+        msg.message?.documentMessage ||
+        msg.message?.stickerMessage
+      );
+
       if (!hasText && !hasMedia) {
         const skipReason = 'noMessageContent';
-        console.log(`⏭️  [${hashForLog(accountId)}] Skipping message without content: msgId=${hashForLog(msg.key.id)} reason=${skipReason} thread=${hashForLog(threadId)} bodyLen=${(body || '').length} keys=[${msgKeys.join(',')}]`);
+        console.log(
+          `⏭️  [${hashForLog(accountId)}] Skipping message without content: msgId=${hashForLog(msg.key.id)} reason=${skipReason} thread=${hashForLog(threadId)} bodyLen=${(body || '').length} keys=[${msgKeys.join(',')}]`
+        );
         skipped++;
         continue;
       }
-      
+
       // CRITICAL FIX: Only set displayName if it doesn't already exist or if it's invalid
       // This prevents overwriting valid displayNames with message text
       let threadOverrides = {};
@@ -3355,14 +3611,15 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
             const threadData = threadDoc.data();
             existingDisplayName = threadData?.displayName;
           }
-          
+
           // Only set if missing or invalid
-          const shouldSet = !existingDisplayName || 
-            (typeof existingDisplayName === 'string' && 
-             (existingDisplayName.length > 100 || 
-              existingDisplayName.includes('\n') || 
-              existingDisplayName.length < 2));
-          
+          const shouldSet =
+            !existingDisplayName ||
+            (typeof existingDisplayName === 'string' &&
+              (existingDisplayName.length > 100 ||
+                existingDisplayName.includes('\n') ||
+                existingDisplayName.length < 2));
+
           if (shouldSet && typeof msg.pushName === 'string' && msg.pushName.trim() !== '') {
             threadOverrides.displayName = msg.pushName.trim();
           }
@@ -3373,20 +3630,15 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
           }
         }
       }
-      
-      await writeMessageIdempotent(
-        db,
-        { accountId, clientJid: from, threadId, direction },
-        msg,
-        {
-          extraFields: {
-            status: msg.key.fromMe ? 'sent' : 'delivered',
-            syncedAt: admin.firestore.FieldValue.serverTimestamp(),
-            syncSource: source,
-          },
-          threadOverrides,
-        }
-      );
+
+      await writeMessageIdempotent(db, { accountId, clientJid: from, threadId, direction }, msg, {
+        extraFields: {
+          status: msg.key.fromMe ? 'sent' : 'delivered',
+          syncedAt: admin.firestore.FieldValue.serverTimestamp(),
+          syncSource: source,
+        },
+        threadOverrides,
+      });
       saved++;
     } catch (error) {
       console.error(`❌ [${hashForLog(accountId)}] History save failed:`, error.message);
@@ -3437,9 +3689,9 @@ async function saveContactsBatch(accountId, contacts) {
         const contactRef = db.collection('contacts').doc(`${accountId}__${contactJid}`);
         const rawJid = contactJid;
         const isPhoneJid = rawJid.endsWith('@s.whatsapp.net') || rawJid.endsWith('@c.us');
-        const rawDigits = isPhoneJid ? (rawJid.split('@')[0]?.replace(/\D/g, '') || '') : '';
+        const rawDigits = isPhoneJid ? rawJid.split('@')[0]?.replace(/\D/g, '') || '' : '';
         const phoneE164 = rawDigits ? `+${rawDigits}` : null;
-        
+
         // CRITICAL FIX: Try to get profile picture URL if not already in contact
         // This ensures contacts collection has profile pictures for sync
         let imgUrl = contact.imgUrl || null;
@@ -3447,29 +3699,38 @@ async function saveContactsBatch(accountId, contacts) {
           try {
             const account = connections.get(accountId);
             if (account && account.sock) {
-              const photoUrl = await account.sock.profilePictureUrl(contactJid, 'image').catch(() => null);
+              const photoUrl = await account.sock
+                .profilePictureUrl(contactJid, 'image')
+                .catch(() => null);
               if (photoUrl) imgUrl = photoUrl;
             }
           } catch (e) {
             // Non-critical: if profile picture fetch fails, continue without it
           }
         }
-        
-        batch.set(contactRef, {
-          accountId,
-          jid: contactJid,
-          name: contact.name || contact.notify || null,
-          notify: contact.notify || null,
-          verifiedName: contact.verifiedName || null,
-          phoneE164,
-          imgUrl: imgUrl || null,
-          status: contact.status || null,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
+
+        batch.set(
+          contactRef,
+          {
+            accountId,
+            jid: contactJid,
+            name: contact.name || contact.notify || null,
+            notify: contact.notify || null,
+            verifiedName: contact.verifiedName || null,
+            phoneE164,
+            imgUrl: imgUrl || null,
+            status: contact.status || null,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
 
         saved++;
       } catch (error) {
-        console.error(`❌ [${accountId}] Failed to add contact ${contactJid} to batch:`, error.message);
+        console.error(
+          `❌ [${accountId}] Failed to add contact ${contactJid} to batch:`,
+          error.message
+        );
         errors++;
       }
     }
@@ -3494,7 +3755,11 @@ async function enrichThreadsFromContacts(accountId) {
   if (HISTORY_SYNC_DRY_RUN) return { updated: 0, skipped: 0, errors: 0 };
 
   const LIMIT = 1000;
-  const snap = await db.collection('threads').where('accountId', '==', accountId).limit(LIMIT).get();
+  const snap = await db
+    .collection('threads')
+    .where('accountId', '==', accountId)
+    .limit(LIMIT)
+    .get();
   let updated = 0;
   let skipped = 0;
   let errors = 0;
@@ -3502,12 +3767,18 @@ async function enrichThreadsFromContacts(accountId) {
   for (const threadDoc of snap.docs) {
     const d = threadDoc.data();
     const clientJid = d.clientJid || null;
-    if (!clientJid) { skipped++; continue; }
+    if (!clientJid) {
+      skipped++;
+      continue;
+    }
 
     try {
       const contactRef = db.collection('contacts').doc(`${accountId}__${clientJid}`);
       const contactDoc = await contactRef.get();
-      if (!contactDoc.exists) { skipped++; continue; }
+      if (!contactDoc.exists) {
+        skipped++;
+        continue;
+      }
 
       const c = contactDoc.data() || {};
       const contactName = (c.name || c.notify || c.verifiedName || '').trim();
@@ -3515,14 +3786,17 @@ async function enrichThreadsFromContacts(accountId) {
       const currentDisplayName = (d.displayName || '').trim();
       const currentPhotoUrl = (d.profilePictureUrl || d.photoUrl || '').trim();
 
-      const needsName = contactName.length > 0 && (
-        currentDisplayName.length === 0 ||
-        currentDisplayName === (clientJid.split('@')[0] || '') ||
-        /^\+?[\d\s\-\(\)]+$/.test(currentDisplayName)
-      );
+      const needsName =
+        contactName.length > 0 &&
+        (currentDisplayName.length === 0 ||
+          currentDisplayName === (clientJid.split('@')[0] || '') ||
+          /^\+?[\d\s\-\(\)]+$/.test(currentDisplayName));
       const needsPhoto = contactPhotoUrl.length > 0 && currentPhotoUrl !== contactPhotoUrl;
 
-      if (!needsName && !needsPhoto) { skipped++; continue; }
+      if (!needsName && !needsPhoto) {
+        skipped++;
+        continue;
+      }
 
       const updateData = {};
       if (needsName) {
@@ -3542,7 +3816,9 @@ async function enrichThreadsFromContacts(accountId) {
   }
 
   if (updated > 0 || errors > 0) {
-    console.log(`📇 [${hashForLog(accountId)}] enrichThreadsFromContacts: ${updated} updated, ${skipped} skipped, ${errors} errors`);
+    console.log(
+      `📇 [${hashForLog(accountId)}] enrichThreadsFromContacts: ${updated} updated, ${skipped} skipped, ${errors} errors`
+    );
   }
   return { updated, skipped, errors };
 }
@@ -3564,21 +3840,52 @@ async function backfillAccountMessages(accountId) {
   try {
     console.log(`📚 [${accountId}] Starting backfill for recent threads...`);
 
-    // Backfill NEVER creates threads; only fills messages for existing ones.
-    // Get recent active threads for this account (ordered by lastMessageAt desc)
-    const threadsSnapshot = await db
-      .collection('threads')
-      .where('accountId', '==', accountId)
-      .orderBy('lastMessageAt', 'desc')
-      .limit(BACKFILL_THREADS)
-      .get();
+    // [REQ] Double query strategy: 1. Recent active, 2. Empty placeholders
+    const [threadsSnapshot, emptyThreadsSnapshot] = await Promise.all([
+      db
+        .collection('threads')
+        .where('accountId', '==', accountId)
+        .orderBy('lastMessageAt', 'desc')
+        .limit(BACKFILL_THREADS)
+        .get(),
+      db
+        .collection('threads')
+        .where('accountId', '==', accountId)
+        .where('lastMessageAt', '==', null)
+        .orderBy('updatedAt', 'desc')
+        .limit(BACKFILL_EMPTY_THREADS)
+        .get(),
+    ]).catch(err => {
+      // Fallback if index for null query isn't ready yet or other issue
+      console.warn(
+        `[${accountId}] Backfill empty query failed (likely missing index):`,
+        err.message
+      );
+      return [null, { empty: true, docs: [] }]; // We'll handle null below
+    });
 
-    if (threadsSnapshot.empty) {
-      console.log(`📚 [${accountId}] No threads found for backfill (backfill never creates threads; re-pair to create)`);
+    if (!threadsSnapshot && emptyThreadsSnapshot.empty) {
+      console.log(`📚 [${accountId}] No threads found for backfill`);
       return { success: true, threads: 0, messages: 0 };
     }
 
-    console.log(`📚 [${accountId}] Found ${threadsSnapshot.size} threads for backfill`);
+    // Combine and deduplicate
+    const combinedDocs = threadsSnapshot ? [...threadsSnapshot.docs] : [];
+    const seenIds = new Set(combinedDocs.map(d => d.id));
+    for (const doc of emptyThreadsSnapshot.docs) {
+      if (!seenIds.has(doc.id)) {
+        combinedDocs.push(doc);
+        seenIds.add(doc.id);
+      }
+    }
+
+    if (combinedDocs.length === 0) {
+      return { success: true, threads: 0, messages: 0 };
+    }
+
+    console.log(
+      `📚 [${accountId}] Found ${combinedDocs.length} threads for backfill (${threadsSnapshot?.size || 0} active, ${combinedDocs.length - (threadsSnapshot?.size || 0)} placeholders)`
+    );
 
     let totalMessages = 0;
     let totalErrors = 0;
@@ -3586,11 +3893,11 @@ async function backfillAccountMessages(accountId) {
 
     const limitPerThread = Math.min(Math.max(1, BACKFILL_MESSAGES_PER_THREAD), 100);
     const CONCURRENCY = 2;
-    for (let i = 0; i < threadsSnapshot.docs.length; i += CONCURRENCY) {
-      const batchThreads = threadsSnapshot.docs.slice(i, i + CONCURRENCY);
+    for (let i = 0; i < combinedDocs.length; i += CONCURRENCY) {
+      const batchThreads = combinedDocs.slice(i, i + CONCURRENCY);
 
       const batchResults = await Promise.all(
-        batchThreads.map(async (threadDoc) => {
+        batchThreads.map(async threadDoc => {
           const threadId = threadDoc.id;
           const threadData = threadDoc.data();
           const clientJid = normalizeClientJid(threadData.clientJid);
@@ -3611,10 +3918,13 @@ async function backfillAccountMessages(accountId) {
               saved = result.saved || 0;
               errCount = result.errors || 0;
             }
-            await db.collection('threads').doc(threadId).set(
-              { lastBackfillAt: admin.firestore.FieldValue.serverTimestamp() },
-              { merge: true }
-            );
+            await db
+              .collection('threads')
+              .doc(threadId)
+              .set(
+                { lastBackfillAt: admin.firestore.FieldValue.serverTimestamp() },
+                { merge: true }
+              );
             threadResults.push({ threadId, status: 'processed', fetched: messages?.length || 0 });
             return { saved, errors: errCount, threadId, status: 'processed' };
           } catch (threadError) {
@@ -3636,7 +3946,7 @@ async function backfillAccountMessages(accountId) {
       }
 
       if (i + CONCURRENCY < threadsSnapshot.docs.length) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
 
@@ -3649,9 +3959,13 @@ async function backfillAccountMessages(accountId) {
         errors: totalErrors,
         threadResults: threadResults.slice(0, 10), // Store first 10 results for debugging
       },
-    }).catch(err => console.error(`❌ [${accountId}] Failed to update backfill marker:`, err.message));
+    }).catch(err =>
+      console.error(`❌ [${accountId}] Failed to update backfill marker:`, err.message)
+    );
 
-    console.log(`✅ [${accountId}] Backfill complete: ${threadsSnapshot.size} threads, ${totalMessages} messages, ${totalErrors} errors`);
+    console.log(
+      `✅ [${accountId}] Backfill complete: ${combinedDocs.length} threads, ${totalMessages} messages, ${totalErrors} errors`
+    );
 
     // Enrich threads from contacts automatically (no manual sync)
     await enrichThreadsFromContacts(accountId).catch(err =>
@@ -3660,7 +3974,7 @@ async function backfillAccountMessages(accountId) {
 
     return {
       success: true,
-      threads: threadsSnapshot.size,
+      threads: combinedDocs.length,
       messages: totalMessages,
       errors: totalErrors,
     };
@@ -3707,18 +4021,18 @@ async function runRecentSyncForAccount(accountId) {
   try {
     // Query threads: try canonical accountId first, then fallback to hash if needed
     // This handles cases where threads have hash-based accountId (a002401e:45) instead of canonical
-    const hashForLog = (id) => {
+    const hashForLog = id => {
       const crypto = require('crypto');
       const raw = String(id ?? '');
       const sha8 = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 8);
       return `${sha8}:${raw.length}`;
     };
     const accountIdHash = hashForLog(accountId);
-    
+
     // Overfetch threads to ensure we have enough canonical threads after filtering @lid
     // If maxThreads=30, fetch 3x more (90) to account for @lid threads being filtered out
     const overfetchLimit = Math.max(maxThreads * 3, 100);
-    
+
     let threadsSnap;
     try {
       // Try canonical accountId first, with isLid filter if possible
@@ -3733,7 +4047,9 @@ async function runRecentSyncForAccount(accountId) {
           .get();
       } catch (indexError) {
         // If isLid index doesn't exist, fallback to querying all and filtering in code
-        console.warn(`[recent-sync] ${hashForLog(accountId)} isLid index not available, using overfetch+filter: ${indexError.message}`);
+        console.warn(
+          `[recent-sync] ${hashForLog(accountId)} isLid index not available, using overfetch+filter: ${indexError.message}`
+        );
         threadsSnap = await db
           .collection('threads')
           .where('accountId', '==', accountId)
@@ -3741,10 +4057,12 @@ async function runRecentSyncForAccount(accountId) {
           .limit(overfetchLimit)
           .get();
       }
-      
+
       // If no results and accountId is canonical, also try hash-based accountId
       if (threadsSnap.empty && accountId.includes('_')) {
-        console.log(`[recent-sync] ${hashForLog(accountId)} No threads with canonical accountId, trying hash-based: ${accountIdHash}`);
+        console.log(
+          `[recent-sync] ${hashForLog(accountId)} No threads with canonical accountId, trying hash-based: ${accountIdHash}`
+        );
         try {
           threadsSnap = await db
             .collection('threads')
@@ -3764,13 +4082,15 @@ async function runRecentSyncForAccount(accountId) {
       }
     } catch (error) {
       // If orderBy fails (missing index), try without orderBy
-      console.warn(`[recent-sync] ${hashForLog(accountId)} orderBy failed, trying without: ${error.message}`);
+      console.warn(
+        `[recent-sync] ${hashForLog(accountId)} orderBy failed, trying without: ${error.message}`
+      );
       threadsSnap = await db
         .collection('threads')
         .where('accountId', '==', accountId)
         .limit(overfetchLimit)
         .get();
-      
+
       if (threadsSnap.empty && accountId.includes('_')) {
         threadsSnap = await db
           .collection('threads')
@@ -3786,29 +4106,35 @@ async function runRecentSyncForAccount(accountId) {
     // Filter out @lid threads and prioritize canonical threads (@s.whatsapp.net, @g.us)
     const canonicalThreads = [];
     const lidThreads = [];
-    
+
     for (const threadDoc of threadsSnap.docs) {
       const threadData = threadDoc.data();
       const clientJid = normalizeClientJid(threadData.clientJid);
       if (!clientJid) continue;
-      
+
       // Skip @lid threads (they don't have real message history)
       if (clientJid.endsWith('@lid')) {
         lidThreads.push({ threadDoc, clientJid });
         continue;
       }
-      
+
       // Only process canonical threads (@s.whatsapp.net, @g.us, status@broadcast)
-      if (clientJid.endsWith('@s.whatsapp.net') || clientJid.endsWith('@g.us') || clientJid === 'status@broadcast') {
+      if (
+        clientJid.endsWith('@s.whatsapp.net') ||
+        clientJid.endsWith('@g.us') ||
+        clientJid === 'status@broadcast'
+      ) {
         canonicalThreads.push({ threadDoc, clientJid });
       }
     }
-    
-    console.log(`[recent-sync] ${hashForLog(accountId)} Found ${threadsSnap.size} total threads: ${canonicalThreads.length} canonical, ${lidThreads.length} @lid (skipped)`);
-    
+
+    console.log(
+      `[recent-sync] ${hashForLog(accountId)} Found ${threadsSnap.size} total threads: ${canonicalThreads.length} canonical, ${lidThreads.length} @lid (skipped)`
+    );
+
     // Process only canonical threads (limit to maxThreads)
     const threadsToProcess = canonicalThreads.slice(0, maxThreads);
-    
+
     for (const { threadDoc, clientJid } of threadsToProcess) {
       try {
         const messages = await fetchMessagesFromWA(account.sock, clientJid, limitPerThread, {
@@ -3831,12 +4157,12 @@ async function runRecentSyncForAccount(accountId) {
     // Log aggregated fetch stats
     const { getFetchStats, resetFetchStats } = require('./lib/fetch-messages-wa');
     const fetchStats = getFetchStats();
-    
+
     const durationMs = Date.now() - start;
     console.log(
       `[recent-sync] ${hashForLog(accountId)} end threads=${threadsSnap.size} (${canonicalThreads.length} canonical processed, ${lidThreads.length} @lid skipped) messages=${messagesWritten} errors=${errors} durationMs=${durationMs} | fetchStats: threadsProcessed=${fetchStats.threadsProcessed} threadsNoAnchorKeyId=${fetchStats.threadsNoAnchorKeyId} messagesFetched=${fetchStats.messagesFetched}`
     );
-    
+
     // Reset stats for next run
     resetFetchStats();
     return {
@@ -3848,7 +4174,9 @@ async function runRecentSyncForAccount(accountId) {
     };
   } catch (err) {
     const durationMs = Date.now() - start;
-    console.error(`[recent-sync] ${hashForLog(accountId)} error: ${err.message} durationMs=${durationMs}`);
+    console.error(
+      `[recent-sync] ${hashForLog(accountId)} error: ${err.message} durationMs=${durationMs}`
+    );
     return {
       success: false,
       threads: 0,
@@ -3869,9 +4197,7 @@ function initAutoBackfill() {
     instanceId: getInstanceId(),
     isPassive: async () => !waBootstrap.canProcessOutbox(),
     getConnectedAccountIds: async () =>
-      [...connections.entries()]
-        .filter(([, a]) => a && a.status === 'connected')
-        .map(([id]) => id),
+      [...connections.entries()].filter(([, a]) => a && a.status === 'connected').map(([id]) => id),
     runBackfill: id => backfillAccountMessages(id),
     saveAccountMeta: async (id, data) => {
       if (!firestoreAvailable || !db) return;
@@ -3909,9 +4235,7 @@ function initRecentSync() {
     instanceId: getInstanceId(),
     isPassive: async () => !waBootstrap.canProcessOutbox(),
     getConnectedAccountIds: async () =>
-      [...connections.entries()]
-        .filter(([, a]) => a && a.status === 'connected')
-        .map(([id]) => id),
+      [...connections.entries()].filter(([, a]) => a && a.status === 'connected').map(([id]) => id),
     runRecentSync: runRecentSyncForAccount,
     saveAccountMeta: async (id, data) => {
       if (!firestoreAvailable || !db) return;
@@ -3956,14 +4280,17 @@ async function clearAccountSession(accountId) {
     // db.collection('wa_sessions').doc(accountId).delete();
     // fs.rmSync(sessionPath, { recursive: true, force: true });
     const sessionPath = path.join(authDir, accountId);
-    
+
     // Delete Firestore session backup (keep near top for regression tests)
     if (firestoreAvailable && db) {
       try {
         await db.collection('wa_sessions').doc(accountId).delete();
         console.log(`🗑️  [${accountId}] Firestore session backup deleted`);
       } catch (error) {
-        console.error(`⚠️  [${accountId}] Failed to delete Firestore session backup:`, error.message);
+        console.error(
+          `⚠️  [${accountId}] Failed to delete Firestore session backup:`,
+          error.message
+        );
       }
     }
 
@@ -3997,16 +4324,20 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
   // HARD GATE: PASSIVE mode - do NOT start Baileys connections
   if (!waBootstrap.canStartBaileys()) {
     const status = await waBootstrap.getWAStatus();
-    console.log(`⏸️  [${accountId}] PASSIVE mode - cannot start Baileys connection (lock not held)`);
-    console.log(`⏸️  [${accountId}] PASSIVE mode details: reason=${status.reason || 'unknown'}, instanceId=${status.instanceId || 'unknown'}`);
-    
+    console.log(
+      `⏸️  [${accountId}] PASSIVE mode - cannot start Baileys connection (lock not held)`
+    );
+    console.log(
+      `⏸️  [${accountId}] PASSIVE mode details: reason=${status.reason || 'unknown'}, instanceId=${status.instanceId || 'unknown'}`
+    );
+
     // Save passive status to Firestore so Flutter can display it
     await saveAccountToFirestore(accountId, {
       status: 'passive',
       lastError: `Backend in PASSIVE mode: ${status.reason || 'lock not acquired'}`,
       passiveModeReason: status.reason || 'lock_not_acquired',
     }).catch(err => console.error(`❌ [${accountId}] Failed to save passive status:`, err));
-    
+
     return;
   }
 
@@ -4017,14 +4348,18 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
   if (account) {
     const terminalStatuses = ['needs_qr', 'logged_out'];
     if (terminalStatuses.includes(account.status) || account.requiresQR === true) {
-      console.log(`⏸️  [${accountId}] Account status is ${account.status} (requiresQR: ${account.requiresQR}), skipping auto-connect. Use Regenerate QR endpoint.`);
+      console.log(
+        `⏸️  [${accountId}] Account status is ${account.status} (requiresQR: ${account.requiresQR}), skipping auto-connect. Use Regenerate QR endpoint.`
+      );
       // #region agent log
-      console.log(`📋 [${accountId}] createConnection blocked: inMemory status=${account.status}, requiresQR=${account.requiresQR}, timestamp=${Date.now()}`);
+      console.log(
+        `📋 [${accountId}] createConnection blocked: inMemory status=${account.status}, requiresQR=${account.requiresQR}, timestamp=${Date.now()}`
+      );
       // #endregion
       return;
     }
   }
-  
+
   // CRITICAL FIX: Also check Firestore if account not in memory (might have been cleaned up)
   // This prevents race conditions where cleanup sets needs_qr in Firestore but something triggers createConnection
   if (!account && firestoreAvailable && db) {
@@ -4034,9 +4369,13 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
         const data = accountDoc.data();
         const terminalStatuses = ['needs_qr', 'logged_out'];
         if (terminalStatuses.includes(data.status) || data.requiresQR === true) {
-          console.log(`⏸️  [${accountId}] Account status in Firestore is ${data.status} (requiresQR: ${data.requiresQR}), skipping auto-connect. Use Regenerate QR endpoint.`);
+          console.log(
+            `⏸️  [${accountId}] Account status in Firestore is ${data.status} (requiresQR: ${data.requiresQR}), skipping auto-connect. Use Regenerate QR endpoint.`
+          );
           // #region agent log
-          console.log(`📋 [${accountId}] createConnection blocked: firestore status=${data.status}, requiresQR=${data.requiresQR}, timestamp=${Date.now()}`);
+          console.log(
+            `📋 [${accountId}] createConnection blocked: firestore status=${data.status}, requiresQR=${data.requiresQR}, timestamp=${Date.now()}`
+          );
           // #endregion
           return;
         }
@@ -4082,10 +4421,10 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
       console.log(`🔄 [${accountId}] Disk session missing, attempting Firestore restore...`);
       try {
         const sessionDoc = await db.collection('wa_sessions').doc(accountId).get();
-        
+
         if (sessionDoc.exists) {
           const sessionData = sessionDoc.data();
-          
+
           if (sessionData.files && typeof sessionData.files === 'object') {
             // Restore session files from Firestore
             let restoredCount = 0;
@@ -4095,12 +4434,17 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
                 await fs.promises.writeFile(filePath, content, 'utf8');
                 restoredCount++;
               } catch (writeError) {
-                console.error(`❌ [${accountId}] Failed to restore file ${filename}:`, writeError.message);
+                console.error(
+                  `❌ [${accountId}] Failed to restore file ${filename}:`,
+                  writeError.message
+                );
               }
             }
-            
+
             if (restoredCount > 0) {
-              console.log(`✅ [${accountId}] Session restored from Firestore (${restoredCount} files)`);
+              console.log(
+                `✅ [${accountId}] Session restored from Firestore (${restoredCount} files)`
+              );
               // Verify creds.json was restored
               const restoredCredsExists = fs.existsSync(credsPath);
               if (restoredCredsExists) {
@@ -4118,7 +4462,10 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
           console.log(`🆕 [${accountId}] No Firestore backup found, will generate new QR`);
         }
       } catch (restoreError) {
-        console.error(`❌ [${accountId}] Firestore restore failed (non-fatal):`, restoreError.message);
+        console.error(
+          `❌ [${accountId}] Firestore restore failed (non-fatal):`,
+          restoreError.message
+        );
         // Continue with fresh session - restore failure shouldn't block connection
       }
     }
@@ -4163,7 +4510,11 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
             );
           } catch (error) {
             // CRITICAL: Log error but don't throw - backup failure must not kill socket
-            console.error(`❌ [${accountId}] Firestore backup failed (non-fatal):`, error.message, error.stack?.substring(0, 200));
+            console.error(
+              `❌ [${accountId}] Firestore backup failed (non-fatal):`,
+              error.message,
+              error.stack?.substring(0, 200)
+            );
             // Don't rethrow - backup is optional, socket integrity is critical
           }
         });
@@ -4202,7 +4553,7 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
     };
 
     connections.set(accountId, account);
-    
+
     console.log(`🔌 [${accountId}] Connection session #${currentSessionId} started`);
 
     // Set timeout to prevent "connecting forever" (configurable via env)
@@ -4213,58 +4564,143 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
     account.connectingTimeout = setTimeout(() => {
       const timeoutSeconds = Math.floor(CONNECTING_TIMEOUT / 1000);
       const acc = connections.get(accountId);
-      
+
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1175',message:'Timeout handler entry',data:{accountId,hasAccount:!!acc,accountStatus:acc?.status,accountConnectingTimeout:acc?.connectingTimeout},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: 'server.js:1175',
+          message: 'Timeout handler entry',
+          data: {
+            accountId,
+            hasAccount: !!acc,
+            accountStatus: acc?.status,
+            accountConnectingTimeout: acc?.connectingTimeout,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'B',
+        }),
+      }).catch(() => {});
       // #endregion
-      
+
       // CRITICAL FIX: Don't timeout if status is pairing phase (qr_ready, awaiting_scan, pairing, connecting)
       // NOTE: 'connecting' is included because during pairing phase close (reason 515), status may be set to 'connecting'
       // but we still want to preserve the account and not timeout it
       // These states use QR_SCAN_TIMEOUT instead (10 minutes)
       // This prevents timeout from transitioning to disconnected while waiting for QR scan
-      const isPairingPhase = acc && ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'].includes(acc.status);
-      
+      const isPairingPhase =
+        acc && ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'].includes(acc.status);
+
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1183',message:'Timeout pairing phase check',data:{accountId,hasAccount:!!acc,accountStatus:acc?.status,isPairingPhase,pairingPhaseList:['qr_ready','awaiting_scan','pairing','connecting']},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: 'server.js:1183',
+          message: 'Timeout pairing phase check',
+          data: {
+            accountId,
+            hasAccount: !!acc,
+            accountStatus: acc?.status,
+            isPairingPhase,
+            pairingPhaseList: ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'],
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'B',
+        }),
+      }).catch(() => {});
       // #endregion
-      
+
       if (isPairingPhase) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1187',message:'Timeout skipped - pairing phase',data:{accountId,status:acc.status,timeoutId:account.connectingTimeout},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location: 'server.js:1187',
+            message: 'Timeout skipped - pairing phase',
+            data: { accountId, status: acc.status, timeoutId: account.connectingTimeout },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'A',
+          }),
+        }).catch(() => {});
         // #endregion
-        console.log(`⏰ [${accountId}] Connecting timeout skipped (status: ${acc.status} - pairing phase uses QR_SCAN_TIMEOUT)`);
+        console.log(
+          `⏰ [${accountId}] Connecting timeout skipped (status: ${acc.status} - pairing phase uses QR_SCAN_TIMEOUT)`
+        );
         return; // Don't timeout pairing phase - QR scan timeout handles expiration
       }
-      
+
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1193',message:'Timeout firing - not pairing phase',data:{accountId,status:acc?.status,hasAccount:!!acc,isPairingPhase},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: 'server.js:1193',
+          message: 'Timeout firing - not pairing phase',
+          data: { accountId, status: acc?.status, hasAccount: !!acc, isPairingPhase },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'B',
+        }),
+      }).catch(() => {});
       // #endregion
-      
+
       // CRITICAL FIX: Get fresh account state BEFORE logging - might have been cleaned up or preserved during timeout
       const currentAcc = connections.get(accountId);
-      
+
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1199',message:'Timeout fresh account check',data:{accountId,hasCurrentAcc:!!currentAcc,currentAccStatus:currentAcc?.status,currentAccTimeout:currentAcc?.connectingTimeout},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: 'server.js:1199',
+          message: 'Timeout fresh account check',
+          data: {
+            accountId,
+            hasCurrentAcc: !!currentAcc,
+            currentAccStatus: currentAcc?.status,
+            currentAccTimeout: currentAcc?.connectingTimeout,
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'B',
+        }),
+      }).catch(() => {});
       // #endregion
-      
+
       if (!currentAcc) {
         console.log(`⏰ [${accountId}] Timeout fired but account already removed, ignoring`);
         return; // Account already cleaned up (e.g., 401 cleanup)
       }
-      
+
       // CRITICAL FIX: Double-check pairing phase BEFORE logging transition - account might have been preserved
       // This prevents misleading "transitioning to disconnected" log when status is qr_ready after 515
-      const isPairingPhaseNow = ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'].includes(currentAcc.status);
+      const isPairingPhaseNow = ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'].includes(
+        currentAcc.status
+      );
       if (isPairingPhaseNow) {
-        console.log(`⏰ [${accountId}] Timeout fired but status is ${currentAcc.status} (pairing phase), skipping timeout transition`);
+        console.log(
+          `⏰ [${accountId}] Timeout fired but status is ${currentAcc.status} (pairing phase), skipping timeout transition`
+        );
         currentAcc.connectingTimeout = null; // Clear timeout property
         return; // Don't timeout pairing phase
       }
-      
+
       // Only log "transitioning to disconnected" if we're actually going to transition
-      console.log(`⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`);
-      
+      console.log(
+        `⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`
+      );
+
       // CRITICAL FIX: Only transition if still connecting - might have been cleaned up by 401 handler
       // Also check if timeout was already cleared (account.connectingTimeout should be null if cleared)
       if (currentAcc.status === 'connecting' && currentAcc.connectingTimeout !== null) {
@@ -4272,18 +4708,22 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
         currentAcc.lastError = 'Connection timeout - no progress after 60s';
         // Clear timeout property
         currentAcc.connectingTimeout = null;
-        
+
         // #region agent log
-        console.log(`📋 [${accountId}] Connecting timeout: status=connecting -> disconnected, clearedTimeout=true, timestamp=${Date.now()}`);
+        console.log(
+          `📋 [${accountId}] Connecting timeout: status=connecting -> disconnected, clearedTimeout=true, timestamp=${Date.now()}`
+        );
         // #endregion
-        
+
         saveAccountToFirestore(accountId, {
           status: 'disconnected',
           lastError: 'Connection timeout',
         }).catch(err => console.error(`❌ [${accountId}] Timeout save failed:`, err));
       } else {
         // Status already changed (e.g., needs_qr from 401 cleanup) - don't override
-        console.log(`⏰ [${accountId}] Timeout fired but status is ${currentAcc.status} (not connecting), ignoring timeout transition`);
+        console.log(
+          `⏰ [${accountId}] Timeout fired but status is ${currentAcc.status} (not connecting), ignoring timeout transition`
+        );
         currentAcc.connectingTimeout = null; // Clear timeout property anyway
       }
     }, CONNECTING_TIMEOUT);
@@ -4316,17 +4756,54 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
       const { connection, lastDisconnect, qr } = update;
 
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1353',message:'connection.update event received',data:{accountId,connection:connection||'null',hasQr:!!qr,hasLastDisconnect:!!lastDisconnect,updateKeys:Object.keys(update)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: 'server.js:1353',
+          message: 'connection.update event received',
+          data: {
+            accountId,
+            connection: connection || 'null',
+            hasQr: !!qr,
+            hasLastDisconnect: !!lastDisconnect,
+            updateKeys: Object.keys(update),
+          },
+          timestamp: Date.now(),
+          sessionId: 'debug-session',
+          runId: 'run1',
+          hypothesisId: 'A',
+        }),
+      }).catch(() => {});
       // #endregion
 
       console.log(`🔔 [${accountId}] Connection update: ${connection || 'qr'}`);
 
       if (qr && typeof qr === 'string' && qr.length > 0) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1358',message:'QR code detected in update',data:{accountId,qrLength:qr.length,currentStatus:account.status,sessionId:account.sessionId||'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location: 'server.js:1358',
+            message: 'QR code detected in update',
+            data: {
+              accountId,
+              qrLength: qr.length,
+              currentStatus: account.status,
+              sessionId: account.sessionId || 'unknown',
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'E',
+          }),
+        }).catch(() => {});
         // #endregion
-        
-        console.log(`📱 [${accountId}] QR Code generated (length: ${qr.length}, sessionId: ${account.sessionId || 'unknown'})`);
+
+        console.log(
+          `📱 [${accountId}] QR Code generated (length: ${qr.length}, sessionId: ${account.sessionId || 'unknown'})`
+        );
 
         // CRITICAL: Set status to 'qr_ready' IMMEDIATELY when QR is detected
         // This prevents timeout from firing (timeout checks pairing phase)
@@ -4336,14 +4813,16 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
           // Set status IMMEDIATELY (before async QR generation)
           currentAccount.status = 'qr_ready';
           console.log(`⏰ [${accountId}] Status set to 'qr_ready' (QR detected)`);
-          
+
           // Clear connecting timeout IMMEDIATELY when QR is detected
           // QR pairing should not be limited by 60s connecting timeout
           // Use QR_SCAN_TIMEOUT instead (10 minutes for user to scan)
           if (currentAccount.connectingTimeout) {
             clearTimeout(currentAccount.connectingTimeout);
             currentAccount.connectingTimeout = null;
-            console.log(`⏰ [${accountId}] Connecting timeout cleared (QR detected, pairing phase)`);
+            console.log(
+              `⏰ [${accountId}] Connecting timeout cleared (QR detected, pairing phase)`
+            );
           }
         }
 
@@ -4353,17 +4832,19 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
         const currentAccountForQR = connections.get(accountId);
         if (currentAccountForQR) {
           currentAccountForQR.qrScanTimeout = setTimeout(() => {
-          console.log(`⏰ [${accountId}] QR scan timeout (${QR_SCAN_TIMEOUT_MS / 1000}s) - QR expired`);
-          const acc = connections.get(accountId);
-          if (acc && acc.status === 'qr_ready') {
-            acc.status = 'needs_qr'; // Mark for regeneration
-            saveAccountToFirestore(accountId, {
-              status: 'needs_qr',
-              lastError: 'QR scan timeout - QR expired after 10 minutes',
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            }).catch(err => console.error(`❌ [${accountId}] QR timeout save failed:`, err));
-          }
-        }, QR_SCAN_TIMEOUT_MS);
+            console.log(
+              `⏰ [${accountId}] QR scan timeout (${QR_SCAN_TIMEOUT_MS / 1000}s) - QR expired`
+            );
+            const acc = connections.get(accountId);
+            if (acc && acc.status === 'qr_ready') {
+              acc.status = 'needs_qr'; // Mark for regeneration
+              saveAccountToFirestore(accountId, {
+                status: 'needs_qr',
+                lastError: 'QR scan timeout - QR expired after 10 minutes',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              }).catch(err => console.error(`❌ [${accountId}] QR timeout save failed:`, err));
+            }
+          }, QR_SCAN_TIMEOUT_MS);
         }
 
         try {
@@ -4388,19 +4869,19 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
 
           console.log(`✅ [${accountId}] QR saved to Firestore`);
 
-    // Invalidate accounts cache so frontend gets updated QR
-    if (featureFlags.isEnabled('API_CACHING')) {
-      await cache.delete('whatsapp:accounts');
-      console.log(`🗑️  [${accountId}] Cache invalidated for QR update`);
-    }
+          // Invalidate accounts cache so frontend gets updated QR
+          if (featureFlags.isEnabled('API_CACHING')) {
+            await cache.delete('whatsapp:accounts');
+            console.log(`🗑️  [${accountId}] Cache invalidated for QR update`);
+          }
 
-    logger.info('QR code generated and saved', { accountId, qrLength: qr.length });
-    logtail.info('QR code generated', {
-      accountId,
-      qrLength: qr.length,
-      phone: maskPhone(phone),
-      instanceId: process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'local',
-    });
+          logger.info('QR code generated and saved', { accountId, qrLength: qr.length });
+          logtail.info('QR code generated', {
+            accountId,
+            qrLength: qr.length,
+            phone: maskPhone(phone),
+            instanceId: process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'local',
+          });
         } catch (error) {
           console.error(`❌ [${accountId}] QR generation failed:`, error.message);
           logger.error('QR generation failed', { accountId, error: error.message });
@@ -4415,12 +4896,32 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
 
       if (connection === 'open') {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1446',message:'connection.open handler ENTRY',data:{accountId,currentStatus:account.status,hasSock:!!account.sock,hasUser:!!account.sock?.user,userId:account.sock?.user?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location: 'server.js:1446',
+            message: 'connection.open handler ENTRY',
+            data: {
+              accountId,
+              currentStatus: account.status,
+              hasSock: !!account.sock,
+              hasUser: !!account.sock?.user,
+              userId: account.sock?.user?.id,
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'B',
+          }),
+        }).catch(() => {});
         // #endregion
 
-        console.log(`✅ [${accountId}] connection.update: open (sessionId: ${account.sessionId || 'unknown'})`);
+        console.log(
+          `✅ [${accountId}] connection.update: open (sessionId: ${account.sessionId || 'unknown'})`
+        );
         console.log(`✅ [${accountId}] Connected! Session persisted at: ${sessionPath}`);
-        
+
         // Reset reconnect attempts on successful connection
         reconnectAttempts.delete(accountId);
 
@@ -4439,19 +4940,56 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
 
         // Mark connection as established in registry
         connectionRegistry.markConnected(accountId);
-        
+
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1467',message:'BEFORE status change to connected',data:{accountId,oldStatus:account.status,hasSock:!!account.sock,hasUser:!!account.sock?.user,userId:account.sock?.user?.id,phoneFromSock:sock.user?.id?.split(':')[0]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location: 'server.js:1467',
+            message: 'BEFORE status change to connected',
+            data: {
+              accountId,
+              oldStatus: account.status,
+              hasSock: !!account.sock,
+              hasUser: !!account.sock?.user,
+              userId: account.sock?.user?.id,
+              phoneFromSock: sock.user?.id?.split(':')[0],
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'C',
+          }),
+        }).catch(() => {});
         // #endregion
-        
+
         account.status = 'connected';
         account.qrCode = null;
         account.phone = sock.user?.id?.split(':')[0] || phone;
         account.waJid = sock.user?.id;
         account.lastUpdate = new Date().toISOString();
-        
+
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1473',message:'AFTER status change to connected',data:{accountId,newStatus:account.status,phone:account.phone,waJid:account.waJid,lastUpdate:account.lastUpdate},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location: 'server.js:1473',
+            message: 'AFTER status change to connected',
+            data: {
+              accountId,
+              newStatus: account.status,
+              phone: account.phone,
+              waJid: account.waJid,
+              lastUpdate: account.lastUpdate,
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'C',
+          }),
+        }).catch(() => {});
         // #endregion
 
         // Reset reconnect attempts
@@ -4465,9 +5003,21 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
 
         // Save to Firestore
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1484',message:'BEFORE Firestore save',data:{accountId,status:account.status,waJid:account.waJid,phone:account.phone},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location: 'server.js:1484',
+            message: 'BEFORE Firestore save',
+            data: { accountId, status: account.status, waJid: account.waJid, phone: account.phone },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'D',
+          }),
+        }).catch(() => {});
         // #endregion
-        
+
         await saveAccountToFirestore(accountId, {
           status: 'connected',
           waJid: account.waJid,
@@ -4475,9 +5025,21 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
           lastConnectedAt: admin.firestore.FieldValue.serverTimestamp(),
           qrCode: null,
         });
-        
+
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1490',message:'AFTER Firestore save',data:{accountId,status:account.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location: 'server.js:1490',
+            message: 'AFTER Firestore save',
+            data: { accountId, status: account.status },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'D',
+          }),
+        }).catch(() => {});
         // #endregion
 
         // 🔄 AUTO-CLEANUP: Disconnect old accounts with same phone number
@@ -4486,22 +5048,26 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
             const currentPhone = account.phone;
             if (!currentPhone) return;
 
-            console.log(`🔍 [${accountId}] Checking for duplicate accounts with phone: ${currentPhone}`);
+            console.log(
+              `🔍 [${accountId}] Checking for duplicate accounts with phone: ${currentPhone}`
+            );
 
             // Find other connected accounts with same phone
-            const duplicateAccounts = Array.from(connections.entries())
-              .filter(([id, acc]) => 
+            const duplicateAccounts = Array.from(connections.entries()).filter(
+              ([id, acc]) =>
                 id !== accountId && // Not current account
                 acc.phone === currentPhone && // Same phone
                 acc.status === 'connected' // Connected
-              );
+            );
 
             if (duplicateAccounts.length > 0) {
-              console.log(`🗑️  [${accountId}] Found ${duplicateAccounts.length} duplicate account(s) with phone ${currentPhone}, cleaning up...`);
+              console.log(
+                `🗑️  [${accountId}] Found ${duplicateAccounts.length} duplicate account(s) with phone ${currentPhone}, cleaning up...`
+              );
 
               for (const [oldAccountId, oldAccount] of duplicateAccounts) {
                 console.log(`  ❌ Disconnecting OLD account: ${oldAccountId}`);
-                
+
                 // Disconnect old account
                 try {
                   if (oldAccount.sock) {
@@ -4525,7 +5091,8 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
                 // Migrate threads from old to new
                 if (db) {
                   console.log(`  🔄 Migrating threads: ${oldAccountId} → ${accountId}`);
-                  const oldThreadsSnapshot = await db.collection('threads')
+                  const oldThreadsSnapshot = await db
+                    .collection('threads')
                     .where('accountId', '==', oldAccountId)
                     .limit(1000)
                     .get();
@@ -4548,7 +5115,9 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
                       await batch.commit();
                     }
 
-                    console.log(`  ✅ Migrated ${oldThreadsSnapshot.size} threads from ${oldAccountId}`);
+                    console.log(
+                      `  ✅ Migrated ${oldThreadsSnapshot.size} threads from ${oldAccountId}`
+                    );
                   }
                 }
               }
@@ -4556,7 +5125,8 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
               // Deduplicate threads after migration
               if (db) {
                 console.log(`  🧹 Deduplicating threads for ${accountId}...`);
-                const threadsSnapshot = await db.collection('threads')
+                const threadsSnapshot = await db
+                  .collection('threads')
                   .where('accountId', '==', accountId)
                   .get();
 
@@ -4623,11 +5193,12 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
         const boomStatus = error?.output?.statusCode;
         const errorCode = error?.code || error?.statusCode;
         const rawReason = boomStatus ?? errorCode ?? 'unknown';
-        const normalizedReason = typeof rawReason === 'number' ? rawReason : parseInt(rawReason, 10);
+        const normalizedReason =
+          typeof rawReason === 'number' ? rawReason : parseInt(rawReason, 10);
         const shouldReconnectBase = normalizedReason !== DisconnectReason.loggedOut;
         // CRITICAL: Extract real disconnect reason from Boom error
         // Check multiple sources (Boom error, output.statusCode, error.code, etc.)
-        
+
         // DEBUG: Log raw error structure to diagnose "unknown" reasons
         console.log(`🔍 [${accountId}] Raw lastDisconnect structure:`, {
           hasError: !!error,
@@ -4641,33 +5212,42 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
           errorStack: error?.stack?.substring(0, 300), // First 300 chars
           lastDisconnectKeys: lastDisconnect ? Object.keys(lastDisconnect) : [],
         });
-        
+
         // Normalize reason to number for comparison
         // CRITICAL: Handle 515 (restart required) explicitly
-        let reason = typeof rawReason === 'number' ? rawReason : (typeof rawReason === 'string' ? parseInt(rawReason, 10) || 'unknown' : 'unknown');
-        
+        let reason =
+          typeof rawReason === 'number'
+            ? rawReason
+            : typeof rawReason === 'string'
+              ? parseInt(rawReason, 10) || 'unknown'
+              : 'unknown';
+
         // CRITICAL: If error message contains "restart required" but statusCode is not 515, set it
         if (error?.message && error.message.includes('restart required') && reason !== 515) {
-          console.log(`🔍 [${accountId}] Detected "restart required" in message but statusCode is ${reason}, normalizing to 515`);
+          console.log(
+            `🔍 [${accountId}] Detected "restart required" in message but statusCode is ${reason}, normalizing to 515`
+          );
           reason = 515;
         }
-        
+
         // Extract Boom error details for better logging
         const boomPayload = error?.output?.payload;
         const errorMessage = error?.message || 'No error message';
         const errorStack = error?.stack;
-        
+
         // CRITICAL: Detect reason code 515 (restart required) and 428 (connection closed) - common in pairing phase
         // 515 = "Stream Errored (restart required)" - requires socket recreation + new QR
         // 428 = "Connection closed" - transient error, preserve QR and reconnect
-        const isRestartRequired = (typeof reason === 'number' && reason === 515) || 
-                                 (typeof boomStatus === 'number' && boomStatus === 515) ||
-                                 (errorMessage && errorMessage.includes('restart required'));
-        const isConnectionClosed = (typeof reason === 'number' && reason === 428) ||
-                                  (typeof boomStatus === 'number' && boomStatus === 428) ||
-                                  (errorMessage && errorMessage.includes('connection closed'));
+        const isRestartRequired =
+          (typeof reason === 'number' && reason === 515) ||
+          (typeof boomStatus === 'number' && boomStatus === 515) ||
+          (errorMessage && errorMessage.includes('restart required'));
+        const isConnectionClosed =
+          (typeof reason === 'number' && reason === 428) ||
+          (typeof boomStatus === 'number' && boomStatus === 428) ||
+          (errorMessage && errorMessage.includes('connection closed'));
         const isTransientError = isRestartRequired || isConnectionClosed;
-        
+
         // Log detailed disconnect information (helps diagnose "unknown" reasons)
         // CRITICAL: Log full error object for reason 515 to diagnose "stream errored out"
         const logData = {
@@ -4681,59 +5261,84 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
           stack: errorStack?.substring(0, 500), // Extended stack for 515 debugging
           shouldReconnect: reason !== DisconnectReason.loggedOut,
           currentStatus: account.status,
-          isPairingPhase: ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'].includes(account.status),
+          isPairingPhase: ['qr_ready', 'awaiting_scan', 'pairing', 'connecting'].includes(
+            account.status
+          ),
           isRestartRequired: isRestartRequired, // CRITICAL: Flag for 515 handling
           isConnectionClosed: isConnectionClosed, // CRITICAL: Flag for 428 handling
           isTransientError: isTransientError, // CRITICAL: Flag for 515/428 handling
-          lastDisconnect: lastDisconnect ? {
-            error: error ? {
-              name: error.name,
-              message: error.message,
-              output: error.output ? {
-                statusCode: error.output.statusCode,
-                payload: error.output.payload,
-              } : undefined,
-            } : undefined,
-            date: lastDisconnect.date,
-          } : undefined,
+          lastDisconnect: lastDisconnect
+            ? {
+                error: error
+                  ? {
+                      name: error.name,
+                      message: error.message,
+                      output: error.output
+                        ? {
+                            statusCode: error.output.statusCode,
+                            payload: error.output.payload,
+                          }
+                        : undefined,
+                    }
+                  : undefined,
+                date: lastDisconnect.date,
+              }
+            : undefined,
         };
-        
+
         // For reason 515, log full error object to diagnose underlying cause
         if (isRestartRequired) {
-          logData.underlyingError = error ? {
-            name: error.name,
-            message: error.message,
-            code: error.code,
-            errno: error.errno,
-            syscall: error.syscall,
-            address: error.address,
-            port: error.port,
-            stack: error.stack?.substring(0, 1000),
-          } : null;
+          logData.underlyingError = error
+            ? {
+                name: error.name,
+                message: error.message,
+                code: error.code,
+                errno: error.errno,
+                syscall: error.syscall,
+                address: error.address,
+                port: error.port,
+                stack: error.stack?.substring(0, 1000),
+              }
+            : null;
         }
-        
+
         // CRITICAL: Enhanced logging for "unknown" reason codes to diagnose root cause
         if (reason === 'unknown' || rawReason === 'unknown') {
-          console.error(`🔌 [${accountId}] connection.update: close - UNKNOWN REASON (investigating...)`);
-          console.error(`🔌 [${accountId}] lastDisconnect object:`, JSON.stringify(lastDisconnect, null, 2));
-          console.error(`🔌 [${accountId}] error object:`, error ? {
-            name: error.name,
-            message: error.message,
-            code: error.code,
-            statusCode: error.statusCode,
-            output: error.output,
-            stack: error.stack?.substring(0, 500),
-          } : 'null');
-          console.error(`🔌 [${accountId}] connection object:`, connection ? {
-            lastDisconnect: connection.lastDisconnect,
-            qr: connection.qr,
-            isNewLogin: connection.isNewLogin,
-            isOnline: connection.isOnline,
-          } : 'null');
+          console.error(
+            `🔌 [${accountId}] connection.update: close - UNKNOWN REASON (investigating...)`
+          );
+          console.error(
+            `🔌 [${accountId}] lastDisconnect object:`,
+            JSON.stringify(lastDisconnect, null, 2)
+          );
+          console.error(
+            `🔌 [${accountId}] error object:`,
+            error
+              ? {
+                  name: error.name,
+                  message: error.message,
+                  code: error.code,
+                  statusCode: error.statusCode,
+                  output: error.output,
+                  stack: error.stack?.substring(0, 500),
+                }
+              : 'null'
+          );
+          console.error(
+            `🔌 [${accountId}] connection object:`,
+            connection
+              ? {
+                  lastDisconnect: connection.lastDisconnect,
+                  qr: connection.qr,
+                  isNewLogin: connection.isNewLogin,
+                  isOnline: connection.isOnline,
+                }
+              : 'null'
+          );
         }
-        
+
         console.error(`🔌 [${accountId}] connection.update: close`, logData);
-        
+
         // CRITICAL FIX: For 515 (restart required) and 428 (connection closed), always reconnect (even in pairing phase)
         // 515 means stream errored but session is valid - need new socket + potentially new QR
         // 428 means connection closed transiently - preserve QR and reconnect
@@ -4748,7 +5353,8 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
         ];
 
         // Normalize comparison: convert reason to number if needed
-        const isExplicitCleanup = typeof reason === 'number' && EXPLICIT_CLEANUP_REASONS.includes(reason);
+        const isExplicitCleanup =
+          typeof reason === 'number' && EXPLICIT_CLEANUP_REASONS.includes(reason);
 
         // CRITICAL: Preserve account during pairing phase
         // Don't delete if: status is pairing-related AND reason is transient (not explicit cleanup)
@@ -4760,16 +5366,18 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
           console.log(
             `⏸️  [${accountId}] Pairing phase (${account.status}, sessionId: ${account.sessionId}), preserving account (reason: ${reason})`
           );
-          
+
           // CRITICAL: Preserve QR code for user to scan (for 515/428 transient errors)
           // If QR exists and error is transient (515/428), keep status 'qr_ready' so Flutter app can display it
           // For 428 (connection closed), preserve QR and set status to 'awaiting_scan' (QR still valid)
           // For 515 (restart required), QR will be regenerated on reconnect
           const hasQR = account.qrCode || (account.data && account.data.qrCode);
-          
+
           if (isConnectionClosed && hasQR) {
             // 428: Connection closed but QR is still valid - preserve it and set awaiting_scan
-            console.log(`📱 [${accountId}] Preserving QR code (status: awaiting_scan) - connection closed (428) but QR still valid`);
+            console.log(
+              `📱 [${accountId}] Preserving QR code (status: awaiting_scan) - connection closed (428) but QR still valid`
+            );
             account.status = 'awaiting_scan';
           } else if (isRestartRequired) {
             // 515: Restart required - QR will be regenerated, clear it now
@@ -4778,9 +5386,13 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
             if (account.connectingTimeout) {
               clearTimeout(account.connectingTimeout);
               account.connectingTimeout = null;
-              console.log(`⏱️  [${accountId}] Cleared connectingTimeout before status change to 'connecting' (reason: 515)`);
+              console.log(
+                `⏱️  [${accountId}] Cleared connectingTimeout before status change to 'connecting' (reason: 515)`
+              );
             }
-            console.log(`🔄 [${accountId}] Clearing QR code (status: connecting) - restart required (515), will regenerate on reconnect`);
+            console.log(
+              `🔄 [${accountId}] Clearing QR code (status: connecting) - restart required (515), will regenerate on reconnect`
+            );
             account.qrCode = null;
             account.status = 'connecting';
           } else if (hasQR && account.status === 'qr_ready') {
@@ -4791,15 +5403,19 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
             // No QR yet or other status, mark as awaiting scan
             account.status = 'awaiting_scan';
           }
-          
+
           account.lastUpdate = new Date().toISOString();
 
           await saveAccountToFirestore(accountId, {
             status: account.status,
             lastDisconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
-            lastDisconnectReason: isConnectionClosed ? 'connection_closed_428' : 
-                                 isRestartRequired ? 'restart_required_515' :
-                                 (hasQR && account.status === 'qr_ready') ? 'qr_ready_preserved' : 'qr_waiting_scan',
+            lastDisconnectReason: isConnectionClosed
+              ? 'connection_closed_428'
+              : isRestartRequired
+                ? 'restart_required_515'
+                : hasQR && account.status === 'qr_ready'
+                  ? 'qr_ready_preserved'
+                  : 'qr_waiting_scan',
             lastDisconnectCode: reason,
             // Preserve QR code in Firestore for 428 (connection closed) - QR still valid
             // Clear QR for 515 (restart required) - will be regenerated
@@ -4820,7 +5436,7 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
             }
             account.sock = null;
           }
-          
+
           // Clear any stale reconnect timers
           // CRITICAL: Clear timeout BEFORE status changes to prevent race condition
           // If status changes to 'connecting' for 515, timeout handler won't recognize it as pairing phase
@@ -4828,11 +5444,25 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
             clearTimeout(account.connectingTimeout);
             account.connectingTimeout = null;
             // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1588-1591',message:'Cleared connectingTimeout during pairing phase close',data:{accountId,reason,oldStatus:account.status,newStatus:account.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            fetch('http://127.0.0.1:7242/ingest/151b7789-5ef8-402d-b94f-ab69f556b591', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                location: 'server.js:1588-1591',
+                message: 'Cleared connectingTimeout during pairing phase close',
+                data: { accountId, reason, oldStatus: account.status, newStatus: account.status },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'A',
+              }),
+            }).catch(() => {});
             // #endregion
-            console.log(`⏱️  [${accountId}] Cleared connectingTimeout during pairing phase close (reason: ${reason}, status: ${account.status})`);
+            console.log(
+              `⏱️  [${accountId}] Cleared connectingTimeout during pairing phase close (reason: ${reason}, status: ${account.status})`
+            );
           }
-          
+
           if (account.qrScanTimeout) {
             clearTimeout(account.qrScanTimeout);
             account.qrScanTimeout = null;
@@ -4841,43 +5471,59 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
           // CRITICAL: Reset connecting state to allow fresh reconnect attempts
           // This prevents "Already connecting" deadlock when QR expires or connection closes
           connectionRegistry.release(accountId);
-          
+
           // CRITICAL FIX: Auto-reconnect in pairing phase for transient errors
           // Don't leave account stuck in qr_ready if socket closes due to transient network issue
           // Only skip reconnect if reason is terminal (loggedOut/badSession/unauthorized)
           // SPECIAL HANDLING: 515 (restart required) and 428 (connection closed) always trigger reconnect
           if (shouldReconnect && (reason !== DisconnectReason.loggedOut || isTransientError)) {
             const attempts = reconnectAttempts.get(accountId) || 0;
-            const MAX_PAIRING_RECONNECT_ATTEMPTS = parseInt(process.env.MAX_PAIRING_RECONNECT_ATTEMPTS || '10', 10);
-            
+            const MAX_PAIRING_RECONNECT_ATTEMPTS = parseInt(
+              process.env.MAX_PAIRING_RECONNECT_ATTEMPTS || '10',
+              10
+            );
+
             // CRITICAL: For 515, QR already cleared above. For 428, preserve QR.
             // Status already set above (connecting for 515, awaiting_scan for 428)
-            
+
             if (attempts < MAX_PAIRING_RECONNECT_ATTEMPTS) {
               // Exponential backoff for pairing phase: 1s, 2s, 4s, 8s, 16s, 30s (max)
               // For 515/428, use shorter backoff (2s, 4s, 8s) since they're known recoverable errors
               const baseBackoff = isTransientError ? 2000 : 1000;
               const backoff = Math.min(baseBackoff * Math.pow(2, attempts), 30000);
-              const reasonLabel = isRestartRequired ? ' [515 restart required]' : 
-                                 isConnectionClosed ? ' [428 connection closed]' : '';
+              const reasonLabel = isRestartRequired
+                ? ' [515 restart required]'
+                : isConnectionClosed
+                  ? ' [428 connection closed]'
+                  : '';
               console.log(
                 `🔄 [${accountId}] Pairing phase reconnect in ${backoff}ms (attempt ${attempts + 1}/${MAX_PAIRING_RECONNECT_ATTEMPTS}, reason: ${reason}${reasonLabel})`
               );
-              
+
               reconnectAttempts.set(accountId, attempts + 1);
-              
+
               setTimeout(() => {
                 const acc = connections.get(accountId);
-                if (acc && ['qr_ready', 'awaiting_scan', 'connecting', 'needs_qr'].includes(acc.status)) {
-                  const reconnectNote = isRestartRequired ? ', QR will be regenerated' : 
-                                       isConnectionClosed ? ', QR preserved' : '';
-                  console.log(`🔄 [${accountId}] Starting pairing phase reconnect (session will be new${reconnectNote})`);
+                if (
+                  acc &&
+                  ['qr_ready', 'awaiting_scan', 'connecting', 'needs_qr'].includes(acc.status)
+                ) {
+                  const reconnectNote = isRestartRequired
+                    ? ', QR will be regenerated'
+                    : isConnectionClosed
+                      ? ', QR preserved'
+                      : '';
+                  console.log(
+                    `🔄 [${accountId}] Starting pairing phase reconnect (session will be new${reconnectNote})`
+                  );
                   // Status already set above (connecting for 515, awaiting_scan for 428)
                   createConnection(accountId, acc.name, acc.phone);
                 }
               }, backoff);
             } else {
-              console.log(`❌ [${accountId}] Max pairing reconnect attempts reached, requires manual QR regeneration`);
+              console.log(
+                `❌ [${accountId}] Max pairing reconnect attempts reached, requires manual QR regeneration`
+              );
               account.status = 'needs_qr';
               await saveAccountToFirestore(accountId, {
                 status: 'needs_qr',
@@ -4886,12 +5532,14 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
               reconnectAttempts.delete(accountId);
             }
           } else {
-            console.log(`⏸️  [${accountId}] Pairing phase close: no reconnect (reason: ${reason}, shouldReconnect: ${shouldReconnect}, isRestartRequired: ${isRestartRequired})`);
+            console.log(
+              `⏸️  [${accountId}] Pairing phase close: no reconnect (reason: ${reason}, shouldReconnect: ${shouldReconnect}, isRestartRequired: ${isRestartRequired})`
+            );
           }
-          
+
           return;
         }
-        
+
         // CRITICAL: Reset connecting state on close (before reconnect attempt)
         // This prevents "Already connecting" deadlock where reconnect is blocked by stale state
         // Release lock FIRST to reset connecting flag, then allow reconnect scheduling
@@ -4954,24 +5602,26 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
           // CRITICAL: Check if this is a real logout or temporary network issue
           const logoutCount = (account.logoutCount || 0) + 1;
           account.logoutCount = logoutCount;
-          
+
           // Retry with restore before clearing session (logout might be temporary)
           const MAX_LOGOUT_RETRIES = parseInt(process.env.MAX_LOGOUT_RETRIES || '2', 10);
-          
+
           if (logoutCount <= MAX_LOGOUT_RETRIES) {
-            console.log(`⚠️  [${accountId}] Terminal logout (${reason}), retry ${logoutCount}/${MAX_LOGOUT_RETRIES} with restore...`);
-            
+            console.log(
+              `⚠️  [${accountId}] Terminal logout (${reason}), retry ${logoutCount}/${MAX_LOGOUT_RETRIES} with restore...`
+            );
+
             // Clear connectingTimeout BEFORE retry
             if (account.connectingTimeout) {
               clearTimeout(account.connectingTimeout);
               account.connectingTimeout = null;
             }
-            
+
             // Clear any reconnect timers
             reconnectAttempts.delete(accountId);
-            
+
             account.status = 'logged_out';
-            
+
             await saveAccountToFirestore(accountId, {
               status: 'logged_out',
               logoutCount: logoutCount,
@@ -4979,31 +5629,37 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
               lastDisconnectReason: `Terminal logout (retry ${logoutCount}/${MAX_LOGOUT_RETRIES})`,
               lastDisconnectCode: reason,
             });
-            
+
             // Retry with exponential backoff: 5s, 15s
             const backoff = logoutCount === 1 ? 5000 : 15000;
-            console.log(`🔄 [${accountId}] Retrying connection in ${backoff}ms with session restore...`);
-            
+            console.log(
+              `🔄 [${accountId}] Retrying connection in ${backoff}ms with session restore...`
+            );
+
             setTimeout(async () => {
               // At reconnect, restore from Firestore if disk session was cleared
               // The restore logic in createConnection() will handle this
               const acc = connections.get(accountId);
               if (acc && acc.status === 'logged_out') {
-                console.log(`🔄 [${accountId}] Attempting reconnect with session restore (logout retry ${logoutCount})`);
+                console.log(
+                  `🔄 [${accountId}] Attempting reconnect with session restore (logout retry ${logoutCount})`
+                );
                 createConnection(accountId, acc.name, acc.phone);
               }
             }, backoff);
           } else {
             // Real logout - clear session after max retries
-            console.log(`❌ [${accountId}] Terminal logout confirmed (${logoutCount} attempts), clearing session`);
-            
+            console.log(
+              `❌ [${accountId}] Terminal logout confirmed (${logoutCount} attempts), clearing session`
+            );
+
             // CRITICAL FIX: Clear connectingTimeout BEFORE clearing session to prevent stale timer
             if (account.connectingTimeout) {
               clearTimeout(account.connectingTimeout);
               account.connectingTimeout = null;
               console.log(`⏱️  [${accountId}] Cleared connectingTimeout on terminal logout`);
             }
-            
+
             // Clear any reconnect timers
             reconnectAttempts.delete(accountId);
             account.logoutCount = 0; // Reset for next time
@@ -5015,17 +5671,21 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
             const sessionPath = path.join(authDir, accountId);
             const sessionExistsBefore = fs.existsSync(sessionPath);
             // #endregion
-            
+
             try {
               await clearAccountSession(accountId);
               // #region agent log
               const sessionExistsAfter = fs.existsSync(sessionPath);
-              console.log(`📋 [${accountId}] 401 handler: sessionExistsBefore=${sessionExistsBefore}, sessionExistsAfter=${sessionExistsAfter}, timestamp=${logTimestamp}`);
+              console.log(
+                `📋 [${accountId}] 401 handler: sessionExistsBefore=${sessionExistsBefore}, sessionExistsAfter=${sessionExistsAfter}, timestamp=${logTimestamp}`
+              );
               // #endregion
             } catch (error) {
               console.error(`⚠️  [${accountId}] Failed to clear session:`, error.message);
               // #region agent log
-              console.error(`📋 [${accountId}] 401 handler: clearAccountSession failed, error=${error.message}, stack=${error.stack?.substring(0, 200)}, timestamp=${logTimestamp}`);
+              console.error(
+                `📋 [${accountId}] 401 handler: clearAccountSession failed, error=${error.message}, stack=${error.stack?.substring(0, 200)}, timestamp=${logTimestamp}`
+              );
               // #endregion
               // Continue anyway - account will be marked logged_out
             }
@@ -5062,7 +5722,9 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
           connectionRegistry.release(accountId);
 
           // #region agent log
-          console.log(`📋 [${accountId}] 401 handler complete: status=needs_qr, nextRetryAt=null, retryCount=0, reconnectScheduled=false, timestamp=${logTimestamp}`);
+          console.log(
+            `📋 [${accountId}] 401 handler complete: status=needs_qr, nextRetryAt=null, retryCount=0, reconnectScheduled=false, timestamp=${logTimestamp}`
+          );
           // #endregion
 
           // Terminal logout (401) / loggedOut / badSession -> clearAccountSession(accountId); status: 'needs_qr'; CRITICAL: DO NOT schedule createConnection()
@@ -5082,8 +5744,10 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
     const onHistorySync = async history => {
       try {
         const { chats, contacts, messages } = history || {};
-        const nChats = !chats ? 0 : (Array.isArray(chats) ? chats.length : Object.keys(chats).length);
-        console.log(`📚 [${accountId}] messaging-history.set event received; history chats: ${nChats}`);
+        const nChats = !chats ? 0 : Array.isArray(chats) ? chats.length : Object.keys(chats).length;
+        console.log(
+          `📚 [${accountId}] messaging-history.set event received; history chats: ${nChats}`
+        );
 
         if (!firestoreAvailable || !db) {
           console.log(`⚠️  [${accountId}] Firestore not available, skipping history sync`);
@@ -5100,7 +5764,9 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
         } else if (messages && typeof messages === 'object') {
           // Handle different message formats (Baileys may structure differently)
           historyMessages = Object.values(messages).flat();
-          console.log(`📚 [${accountId}] History sync: ${historyMessages.length} messages extracted from history object`);
+          console.log(
+            `📚 [${accountId}] History sync: ${historyMessages.length} messages extracted from history object`
+          );
         }
 
         // Extract chats/contacts metadata
@@ -5117,14 +5783,20 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
         if (chats && nChats > 0) {
           threadResult = await ensureThreadsFromHistoryChats(accountId, chats);
         }
-        console.log(`📚 [${accountId}] messaging-history.set, Thread placeholders from history chats: ${threadResult.created} created.`);
+        console.log(
+          `📚 [${accountId}] messaging-history.set, Thread placeholders from history chats: ${threadResult.created} created.`
+        );
         if (threadResult.created === 0 && nChats > 0) {
           const reason = threadResult.dryRun
             ? 'dry run (HISTORY_SYNC_DRY_RUN)'
-            : (threadResult.skipped > 0 ? 'all existed or skipped' : 'errors during create');
+            : threadResult.skipped > 0
+              ? 'all existed or skipped'
+              : 'errors during create';
           console.log(`📚 [${accountId}] messaging-history.set, 0 created — reason: ${reason}.`);
         } else if (nChats === 0) {
-          console.log(`📚 [${accountId}] messaging-history.set, 0 created — reason: history empty (no chats).`);
+          console.log(
+            `📚 [${accountId}] messaging-history.set, 0 created — reason: history empty (no chats).`
+          );
         }
 
         // Process messages in batches (newest first so recent messages appear sooner as import progresses)
@@ -5134,15 +5806,19 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
             const tsB = extractTimestampMs(b?.messageTimestamp) ?? 0;
             return tsB - tsA; // desc: newest first
           });
-          console.log(`📚 [${accountId}] Starting history sync: ${historyMessages.length} messages (newest first)`);
+          console.log(
+            `📚 [${accountId}] Starting history sync: ${historyMessages.length} messages (newest first)`
+          );
           const result = await saveMessagesBatch(accountId, historyMessages, 'history_sync');
-          
-          console.log(`✅ [${accountId}] History sync complete: ${result.saved} saved, ${result.skipped} skipped, ${result.errors} errors`);
-          
+
+          console.log(
+            `✅ [${accountId}] History sync complete: ${result.saved} saved, ${result.skipped} skipped, ${result.errors} errors`
+          );
+
           // Update account metadata
           await saveAccountToFirestore(accountId, {
             lastHistorySyncAt: admin.firestore.FieldValue.serverTimestamp(),
-            historySyncCount: (result.saved || 0),
+            historySyncCount: result.saved || 0,
             lastHistorySyncResult: {
               saved: result.saved || 0,
               skipped: result.skipped || 0,
@@ -5150,14 +5826,18 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
               total: historyMessages.length,
               dryRun: result.dryRun || false,
             },
-          }).catch(err => console.error(`❌ [${accountId}] Failed to update history sync marker:`, err.message));
+          }).catch(err =>
+            console.error(`❌ [${accountId}] Failed to update history sync marker:`, err.message)
+          );
         } else {
           console.log(`⚠️  [${accountId}] History sync: No messages found in history`);
         }
 
         // Chats: we create thread placeholders via ensureThreadsFromHistoryChats above
         if (historyChats.length > 0 && !HISTORY_SYNC_DRY_RUN) {
-          console.log(`📚 [${accountId}] History sync: ${historyChats.length} chats → thread placeholders created`);
+          console.log(
+            `📚 [${accountId}] History sync: ${historyChats.length} chats → thread placeholders created`
+          );
         }
 
         // 📇 Save contacts to Firestore
@@ -5169,7 +5849,6 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
         await enrichThreadsFromContacts(accountId).catch(err =>
           console.error(`❌ [${accountId}] enrichThreadsFromContacts failed:`, err.message)
         );
-
       } catch (error) {
         console.error(`❌ [${accountId}] History sync error:`, error.message);
         console.error(`❌ [${accountId}] Stack:`, error.stack);
@@ -5186,7 +5865,7 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
     const onMessagesUpdate = async updates => {
       try {
         console.log(`🔄 [${accountId}] messages.update EVENT: ${updates.length} updates`);
-        
+
         if (!firestoreAvailable || !db) {
           return;
         }
@@ -5218,13 +5897,17 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
             if (status && remoteJid) {
               const threadId = `${accountId}__${remoteJid}`;
               const canonicalId = await resolveMessageDocId(db, accountId, messageId, messageId);
-              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(canonicalId);
-              
+              const messageRef = db
+                .collection('threads')
+                .doc(threadId)
+                .collection('messages')
+                .doc(canonicalId);
+
               const updateFields = {
                 status,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
               };
-              
+
               if (deliveredAt) {
                 updateFields.deliveredAt = deliveredAt;
               }
@@ -5233,7 +5916,9 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
               }
 
               await messageRef.set(updateFields, { merge: true });
-              console.log(`✅ [${hashForLog(accountId)}] Updated message ${hashForLog(messageId)} status to ${status}`);
+              console.log(
+                `✅ [${hashForLog(accountId)}] Updated message ${hashForLog(messageId)} status to ${status}`
+              );
             }
           } catch (updateError) {
             console.error(`❌ [${accountId}] Error updating message receipt:`, updateError.message);
@@ -5248,7 +5933,7 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
     const onMessageReceiptUpdate = async receipts => {
       try {
         console.log(`📬 [${accountId}] message-receipt.update EVENT: ${receipts.length} receipts`);
-        
+
         if (!firestoreAvailable || !db) {
           return;
         }
@@ -5264,15 +5949,24 @@ async function createConnection(accountId, name, phone, skipLockCheck = false) {
             if (receiptData.readTimestamp && remoteJid) {
               const threadId = `${accountId}__${remoteJid}`;
               const canonicalId = await resolveMessageDocId(db, accountId, messageId, messageId);
-              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(canonicalId);
-              
-              await messageRef.set({
-                status: 'read',
-                readAt: admin.firestore.Timestamp.fromMillis(receiptData.readTimestamp * 1000),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              }, { merge: true });
-              
-              console.log(`✅ [${hashForLog(accountId)}] Updated message ${hashForLog(messageId)} receipt: read`);
+              const messageRef = db
+                .collection('threads')
+                .doc(threadId)
+                .collection('messages')
+                .doc(canonicalId);
+
+              await messageRef.set(
+                {
+                  status: 'read',
+                  readAt: admin.firestore.Timestamp.fromMillis(receiptData.readTimestamp * 1000),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+
+              console.log(
+                `✅ [${hashForLog(accountId)}] Updated message ${hashForLog(messageId)} receipt: read`
+              );
             }
           } catch (receiptError) {
             console.error(`❌ [${accountId}] Error updating receipt:`, receiptError.message);
@@ -5348,16 +6042,20 @@ app.get('/ready', async (req, res) => {
   try {
     const status = await waBootstrap.getWAStatus();
     const isActive = waBootstrap.isActiveMode();
-    
+
     // Get lock details if available (best-effort, non-blocking)
     let lockStatus = null;
     let heldBy = null;
     let lockExpiresInSeconds = null;
-    
+
     try {
       if (waIntegration && waIntegration.stability && waIntegration.stability.lock) {
         const lockInfo = await waIntegration.stability.lock.getStatus();
-        lockStatus = lockInfo.exists ? (lockInfo.isHolder ? 'held_by_this_instance' : 'held_by_other') : 'not_held';
+        lockStatus = lockInfo.exists
+          ? lockInfo.isHolder
+            ? 'held_by_this_instance'
+            : 'held_by_other'
+          : 'not_held';
         if (lockInfo.exists && lockInfo.holder) {
           heldBy = lockInfo.holder;
         }
@@ -5369,7 +6067,7 @@ app.get('/ready', async (req, res) => {
       // Ignore lock status errors - continue with null values
       console.error('[ready] Error getting lock status:', lockError.message);
     }
-    
+
     if (isActive) {
       res.status(200).json({
         ready: true,
@@ -5475,7 +6173,7 @@ app.get('/api/longrun/status-now', requireAdmin, async (req, res) => {
   try {
     const status = await waBootstrap.getWAStatus();
     const isActive = waBootstrap.isActiveMode();
-    
+
     // Get account statuses
     const accountStatuses = [];
     for (const [accountId, account] of connections.entries()) {
@@ -5488,7 +6186,7 @@ app.get('/api/longrun/status-now', requireAdmin, async (req, res) => {
         sessionId: account.sessionId,
       });
     }
-    
+
     res.json({
       waMode: isActive ? 'active' : 'passive',
       waStatus: status.waStatus || (isActive ? 'RUNNING' : 'NOT_RUNNING'),
@@ -5526,11 +6224,14 @@ async function checkPassiveModeGuard(req, res) {
   try {
     if (!waBootstrap.canStartBaileys()) {
       const status = await waBootstrap.getWAStatus();
-      const instanceId = status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
+      const instanceId =
+        status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
       const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
-      
-      console.log(`⏸️  [${requestId}] PASSIVE mode guard: lock not acquired, reason=${status.reason || 'unknown'}, instanceId=${instanceId}`);
-      
+
+      console.log(
+        `⏸️  [${requestId}] PASSIVE mode guard: lock not acquired, reason=${status.reason || 'unknown'}, instanceId=${instanceId}`
+      );
+
       res.status(503).json({
         success: false,
         error: 'instance_passive',
@@ -5576,23 +6277,27 @@ function updateConnectionHealth(accountId, eventType) {
 // Check session health and restore if needed
 async function checkSessionHealth(accountId, account) {
   if (!account || !account.sock) return;
-  
+
   try {
     // Check if socket is still connected
     const isConnected = account.sock?.user?.id && account.status === 'connected';
-    
+
     if (!isConnected && account.status === 'connected') {
       // Socket might be disconnected but status not updated
-      console.log(`⚠️  [${accountId}] Session health check: socket disconnected but status is connected`);
-      
+      console.log(
+        `⚠️  [${accountId}] Session health check: socket disconnected but status is connected`
+      );
+
       // Verify disk session exists
       const sessionPath = path.join(authDir, accountId);
       const credsPath = path.join(sessionPath, 'creds.json');
       const credsExists = fs.existsSync(credsPath);
-      
+
       if (!credsExists && USE_FIRESTORE_BACKUP && firestoreAvailable && db) {
         // Restore from Firestore
-        console.log(`🔄 [${accountId}] Session health check: restoring missing disk session from Firestore...`);
+        console.log(
+          `🔄 [${accountId}] Session health check: restoring missing disk session from Firestore...`
+        );
         try {
           const sessionDoc = await db.collection('wa_sessions').doc(accountId).get();
           if (sessionDoc.exists && sessionDoc.data().files) {
@@ -5604,10 +6309,16 @@ async function checkSessionHealth(accountId, account) {
               restoredCount++;
             }
             if (restoredCount > 0) {
-              console.log(`✅ [${accountId}] Session restored from Firestore (${restoredCount} files)`);
+              console.log(
+                `✅ [${accountId}] Session restored from Firestore (${restoredCount} files)`
+              );
               // Mark session as stable
               if (!sessionStability.has(accountId)) {
-                sessionStability.set(accountId, { lastRestoreAt: Date.now(), restoreCount: 0, lastStableAt: Date.now() });
+                sessionStability.set(accountId, {
+                  lastRestoreAt: Date.now(),
+                  restoreCount: 0,
+                  lastStableAt: Date.now(),
+                });
               }
               const stability = sessionStability.get(accountId);
               stability.restoreCount++;
@@ -5621,7 +6332,11 @@ async function checkSessionHealth(accountId, account) {
     } else if (isConnected) {
       // Session is healthy - update stability tracking
       if (!sessionStability.has(accountId)) {
-        sessionStability.set(accountId, { lastRestoreAt: null, restoreCount: 0, lastStableAt: Date.now() });
+        sessionStability.set(accountId, {
+          lastRestoreAt: null,
+          restoreCount: 0,
+          lastStableAt: Date.now(),
+        });
       }
       const stability = sessionStability.get(accountId);
       stability.lastStableAt = Date.now();
@@ -5639,7 +6354,7 @@ function checkStaleConnections() {
     if (account.status !== 'connected') continue;
 
     // Check session health (restore if needed)
-    checkSessionHealth(accountId, account).catch(err => 
+    checkSessionHealth(accountId, account).catch(err =>
       console.error(`❌ [${accountId}] Session health check failed:`, err.message)
     );
 
@@ -5840,7 +6555,7 @@ app.get('/readyz', requireObsToken, async (req, res) => {
     worker: true, // Worker is always running (setInterval)
     timestamp: new Date().toISOString(),
   };
-  
+
   const isReady = checks.firestore && checks.worker;
   res.status(isReady ? 200 : 503).json({
     status: isReady ? 'ready' : 'not_ready',
@@ -5853,30 +6568,32 @@ app.get('/metrics-json', requireObsToken, async (req, res) => {
   if (!firestoreAvailable || !db) {
     return res.status(503).json({ error: 'Firestore not available' });
   }
-  
+
   try {
     const now = admin.firestore.Timestamp.now();
     const fiveMinutesAgo = admin.firestore.Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
-    
+
     // Active accounts
     const activeAccounts = Array.from(connections.values()).filter(
       conn => conn.status === 'connected'
     ).length;
-    
+
     // Outbox stats
     const [queuedSnapshot, processingSnapshot, sentSnapshot, failedSnapshot] = await Promise.all([
       db.collection('outbox').where('status', '==', 'queued').get(),
       db.collection('outbox').where('status', '==', 'processing').get(),
-      db.collection('outbox')
+      db
+        .collection('outbox')
         .where('status', '==', 'sent')
         .where('sentAt', '>=', fiveMinutesAgo)
         .get(),
-      db.collection('outbox')
+      db
+        .collection('outbox')
         .where('status', '==', 'failed')
         .where('failedAt', '>=', fiveMinutesAgo)
         .get(),
     ]);
-    
+
     // Outbox lag (max createdAt for queued messages)
     let outboxLagSeconds = 0;
     if (!queuedSnapshot.empty) {
@@ -5888,12 +6605,12 @@ app.get('/metrics-json', requireObsToken, async (req, res) => {
         outboxLagSeconds = Math.floor((now.toMillis() - oldestQueued.toMillis()) / 1000);
       }
     }
-    
+
     // Reconnect count (from connections map - approximate)
     const reconnectCount = Array.from(connections.values())
       .filter(conn => conn.reconnectCount || 0)
       .reduce((sum, conn) => sum + (conn.reconnectCount || 0), 0);
-    
+
     res.json({
       activeAccounts,
       queuedCount: queuedSnapshot.size,
@@ -5915,7 +6632,9 @@ app.post('/admin/migrate-lid-contacts', async (req, res) => {
     // Check admin token
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -6053,7 +6772,9 @@ app.post('/admin/force-delete-lock', async (req, res) => {
     // Check admin token
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -6073,7 +6794,7 @@ app.post('/admin/force-delete-lock', async (req, res) => {
     if (lockDoc.exists) {
       const lockData = lockDoc.data();
       console.log(`📋 Current lock holder:`, lockData);
-      
+
       await lockRef.delete();
       console.log(`✅ Lock deleted successfully`);
 
@@ -6108,12 +6829,14 @@ app.post('/admin/migrate-message-keyid/:accountId', requireAdmin, async (req, re
       return res.status(400).json({ success: false, error: 'accountId is required' });
     }
 
-    console.log(`🔄 [ADMIN] Starting message waKeyId migration for ${accountId} (days=${days}, dryRun=${dryRun})`);
+    console.log(
+      `🔄 [ADMIN] Starting message waKeyId migration for ${accountId} (days=${days}, dryRun=${dryRun})`
+    );
 
     // Import migration logic (reuse same code as CLI script)
     const path = require('path');
     const migrationPath = path.join(__dirname, 'scripts', 'migrate-message-waKeyId.js');
-    
+
     // Save current env and set for migration
     const originalEnv = {
       ACCOUNT_ID: process.env.ACCOUNT_ID,
@@ -6122,7 +6845,7 @@ app.post('/admin/migrate-message-keyid/:accountId', requireAdmin, async (req, re
       LIMIT_THREADS: process.env.LIMIT_THREADS,
       LIMIT_MESSAGES_PER_THREAD: process.env.LIMIT_MESSAGES_PER_THREAD,
     };
-    
+
     process.env.ACCOUNT_ID = accountId;
     process.env.DAYS = String(days);
     process.env.DRY_RUN = dryRun ? '1' : '0';
@@ -6131,11 +6854,12 @@ app.post('/admin/migrate-message-keyid/:accountId', requireAdmin, async (req, re
 
     // Run migration in background (don't await)
     const migrationScript = require(migrationPath);
-    migrationScript.runMigration()
+    migrationScript
+      .runMigration()
       .then(() => {
         console.log(`✅ [ADMIN] Migration completed for ${accountId}`);
       })
-      .catch((error) => {
+      .catch(error => {
         console.error(`❌ [ADMIN] Migration failed for ${accountId}:`, error);
       })
       .finally(() => {
@@ -6162,7 +6886,9 @@ app.post('/admin/clear-wa-sessions', async (req, res) => {
     // Check admin token
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -6178,7 +6904,7 @@ app.post('/admin/clear-wa-sessions', async (req, res) => {
 
     const sessionsRef = db.collection('wa_sessions');
     const snapshot = await sessionsRef.get();
-    
+
     if (snapshot.empty) {
       console.log(`ℹ️  No wa_sessions found`);
       return res.json({
@@ -6189,7 +6915,7 @@ app.post('/admin/clear-wa-sessions', async (req, res) => {
     }
 
     const deletePromises = [];
-    snapshot.docs.forEach((doc) => {
+    snapshot.docs.forEach(doc => {
       console.log(`🗑️  Deleting wa_session: ${doc.id}`);
       deletePromises.push(doc.ref.delete());
     });
@@ -6214,7 +6940,9 @@ app.post('/admin/delete-all-accounts', async (req, res) => {
     // Check admin token
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -6246,16 +6974,18 @@ app.post('/admin/delete-all-accounts', async (req, res) => {
     // Delete from Firestore accounts collection
     const accountsRef = db.collection('accounts');
     const accountsSnapshot = await accountsRef.get();
-    
+
     const deleteAccountPromises = [];
-    accountsSnapshot.docs.forEach((doc) => {
+    accountsSnapshot.docs.forEach(doc => {
       console.log(`🗑️  Deleting Firestore account: ${doc.id}`);
       deleteAccountPromises.push(doc.ref.delete());
     });
 
     await Promise.all(deleteAccountPromises);
 
-    console.log(`✅ Deleted ${memoryAccounts.length} memory accounts, ${accountsSnapshot.size} Firestore accounts`);
+    console.log(
+      `✅ Deleted ${memoryAccounts.length} memory accounts, ${accountsSnapshot.size} Firestore accounts`
+    );
 
     return res.json({
       success: true,
@@ -6275,7 +7005,9 @@ app.post('/admin/update-display-names', async (req, res) => {
     // Check admin token
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -6289,14 +7021,17 @@ app.post('/admin/update-display-names', async (req, res) => {
       return res.status(400).json({ success: false, error: 'accountId is required' });
     }
 
-    console.log(`🔄 [ADMIN] Updating display names from contacts: accountId=${accountId}, dryRun=${dryRun}`);
+    console.log(
+      `🔄 [ADMIN] Updating display names from contacts: accountId=${accountId}, dryRun=${dryRun}`
+    );
 
     if (!db) {
       return res.status(500).json({ success: false, error: 'Firestore not available' });
     }
 
     // Get all threads for this account
-    const threadsSnapshot = await db.collection('threads')
+    const threadsSnapshot = await db
+      .collection('threads')
       .where('accountId', '==', accountId)
       .limit(500)
       .get();
@@ -6325,11 +7060,13 @@ app.post('/admin/update-display-names', async (req, res) => {
 
         if (contactDoc.exists) {
           const contactData = contactDoc.data();
-          const newDisplayName = contactData.name || contactData.notify || contactData.verifiedName || null;
+          const newDisplayName =
+            contactData.name || contactData.notify || contactData.verifiedName || null;
           const newProfilePictureUrl = contactData.imgUrl || null;
 
           // Check if we need to update displayName
-          const needsDisplayNameUpdate = newDisplayName && newDisplayName !== threadData.displayName;
+          const needsDisplayNameUpdate =
+            newDisplayName && newDisplayName !== threadData.displayName;
           // Check if we need to update profilePictureUrl (only if contact has imgUrl and thread doesn't have it or it's different)
           const currentPhotoUrl = threadData.profilePictureUrl || threadData.photoUrl || null;
           const needsPhotoUpdate = newProfilePictureUrl && newProfilePictureUrl !== currentPhotoUrl;
@@ -6339,13 +7076,17 @@ app.post('/admin/update-display-names', async (req, res) => {
             if (needsDisplayNameUpdate) {
               updateData.displayName = newDisplayName;
               updateData.displayNameUpdatedAt = admin.firestore.FieldValue.serverTimestamp();
-              console.log(`✅ [${accountId}] Update thread ${clientJid.substring(0, 20)}: displayName "${threadData.displayName || 'no_name'}" -> "${newDisplayName}"`);
+              console.log(
+                `✅ [${accountId}] Update thread ${clientJid.substring(0, 20)}: displayName "${threadData.displayName || 'no_name'}" -> "${newDisplayName}"`
+              );
             }
             if (needsPhotoUpdate) {
               updateData.profilePictureUrl = newProfilePictureUrl;
               updateData.photoUrl = newProfilePictureUrl; // Also set photoUrl for backward compatibility
               updateData.photoUpdatedAt = admin.firestore.FieldValue.serverTimestamp();
-              console.log(`✅ [${accountId}] Update thread ${clientJid.substring(0, 20)}: profilePictureUrl "${currentPhotoUrl || 'no_photo'}" -> "${newProfilePictureUrl.substring(0, 50)}..."`);
+              console.log(
+                `✅ [${accountId}] Update thread ${clientJid.substring(0, 20)}: profilePictureUrl "${currentPhotoUrl || 'no_photo'}" -> "${newProfilePictureUrl.substring(0, 50)}..."`
+              );
             }
 
             if (!dryRun) {
@@ -6372,7 +7113,9 @@ app.post('/admin/update-display-names', async (req, res) => {
       }
     }
 
-    console.log(`✅ Display names update complete: processed=${processed}, updated=${updated}, skipped=${skipped}, errors=${errors}`);
+    console.log(
+      `✅ Display names update complete: processed=${processed}, updated=${updated}, skipped=${skipped}, errors=${errors}`
+    );
 
     return res.json({
       success: true,
@@ -6395,7 +7138,9 @@ app.post('/admin/sync-contacts-to-threads', async (req, res) => {
     // Check admin token
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -6416,7 +7161,8 @@ app.post('/admin/sync-contacts-to-threads', async (req, res) => {
     }
 
     // Get all threads for this account
-    const threadsSnapshot = await db.collection('threads')
+    const threadsSnapshot = await db
+      .collection('threads')
       .where('accountId', '==', accountId)
       .limit(1000)
       .get();
@@ -6456,7 +7202,8 @@ app.post('/admin/sync-contacts-to-threads', async (req, res) => {
         }
 
         const contactData = contactDoc.data() || {};
-        const contactName = contactData.name || contactData.notify || contactData.verifiedName || null;
+        const contactName =
+          contactData.name || contactData.notify || contactData.verifiedName || null;
         const contactPhotoUrl = contactData.imgUrl || null;
 
         // Check if we need to update
@@ -6465,25 +7212,29 @@ app.post('/admin/sync-contacts-to-threads', async (req, res) => {
 
         // CRITICAL FIX: Update if contact has name and thread doesn't have a valid name
         // Also update if contact name is different (even if thread has a name)
-        const needsNameUpdate = contactName && 
+        const needsNameUpdate =
+          contactName &&
           typeof contactName === 'string' &&
-          contactName.trim().length > 0 && 
-          (contactName.trim() !== currentDisplayName || 
-           !currentDisplayName || 
-           currentDisplayName.trim().length === 0 ||
-           currentDisplayName === clientJid.split('@')[0] || // Thread has phone number as name
-           /^\+?[\d\s\-\(\)]+$/.test(currentDisplayName)); // Thread name looks like phone number
-        
+          contactName.trim().length > 0 &&
+          (contactName.trim() !== currentDisplayName ||
+            !currentDisplayName ||
+            currentDisplayName.trim().length === 0 ||
+            currentDisplayName === clientJid.split('@')[0] || // Thread has phone number as name
+            /^\+?[\d\s\-\(\)]+$/.test(currentDisplayName)); // Thread name looks like phone number
+
         // CRITICAL FIX: Update photo if contact has photo and thread doesn't, or if different
-        const needsPhotoUpdate = contactPhotoUrl && 
+        const needsPhotoUpdate =
+          contactPhotoUrl &&
           typeof contactPhotoUrl === 'string' &&
-          contactPhotoUrl.trim().length > 0 && 
+          contactPhotoUrl.trim().length > 0 &&
           (contactPhotoUrl.trim() !== currentPhotoUrl || !currentPhotoUrl);
 
         if (!needsNameUpdate && !needsPhotoUpdate) {
           skipped++;
           if (processed <= 5) {
-            console.log(`   [${processed}] ${clientJid.substring(0, 30)}: already up-to-date (name="${currentDisplayName || 'none'}", photo=${currentPhotoUrl ? 'yes' : 'no'})`);
+            console.log(
+              `   [${processed}] ${clientJid.substring(0, 30)}: already up-to-date (name="${currentDisplayName || 'none'}", photo=${currentPhotoUrl ? 'yes' : 'no'})`
+            );
           }
           continue;
         }
@@ -6515,7 +7266,9 @@ app.post('/admin/sync-contacts-to-threads', async (req, res) => {
         });
 
         if (results.length <= 10) {
-          console.log(`✅ [${accountId}] ${clientJid.substring(0, 30)}: ${needsNameUpdate ? `name="${contactName}"` : ''} ${needsPhotoUpdate ? 'photo=yes' : ''}`);
+          console.log(
+            `✅ [${accountId}] ${clientJid.substring(0, 30)}: ${needsNameUpdate ? `name="${contactName}"` : ''} ${needsPhotoUpdate ? 'photo=yes' : ''}`
+          );
         }
       } catch (error) {
         console.error(`❌ [${accountId}] Error processing thread ${threadId}:`, error.message);
@@ -6523,7 +7276,9 @@ app.post('/admin/sync-contacts-to-threads', async (req, res) => {
       }
     }
 
-    console.log(`✅ Sync complete: processed=${processed}, updatedDisplayName=${updatedDisplayName}, updatedPhoto=${updatedPhoto}, skipped=${skipped}, errors=${errors}`);
+    console.log(
+      `✅ Sync complete: processed=${processed}, updatedDisplayName=${updatedDisplayName}, updatedPhoto=${updatedPhoto}, skipped=${skipped}, errors=${errors}`
+    );
 
     return res.json({
       success: true,
@@ -6547,7 +7302,9 @@ app.post('/admin/sync-messages', async (req, res) => {
     // Check admin token
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -6576,7 +7333,8 @@ app.post('/admin/sync-messages', async (req, res) => {
       return res.status(500).json({ success: false, error: 'Firestore not available' });
     }
 
-    const threadsSnapshot = await db.collection('threads')
+    const threadsSnapshot = await db
+      .collection('threads')
       .where('accountId', '==', accountId)
       .orderBy('lastMessageAt', 'desc')
       .limit(limit)
@@ -6604,7 +7362,7 @@ app.post('/admin/sync-messages', async (req, res) => {
         if (messages.length > 0) {
           // Save messages to Firestore
           const result = await saveMessagesBatch(accountId, messages, 'manual_sync');
-          
+
           synced++;
           results.push({
             jid: jid.substring(0, 30),
@@ -6633,13 +7391,96 @@ app.post('/admin/sync-messages', async (req, res) => {
   }
 });
 
+// [REQ] Force sync a single thread tool (admin endpoint)
+// Supports both legacy path and the specifically requested path
+const syncThreadHandler = async (req, res) => {
+  try {
+    // Check admin token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    const { threadId, accountId: paramAccountId } = req.params;
+    const { count = 50 } = req.query;
+
+    if (!threadId) {
+      return res.status(400).json({ success: false, error: 'threadId is required' });
+    }
+
+    console.log(
+      `📥 [ADMIN] Manual sync for threadId=${threadId}, accountId=${paramAccountId || 'auto'}, count=${count}`
+    );
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    const threadDoc = await db.collection('threads').doc(threadId).get();
+    if (!threadDoc.exists) {
+      return res.status(404).json({ success: false, error: 'Thread not found in Firestore' });
+    }
+
+    const threadData = threadDoc.data();
+    const accountId = paramAccountId || threadData.accountId;
+    const jid = normalizeClientJid(threadData.clientJid);
+
+    if (!accountId || !jid) {
+      return res
+        .status(400)
+        .json({ success: false, error: 'Incomplete thread data (missing accountId or jid)' });
+    }
+
+    const account = connections.get(accountId);
+    if (!account || !account.sock) {
+      return res.status(400).json({ success: false, error: `Account ${accountId} not connected` });
+    }
+
+    // Call fetchMessagesFromWA (which now handles JID resolution, seeding, and recursion maxDepth=1)
+    const messages = await fetchMessagesFromWA(account.sock, jid, parseInt(count, 10), {
+      db,
+      accountId,
+      maxDepth: 1,
+    });
+
+    let savedCount = 0;
+    if (messages && messages.length > 0) {
+      const saveResult = await saveMessagesBatch(accountId, messages, 'admin_manual_single_sync');
+      savedCount = saveResult.saved || 0;
+    }
+
+    return res.json({
+      success: true,
+      threadId,
+      jid,
+      messagesFetched: messages?.length || 0,
+      messagesSaved: savedCount,
+    });
+  } catch (error) {
+    console.error(`❌ [ADMIN] Sync thread failed for ${req.params.threadId}:`, error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+app.post('/admin/sync-thread/:threadId', asyncHandler(syncThreadHandler));
+app.post('/api/admin/sync-thread/:accountId/:threadId', asyncHandler(syncThreadHandler));
+
 // Admin-only: Fix thread summary (recalculate lastMessageAt/lastMessageText from real messages)
 app.post('/admin/fix-thread-summary/:accountId', async (req, res) => {
   try {
     // Check admin token
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -6684,14 +7525,18 @@ app.post('/admin/fix-thread-summary/:accountId', async (req, res) => {
     function isRealMessage(msg) {
       const body = (msg.body || '').toString().trim();
       if (body.length > 0) return true;
-      if (msg.messageType && ['image', 'video', 'audio', 'document', 'sticker'].includes(msg.messageType)) {
+      if (
+        msg.messageType &&
+        ['image', 'video', 'audio', 'document', 'sticker'].includes(msg.messageType)
+      ) {
         return true;
       }
       return false;
     }
 
     // Get threads for this accountId
-    let query = db.collection('threads')
+    let query = db
+      .collection('threads')
       .where('accountId', '==', accountId)
       .orderBy('lastMessageAt', 'desc')
       .limit(500);
@@ -6712,7 +7557,7 @@ app.post('/admin/fix-thread-summary/:accountId', async (req, res) => {
       const thread = doc.data() || {};
 
       const lastMessageText = thread.lastMessageText ?? thread.lastMessagePreview ?? null;
-      const needsFix = (lastMessageText == null || String(lastMessageText).trim() === '');
+      const needsFix = lastMessageText == null || String(lastMessageText).trim() === '';
 
       if (!needsFix) {
         skipped++;
@@ -6767,7 +7612,9 @@ app.post('/admin/fix-thread-summary/:accountId', async (req, res) => {
       }
 
       const tsStr = ts ? ts.toDate().toISOString() : 'null';
-      console.log(`[FIX] thread=${threadId.substring(0, 50)}... msg=${best.id.substring(0, 20)}... preview="${preview.substring(0, 30)}..." ts=${tsStr}`);
+      console.log(
+        `[FIX] thread=${threadId.substring(0, 50)}... msg=${best.id.substring(0, 20)}... preview="${preview.substring(0, 30)}..." ts=${tsStr}`
+      );
 
       if (!dryRun) {
         try {
@@ -6790,7 +7637,9 @@ app.post('/admin/fix-thread-summary/:accountId', async (req, res) => {
       });
     }
 
-    console.log(`✅ Thread summary fix complete: processed=${totalProcessed}, candidates=${candidates}, fixed=${fixed}, skipped=${skipped}, errors=${errors}`);
+    console.log(
+      `✅ Thread summary fix complete: processed=${totalProcessed}, candidates=${candidates}, fixed=${fixed}, skipped=${skipped}, errors=${errors}`
+    );
 
     return res.json({
       success: true,
@@ -6814,7 +7663,9 @@ app.post('/admin/cleanup-protocol-threads/:accountId', async (req, res) => {
     // Check admin token
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -6824,7 +7675,8 @@ app.post('/admin/cleanup-protocol-threads/:accountId', async (req, res) => {
 
     const { accountId } = req.params;
     const dryRun = req.query.dryRun === 'true' || req.query.dryRun === '1';
-    const deleteDisplayName = req.query.deleteDisplayName === 'true' || req.query.deleteDisplayName === '1';
+    const deleteDisplayName =
+      req.query.deleteDisplayName === 'true' || req.query.deleteDisplayName === '1';
 
     if (!accountId) {
       return res.status(400).json({ success: false, error: 'accountId is required' });
@@ -6834,21 +7686,25 @@ app.post('/admin/cleanup-protocol-threads/:accountId', async (req, res) => {
       return res.status(500).json({ success: false, error: 'Firestore not available' });
     }
 
-    console.log(`🧹 [ADMIN] Cleaning up protocol threads: accountId=${accountId}, dryRun=${dryRun}, deleteDisplayName=${deleteDisplayName}`);
+    console.log(
+      `🧹 [ADMIN] Cleaning up protocol threads: accountId=${accountId}, dryRun=${dryRun}, deleteDisplayName=${deleteDisplayName}`
+    );
 
     function looksLikeProtocolMessage(displayName) {
       if (!displayName || typeof displayName !== 'string') return false;
       const trimmed = displayName.trim().toUpperCase();
       if (trimmed.length === 0) return false;
 
-      if (trimmed.startsWith('INBOUND-PROBE') || 
-          trimmed.startsWith('INBOUND_PROBE') ||
-          trimmed.startsWith('OUTBOUND-PROBE') ||
-          trimmed.startsWith('OUTBOUND_PROBE') ||
-          trimmed.startsWith('PROTOCOL') ||
-          trimmed.startsWith('HISTORY-SYNC') ||
-          trimmed.startsWith('HISTORY_SYNC') ||
-          trimmed.startsWith('HISTORYSYNC')) {
+      if (
+        trimmed.startsWith('INBOUND-PROBE') ||
+        trimmed.startsWith('INBOUND_PROBE') ||
+        trimmed.startsWith('OUTBOUND-PROBE') ||
+        trimmed.startsWith('OUTBOUND_PROBE') ||
+        trimmed.startsWith('PROTOCOL') ||
+        trimmed.startsWith('HISTORY-SYNC') ||
+        trimmed.startsWith('HISTORY_SYNC') ||
+        trimmed.startsWith('HISTORYSYNC')
+      ) {
         return true;
       }
 
@@ -6893,7 +7749,9 @@ app.post('/admin/cleanup-protocol-threads/:accountId', async (req, res) => {
         updateData.displayName = '';
       }
 
-      console.log(`🔧 [${totalProcessed}] Thread: ${threadId.substring(0, 50)}... displayName="${displayName}"`);
+      console.log(
+        `🔧 [${totalProcessed}] Thread: ${threadId.substring(0, 50)}... displayName="${displayName}"`
+      );
 
       if (!dryRun) {
         const threadRef = db.collection('threads').doc(threadId);
@@ -6918,7 +7776,9 @@ app.post('/admin/cleanup-protocol-threads/:accountId', async (req, res) => {
       await batch.commit();
     }
 
-    console.log(`✅ Protocol threads cleanup complete: processed=${totalProcessed}, updated=${totalUpdated}, skipped=${totalSkipped}, errors=${totalErrors}`);
+    console.log(
+      `✅ Protocol threads cleanup complete: processed=${totalProcessed}, updated=${totalUpdated}, skipped=${totalSkipped}, errors=${totalErrors}`
+    );
 
     return res.json({
       success: true,
@@ -6941,7 +7801,9 @@ app.post('/admin/deduplicate-threads', async (req, res) => {
     // Check admin token
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -6962,7 +7824,8 @@ app.post('/admin/deduplicate-threads', async (req, res) => {
     }
 
     // Get all threads for this account
-    const threadsSnapshot = await db.collection('threads')
+    const threadsSnapshot = await db
+      .collection('threads')
       .where('accountId', '==', accountId)
       .get();
 
@@ -6970,15 +7833,15 @@ app.post('/admin/deduplicate-threads', async (req, res) => {
 
     // Group threads by clientJid
     const threadsByJid = new Map();
-    
+
     threadsSnapshot.docs.forEach(doc => {
       const data = doc.data();
       const jid = data.clientJid;
-      
+
       if (!threadsByJid.has(jid)) {
         threadsByJid.set(jid, []);
       }
-      
+
       threadsByJid.get(jid).push({
         id: doc.id,
         ref: doc.ref,
@@ -7000,7 +7863,9 @@ app.post('/admin/deduplicate-threads', async (req, res) => {
       }
 
       processed++;
-      console.log(`🔍 [${accountId}] Found ${threads.length} duplicates for ${jid.substring(0, 25)}`);
+      console.log(
+        `🔍 [${accountId}] Found ${threads.length} duplicates for ${jid.substring(0, 25)}`
+      );
 
       // Sort threads to pick the best one:
       // 1. Has displayName (prefer non-null, non-empty)
@@ -7009,31 +7874,35 @@ app.post('/admin/deduplicate-threads', async (req, res) => {
       threads.sort((a, b) => {
         const aHasName = a.data.displayName && a.data.displayName.trim().length > 0;
         const bHasName = b.data.displayName && b.data.displayName.trim().length > 0;
-        
+
         if (aHasName && !bHasName) return -1;
         if (!aHasName && bHasName) return 1;
-        
+
         const aTime = a.data.lastMessageAt?._seconds || 0;
         const bTime = b.data.lastMessageAt?._seconds || 0;
-        
+
         if (aTime !== bTime) return bTime - aTime;
-        
+
         return b.id.localeCompare(a.id);
       });
 
       const toKeep = threads[0];
       const toDelete = threads.slice(1);
 
-      console.log(`  ✅ Keeping: ${toKeep.id.substring(0, 50)} (displayName="${toKeep.data.displayName || 'null'}")`);
-      
+      console.log(
+        `  ✅ Keeping: ${toKeep.id.substring(0, 50)} (displayName="${toKeep.data.displayName || 'null'}")`
+      );
+
       for (const thread of toDelete) {
-        console.log(`  ❌ Deleting: ${thread.id.substring(0, 50)} (displayName="${thread.data.displayName || 'null'}")`);
-        
+        console.log(
+          `  ❌ Deleting: ${thread.id.substring(0, 50)} (displayName="${thread.data.displayName || 'null'}")`
+        );
+
         if (!dryRun) {
           await thread.ref.delete();
           deleted++;
         }
-        
+
         results.push({
           jid: jid.substring(0, 30),
           deleted: thread.id.substring(0, 50),
@@ -7041,11 +7910,13 @@ app.post('/admin/deduplicate-threads', async (req, res) => {
           keptName: toKeep.data.displayName || 'no_name',
         });
       }
-      
+
       kept++;
     }
 
-    console.log(`✅ Deduplication complete: processed=${processed}, deleted=${dryRun ? 0 : deleted}, kept=${kept}`);
+    console.log(
+      `✅ Deduplication complete: processed=${processed}, deleted=${dryRun ? 0 : deleted}, kept=${kept}`
+    );
 
     return res.json({
       success: true,
@@ -7069,7 +7940,9 @@ app.post('/admin/migrate-account-id', async (req, res) => {
     // Check admin token
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -7080,17 +7953,22 @@ app.post('/admin/migrate-account-id', async (req, res) => {
     const { oldAccountId, newAccountId, dryRun = true } = req.body;
 
     if (!oldAccountId || !newAccountId) {
-      return res.status(400).json({ success: false, error: 'oldAccountId and newAccountId are required' });
+      return res
+        .status(400)
+        .json({ success: false, error: 'oldAccountId and newAccountId are required' });
     }
 
-    console.log(`🔄 [ADMIN] Migrating threads: ${oldAccountId} → ${newAccountId} (dryRun=${dryRun})`);
+    console.log(
+      `🔄 [ADMIN] Migrating threads: ${oldAccountId} → ${newAccountId} (dryRun=${dryRun})`
+    );
 
     if (!db) {
       return res.status(500).json({ success: false, error: 'Firestore not available' });
     }
 
     // Get all threads with old accountId
-    const threadsSnapshot = await db.collection('threads')
+    const threadsSnapshot = await db
+      .collection('threads')
       .where('accountId', '==', oldAccountId)
       .limit(500)
       .get();
@@ -7147,7 +8025,9 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
     // Check admin token
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -7158,7 +8038,9 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
     const dryRun = req.body.dryRun !== false; // Default to dry run
     const accountFilter = req.body.accountId || null;
 
-    console.log(`🔍 [ADMIN] Fetching LID contacts: dryRun=${dryRun}, accountFilter=${accountFilter}`);
+    console.log(
+      `🔍 [ADMIN] Fetching LID contacts: dryRun=${dryRun}, accountFilter=${accountFilter}`
+    );
 
     if (!db) {
       return res.status(500).json({ success: false, error: 'Firestore not available' });
@@ -7169,13 +8051,14 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
     }
 
     // Query by account only, then filter LID in memory to avoid index waits
-    const threadsQuery = db.collection('threads')
+    const threadsQuery = db
+      .collection('threads')
       .where('accountId', '==', accountFilter)
       .orderBy('lastMessageAt', 'desc')
       .limit(500);
 
     const threadsSnapshot = await threadsQuery.get();
-    
+
     if (threadsSnapshot.empty) {
       return res.json({
         success: true,
@@ -7243,7 +8126,7 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
         try {
           console.log(`🔍 [${accountId}] Fetching contact for ${clientJid}`);
           const [contact] = await sock.onWhatsApp(clientJid);
-          
+
           if (contact?.name) {
             contactName = contact.name;
           } else if (contact?.notify) {
@@ -7270,20 +8153,29 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
 
           if (!dryRun) {
             // Update thread with display name
-            await db.collection('threads').doc(threadId).update({
-              displayName: contactName,
-              ...(contactPhoneE164 ? { phoneE164: contactPhoneE164 } : {}),
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            });
+            await db
+              .collection('threads')
+              .doc(threadId)
+              .update({
+                displayName: contactName,
+                ...(contactPhoneE164 ? { phoneE164: contactPhoneE164 } : {}),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
 
             // Save contact to contacts collection
-            await db.collection('contacts').doc(`${accountId}__${clientJid}`).set({
-              accountId,
-              jid: clientJid,
-              name: contactName,
-              ...(contactPhoneE164 ? { phoneE164: contactPhoneE164 } : {}),
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            }, { merge: true });
+            await db
+              .collection('contacts')
+              .doc(`${accountId}__${clientJid}`)
+              .set(
+                {
+                  accountId,
+                  jid: clientJid,
+                  name: contactName,
+                  ...(contactPhoneE164 ? { phoneE164: contactPhoneE164 } : {}),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
           }
 
           updated++;
@@ -7336,14 +8228,14 @@ app.post('/admin/fetch-lid-contacts', async (req, res) => {
 // Use /ready for readiness (active/passive mode), /health/detailed for comprehensive status
 app.get('/health', async (req, res) => {
   const requestId = req.headers['x-request-id'] || `health_${Date.now()}`;
-  
+
   // Simple counters (non-blocking, no async dependencies)
   const connected = Array.from(connections.values()).filter(c => c.status === 'connected').length;
   const accountsTotal = connections.size;
 
   // Get commit (cached, non-blocking)
   const commit = COMMIT_HASH || 'unknown';
-  
+
   // Get instance ID (non-blocking)
   const instanceId = process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
 
@@ -7443,7 +8335,9 @@ async function saveAiMessageToFirestore(phoneNumber, role, content, metadata = {
         ...metadata, // model, tokensUsed, etc.
       });
 
-    console.log(`[WhatsApp][AI] Saved ${role} message for ${phoneNumber} (important: ${isImportant})`);
+    console.log(
+      `[WhatsApp][AI] Saved ${role} message for ${phoneNumber} (important: ${isImportant})`
+    );
   } catch (error) {
     console.error(`[WhatsApp][AI] Failed to save message:`, error.message);
   }
@@ -8041,7 +8935,7 @@ app.post('/api/whatsapp/add-account', requireFirebaseAuth, accountLimiter, async
     // If no phone provided, generate random ID
     let accountId;
     let canonicalPhoneNum = null;
-    
+
     if (phone) {
       canonicalPhoneNum = canonicalPhone(phone);
       accountId = generateAccountId(canonicalPhoneNum);
@@ -8124,8 +9018,11 @@ app.post('/api/whatsapp/add-account', requireFirebaseAuth, accountLimiter, async
     // HARD GATE: PASSIVE mode - do NOT create connection (requires Baileys)
     if (!waBootstrap.canStartBaileys()) {
       const status = await waBootstrap.getWAStatus();
-      const instanceId = status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
-      console.log(`⏸️  [${accountId}] Add account blocked: PASSIVE mode (instanceId: ${instanceId})`);
+      const instanceId =
+        status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
+      console.log(
+        `⏸️  [${accountId}] Add account blocked: PASSIVE mode (instanceId: ${instanceId})`
+      );
       return res.status(503).json({
         success: false,
         error: 'PASSIVE mode: another instance holds lock; retry shortly',
@@ -8139,11 +9036,14 @@ app.post('/api/whatsapp/add-account', requireFirebaseAuth, accountLimiter, async
 
     // Get instance info for response
     const status = await waBootstrap.getWAStatus();
-    const instanceId = status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
+    const instanceId =
+      status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
     const isActive = waBootstrap.isActiveMode();
     const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
 
-    console.log(`[${requestId}] Add account: accountId=${accountId}, instanceId=${instanceId}, waMode=${isActive ? 'active' : 'passive'}`);
+    console.log(
+      `[${requestId}] Add account: accountId=${accountId}, instanceId=${instanceId}, waMode=${isActive ? 'active' : 'passive'}`
+    );
 
     // Ensure new account exists in Firestore immediately so GET /accounts includes it
     // (overlay only applies to Firestore accounts). createConnection will merge later.
@@ -8290,14 +9190,14 @@ app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req, 
   // HARD GATE: PASSIVE mode - do NOT mutate account state
   const passiveGuard = await checkPassiveModeGuard(req, res);
   if (passiveGuard) return; // Response already sent
-  
+
   try {
     const { accountId } = req.params;
     const { name } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return res.status(400).json({ 
-        success: false, 
+      return res.status(400).json({
+        success: false,
         error: 'invalid_request',
         message: 'Name is required',
         accountId: accountId,
@@ -8306,8 +9206,8 @@ app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req, 
 
     const account = connections.get(accountId);
     if (!account) {
-      return res.status(404).json({ 
-        success: false, 
+      return res.status(404).json({
+        success: false,
         error: 'account_not_found',
         message: 'Account not found',
         accountId: accountId,
@@ -8346,15 +9246,15 @@ app.patch('/api/whatsapp/accounts/:accountId/name', accountLimiter, async (req, 
 app.get('/api/whatsapp/accounts/:accountId/health', requireFirebaseAuth, async (req, res) => {
   const { accountId } = req.params;
   const account = connections.get(accountId);
-  
+
   if (!account) {
     return res.status(404).json({ error: 'Account not found' });
   }
-  
+
   const lastReal = global.lastRealMessageTime?.get(accountId) || 0;
   const timeSinceLastReal = lastReal > 0 ? Date.now() - lastReal : null;
   const isDegraded = timeSinceLastReal !== null && timeSinceLastReal > 5 * 60 * 1000; // 5 minutes
-  
+
   res.json({
     accountId,
     status: account.status,
@@ -8362,333 +9262,409 @@ app.get('/api/whatsapp/accounts/:accountId/health', requireFirebaseAuth, async (
     lastRealMessageMs: lastReal || null,
     timeSinceLastRealMs: timeSinceLastReal,
     isDegraded,
-    warning: isDegraded ? 'No real messages received in last 5 minutes - session may be degraded' : null,
+    warning: isDegraded
+      ? 'No real messages received in last 5 minutes - session may be degraded'
+      : null,
   });
 });
 
-app.post('/api/whatsapp/regenerate-qr/:accountId', requireFirebaseAuth, qrRegenerateLimiter, async (req, res) => {
-  // DEBUG: Log incoming request
-  const accountId = req.params.accountId;
-  const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
-  console.log(`🔍 [${requestId}] Regenerate QR request: accountId=${accountId}, method=${req.method}, path=${req.path}`);
-  
-  // HARD GATE: PASSIVE mode - do NOT regenerate QR (requires Baileys connection)
-  const passiveGuard = await checkPassiveModeGuard(req, res);
-  if (passiveGuard) return; // Response already sent
+app.post(
+  '/api/whatsapp/regenerate-qr/:accountId',
+  requireFirebaseAuth,
+  qrRegenerateLimiter,
+  async (req, res) => {
+    // DEBUG: Log incoming request
+    const accountId = req.params.accountId;
+    const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+    console.log(
+      `🔍 [${requestId}] Regenerate QR request: accountId=${accountId}, method=${req.method}, path=${req.path}`
+    );
 
-  try {
-    // Get current account state for logging
-    let account = connections.get(accountId);
-    const accountStatus = account?.status || (account?.data && account.data.status) || 'unknown';
-    const lockStatus = await waBootstrap.getWAStatus();
-    const isActive = waBootstrap.isActiveMode();
-    
-    console.log(`🔍 [${requestId}] Account state: status=${accountStatus}, hasAccount=${!!account}, waMode=${isActive ? 'active' : 'passive'}, lockOwner=${lockStatus.instanceId || 'unknown'}`);
-    
-    // If not in memory, try to load from Firestore
-    if (!account && firestoreAvailable && db) {
-      try {
-        const accountDoc = await db.collection('accounts').doc(accountId).get();
-        if (accountDoc.exists) {
-          const data = accountDoc.data();
-          account = { id: accountId, ...data };
-          console.log(`📥 [${requestId}] Loaded account from Firestore: status=${data.status || 'unknown'}, lastError=${data.lastError || 'none'}`);
-          
-          // Log last disconnect info if available
-          if (data.lastDisconnectReason) {
-            console.log(`📥 [${requestId}] Last disconnect: reason=${data.lastDisconnectReason}, at=${data.lastDisconnectedAt?.toDate?.() || data.lastDisconnectedAt || 'unknown'}`);
+    // HARD GATE: PASSIVE mode - do NOT regenerate QR (requires Baileys connection)
+    const passiveGuard = await checkPassiveModeGuard(req, res);
+    if (passiveGuard) return; // Response already sent
+
+    try {
+      // Get current account state for logging
+      let account = connections.get(accountId);
+      const accountStatus = account?.status || (account?.data && account.data.status) || 'unknown';
+      const lockStatus = await waBootstrap.getWAStatus();
+      const isActive = waBootstrap.isActiveMode();
+
+      console.log(
+        `🔍 [${requestId}] Account state: status=${accountStatus}, hasAccount=${!!account}, waMode=${isActive ? 'active' : 'passive'}, lockOwner=${lockStatus.instanceId || 'unknown'}`
+      );
+
+      // If not in memory, try to load from Firestore
+      if (!account && firestoreAvailable && db) {
+        try {
+          const accountDoc = await db.collection('accounts').doc(accountId).get();
+          if (accountDoc.exists) {
+            const data = accountDoc.data();
+            account = { id: accountId, ...data };
+            console.log(
+              `📥 [${requestId}] Loaded account from Firestore: status=${data.status || 'unknown'}, lastError=${data.lastError || 'none'}`
+            );
+
+            // Log last disconnect info if available
+            if (data.lastDisconnectReason) {
+              console.log(
+                `📥 [${requestId}] Last disconnect: reason=${data.lastDisconnectReason}, at=${data.lastDisconnectedAt?.toDate?.() || data.lastDisconnectedAt || 'unknown'}`
+              );
+            }
           }
+        } catch (error) {
+          console.error(
+            `⚠️  [${accountId}/${requestId}] Failed to load account from Firestore:`,
+            error.message,
+            error.stack?.substring(0, 200)
+          );
         }
-      } catch (error) {
-        console.error(`⚠️  [${accountId}/${requestId}] Failed to load account from Firestore:`, error.message, error.stack?.substring(0, 200));
       }
-    }
 
-    if (!account) {
-      console.log(`❌ [${requestId}] Account not found: accountId=${accountId}`);
-      return res.status(404).json({ 
-        success: false, 
-        error: 'account_not_found',
-        message: 'Account not found',
-        accountId: accountId,
-        requestId: requestId,
-      });
-    }
-
-    // IDEMPOTENCY: Check if regenerate is already in progress
-    // Check both in-memory and Firestore for regenerating flag
-    let isRegenerating = false;
-    if (account && connections.has(accountId)) {
-      isRegenerating = account.regeneratingQr === true || account.status === 'connecting';
-    } else if (firestoreAvailable && db) {
-      // Check Firestore if not in memory
-      try {
-        const accountDoc = await db.collection('accounts').doc(accountId).get();
-        if (accountDoc.exists) {
-          const data = accountDoc.data();
-          isRegenerating = data.regeneratingQr === true || data.status === 'connecting';
-        }
-      } catch (error) {
-        console.error(`⚠️  [${accountId}/${requestId}] Failed to check regenerating flag in Firestore:`, error.message);
-      }
-    }
-    
-    if (isRegenerating) {
-      console.log(`ℹ️  [${accountId}/${requestId}] Regenerate already in progress (status=${account?.status || 'unknown'}), returning 202 Accepted`);
-      return res.status(202).json({ 
-        success: true, 
-        message: 'QR regeneration already in progress',
-        status: 'already_in_progress',
-        accountId: accountId,
-        requestId: requestId,
-      });
-    }
-
-    // IDEMPOTENCY: Check if account is already in pairing phase with valid QR
-    const currentStatus = account.status || (account.data && account.data.status);
-    const hasValidQR = (currentStatus === 'qr_ready' || currentStatus === 'awaiting_scan') && account.qrCode;
-    
-    if (hasValidQR) {
-      // Check QR age if available
-      const qrAge = account.qrUpdatedAt 
-        ? Date.now() - (account.qrUpdatedAt.toMillis ? account.qrUpdatedAt.toMillis() : new Date(account.qrUpdatedAt).getTime())
-        : 0;
-      const QR_EXPIRY_MS = 60 * 1000; // QR expires after 60 seconds (WhatsApp standard)
-      
-      if (qrAge < QR_EXPIRY_MS) {
-        console.log(`ℹ️  [${accountId}/${requestId}] QR already exists and valid (status: ${currentStatus}, age: ${Math.round(qrAge/1000)}s), returning existing QR (idempotent)`);
-        return res.json({ 
-          success: true, 
-          message: 'QR code already available',
-          qrCode: account.qrCode,
-          status: currentStatus,
-          ageSeconds: Math.round(qrAge / 1000),
-          idempotent: true,
+      if (!account) {
+        console.log(`❌ [${requestId}] Account not found: accountId=${accountId}`);
+        return res.status(404).json({
+          success: false,
+          error: 'account_not_found',
+          message: 'Account not found',
           accountId: accountId,
           requestId: requestId,
         });
-      } else {
-        console.log(`ℹ️  [${accountId}/${requestId}] QR exists but expired (age: ${Math.round(qrAge/1000)}s), will regenerate`);
       }
-    }
-    
-    // Per-account mutex: Mark as regenerating to prevent concurrent requests
-    if (account && connections.has(accountId)) {
-      account.regeneratingQr = true;
-    } else if (firestoreAvailable && db) {
-      // Also mark in Firestore if not in memory
+
+      // IDEMPOTENCY: Check if regenerate is already in progress
+      // Check both in-memory and Firestore for regenerating flag
+      let isRegenerating = false;
+      if (account && connections.has(accountId)) {
+        isRegenerating = account.regeneratingQr === true || account.status === 'connecting';
+      } else if (firestoreAvailable && db) {
+        // Check Firestore if not in memory
+        try {
+          const accountDoc = await db.collection('accounts').doc(accountId).get();
+          if (accountDoc.exists) {
+            const data = accountDoc.data();
+            isRegenerating = data.regeneratingQr === true || data.status === 'connecting';
+          }
+        } catch (error) {
+          console.error(
+            `⚠️  [${accountId}/${requestId}] Failed to check regenerating flag in Firestore:`,
+            error.message
+          );
+        }
+      }
+
+      if (isRegenerating) {
+        console.log(
+          `ℹ️  [${accountId}/${requestId}] Regenerate already in progress (status=${account?.status || 'unknown'}), returning 202 Accepted`
+        );
+        return res.status(202).json({
+          success: true,
+          message: 'QR regeneration already in progress',
+          status: 'already_in_progress',
+          accountId: accountId,
+          requestId: requestId,
+        });
+      }
+
+      // IDEMPOTENCY: Check if account is already in pairing phase with valid QR
+      const currentStatus = account.status || (account.data && account.data.status);
+      const hasValidQR =
+        (currentStatus === 'qr_ready' || currentStatus === 'awaiting_scan') && account.qrCode;
+
+      if (hasValidQR) {
+        // Check QR age if available
+        const qrAge = account.qrUpdatedAt
+          ? Date.now() -
+            (account.qrUpdatedAt.toMillis
+              ? account.qrUpdatedAt.toMillis()
+              : new Date(account.qrUpdatedAt).getTime())
+          : 0;
+        const QR_EXPIRY_MS = 60 * 1000; // QR expires after 60 seconds (WhatsApp standard)
+
+        if (qrAge < QR_EXPIRY_MS) {
+          console.log(
+            `ℹ️  [${accountId}/${requestId}] QR already exists and valid (status: ${currentStatus}, age: ${Math.round(qrAge / 1000)}s), returning existing QR (idempotent)`
+          );
+          return res.json({
+            success: true,
+            message: 'QR code already available',
+            qrCode: account.qrCode,
+            status: currentStatus,
+            ageSeconds: Math.round(qrAge / 1000),
+            idempotent: true,
+            accountId: accountId,
+            requestId: requestId,
+          });
+        } else {
+          console.log(
+            `ℹ️  [${accountId}/${requestId}] QR exists but expired (age: ${Math.round(qrAge / 1000)}s), will regenerate`
+          );
+        }
+      }
+
+      // Per-account mutex: Mark as regenerating to prevent concurrent requests
+      if (account && connections.has(accountId)) {
+        account.regeneratingQr = true;
+      } else if (firestoreAvailable && db) {
+        // Also mark in Firestore if not in memory
+        try {
+          await db.collection('accounts').doc(accountId).update({
+            regeneratingQr: true,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        } catch (error) {
+          console.error(
+            `⚠️  [${accountId}/${requestId}] Failed to mark regenerating in Firestore:`,
+            error.message
+          );
+        }
+      }
+
+      // Clear session to ensure fresh pairing (disk + Firestore) - only if QR expired or not valid
       try {
-        await db.collection('accounts').doc(accountId).update({
+        await clearAccountSession(accountId);
+        console.log(
+          `🗑️  [${accountId}/${requestId}] Session cleared for QR regeneration${hasValidQR ? ' (QR expired)' : ''}`
+        );
+      } catch (error) {
+        console.error(
+          `⚠️  [${accountId}/${requestId}] Failed to clear session during QR regeneration:`,
+          error.message,
+          error.stack?.substring(0, 200)
+        );
+        // Continue anyway - createConnection will handle fresh session
+      }
+
+      // CRITICAL: Check if already connecting BEFORE cleanup to prevent duplicate connections
+      // This prevents 500 errors when regenerateQr is called while createConnection is already running
+      const canConnect = connectionRegistry.tryAcquire(accountId);
+      if (!canConnect) {
+        console.log(
+          `ℹ️  [${accountId}/${requestId}] Already connecting (connectionRegistry check), skip createConnection - QR will be available shortly`
+        );
+        // Clear regenerating flag since we're not actually regenerating
+        if (account && connections.has(accountId)) {
+          account.regeneratingQr = false;
+        }
+        if (firestoreAvailable && db) {
+          db.collection('accounts')
+            .doc(accountId)
+            .update({
+              regeneratingQr: false,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            })
+            .catch(e => console.error(`Failed to clear regenerating flag:`, e.message));
+        }
+
+        // Return success - connection already in progress will emit QR when ready
+        const status = await waBootstrap.getWAStatus();
+        const instanceId =
+          status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
+        const isActiveMode = waBootstrap.canStartBaileys();
+
+        return res.json({
+          success: true,
+          message: 'Connection already in progress, QR will be available shortly',
+          status: 'already_connecting',
+          instanceId: instanceId,
+          waMode: isActiveMode ? 'active' : 'passive',
+          accountId: accountId,
+          requestId: requestId,
+        });
+      }
+
+      // Clean up old connection if exists
+      if (account.sock) {
+        try {
+          account.sock.end();
+        } catch (e) {
+          // Ignore
+        }
+      }
+
+      // Clean up in-memory state (but keep lock since we just acquired it)
+      connections.delete(accountId);
+      reconnectAttempts.delete(accountId);
+      // NOTE: Don't release() here - we just acquired the lock above via tryAcquire
+
+      // Update Firestore status to connecting (will transition to qr_ready)
+      // CRITICAL FIX: Don't set requiresQR: true before calling createConnection
+      // because the guard in createConnection blocks it when requiresQR === true
+      // We'll set requiresQR: true after the connection is created and QR is ready
+      try {
+        await saveAccountToFirestore(accountId, {
+          status: 'connecting',
+          lastError: null,
+          requiresQR: false, // Set to false to allow createConnection to proceed
           regeneratingQr: true,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
       } catch (error) {
-        console.error(`⚠️  [${accountId}/${requestId}] Failed to mark regenerating in Firestore:`, error.message);
+        console.error(
+          `⚠️  [${accountId}/${requestId}] Failed to update Firestore status:`,
+          error.message
+        );
       }
-    }
 
-    // Clear session to ensure fresh pairing (disk + Firestore) - only if QR expired or not valid
-    try {
-      await clearAccountSession(accountId);
-      console.log(`🗑️  [${accountId}/${requestId}] Session cleared for QR regeneration${hasValidQR ? ' (QR expired)' : ''}`);
-    } catch (error) {
-      console.error(`⚠️  [${accountId}/${requestId}] Failed to clear session during QR regeneration:`, error.message, error.stack?.substring(0, 200));
-      // Continue anyway - createConnection will handle fresh session
-    }
-
-    // CRITICAL: Check if already connecting BEFORE cleanup to prevent duplicate connections
-    // This prevents 500 errors when regenerateQr is called while createConnection is already running
-    const canConnect = connectionRegistry.tryAcquire(accountId);
-    if (!canConnect) {
-      console.log(`ℹ️  [${accountId}/${requestId}] Already connecting (connectionRegistry check), skip createConnection - QR will be available shortly`);
-      // Clear regenerating flag since we're not actually regenerating
-      if (account && connections.has(accountId)) {
-        account.regeneratingQr = false;
-      }
-      if (firestoreAvailable && db) {
-        db.collection('accounts').doc(accountId).update({
-          regeneratingQr: false,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }).catch(e => console.error(`Failed to clear regenerating flag:`, e.message));
-      }
-      
-      // Return success - connection already in progress will emit QR when ready
+      // Get instance info for response
       const status = await waBootstrap.getWAStatus();
-      const instanceId = status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
-      const isActiveMode = waBootstrap.canStartBaileys();
-      
-      return res.json({ 
-        success: true, 
-        message: 'Connection already in progress, QR will be available shortly',
-        status: 'already_connecting',
+      const instanceId =
+        status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
+      const isActiveMode = waBootstrap.isActiveMode();
+
+      // Create new connection (will generate fresh QR since session is cleared)
+      // CRITICAL FIX: Wrap in try-catch to handle sync errors (e.g., validation, null checks)
+      // Note: createConnection is async but we don't await it - it will emit QR via connection.update event
+      // Pass skipLockCheck=true since we already acquired the lock above
+      try {
+        createConnection(accountId, account.name, account.phone, true).catch(err => {
+          console.error(
+            `❌ [${accountId}/${requestId}] Failed to create connection during QR regeneration:`,
+            err.message,
+            err.stack?.substring(0, 300)
+          );
+          // Clear regenerating flag on error
+          const acc = connections.get(accountId);
+          if (acc) {
+            acc.regeneratingQr = false;
+          }
+          // Also clear in Firestore
+          if (firestoreAvailable && db) {
+            db.collection('accounts')
+              .doc(accountId)
+              .update({
+                regeneratingQr: false,
+                lastError: `Connection creation failed: ${err.message}`,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              })
+              .catch(e => console.error(`Failed to clear regenerating flag:`, e.message));
+          }
+        });
+      } catch (syncError) {
+        // CRITICAL FIX: Catch synchronous errors (e.g., validation, null checks)
+        // These occur before async, so .catch() on the promise doesn't help
+        console.error(
+          `❌ [${accountId}/${requestId}] Sync error in regenerateQr (createConnection):`,
+          syncError.message,
+          syncError.stack?.substring(0, 300)
+        );
+
+        // Release connection registry lock on sync error
+        connectionRegistry.release(accountId);
+
+        // Clear regenerating flag on sync error
+        const acc = connections.get(accountId);
+        if (acc) {
+          acc.regeneratingQr = false;
+        }
+        if (firestoreAvailable && db) {
+          db.collection('accounts')
+            .doc(accountId)
+            .update({
+              regeneratingQr: false,
+              lastError: `Sync error: ${syncError.message}`,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            })
+            .catch(e => console.error(`Failed to clear regenerating flag:`, e.message));
+        }
+
+        return res.status(500).json({
+          success: false,
+          error: 'sync_error',
+          message: syncError.message || 'Internal server error (sync)',
+          accountId: accountId,
+          requestId: requestId,
+          hint: `Check server logs for requestId: ${requestId}`,
+        });
+      }
+
+      console.log(
+        `✅ [${accountId}/${requestId}] QR regeneration started (connection creation in progress)`
+      );
+
+      res.json({
+        success: true,
+        message: 'QR regeneration started',
+        status: 'in_progress',
         instanceId: instanceId,
         waMode: isActiveMode ? 'active' : 'passive',
         accountId: accountId,
         requestId: requestId,
       });
-    }
-
-    // Clean up old connection if exists
-    if (account.sock) {
-      try {
-        account.sock.end();
-      } catch (e) {
-        // Ignore
-      }
-    }
-
-    // Clean up in-memory state (but keep lock since we just acquired it)
-    connections.delete(accountId);
-    reconnectAttempts.delete(accountId);
-    // NOTE: Don't release() here - we just acquired the lock above via tryAcquire
-
-    // Update Firestore status to connecting (will transition to qr_ready)
-    // CRITICAL FIX: Don't set requiresQR: true before calling createConnection
-    // because the guard in createConnection blocks it when requiresQR === true
-    // We'll set requiresQR: true after the connection is created and QR is ready
-    try {
-      await saveAccountToFirestore(accountId, {
-        status: 'connecting',
-        lastError: null,
-        requiresQR: false, // Set to false to allow createConnection to proceed
-        regeneratingQr: true,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
     } catch (error) {
-      console.error(`⚠️  [${accountId}/${requestId}] Failed to update Firestore status:`, error.message);
-    }
+      const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+      console.error(
+        `❌ [${requestId}] Regenerate QR error:`,
+        error.message,
+        error.stack?.substring(0, 300)
+      );
 
-    // Get instance info for response
-    const status = await waBootstrap.getWAStatus();
-    const instanceId = status.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown';
-    const isActiveMode = waBootstrap.isActiveMode();
-
-    // Create new connection (will generate fresh QR since session is cleared)
-    // CRITICAL FIX: Wrap in try-catch to handle sync errors (e.g., validation, null checks)
-    // Note: createConnection is async but we don't await it - it will emit QR via connection.update event
-    // Pass skipLockCheck=true since we already acquired the lock above
-    try {
-      createConnection(accountId, account.name, account.phone, true).catch(err => {
-      console.error(`❌ [${accountId}/${requestId}] Failed to create connection during QR regeneration:`, err.message, err.stack?.substring(0, 300));
-      // Clear regenerating flag on error
-      const acc = connections.get(accountId);
-      if (acc) {
-        acc.regeneratingQr = false;
-      }
-      // Also clear in Firestore
-      if (firestoreAvailable && db) {
-        db.collection('accounts').doc(accountId).update({
-          regeneratingQr: false,
-          lastError: `Connection creation failed: ${err.message}`,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }).catch(e => console.error(`Failed to clear regenerating flag:`, e.message));
-      }
-      });
-    } catch (syncError) {
-      // CRITICAL FIX: Catch synchronous errors (e.g., validation, null checks)
-      // These occur before async, so .catch() on the promise doesn't help
-      console.error(`❌ [${accountId}/${requestId}] Sync error in regenerateQr (createConnection):`, syncError.message, syncError.stack?.substring(0, 300));
-      
-      // Release connection registry lock on sync error
-      connectionRegistry.release(accountId);
-      
-      // Clear regenerating flag on sync error
-      const acc = connections.get(accountId);
-      if (acc) {
-        acc.regeneratingQr = false;
-      }
-      if (firestoreAvailable && db) {
-        db.collection('accounts').doc(accountId).update({
-          regeneratingQr: false,
-          lastError: `Sync error: ${syncError.message}`,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }).catch(e => console.error(`Failed to clear regenerating flag:`, e.message));
-      }
-      
-      return res.status(500).json({
+      // NEVER throw unhandled exceptions - always respond with JSON
+      res.status(500).json({
         success: false,
-        error: 'sync_error',
-        message: syncError.message || 'Internal server error (sync)',
+        error: 'internal_error',
+        message: error.message || 'Internal server error',
         accountId: accountId,
         requestId: requestId,
         hint: `Check server logs for requestId: ${requestId}`,
       });
     }
-
-    console.log(`✅ [${accountId}/${requestId}] QR regeneration started (connection creation in progress)`);
-
-    res.json({ 
-      success: true, 
-      message: 'QR regeneration started',
-      status: 'in_progress',
-      instanceId: instanceId,
-      waMode: isActiveMode ? 'active' : 'passive',
-      accountId: accountId,
-      requestId: requestId,
-    });
-  } catch (error) {
-    const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
-    console.error(`❌ [${requestId}] Regenerate QR error:`, error.message, error.stack?.substring(0, 300));
-    
-    // NEVER throw unhandled exceptions - always respond with JSON
-    res.status(500).json({ 
-      success: false, 
-      error: 'internal_error',
-      message: error.message || 'Internal server error',
-      accountId: accountId,
-      requestId: requestId,
-      hint: `Check server logs for requestId: ${requestId}`,
-    });
   }
-});
+);
 
 // Backfill messages for an account (admin endpoint)
-app.post('/api/whatsapp/backfill/:accountId', requireFirebaseAuth, accountLimiter, async (req, res) => {
-  // HARD GATE: PASSIVE mode - do NOT process backfill (mutates state)
-  const passiveGuard = await checkPassiveModeGuard(req, res);
-  if (passiveGuard) return; // Response already sent
-  
-  try {
-    const { accountId } = req.params;
-    const account = connections.get(accountId);
+app.post(
+  '/api/whatsapp/backfill/:accountId',
+  requireFirebaseAuth,
+  accountLimiter,
+  async (req, res) => {
+    // HARD GATE: PASSIVE mode - do NOT process backfill (mutates state)
+    const passiveGuard = await checkPassiveModeGuard(req, res);
+    if (passiveGuard) return; // Response already sent
 
-    if (!account) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'account_not_found',
-        message: 'Account not found',
-        accountId: accountId,
+    try {
+      const { accountId } = req.params;
+      const account = connections.get(accountId);
+
+      if (!account) {
+        return res.status(404).json({
+          success: false,
+          error: 'account_not_found',
+          message: 'Account not found',
+          accountId: accountId,
+        });
+      }
+
+      if (account.status !== 'connected') {
+        return res.status(409).json({
+          success: false,
+          error: 'invalid_state',
+          message: 'Account must be connected to backfill messages',
+          currentStatus: account.status,
+          accountId: accountId,
+        });
+      }
+
+      // Trigger backfill (async, don't wait for completion)
+      backfillAccountMessages(accountId)
+        .then(result => {
+          console.log(`✅ [${accountId}] Backfill completed:`, result);
+        })
+        .catch(error => {
+          console.error(`❌ [${accountId}] Backfill failed:`, error.message);
+        });
+
+      res.json({
+        success: true,
+        message: 'Backfill started (runs asynchronously)',
+        accountId,
       });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
     }
-
-    if (account.status !== 'connected') {
-      return res.status(409).json({
-        success: false,
-        error: 'invalid_state',
-        message: 'Account must be connected to backfill messages',
-        currentStatus: account.status,
-        accountId: accountId,
-      });
-    }
-
-    // Trigger backfill (async, don't wait for completion)
-    backfillAccountMessages(accountId)
-      .then(result => {
-        console.log(`✅ [${accountId}] Backfill completed:`, result);
-      })
-      .catch(error => {
-        console.error(`❌ [${accountId}] Backfill failed:`, error.message);
-      });
-
-    res.json({
-      success: true,
-      message: 'Backfill started (runs asynchronously)',
-      accountId,
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
   }
-});
+);
 
 // Send message
 app.post('/api/whatsapp/send-message', requireFirebaseAuth, messageLimiter, async (req, res) => {
@@ -8750,8 +9726,8 @@ app.post('/api/whatsapp/send-message', requireFirebaseAuth, messageLimiter, asyn
     const account = connections.get(accountId);
 
     if (!account) {
-      return res.status(404).json({ 
-        success: false, 
+      return res.status(404).json({
+        success: false,
         error: 'account_not_found',
         message: 'Account not found',
         accountId: accountId,
@@ -8803,7 +9779,10 @@ app.post('/api/whatsapp/send-message', requireFirebaseAuth, messageLimiter, asyn
           });
         }
       } catch (dedupeError) {
-        console.warn(`⚠️  [${accountId}] clientMessageId dedupe check failed:`, dedupeError.message);
+        console.warn(
+          `⚠️  [${accountId}] clientMessageId dedupe check failed:`,
+          dedupeError.message
+        );
       }
     }
 
@@ -8823,7 +9802,7 @@ app.post('/api/whatsapp/send-message', requireFirebaseAuth, messageLimiter, asyn
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
-      
+
       await db.collection('outbox').doc(messageId).set(outboxData);
 
       // Also create message doc in thread with status=queued (idempotent)
@@ -8859,19 +9838,22 @@ app.post('/api/whatsapp/send-message', requireFirebaseAuth, messageLimiter, asyn
     } catch (sendError) {
       // If send fails, queue it instead
       const messageId = outboxId || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      await db.collection('outbox').doc(messageId).set({
-        accountId,
-        toJid: jid,
-        threadId,
-        payload: { text: message },
-        body: message,
-        clientMessageId,
-        status: 'queued',
-        attemptCount: 0,
-        nextAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      await db
+        .collection('outbox')
+        .doc(messageId)
+        .set({
+          accountId,
+          toJid: jid,
+          threadId,
+          payload: { text: message },
+          body: message,
+          clientMessageId,
+          status: 'queued',
+          attemptCount: 0,
+          nextAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
       throw sendError; // Re-throw to return error to client
     }
 
@@ -8896,7 +9878,10 @@ app.post('/api/whatsapp/send-message', requireFirebaseAuth, messageLimiter, asyn
         );
         logThreadWrite('outbound', accountId, jid, threadId);
       } catch (persistError) {
-        console.error(`⚠️  [${accountId}] Failed to persist outbound message:`, persistError.message);
+        console.error(
+          `⚠️  [${accountId}] Failed to persist outbound message:`,
+          persistError.message
+        );
       }
     }
 
@@ -8916,19 +9901,22 @@ app.get('/api/whatsapp/threads/:accountId', requireFirebaseAuth, async (req, res
     // #region agent log
     const fs = require('fs');
     const logPath = '/Users/universparty/.cursor/debug.log';
-    const logEntry1 = JSON.stringify({
-      location: 'server.js:5706',
-      message: 'GET /threads/:accountId called',
-      data: {
-        accountId: accountId.substring(0, 30),
-        limit: limit,
-        orderBy: orderBy
-      },
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      hypothesisId: 'H7-H9'
-    }) + '\n';
-    try { fs.appendFileSync(logPath, logEntry1); } catch (e) {}
+    const logEntry1 =
+      JSON.stringify({
+        location: 'server.js:5706',
+        message: 'GET /threads/:accountId called',
+        data: {
+          accountId: accountId.substring(0, 30),
+          limit: limit,
+          orderBy: orderBy,
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        hypothesisId: 'H7-H9',
+      }) + '\n';
+    try {
+      fs.appendFileSync(logPath, logEntry1);
+    } catch (e) {}
     // #endregion
 
     if (!firestoreAvailable || !db) {
@@ -8960,16 +9948,22 @@ app.get('/api/whatsapp/threads/:accountId', requireFirebaseAuth, async (req, res
           const accountData = accountDoc.data();
           if (accountData.phone) {
             accountPhone = accountData.phone.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
-            console.log(`📋 [${accountId}] Inbox filter: Found phone in Firestore: ${accountPhone}`);
+            console.log(
+              `📋 [${accountId}] Inbox filter: Found phone in Firestore: ${accountPhone}`
+            );
           }
         }
       } catch (err) {
-        console.log(`⚠️  [${accountId}] Inbox filter: Could not get phone from Firestore: ${err.message}`);
+        console.log(
+          `⚠️  [${accountId}] Inbox filter: Could not get phone from Firestore: ${err.message}`
+        );
       }
     }
-    
+
     if (!accountPhone) {
-      console.log(`⚠️  [${accountId}] Inbox filter: No phone number found, will not filter self-conversation`);
+      console.log(
+        `⚠️  [${accountId}] Inbox filter: No phone number found, will not filter self-conversation`
+      );
     }
 
     for (const doc of threadsSnapshot.docs) {
@@ -8978,8 +9972,8 @@ app.get('/api/whatsapp/threads/:accountId', requireFirebaseAuth, async (req, res
       if (threadData.archived) {
         continue;
       }
-      const clientJid = normalizeClientJid(threadData.clientJid) ||
-          (threadId.includes('@') ? threadId : null);
+      const clientJid =
+        normalizeClientJid(threadData.clientJid) || (threadId.includes('@') ? threadId : null);
 
       if (!clientJid) {
         console.log(`⚠️  [${accountId}] Thread ${threadId} missing clientJid, skipping`);
@@ -9021,7 +10015,11 @@ app.get('/api/whatsapp/threads/:accountId', requireFirebaseAuth, async (req, res
               let batchOps = 0;
 
               for (const msgDoc of oldMessagesSnapshot.docs) {
-                const newMsgRef = db.collection('threads').doc(canonicalThreadId).collection('messages').doc(msgDoc.id);
+                const newMsgRef = db
+                  .collection('threads')
+                  .doc(canonicalThreadId)
+                  .collection('messages')
+                  .doc(msgDoc.id);
                 batch.set(newMsgRef, msgDoc.data(), { merge: true });
                 batchOps++;
 
@@ -9037,22 +10035,36 @@ app.get('/api/whatsapp/threads/:accountId', requireFirebaseAuth, async (req, res
               }
             }
 
-            await db.collection('threads').doc(canonicalThreadId).set({
-              ...threadData,
-              accountId,
-              clientJid,
-              migratedFrom: threadId,
-              migratedAt: admin.firestore.FieldValue.serverTimestamp(),
-            }, { merge: true });
+            await db
+              .collection('threads')
+              .doc(canonicalThreadId)
+              .set(
+                {
+                  ...threadData,
+                  accountId,
+                  clientJid,
+                  migratedFrom: threadId,
+                  migratedAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
 
-            await db.collection('threads').doc(threadId).set({
-              migratedTo: canonicalThreadId,
-              migratedAt: admin.firestore.FieldValue.serverTimestamp(),
-            }, { merge: true });
+            await db.collection('threads').doc(threadId).set(
+              {
+                migratedTo: canonicalThreadId,
+                migratedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
 
-            console.log(`✅ [${accountId}] Legacy thread migrated (non-destructive): ${threadId} → ${canonicalThreadId}`);
+            console.log(
+              `✅ [${accountId}] Legacy thread migrated (non-destructive): ${threadId} → ${canonicalThreadId}`
+            );
           } catch (migError) {
-            console.error(`❌ [${accountId}] Thread migration failed for ${threadId}:`, migError.message);
+            console.error(
+              `❌ [${accountId}] Thread migration failed for ${threadId}:`,
+              migError.message
+            );
           }
         })();
 
@@ -9068,8 +10080,16 @@ app.get('/api/whatsapp/threads/:accountId', requireFirebaseAuth, async (req, res
     }
 
     const threads = Array.from(threadsByClientJid.values()).sort((a, b) => {
-      const aTs = a.lastMessageAt?.toMillis?.() || a.updatedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
-      const bTs = b.lastMessageAt?.toMillis?.() || b.updatedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
+      const aTs =
+        a.lastMessageAt?.toMillis?.() ||
+        a.updatedAt?.toMillis?.() ||
+        a.createdAt?.toMillis?.() ||
+        0;
+      const bTs =
+        b.lastMessageAt?.toMillis?.() ||
+        b.updatedAt?.toMillis?.() ||
+        b.createdAt?.toMillis?.() ||
+        0;
       return bTs - aTs;
     });
 
@@ -9078,21 +10098,24 @@ app.get('/api/whatsapp/threads/:accountId', requireFirebaseAuth, async (req, res
     });
 
     // #region agent log
-    const logEntry2 = JSON.stringify({
-      location: 'server.js:5835',
-      message: 'GET /threads/:accountId response',
-      data: {
-        accountId: accountId.substring(0, 30),
-        threadsCount: threads.length,
-        snapshotSize: threadsSnapshot.size,
-        skippedSelf: accountPhone ? 1 : 0,
-        firstThreadIds: threads.slice(0, 3).map(t => t.id.substring(0, 40))
-      },
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      hypothesisId: 'H9'
-    }) + '\n';
-    try { fs.appendFileSync(logPath, logEntry2); } catch (e) {}
+    const logEntry2 =
+      JSON.stringify({
+        location: 'server.js:5835',
+        message: 'GET /threads/:accountId response',
+        data: {
+          accountId: accountId.substring(0, 30),
+          threadsCount: threads.length,
+          snapshotSize: threadsSnapshot.size,
+          skippedSelf: accountPhone ? 1 : 0,
+          firstThreadIds: threads.slice(0, 3).map(t => t.id.substring(0, 40)),
+        },
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        hypothesisId: 'H9',
+      }) + '\n';
+    try {
+      fs.appendFileSync(logPath, logEntry2);
+    } catch (e) {}
     // #endregion
 
     res.json({ success: true, threads, count: threads.length });
@@ -9154,18 +10177,22 @@ app.get('/api/whatsapp/auto-reply-settings/:accountId', requireFirebaseAuth, asy
 app.post('/api/whatsapp/activate-auto-reply-now', async (req, res) => {
   try {
     const ACCOUNT_ID = 'account_prod_26ec0bfb54a6ab88cc3cd7aba6a9a443';
-    const PROMPT = 'Ești un asistent WhatsApp. Răspunzi politicos, FOARTE SCURT (max 2-3 propoziții) și clar în română. Folosește emoji-uri relevante pentru a fi prietenos. Nu inventezi informații. Dacă nu știi ceva, spui clar că nu știi.';
-    
+    const PROMPT =
+      'Ești un asistent WhatsApp. Răspunzi politicos, FOARTE SCURT (max 2-3 propoziții) și clar în română. Folosește emoji-uri relevante pentru a fi prietenos. Nu inventezi informații. Dacă nu știi ceva, spui clar că nu știi.';
+
     if (!firestoreAvailable || !db) {
       return res.status(503).json({ success: false, error: 'Firestore not available' });
     }
-    
-    await db.collection('accounts').doc(ACCOUNT_ID).set({
-      autoReplyEnabled: true,
-      autoReplyPrompt: PROMPT,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
-    
+
+    await db.collection('accounts').doc(ACCOUNT_ID).set(
+      {
+        autoReplyEnabled: true,
+        autoReplyPrompt: PROMPT,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
     return res.json({
       success: true,
       message: 'Auto-reply activated!',
@@ -9295,8 +10322,8 @@ app.get('/api/whatsapp/inbox/:accountId', requireFirebaseAuth, async (req, res) 
       if (threadData.archived) {
         continue;
       }
-      const clientJid = normalizeClientJid(threadData.clientJid) ||
-          (threadId.includes('@') ? threadId : null);
+      const clientJid =
+        normalizeClientJid(threadData.clientJid) || (threadId.includes('@') ? threadId : null);
 
       // Skip self-conversation
       if (accountPhone && clientJid === accountPhone) {
@@ -9315,7 +10342,8 @@ app.get('/api/whatsapp/inbox/:accountId', requireFirebaseAuth, async (req, res) 
 
         messagesSnapshot.forEach(msgDoc => {
           const msgData = msgDoc.data();
-          const messageId = msgData.waMessageId || msgData.messageId || msgData.providerMessageId || msgDoc.id;
+          const messageId =
+            msgData.waMessageId || msgData.messageId || msgData.providerMessageId || msgDoc.id;
           const dedupeKey = `${threadId}__${messageId}`;
           if (seenMessageKeys.has(dedupeKey)) {
             return;
@@ -9327,13 +10355,19 @@ app.get('/api/whatsapp/inbox/:accountId', requireFirebaseAuth, async (req, res) 
             threadId: threadId,
             clientJid: safeClientJid,
             displayName: threadData.displayName || safeClientJid.split('@')[0],
-            contactType: safeClientJid.includes('@g.us') ? 'group' : 
-                        safeClientJid.includes('@lid') ? 'linked_device' : 'phone',
+            contactType: safeClientJid.includes('@g.us')
+              ? 'group'
+              : safeClientJid.includes('@lid')
+                ? 'linked_device'
+                : 'phone',
             ...msgData,
           });
         });
       } catch (err) {
-        console.error(`❌ [${accountId}] Error fetching messages from thread ${threadId}:`, err.message);
+        console.error(
+          `❌ [${accountId}] Error fetching messages from thread ${threadId}:`,
+          err.message
+        );
       }
     }
 
@@ -9347,8 +10381,8 @@ app.get('/api/whatsapp/inbox/:accountId', requireFirebaseAuth, async (req, res) 
     // Limit to requested number
     const limitedMessages = allMessages.slice(0, parseInt(limit));
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       messages: limitedMessages,
       count: limitedMessages.length,
       totalMessages: allMessages.length,
@@ -9380,10 +10414,7 @@ app.get('/api/whatsapp/messages/:accountId/:threadId', requireFirebaseAuth, asyn
     }
 
     // Get messages
-    let messagesQuery = db
-      .collection('threads')
-      .doc(threadId)
-      .collection('messages');
+    let messagesQuery = db.collection('threads').doc(threadId).collection('messages');
 
     if (orderBy === 'createdAt' || orderBy === 'tsClient') {
       messagesQuery = messagesQuery.orderBy('tsClient', 'desc');
@@ -9534,7 +10565,10 @@ app.get('/api/whatsapp/messages', requireFirebaseAuth, async (req, res) => {
       query = query.where('accountId', '==', accountId);
     }
 
-    const threadsSnapshot = await query.orderBy('lastMessageAt', 'desc').limit(parseInt(limit)).get();
+    const threadsSnapshot = await query
+      .orderBy('lastMessageAt', 'desc')
+      .limit(parseInt(limit))
+      .get();
     const threads = [];
 
     for (const threadDoc of threadsSnapshot.docs) {
@@ -9579,7 +10613,9 @@ app.delete('/api/whatsapp/accounts/:id', requireFirebaseAuth, accountLimiter, as
     let accountInFirestore = false;
     let accountStatus = null;
 
-    console.log(`🔍 [DELETE ${accountId}] Account in memory: ${accountExists}, status: ${account?.status || 'N/A'}`);
+    console.log(
+      `🔍 [DELETE ${accountId}] Account in memory: ${accountExists}, status: ${account?.status || 'N/A'}`
+    );
 
     // If not in memory, check Firestore
     if (!account && firestoreAvailable && db) {
@@ -9589,13 +10625,15 @@ app.delete('/api/whatsapp/accounts/:id', requireFirebaseAuth, accountLimiter, as
         if (accountInFirestore) {
           const data = accountDoc.data();
           accountStatus = data.status;
-          console.log(`🔍 [DELETE ${accountId}] Account in Firestore: true, status: ${accountStatus}`);
-          
+          console.log(
+            `🔍 [DELETE ${accountId}] Account in Firestore: true, status: ${accountStatus}`
+          );
+
           // Don't delete if already deleted
           if (data.status === 'deleted') {
             console.log(`⚠️  [DELETE ${accountId}] Account already deleted, skipping`);
-            return res.status(404).json({ 
-              success: false, 
+            return res.status(404).json({
+              success: false,
               error: 'Account already deleted',
               accountId: accountId,
             });
@@ -9614,8 +10652,8 @@ app.delete('/api/whatsapp/accounts/:id', requireFirebaseAuth, accountLimiter, as
 
     if (!accountExists && !accountInFirestore) {
       console.log(`❌ [DELETE ${accountId}] Account not found in memory or Firestore`);
-      return res.status(404).json({ 
-        success: false, 
+      return res.status(404).json({
+        success: false,
         error: 'Account not found',
         accountId: accountId,
       });
@@ -9626,11 +10664,17 @@ app.delete('/api/whatsapp/accounts/:id', requireFirebaseAuth, accountLimiter, as
     // 2. Account status is 'disconnected' or 'needs_qr' (doesn't require Baileys)
     // 3. Account is not 'connected' or 'qr_ready' (would require Baileys)
     const isFirestoreOnly = !accountExists && accountInFirestore;
-    const isSafeToDeleteInPassive = isFirestoreOnly && 
-      (accountStatus === 'disconnected' || accountStatus === 'needs_qr' || accountStatus === 'deleted');
+    const isSafeToDeleteInPassive =
+      isFirestoreOnly &&
+      (accountStatus === 'disconnected' ||
+        accountStatus === 'needs_qr' ||
+        accountStatus === 'deleted');
 
     // If account exists in memory OR is connected/qr_ready, require ACTIVE mode
-    if (accountExists || (!isSafeToDeleteInPassive && accountStatus !== 'disconnected' && accountStatus !== 'needs_qr')) {
+    if (
+      accountExists ||
+      (!isSafeToDeleteInPassive && accountStatus !== 'disconnected' && accountStatus !== 'needs_qr')
+    ) {
       const passiveGuard = await checkPassiveModeGuard(req, res);
       if (passiveGuard) return; // Response already sent
     } else if (!isSafeToDeleteInPassive && !accountExists) {
@@ -9666,16 +10710,21 @@ app.delete('/api/whatsapp/accounts/:id', requireFirebaseAuth, accountLimiter, as
     if (firestoreAvailable && db) {
       try {
         console.log(`💾 [DELETE ${accountId}] Updating Firestore status to 'deleted'...`);
-        
+
         // Use set with merge instead of update to handle case where document doesn't exist
         // This prevents "Document not found" errors
-        await db.collection('accounts').doc(accountId).set({
-          status: 'deleted',
-          deletedAt: admin.firestore.FieldValue.serverTimestamp(),
-          accountId: accountId, // Ensure accountId is set
-        }, { merge: true });
-        
-        console.log(`✅ [DELETE ${accountId}] Account marked as deleted in Firestore (status was: ${accountStatus || 'unknown'})`);
+        await db.collection('accounts').doc(accountId).set(
+          {
+            status: 'deleted',
+            deletedAt: admin.firestore.FieldValue.serverTimestamp(),
+            accountId: accountId, // Ensure accountId is set
+          },
+          { merge: true }
+        );
+
+        console.log(
+          `✅ [DELETE ${accountId}] Account marked as deleted in Firestore (status was: ${accountStatus || 'unknown'})`
+        );
       } catch (error) {
         console.error(`❌ [DELETE ${accountId}] Error deleting from Firestore:`, error.message);
         console.error(`❌ [DELETE ${accountId}] Error code:`, error.code);
@@ -9706,8 +10755,8 @@ app.delete('/api/whatsapp/accounts/:id', requireFirebaseAuth, accountLimiter, as
     }
 
     console.log(`✅ [DELETE ${accountId}] Account deletion completed successfully`);
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Account deleted',
       accountId: accountId,
       deletedFromMemory: accountExists,
@@ -9718,8 +10767,8 @@ app.delete('/api/whatsapp/accounts/:id', requireFirebaseAuth, accountLimiter, as
     console.error(`❌ [DELETE ${accountId || 'unknown'}] Delete account error:`, error.message);
     console.error(`❌ [DELETE ${accountId || 'unknown'}] Error code:`, error.code);
     console.error(`❌ [DELETE ${accountId || 'unknown'}] Stack:`, error.stack?.substring(0, 500));
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: error.message,
       accountId: accountId || 'unknown',
     });
@@ -9727,107 +10776,112 @@ app.delete('/api/whatsapp/accounts/:id', requireFirebaseAuth, accountLimiter, as
 });
 
 // Reset account session (wipe auth and set to needs_qr)
-app.post('/api/whatsapp/accounts/:id/reset', requireFirebaseAuth, accountLimiter, async (req, res) => {
-  // HARD GATE: PASSIVE mode - do NOT mutate account state
-  const passiveGuard = await checkPassiveModeGuard(req, res);
-  if (passiveGuard) return; // Response already sent
-  
-  try {
-    const { id } = req.params;
-    const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
-    
-    console.log(`🔄 [${id}/${requestId}] Reset request received`);
+app.post(
+  '/api/whatsapp/accounts/:id/reset',
+  requireFirebaseAuth,
+  accountLimiter,
+  async (req, res) => {
+    // HARD GATE: PASSIVE mode - do NOT mutate account state
+    const passiveGuard = await checkPassiveModeGuard(req, res);
+    if (passiveGuard) return; // Response already sent
 
-    // Get account (from memory or Firestore)
-    let account = connections.get(id);
-    const accountExists = !!account;
-    const accountInMemory = accountExists;
-    
-    // If not in memory, check Firestore
-    if (!account && firestoreAvailable && db) {
-      try {
-        const accountDoc = await db.collection('accounts').doc(id).get();
-        if (accountDoc.exists) {
-          const data = accountDoc.data();
-          account = { id, ...data };
+    try {
+      const { id } = req.params;
+      const requestId = req.headers['x-request-id'] || `req_${Date.now()}`;
+
+      console.log(`🔄 [${id}/${requestId}] Reset request received`);
+
+      // Get account (from memory or Firestore)
+      let account = connections.get(id);
+      const accountExists = !!account;
+      const accountInMemory = accountExists;
+
+      // If not in memory, check Firestore
+      if (!account && firestoreAvailable && db) {
+        try {
+          const accountDoc = await db.collection('accounts').doc(id).get();
+          if (accountDoc.exists) {
+            const data = accountDoc.data();
+            account = { id, ...data };
+          }
+        } catch (error) {
+          console.error(`⚠️  [${id}/${requestId}] Failed to load from Firestore:`, error.message);
         }
-      } catch (error) {
-        console.error(`⚠️  [${id}/${requestId}] Failed to load from Firestore:`, error.message);
       }
-    }
 
-    if (!account) {
-      console.log(`❌ [${id}/${requestId}] Account not found`);
-      return res.status(404).json({ 
-        success: false, 
-        error: 'account_not_found',
-        message: 'Account not found',
+      if (!account) {
+        console.log(`❌ [${id}/${requestId}] Account not found`);
+        return res.status(404).json({
+          success: false,
+          error: 'account_not_found',
+          message: 'Account not found',
+          accountId: id,
+          requestId: requestId,
+        });
+      }
+
+      // Clear connectingTimeout if exists
+      if (account.connectingTimeout) {
+        clearTimeout(account.connectingTimeout);
+        account.connectingTimeout = null;
+        console.log(`⏱️  [${id}/${requestId}] Cleared connectingTimeout`);
+      }
+
+      // Close socket if exists
+      if (account.sock) {
+        try {
+          account.sock.end();
+          console.log(`🔌 [${id}/${requestId}] Socket closed`);
+        } catch (e) {
+          // Ignore
+        }
+      }
+
+      // Clear session directory on disk
+      try {
+        await clearAccountSession(id);
+        console.log(`🗑️  [${id}/${requestId}] Session directory deleted`);
+      } catch (error) {
+        console.error(`⚠️  [${id}/${requestId}] Failed to clear session:`, error.message);
+        // Continue anyway
+      }
+
+      // Clean up in-memory state
+      if (connections.has(id)) {
+        connections.delete(id);
+      }
+      reconnectAttempts.delete(id);
+      connectionRegistry.release(id);
+
+      // Update Firestore: set status to needs_qr
+      await saveAccountToFirestore(id, {
+        status: 'needs_qr',
+        lastError: 'Session reset by user - requires QR re-pair',
+        requiresQR: true,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        nextRetryAt: null,
+        retryCount: 0,
+      });
+
+      console.log(`✅ [${id}/${requestId}] Reset complete: status=needs_qr, session cleared`);
+
+      res.json({
+        success: true,
+        message: 'Session reset successfully. Use regenerate QR to pair again.',
         accountId: id,
+        status: 'needs_qr',
         requestId: requestId,
       });
-    }
-
-    // Clear connectingTimeout if exists
-    if (account.connectingTimeout) {
-      clearTimeout(account.connectingTimeout);
-      account.connectingTimeout = null;
-      console.log(`⏱️  [${id}/${requestId}] Cleared connectingTimeout`);
-    }
-
-    // Close socket if exists
-    if (account.sock) {
-      try {
-        account.sock.end();
-        console.log(`🔌 [${id}/${requestId}] Socket closed`);
-      } catch (e) {
-        // Ignore
-      }
-    }
-
-    // Clear session directory on disk
-    try {
-      await clearAccountSession(id);
-      console.log(`🗑️  [${id}/${requestId}] Session directory deleted`);
     } catch (error) {
-      console.error(`⚠️  [${id}/${requestId}] Failed to clear session:`, error.message);
-      // Continue anyway
+      console.error(`❌ [${req.params.id}] Reset error:`, error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        requestId: req.headers['x-request-id'] || `req_${Date.now()}`,
+      });
     }
-
-    // Clean up in-memory state
-    if (connections.has(id)) {
-      connections.delete(id);
-    }
-    reconnectAttempts.delete(id);
-    connectionRegistry.release(id);
-
-    // Update Firestore: set status to needs_qr
-    await saveAccountToFirestore(id, {
-      status: 'needs_qr',
-      lastError: 'Session reset by user - requires QR re-pair',
-      requiresQR: true,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      nextRetryAt: null,
-      retryCount: 0,
-    });
-
-    console.log(`✅ [${id}/${requestId}] Reset complete: status=needs_qr, session cleared`);
-
-    res.json({
-      success: true,
-      message: 'Session reset successfully. Use regenerate QR to pair again.',
-      accountId: id,
-      status: 'needs_qr',
-      requestId: requestId,
-    });
-  } catch (error) {
-    console.error(`❌ [${req.params.id}] Reset error:`, error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message,
-      requestId: req.headers['x-request-id'] || `req_${Date.now()}`,
-    });
   }
-});
+);
 
 // ============================================
 // ADMIN ENDPOINTS (Protected with ADMIN_TOKEN)
@@ -10367,7 +11421,9 @@ async function restoreSingleAccount(accountId) {
     // Previously only restored 'connected' accounts, causing accounts to disappear after restart
     const restorableStatuses = ['qr_ready', 'connecting', 'awaiting_scan', 'connected'];
     if (!restorableStatuses.includes(data.status)) {
-      console.log(`⚠️  [${accountId}] Account status is ${data.status}, skipping restore (not in restorable statuses: ${restorableStatuses.join(', ')})`);
+      console.log(
+        `⚠️  [${accountId}] Account status is ${data.status}, skipping restore (not in restorable statuses: ${restorableStatuses.join(', ')})`
+      );
       return;
     }
 
@@ -10381,7 +11437,9 @@ async function restoreSingleAccount(accountId) {
 async function restoreAccount(accountId, data) {
   // HARD GATE: PASSIVE mode - do NOT restore Baileys connections
   if (!waBootstrap.canStartBaileys()) {
-    console.log(`⏸️  [${accountId}] PASSIVE mode - cannot restore Baileys connection (lock not held)`);
+    console.log(
+      `⏸️  [${accountId}] PASSIVE mode - cannot restore Baileys connection (lock not held)`
+    );
     return;
   }
 
@@ -10500,16 +11558,20 @@ async function restoreAccount(accountId, data) {
     account.connectingTimeout = setTimeout(() => {
       const timeoutSeconds = Math.floor(CONNECTING_TIMEOUT / 1000);
       const acc = connections.get(accountId);
-      
+
       // CRITICAL FIX: Don't timeout if status is pairing phase (qr_ready, awaiting_scan, pairing)
       // These states use QR_SCAN_TIMEOUT instead (10 minutes)
       const isPairingPhase = acc && ['qr_ready', 'awaiting_scan', 'pairing'].includes(acc.status);
       if (isPairingPhase) {
-        console.log(`⏰ [${accountId}] Connecting timeout skipped (status: ${acc.status} - pairing phase uses QR_SCAN_TIMEOUT)`);
+        console.log(
+          `⏰ [${accountId}] Connecting timeout skipped (status: ${acc.status} - pairing phase uses QR_SCAN_TIMEOUT)`
+        );
         return; // Don't timeout pairing phase
       }
-      
-      console.log(`⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`);
+
+      console.log(
+        `⏰ [${accountId}] Connecting timeout (${timeoutSeconds}s), transitioning to disconnected`
+      );
       if (acc && acc.status === 'connecting') {
         acc.status = 'disconnected';
         acc.lastError = `Connection timeout - no progress after ${timeoutSeconds}s`;
@@ -10545,17 +11607,19 @@ async function restoreAccount(accountId, data) {
         const QR_SCAN_TIMEOUT_MS = 10 * 60 * 1000;
         if (currentAccountRestore) {
           currentAccountRestore.qrScanTimeout = setTimeout(() => {
-          console.log(`⏰ [${accountId}] QR scan timeout (${QR_SCAN_TIMEOUT_MS / 1000}s) - QR expired`);
-          const acc = connections.get(accountId);
-          if (acc && acc.status === 'qr_ready') {
-            acc.status = 'needs_qr';
-            saveAccountToFirestore(accountId, {
-              status: 'needs_qr',
-              lastError: 'QR scan timeout - QR expired after 10 minutes',
-              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            }).catch(err => console.error(`❌ [${accountId}] QR timeout save failed:`, err));
-          }
-        }, QR_SCAN_TIMEOUT_MS);
+            console.log(
+              `⏰ [${accountId}] QR scan timeout (${QR_SCAN_TIMEOUT_MS / 1000}s) - QR expired`
+            );
+            const acc = connections.get(accountId);
+            if (acc && acc.status === 'qr_ready') {
+              acc.status = 'needs_qr';
+              saveAccountToFirestore(accountId, {
+                status: 'needs_qr',
+                lastError: 'QR scan timeout - QR expired after 10 minutes',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              }).catch(err => console.error(`❌ [${accountId}] QR timeout save failed:`, err));
+            }
+          }, QR_SCAN_TIMEOUT_MS);
         }
 
         try {
@@ -10634,7 +11698,9 @@ async function restoreAccount(accountId, data) {
 
       if (connection === 'close') {
         if (recentlyDeletedIds.has(accountId)) {
-          console.log(`🔌 [${accountId}] connection.update: close ignored (restoreAccount, account deleted)`);
+          console.log(
+            `🔌 [${accountId}] connection.update: close ignored (restoreAccount, account deleted)`
+          );
           return;
         }
         const shouldReconnect =
@@ -10720,7 +11786,9 @@ async function restoreAccount(accountId, data) {
           }
         } else {
           // Terminal logout (401/loggedOut/badSession) - requires re-pairing
-          console.log(`❌ [${accountId}] Explicit cleanup (${reason}), terminal logout - clearing session`);
+          console.log(
+            `❌ [${accountId}] Explicit cleanup (${reason}), terminal logout - clearing session`
+          );
           account.status = 'needs_qr';
 
           // Clear session (disk + Firestore) to ensure fresh pairing
@@ -10767,8 +11835,10 @@ async function restoreAccount(accountId, data) {
     const onHistorySync = async history => {
       try {
         const { chats, contacts, messages } = history || {};
-        const nChats = !chats ? 0 : (Array.isArray(chats) ? chats.length : Object.keys(chats).length);
-        console.log(`📚 [${accountId}] messaging-history.set event received (restoreAccount); history chats: ${nChats}`);
+        const nChats = !chats ? 0 : Array.isArray(chats) ? chats.length : Object.keys(chats).length;
+        console.log(
+          `📚 [${accountId}] messaging-history.set event received (restoreAccount); history chats: ${nChats}`
+        );
 
         if (!firestoreAvailable || !db) {
           console.log(`⚠️  [${accountId}] Firestore not available, skipping history sync`);
@@ -10785,7 +11855,9 @@ async function restoreAccount(accountId, data) {
         } else if (messages && typeof messages === 'object') {
           // Handle different message formats (Baileys may structure differently)
           historyMessages = Object.values(messages).flat();
-          console.log(`📚 [${accountId}] History sync: ${historyMessages.length} messages extracted from history object`);
+          console.log(
+            `📚 [${accountId}] History sync: ${historyMessages.length} messages extracted from history object`
+          );
         }
 
         // Extract chats/contacts metadata
@@ -10802,14 +11874,20 @@ async function restoreAccount(accountId, data) {
         if (chats && nChats > 0) {
           threadResult = await ensureThreadsFromHistoryChats(accountId, chats);
         }
-        console.log(`📚 [${accountId}] messaging-history.set, Thread placeholders from history chats: ${threadResult.created} created.`);
+        console.log(
+          `📚 [${accountId}] messaging-history.set, Thread placeholders from history chats: ${threadResult.created} created.`
+        );
         if (threadResult.created === 0 && nChats > 0) {
           const reason = threadResult.dryRun
             ? 'dry run (HISTORY_SYNC_DRY_RUN)'
-            : (threadResult.skipped > 0 ? 'all existed or skipped' : 'errors during create');
+            : threadResult.skipped > 0
+              ? 'all existed or skipped'
+              : 'errors during create';
           console.log(`📚 [${accountId}] messaging-history.set, 0 created — reason: ${reason}.`);
         } else if (nChats === 0) {
-          console.log(`📚 [${accountId}] messaging-history.set, 0 created — reason: history empty (no chats).`);
+          console.log(
+            `📚 [${accountId}] messaging-history.set, 0 created — reason: history empty (no chats).`
+          );
         }
 
         // Process messages in batches (newest first so recent messages appear sooner as import progresses)
@@ -10819,15 +11897,19 @@ async function restoreAccount(accountId, data) {
             const tsB = extractTimestampMs(b?.messageTimestamp) ?? 0;
             return tsB - tsA; // desc: newest first
           });
-          console.log(`📚 [${accountId}] Starting history sync: ${historyMessages.length} messages (newest first)`);
+          console.log(
+            `📚 [${accountId}] Starting history sync: ${historyMessages.length} messages (newest first)`
+          );
           const result = await saveMessagesBatch(accountId, historyMessages, 'history_sync');
-          
-          console.log(`✅ [${accountId}] History sync complete: ${result.saved} saved, ${result.skipped} skipped, ${result.errors} errors`);
-          
+
+          console.log(
+            `✅ [${accountId}] History sync complete: ${result.saved} saved, ${result.skipped} skipped, ${result.errors} errors`
+          );
+
           // Update account metadata
           await saveAccountToFirestore(accountId, {
             lastHistorySyncAt: admin.firestore.FieldValue.serverTimestamp(),
-            historySyncCount: (result.saved || 0),
+            historySyncCount: result.saved || 0,
             lastHistorySyncResult: {
               saved: result.saved || 0,
               skipped: result.skipped || 0,
@@ -10835,14 +11917,18 @@ async function restoreAccount(accountId, data) {
               total: historyMessages.length,
               dryRun: result.dryRun || false,
             },
-          }).catch(err => console.error(`❌ [${accountId}] Failed to update history sync marker:`, err.message));
+          }).catch(err =>
+            console.error(`❌ [${accountId}] Failed to update history sync marker:`, err.message)
+          );
         } else {
           console.log(`⚠️  [${accountId}] History sync: No messages found in history`);
         }
 
         // Chats: we create thread placeholders via ensureThreadsFromHistoryChats above
         if (historyChats.length > 0 && !HISTORY_SYNC_DRY_RUN) {
-          console.log(`📚 [${accountId}] History sync: ${historyChats.length} chats → thread placeholders created`);
+          console.log(
+            `📚 [${accountId}] History sync: ${historyChats.length} chats → thread placeholders created`
+          );
         }
 
         // 📇 Save contacts to Firestore
@@ -10854,7 +11940,6 @@ async function restoreAccount(accountId, data) {
         await enrichThreadsFromContacts(accountId).catch(err =>
           console.error(`❌ [${accountId}] enrichThreadsFromContacts failed:`, err.message)
         );
-
       } catch (error) {
         console.error(`❌ [${accountId}] History sync error:`, error.message);
         console.error(`❌ [${accountId}] Stack:`, error.stack);
@@ -10874,7 +11959,7 @@ async function restoreAccount(accountId, data) {
     const onMessagesUpdate = async updates => {
       try {
         console.log(`🔄 [${accountId}] messages.update EVENT: ${updates.length} updates`);
-        
+
         if (!firestoreAvailable || !db) {
           return;
         }
@@ -10906,13 +11991,17 @@ async function restoreAccount(accountId, data) {
             if (status && remoteJid) {
               const threadId = `${accountId}__${remoteJid}`;
               const canonicalId = await resolveMessageDocId(db, accountId, messageId, messageId);
-              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(canonicalId);
-              
+              const messageRef = db
+                .collection('threads')
+                .doc(threadId)
+                .collection('messages')
+                .doc(canonicalId);
+
               const updateFields = {
                 status,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
               };
-              
+
               if (deliveredAt) {
                 updateFields.deliveredAt = deliveredAt;
               }
@@ -10921,7 +12010,9 @@ async function restoreAccount(accountId, data) {
               }
 
               await messageRef.set(updateFields, { merge: true });
-              console.log(`✅ [${hashForLog(accountId)}] Updated message ${hashForLog(messageId)} status to ${status}`);
+              console.log(
+                `✅ [${hashForLog(accountId)}] Updated message ${hashForLog(messageId)} status to ${status}`
+              );
             }
           } catch (updateError) {
             console.error(`❌ [${accountId}] Error updating message receipt:`, updateError.message);
@@ -10936,7 +12027,7 @@ async function restoreAccount(accountId, data) {
     const onMessageReceiptUpdate = async receipts => {
       try {
         console.log(`📬 [${accountId}] message-receipt.update EVENT: ${receipts.length} receipts`);
-        
+
         if (!firestoreAvailable || !db) {
           return;
         }
@@ -10952,15 +12043,24 @@ async function restoreAccount(accountId, data) {
             if (receiptData.readTimestamp && remoteJid) {
               const threadId = `${accountId}__${remoteJid}`;
               const canonicalId = await resolveMessageDocId(db, accountId, messageId, messageId);
-              const messageRef = db.collection('threads').doc(threadId).collection('messages').doc(canonicalId);
-              
-              await messageRef.set({
-                status: 'read',
-                readAt: admin.firestore.Timestamp.fromMillis(receiptData.readTimestamp * 1000),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              }, { merge: true });
-              
-              console.log(`✅ [${hashForLog(accountId)}] Updated message ${hashForLog(messageId)} receipt: read`);
+              const messageRef = db
+                .collection('threads')
+                .doc(threadId)
+                .collection('messages')
+                .doc(canonicalId);
+
+              await messageRef.set(
+                {
+                  status: 'read',
+                  readAt: admin.firestore.Timestamp.fromMillis(receiptData.readTimestamp * 1000),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+
+              console.log(
+                `✅ [${hashForLog(accountId)}] Updated message ${hashForLog(messageId)} receipt: read`
+              );
             }
           } catch (receiptError) {
             console.error(`❌ [${accountId}] Error updating receipt:`, receiptError.message);
@@ -11013,11 +12113,11 @@ async function restoreAccountsFromFirestore() {
     // This ensures accounts in pairing phase remain visible and can continue pairing after restart
     // NOTE: Firestore 'in' operator supports up to 10 values, we have 5, so it's safe
     const pairingStatuses = ['qr_ready', 'connecting', 'awaiting_scan', 'connected', 'needs_qr'];
-    const snapshot = await db.collection('accounts')
-      .where('status', 'in', pairingStatuses)
-      .get();
+    const snapshot = await db.collection('accounts').where('status', 'in', pairingStatuses).get();
 
-    console.log(`📦 Found ${snapshot.size} accounts in Firestore (statuses: ${pairingStatuses.join(', ')})`);
+    console.log(
+      `📦 Found ${snapshot.size} accounts in Firestore (statuses: ${pairingStatuses.join(', ')})`
+    );
 
     // Clean up disk sessions that are NOT in Firestore (SAFE: move to orphaned folder, don't delete)
     // fs.renameSync(sessionPath, orphanedPath)
@@ -11027,9 +12127,9 @@ async function restoreAccountsFromFirestore() {
     const orphanedDir = path.join(sessionsDir, '_orphaned');
 
     if (fs.existsSync(sessionsDir)) {
-      const diskSessions = fs.readdirSync(sessionsDir).filter(
-        name => name !== '_orphaned' && !name.startsWith('.')
-      );
+      const diskSessions = fs
+        .readdirSync(sessionsDir)
+        .filter(name => name !== '_orphaned' && !name.startsWith('.'));
       console.log(`🧹 Checking ${diskSessions.length} disk sessions...`);
 
       // Only delete orphaned sessions if explicitly enabled via env var
@@ -11038,7 +12138,7 @@ async function restoreAccountsFromFirestore() {
       for (const sessionId of diskSessions) {
         if (!allAccountIds.has(sessionId)) {
           const sessionPath = path.join(sessionsDir, sessionId);
-          
+
           if (ORPHAN_SESSION_DELETE) {
             // Hard delete (only if explicitly enabled)
             console.log(`🗑️  [ORPHAN_DELETE] Deleting orphaned session: ${sessionId}`);
@@ -11047,13 +12147,15 @@ async function restoreAccountsFromFirestore() {
             // Safe move to orphaned folder (default behavior)
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const orphanedPath = path.join(orphanedDir, `${timestamp}_${sessionId}`);
-            
+
             try {
               if (!fs.existsSync(orphanedDir)) {
                 fs.mkdirSync(orphanedDir, { recursive: true });
               }
               fs.renameSync(sessionPath, orphanedPath);
-              console.log(`📦 [ORPHAN] Moved orphaned session to _orphaned folder: ${sessionId} -> ${path.basename(orphanedPath)}`);
+              console.log(
+                `📦 [ORPHAN] Moved orphaned session to _orphaned folder: ${sessionId} -> ${path.basename(orphanedPath)}`
+              );
             } catch (error) {
               console.error(`⚠️  Failed to move orphaned session ${sessionId}:`, error.message);
             }
@@ -11073,18 +12175,24 @@ async function restoreAccountsFromFirestore() {
       // Guard: Skip terminal logout accounts (require explicit QR regeneration)
       const terminalStatuses = ['needs_qr', 'logged_out'];
       if (terminalStatuses.includes(data.status) || data.requiresQR === true) {
-        console.log(`⏸️  [${accountId}] Skipping restore (status: ${data.status}, requiresQR: ${data.requiresQR}) - use Regenerate QR`);
+        console.log(
+          `⏸️  [${accountId}] Skipping restore (status: ${data.status}, requiresQR: ${data.requiresQR}) - use Regenerate QR`
+        );
         continue;
       }
 
       // Add 2-5s jitter between account restores (staggered boot to avoid rate limiting)
       if (i > 0) {
         const jitter = Math.floor(Math.random() * 3000) + 2000; // 2-5 seconds
-        console.log(`⏳ Waiting ${jitter / 1000}s before restoring next account (staggered boot)...`);
+        console.log(
+          `⏳ Waiting ${jitter / 1000}s before restoring next account (staggered boot)...`
+        );
         await new Promise(resolve => setTimeout(resolve, jitter));
       }
 
-      console.log(`🔄 [${accountId}] Restoring account (status: ${data.status}, name: ${data.name || 'N/A'})`);
+      console.log(
+        `🔄 [${accountId}] Restoring account (status: ${data.status}, name: ${data.name || 'N/A'})`
+      );
       await restoreAccount(accountId, data);
     }
 
@@ -11094,19 +12202,27 @@ async function restoreAccountsFromFirestore() {
     // CRITICAL: Check PASSIVE mode again before starting connections
     // This is necessary because waBootstrap may not be fully initialized when restoreAccountsFromFirestore() is called
     const canStartConnections = waBootstrap.canStartBaileys();
-    console.log(`🔍 [DEBUG] Starting connections for restored accounts: canStartBaileys()=${canStartConnections}`);
-    
+    console.log(
+      `🔍 [DEBUG] Starting connections for restored accounts: canStartBaileys()=${canStartConnections}`
+    );
+
     if (!canStartConnections) {
-      console.log('⏸️  PASSIVE mode - skipping connection start for restored accounts (lock not held)');
+      console.log(
+        '⏸️  PASSIVE mode - skipping connection start for restored accounts (lock not held)'
+      );
       return; // Exit early - don't start connections in PASSIVE mode
     }
-    
+
     console.log('🔌 Starting connections for restored accounts (staggered boot)...');
-    
+
     // Sort accounts deterministically for predictable boot order
     // CRITICAL FIX: Include accounts in pairing phase (qr_ready, connecting, awaiting_scan) + connected
     const sortedConnections = Array.from(connections.entries())
-      .filter(([accountId, account]) => !account.sock && ['qr_ready', 'connecting', 'awaiting_scan', 'connected'].includes(account.status))
+      .filter(
+        ([accountId, account]) =>
+          !account.sock &&
+          ['qr_ready', 'connecting', 'awaiting_scan', 'connected'].includes(account.status)
+      )
       .sort(([a], [b]) => a.localeCompare(b));
 
     for (let i = 0; i < sortedConnections.length; i++) {
@@ -11115,7 +12231,9 @@ async function restoreAccountsFromFirestore() {
       // Add 2-5s jitter between connections (staggered boot to avoid rate limiting)
       if (i > 0) {
         const jitter = Math.floor(Math.random() * 3000) + 2000; // 2-5 seconds
-        console.log(`⏳ Waiting ${jitter / 1000}s before connecting next account (staggered boot)...`);
+        console.log(
+          `⏳ Waiting ${jitter / 1000}s before connecting next account (staggered boot)...`
+        );
         await new Promise(resolve => setTimeout(resolve, jitter));
       }
 
@@ -11156,7 +12274,8 @@ async function restoreAccountsFromDisk() {
   }
 
   try {
-    const sessionDirs = fs.readdirSync(authDir, { withFileTypes: true })
+    const sessionDirs = fs
+      .readdirSync(authDir, { withFileTypes: true })
       .filter(dirent => dirent.isDirectory())
       .map(dirent => dirent.name);
 
@@ -11179,7 +12298,9 @@ async function restoreAccountsFromDisk() {
           // Add 2-5s jitter between account restores (staggered boot to avoid rate limiting)
           if (i > 0) {
             const jitter = Math.floor(Math.random() * 3000) + 2000; // 2-5 seconds
-            console.log(`⏳ Waiting ${jitter / 1000}s before restoring next account from disk (staggered boot)...`);
+            console.log(
+              `⏳ Waiting ${jitter / 1000}s before restoring next account from disk (staggered boot)...`
+            );
             await new Promise(resolve => setTimeout(resolve, jitter));
           }
 
@@ -11664,7 +12785,7 @@ app.get('/api/status/dashboard', async (req, res) => {
 
       // Get reconnectAttempts from Map (current active reconnection attempts)
       const reconnectAttemptsCount = reconnectAttempts.get(accountId) || 0;
-      
+
       // Get lastSeen from lastEventAt or lastMessageAt (most recent activity)
       const lastSeen = account.lastEventAt || account.lastMessageAt || null;
 
@@ -11816,7 +12937,7 @@ app.listen(PORT, '0.0.0.0', async () => {
     // This ensures PASSIVE mode gates work correctly during restore
     console.log('🔒 Initializing WA system with lock acquisition...');
     const waInitResult = await waBootstrap.initializeWASystem(db);
-    
+
     // Get lock status for startup log
     let lockInfo = 'unknown';
     try {
@@ -11833,9 +12954,13 @@ app.listen(PORT, '0.0.0.0', async () => {
     } catch (error) {
       lockInfo = `error: ${error.message}`;
     }
-    
-    console.log(`🔒 WA system initialized: mode=${waInitResult.mode}, instanceId=${waInitResult.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown'}, lock=${lockInfo}`);
-    console.log(`📋 Startup info: commit=${COMMIT_HASH || 'unknown'}, instanceId=${process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown'}, mode=${waInitResult.mode}, lockInfo=${lockInfo}`);
+
+    console.log(
+      `🔒 WA system initialized: mode=${waInitResult.mode}, instanceId=${waInitResult.instanceId || process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown'}, lock=${lockInfo}`
+    );
+    console.log(
+      `📋 Startup info: commit=${COMMIT_HASH || 'unknown'}, instanceId=${process.env.DEPLOYMENT_ID || process.env.HOSTNAME || 'unknown'}, mode=${waInitResult.mode}, lockInfo=${lockInfo}`
+    );
 
     // Initialize evidence endpoints (after baileys interface + wa-bootstrap)
     new EvidenceEndpoints(
@@ -11869,15 +12994,18 @@ app.listen(PORT, '0.0.0.0', async () => {
   process.on('wa-bootstrap:active', async ({ instanceId }) => {
     console.log(`🔔 [Auto-Restore] PASSIVE → ACTIVE transition detected (instance: ${instanceId})`);
     console.log(`🔄 [Auto-Restore] Triggering account restoration from Firestore...`);
-    
+
     try {
       // Restore accounts from Firestore now that we have the lock
       await restoreAccountsFromFirestore();
       await restoreAccountsFromDisk();
-      
+
       console.log(`✅ [Auto-Restore] Account restoration complete after ACTIVE transition`);
     } catch (error) {
-      console.error(`❌ [Auto-Restore] Failed to restore accounts after ACTIVE transition:`, error.message);
+      console.error(
+        `❌ [Auto-Restore] Failed to restore accounts after ACTIVE transition:`,
+        error.message
+      );
     }
   });
 
@@ -11941,7 +13069,9 @@ app.listen(PORT, '0.0.0.0', async () => {
       if (outboxSnapshot.empty) return;
 
       const workerStartTime = Date.now();
-      console.log(`📤 Outbox worker [${WORKER_ID}]: processing ${outboxSnapshot.size} queued messages`);
+      console.log(
+        `📤 Outbox worker [${WORKER_ID}]: processing ${outboxSnapshot.size} queued messages`
+      );
 
       for (const doc of outboxSnapshot.docs) {
         const requestId = doc.id;
@@ -11951,7 +13081,7 @@ app.listen(PORT, '0.0.0.0', async () => {
         let claimed = false;
         let data = null;
         try {
-          await db.runTransaction(async (transaction) => {
+          await db.runTransaction(async transaction => {
             const outboxRef = db.collection('outbox').doc(requestId);
             const outboxDoc = await transaction.get(outboxRef);
 
@@ -11979,7 +13109,9 @@ app.listen(PORT, '0.0.0.0', async () => {
             }
 
             // Claim the message atomically
-            const leaseUntilTimestamp = admin.firestore.Timestamp.fromMillis(Date.now() + LEASE_DURATION_MS);
+            const leaseUntilTimestamp = admin.firestore.Timestamp.fromMillis(
+              Date.now() + LEASE_DURATION_MS
+            );
             transaction.update(outboxRef, {
               status: 'processing',
               claimedBy: WORKER_ID,
@@ -12098,10 +13230,13 @@ app.listen(PORT, '0.0.0.0', async () => {
           // Refresh lease while sending (extend lease)
           const leaseRefreshInterval = setInterval(async () => {
             try {
-              await db.collection('outbox').doc(requestId).update({
-                leaseUntil: admin.firestore.Timestamp.fromMillis(Date.now() + LEASE_DURATION_MS),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-              });
+              await db
+                .collection('outbox')
+                .doc(requestId)
+                .update({
+                  leaseUntil: admin.firestore.Timestamp.fromMillis(Date.now() + LEASE_DURATION_MS),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
             } catch (e) {
               // Ignore refresh errors (message may have been completed)
             }
@@ -12122,19 +13257,22 @@ app.listen(PORT, '0.0.0.0', async () => {
           clearInterval(leaseRefreshInterval);
 
           // Update outbox: status = sent
-          await db.collection('outbox').doc(requestId).update({
-            status: 'sent',
-            success: true,
-            providerMessageId: result.key.id,
-            backendResponse: {
+          await db
+            .collection('outbox')
+            .doc(requestId)
+            .update({
               status: 'sent',
+              success: true,
               providerMessageId: result.key.id,
-            },
-            sentAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            lastError: null,
-            leaseUntil: null, // Release lease
-          });
+              backendResponse: {
+                status: 'sent',
+                providerMessageId: result.key.id,
+              },
+              sentAt: admin.firestore.FieldValue.serverTimestamp(),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              lastError: null,
+              leaseUntil: null, // Release lease
+            });
 
           // Update existing optimistic message doc (proxy uses requestId as doc id). Do NOT create a new doc.
           if (threadId && firestoreAvailable && db) {
@@ -12174,20 +13312,24 @@ app.listen(PORT, '0.0.0.0', async () => {
           );
 
           const newAttemptCount = attemptCount + 1;
-          const errorMessage = (error && error.message) ? error.message : 'unknown_error';
+          const errorMessage = error && error.message ? error.message : 'unknown_error';
           const isPassiveError =
             errorMessage.toLowerCase().includes('passive') ||
             errorMessage.toLowerCase().includes('lock not acquired') ||
             errorMessage.toLowerCase().includes('instance_passive');
 
           // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 60s
-          const backoffMs = isPassiveError ? 5000 : Math.min(1000 * Math.pow(2, newAttemptCount), 60000);
+          const backoffMs = isPassiveError
+            ? 5000
+            : Math.min(1000 * Math.pow(2, newAttemptCount), 60000);
           const nextAttemptAt = new Date(Date.now() + backoffMs);
 
           // Mark as failed after MAX_RETRY_ATTEMPTS (but never fail on passive lock errors)
           const newStatus = isPassiveError
             ? 'queued'
-            : (newAttemptCount >= MAX_RETRY_ATTEMPTS ? 'failed' : 'queued');
+            : newAttemptCount >= MAX_RETRY_ATTEMPTS
+              ? 'failed'
+              : 'queued';
 
           // Clear lease refresh interval
           clearInterval(leaseRefreshInterval);
@@ -12284,12 +13426,12 @@ async function gracefulShutdown(signal) {
       );
     }
   }
-  
+
   // Wait for session flush with timeout (30 seconds)
   const flushTimeout = setTimeout(() => {
     console.error('⚠️  Session flush timeout after 30s, proceeding with shutdown');
   }, 30000);
-  
+
   try {
     await Promise.allSettled(flushPromises);
     clearTimeout(flushTimeout);
@@ -12341,10 +13483,10 @@ app.use((error, req, res, next) => {
   const traceId = `trace_${Date.now()}_${Math.random().toString(36).substring(7)}`;
   console.error(`❌ [${traceId}] Unhandled error in ${req.method} ${req.path}:`, error.message);
   console.error(`❌ [${traceId}] Stack:`, error.stack?.substring(0, 300));
-  
+
   // Don't expose stack in production
   const isDev = process.env.NODE_ENV !== 'production';
-  
+
   res.status(error.status || 500).json({
     success: false,
     error: error.message || 'Internal server error',

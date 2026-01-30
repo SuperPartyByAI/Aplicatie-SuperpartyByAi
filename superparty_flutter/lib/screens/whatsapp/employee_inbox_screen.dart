@@ -43,6 +43,9 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
   final Map<String, StreamSubscription<QuerySnapshot>> _threadSubscriptions = {};
   final Map<String, List<Map<String, dynamic>>> _threadsByAccount = {};
 
+  // Debounce for UI rebuilds to prevent excessive processing when multiple streams update
+  Timer? _rebuildDebounceTimer;
+
   @override
   void initState() {
     super.initState();
@@ -53,6 +56,8 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _rebuildDebounceTimer?.cancel();
+    _rebuildDebounceTimer = null;
     for (final subscription in _threadSubscriptions.values) {
       subscription.cancel();
     }
@@ -177,7 +182,7 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
               'accountId': accountId,
             };
           }).toList();
-          _rebuildThreads();
+          _throttledRebuild();
         },
         onError: (error) {
           debugPrint('[EmployeeInboxScreen] Thread stream error ($accountId): $error');
@@ -264,6 +269,15 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
     }
     
     return 0;
+  }
+
+  void _throttledRebuild() {
+    _rebuildDebounceTimer?.cancel();
+    _rebuildDebounceTimer = Timer(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        _rebuildThreads();
+      }
+    });
   }
 
   void _rebuildThreads() {

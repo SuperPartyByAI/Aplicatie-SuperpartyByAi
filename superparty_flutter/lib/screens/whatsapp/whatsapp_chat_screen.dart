@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:uuid/uuid.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -105,6 +106,11 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   final Map<String, bool> _videoInitializing = {}; // Track initialization state
   final Map<String, bool> _audioInitializing = {}; // Track initialization state
   
+  // Resource management
+  String? _currentlyPlayingAudioKey;
+  final List<String> _videoCreationOrder = [];
+  static const int _maxVideoControllers = 5; // Reduced limit for better performance
+  
   // Listen to video player state changes
   void _setupVideoPlayerListener(String messageKey, VideoPlayerController controller) {
     controller.addListener(() {
@@ -155,7 +161,19 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     try {
       // Create controller asynchronously - this is non-blocking
       final controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
+      
+      // Manage resources: dispose oldest if limit reached
+      if (_videoControllers.length >= _maxVideoControllers) {
+        final oldestKey = _videoCreationOrder.isNotEmpty ? _videoCreationOrder.removeAt(0) : null;
+        if (oldestKey != null) {
+          final oldestController = _videoControllers.remove(oldestKey);
+          oldestController?.dispose();
+          _videoPlaying.remove(oldestKey);
+        }
+      }
+      
       _videoControllers[messageKey] = controller;
+      _videoCreationOrder.add(messageKey);
       _setupVideoPlayerListener(messageKey, controller);
       
       // Initialize on background - this may take time but won't block UI
@@ -232,6 +250,34 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         });
       }
       return null;
+    }
+  }
+
+  void _handleAudioAction(String messageKey, AudioPlayer player, bool isPlaying) {
+    if (isPlaying) {
+      player.pause();
+      if (mounted) {
+        setState(() {
+          _audioPlaying[messageKey] = false;
+        });
+      }
+    } else {
+      // Stop previous audio if any
+      if (_currentlyPlayingAudioKey != null && _currentlyPlayingAudioKey != messageKey) {
+        final prevPlayer = _audioPlayers[_currentlyPlayingAudioKey];
+        if (prevPlayer != null) {
+          prevPlayer.pause();
+          _audioPlaying[_currentlyPlayingAudioKey!] = false;
+        }
+      }
+      
+      _currentlyPlayingAudioKey = messageKey;
+      player.play();
+      if (mounted) {
+        setState(() {
+          _audioPlaying[messageKey] = true;
+        });
+      }
     }
   }
 
@@ -515,14 +561,6 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                     onPressed: () {
                       if (isInitialized && controller != null) {
                         controller.play();
-                        // Use microtask to avoid blocking during build
-                        Future.microtask(() {
-                          if (mounted) {
-                            setState(() {
-                              _videoPlaying[messageKey] = true;
-                            });
-                          }
-                        });
                       }
                     },
                   ),
@@ -532,14 +570,6 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                 GestureDetector(
                   onTap: () {
                     controller.pause();
-                    // Use microtask to avoid blocking during build
-                    Future.microtask(() {
-                      if (mounted) {
-                        setState(() {
-                          _videoPlaying[messageKey] = false;
-                        });
-                      }
-                    });
                   },
                   child: Container(
                     color: Colors.transparent,
@@ -656,22 +686,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                           color: isOutbound ? Colors.white : Colors.blue[700],
                           size: 32,
                         ),
-                        onPressed: () async {
-                          // Use microtask to avoid blocking during build
-                          Future.microtask(() {
-                            if (mounted) {
-                              setState(() {
-                                if (isPlaying) {
-                                  player.pause();
-                                  _audioPlaying[messageKey] = false;
-                                } else {
-                                  player.play();
-                                  _audioPlaying[messageKey] = true;
-                                }
-                              });
-                            }
-                          });
-                        },
+                        onPressed: () => _handleAudioAction(messageKey, player, isPlaying),
                       ),
                   const SizedBox(width: 8),
                   Icon(
@@ -883,10 +898,11 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   void _scrollToBottom({bool force = false}) {
     if (!_scrollController.hasClients) return;
     final pos = _scrollController.position;
-    final nearBottom = (pos.maxScrollExtent - pos.pixels) < 200;
+    // For reverse: true, bottom is 0, top is maxScrollExtent
+    final nearBottom = pos.pixels < 200;
     if (!force && !nearBottom) return;
     _scrollController.animateTo(
-      pos.maxScrollExtent,
+      0,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
     );
@@ -933,80 +949,33 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       );
     }
     
-    // Regular text - check if it contains URLs
-    final urlPattern = RegExp(r'(https?://[^\s]+|maps\.google\.com[^\s]*)', caseSensitive: false);
-    final matches = urlPattern.allMatches(body);
-    
-    if (matches.isEmpty) {
-      // No URLs found, return plain text
-      return Text(
-        body,
-        style: TextStyle(
-          color: isOutbound ? Colors.white : Colors.black87,
-          fontSize: 15,
-        ),
-      );
-    }
-    
-    // Build RichText with clickable URLs
-    final textSpans = <TextSpan>[];
-    int lastEnd = 0;
-    
-    for (final match in matches) {
-      // Add text before URL
-      if (match.start > lastEnd) {
-        textSpans.add(TextSpan(
-          text: body.substring(lastEnd, match.start),
-          style: TextStyle(
-            color: isOutbound ? Colors.white : Colors.black87,
-            fontSize: 15,
-          ),
-        ));
-      }
-      
-      // Add clickable URL
-      final url = match.group(0)!;
-      textSpans.add(TextSpan(
-        text: url,
-        style: TextStyle(
-          color: isOutbound ? Colors.white70 : Colors.blue[700],
-          fontSize: 15,
-          decoration: TextDecoration.underline,
-        ),
-        recognizer: TapGestureRecognizer()
-          ..onTap = () async {
-            try {
-              final uri = Uri.parse(url);
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            } catch (e) {
-              debugPrint('[ChatScreen] Error launching URL: $e');
-            }
-          },
-      ));
-      
-      lastEnd = match.end;
-    }
-    
-    // Add remaining text
-    if (lastEnd < body.length) {
-      textSpans.add(TextSpan(
-        text: body.substring(lastEnd),
-        style: TextStyle(
-          color: isOutbound ? Colors.white : Colors.black87,
-          fontSize: 15,
-        ),
-      ));
-    }
-    
-    return RichText(
-      text: TextSpan(children: textSpans),
+    // Regular text - build with Linkify to handle URLs without memory leaks
+    return Linkify(
+      text: body,
+      style: TextStyle(
+        color: isOutbound ? Colors.white : Colors.black87,
+        fontSize: 15,
+      ),
+      linkStyle: TextStyle(
+        color: isOutbound ? Colors.white70 : Colors.blue[700],
+        fontSize: 15,
+        decoration: TextDecoration.underline,
+      ),
+      onOpen: (link) async {
+        try {
+          final uri = Uri.parse(link.url);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+        } catch (e) {
+          debugPrint('[ChatScreen] Error launching URL: $e');
+        }
+      },
     );
   }
 
-  /// Upload file to Firebase Storage and return download URL
-  Future<String?> _uploadFile(File file, String fileName) async {
+  /// Upload bytes to Firebase Storage and return download URL
+  Future<String?> _uploadFile(Uint8List bytes, String fileName, {String? contentType}) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return null;
@@ -1017,7 +986,12 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
           .child(user.uid)
           .child('${Uuid().v4()}_$fileName');
 
-      final uploadTask = storageRef.putFile(file);
+      // Use putData instead of putFile for Web compatibility
+      final uploadTask = storageRef.putData(
+        bytes,
+        SettableMetadata(contentType: contentType),
+      );
+      
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
       return downloadUrl;
@@ -1039,9 +1013,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         const SnackBar(content: Text('Se încarcă imaginea...')),
       );
 
-      final file = File(image.path);
+      final bytes = await image.readAsBytes();
       final fileName = path.basename(image.path);
-      final downloadUrl = await _uploadFile(file, fileName);
+      final downloadUrl = await _uploadFile(bytes, fileName, contentType: 'image/jpeg');
 
       if (downloadUrl != null && mounted) {
         // Send image link as text (varianta minimă)
@@ -1073,9 +1047,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         const SnackBar(content: Text('Se încarcă imaginea...')),
       );
 
-      final file = File(image.path);
+      final bytes = await image.readAsBytes();
       final fileName = path.basename(image.path);
-      final downloadUrl = await _uploadFile(file, fileName);
+      final downloadUrl = await _uploadFile(bytes, fileName, contentType: 'image/jpeg');
 
       if (downloadUrl != null && mounted) {
         // Send image link as text (varianta minimă)
@@ -1098,19 +1072,33 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   /// Pick file (PDF, DOC, etc.)
   Future<void> _pickFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(withData: false);
-      if (result == null || result.files.single.path == null) return;
+      final result = await FilePicker.platform.pickFiles(withData: kIsWeb);
+      if (result == null) return;
 
-      final filePath = result.files.single.path!;
+      Uint8List? bytes;
+      if (kIsWeb) {
+        bytes = result.files.single.bytes;
+      } else if (result.files.single.path != null) {
+        bytes = await File(result.files.single.path!).readAsBytes();
+      }
+      
+      if (bytes == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Eroare la citirea fișierului'), backgroundColor: Colors.red),
+          );
+        }
+        return;
+      }
+
       final fileName = result.files.single.name;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Se încarcă fișierul...')),
+        );
+      }
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Se încarcă fișierul...')),
-      );
-
-      final file = File(filePath);
-      final downloadUrl = await _uploadFile(file, fileName);
+      final downloadUrl = await _uploadFile(bytes, fileName);
 
       if (downloadUrl != null && mounted) {
         // Send file link as text (varianta minimă)
@@ -1284,16 +1272,17 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     // Dedupe by doc.id so each message appears once.
     final seen = <String>{};
     final deduped = byKey.values.where((d) => seen.add(d.id)).toList();
-    // Strict chronological order (like WhatsApp): oldest first, newest last. No timestamp → treat as oldest.
+    // For reverse: true, we want newest messages first in the list
+    // (they will appear at the bottom of the screen).
     deduped.sort((a, b) {
       final aData = a.data() as Map<String, dynamic>;
       final bData = b.data() as Map<String, dynamic>;
       final aSort = _extractSortMillis(aData);
       final bSort = _extractSortMillis(bData);
       if (aSort != bSort) {
-        return aSort.compareTo(bSort); // Ascending (oldest first)
+        return bSort.compareTo(aSort); // Descending (newest first)
       }
-      return a.id.compareTo(b.id);
+      return b.id.compareTo(a.id); // Dedupe fallback
     });
     return deduped;
   }
@@ -1887,7 +1876,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                               return ListView.builder(
                                 controller: _scrollController,
                                 key: PageStorageKey('whatsapp-chat-$effectiveThreadId'),
-                                reverse: false,
+                                reverse: true,
                                 padding: const EdgeInsets.all(16),
                                 itemCount: dedupedDocs.length,
                                 itemBuilder: (context, index) {

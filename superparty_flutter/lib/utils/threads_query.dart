@@ -9,5 +9,5 @@ Query<Map<String, dynamic>> buildThreadsQuery(String accountId) {
       .collection('threads')
       .where('accountId', isEqualTo: accountId)
       .orderBy('lastMessageAt', descending: true)
-      .limit(1000);
+      .limit(100);
 }

@@ -50,8 +50,10 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
   final Map<String, List<Map<String, dynamic>>> _threadsByAccount = {};
   Set<String> _activeAccountIds = {};
   
-  // Auto-refresh timer: refresh threads every 10 seconds to catch new messages
-  Timer? _autoRefreshTimer;
+  // Auto-refresh timer removed as Firestore listeners handle real-time updates
+  
+  // Debounce for UI rebuilds to prevent excessive processing when multiple streams update
+  Timer? _rebuildDebounceTimer;
 
   /// Auto-backfill once per session so istoricul de pe telefon apare automat.
   bool _hasRunAutoBackfill = false;
@@ -159,26 +161,13 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     // Defer auth diagnostics to avoid Firestore/token work during initial load
     Future.delayed(const Duration(milliseconds: 1500), _logAuthDiagnostics);
     _loadAccounts();
-    // Start auto-refresh timer: refresh threads every 10 seconds
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-      if (mounted && _accounts.isNotEmpty) {
-        // Only refresh if we have connected accounts
-        final hasConnected = _accounts.any((a) => a['status'] == 'connected');
-        if (hasConnected) {
-          if (kDebugMode) {
-            debugPrint('[StaffInboxScreen] Auto-refresh: refreshing threads (10s interval)');
-          }
-          _loadThreads(forceRefresh: false); // Force refresh to re-subscribe listeners
-        }
-      }
-    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _autoRefreshTimer?.cancel();
-    _autoRefreshTimer = null;
+    _rebuildDebounceTimer?.cancel();
+    _rebuildDebounceTimer = null;
     for (final subscription in _threadSubscriptions.values) {
       subscription.cancel();
     }
@@ -328,14 +317,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
           if (kDebugMode) {
             debugPrint(
                 '[StaffInboxScreen] Thread stream snapshot accountId=$accountId docs=${threads.length}');
-            if (threads.isEmpty) {
-              debugPrint('[StaffInboxScreen] 0 docs for accountId=$accountId');
-            }
-            debugPrint(
-                '[Firebase-inbox-audit] StaffInbox threads result: accountId=$accountId '
-                'count=${threads.length}');
           }
-          _rebuildThreadsFromCache();
+          _throttledRebuild();
         },
         onError: (error) {
           debugPrint(
@@ -411,6 +394,15 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     }
     
     return 0;
+  }
+
+  void _throttledRebuild() {
+    _rebuildDebounceTimer?.cancel();
+    _rebuildDebounceTimer = Timer(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        _rebuildThreadsFromCache();
+      }
+    });
   }
 
   void _rebuildThreadsFromCache() {
