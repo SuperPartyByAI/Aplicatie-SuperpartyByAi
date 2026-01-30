@@ -659,7 +659,7 @@ async function fetchProfilePhotoUrl(accountId, clientJid) {
 
 const AI_REPLY_COOLDOWN_MS = 10 * 1000;
 const AI_REPLY_MIN_CHARS = 20; // Minimum pentru mesaje (permite răspunsuri scurte dar complete)
-const AI_REPLY_MAX_CHARS = 200; // Maximum absolut - dacă depășește, nu trimite
+const AI_REPLY_MAX_CHARS = 800; // Updated to 800 to allow more detailed AI responses without truncation
 const AI_REPLY_DEDUPE_TTL_MS = 10 * 60 * 1000;
 const AI_CONTEXT_MESSAGE_LIMIT = parseInt(process.env.AI_CONTEXT_MESSAGE_LIMIT || '50'); // Numărul de mesaje pentru context (configurabil)
 const AI_FRESH_WINDOW_MS = 2 * 60 * 1000;
@@ -1903,7 +1903,7 @@ ${extraction}
               createdAt: admin.firestore.FieldValue.serverTimestamp(),
               autoReply: true,
               autoReplyToMessageId: messageId,
-              chunksCount: messageChunks.length > 1 ? messageChunks.length : undefined,
+              chunksCount: messageChunks.length > 1 ? messageChunks.length : null,
             },
             { merge: true }
           );
