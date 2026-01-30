@@ -800,8 +800,8 @@ async function getAccountsHandler(req, res) {
 /**
  * GET /whatsappProxyGetAccountsStaff handler
  *
- * Get list of WhatsApp accounts from backend (employee-safe version).
- * RBAC: Employee-only. Returns accounts without sensitive data (QR codes, pairing codes).
+ * Get list of WhatsApp accounts from backend (staff-safe version).
+ * RBAC: Any authenticated user. Returns accounts without sensitive data (QR codes, pairing codes).
  * Always returns JSON (res.status(...).json(...)); never HTML or redirect.
  */
 async function getAccountsStaffHandler(req, res) {
@@ -814,8 +814,8 @@ async function getAccountsStaffHandler(req, res) {
   }
 
   try {
-    const employeeInfo = await requireEmployee(req, res);
-    if (!employeeInfo) return; // Response already sent (401/403)
+    const decoded = await requireAuth(req, res);
+    if (!decoded) return; // Response already sent (401)
 
     const backendBaseUrl = getBackendBaseUrl();
     if (!backendBaseUrl) {
@@ -1238,7 +1238,7 @@ async function deleteAccountHandler(req, res) {
  * POST /whatsappProxyBackfillAccount handler
  *
  * Trigger backfill for a WhatsApp account via backend.
- * RBAC: Employee or super-admin (so staff can run backfill from Inbox Angajați).
+ * RBAC: Any authenticated user (same behavior as Inbox Angajați).
  */
 async function backfillAccountHandler(req, res) {
   if (req.method !== 'POST') {
@@ -1250,8 +1250,8 @@ async function backfillAccountHandler(req, res) {
   }
 
   try {
-    const employeeInfo = await requireEmployee(req, res);
-    if (!employeeInfo) return; // Response already sent (401/403)
+  const decoded = await requireAuth(req, res);
+  if (!decoded) return; // Response already sent (401)
 
     // Lazy-load backend base URL
     const backendBaseUrl = getBackendBaseUrl();
