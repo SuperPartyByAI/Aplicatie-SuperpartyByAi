@@ -13,6 +13,7 @@
  */
 
 const admin = require('firebase-admin');
+const { canonicalizeJid } = require('../lib/wa-canonical');
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
@@ -113,10 +114,15 @@ async function syncContactsToThreads(accountId, dryRun = false) {
           continue;
         }
 
-        // Look up contact
-        const contactRef = db.collection('contacts').doc(`${accountId}__${clientJid}`);
-        const contactDoc = await contactRef.get();
-
+        // Look up contact: try raw clientJid, then canonical (e.g. @c.us -> @s.whatsapp.net)
+        // so we find contacts regardless of how they were stored
+        let contactDoc = await db.collection('contacts').doc(`${accountId}__${clientJid}`).get();
+        if (!contactDoc.exists) {
+          const { canonicalJid } = canonicalizeJid(clientJid);
+          if (canonicalJid && canonicalJid !== clientJid) {
+            contactDoc = await db.collection('contacts').doc(`${accountId}__${canonicalJid}`).get();
+          }
+        }
         if (!contactDoc.exists) {
           skipped++;
           continue;

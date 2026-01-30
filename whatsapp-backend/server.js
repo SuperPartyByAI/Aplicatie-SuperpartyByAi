@@ -25,6 +25,7 @@ const {
   computeStableIds,
 } = require('./whatsapp/message_persist');
 const { fetchMessagesFromWA } = require('./lib/fetch-messages-wa');
+const { canonicalizeJid } = require('./lib/wa-canonical');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 
@@ -256,6 +257,18 @@ async function canonicalClientKey(remoteJid, accountId) {
   // Groups: return as-is
   if (remoteJid.endsWith('@g.us')) {
     return { canonicalKey: remoteJid, phoneDigits: null, phoneE164: null };
+  }
+
+  // @c.us (legacy): normalize to s.whatsapp.net so threadId matches history sync
+  if (remoteJid.endsWith('@c.us')) {
+    const phoneDigits = extractDigits(remoteJid.split('@')[0] || '');
+    if (phoneDigits) {
+      return {
+        canonicalKey: `${phoneDigits}@s.whatsapp.net`,
+        phoneDigits,
+        phoneE164: `+${phoneDigits}`,
+      };
+    }
   }
 
   // @s.whatsapp.net: extract phone digits
@@ -1936,21 +1949,14 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
             continue; // Skip to next message in batch
           }
 
-          // Skip persisting outbound (fromMe): already saved by proxy (optimistic) + outbox worker (sent).
-          // Persisting again would create a duplicate doc (waMessageId) and show the same message 2–3x.
-          // Still update thread lastMessageAt/lastMessageAtMs so inbox order matches WhatsApp (last msg = top).
-          if (isFromMe) {
-            if (firestoreAvailable && db && fromSafe) {
-              const outboundThreadId = `${accountId}__${fromSafe}`;
-              try {
-                await updateThreadLastMessageForOutbound(db, accountId, outboundThreadId, msg);
-                console.log(`📤 [${hashForLog(accountId)}] [schema-guard] Thread ${hashForLog(outboundThreadId)} lastMessageAt set (outbound) – skip message persist`);
-              } catch (e) {
-                console.warn(`⚠️  [${hashForLog(accountId)}] Thread-only update for outbound failed: ${e.message}`);
-              }
+          // Persist outbound (fromMe) too: when user sends FROM PHONE, message is not in Firestore yet.
+          // When sent from app, outbox worker already wrote with msg.key.id – we write again with same id (idempotent, no duplicate).
+          if (isFromMe && firestoreAvailable && db && fromSafe) {
+            try {
+              await updateThreadLastMessageForOutbound(db, accountId, `${accountId}__${fromSafe}`, msg);
+            } catch (e) {
+              console.warn(`⚠️  [${hashForLog(accountId)}] Thread-only update for outbound failed: ${e.message}`);
             }
-            console.log(`⏭️  [${hashForLog(accountId)}] Skipping persist for outbound (fromMe) msgId=${hashForLog(messageId)} – already from proxy+worker`);
-            continue;
           }
 
           let saved = null;
@@ -3303,7 +3309,10 @@ async function ensureThreadsFromHistoryChats(accountId, historyChats) {
           skipped++;
           continue;
         }
-        const threadId = `${accountId}__${jid}`;
+        // Use canonical JID so threadId matches saveMessagesBatch (c.us -> s.whatsapp.net)
+        const { canonicalJid: canonical } = canonicalizeJid(jid);
+        const clientJid = canonical || jid;
+        const threadId = `${accountId}__${clientJid}`;
         if (threadId.includes('[object Object]') || threadId.includes('[obiect Obiect]')) {
           skipped++;
           continue;
@@ -3318,7 +3327,7 @@ async function ensureThreadsFromHistoryChats(accountId, historyChats) {
         const displayName = typeof c?.name === 'string' && c.name.trim() ? c.name.trim() : null;
         batch.set(ref, {
           accountId,
-          clientJid: jid,
+          clientJid,
           updatedAt: now,
           lastMessageAt: now,
           lastMessageAtMs: now.toMillis(),
@@ -3372,7 +3381,10 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
         skipped++;
         continue;
       }
-      const threadId = `${accountId}__${from}`;
+      // Use canonical JID so threadId matches ensureThreadsFromHistoryChats (c.us -> s.whatsapp.net)
+      const { canonicalJid: canonicalFrom } = canonicalizeJid(from);
+      const clientJid = canonicalFrom || from;
+      const threadId = `${accountId}__${clientJid}`;
       const direction = msg.key.fromMe ? 'outbound' : 'inbound'; // Use 'inbound'/'outbound' for consistency with Flutter
       
       // DEBUG: Log message structure for history sync to see if text messages come through
@@ -3440,7 +3452,7 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
       
       await writeMessageIdempotent(
         db,
-        { accountId, clientJid: from, threadId, direction },
+        { accountId, clientJid, threadId, direction },
         msg,
         {
           extraFields: {
