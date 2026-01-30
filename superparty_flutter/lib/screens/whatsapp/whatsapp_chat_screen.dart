@@ -898,15 +898,27 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
   void _scrollToBottom({bool force = false}) {
     if (!_scrollController.hasClients) return;
-    final pos = _scrollController.position;
-    // For reverse: true, bottom is 0, top is maxScrollExtent
-    final nearBottom = pos.pixels < 200;
-    if (!force && !nearBottom) return;
-    _scrollController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
+    
+    // Use SchedulerBinding to wait for the frame to be ready
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      
+      final pos = _scrollController.position;
+      // For reverse: true, bottom is 0
+      final nearBottom = pos.pixels < 200;
+      
+      if (force) {
+        // Force jump to bottom (pixel 0)
+        _scrollController.jumpTo(0.0);
+      } else if (nearBottom) {
+        // Smoothly animate if already near bottom
+        _scrollController.animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   static String _mediaTypePlaceholder(String t) {
@@ -1219,10 +1231,12 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     if (data['createdAtMs'] is int) {
       return data['createdAtMs'] as int;
     }
+    // If no timestamp at all, treat as very new (bottom of reversed list)
+    // instead of very old (top of list)
     return _extractTsMillis(data['tsClient']) ??
         _extractTsMillis(data['createdAt']) ??
         _extractTsMillis(data['tsServer']) ??
-        0;
+        DateTime.now().millisecondsSinceEpoch;
   }
 
   List<QueryDocumentSnapshot> _dedupeMessageDocs(List<QueryDocumentSnapshot> docs) {
@@ -1897,7 +1911,6 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
                               return ListView.builder(
                                 controller: _scrollController,
-                                key: PageStorageKey('whatsapp-chat-$effectiveThreadId'),
                                 reverse: true,
                                 padding: const EdgeInsets.all(16),
                                 itemCount: dedupedDocs.length,
