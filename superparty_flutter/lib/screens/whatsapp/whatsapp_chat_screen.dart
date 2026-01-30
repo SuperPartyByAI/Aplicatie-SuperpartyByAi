@@ -1172,7 +1172,34 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         const SnackBar(content: Text('Se obține locația...')),
       );
 
-      final position = await Geolocator.getCurrentPosition();
+      // Request precise location on iOS (if reduced accuracy is enabled)
+      try {
+        final accuracy = await Geolocator.getLocationAccuracy();
+        if (accuracy == LocationAccuracyStatus.reduced) {
+          await Geolocator.requestTemporaryFullAccuracy(purposeKey: 'share_location');
+        }
+      } catch (_) {
+        // Ignore if not supported on current platform
+      }
+
+      Position? position;
+      try {
+        position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 10),
+        );
+      } catch (_) {
+        position = await Geolocator.getLastKnownPosition();
+      }
+
+      if (position == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Nu pot obține locația curentă. Verifică setările de locație.'), backgroundColor: Colors.red),
+          );
+        }
+        return;
+      }
       final lat = position.latitude;
       final lng = position.longitude;
 
