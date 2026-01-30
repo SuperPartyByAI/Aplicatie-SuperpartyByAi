@@ -1181,6 +1181,11 @@ async function maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType }
         ? 'group'
         : 'unknown';
 
+  // Calculate message age early for logging
+  const tsMs = extractTimestampMs(msg?.messageTimestamp);
+  const ageMs = tsMs ? Date.now() - tsMs : null;
+  const ageSec = ageMs ? Math.floor(ageMs / 1000) : null;
+
   // Log canonicalization details (before Firestore read)
   const participant = msg?.key?.participant || null;
   console.log(
@@ -1242,9 +1247,7 @@ async function maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType }
   // GATE 3: Doar mesaje fresh (age window check) - skip mesaje vechi după reconnect
   // CRITICAL FIX: Nu mai blocăm pe eventType=append, ci verificăm age window
   // Astfel, mesajele inbound reale din append batch vor fi procesate dacă sunt fresh
-  const tsMs = extractTimestampMs(msg?.messageTimestamp);
-  const ageMs = tsMs ? Date.now() - tsMs : null;
-  const ageSec = ageMs ? Math.floor(ageMs / 1000) : null;
+  // Note: tsMs, ageMs, ageSec already calculated above for logging
 
   if (!isFreshMessage(msg?.messageTimestamp)) {
     logSkip('skipped_notFresh', {
