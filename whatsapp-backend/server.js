@@ -1729,7 +1729,13 @@ ${extraction}
         const bodyText = typeof data.body === 'string' ? data.body.trim() : '';
         if (!bodyText) return null;
         const msgType = data.type || data.messageType || '';
-        if (msgType && msgType !== 'conversation' && msgType !== 'extendedText') return null;
+        if (
+          msgType &&
+          msgType !== 'conversation' &&
+          msgType !== 'extendedText' &&
+          msgType !== 'text'
+        )
+          return null;
         return {
           body: bodyText,
           fromMe: data.fromMe === true,
