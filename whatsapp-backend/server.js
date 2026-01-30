@@ -1015,7 +1015,7 @@ async function generateAutoReplyText(groqKey, messages, maxTokens = 500) {
   );
 
   const completion = await groq.chat.completions.create({
-    model: 'mixtral-8x7b-32768',
+    model: 'llama-3.3-70b-versatile',
     temperature: 0.2,
     max_tokens: maxTokens, // Sufficient for complete messages without truncation
     messages,
@@ -1798,6 +1798,34 @@ STIL
 
     // Construiește promptul îmbunătățit cu context despre contact și conversație
     const systemPrompt = buildEnrichedSystemPrompt(basePrompt, contactInfo, conversationMeta);
+
+    // Ensure current message is in history context
+    // Firestore query might miss the just-saved message due to latency
+    const currentMsgBody =
+      typeof msg.message?.conversation === 'string'
+        ? msg.message.conversation
+        : typeof msg.message?.extendedTextMessage?.text === 'string'
+          ? msg.message.extendedTextMessage.text
+          : '';
+
+    // Check if distinct from last history item (simple check by body/content)
+    // Ideally we'd check ID but history items here are simplified.
+    // If we have a body and the last history item isn't this message (or history is empty), add it.
+    const lastHistoryItem = history.length > 0 ? history[history.length - 1] : null;
+    const isCurrentInHistory =
+      lastHistoryItem &&
+      lastHistoryItem.body === currentMsgBody &&
+      lastHistoryItem.fromMe === false;
+
+    if (currentMsgBody && !isCurrentInHistory && !info.fromMe) {
+      console.log(
+        `[AutoReply][Context] traceId=${traceId} Appending current message to history context manually`
+      );
+      history.push({
+        body: currentMsgBody,
+        fromMe: false, // It's from the user
+      });
+    }
 
     const messages = buildAiContextMessages(systemPrompt, history);
     const aiStart = Date.now();
