@@ -135,13 +135,15 @@ function logThreadWrite(source, accountId, clientJid, threadId) {
  * @param {string} threadId
  * @param {object} msg - Baileys message (msg.messageTimestamp used)
  */
-async function updateThreadLastMessageForOutbound(db, accountId, threadId, msg) {
+/**
+ * @param {object} [options] - Optional. { body?: string } for lastMessageText preview.
+ */
+async function updateThreadLastMessageForOutbound(db, accountId, threadId, msg, options = {}) {
   if (!db || !threadId || !msg) return;
   const tsMs = extractTimestampMs(msg?.messageTimestamp);
   const nowMs = Date.now();
   const useMs = tsMs ?? nowMs;
   const ref = db.collection('threads').doc(threadId);
-  // Only update if this message is newer than (or equal to) existing – preserves "when they wrote" order.
   let existingLastMs = null;
   try {
     const snap = await ref.get();
@@ -156,10 +158,14 @@ async function updateThreadLastMessageForOutbound(db, accountId, threadId, msg) 
   } catch (_) {}
   if (existingLastMs != null && useMs < existingLastMs) return;
   const tsClientAt = admin?.firestore?.Timestamp?.fromMillis?.(useMs) ?? null;
+  const body = options?.body;
+  const preview = (typeof body === 'string' && body.trim()) ? body.trim().slice(0, 100).replace(/\s+/g, ' ') : '[Message]';
   const payload = {
     lastMessageAt: tsClientAt,
     lastMessageAtMs: useMs,
     lastMessageDirection: 'outbound',
+    lastMessageText: preview,
+    lastMessagePreview: preview,
     updatedAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
   };
   if (payload.updatedAt === null) delete payload.updatedAt;
@@ -1962,7 +1968,7 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
           const { body, type: msgType } = extractBodyAndType(msg);
 
           console.log(
-            `📩 [${hashForLog(accountId)}] Processing message: remote=${hashForLog(remoteJid)} fromMe=${fromMe} msg=${hashForLog(messageId)} ts=${timestamp ? String(timestamp) : 'n/a'} type=${msgType || 'unknown'}`
+            `📩 [${hashForLog(accountId)}] Processing message: remote=${hashForLog(remoteJid)} fromMe=${isFromMe} msg=${hashForLog(messageId)} ts=${timestamp ? String(timestamp) : 'n/a'} type=${msgType || 'unknown'}`
           );
           let protocolMsg = null;
           if (!isFromMe) {
@@ -2145,13 +2151,6 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
               `📤 [${hashForLog(accountId)}] OUTBOUND (from phone/app): will persist to Firestore remoteJid=${hashForLog(remoteJid)} msgId=${hashForLog(messageId)} fromSafe=${fromSafe ? hashForLog(fromSafe) : 'null'}`
             );
           }
-          if (isFromMe && firestoreAvailable && db && fromSafe) {
-            try {
-              await updateThreadLastMessageForOutbound(db, accountId, `${accountId}__${fromSafe}`, msg);
-            } catch (e) {
-              console.warn(`⚠️  [${hashForLog(accountId)}] Thread-only update for outbound failed: ${e.message}`);
-            }
-          }
 
           let saved = null;
           try {
@@ -2164,6 +2163,16 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
               console.log(
                 `✅ [${hashForLog(accountId)}] Message saved successfully: msgId=${hashForLog(saved.messageId)} threadId=${hashForLog(saved.threadId)}${isFromMe ? ' (OUTBOUND – from phone/app, will sync in app)' : ''}`
               );
+              // Outbound: ensure thread activity is on the same thread that has the message (canonical).
+              if (isFromMe && firestoreAvailable && db && saved.threadId) {
+                try {
+                  await updateThreadLastMessageForOutbound(db, accountId, saved.threadId, msg, {
+                    body: saved.messageBody || null,
+                  });
+                } catch (e) {
+                  console.warn(`⚠️  [${hashForLog(accountId)}] Thread update after outbound save failed: ${e.message}`);
+                }
+              }
             } else {
               console.warn(
                 `⚠️  [${hashForLog(accountId)}] saveMessageToFirestore returned null for msg=${hashForLog(messageId)} fromMe=${isFromMe} - message may be filtered or invalid`
@@ -8010,6 +8019,47 @@ app.post('/admin/fix-thread-summary/:accountId', async (req, res) => {
   }
 });
 
+// Admin-only: Repair thread lastMessageAt/lastMessageAtMs so inbox order matches WhatsApp (fix mixed Dec/Nov/Jul).
+// POST /admin/repair-threads  Body: { accountId?: string, limit?: number }  — if no accountId, runs for all connected.
+app.post('/admin/repair-threads', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+    if (!firestoreAvailable || !db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const accountId = body.accountId || req.query.accountId || null;
+    const limit = Math.min(500, Math.max(1, parseInt(body.limit || req.query.limit || '500', 10) || 500));
+    const accountIds = accountId
+      ? [accountId]
+      : [...connections.entries()].filter(([, a]) => a && a.status === 'connected').map(([id]) => id);
+    if (accountIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'No accountId provided and no connected accounts; nothing to repair.',
+        results: [],
+      });
+    }
+    const results = [];
+    for (const id of accountIds) {
+      const result = await repairThreadsLastActivityForAccount(db, id, { limit });
+      results.push({ accountId: id, ...result });
+    }
+    console.log(`🔧 [ADMIN] repair-threads completed for ${accountIds.length} account(s):`, results);
+    return res.status(200).json({ success: true, results });
+  } catch (error) {
+    console.error('❌ [ADMIN] repair-threads failed:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Admin-only: Cleanup protocol thread displayNames
 app.post('/admin/cleanup-protocol-threads/:accountId', async (req, res) => {
   try {
@@ -13714,9 +13764,16 @@ app.listen(PORT, '0.0.0.0', async () => {
                 );
               } else {
                 console.warn(
-                  `⚠️  [${accountId}] Outbox sent: no optimistic doc messages/${requestId}, skipping thread update`
+                  `⚠️  [${accountId}] Outbox sent: no optimistic doc messages/${requestId}, updating thread only`
                 );
               }
+              // Always update thread activity so conversation rises in Inbox (last message = top).
+              const outboundMsg = {
+                messageTimestamp: result.key?.timestamp ?? Math.floor(Date.now() / 1000),
+              };
+              await updateThreadLastMessageForOutbound(db, accountId, threadId, outboundMsg, {
+                body: body || (payload && typeof payload.text === 'string' ? payload.text : null),
+              });
               logThreadWrite('outbox-sent', accountId, toJid, threadId);
             } catch (updateErr) {
               console.error(

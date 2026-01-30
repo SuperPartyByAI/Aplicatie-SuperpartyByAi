@@ -626,10 +626,21 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
                                               .hasMatch(t.displayName));
                                   final subtitleParts = <String>[];
                                   if (showPhone) subtitleParts.add(ph);
-                                  if (t.lastMessageText.isNotEmpty) {
+                                  // Show last message or placeholder so "who wrote last" is always visible (fix mixed-up / no preview).
+                                  final lastPreview = t.lastMessageText.trim().isNotEmpty
+                                      ? t.lastMessageText
+                                      : (t.lastMessageAt != null ? '[Mesaj]' : '');
+                                  if (lastPreview.isNotEmpty) {
                                     if (subtitleParts.isNotEmpty)
                                       subtitleParts.add('•');
-                                    subtitleParts.add(t.lastMessageText);
+                                    // Show who wrote last: "Tu: " or "Nume: " so user sees sync (number wrote / I wrote).
+                                    if (t.lastMessageDirection == 'outbound') {
+                                      subtitleParts.add('Tu: $lastPreview');
+                                    } else if (t.lastMessageSenderName != null && t.lastMessageSenderName!.trim().isNotEmpty) {
+                                      subtitleParts.add('${t.lastMessageSenderName!.trim()}: $lastPreview');
+                                    } else {
+                                      subtitleParts.add(lastPreview);
+                                    }
                                   }
                                   final subtitle = subtitleParts.isEmpty
                                       ? (ph.isNotEmpty ? ph : ' ')

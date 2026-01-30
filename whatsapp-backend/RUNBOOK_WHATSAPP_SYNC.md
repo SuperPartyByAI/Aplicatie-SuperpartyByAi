@@ -822,6 +822,28 @@ Then in Firestore:
 - **`threads/{threadId}.lastBackfillAt`** → updated.
 - **`accounts/{accountId}.lastBackfillResult`** → `threads`, `messages`, `errors`.
 
+### 4b) Manual repair threads (inbox order)
+
+If **Employee Inbox** shows clients mixed (e.g. December, November, July) or "who wrote last" is missing, run the **repair-threads** endpoint once. It recalculates `lastMessageAt` / `lastMessageAtMs` from the latest message in each thread so order matches WhatsApp.
+
+**Request (all connected accounts):**
+```bash
+curl -X POST "http://YOUR_BACKEND:8080/admin/repair-threads" \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+**Request (single account, optional limit):**
+```bash
+curl -X POST "http://YOUR_BACKEND:8080/admin/repair-threads" \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"accountId":"ACCOUNT_ID","limit":500}'
+```
+
+Response: `{ "success": true, "results": [ { "accountId", "updatedThreads", "scanned", "errors", "durationMs" } ] }`. Then refresh the Flutter app (pull-to-refresh or reopen Employee Inbox).
+
 ### 5) Why “today/yesterday” might be missing
 
 - **Live ingestion broken:** Connected but no `messages.upsert` / Firestore writes (sessions, errors, PASSIVE). Fix backend first.
