@@ -657,7 +657,7 @@ async function fetchProfilePhotoUrl(accountId, clientJid) {
   return null;
 }
 
-const AI_REPLY_COOLDOWN_MS = 10 * 1000;
+const AI_REPLY_COOLDOWN_MS = 2 * 1000;
 const AI_REPLY_MIN_CHARS = 20; // Minimum pentru mesaje (permite răspunsuri scurte dar complete)
 const AI_REPLY_MAX_CHARS = 800; // Updated to 800 to allow more detailed AI responses without truncation
 const AI_REPLY_DEDUPE_TTL_MS = 10 * 60 * 1000;
