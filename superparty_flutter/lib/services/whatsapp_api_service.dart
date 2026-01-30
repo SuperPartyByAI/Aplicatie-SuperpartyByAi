@@ -179,6 +179,7 @@ class WhatsAppApiService {
     required String toJid,
     required String text,
     required String clientMessageId,
+    Map<String, dynamic>? payload,
   }) async {
     final token = await _requireIdToken();
     final user = FirebaseAuth.instance.currentUser!;
@@ -204,6 +205,7 @@ class WhatsAppApiService {
             'toJid': toJid,
             'text': text,
             'clientMessageId': clientMessageId,
+            if (payload != null) 'payload': payload,
           }),
         )
         .timeout(requestTimeout);

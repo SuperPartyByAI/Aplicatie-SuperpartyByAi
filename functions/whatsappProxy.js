@@ -2,7 +2,7 @@
 
 /**
  * WhatsApp Backend Proxy - QR Connect Routes Only
- * 
+ *
  * Secure proxy for Flutter app to interact with WhatsApp backend.
  * Provides account management and QR code generation for WhatsApp connections.
  */
@@ -69,7 +69,7 @@ async function verifyAppCheckToken(token) {
 
 // Check if user is employee: SUPER_ADMIN_EMAIL only OR staffProfiles/{uid} exists. No ADMIN_EMAILS.
 async function isEmployee(uid, email) {
-  const norm = (e) => (e || '').trim().toLowerCase();
+  const norm = e => (e || '').trim().toLowerCase();
   if (norm(email) === norm(SUPER_ADMIN_EMAIL)) {
     return {
       isEmployee: true,
@@ -148,8 +148,8 @@ async function requireAuth(req, res) {
     // Debug: log available headers to diagnose header extraction issues
     const authHeaderLower = req.headers.authorization;
     const authHeaderUpper = req.headers.Authorization;
-    const headerKeys = Object.keys(req.headers || {}).filter(k => 
-      k.toLowerCase().includes('auth') || k.toLowerCase().includes('authorization')
+    const headerKeys = Object.keys(req.headers || {}).filter(
+      k => k.toLowerCase().includes('auth') || k.toLowerCase().includes('authorization')
     );
     console.error('[whatsappProxy/requireAuth] No token in Authorization header', {
       hasAuthorizationLower: !!authHeaderLower,
@@ -166,7 +166,7 @@ async function requireAuth(req, res) {
     });
     return null;
   }
-  
+
   const decoded = await verifyIdToken(token);
   if (!decoded) {
     console.error('[whatsappProxy/requireAuth] Token verification failed');
@@ -247,12 +247,12 @@ async function requireSuperAdmin(req, res) {
 
 /**
  * Forward HTTP request to backend
- * 
+ *
  * Security: No sensitive headers logged, timeout enforced, safe error messages
- * 
+ *
  * Exported for testing (can be mocked)
  */
-let forwardRequest = function(url, options, body = null) {
+let forwardRequest = function (url, options, body = null) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(url);
     const isHttps = urlObj.protocol === 'https:';
@@ -260,7 +260,7 @@ let forwardRequest = function(url, options, body = null) {
 
     // Build headers: forward all from options.headers, ensuring Authorization is forwarded if present
     const headers = { ...options.headers };
-    
+
     // Explicitly forward Authorization if present (case-insensitive check)
     // Node.js http/https will normalize to lowercase, but we ensure it's included
     if (options.headers) {
@@ -269,9 +269,13 @@ let forwardRequest = function(url, options, body = null) {
         headers['Authorization'] = authHeader;
         // Log that we're forwarding Authorization (without logging the actual token)
         const authPrefix = authHeader.length > 20 ? authHeader.substring(0, 20) + '...' : '***';
-        console.log(`[whatsappProxy/forwardRequest] Forwarding Authorization header (prefix: ${authPrefix})`);
+        console.log(
+          `[whatsappProxy/forwardRequest] Forwarding Authorization header (prefix: ${authPrefix})`
+        );
       } else {
-        console.log('[whatsappProxy/forwardRequest] No Authorization header in options.headers to forward');
+        console.log(
+          '[whatsappProxy/forwardRequest] No Authorization header in options.headers to forward'
+        );
       }
     }
 
@@ -283,9 +287,9 @@ let forwardRequest = function(url, options, body = null) {
       headers,
     };
 
-    const req = client.request(requestOptions, (res) => {
+    const req = client.request(requestOptions, res => {
       let data = '';
-      res.on('data', (chunk) => {
+      res.on('data', chunk => {
         data += chunk;
       });
       res.on('end', () => {
@@ -306,7 +310,7 @@ let forwardRequest = function(url, options, body = null) {
       });
     });
 
-    req.on('error', (error) => {
+    req.on('error', error => {
       // Don't leak internal error details
       reject(new Error('Failed to connect to backend service'));
     });
@@ -323,7 +327,7 @@ let forwardRequest = function(url, options, body = null) {
 
     req.end();
   });
-}
+};
 
 // Export forwardRequest for testing (allows replacement)
 exports._forwardRequest = forwardRequest;
@@ -339,9 +343,12 @@ function getForwardRequest() {
  */
 async function whatsappWhoAmIHandler(req, res) {
   if (req.method !== 'GET') {
-    return res.status(405).json({ success: false, error: 'method_not_allowed', message: 'Only GET allowed' });
+    return res
+      .status(405)
+      .json({ success: false, error: 'method_not_allowed', message: 'Only GET allowed' });
   }
-  const requestId = req.headers['x-request-id'] || req.headers['x-correlation-id'] || `whoami_${Date.now()}`;
+  const requestId =
+    req.headers['x-request-id'] || req.headers['x-correlation-id'] || `whoami_${Date.now()}`;
   console.log(`[whatsappWhoAmI] requestId=${requestId}`);
 
   const decoded = await requireAuth(req, res);
@@ -351,7 +358,7 @@ async function whatsappWhoAmIHandler(req, res) {
   const email = decoded.email || null;
   const claims = decoded || {};
   const claimsKeys = Object.keys(claims).filter(
-    (k) => !['iat', 'exp', 'aud', 'iss', 'sub', 'auth_time', 'user_id', 'firebase'].includes(k)
+    k => !['iat', 'exp', 'aud', 'iss', 'sub', 'auth_time', 'user_id', 'firebase'].includes(k)
   );
   const isAdmin = (email || '').trim().toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
 
@@ -423,10 +430,10 @@ async function requireProxyEmployee(req, res) {
 
 /**
  * POST /whatsappProxySend handler
- * 
+ *
  * Send WhatsApp message via proxy with owner/co-writer policy enforcement.
  * Creates outbox entry server-side (server-only writes).
- * 
+ *
  * Body:
  * {
  *   "threadId": string,
@@ -447,13 +454,14 @@ async function sendHandler(req, res) {
 
   try {
     // Validate request body EARLY (before any Firestore reads)
-    const { threadId, accountId, toJid, text, clientMessageId } = req.body;
+    const { threadId, accountId, toJid, text, clientMessageId, payload } = req.body;
 
-    if (!threadId || !accountId || !toJid || !text || !clientMessageId) {
+    if (!threadId || !accountId || !toJid || !clientMessageId || (!text && !payload)) {
       return res.status(400).json({
         success: false,
         error: 'invalid_request',
-        message: 'Missing required fields: threadId, accountId, toJid, text, clientMessageId',
+        message:
+          'Missing required fields: threadId, accountId, toJid, clientMessageId, and (text or payload)',
       });
     }
 
@@ -479,7 +487,7 @@ async function sendHandler(req, res) {
     }
 
     const threadData = threadDoc.data();
-    
+
     // SECURITY: Validate accountId matches thread accountId (prevent spoofing)
     if (threadData?.accountId !== accountId) {
       return res.status(403).json({
@@ -503,10 +511,12 @@ async function sendHandler(req, res) {
       } else if (lastAt?._seconds) {
         lastMillis = lastAt._seconds * 1000;
       }
-      if (lastMillis &&
-          lastText === text &&
-          (lastDirection === 'outbound' || lastDirection === 'out') &&
-          Date.now() - lastMillis < 2000) {
+      if (
+        lastMillis &&
+        lastText === text &&
+        (lastDirection === 'outbound' || lastDirection === 'out') &&
+        Date.now() - lastMillis < 2000
+      ) {
         return res.status(200).json({
           success: true,
           requestId: 'dup_last_message',
@@ -551,9 +561,9 @@ async function sendHandler(req, res) {
     // 3. Set ownerUid if needed
     // 4. Create outbox doc
     let duplicate = false;
-    await db.runTransaction(async (transaction) => {
+    await db.runTransaction(async transaction => {
       // IMPORTANT: ALL READS MUST BE BEFORE ALL WRITES IN FIRESTORE TRANSACTIONS
-      
+
       // Read 1: Check if outbox doc already exists (idempotency)
       const outboxRef = db.collection('outbox').doc(requestId);
       const outboxDoc = await transaction.get(outboxRef);
@@ -569,17 +579,28 @@ async function sendHandler(req, res) {
 
       // Duplicate guard (transactional): same text + outbound + within 2s → skip create
       try {
-        const lastText = (latestThreadData?.lastMessageText || latestThreadData?.lastMessagePreview || '').trim();
+        const lastText = (
+          latestThreadData?.lastMessageText ||
+          latestThreadData?.lastMessagePreview ||
+          ''
+        ).trim();
         const lastDir = (latestThreadData?.lastMessageDirection || '').toLowerCase();
         const lastAt = latestThreadData?.lastMessageAt;
         let lastMs = null;
         if (lastAt && typeof lastAt.toMillis === 'function') lastMs = lastAt.toMillis();
         else if (lastAt && typeof lastAt._seconds === 'number') lastMs = lastAt._seconds * 1000;
-        if (lastMs && lastText === text && (lastDir === 'outbound' || lastDir === 'out') && Date.now() - lastMs < 2000) {
+        if (
+          lastMs &&
+          lastText === text &&
+          (lastDir === 'outbound' || lastDir === 'out') &&
+          Date.now() - lastMs < 2000
+        ) {
           duplicate = true;
           return;
         }
-      } catch (_) { /* ignore */ }
+      } catch (_) {
+        /* ignore */
+      }
 
       // Write 1: Set ownerUid if needed (atomic)
       if (shouldSetOwner && !latestThreadData?.ownerUid) {
@@ -596,8 +617,8 @@ async function sendHandler(req, res) {
         threadId,
         accountId,
         toJid,
-        body: text,
-        payload: { text },
+        body: text || (payload?.document ? 'File' : 'Media'),
+        payload: payload || { text },
         status: 'queued',
         attemptCount: 0,
         nextAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -613,28 +634,61 @@ async function sendHandler(req, res) {
     // Use requestId so outbox worker can update status later.
     if (!duplicate) {
       const messageRef = threadRef.collection('messages').doc(requestId);
-      await messageRef.set({
-        accountId,
-        clientJid: toJid,
-        direction: 'outbound',
-        body: text,
-        status: 'queued',
-        tsClient: new Date().toISOString(),
-        tsServer: admin.firestore.FieldValue.serverTimestamp(),
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        createdAtMs: Date.now(),
-        messageType: 'text',
-        clientMessageId,
-      }, { merge: true });
+      const isDocument = !!payload?.document;
+      const isImage = !!payload?.image;
+      const mediaType = isDocument ? 'document' : isImage ? 'image' : payload ? 'media' : 'text';
 
-      await threadRef.set({
-        lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
-        lastMessageAtMs: Date.now(),
-        lastMessagePreview: text.substring(0, 100),
-        lastMessageText: text.substring(0, 100),
-        lastMessageDirection: 'outbound',
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
+      // If document, normalize fileName to filename for UI consistency
+      if (isDocument && payload.fileName && !payload.filename) {
+        payload.filename = payload.fileName;
+      }
+
+      await messageRef.set(
+        {
+          accountId,
+          clientJid: toJid,
+          direction: 'outbound',
+          body: text || (isDocument ? payload.filename || 'File' : isImage ? 'Photo' : 'Media'),
+          status: 'queued',
+          tsClient: new Date().toISOString(),
+          tsServer: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAtMs: Date.now(),
+          messageType: mediaType,
+          clientMessageId,
+          // Match Flutter UI expectation for media object
+          ...(payload
+            ? {
+                media: {
+                  type: mediaType,
+                  url:
+                    payload.document?.url ||
+                    payload.image?.url ||
+                    payload.video?.url ||
+                    payload.audio?.url,
+                  filename: payload.filename || payload.fileName,
+                  mimetype: payload.mimetype,
+                },
+              }
+            : {}),
+          ...payload, // Keep raw payload fields at top level too for Baileys/Outbox
+        },
+        { merge: true }
+      );
+
+      const previewText =
+        text || (isDocument ? payload.filename || 'File' : isImage ? 'Photo' : 'Media');
+      await threadRef.set(
+        {
+          lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastMessageAtMs: Date.now(),
+          lastMessagePreview: previewText.substring(0, 100),
+          lastMessageText: previewText.substring(0, 100),
+          lastMessageDirection: 'outbound',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
     }
 
     // Return success response
@@ -642,14 +696,12 @@ async function sendHandler(req, res) {
       success: true,
       requestId,
       duplicate,
-      message: duplicate
-        ? 'Message already queued (idempotent)'
-        : 'Message queued successfully',
+      message: duplicate ? 'Message already queued (idempotent)' : 'Message queued successfully',
     });
   } catch (error) {
     console.error('[whatsappProxy/send] Error:', error.message);
     console.error('[whatsappProxy/send] Error stack:', error.stack);
-    
+
     // Return structured error with details for debugging
     return res.status(500).json({
       success: false,
@@ -707,12 +759,18 @@ async function getAccountsHandler(req, res) {
       });
     }
 
-    console.log('[whatsappProxy/getAccounts] Backend URL:', backendBaseUrl.substring(0, 30) + '...');
+    console.log(
+      '[whatsappProxy/getAccounts] Backend URL:',
+      backendBaseUrl.substring(0, 30) + '...'
+    );
 
     const backendUrl = `${backendBaseUrl}/api/whatsapp/accounts`;
-    const correlationId = req.headers['x-correlation-id'] || req.headers['x-request-id'] || `getAccounts_${Date.now()}`;
-    console.log(`[whatsappProxy/getAccounts] Calling backend: ${backendUrl}, correlationId=${correlationId}`);
-    
+    const correlationId =
+      req.headers['x-correlation-id'] || req.headers['x-request-id'] || `getAccounts_${Date.now()}`;
+    console.log(
+      `[whatsappProxy/getAccounts] Calling backend: ${backendUrl}, correlationId=${correlationId}`
+    );
+
     let response;
     try {
       response = await getForwardRequest()(backendUrl, {
@@ -723,7 +781,9 @@ async function getAccountsHandler(req, res) {
         },
       });
     } catch (error) {
-      const isTimeout = /timeout|ETIMEDOUT|timed out/i.test(String(error.message || error.code || ''));
+      const isTimeout = /timeout|ETIMEDOUT|timed out/i.test(
+        String(error.message || error.code || '')
+      );
       console.error('[whatsappProxy/getAccounts] Backend request failed:', error.message);
       if (isTimeout) console.error('[whatsappProxy/getAccounts] timeout');
       console.error('[whatsappProxy/getAccounts] Error stack:', error.stack);
@@ -737,14 +797,21 @@ async function getAccountsHandler(req, res) {
 
     const bodyIsObject = response.body && typeof response.body === 'object';
     if (!bodyIsObject) {
-      const bodyPrefix = typeof response.body === 'string'
-        ? response.body.replace(/\s+/g, ' ').trim().substring(0, 200)
-        : '(non-string)';
-      console.error('[whatsappProxy/getAccounts] Backend returned non-JSON (e.g. HTML). status=', response.statusCode, 'bodyPrefix=', bodyPrefix);
+      const bodyPrefix =
+        typeof response.body === 'string'
+          ? response.body.replace(/\s+/g, ' ').trim().substring(0, 200)
+          : '(non-string)';
+      console.error(
+        '[whatsappProxy/getAccounts] Backend returned non-JSON (e.g. HTML). status=',
+        response.statusCode,
+        'bodyPrefix=',
+        bodyPrefix
+      );
       return res.status(502).json({
         success: false,
         error: 'invalid_backend_response',
-        message: 'Backend returned non-JSON (e.g. HTML/404 page). Check backend URL and proxy config.',
+        message:
+          'Backend returned non-JSON (e.g. HTML/404 page). Check backend URL and proxy config.',
         upstreamStatusCode: response.statusCode,
         bodyPrefix,
       });
@@ -753,10 +820,14 @@ async function getAccountsHandler(req, res) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       const body = response.body;
       const waMode = body && typeof body === 'object' ? body.waMode : undefined;
-      const accountsCount = (body && Array.isArray(body.accounts) ? body.accounts.length : 0);
-      console.log(`[whatsappProxy/getAccounts] success | accountsCount=${accountsCount} | waMode=${waMode ?? 'n/a'}`);
+      const accountsCount = body && Array.isArray(body.accounts) ? body.accounts.length : 0;
+      console.log(
+        `[whatsappProxy/getAccounts] success | accountsCount=${accountsCount} | waMode=${waMode ?? 'n/a'}`
+      );
       if (waMode === 'passive') {
-        console.log('[whatsappProxy/getAccounts] BACKEND PASSIVE – no sync until active. Set backend URL to Hetzner (WHATSAPP_BACKEND_BASE_URL).');
+        console.log(
+          '[whatsappProxy/getAccounts] BACKEND PASSIVE – no sync until active. Set backend URL to Hetzner (WHATSAPP_BACKEND_BASE_URL).'
+        );
       }
       return res.status(response.statusCode).json(response.body);
     }
@@ -829,9 +900,14 @@ async function getAccountsStaffHandler(req, res) {
     }
 
     const backendUrl = `${backendBaseUrl}/api/whatsapp/accounts`;
-    const correlationId = req.headers['x-correlation-id'] || req.headers['x-request-id'] || `getAccountsStaff_${Date.now()}`;
+    const correlationId =
+      req.headers['x-correlation-id'] ||
+      req.headers['x-request-id'] ||
+      `getAccountsStaff_${Date.now()}`;
     const authHeader = req.headers.authorization || req.headers.Authorization;
-    console.log(`[whatsappProxy/getAccountsStaff] Calling backend: ${backendUrl}, correlationId=${correlationId}`);
+    console.log(
+      `[whatsappProxy/getAccountsStaff] Calling backend: ${backendUrl}, correlationId=${correlationId}`
+    );
     const response = await getForwardRequest()(backendUrl, {
       method: 'GET',
       headers: {
@@ -843,14 +919,21 @@ async function getAccountsStaffHandler(req, res) {
 
     const bodyIsObject = response.body && typeof response.body === 'object';
     if (!bodyIsObject) {
-      const bodyPrefix = typeof response.body === 'string'
-        ? response.body.replace(/\s+/g, ' ').trim().substring(0, 200)
-        : '(non-string)';
-      console.error('[whatsappProxy/getAccountsStaff] Backend returned non-JSON (e.g. HTML). status=', response.statusCode, 'bodyPrefix=', bodyPrefix);
+      const bodyPrefix =
+        typeof response.body === 'string'
+          ? response.body.replace(/\s+/g, ' ').trim().substring(0, 200)
+          : '(non-string)';
+      console.error(
+        '[whatsappProxy/getAccountsStaff] Backend returned non-JSON (e.g. HTML). status=',
+        response.statusCode,
+        'bodyPrefix=',
+        bodyPrefix
+      );
       return res.status(502).json({
         success: false,
         error: 'invalid_backend_response',
-        message: 'Backend returned non-JSON (e.g. HTML/404 page). Check backend URL and proxy config.',
+        message:
+          'Backend returned non-JSON (e.g. HTML/404 page). Check backend URL and proxy config.',
         upstreamStatusCode: response.statusCode,
         bodyPrefix,
       });
@@ -860,7 +943,7 @@ async function getAccountsStaffHandler(req, res) {
       const sanitizedBody = { ...response.body };
       if (sanitizedBody.accounts && Array.isArray(sanitizedBody.accounts)) {
         const before = sanitizedBody.accounts.length;
-        const sanitized = sanitizedBody.accounts.map((account) => {
+        const sanitized = sanitizedBody.accounts.map(account => {
           const s = { ...account };
           delete s.qr;
           delete s.qrCode;
@@ -870,24 +953,32 @@ async function getAccountsStaffHandler(req, res) {
           delete s.pairing_url;
           return s;
         });
-        const filtered = sanitized.filter((a) => {
+        const filtered = sanitized.filter(a => {
           const match = isAdminPhone(a.phone || a.phoneNumber || a.msisdn);
           if (match) {
             const aid = a.id || a.accountId || '?';
             const ph = normalizePhone(a.phone || a.phoneNumber || a.msisdn || '');
             const last4 = ph.length >= 4 ? ph.slice(-4) : '????';
-            console.log(`[getAccountsStaff] Filtered admin-only account: accountId=${aid}, phoneLast4=${last4}`);
+            console.log(
+              `[getAccountsStaff] Filtered admin-only account: accountId=${aid}, phoneLast4=${last4}`
+            );
           }
           return !match;
         });
         sanitizedBody.accounts = filtered;
-        console.log(`[getAccountsStaff] Accounts before=${before} after=${filtered.length} (excluded admin phone ${ADMIN_PHONE})`);
+        console.log(
+          `[getAccountsStaff] Accounts before=${before} after=${filtered.length} (excluded admin phone ${ADMIN_PHONE})`
+        );
       }
       const waMode = sanitizedBody.waMode;
       const accountsCount = (sanitizedBody.accounts || []).length;
-      console.log(`[whatsappProxy/getAccountsStaff] success | accountsCount=${accountsCount} | waMode=${waMode ?? 'n/a'}`);
+      console.log(
+        `[whatsappProxy/getAccountsStaff] success | accountsCount=${accountsCount} | waMode=${waMode ?? 'n/a'}`
+      );
       if (waMode === 'passive') {
-        console.log('[whatsappProxy/getAccountsStaff] BACKEND PASSIVE – no sync until active. WHATSAPP_BACKEND_BASE_URL → Hetzner.');
+        console.log(
+          '[whatsappProxy/getAccountsStaff] BACKEND PASSIVE – no sync until active. WHATSAPP_BACKEND_BASE_URL → Hetzner.'
+        );
       }
       return res.status(response.statusCode).json(sanitizedBody);
     }
@@ -919,7 +1010,9 @@ async function getAccountsStaffHandler(req, res) {
       ...response.body,
     });
   } catch (error) {
-    const isTimeout = /timeout|ETIMEDOUT|timed out/i.test(String(error.message || error.code || ''));
+    const isTimeout = /timeout|ETIMEDOUT|timed out/i.test(
+      String(error.message || error.code || '')
+    );
     console.error('[whatsappProxy/getAccountsStaff] Error:', error.message);
     if (isTimeout) console.error('[whatsappProxy/getAccountsStaff] timeout');
     return res.status(500).json({
@@ -972,10 +1065,13 @@ async function getInboxHandler(req, res) {
     }
 
     const backendUrl = `${backendBaseUrl}/api/whatsapp/inbox/${encodeURIComponent(accountId)}?limit=${limit}`;
-    const correlationId = req.headers['x-correlation-id'] || req.headers['x-request-id'] || `getInbox_${Date.now()}`;
+    const correlationId =
+      req.headers['x-correlation-id'] || req.headers['x-request-id'] || `getInbox_${Date.now()}`;
     const authHeader = req.headers.authorization || req.headers.Authorization;
-    console.log(`[whatsappProxy/getInbox] Calling backend: ${backendUrl}, correlationId=${correlationId}`);
-    
+    console.log(
+      `[whatsappProxy/getInbox] Calling backend: ${backendUrl}, correlationId=${correlationId}`
+    );
+
     const response = await getForwardRequest()(backendUrl, {
       method: 'GET',
       headers: {
@@ -987,14 +1083,21 @@ async function getInboxHandler(req, res) {
 
     const bodyIsObject = response.body && typeof response.body === 'object';
     if (!bodyIsObject) {
-      const bodyPrefix = typeof response.body === 'string'
-        ? response.body.replace(/\s+/g, ' ').trim().substring(0, 200)
-        : '(non-string)';
-      console.error('[whatsappProxy/getInbox] Backend returned non-JSON (e.g. HTML). status=', response.statusCode, 'bodyPrefix=', bodyPrefix);
+      const bodyPrefix =
+        typeof response.body === 'string'
+          ? response.body.replace(/\s+/g, ' ').trim().substring(0, 200)
+          : '(non-string)';
+      console.error(
+        '[whatsappProxy/getInbox] Backend returned non-JSON (e.g. HTML). status=',
+        response.statusCode,
+        'bodyPrefix=',
+        bodyPrefix
+      );
       return res.status(502).json({
         success: false,
         error: 'invalid_backend_response',
-        message: 'Backend returned non-JSON (e.g. HTML/404 page). Check backend URL and proxy config.',
+        message:
+          'Backend returned non-JSON (e.g. HTML/404 page). Check backend URL and proxy config.',
         upstreamStatusCode: response.statusCode,
         bodyPrefix,
       });
@@ -1037,136 +1140,148 @@ async function getInboxHandler(req, res) {
 
 /**
  * POST /whatsappProxyAddAccount handler
- * 
+ *
  * Add a new WhatsApp account via backend.
  * Requires super-admin authentication.
  */
 async function addAccountHandler(req, res) {
-    if (req.method !== 'POST') {
-      return res.status(405).json({
+  if (req.method !== 'POST') {
+    return res.status(405).json({
+      success: false,
+      error: 'method_not_allowed',
+      message: 'Only POST method is allowed',
+    });
+  }
+
+  try {
+    // Require super-admin auth
+    const isSuperAdmin = await requireSuperAdmin(req, res);
+    if (!isSuperAdmin) return; // Response already sent (401/403)
+
+    // Lazy-load backend base URL (computed at handler runtime, not module load time)
+    const backendBaseUrl = getBackendBaseUrl();
+    if (!backendBaseUrl) {
+      return res.status(500).json({
         success: false,
-        error: 'method_not_allowed',
-        message: 'Only POST method is allowed',
+        error: 'configuration_missing',
+        message:
+          'WHATSAPP_BACKEND_BASE_URL must be set (Firebase secret or functions.config().whatsapp.backend_base_url)',
       });
     }
 
-    try {
-      // Require super-admin auth
-      const isSuperAdmin = await requireSuperAdmin(req, res);
-      if (!isSuperAdmin) return; // Response already sent (401/403)
+    // Validate request body
+    const { name, phone } = req.body;
 
-      // Lazy-load backend base URL (computed at handler runtime, not module load time)
-      const backendBaseUrl = getBackendBaseUrl();
-      if (!backendBaseUrl) {
-        return res.status(500).json({
-          success: false,
-          error: 'configuration_missing',
-          message:
-            'WHATSAPP_BACKEND_BASE_URL must be set (Firebase secret or functions.config().whatsapp.backend_base_url)',
-        });
-      }
+    // Validate name
+    const nameValidation = validateName(name);
+    if (!nameValidation.valid) {
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_request',
+        message: nameValidation.error,
+      });
+    }
 
-      // Validate request body
-      const { name, phone } = req.body;
+    // Validate phone
+    const phoneValidation = validatePhone(phone);
+    if (!phoneValidation.valid) {
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_request',
+        message: phoneValidation.error,
+      });
+    }
 
-      // Validate name
-      const nameValidation = validateName(name);
-      if (!nameValidation.valid) {
-        return res.status(400).json({
-          success: false,
-          error: 'invalid_request',
-          message: nameValidation.error,
-        });
-      }
-
-      // Validate phone
-      const phoneValidation = validatePhone(phone);
-      if (!phoneValidation.valid) {
-        return res.status(400).json({
-          success: false,
-          error: 'invalid_request',
-          message: phoneValidation.error,
-        });
-      }
-
-      // Forward to backend with normalized values (include Authorization so backend can verify)
-      const backendUrl = `${backendBaseUrl}/api/whatsapp/add-account`;
-      const authHeader = req.headers.authorization || req.headers.Authorization;
-      const response = await getForwardRequest()(backendUrl, {
+    // Forward to backend with normalized values (include Authorization so backend can verify)
+    const backendUrl = `${backendBaseUrl}/api/whatsapp/add-account`;
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    const response = await getForwardRequest()(
+      backendUrl,
+      {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(authHeader ? { Authorization: authHeader } : {}),
         },
-      }, {
+      },
+      {
         name: nameValidation.normalized,
         phone: phoneValidation.normalized,
-      });
+      }
+    );
 
-      // Forward backend response, but sanitize non-2xx errors
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return res.status(response.statusCode).json(response.body);
-      } else {
-        // Special handling for 503 (PASSIVE mode) - propagate error message with full details
-        if (response.statusCode === 503) {
-          return res.status(503).json({
-            success: false,
-            error: response.body?.error || 'passive_mode',
-            message: response.body?.message || response.body?.error || 'Backend in PASSIVE mode - lock not acquired',
-            mode: response.body?.mode || 'passive',
-            instanceId: response.body?.instanceId,
-            holderInstanceId: response.body?.holderInstanceId,
-            retryAfterSeconds: response.body?.retryAfterSeconds || 15,
-            waMode: response.body?.waMode || 'passive',
-            requestId: response.body?.requestId,
-          });
-        } else if (response.statusCode === 401) {
-          // Unauthorized - propagate (critical for 401 loop debugging)
-          return res.status(401).json({
-            success: false,
-            error: response.body?.error || 'unauthorized',
-            message: response.body?.message || 'Unauthorized - authentication required or session expired',
-            ...(response.body && typeof response.body === 'object' ? {
-              backendError: response.body.error,
-              backendMessage: response.body.message,
-              backendAccountId: response.body.accountId,
-            } : {}),
-          });
-        } else if (response.statusCode === 403) {
-          // Forbidden - propagate
-          return res.status(403).json({
-            success: false,
-            error: response.body?.error || 'forbidden',
-            message: response.body?.message || 'Forbidden - insufficient permissions',
-            ...(response.body && typeof response.body === 'object' ? response.body : {}),
-          });
-        }
-        
-        // For other errors, return safe message but include status code
-        return res.status(500).json({
+    // Forward backend response, but sanitize non-2xx errors
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return res.status(response.statusCode).json(response.body);
+    } else {
+      // Special handling for 503 (PASSIVE mode) - propagate error message with full details
+      if (response.statusCode === 503) {
+        return res.status(503).json({
           success: false,
-          error: 'backend_error',
-          message: `Backend service returned an error (status: ${response.statusCode})`,
-          upstreamStatusCode: response.statusCode,
-          ...(response.body && typeof response.body === 'object' && response.body.error ? {
-            backendError: response.body.error,
-            backendMessage: response.body.message || response.body.error,
-          } : {}),
+          error: response.body?.error || 'passive_mode',
+          message:
+            response.body?.message ||
+            response.body?.error ||
+            'Backend in PASSIVE mode - lock not acquired',
+          mode: response.body?.mode || 'passive',
+          instanceId: response.body?.instanceId,
+          holderInstanceId: response.body?.holderInstanceId,
+          retryAfterSeconds: response.body?.retryAfterSeconds || 15,
+          waMode: response.body?.waMode || 'passive',
+          requestId: response.body?.requestId,
+        });
+      } else if (response.statusCode === 401) {
+        // Unauthorized - propagate (critical for 401 loop debugging)
+        return res.status(401).json({
+          success: false,
+          error: response.body?.error || 'unauthorized',
+          message:
+            response.body?.message || 'Unauthorized - authentication required or session expired',
+          ...(response.body && typeof response.body === 'object'
+            ? {
+                backendError: response.body.error,
+                backendMessage: response.body.message,
+                backendAccountId: response.body.accountId,
+              }
+            : {}),
+        });
+      } else if (response.statusCode === 403) {
+        // Forbidden - propagate
+        return res.status(403).json({
+          success: false,
+          error: response.body?.error || 'forbidden',
+          message: response.body?.message || 'Forbidden - insufficient permissions',
+          ...(response.body && typeof response.body === 'object' ? response.body : {}),
         });
       }
-    } catch (error) {
-      console.error('[whatsappProxy/addAccount] Error:', error.message);
+
+      // For other errors, return safe message but include status code
       return res.status(500).json({
         success: false,
-        error: 'internal_error',
-        message: 'Internal server error',
+        error: 'backend_error',
+        message: `Backend service returned an error (status: ${response.statusCode})`,
+        upstreamStatusCode: response.statusCode,
+        ...(response.body && typeof response.body === 'object' && response.body.error
+          ? {
+              backendError: response.body.error,
+              backendMessage: response.body.message || response.body.error,
+            }
+          : {}),
       });
     }
+  } catch (error) {
+    console.error('[whatsappProxy/addAccount] Error:', error.message);
+    return res.status(500).json({
+      success: false,
+      error: 'internal_error',
+      message: 'Internal server error',
+    });
+  }
 }
 
 /**
  * DELETE /whatsappProxyDeleteAccount handler
- * 
+ *
  * Delete a WhatsApp account via backend.
  * Requires super-admin authentication.
  */
@@ -1278,7 +1393,8 @@ async function backfillAccountHandler(req, res) {
     const backendUrl = `${backendBaseUrl}/api/whatsapp/backfill/${accountId.trim()}`;
     const headers = { 'Content-Type': 'application/json' };
     if (req.headers['authorization']) headers['Authorization'] = req.headers['authorization'];
-    const body = typeof req.body === 'object' && req.body !== null ? JSON.stringify(req.body) : '{}';
+    const body =
+      typeof req.body === 'object' && req.body !== null ? JSON.stringify(req.body) : '{}';
     const response = await getForwardRequest()(backendUrl, { method: 'POST', headers }, body);
 
     // Forward backend response, but sanitize non-2xx errors
@@ -1446,176 +1562,196 @@ exports.backfillAccountHandler = backfillAccountHandler;
 
 /**
  * POST /whatsappProxyRegenerateQr handler
- * 
+ *
  * Regenerate QR code for a WhatsApp account via backend.
  * Requires super-admin authentication.
  */
 async function regenerateQrHandler(req, res) {
-    if (req.method !== 'POST') {
-      return res.status(405).json({
-        success: false,
-        error: 'method_not_allowed',
-        message: 'Only POST method is allowed',
-      });
-    }
+  if (req.method !== 'POST') {
+    return res.status(405).json({
+      success: false,
+      error: 'method_not_allowed',
+      message: 'Only POST method is allowed',
+    });
+  }
 
-    try {
-      // Require super-admin auth
-      const isSuperAdmin = await requireSuperAdmin(req, res);
-      if (!isSuperAdmin) return; // Response already sent (401/403)
+  try {
+    // Require super-admin auth
+    const isSuperAdmin = await requireSuperAdmin(req, res);
+    if (!isSuperAdmin) return; // Response already sent (401/403)
 
-      // Lazy-load backend base URL (computed at handler runtime, not module load time)
-      const backendBaseUrl = getBackendBaseUrl();
-      if (!backendBaseUrl) {
-        return res.status(500).json({
-          success: false,
-          error: 'configuration_missing',
-          message:
-            'WHATSAPP_BACKEND_BASE_URL must be set (Firebase secret or functions.config().whatsapp.backend_base_url)',
-        });
-      }
-
-      // Extract and validate accountId
-      const accountId = req.query.accountId || req.body.accountId;
-      if (!accountId || typeof accountId !== 'string' || accountId.trim().length === 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'invalid_request',
-          message: 'Missing or invalid accountId (query parameter or body)',
-        });
-      }
-
-      // Extract requestId and correlationId from headers for correlation
-      const requestId = req.headers['x-request-id'] || `proxy_${Date.now()}`;
-      const correlationId = req.headers['x-correlation-id'] || requestId;
-      
-      // DEBUG MODE: Check if super-admin requested debug info (X-Debug header + non-production)
-      const isDebugMode = req.headers['x-debug'] === 'true' && 
-                          process.env.GCLOUD_PROJECT !== 'superparty-frontend' &&
-                          process.env.FUNCTIONS_EMULATOR === 'true';
-      const userEmail = req.user?.email || '';
-      const isSuperAdminDebug = isDebugMode && userEmail === SUPER_ADMIN_EMAIL;
-      
-      // Forward to backend
-      const backendUrl = `${backendBaseUrl}/api/whatsapp/regenerate-qr/${accountId.trim()}`;
-      console.log(`[whatsappProxy/regenerateQr] Calling backend: ${backendUrl}, requestId=${requestId}, correlationId=${correlationId}, debugMode=${isSuperAdminDebug}`);
-      
-      const response = await getForwardRequest()(backendUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Request-ID': requestId, // Forward requestId to backend
-          'X-Correlation-Id': correlationId, // Forward correlation ID for end-to-end tracing
-        },
-      });
-
-      // Extract short error ID from backend response for correlation
-      const errorId = response.body?.error || response.body?.errorCode || 'unknown';
-      const shortErrorId = typeof errorId === 'string' ? errorId.substring(0, 20) : 'unknown';
-      
-      console.log(`[whatsappProxy/regenerateQr] Backend response: status=${response.statusCode}, errorId=${shortErrorId}, requestId=${requestId}, debugMode=${isSuperAdminDebug}`);
-
-      // Forward backend response, but sanitize non-2xx errors
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return res.status(response.statusCode).json({
-          ...response.body,
-          requestId: requestId, // Ensure requestId is in response
-        });
-      } else {
-        // CRITICAL: Log full backend response body for non-2xx to diagnose root cause
-        // This is essential because proxy masks upstream errors as generic 500
-        const backendBody = response.body || {};
-        const backendBodyStr = typeof backendBody === 'string' 
-          ? backendBody 
-          : JSON.stringify(backendBody);
-        const backendBodyPreview = backendBodyStr.length > 500 
-          ? backendBodyStr.substring(0, 500) + '...' 
-          : backendBodyStr;
-        
-        console.error(`[whatsappProxy/regenerateQr] Backend error (non-2xx): status=${response.statusCode}, requestId=${requestId}`);
-        console.error(`[whatsappProxy/regenerateQr] Backend error body: ${backendBodyPreview}`);
-        console.error(`[whatsappProxy/regenerateQr] Backend error details: error=${backendBody.error || 'none'}, message=${backendBody.message || 'none'}, status=${backendBody.status || 'none'}, accountId=${backendBody.accountId || 'none'}`);
-        
-        // Special handling for 503 (PASSIVE mode) - propagate error message with full details
-        if (response.statusCode === 503) {
-          return res.status(503).json({
-            success: false,
-            error: response.body?.error || 'passive_mode',
-            message: response.body?.message || response.body?.error || 'Backend in PASSIVE mode - lock not acquired',
-            mode: response.body?.mode || 'passive',
-            instanceId: response.body?.instanceId,
-            holderInstanceId: response.body?.holderInstanceId,
-            retryAfterSeconds: response.body?.retryAfterSeconds || 15,
-            waMode: response.body?.waMode || 'passive',
-            requestId: requestId,
-          });
-        } else if (response.statusCode === 401) {
-          // Unauthorized - propagate (critical for 401 loop debugging)
-          return res.status(401).json({
-            success: false,
-            error: response.body?.error || 'unauthorized',
-            message: response.body?.message || 'Unauthorized - authentication required or session expired',
-            requestId: requestId,
-            ...(response.body && typeof response.body === 'object' ? {
-              backendError: response.body.error,
-              backendMessage: response.body.message,
-              backendAccountId: response.body.accountId,
-            } : {}),
-          });
-        } else if (response.statusCode === 403) {
-          // Forbidden - propagate
-          return res.status(403).json({
-            success: false,
-            error: response.body?.error || 'forbidden',
-            message: response.body?.message || 'Forbidden - insufficient permissions',
-            requestId: requestId,
-            ...(response.body && typeof response.body === 'object' ? response.body : {}),
-          });
-        }
-        
-        // For other 4xx/5xx errors, return structured error with requestId
-        // Include backend error details for debugging (not just generic message)
-        const httpStatus = response.statusCode;
-        // backendBody already declared above, reuse it
-        
-        // DEBUG MODE: For super-admin in debug mode, include backendStatusCode and backendErrorSafe
-        const debugInfo = isSuperAdminDebug ? {
-          backendStatusCode: httpStatus,
-          backendErrorSafe: typeof backendBody.error === 'string' 
-            ? backendBody.error.substring(0, 50) 
-            : (backendBody.errorCode || 'unknown_error'),
-          backendStatus: backendBody.status,
-          backendAccountId: backendBody.accountId,
-          backendRequestId: backendBody.requestId,
-        } : {};
-        
-        return res.status(httpStatus >= 400 && httpStatus < 500 ? httpStatus : 500).json({
-          success: false,
-          error: `UPSTREAM_HTTP_${httpStatus}`,
-          message: backendBody.message || `Backend service returned an error (status: ${httpStatus})`,
-          requestId: requestId,
-          hint: `Check backend logs for requestId: ${requestId}`,
-          upstreamStatusCode: httpStatus,
-          // Include backend error code and status for debugging (always logged server-side)
-          // For debug mode, also include in response (only for super-admin in non-production)
-          ...(response.body && typeof response.body === 'object' ? {
-            backendError: response.body.error || response.body.errorCode,
-            backendStatus: response.body.status,
-            backendMessage: response.body.message,
-            backendAccountId: response.body.accountId,
-          } : {}),
-          ...debugInfo, // Only included for super-admin in debug mode
-        });
-      }
-    } catch (error) {
-      const requestId = req.headers['x-request-id'] || `proxy_${Date.now()}`;
-      console.error(`[whatsappProxy/regenerateQr] Error: ${error.message}, requestId=${requestId}, stack=${error.stack?.substring(0, 200)}`);
+    // Lazy-load backend base URL (computed at handler runtime, not module load time)
+    const backendBaseUrl = getBackendBaseUrl();
+    if (!backendBaseUrl) {
       return res.status(500).json({
         success: false,
-        error: 'internal_error',
-        message: 'Internal server error',
-        requestId: requestId,
-        hint: `Check Functions logs for requestId: ${requestId}`,
+        error: 'configuration_missing',
+        message:
+          'WHATSAPP_BACKEND_BASE_URL must be set (Firebase secret or functions.config().whatsapp.backend_base_url)',
       });
     }
+
+    // Extract and validate accountId
+    const accountId = req.query.accountId || req.body.accountId;
+    if (!accountId || typeof accountId !== 'string' || accountId.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_request',
+        message: 'Missing or invalid accountId (query parameter or body)',
+      });
+    }
+
+    // Extract requestId and correlationId from headers for correlation
+    const requestId = req.headers['x-request-id'] || `proxy_${Date.now()}`;
+    const correlationId = req.headers['x-correlation-id'] || requestId;
+
+    // DEBUG MODE: Check if super-admin requested debug info (X-Debug header + non-production)
+    const isDebugMode =
+      req.headers['x-debug'] === 'true' &&
+      process.env.GCLOUD_PROJECT !== 'superparty-frontend' &&
+      process.env.FUNCTIONS_EMULATOR === 'true';
+    const userEmail = req.user?.email || '';
+    const isSuperAdminDebug = isDebugMode && userEmail === SUPER_ADMIN_EMAIL;
+
+    // Forward to backend
+    const backendUrl = `${backendBaseUrl}/api/whatsapp/regenerate-qr/${accountId.trim()}`;
+    console.log(
+      `[whatsappProxy/regenerateQr] Calling backend: ${backendUrl}, requestId=${requestId}, correlationId=${correlationId}, debugMode=${isSuperAdminDebug}`
+    );
+
+    const response = await getForwardRequest()(backendUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Request-ID': requestId, // Forward requestId to backend
+        'X-Correlation-Id': correlationId, // Forward correlation ID for end-to-end tracing
+      },
+    });
+
+    // Extract short error ID from backend response for correlation
+    const errorId = response.body?.error || response.body?.errorCode || 'unknown';
+    const shortErrorId = typeof errorId === 'string' ? errorId.substring(0, 20) : 'unknown';
+
+    console.log(
+      `[whatsappProxy/regenerateQr] Backend response: status=${response.statusCode}, errorId=${shortErrorId}, requestId=${requestId}, debugMode=${isSuperAdminDebug}`
+    );
+
+    // Forward backend response, but sanitize non-2xx errors
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return res.status(response.statusCode).json({
+        ...response.body,
+        requestId: requestId, // Ensure requestId is in response
+      });
+    } else {
+      // CRITICAL: Log full backend response body for non-2xx to diagnose root cause
+      // This is essential because proxy masks upstream errors as generic 500
+      const backendBody = response.body || {};
+      const backendBodyStr =
+        typeof backendBody === 'string' ? backendBody : JSON.stringify(backendBody);
+      const backendBodyPreview =
+        backendBodyStr.length > 500 ? backendBodyStr.substring(0, 500) + '...' : backendBodyStr;
+
+      console.error(
+        `[whatsappProxy/regenerateQr] Backend error (non-2xx): status=${response.statusCode}, requestId=${requestId}`
+      );
+      console.error(`[whatsappProxy/regenerateQr] Backend error body: ${backendBodyPreview}`);
+      console.error(
+        `[whatsappProxy/regenerateQr] Backend error details: error=${backendBody.error || 'none'}, message=${backendBody.message || 'none'}, status=${backendBody.status || 'none'}, accountId=${backendBody.accountId || 'none'}`
+      );
+
+      // Special handling for 503 (PASSIVE mode) - propagate error message with full details
+      if (response.statusCode === 503) {
+        return res.status(503).json({
+          success: false,
+          error: response.body?.error || 'passive_mode',
+          message:
+            response.body?.message ||
+            response.body?.error ||
+            'Backend in PASSIVE mode - lock not acquired',
+          mode: response.body?.mode || 'passive',
+          instanceId: response.body?.instanceId,
+          holderInstanceId: response.body?.holderInstanceId,
+          retryAfterSeconds: response.body?.retryAfterSeconds || 15,
+          waMode: response.body?.waMode || 'passive',
+          requestId: requestId,
+        });
+      } else if (response.statusCode === 401) {
+        // Unauthorized - propagate (critical for 401 loop debugging)
+        return res.status(401).json({
+          success: false,
+          error: response.body?.error || 'unauthorized',
+          message:
+            response.body?.message || 'Unauthorized - authentication required or session expired',
+          requestId: requestId,
+          ...(response.body && typeof response.body === 'object'
+            ? {
+                backendError: response.body.error,
+                backendMessage: response.body.message,
+                backendAccountId: response.body.accountId,
+              }
+            : {}),
+        });
+      } else if (response.statusCode === 403) {
+        // Forbidden - propagate
+        return res.status(403).json({
+          success: false,
+          error: response.body?.error || 'forbidden',
+          message: response.body?.message || 'Forbidden - insufficient permissions',
+          requestId: requestId,
+          ...(response.body && typeof response.body === 'object' ? response.body : {}),
+        });
+      }
+
+      // For other 4xx/5xx errors, return structured error with requestId
+      // Include backend error details for debugging (not just generic message)
+      const httpStatus = response.statusCode;
+      // backendBody already declared above, reuse it
+
+      // DEBUG MODE: For super-admin in debug mode, include backendStatusCode and backendErrorSafe
+      const debugInfo = isSuperAdminDebug
+        ? {
+            backendStatusCode: httpStatus,
+            backendErrorSafe:
+              typeof backendBody.error === 'string'
+                ? backendBody.error.substring(0, 50)
+                : backendBody.errorCode || 'unknown_error',
+            backendStatus: backendBody.status,
+            backendAccountId: backendBody.accountId,
+            backendRequestId: backendBody.requestId,
+          }
+        : {};
+
+      return res.status(httpStatus >= 400 && httpStatus < 500 ? httpStatus : 500).json({
+        success: false,
+        error: `UPSTREAM_HTTP_${httpStatus}`,
+        message: backendBody.message || `Backend service returned an error (status: ${httpStatus})`,
+        requestId: requestId,
+        hint: `Check backend logs for requestId: ${requestId}`,
+        upstreamStatusCode: httpStatus,
+        // Include backend error code and status for debugging (always logged server-side)
+        // For debug mode, also include in response (only for super-admin in non-production)
+        ...(response.body && typeof response.body === 'object'
+          ? {
+              backendError: response.body.error || response.body.errorCode,
+              backendStatus: response.body.status,
+              backendMessage: response.body.message,
+              backendAccountId: response.body.accountId,
+            }
+          : {}),
+        ...debugInfo, // Only included for super-admin in debug mode
+      });
+    }
+  } catch (error) {
+    const requestId = req.headers['x-request-id'] || `proxy_${Date.now()}`;
+    console.error(
+      `[whatsappProxy/regenerateQr] Error: ${error.message}, requestId=${requestId}, stack=${error.stack?.substring(0, 200)}`
+    );
+    return res.status(500).json({
+      success: false,
+      error: 'internal_error',
+      message: 'Internal server error',
+      requestId: requestId,
+      hint: `Check Functions logs for requestId: ${requestId}`,
+    });
   }
+}

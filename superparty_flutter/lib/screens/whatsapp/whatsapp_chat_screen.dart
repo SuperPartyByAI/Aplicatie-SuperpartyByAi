@@ -761,13 +761,13 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     );
   }
 
-  Future<void> _sendMessage() async {
+  Future<void> _sendMessage({Map<String, dynamic>? payload}) async {
     if (_isSending) return;
     _isSending = true;
     if (mounted) setState(() {});
 
     final text = _messageController.text.trim();
-    if (text.isEmpty) {
+    if (text.isEmpty && payload == null) {
       _isSending = false;
       if (mounted) setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
@@ -841,6 +841,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         toJid: toJid,
         text: text,
         clientMessageId: clientMessageId,
+        payload: payload,
       );
 
       if (mounted) {
@@ -1014,13 +1015,15 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       );
 
       final bytes = await image.readAsBytes();
-      final fileName = path.basename(image.path);
+      final caption = _messageController.text.trim();
       final downloadUrl = await _uploadFile(bytes, fileName, contentType: 'image/jpeg');
 
       if (downloadUrl != null && mounted) {
-        // Send image link as text (varianta minimă)
-        _messageController.text = downloadUrl;
-        await _sendMessage();
+        // Send as native image message
+        await _sendMessage(payload: {
+          'image': {'url': downloadUrl},
+          'caption': caption.isNotEmpty ? caption : null,
+        });
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Eroare la încărcarea imaginii'), backgroundColor: Colors.red),
@@ -1048,13 +1051,15 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       );
 
       final bytes = await image.readAsBytes();
-      final fileName = path.basename(image.path);
+      final caption = _messageController.text.trim();
       final downloadUrl = await _uploadFile(bytes, fileName, contentType: 'image/jpeg');
 
       if (downloadUrl != null && mounted) {
-        // Send image link as text (varianta minimă)
-        _messageController.text = downloadUrl;
-        await _sendMessage();
+        // Send as native image message
+        await _sendMessage(payload: {
+          'image': {'url': downloadUrl},
+          'caption': caption.isNotEmpty ? caption : null,
+        });
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Eroare la încărcarea imaginii'), backgroundColor: Colors.red),
@@ -1101,9 +1106,13 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       final downloadUrl = await _uploadFile(bytes, fileName);
 
       if (downloadUrl != null && mounted) {
-        // Send file link as text (varianta minimă)
-        _messageController.text = '$fileName: $downloadUrl';
-        await _sendMessage();
+        // Send as native document (PDF, etc.)
+        final isPdf = fileName.toLowerCase().endsWith('.pdf');
+        await _sendMessage(payload: {
+          'document': {'url': downloadUrl},
+          'fileName': fileName,
+          'mimetype': isPdf ? 'application/pdf' : 'application/octet-stream',
+        });
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Eroare la încărcarea fișierului'), backgroundColor: Colors.red),

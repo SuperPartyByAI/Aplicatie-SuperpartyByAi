@@ -2,7 +2,7 @@
 
 /**
  * WhatsApp Outbox Processor
- * 
+ *
  * Processes outbox messages created by whatsappProxySend and sends them
  * to WhatsApp backend for actual delivery.
  */
@@ -33,9 +33,9 @@ function forwardRequest(url, options, body = null) {
       headers: options.headers || {},
     };
 
-    const req = client.request(requestOptions, (res) => {
+    const req = client.request(requestOptions, res => {
       let data = '';
-      res.on('data', (chunk) => {
+      res.on('data', chunk => {
         data += chunk;
       });
       res.on('end', () => {
@@ -56,7 +56,7 @@ function forwardRequest(url, options, body = null) {
       });
     });
 
-    req.on('error', (error) => {
+    req.on('error', error => {
       reject(error);
     });
 
@@ -84,12 +84,14 @@ async function processOutboxDocument(snapshot, context) {
 
   const outboxId = context.params.outboxId;
   const data = snapshot.data();
-  
+
   console.log(`[OutboxProcessor] Processing outbox document: ${outboxId}`);
 
   // Validate outbox document
   if (!data || data.status !== 'queued') {
-    console.log(`[OutboxProcessor] Skipping document ${outboxId}: invalid status (${data?.status})`);
+    console.log(
+      `[OutboxProcessor] Skipping document ${outboxId}: invalid status (${data?.status})`
+    );
     return null;
   }
 
@@ -100,6 +102,7 @@ async function processOutboxDocument(snapshot, context) {
     body: messageText,
     requestId,
     attemptCount = 0,
+    payload,
   } = data;
 
   // Check if max retries exceeded
@@ -136,25 +139,30 @@ async function processOutboxDocument(snapshot, context) {
     // Send message to backend
     const backendUrl = `${backendBaseUrl}/api/whatsapp/send-message`;
     console.log(`[OutboxProcessor] Sending to backend: ${backendUrl}`);
-    
-    const response = await forwardRequest(backendUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Request-ID': requestId,
+
+    const response = await forwardRequest(
+      backendUrl,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-ID': requestId,
+        },
       },
-    }, {
-      threadId,
-      accountId,
-      to: toJid,
-      message: messageText,
-      clientMessageId: requestId,
-    });
+      {
+        threadId,
+        accountId,
+        to: toJid,
+        message: messageText,
+        clientMessageId: requestId,
+        payload,
+      }
+    );
 
     // Check response
     if (response.statusCode >= 200 && response.statusCode < 300) {
       console.log(`[OutboxProcessor] Message sent successfully: ${outboxId}`);
-      
+
       // Mark as sent
       await snapshot.ref.update({
         status: 'sent',
@@ -165,8 +173,10 @@ async function processOutboxDocument(snapshot, context) {
       return { success: true, outboxId };
     } else {
       // Backend returned error
-      console.error(`[OutboxProcessor] Backend error: status=${response.statusCode}, body=${JSON.stringify(response.body)}`);
-      
+      console.error(
+        `[OutboxProcessor] Backend error: status=${response.statusCode}, body=${JSON.stringify(response.body)}`
+      );
+
       // Retry if temporary error
       if (response.statusCode >= 500 || response.statusCode === 429) {
         // Schedule retry
@@ -186,12 +196,12 @@ async function processOutboxDocument(snapshot, context) {
           backendResponse: response.body,
         });
       }
-      
+
       return { success: false, error: `Backend error: ${response.statusCode}` };
     }
   } catch (error) {
     console.error(`[OutboxProcessor] Error processing ${outboxId}:`, error.message);
-    
+
     // Schedule retry for network errors
     const nextAttemptDelay = Math.pow(2, attemptCount) * 5000;
     await snapshot.ref.update({
@@ -199,7 +209,7 @@ async function processOutboxDocument(snapshot, context) {
       error: error.message,
       nextAttemptAt: admin.firestore.Timestamp.fromMillis(Date.now() + nextAttemptDelay),
     });
-    
+
     return { success: false, error: error.message };
   }
 }
@@ -211,13 +221,13 @@ exports.processOutbox = onDocumentCreated(
     region: 'us-central1',
     maxInstances: 10,
   },
-  async (event) => {
+  async event => {
     const snapshot = event.data;
     if (!snapshot) {
       console.log('No data associated with the event');
       return;
     }
-    
+
     return processOutboxDocument(snapshot, event);
   }
 );

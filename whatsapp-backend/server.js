@@ -9722,7 +9722,14 @@ app.post('/api/whatsapp/send-message', requireFirebaseAuth, messageLimiter, asyn
   }
 
   try {
-    const { accountId, to, message, threadId: requestedThreadId } = req.body;
+    const {
+      accountId,
+      to,
+      message,
+      threadId: requestedThreadId,
+      payload,
+      clientMessageId: bodyClientMessageId,
+    } = req.body;
     const account = connections.get(accountId);
 
     if (!account) {
@@ -9793,8 +9800,8 @@ app.post('/api/whatsapp/send-message', requireFirebaseAuth, messageLimiter, asyn
         accountId,
         toJid: jid,
         threadId,
-        payload: { text: message },
-        body: message,
+        payload: payload || { text: message },
+        body: message || (payload?.document ? 'File' : 'Media'),
         clientMessageId,
         status: 'queued',
         attemptCount: 0,
@@ -9834,7 +9841,8 @@ app.post('/api/whatsapp/send-message', requireFirebaseAuth, messageLimiter, asyn
     // Account is connected: send immediately and persist
     let result;
     try {
-      result = await account.sock.sendMessage(jid, { text: message });
+      const messagePayload = payload || { text: message };
+      result = await account.sock.sendMessage(jid, messagePayload);
     } catch (sendError) {
       // If send fails, queue it instead
       const messageId = outboxId || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -9845,8 +9853,8 @@ app.post('/api/whatsapp/send-message', requireFirebaseAuth, messageLimiter, asyn
           accountId,
           toJid: jid,
           threadId,
-          payload: { text: message },
-          body: message,
+          payload: payload || { text: message },
+          body: message || (payload?.document ? 'File' : 'Media'),
           clientMessageId,
           status: 'queued',
           attemptCount: 0,
