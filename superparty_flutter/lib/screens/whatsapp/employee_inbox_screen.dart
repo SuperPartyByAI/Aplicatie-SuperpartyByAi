@@ -454,49 +454,7 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
     }
   }
 
-  Future<bool> _openWhatsAppForCall(String? phoneE164) async {
-    if (phoneE164 == null || phoneE164.isEmpty) return false;
 
-    var cleaned = phoneE164.trim().replaceAll(RegExp(r'[^\d+]'), '');
-    final hasPlus = cleaned.startsWith('+');
-    cleaned = cleaned.replaceAll('+', '');
-    if (cleaned.isEmpty) return false;
-    final e164 = hasPlus ? '+$cleaned' : cleaned;
-
-    final native = Uri.parse('whatsapp://send?phone=$e164');
-    if (await canLaunchUrl(native)) {
-      return launchUrl(native, mode: LaunchMode.externalApplication);
-    }
-
-    final waDigits = e164.startsWith('+') ? e164.substring(1) : e164;
-    final web = Uri.parse('https://wa.me/$waDigits');
-    return launchUrl(web, mode: LaunchMode.externalApplication);
-  }
-
-  Future<void> _makePhoneCall(String? phone) async {
-    if (phone == null || phone.isEmpty) return;
-
-    String cleaned = phone.trim();
-    cleaned = cleaned.replaceAll(RegExp(r'[^\d+]'), '');
-    final hasPlus = cleaned.startsWith('+');
-    cleaned = cleaned.replaceAll('+', '');
-    if (hasPlus && cleaned.isNotEmpty) {
-      cleaned = '+$cleaned';
-    }
-
-    if (cleaned.isEmpty) return;
-
-    final uri = Uri(scheme: 'tel', path: cleaned);
-    try {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Eroare la apelare: $e')),
-        );
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {

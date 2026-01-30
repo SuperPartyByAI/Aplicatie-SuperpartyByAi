@@ -1674,64 +1674,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
             },
             tooltip: 'Înapoi la Inbox',
           ),
-          if (_phoneE164 != null || _extractPhoneFromJid(_clientJid) != null) ...[
-            // WhatsApp call button (opens WhatsApp chat)
-            IconButton(
-              icon: const Icon(Icons.video_call, color: Colors.white),
-              onPressed: () async {
-                final phone = _phoneE164 ?? _extractPhoneFromJid(_clientJid);
-                if (phone != null && phone.isNotEmpty) {
-                  final ok = await openWhatsAppForCall(phone);
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(ok
-                          ? 'S-a deschis WhatsApp. Apasă iconița Call acolo.'
-                          : 'Nu pot deschide WhatsApp (instalat?)'),
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
-                }
-              },
-              tooltip: 'Sună pe WhatsApp',
-            ),
-            // Regular phone call button
-            IconButton(
-              icon: const Icon(Icons.phone),
-              onPressed: () async {
-                final phone = _phoneE164 ?? _extractPhoneFromJid(_clientJid);
-                if (phone != null && phone.isNotEmpty) {
-                  // Normalize phone number: ensure + is only at the beginning
-                  String cleaned = phone.trim();
-                  cleaned = cleaned.replaceAll(RegExp(r'[^\d+]'), '');
-                  final hasPlus = cleaned.startsWith('+');
-                  cleaned = cleaned.replaceAll('+', '');
-                  if (hasPlus && cleaned.isNotEmpty) {
-                    cleaned = '+$cleaned';
-                  }
-                  
-                  if (cleaned.isNotEmpty) {
-                    final uri = Uri(scheme: 'tel', path: cleaned);
-                    try {
-                      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-                      if (!ok && mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Nu se poate deschide aplicația de telefon')),
-                        );
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Eroare la apelare: $e')),
-                        );
-                      }
-                    }
-                  }
-                }
-              },
-              tooltip: 'Sună contact (telefon)',
-            ),
-          ],
+
           IconButton(
             icon: Icon(_showCrmPanel ? Icons.expand_less : Icons.expand_more),
             onPressed: () {
