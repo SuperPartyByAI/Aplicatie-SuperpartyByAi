@@ -2308,7 +2308,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                           border: OutlineInputBorder(),
                           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         ),
-                        onSubmitted: (_) => _sendMessage(),
+                        onSubmitted: (_) => _isSending ? null : _sendMessage(),
                       ),
                     ),
                     const SizedBox(width: 8),

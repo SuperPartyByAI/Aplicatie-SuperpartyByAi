@@ -130,14 +130,21 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
   if (!db || !opts?.accountId || !opts.threadId || !msg?.key) return null;
 
   const { accountId, clientJid, threadId, direction } = opts;
-  if (typeof threadId !== 'string' || threadId.includes('[object Object]') || threadId.includes('[obiect Obiect]')) {
-    console.warn(`[message_persist] Skipping write: invalid threadId (accountId=${accountId ? `${accountId.slice(0, 8)}...` : 'null'})`);
+  if (
+    typeof threadId !== 'string' ||
+    threadId.includes('[object Object]') ||
+    threadId.includes('[obiect Obiect]')
+  ) {
+    console.warn(
+      `[message_persist] Skipping write: invalid threadId (accountId=${accountId ? `${accountId.slice(0, 8)}...` : 'null'})`
+    );
     return null;
   }
   const { extraFields = {}, threadOverrides = {}, messageIdOverride } = options;
   const { body, type } = extractBodyAndType(msg);
   const ts = computeTsClient({ messageTimestamp: msg?.messageTimestamp });
-  
+  const clientMessageId = options.clientMessageId || options.messageIdOverride || null;
+
   // Media data should come from extraFields (uploaded to Firebase Storage via buildMediaPayload)
   // If not provided, extract basic info from message for fallback
   let mediaData = extraFields?.media || null;
@@ -198,9 +205,16 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
   const waKeyId = msg?.key?.id;
   const fallbackId =
     waKeyId ||
-    crypto.createHash('sha256').update(`${accountId}|${threadId}|${Date.now()}`).digest('hex').slice(0, 24);
+    crypto
+      .createHash('sha256')
+      .update(`${accountId}|${threadId}|${Date.now()}`)
+      .digest('hex')
+      .slice(0, 24);
   // Prefer waKeyId over stable candidates for doc.id (ensures compatibility with fetchMessageHistory)
-  const messageId = messageIdOverride || waKeyId || (await resolveMessageDocId(db, accountId, stable.stableCandidates[0], fallbackId));
+  const messageId =
+    messageIdOverride ||
+    waKeyId ||
+    (await resolveMessageDocId(db, accountId, stable.stableCandidates[0], fallbackId));
 
   const preview =
     typeof body === 'string' && body.length > 0
@@ -210,22 +224,29 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
   // Activity: update thread for ANY non-protocol message so inbox order matches phone (last message = top).
   // Protocol-only (e.g. historySyncNotification) must NOT update activity.
   const hasProtocolMessage = !!msg?.message?.protocolMessage;
-  const messageKeys = msg?.message && typeof msg.message === 'object' ? Object.keys(msg.message) : [];
-  const hasMessageContent = messageKeys.some((k) => k !== 'protocolMessage');
+  const messageKeys =
+    msg?.message && typeof msg.message === 'object' ? Object.keys(msg.message) : [];
+  const hasMessageContent = messageKeys.some(k => k !== 'protocolMessage');
   const isProtocolOnly = hasProtocolMessage && !hasMessageContent;
   const shouldUpdateThreadActivity = hasMessageContent && !isProtocolOnly;
 
   // Preview: use text when available; otherwise placeholder so we never skip thread update for "no preview".
   const hasMeaningfulPreview = !!preview && preview.trim().length > 0;
-  const effectivePreview = hasMeaningfulPreview ? preview.trim().slice(0, PREVIEW_MAX).replace(/\s+/g, ' ') : getPlaceholderPreview(msg);
+  const effectivePreview = hasMeaningfulPreview
+    ? preview.trim().slice(0, PREVIEW_MAX).replace(/\s+/g, ' ')
+    : getPlaceholderPreview(msg);
 
   const threadRef = db.collection('threads').doc(threadId);
-  
+
   // CRITICAL FIX: Extract clientJid from threadId if not provided (threadId format: accountId__clientJid)
   // This ensures Flutter Inbox always has clientJid to display name/phone instead of "?"
   // EDGE CASE: Only fill missing, never overwrite existing clientJid
   let resolvedClientJid = clientJid;
-  if (!resolvedClientJid || typeof resolvedClientJid !== 'string' || resolvedClientJid.trim() === '') {
+  if (
+    !resolvedClientJid ||
+    typeof resolvedClientJid !== 'string' ||
+    resolvedClientJid.trim() === ''
+  ) {
     // Extract from threadId: accountId__clientJid
     // Only parse if threadId has separator '__' and right part looks like JID
     if (threadId && typeof threadId === 'string' && threadId.includes('__')) {
@@ -233,25 +254,32 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
       if (parts.length >= 2) {
         const candidateJid = parts.slice(1).join('__'); // Join in case clientJid contains '__'
         // Validate: candidateJid should look like a JID (ends with @s.whatsapp.net, @g.us, @lid, etc.)
-        if (candidateJid && typeof candidateJid === 'string' && 
-            (candidateJid.endsWith('@s.whatsapp.net') || 
-             candidateJid.endsWith('@g.us') || 
-             candidateJid.endsWith('@lid') ||
-             candidateJid.endsWith('@c.us') ||
-             candidateJid.endsWith('@broadcast'))) {
+        if (
+          candidateJid &&
+          typeof candidateJid === 'string' &&
+          (candidateJid.endsWith('@s.whatsapp.net') ||
+            candidateJid.endsWith('@g.us') ||
+            candidateJid.endsWith('@lid') ||
+            candidateJid.endsWith('@c.us') ||
+            candidateJid.endsWith('@broadcast'))
+        ) {
           resolvedClientJid = candidateJid;
         }
       }
     }
   }
-  
-  const isLid = resolvedClientJid && typeof resolvedClientJid === 'string' && resolvedClientJid.endsWith('@lid');
-  
+
+  const isLid =
+    resolvedClientJid &&
+    typeof resolvedClientJid === 'string' &&
+    resolvedClientJid.endsWith('@lid');
+
   // Extract phoneE164 from clientJid if it's a phone number (for 1:1 chats only, not groups)
   // EDGE CASE: Only for @s.whatsapp.net or @c.us, normalize phone digits consistently
   let phoneE164 = null;
   if (resolvedClientJid && typeof resolvedClientJid === 'string') {
-    const isPhoneJid = resolvedClientJid.endsWith('@s.whatsapp.net') || resolvedClientJid.endsWith('@c.us');
+    const isPhoneJid =
+      resolvedClientJid.endsWith('@s.whatsapp.net') || resolvedClientJid.endsWith('@c.us');
     if (isPhoneJid) {
       const phoneDigits = resolvedClientJid.split('@')[0]?.replace(/\D/g, '') || '';
       // Validate: phone digits should be 6-15 digits (international format)
@@ -261,7 +289,7 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
       }
     }
   }
-  
+
   const isInbound = direction === 'inbound';
   if (shouldUpdateThreadActivity) {
     // CRITICAL: Only update lastMessageAt if this message is newer than (or equal to) existing.
@@ -281,7 +309,8 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
     } catch (_) {
       // Best-effort: if read fails, allow update (better than never updating)
     }
-    const mayUpdateActivity = tsClientMs != null && (existingLastMs == null || tsClientMs >= existingLastMs);
+    const mayUpdateActivity =
+      tsClientMs != null && (existingLastMs == null || tsClientMs >= existingLastMs);
 
     // CRITICAL FIX: Look up contact data from contacts collection to enrich thread with name and profile picture
     // This ensures Flutter Inbox displays correct names and profile pictures for all contacts
@@ -294,7 +323,8 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
         if (contactDoc.exists) {
           const contactData = contactDoc.data() || {};
           // Extract displayName from contact (prioritize name, then notify, then verifiedName)
-          contactDisplayName = contactData.name || contactData.notify || contactData.verifiedName || null;
+          contactDisplayName =
+            contactData.name || contactData.notify || contactData.verifiedName || null;
           if (contactDisplayName && typeof contactDisplayName === 'string') {
             contactDisplayName = contactDisplayName.trim();
             if (contactDisplayName.length === 0) contactDisplayName = null;
@@ -311,7 +341,7 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
         // This prevents message saving from failing if contacts collection is unavailable
       }
     }
-    
+
     const threadUpdate = {
       accountId,
       clientJid: threadOverrides.clientJid || resolvedClientJid || null,
@@ -319,34 +349,49 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
       // Last activity: BOTH inbound and outbound so inbox order matches phone (last message on top).
       ...(mayUpdateActivity && tsClientAt ? { lastMessageAt: tsClientAt } : {}),
       ...(mayUpdateActivity && tsClientMs != null ? { lastMessageAtMs: tsClientMs } : {}),
-      ...(mayUpdateActivity && isInbound && tsClientMs != null ? { lastInboundAtMs: tsClientMs } : {}),
+      ...(mayUpdateActivity && isInbound && tsClientMs != null
+        ? { lastInboundAtMs: tsClientMs }
+        : {}),
       ...(mayUpdateActivity && isInbound && tsClientAt ? { lastInboundAt: tsClientAt } : {}),
       // Preview for BOTH directions (text or placeholder) so thread always gets updated.
       ...(mayUpdateActivity ? { lastMessagePreview: effectivePreview } : {}),
       ...(mayUpdateActivity ? { lastMessageText: effectivePreview } : {}),
       ...(mayUpdateActivity ? { lastMessageDirection: isInbound ? 'inbound' : 'outbound' } : {}),
-      ...(mayUpdateActivity && isInbound && extraFields?.senderName ? { lastMessageSenderName: extraFields.senderName } : {}),
-      ...(mayUpdateActivity && isInbound && extraFields?.lastSenderName && !extraFields?.senderName ? { lastMessageSenderName: extraFields.lastSenderName } : {}),
+      ...(mayUpdateActivity && isInbound && extraFields?.senderName
+        ? { lastMessageSenderName: extraFields.senderName }
+        : {}),
+      ...(mayUpdateActivity && isInbound && extraFields?.lastSenderName && !extraFields?.senderName
+        ? { lastMessageSenderName: extraFields.lastSenderName }
+        : {}),
       // Always update updatedAt to track thread activity
       updatedAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
       // Set phoneE164 if available and not already set in threadOverrides (only for 1:1, not groups)
-      ...(phoneE164 && !threadOverrides.phoneE164 && !threadOverrides.phone ? { phoneE164, phone: phoneE164, phoneNumber: phoneE164 } : {}),
+      ...(phoneE164 && !threadOverrides.phoneE164 && !threadOverrides.phone
+        ? { phoneE164, phone: phoneE164, phoneNumber: phoneE164 }
+        : {}),
       // CRITICAL FIX: Update displayName from contacts collection if available and thread doesn't have a valid one
       // Only update if thread doesn't already have displayName or if contact has a better name
-      ...(contactDisplayName && (!threadOverrides.displayName || typeof threadOverrides.displayName !== 'string' || threadOverrides.displayName.trim().length === 0) ? { displayName: contactDisplayName } : {}),
+      ...(contactDisplayName &&
+      (!threadOverrides.displayName ||
+        typeof threadOverrides.displayName !== 'string' ||
+        threadOverrides.displayName.trim().length === 0)
+        ? { displayName: contactDisplayName }
+        : {}),
       // CRITICAL FIX: Update profilePictureUrl from contacts collection if available
       // Flutter looks for both profilePictureUrl and photoUrl, so set both for compatibility
-      ...(contactProfilePictureUrl ? { 
-        profilePictureUrl: contactProfilePictureUrl,
-        photoUrl: contactProfilePictureUrl, // Also set photoUrl for backward compatibility
-        photoUpdatedAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
-      } : {}),
+      ...(contactProfilePictureUrl
+        ? {
+            profilePictureUrl: contactProfilePictureUrl,
+            photoUrl: contactProfilePictureUrl, // Also set photoUrl for backward compatibility
+            photoUpdatedAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
+          }
+        : {}),
       ...threadOverrides,
     };
     if (threadUpdate.updatedAt === null) delete threadUpdate.updatedAt;
     if (threadUpdate.photoUpdatedAt === null) delete threadUpdate.photoUpdatedAt;
     await threadRef.set(threadUpdate, { merge: true });
-    
+
     const accountIdShort = accountId ? accountId.substring(0, 8) : 'unknown';
     const threadIdShort = threadId ? threadId.substring(0, 8) : 'unknown';
     if (mayUpdateActivity) {
@@ -362,16 +407,20 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
     const msgKeys = messageKeys.length ? messageKeys.join(',') : 'none';
     const protocolType = msg?.message?.protocolMessage?.type;
     if (isProtocolOnly) {
-      console.log(`⏭️  [${accountIdShort}] Skipped thread update (protocol-only): keys=[${msgKeys}] protocolType=${protocolType || 'unknown'} thread=${threadIdShort}`);
+      console.log(
+        `⏭️  [${accountIdShort}] Skipped thread update (protocol-only): keys=[${msgKeys}] protocolType=${protocolType || 'unknown'} thread=${threadIdShort}`
+      );
     } else {
-      console.log(`⏭️  [${accountIdShort}] Skipped thread update: keys=[${msgKeys}] thread=${threadIdShort}`);
+      console.log(
+        `⏭️  [${accountIdShort}] Skipped thread update: keys=[${msgKeys}] thread=${threadIdShort}`
+      );
     }
   }
 
   const messageRef = threadRef.collection('messages').doc(messageId);
   const isGroup = clientJid && typeof clientJid === 'string' && clientJid.endsWith('@g.us');
-  const senderJid = isGroup ? (msg?.key?.participant || msg?.participant || null) : null;
-  
+  const senderJid = isGroup ? msg?.key?.participant || msg?.participant || null : null;
+
   const messageData = {
     accountId,
     clientJid: clientJid || null,
@@ -384,8 +433,11 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
     createdAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
     updatedAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
     ...(senderJid ? { senderId: senderJid, senderJid: senderJid } : {}), // Add senderId for group messages
-    // CRITICAL: Preserve senderName from extraFields (set by saveMessageToFirestore)
-    // This is important for group messages to show who sent the message
+    stableKeyHash: stable.stableCandidates.find(id => id.length === 40) || null,
+    fingerprintHash: stable.stableCandidates.find(id => id.length === 40) || null,
+    waMessageId: waKeyId || null,
+    providerMessageId: waKeyId || null,
+    clientMessageId: clientMessageId || extraFields?.clientMessageId || null,
     ...extraFields,
   };
   // Preserve original WhatsApp message key for fetchMessageHistory

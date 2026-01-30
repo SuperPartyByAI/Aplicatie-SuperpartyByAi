@@ -14,7 +14,12 @@ This document captures the latest improvements to the WhatsApp integration, spec
 - **Endpoint**: `POST /admin/sync-thread/:threadId` or `POST /api/admin/sync-thread/:accountId/:threadId`.
 - **Function**: Triggers a manual synchronization of messages for a specific thread, bypassing the standard background queue for testing or troubleshooting.
 
-### 3. Native Media Sending
+### 3. Rezolvare Mesaje Duplicate
+
+- **Backend**: Am adăugat câmpurile `waMessageId`, `providerMessageId` și hash-urile de identitate (`stableKeyHash`) în procesul de salvare a mesajelor. Acest lucru permite aplicației Flutter să recunoască mesajele duplicat chiar dacă vin din surse diferite (proxy vs sync).
+- **Frontend**: Am adăugat o protecție la trimiterea mesajelor (blocarea butonului și a tastei Enter în timp ce se trimite) și am asigurat resetarea corectă a stării de "trimis".
+
+### 4. Native Media Sending
 
 - **Implementation**: Updated the end-to-end flow from Flutter Pickers to the Proxy Function and finally to the WhatsApp Backend.
 - **Result**: Images are sent with captions, and PDF documents are sent natively (not as links), providing a richer user experience.

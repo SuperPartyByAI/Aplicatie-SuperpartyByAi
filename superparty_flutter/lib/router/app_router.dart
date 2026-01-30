@@ -52,19 +52,7 @@ class AppRouter {
   late final GoRouter router = GoRouter(
     debugLogDiagnostics: kDebugMode,
     refreshListenable: GoRouterRefreshStream(
-      FirebaseService.auth.authStateChanges().timeout(
-        // CRITICAL FIX: Longer timeout in debug mode for emulator connectivity
-        // Production: 5s (fast feedback), Debug: 30s (allow emulator cold start)
-        kDebugMode ? const Duration(seconds: 30) : const Duration(seconds: 5),
-        onTimeout: (sink) {
-          debugPrint('[AppRouter] ⚠️ Auth stream timeout (${kDebugMode ? 30 : 5}s) - emulator may be down');
-          // CRITICAL FIX: Emit current user (or null) to prevent GoRouter from being stuck
-          // Without this, GoRouter has no valid configuration → black screen
-          final currentUser = FirebaseService.auth.currentUser;
-          sink.add(currentUser);
-          sink.close();
-        },
-      ),
+      FirebaseService.auth.authStateChanges(),
     ),
     redirect: _redirect,
     routes: [

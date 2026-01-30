@@ -1608,66 +1608,6 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                                               Colors.grey[600],
                                                         ),
                                                       ),
-                                                    if (ph.isNotEmpty) ...[
-                                                      if (timeText.isNotEmpty)
-                                                        const SizedBox(
-                                                            width: 8),
-                                                      IconButton(
-                                                        icon: const Icon(
-                                                            Icons.video_call,
-                                                            color: Color(
-                                                                0xFF25D366),
-                                                            size: 18),
-                                                        onPressed: () async {
-                                                          final ok =
-                                                              await _openWhatsAppForCall(
-                                                                  ph);
-                                                          if (!mounted) return;
-                                                          ScaffoldMessenger.of(
-                                                                  context)
-                                                              .showSnackBar(
-                                                            SnackBar(
-                                                              content: Text(ok
-                                                                  ? 'S-a deschis WhatsApp. Apasă iconița Call acolo.'
-                                                                  : 'Nu pot deschide WhatsApp (instalat?)'),
-                                                              duration:
-                                                                  const Duration(
-                                                                      seconds:
-                                                                          2),
-                                                            ),
-                                                          );
-                                                        },
-                                                        tooltip:
-                                                            'Sună pe WhatsApp',
-                                                        padding:
-                                                            EdgeInsets.zero,
-                                                        constraints:
-                                                            const BoxConstraints(
-                                                          minWidth: 32,
-                                                          minHeight: 32,
-                                                        ),
-                                                        iconSize: 18,
-                                                      ),
-                                                      const SizedBox(width: 4),
-                                                      IconButton(
-                                                        icon: const Icon(
-                                                            Icons.phone,
-                                                            color: Colors.blue,
-                                                            size: 18),
-                                                        onPressed: () =>
-                                                            _makePhoneCall(ph),
-                                                        tooltip:
-                                                            'Sună ${ph} (telefon)',
-                                                        padding:
-                                                            EdgeInsets.zero,
-                                                        constraints:
-                                                            const BoxConstraints(
-                                                          minWidth: 32,
-                                                          minHeight: 32,
-                                                        ),
-                                                        iconSize: 18,
-                                                      ),
-                                                    ],
                                                   ],
                                                 ),
                                                 onTap: () {

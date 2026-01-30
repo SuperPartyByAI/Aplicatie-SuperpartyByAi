@@ -100,17 +100,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
     // Check for return route in query params
     final returnRoute = GoRouterState.of(context).uri.queryParameters['from'];
 
-    // CRITICAL FIX: Add timeout to authStateChanges to prevent infinite waiting
-    // If timeout occurs, use currentUser as fallback (or null if not logged in)
-    final authStream = FirebaseService.auth.authStateChanges().timeout(
-      kDebugMode ? const Duration(seconds: 30) : const Duration(seconds: 5),
-      onTimeout: (sink) {
-        debugPrint('[AuthWrapper] ⚠️ Auth stream timeout - using currentUser as fallback');
-        final currentUser = FirebaseService.auth.currentUser;
-        sink.add(currentUser);
-        sink.close();
-      },
-    );
+    final authStream = FirebaseService.auth.authStateChanges();
     
     return StreamBuilder<User?>(
       stream: authStream,
