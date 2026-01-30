@@ -3875,6 +3875,51 @@ async function enrichThreadsFromContacts(accountId) {
   return { updated, skipped, errors };
 }
 
+// Repair step: set thread lastMessageAt/lastMessageAtMs from latest message in subcollection if missing/0.
+// Used after backfill so inbox order = WhatsApp phone order.
+async function repairThreadLastMessageFromSubcollection(db, threadId) {
+  if (!db || !threadId) return { repaired: false };
+  const col = db.collection('threads').doc(threadId).collection('messages');
+  let snap;
+  try {
+    snap = await col.orderBy('tsClient', 'desc').limit(1).get();
+  } catch (_) {
+    try {
+      snap = await col.orderBy('createdAt', 'desc').limit(1).get();
+    } catch (e) {
+      return { repaired: false, error: e.message };
+    }
+  }
+  if (snap.empty) return { repaired: false };
+  const d = snap.docs[0].data();
+  const ts = d.tsClient && typeof d.tsClient.toMillis === 'function'
+    ? d.tsClient
+    : d.createdAt && typeof d.createdAt.toMillis === 'function'
+      ? d.createdAt
+      : null;
+  if (!ts) return { repaired: false };
+  const tsMs = typeof ts.toMillis === 'function' ? ts.toMillis() : null;
+  if (tsMs == null) return { repaired: false };
+  const threadRef = db.collection('threads').doc(threadId);
+  const threadSnap = await threadRef.get();
+  if (!threadSnap.exists) return { repaired: false };
+  const threadData = threadSnap.data() || {};
+  const hasValidLastMessageAt = threadData.lastMessageAt && typeof threadData.lastMessageAt.toMillis === 'function';
+  const hasValidLastMessageAtMs = typeof threadData.lastMessageAtMs === 'number' && threadData.lastMessageAtMs > 0;
+  if (hasValidLastMessageAt && hasValidLastMessageAtMs) return { repaired: false };
+  try {
+    const update = {};
+    if (!hasValidLastMessageAt) update.lastMessageAt = ts;
+    if (!hasValidLastMessageAtMs) update.lastMessageAtMs = tsMs;
+    if (Object.keys(update).length === 0) return { repaired: false };
+    await threadRef.set(update, { merge: true });
+    return { repaired: true };
+  } catch (e) {
+    console.warn(`[schema-guard] SchemaGuard missing lastMessageAt/lastMessageAtMs after backfill update: thread=${threadId} error=${e.message}`);
+    return { repaired: false, error: e.message };
+  }
+}
+
 // Helper: Backfill messages for an account (best-effort gap filling after reconnect)
 // Fetches recent messages from active threads to fill gaps
 async function backfillAccountMessages(accountId) {
@@ -4000,6 +4045,22 @@ async function backfillAccountMessages(accountId) {
       if (i + CONCURRENCY < threadsSnapshot.docs.length) {
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
+    }
+
+    // Repair step: set lastMessageAt/lastMessageAtMs from latest message for threads that have messages but missing/0
+    let repairedCount = 0;
+    for (const tr of threadResults) {
+      const threadId = tr.threadId;
+      if (!threadId) continue;
+      try {
+        const out = await repairThreadLastMessageFromSubcollection(db, threadId);
+        if (out.repaired) repairedCount += 1;
+      } catch (e) {
+        console.warn(`[schema-guard] SchemaGuard missing lastMessageAt/lastMessageAtMs after backfill update: thread=${threadId} error=${e.message}`);
+      }
+    }
+    if (repairedCount > 0) {
+      console.log(`📚 [${accountId}] Repair step: updated lastMessageAt/lastMessageAtMs for ${repairedCount} threads`);
     }
 
     // Update account metadata
@@ -9719,6 +9780,65 @@ app.post(
     }
   }
 );
+
+// Admin: trigger backfill for an account (admin-only; backfill remains automatic)
+app.post('/api/admin/backfill/:accountId', requireAdmin, async (req, res) => {
+  const passiveGuard = await checkPassiveModeGuard(req, res);
+  if (passiveGuard) return;
+  try {
+    const { accountId } = req.params;
+    const account = connections.get(accountId);
+    if (!account) {
+      return res.status(404).json({ success: false, error: 'account_not_found', message: 'Account not found', accountId });
+    }
+    if (account.status !== 'connected') {
+      return res.status(409).json({
+        success: false,
+        error: 'invalid_state',
+        message: 'Account must be connected to backfill messages',
+        currentStatus: account.status,
+        accountId,
+      });
+    }
+    autoBackfill.runAutoBackfillForAccount(accountId, { isInitial: true, trigger: 'connect' }).catch(err =>
+      console.error(`❌ [${accountId}] Admin backfill run error:`, err.message)
+    );
+    res.json({ success: true, message: 'Backfill enqueued', accountId });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin: get backfill status for an account
+app.get('/api/admin/backfill/:accountId/status', requireAdmin, async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    if (!firestoreAvailable || !db) {
+      return res.status(503).json({ success: false, error: 'firestore_unavailable' });
+    }
+    const snap = await db.collection('accounts').doc(accountId).get();
+    if (!snap.exists) {
+      return res.status(404).json({ success: false, error: 'account_not_found', accountId });
+    }
+    const d = snap.data() || {};
+    const toIso = (v) => {
+      if (!v) return null;
+      if (typeof v.toDate === 'function') return v.toDate().toISOString();
+      if (v._seconds != null) return new Date((v._seconds || 0) * 1000).toISOString();
+      return null;
+    };
+    res.json({
+      success: true,
+      accountId,
+      lastBackfillAt: toIso(d.lastBackfillAt || d.lastAutoBackfillSuccessAt),
+      lastBackfillStatus: d.lastBackfillStatus || (d.lastAutoBackfillStatus?.running ? 'running' : (d.lastAutoBackfillStatus?.ok ? 'success' : 'error')),
+      lastBackfillError: d.lastBackfillError || d.lastAutoBackfillStatus?.errorMessage || null,
+      lastBackfillStats: d.lastBackfillStats || (d.lastAutoBackfillStatus ? { threads: d.lastAutoBackfillStatus.threads, messages: d.lastAutoBackfillStatus.messages, errors: d.lastAutoBackfillStatus.errors, durationMs: d.lastAutoBackfillStatus.durationMs } : null),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // Send message
 app.post('/api/whatsapp/send-message', requireFirebaseAuth, messageLimiter, async (req, res) => {

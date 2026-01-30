@@ -66,6 +66,7 @@ Ordinea conversațiilor în **Inbox Angajați** (și Staff / WhatsApp Inbox) tre
 - **Câmp canonic „last activity”:** `lastMessageAt` + `lastMessageAtMs` se actualizează pentru **inbound și outbound** (`message_persist.js` la persist, `updateThreadLastMessageForOutbound` când skip persist pentru outbound).
 - **Query:** `orderBy(lastMessageAt, desc).limit(1000)` — index `accountId` ASC + `lastMessageAt` DESC. Ordinea reflectă ultima activitate, deci top-N e corect.
 - **Sortare client:** `threadTimeMs` din `thread_sort_utils.dart`, prioritate: `lastMessageAtMs` → `lastMessageAt` → `updatedAt` → `lastMessageTimestamp` → `0`. Tie-breaker stabil pe thread id. Folosit de Employee, Staff, WhatsApp Inbox.
+- **Auto-backfill:** Scheduler periodic + on-connect; lock în `whatsapp_backfill_locks/{accountId}`; repair step setează `lastMessageAt`/`lastMessageAtMs` din ultimul mesaj dacă lipsesc. ENV: `WHATSAPP_AUTO_BACKFILL_ENABLED`, `WHATSAPP_BACKFILL_INTERVAL_SECONDS`, `WHATSAPP_BACKFILL_CONCURRENCY`, `WHATSAPP_BACKFILL_COOLDOWN_MINUTES`. Admin: `POST /api/admin/backfill/:accountId`, `GET /api/admin/backfill/:accountId/status`.
 
 ### Comenzi de verificare
 
@@ -94,6 +95,7 @@ node scripts/migrate_threads_backfill_lastMessageAt.mjs --project superparty-fro
 - **(a) Outbound:** Alege o conversație **B** care nu e prima. Trimite un mesaj **outbound** în B (din app / integrare). Verifică că **B** urcă pe **locul 1** în Inbox Angajați.
 - **(b) Inbound:** Alege o conversație **A** care nu e prima. Primește un mesaj **inbound** în A (de pe telefon). Verifică că **A** urcă pe **locul 1** în Inbox Angajați.
 - **(c) Firestore:** Deschide `threads/{threadId}`. După un mesaj (inbound sau outbound), confirmă că `lastMessageAt` și `lastMessageAtMs` sunt actualizate.
+- **(d) Auto-backfill:** Conectezi un account → aștepți un tick (interval WHATSAPP_BACKFILL_INTERVAL_SECONDS sau 12 min) → vezi în log `Backfill start accountId=…`. În Firestore: `threads/{id}/messages` crește; `threads/{id}.lastMessageAt` și `lastMessageAtMs` se setează. Inbox Angajați: conversația cu ultimul mesaj (inbound/outbound) urcă sus.
 
 ### Schema-guard (backend)
 
@@ -114,6 +116,9 @@ După update outbound-only pe thread, backend-ul verifică (fire-and-forget) că
 | `superparty_flutter/lib/utils/thread_sort_utils.dart` | `threadTimeMs` (liniile 8–31), `parseAnyTimestamp` (liniile 34–57); canonical last activity. |
 | `superparty_flutter/lib/screens/whatsapp/employee_inbox_screen.dart` | Sort desc `threadTimeMs` + tie-break thread id (liniile 254–264). |
 | `scripts/migrate_threads_backfill_lastMessageAt.mjs` | Backfill `lastMessageAt` + `lastMessageAtMs` (derive din ultimul mesaj sau din `lastMessageAt` existent); `--dryRun` / `--apply`, `--accountIdsFile` (liniile 10–12, 168–195). |
+| `whatsapp-backend/lib/backfill_lock.js` | Lock distribuit `whatsapp_backfill_locks/{accountId}` (ownerId, expiresAtMs, startedAt); acquire/release/check. |
+| `whatsapp-backend/lib/wa-auto-backfill.js` | Scheduler auto-backfill; ENV WHATSAPP_*; folosește backfill_lock; lastBackfillStatus/lastBackfillError/lastBackfillStats. |
+| `whatsapp-backend/server.js` | repairThreadLastMessageFromSubcollection; repair step în backfillAccountMessages; POST/GET /api/admin/backfill/:accountId. |
 
 ### De ce repară "phone order" și query-ul
 
