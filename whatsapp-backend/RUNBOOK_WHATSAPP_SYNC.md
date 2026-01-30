@@ -56,6 +56,9 @@ None (feature enabled by default)
 | `RECENT_SYNC_MAX_MESSAGES_PER_THREAD` | `20` | Max messages per thread |
 | `RECENT_SYNC_MAX_CONCURRENCY` | `1` | Max concurrent recent-sync runs |
 | `RECENT_SYNC_LEASE_MS` | `300000` (5 min) | Lease duration per account for recent-sync |
+| `AUTO_REPAIR_THREADS_ENABLED` | `true` | Run thread last-activity repair after each backfill (sets lastMessageAt/lastMessageAtMs from latest message). |
+| `AUTO_REPAIR_THREADS_LIMIT_PER_RUN` | `200` | Max threads to repair per run (incremental). |
+| `AUTO_REPAIR_COOLDOWN_MINUTES` | `60` | Min minutes between repair runs per account (stored in accounts/{id}.lastAutoRepairAt). |
 
 ### Setting (Hetzner / env)
 

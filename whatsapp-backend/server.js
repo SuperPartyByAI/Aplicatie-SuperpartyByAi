@@ -2636,6 +2636,7 @@ const BOOT_TIMESTAMP = new Date().toISOString();
 const longrunJobsModule = require('./lib/longrun-jobs-v2');
 const { createAutoBackfill, getInstanceId } = require('./lib/wa-auto-backfill');
 const { createRecentSync } = require('./lib/wa-recent-sync');
+const { deriveLastActivityFromMessage: deriveLastActivityFromMessageLib } = require('./lib/wa-thread-repair');
 const longrunJobsInstance = null;
 
 // Long-run schema and evidence endpoints
@@ -2707,6 +2708,15 @@ const RECENT_SYNC_MAX_CONCURRENCY = parseInt(
   10
 );
 const HISTORY_SYNC_DRY_RUN = process.env.WHATSAPP_HISTORY_SYNC_DRY_RUN === 'true';
+const AUTO_REPAIR_THREADS_ENABLED = process.env.AUTO_REPAIR_THREADS_ENABLED !== 'false';
+const AUTO_REPAIR_THREADS_LIMIT_PER_RUN = parseInt(
+  process.env.AUTO_REPAIR_THREADS_LIMIT_PER_RUN || '200',
+  10
+);
+const AUTO_REPAIR_COOLDOWN_MINUTES = parseInt(
+  process.env.AUTO_REPAIR_COOLDOWN_MINUTES || '60',
+  10
+);
 console.log(`📚 History sync: ${SYNC_FULL_HISTORY ? 'enabled' : 'disabled'} (WHATSAPP_SYNC_FULL_HISTORY=${SYNC_FULL_HISTORY})`);
 if (HISTORY_SYNC_DRY_RUN) {
   console.log(`🧪 History sync DRY RUN mode: enabled (will log but not write)`);
@@ -3646,6 +3656,101 @@ async function repairThreadLastMessageFromSubcollection(db, threadId) {
   }
 }
 
+function deriveLastActivityFromMessage(msgData, admin) {
+  return deriveLastActivityFromMessageLib(msgData, admin);
+}
+
+/**
+ * Repair threads for an account: set lastMessageAt/lastMessageAtMs from latest message
+ * for threads where they are missing or 0. Incremental, bounded per run.
+ * @param {import('@google-cloud/firestore').Firestore} db
+ * @param {string} accountId
+ * @param {{ limit?: number }} opts - limit threads per run (default AUTO_REPAIR_THREADS_LIMIT_PER_RUN)
+ * @returns {Promise<{ updatedThreads: number, scanned: number, errors: number, durationMs: number }>}
+ */
+async function repairThreadsLastActivityForAccount(db, accountId, opts = {}) {
+  const limit = Math.min(Math.max(1, opts.limit ?? AUTO_REPAIR_THREADS_LIMIT_PER_RUN), 500);
+  const start = Date.now();
+  let updatedThreads = 0;
+  let scanned = 0;
+  let errors = 0;
+
+  if (!db || !accountId) {
+    return { updatedThreads: 0, scanned: 0, errors: 1, durationMs: Date.now() - start };
+  }
+
+  const fetchLimit = Math.min(Math.max(limit * 2, 200), 500);
+  let snapshot;
+  try {
+    snapshot = await db
+      .collection('threads')
+      .where('accountId', '==', accountId)
+      .limit(fetchLimit)
+      .get();
+  } catch (e) {
+    console.warn(`[repair] accountId=${hashForLog(accountId)} query error:`, e.message);
+    return { updatedThreads: 0, scanned: 0, errors: 1, durationMs: Date.now() - start };
+  }
+
+  const eligible = [];
+  snapshot.docs.forEach((doc) => {
+    scanned += 1;
+    const d = doc.data() || {};
+    const hasValidLastMessageAt = d.lastMessageAt && typeof d.lastMessageAt.toMillis === 'function';
+    const hasValidLastMessageAtMs = typeof d.lastMessageAtMs === 'number' && d.lastMessageAtMs > 0;
+    if (!hasValidLastMessageAt || !hasValidLastMessageAtMs) {
+      eligible.push({ threadId: doc.id, data: d });
+    }
+  });
+  const toProcess = eligible.slice(0, limit);
+
+  if (toProcess.length === 0) {
+    const durationMs = Date.now() - start;
+    console.log(`[repair] end accountId=${hashForLog(accountId)} updatedThreads=0 scanned=${scanned} durationMs=${durationMs}`);
+    return { updatedThreads: 0, scanned, errors: 0, durationMs };
+  }
+
+  console.log(`[repair] start accountId=${hashForLog(accountId)} eligible=${eligible.length} limit=${limit}`);
+
+  for (const { threadId } of toProcess) {
+    try {
+      const col = db.collection('threads').doc(threadId).collection('messages');
+      let msgSnap;
+      try {
+        msgSnap = await col.orderBy('tsClient', 'desc').limit(1).get();
+      } catch (_) {
+        try {
+          msgSnap = await col.orderBy('createdAt', 'desc').limit(1).get();
+        } catch (e2) {
+          errors += 1;
+          continue;
+        }
+      }
+      if (msgSnap.empty) continue;
+      const msgData = msgSnap.docs[0].data();
+      const derived = deriveLastActivityFromMessage(msgData, admin);
+      if (!derived) continue;
+      const threadRef = db.collection('threads').doc(threadId);
+      await threadRef.set(
+        {
+          lastMessageAt: derived.lastMessageAt,
+          lastMessageAtMs: derived.lastMessageAtMs,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      updatedThreads += 1;
+    } catch (e) {
+      errors += 1;
+      console.warn(`[repair] thread=${threadId} error:`, e.message);
+    }
+  }
+
+  const durationMs = Date.now() - start;
+  console.log(`[repair] end accountId=${hashForLog(accountId)} updatedThreads=${updatedThreads} scanned=${scanned} durationMs=${durationMs}`);
+  return { updatedThreads, scanned, errors, durationMs };
+}
+
 // Helper: Backfill messages for an account (best-effort gap filling after reconnect)
 // Fetches recent messages from active threads to fill gaps
 async function backfillAccountMessages(accountId) {
@@ -4006,6 +4111,34 @@ function initAutoBackfill() {
         autoBackfillLeaseHolder: raw?.autoBackfillLeaseHolder,
         autoBackfillLeaseAcquiredAt: raw?.autoBackfillLeaseAcquiredAt,
       };
+    },
+    runRepair: async (accountId, opts = {}) => {
+      if (!AUTO_REPAIR_THREADS_ENABLED || !firestoreAvailable || !db) return;
+      const cooldownMs = (Number.isFinite(AUTO_REPAIR_COOLDOWN_MINUTES) && AUTO_REPAIR_COOLDOWN_MINUTES > 0
+        ? AUTO_REPAIR_COOLDOWN_MINUTES
+        : 60) * 60 * 1000;
+      try {
+        const accSnap = await db.collection('accounts').doc(accountId).get();
+        if (accSnap.exists) {
+          const raw = accSnap.data() || {};
+          const lastAt = raw.lastAutoRepairAt;
+          const lastMs = lastAt && typeof lastAt.toMillis === 'function' ? lastAt.toMillis() : (lastAt?._seconds != null ? lastAt._seconds * 1000 : null);
+          if (lastMs != null && Date.now() - lastMs < cooldownMs) return;
+        }
+        const limit = opts.limit ?? AUTO_REPAIR_THREADS_LIMIT_PER_RUN;
+        const result = await repairThreadsLastActivityForAccount(db, accountId, { limit });
+        await saveAccountToFirestore(accountId, {
+          lastAutoRepairAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastAutoRepairResult: {
+            updatedThreads: result.updatedThreads,
+            scanned: result.scanned,
+            errors: result.errors,
+            durationMs: result.durationMs,
+          },
+        });
+      } catch (e) {
+        console.warn(`[repair] runRepair for accountId=${hashForLog(accountId)} error:`, e.message);
+      }
     },
   });
 }
