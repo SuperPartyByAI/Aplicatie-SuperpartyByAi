@@ -95,6 +95,30 @@ async function resolveMessageDocId(db, accountId, stableId, fallbackId) {
 const PREVIEW_MAX = 100;
 
 /**
+ * Return a safe placeholder preview when message has no text (reactions, buttons, listResponse, etc.).
+ * Ensures thread activity is still updated so ordering stays correct.
+ * @param {object} msg - Baileys message (msg.message used)
+ * @returns {string}
+ */
+function getPlaceholderPreview(msg) {
+  if (!msg?.message || typeof msg.message !== 'object') return '[Message]';
+  const m = msg.message;
+  if (m.imageMessage) return '[Image]';
+  if (m.videoMessage) return '[Video]';
+  if (m.audioMessage) return '[Audio]';
+  if (m.documentMessage) return '[Document]';
+  if (m.stickerMessage) return '[Sticker]';
+  if (m.reactionMessage) return '[Reaction]';
+  if (m.listResponseMessage) return '[Message]';
+  if (m.buttonsResponseMessage) return '[Message]';
+  if (m.contactMessage) return '[Contact]';
+  if (m.locationMessage) return '[Location]';
+  if (m.liveLocationMessage) return '[Location]';
+  if (m.pollCreationMessage || m.pollUpdateMessage) return '[Poll]';
+  return '[Message]';
+}
+
+/**
  * Idempotent write: update thread + set message. Merges threadOverrides and extraFields.
  * @param {FirebaseFirestore.Firestore} db
  * @param {{ accountId: string; clientJid: string; threadId: string; direction: 'inbound'|'outbound' }} opts
@@ -183,18 +207,17 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
       ? body.slice(0, PREVIEW_MAX).replace(/\s+/g, ' ')
       : null;
 
-  // FIX: Allowlist for real content - only update thread if message has actual content
-  // Protocol messages (historySyncNotification) should not pollute thread metadata
-  const hasText = !!preview && preview.trim().length > 0;
-  const hasConversation = !!msg?.message?.conversation;
-  const hasExtendedText = !!msg?.message?.extendedTextMessage?.text;
-  const hasMedia = !!(msg?.message?.imageMessage || msg?.message?.videoMessage || msg?.message?.audioMessage || msg?.message?.documentMessage || msg?.message?.stickerMessage);
+  // Activity: update thread for ANY non-protocol message so inbox order matches phone (last message = top).
+  // Protocol-only (e.g. historySyncNotification) must NOT update activity.
   const hasProtocolMessage = !!msg?.message?.protocolMessage;
-  
-  // Only update thread if message has real content (text or media), not protocol-only
-  const hasRealContent = hasText || hasMedia || hasConversation || hasExtendedText;
-  const isProtocolOnly = hasProtocolMessage && !hasRealContent;
-  const shouldUpdateThread = hasRealContent && !isProtocolOnly;
+  const messageKeys = msg?.message && typeof msg.message === 'object' ? Object.keys(msg.message) : [];
+  const hasMessageContent = messageKeys.some((k) => k !== 'protocolMessage');
+  const isProtocolOnly = hasProtocolMessage && !hasMessageContent;
+  const shouldUpdateThreadActivity = hasMessageContent && !isProtocolOnly;
+
+  // Preview: use text when available; otherwise placeholder so we never skip thread update for "no preview".
+  const hasMeaningfulPreview = !!preview && preview.trim().length > 0;
+  const effectivePreview = hasMeaningfulPreview ? preview.trim().slice(0, PREVIEW_MAX).replace(/\s+/g, ' ') : getPlaceholderPreview(msg);
 
   const threadRef = db.collection('threads').doc(threadId);
   
@@ -239,11 +262,27 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
     }
   }
   
-  // Only update thread if it's not a protocol-only message
-  // CRITICAL FIX: Only update lastMessageText and lastMessageAt for INBOUND messages
-  // This ensures inbox always shows the last RECEIVED message, not the last SENT message
   const isInbound = direction === 'inbound';
-  if (shouldUpdateThread) {
+  if (shouldUpdateThreadActivity) {
+    // CRITICAL: Only update lastMessageAt if this message is newer than (or equal to) existing.
+    // Prevents older messages (e.g. processed after a newer one) from overwriting and breaking inbox order.
+    let existingLastMs = null;
+    try {
+      const threadSnap = await threadRef.get();
+      if (threadSnap.exists) {
+        const d = threadSnap.data() || {};
+        const ms = d.lastMessageAtMs;
+        if (ms != null && (typeof ms === 'number' || typeof ms === 'bigint')) {
+          existingLastMs = Number(ms);
+        } else if (d.lastMessageAt && typeof d.lastMessageAt.toMillis === 'function') {
+          existingLastMs = d.lastMessageAt.toMillis();
+        }
+      }
+    } catch (_) {
+      // Best-effort: if read fails, allow update (better than never updating)
+    }
+    const mayUpdateActivity = tsClientMs != null && (existingLastMs == null || tsClientMs >= existingLastMs);
+
     // CRITICAL FIX: Look up contact data from contacts collection to enrich thread with name and profile picture
     // This ensures Flutter Inbox displays correct names and profile pictures for all contacts
     let contactDisplayName = null;
@@ -275,24 +314,19 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
     
     const threadUpdate = {
       accountId,
-      // Only set clientJid if it's not already in threadOverrides (preserve existing)
       clientJid: threadOverrides.clientJid || resolvedClientJid || null,
-      isLid: isLid || false, // Indexable field for filtering @lid threads in queries
-      // CRITICAL: Always set lastMessageAt/lastMessageAtMs for BOTH inbound and outbound.
-      // Inbox query uses orderBy('lastMessageAt'). Firestore excludes docs missing the orderBy
-      // field; threads created/updated only via outbound would otherwise never appear in Inbox.
-      ...(tsClientAt ? { lastMessageAt: tsClientAt } : {}),
-      ...(tsClientMs != null ? { lastMessageAtMs: tsClientMs } : {}),
-      // Only update lastMessageText/lastMessagePreview for INBOUND (preserve last received for display).
-      ...(isInbound ? { lastMessagePreview: preview } : {}), // Keep for backward compatibility
-      ...(isInbound ? { lastMessageText: preview } : {}), // New field name (preferred by frontend)
-      // CRITICAL FIX: Set lastMessageDirection consistently for both inbound and outbound
-      // This ensures Flutter inbox can distinguish between received and sent messages
-      ...(isInbound ? { lastMessageDirection: 'inbound' } : { lastMessageDirection: 'outbound' }),
-      // CRITICAL FIX: Set lastMessageSenderName for inbound messages (from extraFields or pushName)
-      // This helps Flutter display who sent the last message in group chats
-      ...(isInbound && extraFields?.senderName ? { lastMessageSenderName: extraFields.senderName } : {}),
-      ...(isInbound && extraFields?.lastSenderName && !extraFields?.senderName ? { lastMessageSenderName: extraFields.lastSenderName } : {}),
+      isLid: isLid || false,
+      // Last activity: BOTH inbound and outbound so inbox order matches phone (last message on top).
+      ...(mayUpdateActivity && tsClientAt ? { lastMessageAt: tsClientAt } : {}),
+      ...(mayUpdateActivity && tsClientMs != null ? { lastMessageAtMs: tsClientMs } : {}),
+      ...(mayUpdateActivity && isInbound && tsClientMs != null ? { lastInboundAtMs: tsClientMs } : {}),
+      ...(mayUpdateActivity && isInbound && tsClientAt ? { lastInboundAt: tsClientAt } : {}),
+      // Preview for BOTH directions (text or placeholder) so thread always gets updated.
+      ...(mayUpdateActivity ? { lastMessagePreview: effectivePreview } : {}),
+      ...(mayUpdateActivity ? { lastMessageText: effectivePreview } : {}),
+      ...(mayUpdateActivity ? { lastMessageDirection: isInbound ? 'inbound' : 'outbound' } : {}),
+      ...(mayUpdateActivity && isInbound && extraFields?.senderName ? { lastMessageSenderName: extraFields.senderName } : {}),
+      ...(mayUpdateActivity && isInbound && extraFields?.lastSenderName && !extraFields?.senderName ? { lastMessageSenderName: extraFields.lastSenderName } : {}),
       // Always update updatedAt to track thread activity
       updatedAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
       // Set phoneE164 if available and not already set in threadOverrides (only for 1:1, not groups)
@@ -313,28 +347,24 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
     if (threadUpdate.photoUpdatedAt === null) delete threadUpdate.photoUpdatedAt;
     await threadRef.set(threadUpdate, { merge: true });
     
-    // Log thread update for debugging (always log, even if preview is empty, to confirm thread update)
     const accountIdShort = accountId ? accountId.substring(0, 8) : 'unknown';
     const threadIdShort = threadId ? threadId.substring(0, 8) : 'unknown';
-    if (isInbound) {
-      if (preview && preview.length > 0) {
-        console.log(`📥 [${accountIdShort}] Updated thread ${threadIdShort} (INBOUND): lastMessageAt=${tsClientAt ? 'Timestamp' : 'null'}, lastMessageText="${preview.substring(0, 50)}${preview.length > 50 ? '...' : ''}"`);
-      } else {
-        console.log(`📥 [${accountIdShort}] Updated thread ${threadIdShort} (INBOUND): lastMessageAt=${tsClientAt ? 'Timestamp' : 'null'}, lastMessageText=null (no preview)`);
-      }
-    } else {
-      console.log(`📤 [${accountIdShort}] Thread ${threadIdShort} (OUTBOUND): lastMessageAt updated for sort; lastMessageText preserved (last received)`);
+    if (mayUpdateActivity) {
+      const previewType = hasMeaningfulPreview ? 'text' : 'placeholder';
+      const dirLabel = isInbound ? 'INBOUND' : 'OUTBOUND';
+      console.log(
+        `📋 [${accountIdShort}] Thread activity: threadId=${threadIdShort} direction=${dirLabel} activityMs=${tsClientMs ?? 'null'} previewType=${previewType} preview="${effectivePreview.slice(0, 40)}${effectivePreview.length > 40 ? '...' : ''}"`
+      );
     }
   } else {
-    // No real content or protocol-only message - skip thread update but still log for debugging
     const accountIdShort = accountId ? accountId.substring(0, 8) : 'unknown';
     const threadIdShort = threadId ? threadId.substring(0, 8) : 'unknown';
-    const msgKeys = Object.keys(msg?.message || {});
+    const msgKeys = messageKeys.length ? messageKeys.join(',') : 'none';
     const protocolType = msg?.message?.protocolMessage?.type;
-    if (hasProtocolMessage) {
-      console.log(`⏭️  [${accountIdShort}] Skipped thread update: noMessageContent keys=[${msgKeys.join(',')}] protocolType=${protocolType || 'unknown'} thread=${threadIdShort}`);
+    if (isProtocolOnly) {
+      console.log(`⏭️  [${accountIdShort}] Skipped thread update (protocol-only): keys=[${msgKeys}] protocolType=${protocolType || 'unknown'} thread=${threadIdShort}`);
     } else {
-      console.log(`⏭️  [${accountIdShort}] Skipped thread update: noMessageContent keys=[${msgKeys.join(',')}] thread=${threadIdShort}`);
+      console.log(`⏭️  [${accountIdShort}] Skipped thread update: keys=[${msgKeys}] thread=${threadIdShort}`);
     }
   }
 
@@ -385,4 +415,5 @@ module.exports = {
   computeStableIds,
   resolveMessageDocId,
   writeMessageIdempotent,
+  getPlaceholderPreview,
 };

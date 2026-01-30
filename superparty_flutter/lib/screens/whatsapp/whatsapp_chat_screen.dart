@@ -90,6 +90,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   DateTime? _lastSendAt;
   String? _lastSentText;
   bool _initialScrollDone = false;
+  String? _lastThreadKey;
   bool _redirectChecked = false;
   String? _threadClientJid;
   String? _threadPhoneE164;
@@ -885,11 +886,37 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     final pos = _scrollController.position;
     final nearBottom = (pos.maxScrollExtent - pos.pixels) < 200;
     if (!force && !nearBottom) return;
+    if (force) {
+      _scrollController.jumpTo(pos.maxScrollExtent);
+      return;
+    }
     _scrollController.animateTo(
       pos.maxScrollExtent,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
     );
+  }
+
+  void _scheduleScrollToBottom({bool force = false, int retries = 3}) {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) {
+        if (retries > 0) {
+          Future.delayed(const Duration(milliseconds: 80), () {
+            _scheduleScrollToBottom(force: force, retries: retries - 1);
+          });
+        }
+        return;
+      }
+      final max = _scrollController.position.maxScrollExtent;
+      if (max <= 0 && retries > 0) {
+        Future.delayed(const Duration(milliseconds: 80), () {
+          _scheduleScrollToBottom(force: force, retries: retries - 1);
+        });
+        return;
+      }
+      _scrollToBottom(force: force);
+    });
   }
 
   static String _mediaTypePlaceholder(String t) {
@@ -1171,9 +1198,52 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         const SnackBar(content: Text('Se obține locația...')),
       );
 
-      final position = await Geolocator.getCurrentPosition();
+      // Request precise location on iOS (if reduced accuracy is enabled)
+      try {
+        final accuracy = await Geolocator.getLocationAccuracy();
+        if (accuracy == LocationAccuracyStatus.reduced) {
+          await Geolocator.requestTemporaryFullAccuracy(purposeKey: 'share_location');
+        }
+      } catch (_) {
+        // Ignore if not supported on current platform
+      }
+
+      Position? position;
+      bool usedLastKnown = false;
+      try {
+        position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 10),
+        );
+      } catch (_) {
+        usedLastKnown = true;
+        position = await Geolocator.getLastKnownPosition();
+      }
+
+      if (position == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Nu pot obține locația curentă. Verifică setările de locație.'), backgroundColor: Colors.red),
+          );
+        }
+        return;
+      }
+      if (usedLastKnown && position.timestamp != null) {
+        final age = DateTime.now().difference(position.timestamp!);
+        if (age.inMinutes >= 2) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Locația curentă nu este disponibilă (ultimul fix prea vechi).'), backgroundColor: Colors.orange),
+            );
+          }
+          return;
+        }
+      }
       final lat = position.latitude;
       final lng = position.longitude;
+      if (kDebugMode) {
+        debugPrint('[ChatScreen] Location: lat=$lat lng=$lng accuracy=${position.accuracy}m usedLastKnown=$usedLastKnown');
+      }
 
       // Send Google Maps link as text (varianta minimă)
       final locationLink = 'https://maps.google.com/?q=$lat,$lng';
@@ -1240,8 +1310,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       final fingerprintHash = _asString(data['fingerprintHash']);
       final direction = _asString(data['direction']) ?? 'inbound';
       final body = (_asString(data['body'], field: 'body') ?? '').trim();
-      final tsMillis = _extractTsMillis(data['tsClient']);
-      final tsRounded = tsMillis != null ? (tsMillis / 1000).floor() : null;
+      final tsMillis = _extractSortMillis(data);
+      final bucketSeconds = direction == 'outbound' ? 5 : 1;
+      final tsRounded = tsMillis > 0 ? (tsMillis / (bucketSeconds * 1000)).floor() : null;
       final fallbackKey = 'fallback:$direction|$body|$tsRounded';
 
       final primaryKey = stableKeyHash?.isNotEmpty == true
@@ -1729,6 +1800,13 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                   );
                 }
 
+                if (_lastThreadKey != effectiveThreadId) {
+                  _lastThreadKey = effectiveThreadId;
+                  _initialScrollDone = false;
+                  _previousMessageCount = 0;
+                  _scheduleScrollToBottom(force: true);
+                }
+
                 // Wrap StreamBuilder in error boundary to prevent red screen
                 // First verify thread exists before querying messages
                 return FutureBuilder<DocumentSnapshot>(
@@ -1873,20 +1951,16 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                               final hasNewMessages = currentMessageCount > _previousMessageCount;
                               
                               if (!_initialScrollDone && dedupedDocs.isNotEmpty) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                  _scrollToBottom(force: true);
-                                });
+                                _scheduleScrollToBottom(force: true);
                                 _initialScrollDone = true;
                               } else if (hasNewMessages) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                  _scrollToBottom();
-                                });
+                                _scheduleScrollToBottom();
                               }
                               _previousMessageCount = currentMessageCount;
 
                               return ListView.builder(
                                 controller: _scrollController,
-                                key: PageStorageKey('whatsapp-chat-$effectiveThreadId'),
+                                key: ValueKey('whatsapp-chat-$effectiveThreadId'),
                                 reverse: false,
                                 padding: const EdgeInsets.all(16),
                                 itemCount: dedupedDocs.length,
