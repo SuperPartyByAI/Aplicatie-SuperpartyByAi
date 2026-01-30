@@ -16,6 +16,7 @@ if command -v ssh &> /dev/null; then
   if [ -n "$TOKEN" ] && [ "$TOKEN" != "" ]; then
     export ADMIN_TOKEN="$TOKEN"
     echo "✅ ADMIN_TOKEN setat automat din Hetzner server (${#TOKEN} caractere)"
+    echo "   Primele 10 car.: ${TOKEN:0:10}... (compară cu 🔐 ADMIN_TOKEN configured în log-ul backend)"
     return 0
   fi
 fi
