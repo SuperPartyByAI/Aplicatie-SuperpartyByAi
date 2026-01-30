@@ -336,10 +336,11 @@ class WhatsAppApiService {
         String message;
         if (errorBody != null) {
           message = errorBody['message'] as String? ?? 'HTTP ${response.statusCode}';
-          debugPrint('[WhatsAppApiService] getAccounts: error=${errorBody['error']}, message=$message');
+          final errCode = errorBody['error'] as String?;
+          debugPrint('[WhatsAppApiService] getAccounts: backend_error | error=$errCode message=$message');
         } else {
           message = 'HTTP ${response.statusCode} (non-JSON response). content-type=$contentType. bodyPreview=$bodyPrefix';
-          debugPrint('[WhatsAppApiService] getAccounts: non-JSON error response, bodyPrefix=$bodyPrefix');
+          debugPrint('[WhatsAppApiService] getAccounts: backend_error | non-JSON bodyPrefix=$bodyPrefix');
         }
         throw ErrorMapper.fromHttpException(response.statusCode, message);
       }
@@ -360,7 +361,21 @@ class WhatsAppApiService {
           code: 'json_decode_failed',
         );
       }
-      debugPrint('[WhatsAppApiService] getAccounts: success, accountsCount=${(data['accounts'] as List?)?.length ?? 0}');
+      final accounts = (data['accounts'] as List?) ?? [];
+      final waMode = data['waMode'] as String?;
+      final count = accounts.length;
+      if (kDebugMode) {
+        debugPrint('[WhatsAppApiService] getAccounts: success | accountsCount=$count | waMode=${waMode ?? "n/a"}');
+        if (waMode == 'passive') {
+          debugPrint('[WhatsAppApiService] getAccounts: BACKEND PASSIVE – no sync until active.');
+        }
+        for (final a in accounts) {
+          final m = a is Map ? a as Map<String, dynamic> : null;
+          if (m != null) {
+            debugPrint('[WhatsAppApiService] getAccounts: account id=${m["id"]} status=${m["status"]}');
+          }
+        }
+      }
       return data;
     });
   }
@@ -375,7 +390,7 @@ class WhatsAppApiService {
   /// Account: { id, name, phone, status, ... } (no qrCode, pairingCode)
   Future<Map<String, dynamic>> getAccountsStaff() async {
     return retryWithBackoff(() async {
-      final token = await _requireIdToken(forceRefresh: true);
+      final token = await _requireIdToken(forceRefresh: false);
       final user = FirebaseAuth.instance.currentUser!;
       final requestId = _generateRequestId();
       final uidTruncated = user.uid.length >= 8 ? '${user.uid.substring(0, 8)}...' : user.uid;
@@ -425,10 +440,11 @@ class WhatsAppApiService {
         String message;
         if (errorBody != null) {
           message = errorBody['message'] as String? ?? 'HTTP ${response.statusCode}';
-          debugPrint('[WhatsAppApiService] getAccountsStaff: error=${errorBody['error']}, message=$message');
+          final errCode = errorBody['error'] as String?;
+          debugPrint('[WhatsAppApiService] getAccountsStaff: backend_error | error=$errCode message=$message');
         } else {
           message = 'HTTP ${response.statusCode} (non-JSON response). content-type=$contentType. bodyPreview=$bodyPrefix';
-          debugPrint('[WhatsAppApiService] getAccountsStaff: non-JSON error response, bodyPrefix=$bodyPrefix');
+          debugPrint('[WhatsAppApiService] getAccountsStaff: backend_error | non-JSON bodyPrefix=$bodyPrefix');
         }
         throw ErrorMapper.fromHttpException(response.statusCode, message);
       }
@@ -448,6 +464,21 @@ class WhatsAppApiService {
           'Empty response body. endpoint=$endpointUrl, status=${response.statusCode}',
           code: 'empty_response',
         );
+      }
+      final accounts = (data['accounts'] as List?) ?? [];
+      final waMode = data['waMode'] as String?;
+      final count = accounts.length;
+      if (kDebugMode) {
+        debugPrint('[WhatsAppApiService] getAccountsStaff: success | accountsCount=$count | waMode=${waMode ?? "n/a"}');
+        if (waMode == 'passive') {
+          debugPrint('[WhatsAppApiService] getAccountsStaff: BACKEND PASSIVE – no sync until active.');
+        }
+        for (final a in accounts) {
+          final m = a is Map ? a as Map<String, dynamic> : null;
+          if (m != null) {
+            debugPrint('[WhatsAppApiService] getAccountsStaff: account id=${m["id"]} status=${m["status"]}');
+          }
+        }
       }
       return data;
     });
@@ -1141,7 +1172,7 @@ class WhatsAppApiService {
     return data;
   }
 
-  /// POST whatsappProxyBackfillAccount (Functions HTTP) – super-admin only.
+  /// POST whatsappProxyBackfillAccount (Functions HTTP) – employee or admin.
   /// Triggers sync of conversation history for [accountId].
   /// Uses retry/backoff; logs requestId and full response for debugging.
   /// Throws [UnauthorizedException] / [ForbiddenException] on 401/403.

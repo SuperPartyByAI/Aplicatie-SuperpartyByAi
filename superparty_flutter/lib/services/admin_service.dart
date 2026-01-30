@@ -3,6 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'firebase_service.dart';
+import '../config/admin_config.dart';
 
 class AdminService {
   final FirebaseAuth auth;
@@ -36,26 +37,12 @@ class AdminService {
     return e.toString();
   }
 
-  /// Admin check: custom claim admin==true OR users/{uid}.role == 'admin'
+  /// Admin = strict email only (ursache.andrei1995@gmail.com). No claims, no users.role.
   Future<bool> isCurrentUserAdmin() async {
     final u = currentUser;
     if (u == null) return false;
-
-    try {
-      final token = await u.getIdTokenResult(true);
-      final claimAdmin = token.claims?['admin'] == true;
-      if (claimAdmin) return true;
-    } catch (_) {
-      // Ignore token refresh failures; fallback to Firestore.
-    }
-
-    try {
-      final snap = await db.collection('users').doc(u.uid).get();
-      final role = (snap.data()?['role'] as String?)?.toLowerCase();
-      return role == 'admin';
-    } catch (_) {
-      return false;
-    }
+    final e = (u.email ?? '').trim().toLowerCase();
+    return e == adminEmail.toLowerCase();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> streamStaffProfiles({int limit = 200}) {

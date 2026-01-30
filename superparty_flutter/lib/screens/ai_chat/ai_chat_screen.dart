@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../config/admin_config.dart';
 import '../../providers/app_state_provider.dart';
 import '../../services/ai_cache_service.dart';
 import '../../services/chat_cache_service.dart';
@@ -302,7 +303,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
       return;
     }
 
-    final isAdmin = user.email == 'ursache.andrei1995@gmail.com';
+    final isAdmin = (user.email ?? '').trim().toLowerCase() == adminEmail.toLowerCase();
     final appState = Provider.of<AppStateProvider>(context, listen: false);
 
     // Secret commands for admin

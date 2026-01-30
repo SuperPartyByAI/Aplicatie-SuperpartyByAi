@@ -274,10 +274,12 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
       final hidden = thread['hidden'] == true || thread['archived'] == true;
       final redirectTo = (thread['redirectTo'] as String? ?? '').trim();
       final clientJid = (thread['clientJid'] as String? ?? '').trim();
+      final tid = (thread['id'] as String? ?? '').trim();
       final isBroadcast = clientJid.endsWith('@broadcast');
       if (hidden) return false;
       if (redirectTo.isNotEmpty) return false;
       if (isBroadcast) return false;
+      if (tid.contains('[object Object]') || tid.contains('[obiect Obiect]')) return false;
       return true;
     }).toList();
 

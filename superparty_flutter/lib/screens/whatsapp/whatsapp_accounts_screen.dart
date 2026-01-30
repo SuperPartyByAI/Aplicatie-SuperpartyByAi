@@ -1187,18 +1187,21 @@ class _WhatsAppAccountsScreenState extends State<WhatsAppAccountsScreen> {
                     label: Text(isNarrow ? 'AI' : 'Setări AI'),
                   ),
                   if (_isAdmin && status == 'connected') ...[
-                    TextButton.icon(
-                      onPressed: _backfilling.contains(id) || _isAddingAccount
-                          ? null
-                          : () => _backfillAccount(id),
-                      icon: _backfilling.contains(id)
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.history, size: 18),
-                      label: Text(_backfilling.contains(id) ? 'Backfill…' : 'Backfill history'),
+                    Tooltip(
+                      message: 'Completează istoricul pentru conversațiile existente. Nu creează conversații noi.',
+                      child: TextButton.icon(
+                        onPressed: _backfilling.contains(id) || _isAddingAccount
+                            ? null
+                            : () => _backfillAccount(id),
+                        icon: _backfilling.contains(id)
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.history, size: 18),
+                        label: Text(_backfilling.contains(id) ? 'Backfill…' : 'Backfill history'),
+                      ),
                     ),
                     if (kDebugMode)
                       IconButton(

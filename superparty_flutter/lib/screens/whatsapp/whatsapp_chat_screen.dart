@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:go_router/go_router.dart';
@@ -26,6 +27,35 @@ String getDisplayInitial(String name) {
     return '?';
   }
   return trimmed[0].toUpperCase();
+}
+
+/// Safe parse for Firestore fields that may be String, Map (e.g. extendedText {text}), or null.
+String? _asString(dynamic v, {String? field}) {
+  if (v == null) return null;
+  if (v is String) return v;
+  if (v is Map) {
+    const keys = ['text', 'body', 'caption', 'message', 'content', 'displayName', 'name'];
+    for (final k in keys) {
+      final vv = v[k];
+      if (vv is String && vv.trim().isNotEmpty) {
+        if (kDebugMode) {
+          debugPrint('[ChatParse] field ${field ?? k} was Map, extracted string length=${vv.length}');
+        }
+        return vv;
+      }
+    }
+    for (final entry in v.entries) {
+      final vv = entry.value;
+      if (vv is String && vv.trim().isNotEmpty) {
+        if (kDebugMode) {
+          debugPrint('[ChatParse] field ${field ?? entry.key} was Map, extracted string length=${vv.length}');
+        }
+        return vv;
+      }
+    }
+    return v.toString();
+  }
+  return v.toString();
 }
 
 /// WhatsApp Chat Screen - Messages + Send + CRM Panel
@@ -373,7 +403,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
   // Build video player widget
   Widget _buildVideoPlayer(String messageKey, Map<String, dynamic> media, bool isOutbound) {
-    final videoUrl = media['url'] as String?;
+    final videoUrl = _asString(media['url']);
     if (videoUrl == null || videoUrl.isEmpty) {
       return Container(
         height: 200,
@@ -434,7 +464,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                     // Show thumbnail if available while initializing
                     if (!isInitializing) {
                       try {
-                        final thumbBase64 = media['thumbBase64'] as String?;
+                        final thumbBase64 = _asString(media['thumbBase64']);
                         if (thumbBase64 != null && thumbBase64.isNotEmpty) {
                           return ClipRRect(
                             borderRadius: BorderRadius.circular(8),
@@ -526,7 +556,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
   // Build audio player widget
   Widget _buildAudioPlayer(String messageKey, Map<String, dynamic> media, bool isOutbound) {
-    final audioUrl = media['url'] as String?;
+    final audioUrl = _asString(media['url']);
     if (audioUrl == null || audioUrl.isEmpty) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -694,9 +724,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                               ),
                             ],
                           )
-                        else if (media['mimetype'] != null)
+                        else if (_asString(media['mimetype']) != null)
                           Text(
-                            media['mimetype'] as String,
+                            _asString(media['mimetype'])!,
                             style: TextStyle(
                               color: isOutbound ? Colors.white70 : Colors.grey[600],
                               fontSize: 11,
@@ -717,23 +747,30 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   }
 
   Future<void> _sendMessage() async {
+    if (_isSending) return;
+    _isSending = true;
+    if (mounted) setState(() {});
+
     final text = _messageController.text.trim();
     if (text.isEmpty) {
+      _isSending = false;
+      if (mounted) setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Message cannot be empty')),
       );
       return;
     }
-    
-    if (_isSending) return;
     if (_lastSendAt != null &&
         _lastSentText == text &&
         DateTime.now().difference(_lastSendAt!).inMilliseconds < 1500) {
+      _isSending = false;
+      if (mounted) setState(() {});
       debugPrint('[ChatScreen] Skipping duplicate send (cooldown)');
       return;
     }
-    
     if (_accountId == null || _effectiveThreadId == null) {
+      _isSending = false;
+      if (mounted) setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -744,8 +781,6 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       return;
     }
 
-    _isSending = true;
-    setState(() {});
     _lastSendAt = DateTime.now();
     _lastSentText = text;
 
@@ -797,7 +832,11 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
         _messageController.clear();
         _scrollToBottom(force: true);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Message sent!'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text('Mesaj trimis! Se livreză în câteva secunde.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
         );
       }
     } catch (e) {
@@ -843,10 +882,11 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
   void _scrollToBottom({bool force = false}) {
     if (!_scrollController.hasClients) return;
-    final nearBottom = _scrollController.offset < 200;
+    final pos = _scrollController.position;
+    final nearBottom = (pos.maxScrollExtent - pos.pixels) < 200;
     if (!force && !nearBottom) return;
     _scrollController.animateTo(
-      _scrollController.position.minScrollExtent,
+      pos.maxScrollExtent,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
     );
@@ -1180,12 +1220,12 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
     int scoreDoc(QueryDocumentSnapshot doc) {
       final data = doc.data() as Map<String, dynamic>;
       int score = 0;
-      if ((data['providerMessageId'] as String?)?.isNotEmpty == true) score += 4;
-      if ((data['waMessageId'] as String?)?.isNotEmpty == true) score += 3;
-      final status = data['status'] as String? ?? '';
+      if (_asString(data['providerMessageId'])?.isNotEmpty == true) score += 4;
+      if (_asString(data['waMessageId'])?.isNotEmpty == true) score += 3;
+      final status = _asString(data['status']) ?? '';
       if (status == 'sent' || status == 'delivered' || status == 'read') score += 2;
       if (data['createdAtMs'] is int) score += 1;
-      if ((data['clientMessageId'] as String?)?.isNotEmpty == true) score += 1;
+      if (_asString(data['clientMessageId'])?.isNotEmpty == true) score += 1;
       return score;
     }
     for (final doc in docs) {
@@ -1193,13 +1233,13 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       if (data['isDuplicate'] == true) {
         continue;
       }
-      final providerMessageId = data['providerMessageId'] as String?;
-      final waMessageId = data['waMessageId'] as String?;
-      final clientMessageId = data['clientMessageId'] as String?;
-      final stableKeyHash = data['stableKeyHash'] as String?;
-      final fingerprintHash = data['fingerprintHash'] as String?;
-      final direction = data['direction'] as String? ?? 'inbound';
-      final body = (data['body'] as String? ?? '').trim();
+      final providerMessageId = _asString(data['providerMessageId']);
+      final waMessageId = _asString(data['waMessageId']);
+      final clientMessageId = _asString(data['clientMessageId']);
+      final stableKeyHash = _asString(data['stableKeyHash']);
+      final fingerprintHash = _asString(data['fingerprintHash']);
+      final direction = _asString(data['direction']) ?? 'inbound';
+      final body = (_asString(data['body'], field: 'body') ?? '').trim();
       final tsMillis = _extractTsMillis(data['tsClient']);
       final tsRounded = tsMillis != null ? (tsMillis / 1000).floor() : null;
       final fallbackKey = 'fallback:$direction|$body|$tsRounded';
@@ -1225,7 +1265,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       final existing = byKey[fallbackKey];
       if (existing != null) {
         final existingData = existing.data() as Map<String, dynamic>;
-        final existingHasWa = (existingData['waMessageId'] as String?)?.isNotEmpty == true;
+        final existingHasWa = _asString(existingData['waMessageId'])?.isNotEmpty == true;
         final currentHasWa = waMessageId?.isNotEmpty == true;
         if (existingHasWa && !currentHasWa) {
           continue;
@@ -1240,14 +1280,18 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       byKey[primaryKey] = doc;
       byKey.putIfAbsent(fallbackKey, () => doc);
     }
-    final deduped = byKey.values.toList();
+    // Same doc can be under both primaryKey and fallbackKey → byKey.values has duplicates.
+    // Dedupe by doc.id so each message appears once.
+    final seen = <String>{};
+    final deduped = byKey.values.where((d) => seen.add(d.id)).toList();
+    // Strict chronological order (like WhatsApp): oldest first, newest last. No timestamp → treat as oldest.
     deduped.sort((a, b) {
       final aData = a.data() as Map<String, dynamic>;
       final bData = b.data() as Map<String, dynamic>;
       final aSort = _extractSortMillis(aData);
       final bSort = _extractSortMillis(bData);
       if (aSort != bSort) {
-        return bSort.compareTo(aSort); // Descending (newest first)
+        return aSort.compareTo(bSort); // Ascending (oldest first)
       }
       return a.id.compareTo(b.id);
     });
@@ -1842,33 +1886,33 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
                               return ListView.builder(
                                 controller: _scrollController,
-                                key: PageStorageKey('whatsapp-chat-${effectiveThreadId}'),
-                                reverse: true,
+                                key: PageStorageKey('whatsapp-chat-$effectiveThreadId'),
+                                reverse: false,
                                 padding: const EdgeInsets.all(16),
                                 itemCount: dedupedDocs.length,
                                 itemBuilder: (context, index) {
                                   final doc = dedupedDocs[index];
                                   final data = doc.data() as Map<String, dynamic>;
-                    final messageKey = data['waMessageId'] as String? ??
-                        data['clientMessageId'] as String? ??
+                    final messageKey = _asString(data['waMessageId']) ??
+                        _asString(data['clientMessageId']) ??
                         doc.id;
                     
-                    final direction = data['direction'] as String? ?? 'inbound';
-                    final bodyRaw = data['body'] as String? ?? '';
+                    final direction = _asString(data['direction']) ?? 'inbound';
+                    final bodyRaw = _asString(data['body'], field: 'body') ?? '';
                     final body = bodyRaw.trim();
-                    final status = data['status'] as String?;
-                    final media = data['media'] as Map<String, dynamic>?;
-                    final mediaType = data['mediaType'] as String? ?? (media != null ? media['type'] as String? : null);
+                    final status = _asString(data['status']);
+                    final media = data['media'] is Map ? data['media'] as Map<String, dynamic>? : null;
+                    final mediaType = _asString(data['mediaType']) ?? (media != null ? _asString(media['type']) : null);
                     // Hide protocol/system messages with no text and no media
                     if (body.isEmpty && mediaType == null) {
                       return const SizedBox.shrink();
                     }
-                    // Extract sender name - try multiple fields
-                    final senderName = data['senderName'] as String? ?? 
-                                     data['lastSenderName'] as String? ??
-                                     (data['key'] is Map ? (data['key'] as Map)['participant'] as String? : null);
+                    // Extract sender name - try multiple fields (some may be Map/non-String in Firestore)
+                    final senderName = _asString(data['senderName'], field: 'senderName') ??
+                        _asString(data['lastSenderName'], field: 'lastSenderName') ??
+                        (data['key'] is Map ? _asString((data['key'] as Map)['participant'], field: 'participant') : null);
                     // Check if this is a group message (clientJid ends with @g.us)
-                    final clientJidForMessage = data['clientJid'] as String? ?? _clientJid;
+                    final clientJidForMessage = _asString(data['clientJid']) ?? _clientJid;
                     final isGroupMessage = (clientJidForMessage?.endsWith('@g.us') ?? false) ||
                                           (_clientJid?.endsWith('@g.us') ?? false);
                     
@@ -1981,11 +2025,11 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                                       // Show media based on type
                                       if (media != null) ...[
                                         if (media['type'] == 'image') ...[
-                                          if (media['url'] != null)
+                                          if (_asString(media['url']) != null)
                                             ClipRRect(
                                               borderRadius: BorderRadius.circular(8),
                                               child: Image.network(
-                                                media['url'] as String,
+                                                _asString(media['url'])!,
                                                 width: double.infinity,
                                                 fit: BoxFit.cover,
                                                 errorBuilder: (context, error, stackTrace) {
@@ -2044,7 +2088,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                                                     crossAxisAlignment: CrossAxisAlignment.start,
                                                     children: [
                                                       Text(
-                                                        media['filename'] as String? ?? 'Document',
+                                                        _asString(media['filename']) ?? 'Document',
                                                         style: TextStyle(
                                                           color: isOutbound ? Colors.white : Colors.black87,
                                                           fontSize: 14,
@@ -2053,9 +2097,9 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                                                         maxLines: 1,
                                                         overflow: TextOverflow.ellipsis,
                                                       ),
-                                                      if (media['mimetype'] != null)
+                                                      if (_asString(media['mimetype']) != null)
                                                         Text(
-                                                          media['mimetype'] as String,
+                                                          _asString(media['mimetype'])!,
                                                           style: TextStyle(
                                                             color: isOutbound ? Colors.white70 : Colors.grey[600],
                                                             fontSize: 11,
@@ -2070,7 +2114,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                                                     color: isOutbound ? Colors.white : Colors.blue[700],
                                                   ),
                                                   onPressed: () async {
-                                                    final url = media['url'] as String?;
+                                                    final url = _asString(media['url']);
                                                     if (url != null) {
                                                       final uri = Uri.parse(url);
                                                       if (await canLaunchUrl(uri)) {

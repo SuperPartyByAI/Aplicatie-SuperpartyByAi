@@ -18,20 +18,9 @@ service cloud.firestore {
       return isAuthenticated() && hasStaffProfile();
     }
 
-    // Admin check for new admin-only flows:
-    // - preferred: custom claim admin==true
-    // - fallback: users/{uid}.role == 'admin'
+    // Admin = STRICT email only. No claims, users.role, allowlists, ENV.
     function isAdminUser() {
-      return isAuthenticated() && (
-        request.auth.token.admin == true ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
-      );
-    }
-    
-    // Helper function: get staff code
-    function getStaffCode() {
-      return get(/databases/$(database)/documents/staffProfiles/$(request.auth.uid)).data.code;
+      return isAuthenticated() && request.auth.token.email == 'ursache.andrei1995@gmail.com';
     }
     
     // DEPRECATED: Prefer isAdminUser()
@@ -43,9 +32,16 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdminUser());
       
-      // Production-safe: users can only update limited personal fields.
-      // All staff/admin management fields (ex: role, status, staffSetupDone) are server/admin-only.
-      allow create: if isAdminUser();
+      // Create: admin-only OR self-register with strictly restricted fields (no role/admin).
+      allow create: if isAdminUser() || (isAuthenticated() && request.auth.uid == userId
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email is string
+        && request.resource.data.phone is string
+        && request.resource.data.status is string
+        && !('role' in request.resource.data)
+        && !('admin' in request.resource.data)
+        && !('adminSetAt' in request.resource.data)
+        && !('staffSetupDone' in request.resource.data));
       allow update: if isAdminUser() || (isAuthenticated() && request.auth.uid == userId &&
         request.resource.data.diff(resource.data).changedKeys().hasOnly([
           'displayName',
@@ -203,48 +199,59 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
     
-    // Helper function: get user's allowed account IDs
-    function getUserAllowedAccounts() {
-      // For now, admin has access to all accounts
-      // TODO: Implement allowlist in app_users/{uid}.allowedAccountIds
-      return isAdmin() ? ['*'] : [];
+    // Config: admin-only accountIds (0737571397). Written by scripts/set_admin_only_account.mjs.
+    match /config/whatsapp_inbox {
+      allow read, write: if false;
     }
-    
+
     // Threads (WhatsApp Conversations) - USED BY BACKEND - POLITICA: NEVER DELETE
+    // Admin read all. Employees read threads NOT in config adminOnlyAccountIds.
+    // My Inbox: user can read threads for their users/{uid}.myWhatsAppAccountId only; admin-only accounts excluded for non-admin.
     match /threads/{threadId} {
-      // Users can read threads for allowed accounts only
-      allow read: if isAuthenticated() && (isAdmin() || resource.data.accountId in getUserAllowedAccounts());
-      
-      // SECURITY: server-only writes (Admin SDK bypasses rules)
+      allow read: if isAuthenticated() && (
+        isAdminUser()
+        || (isEmployee() && (
+          !exists(/databases/$(database)/documents/config/whatsapp_inbox)
+          || !(resource.data.accountId in get(/databases/$(database)/documents/config/whatsapp_inbox).data.adminOnlyAccountIds)
+        ))
+        || (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.myWhatsAppAccountId == resource.data.accountId
+            && (!exists(/databases/$(database)/documents/config/whatsapp_inbox)
+                || !(resource.data.accountId in get(/databases/$(database)/documents/config/whatsapp_inbox).data.adminOnlyAccountIds)))
+      );
       allow create, update: if false;
-      
-      // NEVER DELETE - use isArchived instead
       allow delete: if false;
-      
-      // Messages subcollection
+
       match /messages/{messageId} {
-        // Users can read messages for allowed accounts only
-        allow read: if isAuthenticated() && (isAdmin() || get(/databases/$(database)/documents/threads/$(threadId)).data.accountId in getUserAllowedAccounts());
-        
-        // SECURITY: server-only writes (Admin SDK bypasses rules)
+        allow read: if isAuthenticated() && (
+          isAdminUser()
+          || (isEmployee() && (
+            !exists(/databases/$(database)/documents/config/whatsapp_inbox)
+            || !(get(/databases/$(database)/documents/threads/$(threadId)).data.accountId in get(/databases/$(database)/documents/config/whatsapp_inbox).data.adminOnlyAccountIds)
+          ))
+          || (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+              && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.myWhatsAppAccountId == get(/databases/$(database)/documents/threads/$(threadId)).data.accountId
+              && (!exists(/databases/$(database)/documents/config/whatsapp_inbox)
+                  || !(get(/databases/$(database)/documents/threads/$(threadId)).data.accountId in get(/databases/$(database)/documents/config/whatsapp_inbox).data.adminOnlyAccountIds)))
+        );
         allow create: if false;
-        
-        // Messages cannot be updated (immutable)
         allow update: if false;
-        
-        // NEVER DELETE - messages are immutable
         allow delete: if false;
       }
       
-      // Extractions subcollection (AI audit trail)
       match /extractions/{messageId} {
-        // Employees can read AI extractions for CRM insights
-        allow read: if isEmployee();
-        
-        // SECURITY: server-only writes (Admin SDK bypasses rules)
+        allow read: if isAuthenticated() && (
+          isAdminUser()
+          || (isEmployee() && (
+            !exists(/databases/$(database)/documents/config/whatsapp_inbox)
+            || !(get(/databases/$(database)/documents/threads/$(threadId)).data.accountId in get(/databases/$(database)/documents/config/whatsapp_inbox).data.adminOnlyAccountIds)
+          ))
+          || (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+              && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.myWhatsAppAccountId == get(/databases/$(database)/documents/threads/$(threadId)).data.accountId
+              && (!exists(/databases/$(database)/documents/config/whatsapp_inbox)
+                  || !(get(/databases/$(database)/documents/threads/$(threadId)).data.accountId in get(/databases/$(database)/documents/config/whatsapp_inbox).data.adminOnlyAccountIds)))
+        );
         allow create, update: if false;
-        
-        // NEVER DELETE - audit trail must persist
         allow delete: if false;
       }
     }

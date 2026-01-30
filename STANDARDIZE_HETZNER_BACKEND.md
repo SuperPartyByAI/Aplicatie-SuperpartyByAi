@@ -126,7 +126,7 @@ Ar trebui să returneze JSON (nu HTML/500).
 - **Flutter** folosește `WHATSAPP_BACKEND_URL` (dart-define) - e OK, e pentru client-side
 - **Functions** folosește `WHATSAPP_BACKEND_BASE_URL` (secret/config) - e pentru server-side
 - Default-ul pentru ambele este Hetzner: `http://37.27.34.179:8080`
-- Nu mai există referințe la providerul vechi (Railway/etc)
+- Nu mai există referințe la alt provider; backend este Hetzner.
 
 ---
 

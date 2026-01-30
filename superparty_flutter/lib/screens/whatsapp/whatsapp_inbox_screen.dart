@@ -828,6 +828,30 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
     return RegExp(r'^\+?[\d\s\-\(\)]{6,}$').hasMatch(trimmed);
   }
 
+  /// Sanitize string for Text widgets (avoids "string is not well-formed UTF-16").
+  String _sanitizeForDisplay(String s) {
+    if (s.isEmpty) return s;
+    final sb = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      final c = s.codeUnitAt(i);
+      if (c >= 0xD800 && c <= 0xDBFF) {
+        if (i + 1 < s.length) {
+          final n = s.codeUnitAt(i + 1);
+          if (n >= 0xDC00 && n <= 0xDFFF) {
+            sb.writeCharCode(c);
+            sb.writeCharCode(n);
+            i++;
+            continue;
+          }
+        }
+        continue;
+      }
+      if (c >= 0xDC00 && c <= 0xDFFF) continue;
+      sb.writeCharCode(c);
+    }
+    return sb.toString();
+  }
+
   /// True when thread has no real name/phone (we'd show "Contact"/"Grup"/"Conversație").
   bool _isPlaceholderOnly(ThreadModel t) {
     final name = t.displayName.trim();
@@ -1164,6 +1188,19 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                               ph.contains(q);
                                         }).toList();
                                   final filtered = base.where((t) => !_isPlaceholderOnly(t)).toList();
+                                  // Sort strictly newest-first (like WhatsApp): last message time desc, then threadId
+                                  filtered.sort((a, b) {
+                                    final aT = a.lastMessageAt;
+                                    final bT = b.lastMessageAt;
+                                    if (aT == null && bT == null) return a.threadId.compareTo(b.threadId);
+                                    if (aT == null) return 1;
+                                    if (bT == null) return -1;
+                                    final aMs = aT.millisecondsSinceEpoch;
+                                    final bMs = bT.millisecondsSinceEpoch;
+                                    final c = bMs.compareTo(aMs);
+                                    if (c != 0) return c;
+                                    return a.threadId.compareTo(b.threadId);
+                                  });
 
                                   if (filtered.isEmpty) {
                                     return Center(
@@ -1230,7 +1267,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                               : CircleAvatar(
                                                   backgroundColor: const Color(0xFF25D366),
                                                   child: Text(
-                                                    t.initial,
+                                                    _sanitizeForDisplay(t.initial).isEmpty ? '?' : _sanitizeForDisplay(t.initial),
                                                     style: const TextStyle(color: Colors.white),
                                                   ),
                                                 ),
@@ -1239,7 +1276,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                               Expanded(
                                                 flex: 3,
                                                 child: Text(
-                                                  () {
+                                                  _sanitizeForDisplay(() {
                                                     if (t.displayName.trim().isNotEmpty && _looksLikeProtocolMessage(t.displayName)) {
                                                       final ph = (t.normalizedPhone ?? t.phone ?? '').trim();
                                                       if (ph.isNotEmpty) return ph;
@@ -1255,7 +1292,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                                         ? t.displayName.trim()
                                                         : (t.normalizedPhone ?? t.phone ?? '').trim();
                                                     return label.isEmpty ? _threadTitleFallback(t) : label;
-                                                  }(),
+                                                  }()),
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.bold,
                                                   ),
@@ -1277,7 +1314,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                                           BorderRadius.circular(4),
                                                     ),
                                                     child: Text(
-                                                      t.accountName!,
+                                                      _sanitizeForDisplay(t.accountName!),
                                                       style: TextStyle(
                                                         fontSize: 9,
                                                         color: Colors.blue[800],
@@ -1292,7 +1329,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                             ],
                                           ),
                                           subtitle: Text(
-                                            subtitle,
+                                            _sanitizeForDisplay(subtitle),
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(fontSize: 13),
@@ -1302,7 +1339,7 @@ class _WhatsAppInboxScreenState extends State<WhatsAppInboxScreen> {
                                             children: [
                                               if (timeText.isNotEmpty)
                                                 Text(
-                                                  timeText,
+                                                  _sanitizeForDisplay(timeText),
                                                   style: TextStyle(
                                                     fontSize: 11,
                                                     color: Colors.grey[600],

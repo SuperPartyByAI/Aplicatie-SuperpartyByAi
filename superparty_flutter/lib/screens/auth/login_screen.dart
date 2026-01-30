@@ -142,14 +142,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
         // Create document in Firestore with normalized email
         // IMPORTANT: Use merge:true to preserve existing fields (e.g. admin role)
-        await FirebaseService.firestore.collection('users').doc(user.uid).set({
-          'uid': user.uid,
-          'email': finalEmail,
-          'phone': phone,
-          'status': 'kyc_required',
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        try {
+          await FirebaseService.firestore.collection('users').doc(user.uid).set({
+            'uid': user.uid,
+            'email': finalEmail,
+            'phone': phone,
+            'status': 'kyc_required',
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        } on FirebaseException catch (fe) {
+          debugPrint('[Auth] Firestore set failed code=${fe.code} message=${fe.message}');
+          if (fe.code == 'permission-denied') {
+            setState(() {
+              _error = 'Înregistrarea este permisă doar de administrator. '
+                  'Conturile sunt create de admin.';
+            });
+            setState(() => _loading = false);
+            return;
+          }
+          rethrow;
+        }
 
         debugPrint('[Auth] ✅ Registration successful email=$maskedEmail uid=${user.uid}');
       } else {
@@ -183,6 +196,22 @@ class _LoginScreenState extends State<LoginScreen> {
             if (mounted) {
               _showResetPasswordOption(errorInfo.message);
             }
+          });
+        }
+      } else if (e is FirebaseException) {
+        final fe = e as FirebaseException;
+        final maskedEmail = EmailValidator.maskForLogging(
+          EmailValidator.normalize(_emailController.text),
+        );
+        debugPrint('[Auth] ❌ Firestore error email=$maskedEmail code=${fe.code} message=${fe.message}');
+        if (fe.code == 'permission-denied') {
+          setState(() {
+            _error = 'Înregistrarea este permisă doar de administrator. '
+                'Conturile sunt create de admin.';
+          });
+        } else {
+          setState(() {
+            _error = 'Eroare la salvarea profilului (${fe.code}). Te rog încearcă din nou.';
           });
         }
       } else {

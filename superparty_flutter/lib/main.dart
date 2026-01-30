@@ -10,6 +10,7 @@ import 'services/firebase_service.dart';
 import 'services/background_service.dart';
 import 'services/push_notification_service.dart';
 import 'services/admin_bootstrap_service.dart';
+import 'services/role_service.dart';
 import 'providers/app_state_provider.dart';
 import 'router/app_router.dart';
 import 'widgets/update_gate.dart';
@@ -116,7 +117,8 @@ void main() async {
       debugPrint('[Main] Auth listener callback triggered');
       final msg = '[AUTH] state change: user=${user?.uid ?? "null"} email=${user?.email ?? "null"}';
       debugPrint(msg);
-      
+      RoleService().invalidateCache();
+
       // Bootstrap admin access for eligible users (idempotent)
       if (user != null) {
         try {

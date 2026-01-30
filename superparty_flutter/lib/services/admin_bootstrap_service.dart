@@ -1,12 +1,14 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+
 import 'retry_helper.dart';
+import '../config/admin_config.dart';
 
 /// Admin Bootstrap Service
-/// 
-/// Ensures permanent admin access for allowlisted users.
-/// Call once on app start (idempotent - safe to call multiple times).
+///
+/// Ensures permanent admin access for allowlisted users (bootstrapAdmin callable).
+/// Skips the callable when user is already admin (strict email match).
 class AdminBootstrapService {
   static final AdminBootstrapService _instance = AdminBootstrapService._internal();
   factory AdminBootstrapService() => _instance;
@@ -15,20 +17,30 @@ class AdminBootstrapService {
   bool _hasBootstrapped = false;
   DateTime? _lastAttempt;
 
-  /// Bootstrap admin access if user is in allowlist.
-  /// 
-  /// This sets:
-  /// - Firebase Auth custom claim: admin=true (persists across sessions)
-  /// - Firestore users/{uid}.role="admin" (never overwritten by login)
-  /// 
-  /// Only allowlisted emails can succeed. Others will get permission-denied.
-  /// 
-  /// Returns true if admin was set OR already set, false if not eligible.
-  /// 
-  /// Includes retry logic and debouncing (won't call more than once per 5 minutes).
+  /// Already admin = strict email match (ursache.andrei1995@gmail.com).
+  bool _isAlreadyAdmin(String uid) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.uid != uid) return false;
+    final e = (user.email ?? '').trim().toLowerCase();
+    return e == adminEmail.toLowerCase();
+  }
+
+  /// Bootstrap admin access if user is in allowlist. Skips when already admin.
   Future<bool> bootstrapIfEligible() async {
     if (_hasBootstrapped) {
       debugPrint('[AdminBootstrap] Already bootstrapped in this session');
+      return true;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      debugPrint('[AdminBootstrap] No user signed in, skipping');
+      return false;
+    }
+
+    if (_isAlreadyAdmin(user.uid)) {
+      debugPrint('[AdminBootstrap] Already admin (strict email), skipping bootstrap');
+      _hasBootstrapped = true;
       return true;
     }
 
@@ -41,12 +53,6 @@ class AdminBootstrapService {
       }
     }
     _lastAttempt = DateTime.now();
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      debugPrint('[AdminBootstrap] No user signed in, skipping');
-      return false;
-    }
 
     try {
       debugPrint('[AdminBootstrap] Attempting bootstrap for ${user.email}');
@@ -77,7 +83,7 @@ class AdminBootstrapService {
       }
     } on FirebaseFunctionsException catch (e) {
       if (e.code == 'permission-denied') {
-        debugPrint('[AdminBootstrap] ℹ️  Not eligible for admin (not in allowlist): ${e.message}');
+        debugPrint('[AdminBootstrap] ℹ️  Bootstrap allowlist only: ${e.message}');
         return false;
       } else {
         debugPrint('[AdminBootstrap] ❌ Error: ${e.code} - ${e.message}');

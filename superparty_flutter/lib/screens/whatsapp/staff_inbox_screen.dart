@@ -381,7 +381,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     if (kDebugMode && added > 0) {
       debugPrint(
           '[Firebase-inbox-audit] StaffInbox threads query: accountIds=$accountIds, '
-          'collection=threads, where=accountId==<id>, orderBy=lastMessageAt desc, limit=200');
+          'collection=threads, where=accountId==<id>, orderBy=lastMessageAt desc, limit=1000');
     }
   }
 
@@ -851,9 +851,11 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
         final msg = failed == 0
             ? 'Backfill gata pentru $done conturi. Reîmprospătare…'
             : 'Backfill: $done ok, $failed eșecuri. Reîmprospătare…';
+        const hint = ' Pentru istoric complet: reîmperechează contul (Disconnect → Connect → QR).';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(msg),
+            content: Text(msg + hint),
+            duration: const Duration(seconds: 5),
             backgroundColor: failed == 0 ? Colors.green[700] : Colors.orange[800],
           ),
         );
@@ -905,6 +907,30 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     final name = t.displayName.trim();
     final ph = (t.normalizedPhone ?? t.phone ?? '').trim();
     return name.isEmpty && ph.isEmpty;
+  }
+
+  /// Sanitize string for Text widgets (avoids "string is not well-formed UTF-16").
+  String _sanitizeForDisplay(String s) {
+    if (s.isEmpty) return s;
+    final sb = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      final c = s.codeUnitAt(i);
+      if (c >= 0xD800 && c <= 0xDBFF) {
+        if (i + 1 < s.length) {
+          final n = s.codeUnitAt(i + 1);
+          if (n >= 0xDC00 && n <= 0xDFFF) {
+            sb.writeCharCode(c);
+            sb.writeCharCode(n);
+            i++;
+            continue;
+          }
+        }
+        continue;
+      }
+      if (c >= 0xDC00 && c <= 0xDFFF) continue;
+      sb.writeCharCode(c);
+    }
+    return sb.toString();
   }
 
   /// Fallback only when both displayName and phone are empty (removes blank "Last" etc.).
@@ -1238,6 +1264,19 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                         }).toList();
                                   // Show only real contacts (hide "Contact"/"Grup"/"Conversație" placeholders)
                                   final filtered = base.where((t) => !_isPlaceholderOnly(t)).toList();
+                                  // Sort strictly newest-first (like WhatsApp): last message time desc, then threadId
+                                  filtered.sort((a, b) {
+                                    final aT = a.lastMessageAt;
+                                    final bT = b.lastMessageAt;
+                                    if (aT == null && bT == null) return a.threadId.compareTo(b.threadId);
+                                    if (aT == null) return 1;
+                                    if (bT == null) return -1;
+                                    final aMs = aT.millisecondsSinceEpoch;
+                                    final bMs = bT.millisecondsSinceEpoch;
+                                    final c = bMs.compareTo(aMs);
+                                    if (c != 0) return c;
+                                    return a.threadId.compareTo(b.threadId);
+                                  });
 
                                   if (filtered.isEmpty) {
                                     return Center(
@@ -1251,12 +1290,25 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
 
                                   return RefreshIndicator(
                                     onRefresh: () async {
+                                      if (!_isBackfilling) {
+                                        unawaited(_runBackfill(silent: true));
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Se actualizează mesajele de pe telefon…'),
+                                              duration: Duration(seconds: 2),
+                                            ),
+                                          );
+                                        }
+                                      }
                                       await _loadThreads(forceRefresh: true);
                                     },
-                                    child: ListView.builder(
-                                      itemCount: filtered.length,
-                                      itemBuilder: (context, index) {
-                                        final t = filtered[index];
+                                    child: CustomScrollView(
+                                      slivers: [
+                                        SliverList(
+                                          delegate: SliverChildBuilderDelegate(
+                                            (context, index) {
+                                              final t = filtered[index];
                                         final effectiveThreadId = (t.redirectTo ?? '').isNotEmpty
                                             ? t.redirectTo!
                                             : ((t.canonicalThreadId ?? '').isNotEmpty
@@ -1303,7 +1355,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                               : CircleAvatar(
                                                   backgroundColor: const Color(0xFF25D366),
                                                   child: Text(
-                                                    t.initial,
+                                                    _sanitizeForDisplay(t.initial).isEmpty ? '?' : _sanitizeForDisplay(t.initial),
                                                     style: const TextStyle(color: Colors.white),
                                                   ),
                                                 ),
@@ -1312,7 +1364,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                               Expanded(
                                                 flex: 3,
                                                 child: Text(
-                                                  () {
+                                                  _sanitizeForDisplay(() {
                                                     if (t.displayName.trim().isNotEmpty && _looksLikeProtocolMessage(t.displayName)) {
                                                       final ph = (t.normalizedPhone ?? t.phone ?? '').trim();
                                                       if (ph.isNotEmpty) return ph;
@@ -1328,7 +1380,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                                         ? t.displayName.trim()
                                                         : (t.normalizedPhone ?? t.phone ?? '').trim();
                                                     return label.isEmpty ? _threadTitleFallback(t) : label;
-                                                  }(),
+                                                  }()),
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.bold,
                                                   ),
@@ -1350,7 +1402,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                                           BorderRadius.circular(4),
                                                     ),
                                                     child: Text(
-                                                      t.accountName!,
+                                                      _sanitizeForDisplay(t.accountName!),
                                                       style: TextStyle(
                                                         fontSize: 9,
                                                         color: Colors.blue[800],
@@ -1365,7 +1417,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                             ],
                                           ),
                                           subtitle: Text(
-                                            subtitle,
+                                            _sanitizeForDisplay(subtitle),
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(fontSize: 13),
@@ -1375,7 +1427,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                             children: [
                                               if (timeText.isNotEmpty)
                                                 Text(
-                                                  timeText,
+                                                  _sanitizeForDisplay(timeText),
                                                   style: TextStyle(
                                                     fontSize: 11,
                                                     color: Colors.grey[600],
@@ -1432,8 +1484,12 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                           },
                                         );
                                       },
+                                      childCount: filtered.length,
                                     ),
-                                  );
+                                  ),
+                                ],
+                              ),
+                            );
                                 },
                               ),
           ),

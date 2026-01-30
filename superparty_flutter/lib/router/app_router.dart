@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../services/admin_service.dart';
 import '../services/firebase_service.dart';
+import '../services/role_service.dart';
 import '../utils/debug_logger.dart';
 
 // Existing app screens
@@ -354,32 +355,41 @@ class AppRouter {
     );
     // #endregion
 
-    // Only redirect /admin routes for unauthenticated users
-    // Other routes use AuthGate widget to show AuthRequiredScreen in-place (no redirect bounce)
+    // Admin routes: require auth + isAdmin
     if (loc.startsWith('/admin')) {
       if (user == null) {
-        // #region agent log
         DebugLogger.log(
           id: 'router_redirect_admin_unauth',
           location: 'app_router.dart:_redirect',
           message: '[ROUTER] redirect: admin route, user null -> /',
           data: {'from': loc, 'to': '/'},
         );
-        // #endregion
         return '/';
       }
       final ok = await _adminService.isCurrentUserAdmin();
       if (!ok) {
-        // #region agent log
         DebugLogger.log(
           id: 'router_redirect_admin_denied',
           location: 'app_router.dart:_redirect',
           message: '[ROUTER] redirect: admin access denied -> /home',
           data: {'from': loc, 'to': '/home'},
         );
-        // #endregion
         return '/home';
       }
+    }
+
+    // WhatsApp admin: /whatsapp/inbox, /whatsapp/accounts — require isAdmin (email-only). Layer 2: router guard.
+    if (loc == '/whatsapp/inbox' || loc == '/whatsapp/accounts') {
+      if (user == null) return '/';
+      final ok = await RoleService().isAdmin();
+      if (!ok) return '/home';
+    }
+
+    // WhatsApp employee inbox: /whatsapp/employee-inbox, /whatsapp/inbox-staff — require isEmployee || isAdmin
+    if (loc == '/whatsapp/employee-inbox' || loc == '/whatsapp/inbox-staff') {
+      if (user == null) return '/';
+      final ok = await RoleService().canSeeEmployeeInbox();
+      if (!ok) return '/home';
     }
 
     // No redirect needed for other routes - AuthGate handles auth in-place

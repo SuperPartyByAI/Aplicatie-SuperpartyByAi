@@ -120,10 +120,12 @@ class _MyInboxScreenState extends State<MyInboxScreen> {
       final hidden = thread['hidden'] == true || thread['archived'] == true;
       final redirectTo = (thread['redirectTo'] as String? ?? '').trim();
       final clientJid = (thread['clientJid'] as String? ?? '').trim();
+      final tid = (thread['id'] as String? ?? '').trim();
       final isBroadcast = clientJid.endsWith('@broadcast');
       if (hidden) return false;
       if (redirectTo.isNotEmpty) return false;
       if (isBroadcast) return false;
+      if (tid.contains('[object Object]') || tid.contains('[obiect Obiect]')) return false;
       return true;
     }).toList();
 
@@ -408,7 +410,8 @@ class _MyInboxScreenState extends State<MyInboxScreen> {
                                         '&threadId=${Uri.encodeComponent(effectiveThreadId)}'
                                         '&clientJid=${Uri.encodeComponent(t.clientJid)}'
                                         '&phoneE164=${Uri.encodeComponent(ph)}'
-                                        '&displayName=${Uri.encodeComponent(t.displayName)}',
+                                        '&displayName=${Uri.encodeComponent(t.displayName)}'
+                                        '&returnRoute=${Uri.encodeComponent('/whatsapp/my-inbox')}',
                                       );
                                     },
                                   );

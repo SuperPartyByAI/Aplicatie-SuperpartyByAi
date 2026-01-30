@@ -3,11 +3,8 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
-// ALLOWLIST: Only these emails can become admin
-const ADMIN_ALLOWLIST = [
-  'superpartybyai@gmail.com',
-  'ursache.andrei1995@gmail.com',
-];
+// STRICT: Only this email can bootstrap admin. No other allowlists.
+const ADMIN_ALLOWLIST = ['ursache.andrei1995@gmail.com'];
 
 /**
  * Bootstrap Admin - One-time setup for permanent admin access

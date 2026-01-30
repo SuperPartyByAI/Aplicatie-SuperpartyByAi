@@ -15,6 +15,8 @@ This runbook documents the **best-effort full conversation sync** feature that e
 3. **After reconnect:** Backfill recent messages to fill gaps (best-effort), without duplicating
 4. **Firestore schema:** Consistent and queryable (`threads/messages` structure)
 
+**See also:** `docs/INGESTION_PIPELINE_INBOX.md` (from project root) — pipeline ingestie, de ce „0 conversații” (backfill, Railway vs Hetzner, backend alive), loguri, health/dashboard.
+
 ---
 
 ## Environment Variables
@@ -857,6 +859,8 @@ curl -X POST "http://37.27.34.179:8080/api/whatsapp/backfill/{accountId}"
 # Or use your Hetzner backend URL (env BAILEYS_BASE_URL).
 ```
 
+**From the app:** In **Inbox Angajați**, use „Sync / Backfill history”. Backfill-ul e permis pentru **angajați** (nu doar admin). Vezi `docs/INGESTION_PIPELINE_INBOX.md`.
+
 **Check results:**
 - Firestore: `accounts/{accountId}.lastBackfillResult`
 - Logs: `📚 [accountId] Starting backfill...`
@@ -866,6 +870,12 @@ curl -X POST "http://37.27.34.179:8080/api/whatsapp/backfill/{accountId}"
 **Should not happen** (idempotent by message ID), but if it does:
 - Check dedupe collection: `inboundDedupe/{accountId}__{messageId}`
 - Messages use `waMessageId` as document ID (upsert with merge)
+
+### Problem: Inbox shows 0 threads but accounts connected
+
+**Cause:** Inbox reads from Firestore; if backend hasn’t ingested (history sync, backfill, realtime), there are no threads for those `accountId`s.
+
+**See:** `docs/INGESTION_PIPELINE_INBOX.md` (from project root): pipeline, three main causes (no backfill, Railway vs Hetzner split, backend not alive), log patterns, health/dashboard checks, alignment checklist.
 
 ---
 
