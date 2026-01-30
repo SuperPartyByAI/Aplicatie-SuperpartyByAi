@@ -1438,11 +1438,42 @@ STIL
       accountData.autoReplyPrompt = defaultSecurityPrompt;
     }
 
-    const accountPrompt =
-      typeof accountData.autoReplyPrompt === 'string' &&
-      accountData.autoReplyPrompt.trim().length > 0
-        ? accountData.autoReplyPrompt.trim()
-        : null;
+    // Construct account-level prompt from 5 fields or fallback
+    let accountPrompt = null;
+
+    const logic = accountData.autoReplyLogic || '';
+    const restrictions = accountData.autoReplyRestrictions || '';
+    const pricing = accountData.autoReplyPricing || '';
+    const faq = accountData.autoReplyFaq || '';
+    const extraction = accountData.autoReplyExtraction || '';
+
+    const hasNewFields = logic || restrictions || pricing || faq || extraction;
+
+    if (hasNewFields) {
+      accountPrompt = `
+INSTRUCȚIUNI PRINCIPALE:
+${logic}
+
+RESTRICȚII (CE NU AI VOIE SĂ FACI):
+${restrictions}
+
+PREȚURI, PACHETE ȘI INFORMAȚII BUSINESS:
+${pricing}
+
+ÎNTREBĂRI FRECVENTE:
+${faq}
+
+INSTRUCȚIUNI EXTRAGERE DATE CLIENȚI:
+${extraction}
+`.trim();
+    } else {
+      // Fallback for backward compatibility
+      accountPrompt =
+        typeof accountData.autoReplyPrompt === 'string' &&
+        accountData.autoReplyPrompt.trim().length > 0
+          ? accountData.autoReplyPrompt.trim()
+          : null;
+    }
 
     const threadAiEnabled = threadData.aiEnabled === true;
     const threadPrompt =
@@ -11003,7 +11034,7 @@ app.get('/api/whatsapp/threads/:accountId', requireFirebaseAuth, async (req, res
 app.post('/api/whatsapp/auto-reply-settings/:accountId', requireFirebaseAuth, async (req, res) => {
   try {
     const { accountId } = req.params;
-    const { enabled, prompt } = req.body || {};
+    const { enabled, prompt, logic, restrictions, pricing, faq, extraction } = req.body || {};
 
     if (!firestoreAvailable || !db) {
       return res.status(503).json({ success: false, error: 'Firestore not available' });
@@ -11014,15 +11045,23 @@ app.post('/api/whatsapp/auto-reply-settings/:accountId', requireFirebaseAuth, as
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
-    if (typeof prompt === 'string') {
-      payload.autoReplyPrompt = prompt;
-    }
+    if (typeof prompt === 'string') payload.autoReplyPrompt = prompt;
+    if (typeof logic === 'string') payload.autoReplyLogic = logic;
+    if (typeof restrictions === 'string') payload.autoReplyRestrictions = restrictions;
+    if (typeof pricing === 'string') payload.autoReplyPricing = pricing;
+    if (typeof faq === 'string') payload.autoReplyFaq = faq;
+    if (typeof extraction === 'string') payload.autoReplyExtraction = extraction;
 
     await db.collection('accounts').doc(accountId).set(payload, { merge: true });
     return res.json({
       success: true,
       enabled: payload.autoReplyEnabled,
       prompt: payload.autoReplyPrompt ?? null,
+      logic: payload.autoReplyLogic ?? null,
+      restrictions: payload.autoReplyRestrictions ?? null,
+      pricing: payload.autoReplyPricing ?? null,
+      faq: payload.autoReplyFaq ?? null,
+      extraction: payload.autoReplyExtraction ?? null,
     });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
@@ -11042,6 +11081,12 @@ app.get('/api/whatsapp/auto-reply-settings/:accountId', requireFirebaseAuth, asy
       success: true,
       enabled: data.autoReplyEnabled === true,
       prompt: typeof data.autoReplyPrompt === 'string' ? data.autoReplyPrompt : '',
+      logic: typeof data.autoReplyLogic === 'string' ? data.autoReplyLogic : '',
+      restrictions:
+        typeof data.autoReplyRestrictions === 'string' ? data.autoReplyRestrictions : '',
+      pricing: typeof data.autoReplyPricing === 'string' ? data.autoReplyPricing : '',
+      faq: typeof data.autoReplyFaq === 'string' ? data.autoReplyFaq : '',
+      extraction: typeof data.autoReplyExtraction === 'string' ? data.autoReplyExtraction : '',
     });
   } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
