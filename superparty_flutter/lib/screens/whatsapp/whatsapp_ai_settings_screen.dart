@@ -38,15 +38,21 @@ class _WhatsAppAiSettingsScreenState extends State<WhatsAppAiSettingsScreen> {
     }
     try {
       final data = await _apiService.getAutoReplySettings(accountId: accountId);
-      setState(() {
-        _enabled = data['enabled'] == true;
-        _promptController.text = data['prompt']?.toString() ?? '';
-        _promptController.selection = TextSelection.collapsed(
-          offset: _promptController.text.length,
+      if (mounted) {
+        setState(() {
+          _enabled = data['enabled'] == true;
+          _promptController.text = data['prompt']?.toString() ?? '';
+          _promptController.selection = TextSelection.collapsed(
+            offset: _promptController.text.length,
+          );
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Eroare la încărcarea setărilor: $e')),
         );
-      });
-    } catch (_) {
-      // Fail silently; user can still save.
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -101,16 +107,17 @@ class _WhatsAppAiSettingsScreenState extends State<WhatsAppAiSettingsScreen> {
                       const SizedBox(height: 12),
                       const Text('Logică / Prompt'),
                       const SizedBox(height: 8),
-                      TextField(
-                        controller: _promptController,
-                        maxLines: 6,
-                        decoration: InputDecoration(
-                          hintText: 'Ex: Răspunde politicos, scurt și clar în română.',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                        TextField(
+                          controller: _promptController,
+                          maxLines: 8,
+                          decoration: InputDecoration(
+                            hintText: 'Ex: Ești Andrei, asistent Superparty. Răspunzi politicos, prietenos și scurt (max 2 propoziții). Ajută clienții cu informații generale și folosește emoji-uri.',
+                            helperText: 'Acest text reprezintă "creierul" AI-ului pentru acest cont.',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                         ),
-                      ),
                       const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
