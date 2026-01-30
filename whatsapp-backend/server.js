@@ -7656,6 +7656,240 @@ app.post('/admin/sync-contacts-to-threads', async (req, res) => {
   }
 });
 
+// Admin-only: Backfill profile photos for recent threads (from WhatsApp)
+app.post('/admin/backfill-profile-photos', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    const { accountId, limit = 50 } = req.body;
+    if (!accountId) {
+      return res.status(400).json({ success: false, error: 'accountId is required' });
+    }
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    console.log(`🖼️  [ADMIN] Backfilling profile photos: accountId=${accountId}, limit=${limit}`);
+
+    const threadsSnapshot = await db.collection('threads')
+      .where('accountId', '==', accountId)
+      .orderBy('lastMessageAt', 'desc')
+      .limit(limit)
+      .get();
+
+    const threads = threadsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    await backfillProfilePhotosForAccount(accountId, threads, { limit });
+
+    return res.json({
+      success: true,
+      accountId,
+      processed: threads.length,
+      limit,
+    });
+  } catch (error) {
+    console.error(`❌ Backfill profile photos failed:`, error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin-only: Inspect thread order (lastMessageAt desc)
+app.post('/admin/threads-order', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    const { accountId, limit = 20 } = req.body;
+    if (!accountId) {
+      return res.status(400).json({ success: false, error: 'accountId is required' });
+    }
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    const snap = await db.collection('threads')
+      .where('accountId', '==', accountId)
+      .orderBy('lastMessageAt', 'desc')
+      .limit(limit)
+      .get();
+
+    const items = snap.docs.map((doc) => {
+      const d = doc.data() || {};
+      const lastMessageAtMs = d.lastMessageAtMs ?? (d.lastMessageAt?.toMillis?.() ?? null);
+      return {
+        threadId: doc.id,
+        displayName: d.displayName || null,
+        clientJid: d.clientJid || null,
+        lastMessageAtMs,
+        lastMessageText: d.lastMessageText || d.lastMessagePreview || null,
+      };
+    });
+
+    return res.json({
+      success: true,
+      accountId,
+      count: items.length,
+      items,
+    });
+  } catch (error) {
+    console.error(`❌ Threads order check failed:`, error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin-only: Fetch latest message for a thread (or top thread if missing)
+app.post('/admin/last-message', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    const { accountId, threadId } = req.body;
+    if (!accountId) {
+      return res.status(400).json({ success: false, error: 'accountId is required' });
+    }
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    let effectiveThreadId = threadId;
+    if (!effectiveThreadId) {
+      const snap = await db.collection('threads')
+        .where('accountId', '==', accountId)
+        .orderBy('lastMessageAt', 'desc')
+        .limit(1)
+        .get();
+      if (snap.empty) {
+        return res.json({ success: true, accountId, threadId: null, message: null });
+      }
+      effectiveThreadId = snap.docs[0].id;
+    }
+
+    const msgSnap = await db.collection('threads')
+      .doc(effectiveThreadId)
+      .collection('messages')
+      .orderBy('tsClient', 'desc')
+      .limit(1)
+      .get();
+
+    if (msgSnap.empty) {
+      return res.json({ success: true, accountId, threadId: effectiveThreadId, message: null });
+    }
+
+    const d = msgSnap.docs[0].data() || {};
+    const ts = d.tsClient?.toMillis?.() || d.createdAt?.toMillis?.() || null;
+    const body = (d.body || d.text || d.message || '').toString();
+    return res.json({
+      success: true,
+      accountId,
+      threadId: effectiveThreadId,
+      message: {
+        body,
+        direction: d.direction || d.directionType || null,
+        tsClientMs: ts,
+      },
+    });
+  } catch (error) {
+    console.error(`❌ Last message fetch failed:`, error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin-only: Fetch latest message across top threads
+app.post('/admin/last-message-across-threads', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7);
+    if (token !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    }
+
+    const { accountId, limit = 50 } = req.body;
+    if (!accountId) {
+      return res.status(400).json({ success: false, error: 'accountId is required' });
+    }
+
+    if (!db) {
+      return res.status(500).json({ success: false, error: 'Firestore not available' });
+    }
+
+    const threadsSnap = await db.collection('threads')
+      .where('accountId', '==', accountId)
+      .orderBy('lastMessageAt', 'desc')
+      .limit(limit)
+      .get();
+
+    const candidates = [];
+    for (const doc of threadsSnap.docs) {
+      const threadId = doc.id;
+      try {
+        const msgSnap = await db.collection('threads')
+          .doc(threadId)
+          .collection('messages')
+          .orderBy('tsClient', 'desc')
+          .limit(1)
+          .get();
+        if (msgSnap.empty) continue;
+        const d = msgSnap.docs[0].data() || {};
+        const ts = d.tsClient?.toMillis?.() || d.createdAt?.toMillis?.() || null;
+        const body = (d.body || d.text || d.message || '').toString();
+        candidates.push({
+          threadId,
+          clientJid: doc.data()?.clientJid || null,
+          displayName: doc.data()?.displayName || null,
+          message: {
+            body,
+            direction: d.direction || d.directionType || null,
+            tsClientMs: ts,
+          },
+        });
+      } catch (_) {}
+    }
+
+    if (candidates.length === 0) {
+      return res.json({ success: true, accountId, message: null, threadsChecked: threadsSnap.size });
+    }
+
+    candidates.sort((a, b) => (b.message.tsClientMs || 0) - (a.message.tsClientMs || 0));
+    return res.json({
+      success: true,
+      accountId,
+      threadsChecked: threadsSnap.size,
+      message: candidates[0],
+    });
+  } catch (error) {
+    console.error(`❌ Last message across threads failed:`, error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Admin-only: Force sync messages from WhatsApp for existing threads
 app.post('/admin/sync-messages', async (req, res) => {
   try {
@@ -7672,7 +7906,7 @@ app.post('/admin/sync-messages', async (req, res) => {
       return res.status(403).json({ success: false, error: 'Invalid admin token' });
     }
 
-    const { accountId, limit = 10 } = req.body;
+    const { accountId, limit = 10, threadId, clientJid } = req.body;
 
     if (!accountId) {
       return res.status(400).json({ success: false, error: 'accountId is required' });
@@ -7693,20 +7927,50 @@ app.post('/admin/sync-messages', async (req, res) => {
       return res.status(500).json({ success: false, error: 'Firestore not available' });
     }
 
-    const threadsSnapshot = await db
-      .collection('threads')
-      .where('accountId', '==', accountId)
-      .orderBy('lastMessageAt', 'desc')
-      .limit(limit)
-      .get();
+    let threadDocs = [];
 
-    console.log(`📊 Found ${threadsSnapshot.size} threads to sync`);
+    if (threadId || clientJid) {
+      if (threadId) {
+        const doc = await db.collection('threads').doc(threadId).get();
+        if (!doc.exists) {
+          return res.status(404).json({ success: false, error: 'Thread not found' });
+        }
+        const data = doc.data();
+        if (data?.accountId && data.accountId !== accountId) {
+          return res.status(403).json({ success: false, error: 'Thread does not belong to account' });
+        }
+        threadDocs = [doc];
+      } else {
+        const normalized = normalizeClientJid(clientJid);
+        if (!normalized) {
+          return res.status(400).json({ success: false, error: 'Invalid clientJid' });
+        }
+        const snap = await db.collection('threads')
+          .where('accountId', '==', accountId)
+          .where('clientJid', '==', normalized)
+          .limit(1)
+          .get();
+        if (snap.empty) {
+          return res.status(404).json({ success: false, error: 'Thread not found' });
+        }
+        threadDocs = snap.docs;
+      }
+    } else {
+      const threadsSnapshot = await db.collection('threads')
+        .where('accountId', '==', accountId)
+        .orderBy('lastMessageAt', 'desc')
+        .limit(limit)
+        .get();
+      threadDocs = threadsSnapshot.docs;
+    }
+
+    console.log(`📊 Found ${threadDocs.length} threads to sync`);
 
     let synced = 0;
     let errors = 0;
     const results = [];
 
-    for (const threadDoc of threadsSnapshot.docs) {
+    for (const threadDoc of threadDocs) {
       const thread = threadDoc.data();
       const jid = normalizeClientJid(thread.clientJid);
 
@@ -7735,6 +7999,15 @@ app.post('/admin/sync-messages', async (req, res) => {
         errors++;
       }
     }
+    if (threadDocs.length === 0) {
+      const threadsSnapshot = await db
+        .collection('threads')
+        .where('accountId', '==', accountId)
+        .orderBy('lastMessageAt', 'desc')
+        .limit(limit)
+        .get();
+      threadDocs = threadsSnapshot.docs;
+    }
 
     console.log(`✅ Message sync complete: synced=${synced}, errors=${errors}`);
 
@@ -7742,7 +8015,7 @@ app.post('/admin/sync-messages', async (req, res) => {
       success: true,
       synced,
       errors,
-      total: threadsSnapshot.size,
+      total: threadDocs.length,
       sampleResults: results.slice(0, 5),
     });
   } catch (error) {
@@ -10075,9 +10348,20 @@ app.post('/api/admin/backfill/:accountId', requireAdmin, async (req, res) => {
   if (passiveGuard) return;
   try {
     const { accountId } = req.params;
-    const account = connections.get(accountId);
+    let account = connections.get(accountId);
     if (!account) {
-      return res.status(404).json({ success: false, error: 'account_not_found', message: 'Account not found', accountId });
+      if (!firestoreAvailable || !db) {
+        return res.status(503).json({ success: false, error: 'firestore_unavailable', message: 'Firestore not available', accountId });
+      }
+      const snap = await db.collection('accounts').doc(accountId).get();
+      if (!snap.exists) {
+        return res.status(404).json({ success: false, error: 'account_not_found', message: 'Account not found', accountId });
+      }
+      await restoreAccount(accountId, snap.data());
+      account = connections.get(accountId);
+      if (!account) {
+        return res.status(409).json({ success: false, error: 'restore_failed', message: 'Account restore failed', accountId });
+      }
     }
     if (account.status !== 'connected') {
       return res.status(409).json({
@@ -11439,10 +11723,21 @@ app.post('/api/admin/account/:id/disconnect', requireAdmin, async (req, res) => 
 app.post('/api/admin/account/:id/reconnect', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const account = connections.get(id);
+    let account = connections.get(id);
 
     if (!account) {
-      return res.status(404).json({ error: 'Account not found' });
+      if (!firestoreAvailable || !db) {
+        return res.status(503).json({ error: 'Firestore not available' });
+      }
+      const snap = await db.collection('accounts').doc(id).get();
+      if (!snap.exists) {
+        return res.status(404).json({ error: 'Account not found' });
+      }
+      await restoreAccount(id, snap.data());
+      account = connections.get(id);
+      if (!account) {
+        return res.status(409).json({ error: 'Account restore failed' });
+      }
     }
 
     const tsStart = Date.now();
