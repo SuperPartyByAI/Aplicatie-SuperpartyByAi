@@ -7177,8 +7177,8 @@ app.post('/admin/repair-threads', async (req, res) => {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
     }
-    const token = authHeader.substring(7);
-    if (token !== ADMIN_TOKEN) {
+    const token = (authHeader.substring(7) || '').trim();
+    if (!token || token !== (ADMIN_TOKEN || '').trim()) {
       return res.status(403).json({ success: false, error: 'Invalid admin token' });
     }
     if (!firestoreAvailable || !db) {
