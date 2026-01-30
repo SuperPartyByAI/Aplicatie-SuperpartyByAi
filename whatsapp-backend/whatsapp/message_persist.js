@@ -240,8 +240,8 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
   }
   
   // Only update thread if it's not a protocol-only message
-  // CRITICAL FIX: Only update lastMessageText and lastMessageAt for INBOUND messages
-  // This ensures inbox always shows the last RECEIVED message, not the last SENT message
+  // lastMessageAt/lastMessageAtMs are updated for BOTH inbound and outbound (see threadUpdate below).
+  // lastMessageText/lastMessagePreview are INBOUND-only (preserve last received for display).
   const isInbound = direction === 'inbound';
   if (shouldUpdateThread) {
     // CRITICAL FIX: Look up contact data from contacts collection to enrich thread with name and profile picture
@@ -279,10 +279,13 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
       clientJid: threadOverrides.clientJid || resolvedClientJid || null,
       isLid: isLid || false, // Indexable field for filtering @lid threads in queries
       // CRITICAL: Always set lastMessageAt/lastMessageAtMs for BOTH inbound and outbound.
-      // Inbox query uses orderBy('lastMessageAt'). Firestore excludes docs missing the orderBy
-      // field; threads created/updated only via outbound would otherwise never appear in Inbox.
+      // Inbox order = WhatsApp phone: thread with last message (inbound OR outbound) first.
+      // Inbox query uses orderBy('lastMessageAt'). Firestore excludes docs missing the orderBy field.
       ...(tsClientAt ? { lastMessageAt: tsClientAt } : {}),
       ...(tsClientMs != null ? { lastMessageAtMs: tsClientMs } : {}),
+      // lastInboundAt / lastInboundAtMs (inbound only) for analytics; sort uses lastMessageAt.
+      ...(isInbound && tsClientMs != null ? { lastInboundAtMs: tsClientMs } : {}),
+      ...(isInbound && tsClientAt ? { lastInboundAt: tsClientAt } : {}),
       // Only update lastMessageText/lastMessagePreview for INBOUND (preserve last received for display).
       ...(isInbound ? { lastMessagePreview: preview } : {}), // Keep for backward compatibility
       ...(isInbound ? { lastMessageText: preview } : {}), // New field name (preferred by frontend)

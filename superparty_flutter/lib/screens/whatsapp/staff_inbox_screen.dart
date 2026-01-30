@@ -18,6 +18,7 @@ import '../../models/thread_model.dart';
 import '../../services/whatsapp_api_service.dart';
 import '../../utils/staff_inbox_empty_state.dart';
 import '../../utils/threads_query.dart';
+import '../../utils/thread_sort_utils.dart';
 import '../../utils/inbox_schema_guard.dart';
 import '../debug/whatsapp_diagnostics_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -42,17 +43,18 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
   String _searchQuery = '';
   List<ThreadModel> _threads = [];
   String? _errorMessage;
+
   /// Set on Firestore stream error: 'failed-precondition' | 'permission-denied'
   String? _firestoreErrorCode;
 
   // Firestore thread streams (per account)
-  final Map<String, StreamSubscription<QuerySnapshot>> _threadSubscriptions = {};
+  final Map<String, StreamSubscription<QuerySnapshot>> _threadSubscriptions =
+      {};
   final Map<String, List<Map<String, dynamic>>> _threadsByAccount = {};
   Set<String> _activeAccountIds = {};
-  
-  // Auto-refresh timer removed as Firestore listeners handle real-time updates
-  
-  // Debounce for UI rebuilds to prevent excessive processing when multiple streams update
+
+  // Auto-refresh timer: refresh threads every 10 seconds to catch new messages
+  Timer? _autoRefreshTimer;
   Timer? _rebuildDebounceTimer;
 
   /// Auto-backfill once per session so istoricul de pe telefon apare automat.
@@ -60,7 +62,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
 
   /// Exclude admin phone (0737571397) from staff inbox. Uses config/admin_phone.
   bool _shouldExcludeAccount(Map<String, dynamic> account) {
-    final phone = account['phone'] as String? ?? account['phoneNumber'] as String?;
+    final phone =
+        account['phone'] as String? ?? account['phoneNumber'] as String?;
     return isAdminPhone(phone);
   }
 
@@ -75,7 +78,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
       debugPrint('[StaffInboxScreen] appCheckToken error: ${e.runtimeType}');
     }
     final idTokenLen = idToken?.length ?? 0;
-    final idTokenDotCount = idToken == null ? 0 : '.'.allMatches(idToken).length;
+    final idTokenDotCount =
+        idToken == null ? 0 : '.'.allMatches(idToken).length;
     final idTokenHash = idToken == null || idToken.isEmpty
         ? 'none'
         : sha256.convert(utf8.encode(idToken)).toString().substring(0, 8);
@@ -86,7 +90,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     debugPrint(
       '[StaffInboxScreen] idTokenLen=$idTokenLen, idTokenDotCount=$idTokenDotCount, idTokenHash=$idTokenHash',
     );
-    debugPrint('[StaffInboxScreen] appCheckLen=$appCheckLen, appCheckHash=$appCheckHash');
+    debugPrint(
+        '[StaffInboxScreen] appCheckLen=$appCheckLen, appCheckHash=$appCheckHash');
 
     if (idToken == null || idToken.isEmpty) {
       if (!mounted) return;
@@ -126,9 +131,20 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     try {
       final token = await user.getIdTokenResult(true);
       final claims = token.claims ?? {};
-      final claimsKeys = claims.keys.where(
-        (k) => !['iat', 'exp', 'aud', 'iss', 'sub', 'auth_time', 'user_id', 'firebase'].contains(k),
-      ).toList();
+      final claimsKeys = claims.keys
+          .where(
+            (k) => ![
+              'iat',
+              'exp',
+              'aud',
+              'iss',
+              'sub',
+              'auth_time',
+              'user_id',
+              'firebase'
+            ].contains(k),
+          )
+          .toList();
       final adminClaimPresent = claims['admin'] == true;
 
       bool staffProfileExists = false;
@@ -150,7 +166,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
         'staffProfileExists=$staffProfileExists staffProfileRole=$staffProfileRole',
       );
     } catch (e) {
-      debugPrint('[AUTH] uid=${user.uid} email=${user.email ?? "null"} error=$e');
+      debugPrint(
+          '[AUTH] uid=${user.uid} email=${user.email ?? "null"} error=$e');
     }
   }
 
@@ -161,6 +178,16 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     // Defer auth diagnostics to avoid Firestore/token work during initial load
     Future.delayed(const Duration(milliseconds: 1500), _logAuthDiagnostics);
     _loadAccounts();
+    // Start auto-refresh timer: rebuild list every 10 seconds (no resubscribe)
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (!mounted) return;
+      if (_threadsByAccount.isEmpty) return;
+      if (kDebugMode) {
+        debugPrint(
+            '[StaffInboxScreen] Auto-refresh: rebuild list (10s interval)');
+      }
+      _scheduleRebuild();
+    });
   }
 
   @override
@@ -183,7 +210,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     if (!mounted) return;
     // Sync visual when app returns to foreground (e.g. from phone background)
     if (kDebugMode) {
-      debugPrint('[StaffInboxScreen] App resumed: refreshing accounts and threads');
+      debugPrint(
+          '[StaffInboxScreen] App resumed: refreshing accounts and threads');
     }
     _onAppResumed();
   }
@@ -196,14 +224,13 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
 
   Future<void> _startThreadListeners() async {
     // Filter accounts: only connected accounts, excluding the one with phone 0737571397
-    final connectedAccounts = _accounts
-        .where((account) => account['status'] == 'connected')
-        .toList();
-    
+    final connectedAccounts =
+        _accounts.where((account) => account['status'] == 'connected').toList();
+
     final allowedAccounts = connectedAccounts.where((account) {
       return !_shouldExcludeAccount(account);
     }).toList();
-    
+
     final accountIds = allowedAccounts
         .map((account) => account['id'])
         .whereType<String>()
@@ -213,20 +240,25 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
 
     if (kDebugMode) {
       final statusByAccount = {
-        for (final a in allowedAccounts) (a['id'] as String? ?? ''): (a['status'] as String? ?? '?')
+        for (final a in allowedAccounts)
+          (a['id'] as String? ?? ''): (a['status'] as String? ?? '?')
       };
-      debugPrint('[StaffInboxScreen] DEBUG accountsCount=${allowedAccounts.length} accountIds=${accountIds.toList()} statusByAccount=$statusByAccount');
-      debugPrint('[StaffInboxScreen] Total accounts: ${_accounts.length}; connected: ${connectedAccounts.length}; allowed: ${allowedAccounts.length}');
+      debugPrint(
+          '[StaffInboxScreen] DEBUG accountsCount=${allowedAccounts.length} accountIds=${accountIds.toList()} statusByAccount=$statusByAccount');
+      debugPrint(
+          '[StaffInboxScreen] Total accounts: ${_accounts.length}; connected: ${connectedAccounts.length}; allowed: ${allowedAccounts.length}');
       for (final acc in connectedAccounts) {
         final phone = acc['phone'] as String? ?? acc['phoneNumber'] as String?;
         final excluded = _shouldExcludeAccount(acc);
-        debugPrint('[StaffInboxScreen] Account: id=${acc['id']}, phone=$phone, excluded=$excluded, status=${acc['status']}');
+        debugPrint(
+            '[StaffInboxScreen] Account: id=${acc['id']}, phone=$phone, excluded=$excluded, status=${acc['status']}');
       }
     }
 
     if (accountIds.isEmpty) {
       if (kDebugMode) {
-        debugPrint('[StaffInboxScreen] 0 allowed account IDs (no thread listeners started). Connected=${connectedAccounts.length}, excluded=admin phone.');
+        debugPrint(
+            '[StaffInboxScreen] 0 allowed account IDs (no thread listeners started). Connected=${connectedAccounts.length}, excluded=admin phone.');
       }
       for (final sub in _threadSubscriptions.values) {
         sub.cancel();
@@ -251,15 +283,18 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
       return;
     }
 
-    final staleIds =
-        _threadSubscriptions.keys.where((id) => !accountIds.contains(id)).toList();
+    final staleIds = _threadSubscriptions.keys
+        .where((id) => !accountIds.contains(id))
+        .toList();
     for (final accountId in staleIds) {
       _threadSubscriptions[accountId]?.cancel();
       _threadSubscriptions.remove(accountId);
       _threadsByAccount.remove(accountId);
     }
 
-    final toAdd = accountIds.where((id) => !_threadSubscriptions.containsKey(id)).toList();
+    final toAdd = accountIds
+        .where((id) => !_threadSubscriptions.containsKey(id))
+        .toList();
     if (toAdd.isNotEmpty) {
       try {
         final futures = toAdd.map((accountId) async {
@@ -267,11 +302,10 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
             final snap = await buildThreadsQuery(accountId)
                 .get(const GetOptions(source: Source.cache));
             if (!mounted) return;
-            final accountName = allowedAccounts
-                    .firstWhere(
-                      (a) => a['id'] == accountId,
-                      orElse: () => <String, dynamic>{},
-                    )['name'] as String? ??
+            final accountName = allowedAccounts.firstWhere(
+                  (a) => a['id'] == accountId,
+                  orElse: () => <String, dynamic>{},
+                )['name'] as String? ??
                 accountId;
             final threads = snap.docs.map((doc) {
               logThreadSchemaAnomalies(doc);
@@ -286,10 +320,10 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
               _threadsByAccount[accountId] = threads;
               _rebuildThreadsFromCache();
             }
-          } catch (_) { /* no cache */ }
+          } catch (_) {/* no cache */}
         });
         await Future.wait(futures);
-      } catch (_) { /* ignore */ }
+      } catch (_) {/* ignore */}
     }
 
     int added = 0;
@@ -298,11 +332,10 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
 
       final subscription = buildThreadsQuery(accountId).snapshots().listen(
         (snapshot) {
-          final accountName = allowedAccounts
-                  .firstWhere(
-                    (account) => account['id'] == accountId,
-                    orElse: () => <String, dynamic>{},
-                  )['name'] as String? ??
+          final accountName = allowedAccounts.firstWhere(
+                (account) => account['id'] == accountId,
+                orElse: () => <String, dynamic>{},
+              )['name'] as String? ??
               accountId;
           final threads = snapshot.docs.map((doc) {
             logThreadSchemaAnomalies(doc);
@@ -333,11 +366,14 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
               setState(() {
                 _firestoreErrorCode = error.code;
                 if (error.code == 'failed-precondition') {
-                  _errorMessage = 'Index mismatch. Verifică indexurile Firestore pentru threads.';
+                  _errorMessage =
+                      'Index mismatch. Verifică indexurile Firestore pentru threads.';
                 } else if (error.code == 'permission-denied') {
-                  _errorMessage = 'Rules/RBAC blocked. Nu ai permisiune de citire pe threads.';
+                  _errorMessage =
+                      'Rules/RBAC blocked. Nu ai permisiune de citire pe threads.';
                 } else {
-                  _errorMessage = 'Eroare Firestore: ${error.code} – ${error.message}';
+                  _errorMessage =
+                      'Eroare Firestore: ${error.code} – ${error.message}';
                 }
               });
             }
@@ -404,39 +440,40 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
       }
     });
   }
-
   void _rebuildThreadsFromCache() {
     // Combine all threads from all allowed accounts (excluding excluded phone)
     final allThreads = _threadsByAccount.values.expand((list) => list).toList();
     final dedupedMaps = _filterAndDedupeThreads(allThreads);
-    
+
     // Stable sort with deterministic tie-breaker
     dedupedMaps.sort((a, b) {
       final aMs = threadTimeMs(a);
       final bMs = threadTimeMs(b);
-      
+
       final timeCmp = bMs.compareTo(aMs);
       if (timeCmp != 0) return timeCmp;
-      
+
       final aId = (a['id'] ?? a['threadId'] ?? a['clientJid'] ?? '').toString();
       final bId = (b['id'] ?? b['threadId'] ?? b['clientJid'] ?? '').toString();
       return aId.compareTo(bId);
     });
-    
-    final models = dedupedMaps
-        .map((m) => ThreadModel.fromJson(m))
-        .toList();
-    
+
+    final models = dedupedMaps.map((m) => ThreadModel.fromJson(m)).toList();
+
     if (kDebugMode) {
-      debugPrint('[StaffInboxScreen] Rebuild from cache: raw=${allThreads.length} deduped=${models.length} threadsCount=${models.length}');
+      debugPrint(
+          '[StaffInboxScreen] Rebuild from cache: raw=${allThreads.length} deduped=${models.length} threadsCount=${models.length}');
       if (models.isNotEmpty) {
         final first = models.first;
         final last = models.length > 1 ? models.last : null;
         final firstTimeMs = threadTimeMs(dedupedMaps.first);
-        final lastTimeMs = dedupedMaps.length > 1 ? threadTimeMs(dedupedMaps.last) : 0;
-        debugPrint('[StaffInboxScreen] ✅ SORTED (stable): First=${first.displayName} (timeMs=$firstTimeMs) | Last=${last?.displayName ?? "N/A"} (timeMs=$lastTimeMs)');
+        final lastTimeMs =
+            dedupedMaps.length > 1 ? threadTimeMs(dedupedMaps.last) : 0;
+        debugPrint(
+            '[StaffInboxScreen] ✅ SORTED (stable): First=${first.displayName} (timeMs=$firstTimeMs) | Last=${last?.displayName ?? "N/A"} (timeMs=$lastTimeMs)');
       } else if (_activeAccountIds.isNotEmpty) {
-        debugPrint('[StaffInboxScreen] 0 threads for accountIds=${_activeAccountIds.toList()}. Possible: no threads in Firestore for these accounts, or permission-denied (check FirebaseException).');
+        debugPrint(
+            '[StaffInboxScreen] 0 threads for accountIds=${_activeAccountIds.toList()}. Possible: no threads in Firestore for these accounts, or permission-denied (check FirebaseException).');
       }
     }
     if (mounted) {
@@ -462,34 +499,34 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
   DateTime? _parseAnyTs(dynamic v) {
     if (v == null) return null;
     if (v is DateTime) return v;
-    
+
     if (v is Timestamp) {
       return v.toDate();
     }
-    
+
     try {
       final dyn = v as dynamic;
       final dt = dyn.toDate?.call();
       if (dt is DateTime) return dt;
     } catch (_) {}
-    
+
     if (v is String) {
       final parsed = DateTime.tryParse(v);
       if (parsed != null) return parsed;
     }
-    
+
     if (v is Map) {
       final ms = v['_milliseconds'] ?? v['milliseconds'];
       if (ms is num) {
         return DateTime.fromMillisecondsSinceEpoch(ms.toInt());
       }
-      
+
       final secs = v['_seconds'] ?? v['seconds'] ?? v['sec'];
       if (secs is num) {
         return DateTime.fromMillisecondsSinceEpoch(secs.toInt() * 1000);
       }
     }
-    
+
     if (v is int) {
       if (v > 1000000000000) {
         return DateTime.fromMillisecondsSinceEpoch(v);
@@ -498,14 +535,14 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
         return DateTime.fromMillisecondsSinceEpoch(v * 1000);
       }
     }
-    
+
     return null;
   }
-  
+
   DateTime? _parseLastMessageAt(dynamic v) {
     final parsed = _parseAnyTs(v);
     if (parsed != null) return parsed;
-    
+
     if (v is Map) {
       if (v['lastMessageAtMs'] is int) {
         return DateTime.fromMillisecondsSinceEpoch(v['lastMessageAtMs'] as int);
@@ -519,17 +556,20 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
         }
       }
     }
-    
+
     return null;
   }
 
-  List<Map<String, dynamic>> _filterAndDedupeThreads(List<Map<String, dynamic>> allThreads) {
+  List<Map<String, dynamic>> _filterAndDedupeThreads(
+      List<Map<String, dynamic>> allThreads) {
     DateTime? resolveThreadTime(Map<String, dynamic> thread) {
-      final lastMessageAt = _parseAnyTs(thread['lastMessageAt']) ?? _parseAnyTs(thread['updatedAt']);
+      final lastMessageAt = _parseAnyTs(thread['lastMessageAt']) ??
+          _parseAnyTs(thread['updatedAt']);
       if (lastMessageAt != null) return lastMessageAt;
-      
+
       if (thread['lastMessageAtMs'] is int) {
-        return DateTime.fromMillisecondsSinceEpoch(thread['lastMessageAtMs'] as int);
+        return DateTime.fromMillisecondsSinceEpoch(
+            thread['lastMessageAtMs'] as int);
       }
       if (thread['lastMessageTimestamp'] is int) {
         final ts = thread['lastMessageTimestamp'] as int;
@@ -557,7 +597,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
       if (redirectTo.isNotEmpty) return false;
       if (isLid && canonicalThreadId.isNotEmpty) return false;
       if (isBroadcast) return false;
-      if (tid.contains('[object Object]') || tid.contains('[obiect Obiect]')) return false;
+      if (tid.contains('[object Object]') || tid.contains('[obiect Obiect]'))
+        return false;
       return true;
     }).toList();
 
@@ -587,17 +628,18 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
       final threadId =
           _readString(thread['id'], mapKeys: const ['threadId', 'id']).trim();
       final jidPhone = _extractPhoneFromJid(clientJid);
-      final phoneKey =
-          (normalizedPhone.isNotEmpty && jidPhone != null && normalizedPhone == jidPhone)
-              ? normalizedPhone
-              : null;
+      final phoneKey = (normalizedPhone.isNotEmpty &&
+              jidPhone != null &&
+              normalizedPhone == jidPhone)
+          ? normalizedPhone
+          : null;
       // FIX: Include accountId in dedupe key to prevent merging threads from different accounts
       // Use canonicalThreadId if available, otherwise fallback to threadId or phoneKey/clientJid
       final threadKey = canonicalThreadId.isNotEmpty
           ? canonicalThreadId
           : (threadId.isNotEmpty ? threadId : (phoneKey ?? clientJid));
       // Dedupe key format: accountId::threadKey to ensure threads from different accounts are kept separate
-      final key = accountId.isNotEmpty 
+      final key = accountId.isNotEmpty
           ? '$accountId::$threadKey'
           : threadKey; // Fallback if accountId is missing (shouldn't happen)
       final existing = dedupedByPhone[key];
@@ -616,10 +658,15 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
         final phone = _readString(t['normalizedPhone']).trim();
         final inferredPhone = _extractPhoneFromJid(jid);
         final hasName = displayName.isNotEmpty && !_looksLikePhone(displayName);
-        final hasPhone = phone.isNotEmpty || (inferredPhone != null && inferredPhone.isNotEmpty);
+        final hasPhone = phone.isNotEmpty ||
+            (inferredPhone != null && inferredPhone.isNotEmpty);
         final hasLastMessage = _readString(
           t['lastMessageText'],
-          mapKeys: const ['lastMessagePreview', 'lastMessageBody', 'lastMessage'],
+          mapKeys: const [
+            'lastMessagePreview',
+            'lastMessageBody',
+            'lastMessage'
+          ],
         ).trim().isNotEmpty;
         final hasTimestamp = resolveThreadTime(t) != null;
         var score = 0;
@@ -657,7 +704,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     if (forceRefresh) {
       if (!mounted) return;
       if (kDebugMode) {
-        debugPrint('[StaffInboxScreen] Force refresh: re-subscribing listeners');
+        debugPrint(
+            '[StaffInboxScreen] Force refresh: re-subscribing listeners');
       }
       setState(() {
         _errorMessage = null;
@@ -687,17 +735,19 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
 
     try {
       if (kDebugMode) {
-        debugPrint('[StaffInboxScreen] Loading accounts via getAccountsStaff...');
+        debugPrint(
+            '[StaffInboxScreen] Loading accounts via getAccountsStaff...');
       }
-      
+
       // Use staff-safe endpoint (employee-only, no QR codes)
       // AuthWrapper handles authentication - if user is not authenticated, they'll be redirected to login
       final response = await _apiService.getAccountsStaff();
-      
+
       if (kDebugMode) {
-        debugPrint('[StaffInboxScreen] getAccountsStaff response: success=${response['success']}, accountsCount=${(response['accounts'] as List?)?.length ?? 0}');
+        debugPrint(
+            '[StaffInboxScreen] getAccountsStaff response: success=${response['success']}, accountsCount=${(response['accounts'] as List?)?.length ?? 0}');
       }
-      
+
       if (response['success'] == true) {
         final accounts = (response['accounts'] as List<dynamic>? ?? [])
             .cast<Map<String, dynamic>>();
@@ -705,9 +755,11 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
         if (kDebugMode) {
           debugPrint('[StaffInboxScreen] Loaded ${accounts.length} accounts');
           for (final acc in accounts) {
-            final phone = acc['phone'] as String? ?? acc['phoneNumber'] as String?;
+            final phone =
+                acc['phone'] as String? ?? acc['phoneNumber'] as String?;
             final excluded = _shouldExcludeAccount(acc);
-            debugPrint('[StaffInboxScreen] Account: id=${acc['id']}, phone=$phone, excluded=$excluded, status=${acc['status']}');
+            debugPrint(
+                '[StaffInboxScreen] Account: id=${acc['id']}, phone=$phone, excluded=$excluded, status=${acc['status']}');
           }
         }
 
@@ -727,7 +779,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
           } else {
             // Auto-backfill la primul load: istoricul de pe telefon apare automat, fără buton
             final allowed = accounts
-                .where((a) => !_shouldExcludeAccount(a) && a['status'] == 'connected')
+                .where((a) =>
+                    !_shouldExcludeAccount(a) && a['status'] == 'connected')
                 .toList();
             if (!_hasRunAutoBackfill && allowed.isNotEmpty) {
               _hasRunAutoBackfill = true;
@@ -740,7 +793,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
           }
         }
       } else {
-        final errorMsg = response['message'] as String? ?? 'Failed to load accounts';
+        final errorMsg =
+            response['message'] as String? ?? 'Failed to load accounts';
         if (kDebugMode) {
           debugPrint('[StaffInboxScreen] getAccountsStaff failed: $errorMsg');
         }
@@ -798,7 +852,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
       if (!mounted) return;
       if (!silent) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Niciun cont conectat pentru backfill.')),
+          const SnackBar(
+              content: Text('Niciun cont conectat pentru backfill.')),
         );
       }
       return;
@@ -843,16 +898,19 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
         final msg = failed == 0
             ? 'Backfill gata pentru $done conturi. Reîmprospătare…'
             : 'Backfill: $done ok, $failed eșecuri. Reîmprospătare…';
-        const hint = ' Pentru istoric complet: reîmperechează contul (Disconnect → Connect → QR).';
+        const hint =
+            ' Pentru istoric complet: reîmperechează contul (Disconnect → Connect → QR).';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(msg + hint),
             duration: const Duration(seconds: 5),
-            backgroundColor: failed == 0 ? Colors.green[700] : Colors.orange[800],
+            backgroundColor:
+                failed == 0 ? Colors.green[700] : Colors.orange[800],
           ),
         );
       } else if (kDebugMode && (done > 0 || failed > 0)) {
-        debugPrint('[StaffInboxScreen] Auto-backfill done: $done ok, $failed failed');
+        debugPrint(
+            '[StaffInboxScreen] Auto-backfill done: $done ok, $failed failed');
       }
     } catch (e, st) {
       if (kDebugMode) {
@@ -882,7 +940,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     final parts = jid.split('@');
     if (parts.isEmpty) return null;
     final digits = parts[0];
-    if (digits.length > 15 || !RegExp(r'^\d{6,15}$').hasMatch(digits)) return null;
+    if (digits.length > 15 || !RegExp(r'^\d{6,15}$').hasMatch(digits))
+      return null;
     return '+$digits';
   }
 
@@ -940,8 +999,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
   bool _looksLikeProtocolMessage(String displayName) {
     final trimmed = displayName.trim().toUpperCase();
     if (trimmed.isEmpty) return false;
-    
-    if (trimmed.startsWith('INBOUND-PROBE') || 
+
+    if (trimmed.startsWith('INBOUND-PROBE') ||
         trimmed.startsWith('INBOUND_PROBE') ||
         trimmed.startsWith('OUTBOUND-PROBE') ||
         trimmed.startsWith('OUTBOUND_PROBE') ||
@@ -950,18 +1009,18 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
         trimmed.startsWith('HISTORY_SYNC')) {
       return true;
     }
-    
-    if (RegExp(r'^[A-Z0-9_-]{20,}$').hasMatch(trimmed) && 
+
+    if (RegExp(r'^[A-Z0-9_-]{20,}$').hasMatch(trimmed) &&
         (trimmed.contains('_') || trimmed.contains('-'))) {
       return true;
     }
-    
+
     return false;
   }
 
   Future<bool> _openWhatsAppForCall(String? phoneE164) async {
     if (phoneE164 == null || phoneE164.isEmpty) return false;
-    
+
     var cleaned = phoneE164.trim().replaceAll(RegExp(r'[^\d+]'), '');
     final hasPlus = cleaned.startsWith('+');
     cleaned = cleaned.replaceAll('+', '');
@@ -980,7 +1039,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
 
   Future<void> _makePhoneCall(String? phone) async {
     if (phone == null || phone.isEmpty) return;
-    
+
     String cleaned = phone.trim();
     cleaned = cleaned.replaceAll(RegExp(r'[^\d+]'), '');
     final hasPlus = cleaned.startsWith('+');
@@ -988,7 +1047,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
     if (hasPlus && cleaned.isNotEmpty) {
       cleaned = '+$cleaned';
     }
-    
+
     if (cleaned.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -996,13 +1055,14 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
       );
       return;
     }
-    
+
     final uri = Uri(scheme: 'tel', path: cleaned);
     try {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Nu se poate deschide aplicația de telefon')),
+          const SnackBar(
+              content: Text('Nu se poate deschide aplicația de telefon')),
         );
       }
     } catch (e) {
@@ -1016,7 +1076,7 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
   @override
   Widget build(BuildContext context) {
     final backendUrl = Env.whatsappBackendUrl;
-    
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -1039,7 +1099,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
             if (kDebugMode && backendUrl.isNotEmpty)
               Text(
                 backendUrl,
-                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.normal),
+                style: const TextStyle(
+                    fontSize: 10, fontWeight: FontWeight.normal),
                 overflow: TextOverflow.ellipsis,
               ),
           ],
@@ -1123,24 +1184,26 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
           // Threads list - all conversations from allowed accounts (excluding 0737571397)
           Expanded(
             child: _isLoadingAccounts
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Se încarcă conturile...',
+                            style: TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+                  )
+                : (_isLoadingThreads && _threads.isEmpty)
                     ? const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             CircularProgressIndicator(),
                             SizedBox(height: 16),
-                            Text('Se încarcă conturile...', style: TextStyle(color: Colors.grey)),
-                          ],
-                        ),
-                      )
-                    : (_isLoadingThreads && _threads.isEmpty)
-                    ? const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 16),
-                            Text('Se încarcă conversațiile...', style: TextStyle(color: Colors.grey)),
+                            Text('Se încarcă conversațiile...',
+                                style: TextStyle(color: Colors.grey)),
                           ],
                         ),
                       )
@@ -1151,7 +1214,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                                  Icon(Icons.error_outline,
+                                      size: 64, color: Colors.red[300]),
                                   const SizedBox(height: 16),
                                   Text(
                                     _errorMessage!,
@@ -1162,45 +1226,56 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                     const SizedBox(height: 8),
                                     Text(
                                       'Cod: $_firestoreErrorCode',
-                                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[700]),
                                     ),
                                   ],
                                   const SizedBox(height: 16),
                                   ElevatedButton(
-                                    onPressed: () => _loadThreads(forceRefresh: true),
+                                    onPressed: () =>
+                                        _loadThreads(forceRefresh: true),
                                     child: const Text('Retry'),
                                   ),
                                 ],
                               ),
                             ),
                           )
-                            : _threads.isEmpty
+                        : _threads.isEmpty
                             ? Center(
                                 child: Padding(
                                   padding: const EdgeInsets.all(24),
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
+                                      Icon(Icons.inbox_outlined,
+                                          size: 64, color: Colors.grey[400]),
                                       const SizedBox(height: 16),
                                       Text(
                                         _activeAccountIds.isEmpty
                                             ? 'Nu există conturi conectate pentru Inbox Angajați.'
                                             : 'Nu apar conversații / mesaje din istoric pentru conturile conectate.',
                                         textAlign: TextAlign.center,
-                                        style: TextStyle(color: Colors.grey[700], fontSize: 14),
+                                        style: TextStyle(
+                                            color: Colors.grey[700],
+                                            fontSize: 14),
                                       ),
-                                      if (showRepairCallout(_activeAccountIds.length, _threads.length)) ...[
+                                      if (showRepairCallout(
+                                          _activeAccountIds.length,
+                                          _threads.length)) ...[
                                         const SizedBox(height: 16),
                                         Container(
                                           padding: const EdgeInsets.all(14),
                                           decoration: BoxDecoration(
                                             color: Colors.blue.shade50,
-                                            borderRadius: BorderRadius.circular(10),
-                                            border: Border.all(color: Colors.blue.shade200),
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                            border: Border.all(
+                                                color: Colors.blue.shade200),
                                           ),
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 'Pentru a importa conversațiile și istoricul:',
@@ -1215,12 +1290,19 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                                 '1. Manage Accounts → Disconnect la fiecare cont\n'
                                                 '2. Connect → scanează QR din nou (WhatsApp → Linked devices → Link a device)\n'
                                                 '3. La reconectare se importă lista de chat-uri și mesajele.',
-                                                style: TextStyle(color: Colors.blue.shade800, fontSize: 12, height: 1.4),
+                                                style: TextStyle(
+                                                    color: Colors.blue.shade800,
+                                                    fontSize: 12,
+                                                    height: 1.4),
                                               ),
                                               const SizedBox(height: 6),
                                               Text(
                                                 'Sync/Backfill completează doar conversațiile deja existente; nu creează altele noi.',
-                                                style: TextStyle(color: Colors.blue.shade700, fontSize: 11, fontStyle: FontStyle.italic),
+                                                style: TextStyle(
+                                                    color: Colors.blue.shade700,
+                                                    fontSize: 11,
+                                                    fontStyle:
+                                                        FontStyle.italic),
                                               ),
                                             ],
                                           ),
@@ -1230,7 +1312,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                       ElevatedButton.icon(
                                         onPressed: () async {
                                           await _loadAccounts();
-                                          await _loadThreads(forceRefresh: true);
+                                          await _loadThreads(
+                                              forceRefresh: true);
                                         },
                                         icon: const Icon(Icons.refresh),
                                         label: const Text('Reîmprospătare'),
@@ -1246,21 +1329,27 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                       ? _threads
                                       : _threads.where((t) {
                                           final jid = t.clientJid.toLowerCase();
-                                          final name = t.displayName.toLowerCase();
-                                          final msg = t.lastMessageText.toLowerCase();
-                                          final ph = (t.phone ?? '').toLowerCase();
+                                          final name =
+                                              t.displayName.toLowerCase();
+                                          final msg =
+                                              t.lastMessageText.toLowerCase();
+                                          final ph =
+                                              (t.phone ?? '').toLowerCase();
                                           return jid.contains(q) ||
                                               name.contains(q) ||
                                               msg.contains(q) ||
                                               ph.contains(q);
                                         }).toList();
                                   // Show only real contacts (hide "Contact"/"Grup"/"Conversație" placeholders)
-                                  final filtered = base.where((t) => !_isPlaceholderOnly(t)).toList();
+                                  final filtered = base
+                                      .where((t) => !_isPlaceholderOnly(t))
+                                      .toList();
                                   // Sort strictly newest-first (like WhatsApp): last message time desc, then threadId
                                   filtered.sort((a, b) {
                                     final aT = a.lastMessageAt;
                                     final bT = b.lastMessageAt;
-                                    if (aT == null && bT == null) return a.threadId.compareTo(b.threadId);
+                                    if (aT == null && bT == null)
+                                      return a.threadId.compareTo(b.threadId);
                                     if (aT == null) return 1;
                                     if (bT == null) return -1;
                                     final aMs = aT.millisecondsSinceEpoch;
@@ -1285,9 +1374,11 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                       if (!_isBackfilling) {
                                         unawaited(_runBackfill(silent: true));
                                         if (mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
                                             const SnackBar(
-                                              content: Text('Se actualizează mesajele de pe telefon…'),
+                                              content: Text(
+                                                  'Se actualizează mesajele de pe telefon…'),
                                               duration: Duration(seconds: 2),
                                             ),
                                           );
@@ -1301,187 +1392,302 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
                                           delegate: SliverChildBuilderDelegate(
                                             (context, index) {
                                               final t = filtered[index];
-                                        final effectiveThreadId = (t.redirectTo ?? '').isNotEmpty
-                                            ? t.redirectTo!
-                                            : ((t.canonicalThreadId ?? '').isNotEmpty
-                                                ? t.canonicalThreadId!
-                                                : t.threadId);
-                                        String timeText = '';
-                                        if (t.lastMessageAt != null) {
-                                          final now = DateTime.now();
-                                          final diff = now.difference(t.lastMessageAt!);
-                                          if (diff.inMinutes < 60) {
-                                            timeText = '${diff.inMinutes}m ago';
-                                          } else if (diff.inHours < 24) {
-                                            timeText = '${diff.inHours}h ago';
-                                          } else if (diff.inDays < 7) {
-                                            timeText = DateFormat('EEE').format(t.lastMessageAt!);
-                                          } else {
-                                            timeText = DateFormat('dd/MM').format(t.lastMessageAt!);
-                                          }
-                                        }
-                                        final ph = (t.normalizedPhone ?? t.phone ?? '').trim();
-                                        final showPhone = ph.isNotEmpty &&
-                                            (t.displayName.trim().isEmpty ||
-                                                t.displayName.trim() == ph ||
-                                                RegExp(r'^\+?[\d\s\-\(\)]+$').hasMatch(t.displayName.trim()));
-                                        final subtitleParts = <String>[];
-                                        if (showPhone) subtitleParts.add(ph);
-                                        if (t.lastMessageText.trim().isNotEmpty) {
-                                          if (subtitleParts.isNotEmpty) subtitleParts.add('•');
-                                          subtitleParts.add(t.lastMessageText.trim());
-                                        }
-                                        final subtitle = subtitleParts.isEmpty
-                                            ? (ph.isNotEmpty ? ph : 'Fără mesaje')
-                                            : subtitleParts.join(' ');
+                                              final effectiveThreadId =
+                                                  (t.redirectTo ?? '')
+                                                          .isNotEmpty
+                                                      ? t.redirectTo!
+                                                      : ((t.canonicalThreadId ??
+                                                                  '')
+                                                              .isNotEmpty
+                                                          ? t.canonicalThreadId!
+                                                          : t.threadId);
+                                              String timeText = '';
+                                              if (t.lastMessageAt != null) {
+                                                final now = DateTime.now();
+                                                final diff = now.difference(
+                                                    t.lastMessageAt!);
+                                                if (diff.inMinutes < 60) {
+                                                  timeText =
+                                                      '${diff.inMinutes}m ago';
+                                                } else if (diff.inHours < 24) {
+                                                  timeText =
+                                                      '${diff.inHours}h ago';
+                                                } else if (diff.inDays < 7) {
+                                                  timeText = DateFormat('EEE')
+                                                      .format(t.lastMessageAt!);
+                                                } else {
+                                                  timeText = DateFormat('dd/MM')
+                                                      .format(t.lastMessageAt!);
+                                                }
+                                              }
+                                              final ph = (t.normalizedPhone ??
+                                                      t.phone ??
+                                                      '')
+                                                  .trim();
+                                              final showPhone = ph.isNotEmpty &&
+                                                  (t.displayName
+                                                          .trim()
+                                                          .isEmpty ||
+                                                      t.displayName.trim() ==
+                                                          ph ||
+                                                      RegExp(r'^\+?[\d\s\-\(\)]+$')
+                                                          .hasMatch(t
+                                                              .displayName
+                                                              .trim()));
+                                              final subtitleParts = <String>[];
+                                              if (showPhone)
+                                                subtitleParts.add(ph);
+                                              if (t.lastMessageText
+                                                  .trim()
+                                                  .isNotEmpty) {
+                                                if (subtitleParts.isNotEmpty)
+                                                  subtitleParts.add('•');
+                                                subtitleParts.add(
+                                                    t.lastMessageText.trim());
+                                              }
+                                              final subtitle =
+                                                  subtitleParts.isEmpty
+                                                      ? (ph.isNotEmpty
+                                                          ? ph
+                                                          : 'Fără mesaje')
+                                                      : subtitleParts.join(' ');
 
-                                        return ListTile(
-                                          leading: t.profilePictureUrl != null &&
-                                                  t.profilePictureUrl!.isNotEmpty
-                                              ? CircleAvatar(
-                                                  backgroundImage: CachedNetworkImageProvider(
-                                                    t.profilePictureUrl!,
-                                                  ),
-                                                  onBackgroundImageError: (_, __) {},
-                                                )
-                                              : CircleAvatar(
-                                                  backgroundColor: const Color(0xFF25D366),
-                                                  child: Text(
-                                                    _sanitizeForDisplay(t.initial).isEmpty ? '?' : _sanitizeForDisplay(t.initial),
-                                                    style: const TextStyle(color: Colors.white),
-                                                  ),
+                                              return ListTile(
+                                                leading: t.profilePictureUrl !=
+                                                            null &&
+                                                        t.profilePictureUrl!
+                                                            .isNotEmpty
+                                                    ? CircleAvatar(
+                                                        backgroundImage:
+                                                            CachedNetworkImageProvider(
+                                                          t.profilePictureUrl!,
+                                                        ),
+                                                        onBackgroundImageError:
+                                                            (_, __) {},
+                                                      )
+                                                    : CircleAvatar(
+                                                        backgroundColor:
+                                                            const Color(
+                                                                0xFF25D366),
+                                                        child: Text(
+                                                          _sanitizeForDisplay(
+                                                                      t.initial)
+                                                                  .isEmpty
+                                                              ? '?'
+                                                              : _sanitizeForDisplay(
+                                                                  t.initial),
+                                                          style:
+                                                              const TextStyle(
+                                                                  color: Colors
+                                                                      .white),
+                                                        ),
+                                                      ),
+                                                title: Row(
+                                                  children: [
+                                                    Expanded(
+                                                      flex: 3,
+                                                      child: Text(
+                                                        _sanitizeForDisplay(() {
+                                                          if (t.displayName
+                                                                  .trim()
+                                                                  .isNotEmpty &&
+                                                              _looksLikeProtocolMessage(
+                                                                  t.displayName)) {
+                                                            final ph =
+                                                                (t.normalizedPhone ??
+                                                                        t.phone ??
+                                                                        '')
+                                                                    .trim();
+                                                            if (ph.isNotEmpty)
+                                                              return ph;
+                                                            final jid =
+                                                                t.clientJid;
+                                                            if (jid
+                                                                .isNotEmpty) {
+                                                              final phoneFromJid =
+                                                                  _extractPhoneFromJid(
+                                                                      jid);
+                                                              final x = (phoneFromJid ??
+                                                                      (jid.split('@').isNotEmpty
+                                                                          ? jid.split(
+                                                                              '@')[0]
+                                                                          : ''))
+                                                                  .trim();
+                                                              return x.isEmpty
+                                                                  ? _threadTitleFallback(
+                                                                      t)
+                                                                  : x;
+                                                            }
+                                                            return _threadTitleFallback(
+                                                                t);
+                                                          }
+                                                          final label = t
+                                                                  .displayName
+                                                                  .trim()
+                                                                  .isNotEmpty
+                                                              ? t.displayName
+                                                                  .trim()
+                                                              : (t.normalizedPhone ??
+                                                                      t.phone ??
+                                                                      '')
+                                                                  .trim();
+                                                          return label.isEmpty
+                                                              ? _threadTitleFallback(
+                                                                  t)
+                                                              : label;
+                                                        }()),
+                                                        style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
+                                                    ),
+                                                    if ((t.accountName ?? '')
+                                                        .isNotEmpty) ...[
+                                                      const SizedBox(width: 4),
+                                                      Flexible(
+                                                        flex: 1,
+                                                        child: Container(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
+                                                            horizontal: 4,
+                                                            vertical: 2,
+                                                          ),
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: Colors
+                                                                .blue[100],
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        4),
+                                                          ),
+                                                          child: Text(
+                                                            _sanitizeForDisplay(
+                                                                t.accountName!),
+                                                            style: TextStyle(
+                                                              fontSize: 9,
+                                                              color: Colors
+                                                                  .blue[800],
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w500,
+                                                            ),
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                            maxLines: 1,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
                                                 ),
-                                          title: Row(
-                                            children: [
-                                              Expanded(
-                                                flex: 3,
-                                                child: Text(
-                                                  _sanitizeForDisplay(() {
-                                                    if (t.displayName.trim().isNotEmpty && _looksLikeProtocolMessage(t.displayName)) {
-                                                      final ph = (t.normalizedPhone ?? t.phone ?? '').trim();
-                                                      if (ph.isNotEmpty) return ph;
-                                                      final jid = t.clientJid;
-                                                      if (jid.isNotEmpty) {
-                                                        final phoneFromJid = _extractPhoneFromJid(jid);
-                                                        final x = (phoneFromJid ?? (jid.split('@').isNotEmpty ? jid.split('@')[0] : '')).trim();
-                                                        return x.isEmpty ? _threadTitleFallback(t) : x;
-                                                      }
-                                                      return _threadTitleFallback(t);
-                                                    }
-                                                    final label = t.displayName.trim().isNotEmpty
-                                                        ? t.displayName.trim()
-                                                        : (t.normalizedPhone ?? t.phone ?? '').trim();
-                                                    return label.isEmpty ? _threadTitleFallback(t) : label;
-                                                  }()),
+                                                subtitle: Text(
+                                                  _sanitizeForDisplay(subtitle),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                   style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                  overflow: TextOverflow.ellipsis,
+                                                      fontSize: 13),
                                                 ),
-                                              ),
-                                              if ((t.accountName ?? '').isNotEmpty) ...[
-                                                const SizedBox(width: 4),
-                                                Flexible(
-                                                  flex: 1,
-                                                  child: Container(
-                                                    padding: const EdgeInsets.symmetric(
-                                                      horizontal: 4,
-                                                      vertical: 2,
-                                                    ),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.blue[100],
-                                                      borderRadius:
-                                                          BorderRadius.circular(4),
-                                                    ),
-                                                    child: Text(
-                                                      _sanitizeForDisplay(t.accountName!),
-                                                      style: TextStyle(
-                                                        fontSize: 9,
-                                                        color: Colors.blue[800],
-                                                        fontWeight: FontWeight.w500,
+                                                trailing: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    if (timeText.isNotEmpty)
+                                                      Text(
+                                                        _sanitizeForDisplay(
+                                                            timeText),
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          color:
+                                                              Colors.grey[600],
+                                                        ),
                                                       ),
-                                                      overflow: TextOverflow.ellipsis,
-                                                      maxLines: 1,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                          subtitle: Text(
-                                            _sanitizeForDisplay(subtitle),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(fontSize: 13),
-                                          ),
-                                          trailing: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              if (timeText.isNotEmpty)
-                                                Text(
-                                                  _sanitizeForDisplay(timeText),
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color: Colors.grey[600],
-                                                  ),
-                                                ),
-                                              if (ph.isNotEmpty) ...[
-                                                if (timeText.isNotEmpty) const SizedBox(width: 8),
-                                                IconButton(
-                                                  icon: const Icon(Icons.video_call, color: Color(0xFF25D366), size: 18),
-                                                  onPressed: () async {
-                                                    final ok = await _openWhatsAppForCall(ph);
-                                                    if (!mounted) return;
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      SnackBar(
-                                                        content: Text(ok
-                                                            ? 'S-a deschis WhatsApp. Apasă iconița Call acolo.'
-                                                            : 'Nu pot deschide WhatsApp (instalat?)'),
-                                                        duration: const Duration(seconds: 2),
+                                                    if (ph.isNotEmpty) ...[
+                                                      if (timeText.isNotEmpty)
+                                                        const SizedBox(
+                                                            width: 8),
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                            Icons.video_call,
+                                                            color: Color(
+                                                                0xFF25D366),
+                                                            size: 18),
+                                                        onPressed: () async {
+                                                          final ok =
+                                                              await _openWhatsAppForCall(
+                                                                  ph);
+                                                          if (!mounted) return;
+                                                          ScaffoldMessenger.of(
+                                                                  context)
+                                                              .showSnackBar(
+                                                            SnackBar(
+                                                              content: Text(ok
+                                                                  ? 'S-a deschis WhatsApp. Apasă iconița Call acolo.'
+                                                                  : 'Nu pot deschide WhatsApp (instalat?)'),
+                                                              duration:
+                                                                  const Duration(
+                                                                      seconds:
+                                                                          2),
+                                                            ),
+                                                          );
+                                                        },
+                                                        tooltip:
+                                                            'Sună pe WhatsApp',
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        constraints:
+                                                            const BoxConstraints(
+                                                          minWidth: 32,
+                                                          minHeight: 32,
+                                                        ),
+                                                        iconSize: 18,
                                                       ),
-                                                    );
-                                                  },
-                                                  tooltip: 'Sună pe WhatsApp',
-                                                  padding: EdgeInsets.zero,
-                                                  constraints: const BoxConstraints(
-                                                    minWidth: 32,
-                                                    minHeight: 32,
-                                                  ),
-                                                  iconSize: 18,
+                                                      const SizedBox(width: 4),
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                            Icons.phone,
+                                                            color: Colors.blue,
+                                                            size: 18),
+                                                        onPressed: () =>
+                                                            _makePhoneCall(ph),
+                                                        tooltip:
+                                                            'Sună ${ph} (telefon)',
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        constraints:
+                                                            const BoxConstraints(
+                                                          minWidth: 32,
+                                                          minHeight: 32,
+                                                        ),
+                                                        iconSize: 18,
+                                                      ),
+                                                    ],
+                                                  ],
                                                 ),
-                                                const SizedBox(width: 4),
-                                                IconButton(
-                                                  icon: const Icon(Icons.phone, color: Colors.blue, size: 18),
-                                                  onPressed: () => _makePhoneCall(ph),
-                                                  tooltip: 'Sună ${ph} (telefon)',
-                                                  padding: EdgeInsets.zero,
-                                                  constraints: const BoxConstraints(
-                                                    minWidth: 32,
-                                                    minHeight: 32,
-                                                  ),
-                                                  iconSize: 18,
-                                                ),
-                                              ],
-                                            ],
+                                                onTap: () {
+                                                  context.go(
+                                                    '/whatsapp/chat?accountId=${Uri.encodeComponent(t.accountId ?? '')}'
+                                                    '&threadId=${Uri.encodeComponent(effectiveThreadId)}'
+                                                    '&clientJid=${Uri.encodeComponent(t.clientJid)}'
+                                                    '&phoneE164=${Uri.encodeComponent(ph)}'
+                                                    '&displayName=${Uri.encodeComponent(t.displayName)}'
+                                                    '&returnRoute=${Uri.encodeComponent('/whatsapp/inbox-staff')}',
+                                                  );
+                                                },
+                                              );
+                                            },
+                                            childCount: filtered.length,
                                           ),
-                                          onTap: () {
-                                            context.go(
-                                              '/whatsapp/chat?accountId=${Uri.encodeComponent(t.accountId ?? '')}'
-                                              '&threadId=${Uri.encodeComponent(effectiveThreadId)}'
-                                              '&clientJid=${Uri.encodeComponent(t.clientJid)}'
-                                              '&phoneE164=${Uri.encodeComponent(ph)}'
-                                              '&displayName=${Uri.encodeComponent(t.displayName)}'
-                                              '&returnRoute=${Uri.encodeComponent('/whatsapp/inbox-staff')}',
-                                            );
-                                          },
-                                        );
-                                      },
-                                      childCount: filtered.length,
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                ],
-                              ),
-                            );
+                                  );
                                 },
                               ),
           ),

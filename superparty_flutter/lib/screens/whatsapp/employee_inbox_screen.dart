@@ -11,6 +11,7 @@ import '../../models/thread_model.dart';
 import '../../services/whatsapp_api_service.dart';
 import '../../services/whatsapp_account_service.dart';
 import '../../utils/threads_query.dart';
+import '../../utils/thread_sort_utils.dart';
 import '../../utils/inbox_schema_guard.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -26,21 +27,24 @@ class EmployeeInboxScreen extends StatefulWidget {
 class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
     with WidgetsBindingObserver {
   final WhatsAppApiService _apiService = WhatsAppApiService.instance;
-  final WhatsAppAccountService _accountService = WhatsAppAccountService.instance;
+  final WhatsAppAccountService _accountService =
+      WhatsAppAccountService.instance;
 
   List<String> _employeeAccountIds = [];
   String? _selectedAccountId;
   bool _isLoading = true;
   String? _errorMessage;
+
   /// Set on Firestore stream error: 'failed-precondition' | 'permission-denied'
   String? _firestoreErrorCode;
   String _searchQuery = '';
   List<ThreadModel> _threads = [];
   bool _isBackfilling = false;
   bool _hasRunAutoBackfill = false; // Track if auto-backfill has run
-  
+
   // Firestore thread streams (per account)
-  final Map<String, StreamSubscription<QuerySnapshot>> _threadSubscriptions = {};
+  final Map<String, StreamSubscription<QuerySnapshot>> _threadSubscriptions =
+      {};
   final Map<String, List<Map<String, dynamic>>> _threadsByAccount = {};
 
   // Debounce for UI rebuilds to prevent excessive processing when multiple streams update
@@ -70,7 +74,8 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
     if (state != AppLifecycleState.resumed) return;
     if (!mounted) return;
     if (kDebugMode) {
-      debugPrint('[EmployeeInboxScreen] App resumed: refreshing accounts and threads');
+      debugPrint(
+          '[EmployeeInboxScreen] App resumed: refreshing accounts and threads');
     }
     _loadEmployeeAccounts();
   }
@@ -84,17 +89,20 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
 
     try {
       final accountIds = await _accountService.getEmployeeWhatsAppAccountIds();
-      
+
       if (accountIds.isEmpty) {
-        debugPrint('[EmployeeInboxScreen] getEmployeeWhatsAppAccountIds returned 0 (not employee or no accounts assigned)');
+        debugPrint(
+            '[EmployeeInboxScreen] getEmployeeWhatsAppAccountIds returned 0 (not employee or no accounts assigned)');
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Nu ai conturi WhatsApp de angajat configurate. Contactează administratorul.';
+          _errorMessage =
+              'Nu ai conturi WhatsApp de angajat configurate. Contactează administratorul.';
           _employeeAccountIds = [];
         });
         return;
       }
-      debugPrint('[EmployeeInboxScreen] Option A (accountId + orderBy lastMessageAt). accountIds count=${accountIds.length}');
+      debugPrint(
+          '[EmployeeInboxScreen] Option A (accountId + orderBy lastMessageAt). accountIds count=${accountIds.length}');
       debugPrint('[EmployeeInboxScreen] Employee account IDs: $accountIds');
 
       setState(() {
@@ -130,7 +138,7 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
       if (response['success'] == true) {
         final accounts = (response['accounts'] as List<dynamic>? ?? [])
             .cast<Map<String, dynamic>>();
-        
+
         // Filter to only show employee's allowed accounts
         final allowedAccounts = accounts.where((acc) {
           final id = acc['id'] as String?;
@@ -171,8 +179,11 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
         (snapshot) {
           if (kDebugMode) {
             final n = snapshot.docs.length;
-            debugPrint('[EmployeeInboxScreen] Thread stream snapshot accountId=$accountId docs=$n');
-            if (n == 0) debugPrint('[EmployeeInboxScreen] 0 docs for accountId=$accountId');
+            debugPrint(
+                '[EmployeeInboxScreen] Thread stream snapshot accountId=$accountId docs=$n');
+            if (n == 0)
+              debugPrint(
+                  '[EmployeeInboxScreen] 0 docs for accountId=$accountId');
           }
           _threadsByAccount[accountId] = snapshot.docs.map((doc) {
             logThreadSchemaAnomalies(doc);
@@ -185,18 +196,23 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
           _throttledRebuild();
         },
         onError: (error) {
-          debugPrint('[EmployeeInboxScreen] Thread stream error ($accountId): $error');
+          debugPrint(
+              '[EmployeeInboxScreen] Thread stream error ($accountId): $error');
           if (error is FirebaseException) {
-            debugPrint('[EmployeeInboxScreen] FirebaseException code=${error.code} message=${error.message}');
+            debugPrint(
+                '[EmployeeInboxScreen] FirebaseException code=${error.code} message=${error.message}');
             if (mounted) {
               setState(() {
                 _firestoreErrorCode = error.code;
                 if (error.code == 'failed-precondition') {
-                  _errorMessage = 'Index mismatch. Verifică indexurile Firestore pentru threads.';
+                  _errorMessage =
+                      'Index mismatch. Verifică indexurile Firestore pentru threads.';
                 } else if (error.code == 'permission-denied') {
-                  _errorMessage = 'Rules/RBAC blocked. Nu ai permisiune de citire pe threads.';
+                  _errorMessage =
+                      'Rules/RBAC blocked. Nu ai permisiune de citire pe threads.';
                 } else {
-                  _errorMessage = 'Eroare Firestore: ${error.code} – ${error.message}';
+                  _errorMessage =
+                      'Eroare Firestore: ${error.code} – ${error.message}';
                 }
               });
             }
@@ -279,11 +295,10 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
       }
     });
   }
-
   void _rebuildThreads() {
     // Merge from all accounts (N queries), then filter in memory
     final allThreads = _threadsByAccount.values.expand((list) => list).toList();
-    
+
     final visibleThreads = allThreads.where((thread) {
       final hidden = thread['hidden'] == true || thread['archived'] == true;
       final redirectTo = (thread['redirectTo'] as String? ?? '').trim();
@@ -293,19 +308,23 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
       if (hidden) return false;
       if (redirectTo.isNotEmpty) return false;
       if (isBroadcast) return false;
-      if (tid.contains('[object Object]') || tid.contains('[obiect Obiect]')) return false;
+      if (tid.contains('[object Object]') || tid.contains('[obiect Obiect]'))
+        return false;
       return true;
     }).toList();
 
     // Filter by selected account when dropdown is used (in-memory)
     final toShow = _employeeAccountIds.length > 1 && _selectedAccountId != null
-        ? visibleThreads.where((t) => (t['accountId'] as String?) == _selectedAccountId).toList()
+        ? visibleThreads
+            .where((t) => (t['accountId'] as String?) == _selectedAccountId)
+            .toList()
         : visibleThreads;
 
-    // Sort by lastMessageAt desc (stable sort)
+    // Sort desc by threadTimeMs (lastMessageAtMs → lastMessageAt → updatedAt → lastMessageTimestamp).
+    // updatedAt fallback ensures outbound-only threads reorder correctly (lastMessageAt is inbound-only on backend).
     toShow.sort((a, b) {
-      final aMs = _threadTimeMs(a);
-      final bMs = _threadTimeMs(b);
+      final aMs = threadTimeMs(a);
+      final bMs = threadTimeMs(b);
       final timeCmp = bMs.compareTo(aMs);
       if (timeCmp != 0) return timeCmp;
       final aId = (a['id'] ?? a['threadId'] ?? a['clientJid'] ?? '').toString();
@@ -338,47 +357,50 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
   Future<void> _runAutoBackfillForAccounts() async {
     if (FirebaseAuth.instance.currentUser == null) return;
     if (_isBackfilling) return;
-    
+
     try {
       // Get account details to check status
       final response = await _apiService.getAccounts();
       if (response['success'] != true) return;
-      
+
       final accounts = (response['accounts'] as List<dynamic>? ?? [])
           .cast<Map<String, dynamic>>();
-      
+
       // Filter to only connected accounts that are in employee's allowed list
       final connectedAccountIds = accounts
           .where((acc) {
             final id = acc['id'] as String?;
             final status = acc['status'] as String?;
-            return id != null && 
-                   _employeeAccountIds.contains(id) && 
-                   status == 'connected';
+            return id != null &&
+                _employeeAccountIds.contains(id) &&
+                status == 'connected';
           })
           .map((acc) => acc['id'] as String?)
           .whereType<String>()
           .toList();
-      
+
       if (connectedAccountIds.isEmpty) {
         if (kDebugMode) {
-          debugPrint('[EmployeeInboxScreen] No connected accounts for auto-backfill');
+          debugPrint(
+              '[EmployeeInboxScreen] No connected accounts for auto-backfill');
         }
         return;
       }
-      
+
       // Run backfill for each connected account (fire-and-forget)
       for (final accountId in connectedAccountIds) {
         _apiService.backfillAccount(accountId: accountId).catchError((e, st) {
           if (kDebugMode) {
-            debugPrint('[EmployeeInboxScreen] Auto-backfill failed for $accountId: $e');
+            debugPrint(
+                '[EmployeeInboxScreen] Auto-backfill failed for $accountId: $e');
           }
           return <String, dynamic>{};
         });
       }
-      
+
       if (kDebugMode) {
-        debugPrint('[EmployeeInboxScreen] Auto-backfill started for ${connectedAccountIds.length} account(s)');
+        debugPrint(
+            '[EmployeeInboxScreen] Auto-backfill started for ${connectedAccountIds.length} account(s)');
       }
     } catch (e, st) {
       if (kDebugMode) {
@@ -390,7 +412,7 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
 
   Future<bool> _openWhatsAppForCall(String? phoneE164) async {
     if (phoneE164 == null || phoneE164.isEmpty) return false;
-    
+
     var cleaned = phoneE164.trim().replaceAll(RegExp(r'[^\d+]'), '');
     final hasPlus = cleaned.startsWith('+');
     cleaned = cleaned.replaceAll('+', '');
@@ -409,7 +431,7 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
 
   Future<void> _makePhoneCall(String? phone) async {
     if (phone == null || phone.isEmpty) return;
-    
+
     String cleaned = phone.trim();
     cleaned = cleaned.replaceAll(RegExp(r'[^\d+]'), '');
     final hasPlus = cleaned.startsWith('+');
@@ -417,9 +439,9 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
     if (hasPlus && cleaned.isNotEmpty) {
       cleaned = '+$cleaned';
     }
-    
+
     if (cleaned.isEmpty) return;
-    
+
     final uri = Uri(scheme: 'tel', path: cleaned);
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -474,7 +496,8 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                        Icon(Icons.error_outline,
+                            size: 64, color: Colors.red[300]),
                         const SizedBox(height: 16),
                         Text(
                           _errorMessage!,
@@ -485,7 +508,8 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
                           const SizedBox(height: 8),
                           Text(
                             'Cod: $_firestoreErrorCode',
-                            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                            style: TextStyle(
+                                fontSize: 12, color: Colors.grey[700]),
                           ),
                         ],
                         const SizedBox(height: 16),
@@ -502,10 +526,12 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
                     // Account selector dropdown
                     if (_employeeAccountIds.length > 1)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
                           color: Colors.grey[100],
-                          border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+                          border: Border(
+                              bottom: BorderSide(color: Colors.grey[300]!)),
                         ),
                         child: DropdownButton<String>(
                           value: _selectedAccountId,
@@ -513,8 +539,8 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
                           hint: const Text('Selectează contul'),
                           items: _employeeAccountIds.map((accountId) {
                             // Show account ID (could be enhanced to show phone/name)
-                            final shortId = accountId.length > 20 
-                                ? '${accountId.substring(0, 20)}...' 
+                            final shortId = accountId.length > 20
+                                ? '${accountId.substring(0, 20)}...'
                                 : accountId;
                             return DropdownMenuItem<String>(
                               value: accountId,
@@ -522,7 +548,8 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
                             );
                           }).toList(),
                           onChanged: (String? newAccountId) {
-                            if (newAccountId != null && newAccountId != _selectedAccountId) {
+                            if (newAccountId != null &&
+                                newAccountId != _selectedAccountId) {
                               setState(() => _selectedAccountId = newAccountId);
                               _rebuildThreads();
                             }
@@ -568,7 +595,8 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
                                 itemCount: filtered.length,
                                 itemBuilder: (context, index) {
                                   final t = filtered[index];
-                                  final effectiveThreadId = (t.redirectTo ?? '').isNotEmpty
+                                  final effectiveThreadId = (t.redirectTo ?? '')
+                                          .isNotEmpty
                                       ? t.redirectTo!
                                       : ((t.canonicalThreadId ?? '').isNotEmpty
                                           ? t.canonicalThreadId!
@@ -576,26 +604,31 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
                                   String timeText = '';
                                   if (t.lastMessageAt != null) {
                                     final now = DateTime.now();
-                                    final diff = now.difference(t.lastMessageAt!);
+                                    final diff =
+                                        now.difference(t.lastMessageAt!);
                                     if (diff.inMinutes < 60) {
                                       timeText = '${diff.inMinutes}m ago';
                                     } else if (diff.inHours < 24) {
                                       timeText = '${diff.inHours}h ago';
                                     } else if (diff.inDays < 7) {
-                                      timeText = DateFormat('EEE').format(t.lastMessageAt!);
+                                      timeText = DateFormat('EEE')
+                                          .format(t.lastMessageAt!);
                                     } else {
-                                      timeText = DateFormat('dd/MM').format(t.lastMessageAt!);
+                                      timeText = DateFormat('dd/MM')
+                                          .format(t.lastMessageAt!);
                                     }
                                   }
                                   final ph = t.normalizedPhone ?? t.phone ?? '';
                                   final showPhone = ph.isNotEmpty &&
                                       (t.displayName.isEmpty ||
                                           t.displayName == ph ||
-                                          RegExp(r'^\+?[\d\s\-\(\)]+$').hasMatch(t.displayName));
+                                          RegExp(r'^\+?[\d\s\-\(\)]+$')
+                                              .hasMatch(t.displayName));
                                   final subtitleParts = <String>[];
                                   if (showPhone) subtitleParts.add(ph);
                                   if (t.lastMessageText.isNotEmpty) {
-                                    if (subtitleParts.isNotEmpty) subtitleParts.add('•');
+                                    if (subtitleParts.isNotEmpty)
+                                      subtitleParts.add('•');
                                     subtitleParts.add(t.lastMessageText);
                                   }
                                   final subtitle = subtitleParts.isEmpty
@@ -606,23 +639,29 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
                                     leading: t.profilePictureUrl != null &&
                                             t.profilePictureUrl!.isNotEmpty
                                         ? CircleAvatar(
-                                            backgroundImage: CachedNetworkImageProvider(
+                                            backgroundImage:
+                                                CachedNetworkImageProvider(
                                               t.profilePictureUrl!,
                                             ),
                                             onBackgroundImageError: (_, __) {},
                                           )
                                         : CircleAvatar(
-                                            backgroundColor: const Color(0xFF25D366),
+                                            backgroundColor:
+                                                const Color(0xFF25D366),
                                             child: Text(
                                               t.initial,
-                                              style: const TextStyle(color: Colors.white),
+                                              style: const TextStyle(
+                                                  color: Colors.white),
                                             ),
                                           ),
                                     title: Text(
                                       t.displayName.isNotEmpty
                                           ? t.displayName
-                                          : (t.normalizedPhone ?? t.phone ?? ''),
-                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                          : (t.normalizedPhone ??
+                                              t.phone ??
+                                              ''),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     subtitle: Text(
@@ -643,18 +682,25 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
                                             ),
                                           ),
                                         if (ph.isNotEmpty) ...[
-                                          if (timeText.isNotEmpty) const SizedBox(width: 8),
+                                          if (timeText.isNotEmpty)
+                                            const SizedBox(width: 8),
                                           IconButton(
-                                            icon: const Icon(Icons.video_call, color: Color(0xFF25D366), size: 18),
+                                            icon: const Icon(Icons.video_call,
+                                                color: Color(0xFF25D366),
+                                                size: 18),
                                             onPressed: () async {
-                                              final ok = await _openWhatsAppForCall(ph);
+                                              final ok =
+                                                  await _openWhatsAppForCall(
+                                                      ph);
                                               if (!mounted) return;
-                                              ScaffoldMessenger.of(context).showSnackBar(
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
                                                 SnackBar(
                                                   content: Text(ok
                                                       ? 'S-a deschis WhatsApp. Apasă iconița Call acolo.'
                                                       : 'Nu pot deschide WhatsApp (instalat?)'),
-                                                  duration: const Duration(seconds: 2),
+                                                  duration: const Duration(
+                                                      seconds: 2),
                                                 ),
                                               );
                                             },
@@ -668,7 +714,8 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
                                           ),
                                           const SizedBox(width: 4),
                                           IconButton(
-                                            icon: const Icon(Icons.phone, color: Colors.blue, size: 18),
+                                            icon: const Icon(Icons.phone,
+                                                color: Colors.blue, size: 18),
                                             onPressed: () => _makePhoneCall(ph),
                                             tooltip: 'Sună ${ph} (telefon)',
                                             padding: EdgeInsets.zero,
