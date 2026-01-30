@@ -57,6 +57,98 @@ Cu ele se poate spune exact care dintre cele 3 cazuri e și ce schimbare minimă
 
 ---
 
+## Diagnostic: Backfill vs UI (unde e problema?)
+
+**Important:** Mesajul din log **"Backfill started (runs asynchronously)"** confirmă doar că request-ul a ajuns la endpoint (prin Functions proxy), **nu** că mesajele „history” sunt deja scrise în Firestore. Endpoint-ul este explicit async.
+
+Ca să afli rapid dacă problema e la **backend/backfill** sau la **UI**, urmează diagnosticul în ordinea de mai jos.
+
+### 1) Verifică dacă „history” chiar a ajuns în Firestore (fără să ghicești)
+
+Din **WhatsApp Accounts** screen, pe contul conectat:
+
+1. Apasă **Backfill history** (butonul există pentru admin când status e `connected`).
+2. Apoi apasă iconița **🐞 „Verify Firestore (debug)”** (în `kDebugMode`), care deschide **WhatsAppBackfillDiagnosticScreen**.
+
+Pe ecranul de diagnostic, verificarea face:
+
+- numără **thread-urile** pentru `accountId`;
+- verifică dacă există **măcar 1 mesaj** în subcolecția `threads/{threadId}/messages` (sample);
+
+și îți afișează **Threads OK/EMPTY** + **Messages OK/EMPTY**.
+
+**Interpretare:**
+
+| Rezultat diagnostic | Unde e problema |
+|--------------------|------------------|
+| **Threads OK, Messages EMPTY** | Problema e la **backend/backfill** (mesajele nu sunt scrise în `threads/.../messages`), nu la UI. |
+| **Messages OK** dar în UI „tot nu apare history” | Problema e la **afișare/queries** în ecranul de conversație (UI). |
+
+### 2) Dacă „Messages EMPTY”: verifică dacă backfill-ul rulează sau e blocat
+
+**Important:** Job-ul de backfill e **async** (pornire cu delay/jitter/cooldown). După ce apeși „Backfill history”, **așteaptă 1–3 minute** și re-verifică diagnosticul; dacă verifici imediat, poți concluziona greșit că nu funcționează.
+
+În **Firestore**, în `accounts/{accountId}`, verifică statusul de auto-backfill (câmpuri din runbook):
+
+- `lastAutoBackfillStatus.running`
+- `lastAutoBackfillStatus.ok`
+- `lastAutoBackfillStatus.errorCode` / `errorMessage`
+- `lastAutoBackfillAttemptAt`, `lastAutoBackfillSuccessAt` (cooldown)
+
+Apoi verifică **semnalele de efect** ale backfill-ului:
+
+- în `threads/{threadId}/messages` trebuie să apară documente noi;
+- `threads/{threadId}.lastBackfillAt` (dacă există) se actualizează;
+- `accounts/{accountId}.lastBackfillStats` / `lastBackfillResult` (threads, messages, errors).
+
+Dacă rulezi backfill și **nimic** din cele de mai sus nu se mișcă (după 1–3 min), următorul check e dacă instanța backend e **active**:
+
+```bash
+curl -s http://HETZNER_IP:8080/ready | jq
+```
+
+- `mode: "active"` → ar trebui să proceseze backfill.
+- `mode: "passive"` → nu rulează tick-urile de backfill.
+
+### 3) Dacă „Messages OK” în diagnostic, dar în UI nu vezi history
+
+Confirmă pe **un document de mesaj** din Firestore că are timestamp-uri și câmpuri corecte:
+
+- modelul de mesaj suportă: `tsClient`, `tsServer`, `createdAt`, `syncedAt`, `syncSource`.
+
+**Check concret pentru UI:** În ecranul de conversație (chat), query-ul pentru mesaje trebuie să fie consistent:
+- **orderBy** pe `tsClient` sau `createdAt` (desc pentru „ultimele N”);
+- **limit** suficient de mare (ex. 200) ca să includă și mesajele din history;
+- **fără filtru** care exclude mesajele din history: dacă există `where('syncSource', '==', 'realtime')` sau similar, mesajele cu `syncSource=history_sync` / `backfill` nu vor apărea – elimină sau adaptează filtrul.
+
+Dacă mesajele există dar UI nu le arată, problema e de obicei:
+
+- **query-ul** din ecranul de conversație (filtre / `orderBy` / `limit`);
+- **maparea** câmpurilor de timestamp (string vs int vs Timestamp) în model/parsing.
+
+### 4) Posibilă cauză concretă (din loguri)
+
+Dacă **StaffInboxScreen** face backfill de mai multe ori și „rebuild from cache” rămâne la aceeași listă de threads (ex. 561), asta e compatibil cu:
+
+- backfill-ul **pornește** async, dar **nu scrie** efectiv mesaje → diagnosticul va arăta **Messages EMPTY**; sau
+- backfill-ul **scrie**, dar verifici doar **lista de thread-uri** (care poate rămâne 561), nu subcolecțiile de mesaje.
+
+**Concluzie:** Dacă spui ce îți arată **WhatsAppBackfillDiagnosticScreen** la „Messages (sample)” (**OK** vs **EMPTY**), se poate indica exact următorul loc de reparat (backend vs UI), fără pași în plus.
+
+### Ordine „amestecată” în Inbox Angajați (ex: 6h ago / 7h ago)
+
+Dacă conversațiile par amestecate (în special în grupurile cu același „Xh ago”):
+
+1. **Cauză frecventă:** thread-uri fără `lastMessageAtMs` (vechi, nereparate) – toate primesc timp 0 și sunt ordonate doar după id (arbitrar).
+2. **Ce faci:**
+   - Pe backend: lasă auto-repair să ruleze după backfill (ENV `AUTO_REPAIR_THREADS_ENABLED=true`) sau rulează scriptul de backfill pentru thread-uri vechi ca să completeze `lastMessageAt` + `lastMessageAtMs` din ultimul mesaj.
+   - În Firestore: verifică că `threads/{id}` au câmpurile `lastMessageAt` și `lastMessageAtMs` (number, ms) setate.
+   - În app: **pull-to-refresh** în Inbox Angajați sau închide/redeschide ecranul ca să reîncarci din Firestore și să se reaplice sortarea (desc după `threadTimeMs`, tie-break după thread id).
+
+Sortarea în app folosește: `lastMessageAtMs` → `lastMessageAt` → `updatedAt` → `lastMessageTimestamp`; când timpul e egal, ordinea e stabilă după id-ul thread-ului.
+
+---
+
 ## Employee inbox order = phone order
 
 Ordinea conversațiilor în **Inbox Angajați** (și Staff / WhatsApp Inbox) trebuie să fie **identică** cu WhatsApp pe telefon: thread-ul cu **ultimul mesaj** (inbound sau outbound) pe primul loc.

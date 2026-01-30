@@ -102,6 +102,8 @@ Example file: `whatsapp-backend/env.auto-backfill.example`.
 
 - **Idempotency:** All operations use message ID as document ID, ensuring no duplicates even if sync/backfill runs multiple times.
 
+- **Thread ID canonicalization:** History sync and message persistence use the same canonical JID for `threadId` (e.g. `@c.us` → `@s.whatsapp.net` via `canonicalizeJid` in `ensureThreadsFromHistoryChats` and `saveMessagesBatch`). This ensures messages from history sync land in the same thread as placeholders created from chats, and as realtime messages (canonicalClientKey handles `@c.us`).
+
 - **Realtime (primary):** `messages.upsert` → `saveMessageToFirestore` → Firestore `threads/{id}`, `threads/{id}/messages/{id}`. Logs: `[realtime] accountId=... remoteJid=... msg=... ts=... type=... writeOK=true|false`. Diagnostics: `accounts/{id}.lastRealtimeIngestAt`, `lastRealtimeMessageAt`, `lastRealtimeError`.
 
 - **Gap-filler (recent-sync):** Periodic job (default 2 min) fetches last N messages from recent threads via `fetchMessagesFromWA`, writes via `saveMessagesBatch`. Lease per account (`recentSyncLeaseUntil` etc.). Log tag: `[recent-sync]`.
