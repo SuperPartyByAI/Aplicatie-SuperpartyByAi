@@ -1312,15 +1312,15 @@ async function maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType }
       `[AutoReply][Trace] traceId=${traceId} firestoreQueriesCompleted threadDocPath=threads/${threadId} threadDocExists=${threadDoc.exists}`
     );
 
+    // Declare variables early to avoid ReferenceError in logging
+    let threadData = threadDoc.exists ? threadDoc.data() || {} : {};
+    let actualThreadId = threadId;
+    let pickedExistingThread = false;
+
     // Log after Firestore read
     console.log(
       `[AutoReply][Trace] traceId=${traceId} threadDocExists=${threadDoc.exists} pickedExistingThreadId=${pickedExistingThread ? hashForLog(actualThreadId) : 'null'}`
     );
-
-    // Load thread data early for name checking
-    let threadData = threadDoc.exists ? threadDoc.data() || {} : {};
-    let actualThreadId = threadId;
-    let pickedExistingThread = false;
 
     // FALLBACK: If thread doc doesn't exist and we have phone info, try to find existing thread
     if (!threadDoc.exists && phoneDigits && canonicalThreadId) {
