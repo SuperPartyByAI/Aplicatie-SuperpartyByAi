@@ -321,7 +321,7 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
         : visibleThreads;
 
     // Sort desc by threadTimeMs (lastMessageAtMs → lastMessageAt → updatedAt → lastMessageTimestamp).
-    // updatedAt fallback ensures outbound-only threads reorder correctly (lastMessageAt is inbound-only on backend).
+    // Stable tie-break by thread id so threads with same "Xh ago" don't appear mixed.
     toShow.sort((a, b) {
       final aMs = threadTimeMs(a);
       final bMs = threadTimeMs(b);

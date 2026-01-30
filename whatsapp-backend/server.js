@@ -2433,6 +2433,36 @@ const MAX_ACCOUNTS = 30;
 const connectionHealth = new Map(); // accountId -> { lastEventAt, lastMessageAt, reconnectCount, isStale }
 const STALE_CONNECTION_THRESHOLD = 5 * 60 * 1000; // 5 minutes without events = stale
 const HEALTH_CHECK_INTERVAL = 60 * 1000; // Check every 60 seconds
+/** Debounce: last time we triggered recovery due to "Connection Closed" (from backfill/sync) */
+const lastRecoveryOnClosedAt = new Map(); // accountId -> timestamp
+const RECOVERY_ON_CLOSED_DEBOUNCE_MS = 60 * 1000; // 1 minute
+
+/**
+ * Returns true if the error indicates the WhatsApp socket is already closed
+ * (e.g. backfill/sync fails with "Connection Closed" without connection.update close event).
+ */
+function isConnectionClosedError(err) {
+  if (!err || !err.message) return false;
+  const msg = String(err.message).toLowerCase();
+  const code = err.code;
+  if (msg.includes('connection closed')) return true;
+  if (code === 'ECONNRESET' || code === 'EPIPE' || code === 'ETIMEDOUT') return true;
+  if (msg.includes('socket hang up') || msg.includes('econnreset') || msg.includes('epipe')) return true;
+  return false;
+}
+
+/**
+ * Trigger reconnection when we detect socket is closed (e.g. from backfill failure).
+ * Debounced per account to avoid multiple recoveries in one backfill run.
+ */
+function triggerRecoveryOnConnectionClosed(accountId) {
+  const now = Date.now();
+  const last = lastRecoveryOnClosedAt.get(accountId) || 0;
+  if (now - last < RECOVERY_ON_CLOSED_DEBOUNCE_MS) return;
+  lastRecoveryOnClosedAt.set(accountId, now);
+  console.log(`🔌 [${accountId}] Connection closed detected (e.g. backfill), triggering auto-recovery...`);
+  recoverStaleConnection(accountId).catch(e => console.error(`❌ [${accountId}] Recovery on closed failed:`, e.message));
+}
 
 // Session stability tracking
 const sessionStability = new Map(); // accountId -> { lastRestoreAt, restoreCount, lastStableAt }
@@ -4010,7 +4040,32 @@ async function repairThreadsLastActivityForAccount(db, accountId, opts = {}) {
       eligible.push({ threadId: doc.id, data: d });
     }
   });
-  const toProcess = eligible.slice(0, limit);
+  let toProcess = eligible.slice(0, limit);
+
+  // Also repair "stale" threads: lastMessageAt is older than latest message in subcollection (e.g. Dec thread with newer messages).
+  let staleSnapshot;
+  try {
+    staleSnapshot = await db
+      .collection('threads')
+      .where('accountId', '==', accountId)
+      .orderBy('lastMessageAt', 'asc')
+      .limit(Math.min(100, limit))
+      .get();
+  } catch (staleErr) {
+    // Index may not exist for asc; skip stale pass
+    staleSnapshot = { docs: [], empty: true };
+  }
+  if (!staleSnapshot.empty) {
+    const staleLimit = Math.min(50, limit);
+    for (let i = 0; i < Math.min(staleSnapshot.docs.length, staleLimit); i++) {
+      const doc = staleSnapshot.docs[i];
+      const d = doc.data() || {};
+      const threadLastMs = typeof d.lastMessageAtMs === 'number' ? d.lastMessageAtMs : (d.lastMessageAt && typeof d.lastMessageAt.toMillis === 'function' ? d.lastMessageAt.toMillis() : 0);
+      if (threadLastMs > 0) {
+        toProcess.push({ threadId: doc.id, data: d, staleCheck: true, threadLastMs });
+      }
+    }
+  }
 
   if (toProcess.length === 0) {
     const durationMs = Date.now() - start;
@@ -4018,11 +4073,13 @@ async function repairThreadsLastActivityForAccount(db, accountId, opts = {}) {
     return { updatedThreads: 0, scanned, errors: 0, durationMs };
   }
 
-  console.log(`[repair] start accountId=${hashForLog(accountId)} eligible=${eligible.length} limit=${limit}`);
+  console.log(`[repair] start accountId=${hashForLog(accountId)} toProcess=${toProcess.length} limit=${limit}`);
 
-  for (const { threadId } of toProcess) {
+  for (const item of toProcess) {
+    const { threadId, data: d, staleCheck, threadLastMs } = item;
+    const threadIdOnly = threadId;
     try {
-      const col = db.collection('threads').doc(threadId).collection('messages');
+      const col = db.collection('threads').doc(threadIdOnly).collection('messages');
       let msgSnap;
       try {
         msgSnap = await col.orderBy('tsClient', 'desc').limit(1).get();
@@ -4038,7 +4095,9 @@ async function repairThreadsLastActivityForAccount(db, accountId, opts = {}) {
       const msgData = msgSnap.docs[0].data();
       const derived = deriveLastActivityFromMessage(msgData, admin);
       if (!derived) continue;
-      const threadRef = db.collection('threads').doc(threadId);
+      const currentMs = (d && typeof d.lastMessageAtMs === 'number' && d.lastMessageAtMs > 0) ? d.lastMessageAtMs : (threadLastMs || 0);
+      if (staleCheck && derived.lastMessageAtMs <= currentMs) continue;
+      const threadRef = db.collection('threads').doc(threadIdOnly);
       await threadRef.set(
         {
           lastMessageAt: derived.lastMessageAt,
@@ -4050,7 +4109,7 @@ async function repairThreadsLastActivityForAccount(db, accountId, opts = {}) {
       updatedThreads += 1;
     } catch (e) {
       errors += 1;
-      console.warn(`[repair] thread=${threadId} error:`, e.message);
+      console.warn(`[repair] thread=${threadIdOnly} error:`, e.message);
     }
   }
 
@@ -4168,6 +4227,9 @@ async function backfillAccountMessages(accountId) {
               `❌ [${accountId}] Backfill failed for thread ${threadId}:`,
               threadError.message
             );
+            if (isConnectionClosedError(threadError)) {
+              triggerRecoveryOnConnectionClosed(accountId);
+            }
             threadResults.push({ threadId, status: 'error', error: threadError.message });
             return { saved: 0, errors: 1, threadId, status: 'error' };
           }
@@ -4232,6 +4294,9 @@ async function backfillAccountMessages(accountId) {
     };
   } catch (error) {
     console.error(`❌ [${accountId}] Backfill error:`, error.message);
+    if (isConnectionClosedError(error)) {
+      triggerRecoveryOnConnectionClosed(accountId);
+    }
     await logIncident(accountId, 'backfill_failed', { error: error.message });
     return { success: false, error: error.message };
   }
@@ -4403,6 +4468,9 @@ async function runRecentSyncForAccount(accountId) {
         console.warn(
           `[recent-sync] ${hashForLog(accountId)} thread ${hashForLog(threadDoc.id)} fetch error: ${e.message}`
         );
+        if (isConnectionClosedError(e)) {
+          triggerRecoveryOnConnectionClosed(accountId);
+        }
       }
     }
 
@@ -4429,6 +4497,9 @@ async function runRecentSyncForAccount(accountId) {
     console.error(
       `[recent-sync] ${hashForLog(accountId)} error: ${err.message} durationMs=${durationMs}`
     );
+    if (isConnectionClosedError(err)) {
+      triggerRecoveryOnConnectionClosed(accountId);
+    }
     return {
       success: false,
       threads: 0,
