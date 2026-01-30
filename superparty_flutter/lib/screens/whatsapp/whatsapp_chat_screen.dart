@@ -90,6 +90,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
   DateTime? _lastSendAt;
   String? _lastSentText;
   bool _initialScrollDone = false;
+  String? _lastThreadKey;
   bool _redirectChecked = false;
   String? _threadClientJid;
   String? _threadPhoneE164;
@@ -1240,8 +1241,8 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
       final fingerprintHash = _asString(data['fingerprintHash']);
       final direction = _asString(data['direction']) ?? 'inbound';
       final body = (_asString(data['body'], field: 'body') ?? '').trim();
-      final tsMillis = _extractTsMillis(data['tsClient']);
-      final tsRounded = tsMillis != null ? (tsMillis / 1000).floor() : null;
+      final tsMillis = _extractSortMillis(data);
+      final tsRounded = tsMillis > 0 ? (tsMillis / 1000).floor() : null;
       final fallbackKey = 'fallback:$direction|$body|$tsRounded';
 
       final primaryKey = stableKeyHash?.isNotEmpty == true
@@ -1729,6 +1730,12 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
                   );
                 }
 
+                if (_lastThreadKey != effectiveThreadId) {
+                  _lastThreadKey = effectiveThreadId;
+                  _initialScrollDone = false;
+                  _previousMessageCount = 0;
+                }
+
                 // Wrap StreamBuilder in error boundary to prevent red screen
                 // First verify thread exists before querying messages
                 return FutureBuilder<DocumentSnapshot>(
@@ -1886,7 +1893,7 @@ class _WhatsAppChatScreenState extends State<WhatsAppChatScreen> {
 
                               return ListView.builder(
                                 controller: _scrollController,
-                                key: PageStorageKey('whatsapp-chat-$effectiveThreadId'),
+                                key: ValueKey('whatsapp-chat-$effectiveThreadId'),
                                 reverse: false,
                                 padding: const EdgeInsets.all(16),
                                 itemCount: dedupedDocs.length,
