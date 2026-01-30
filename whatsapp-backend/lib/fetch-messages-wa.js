@@ -181,7 +181,7 @@ async function fetchMessagesFromWA(sock, jid, limit, opts = {}) {
   }
 
   let oldestMsgKey = undefined;
-  let reason = oldestSnap.empty ? 'empty_thread' : 'none';
+  let reason = oldestSnap.empty ? 'empty_firestore_anchor' : 'none';
 
   if (!oldestSnap.empty) {
     const doc = oldestSnap.docs[0];

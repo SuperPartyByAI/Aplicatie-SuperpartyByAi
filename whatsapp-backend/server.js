@@ -149,7 +149,10 @@ async function updateThreadLastMessageForOutbound(db, accountId, threadId, msg, 
     const snap = await ref.get();
     if (snap.exists) {
       const d = snap.data() || {};
-      if (d.lastMessageAtMs != null && (typeof d.lastMessageAtMs === 'number' || typeof d.lastMessageAtMs === 'bigint')) {
+      if (
+        d.lastMessageAtMs != null &&
+        (typeof d.lastMessageAtMs === 'number' || typeof d.lastMessageAtMs === 'bigint')
+      ) {
         existingLastMs = Number(d.lastMessageAtMs);
       } else if (d.lastMessageAt && typeof d.lastMessageAt.toMillis === 'function') {
         existingLastMs = d.lastMessageAt.toMillis();
@@ -159,7 +162,10 @@ async function updateThreadLastMessageForOutbound(db, accountId, threadId, msg, 
   if (existingLastMs != null && useMs < existingLastMs) return;
   const tsClientAt = admin?.firestore?.Timestamp?.fromMillis?.(useMs) ?? null;
   const body = options?.body;
-  const preview = (typeof body === 'string' && body.trim()) ? body.trim().slice(0, 100).replace(/\s+/g, ' ') : '[Message]';
+  const preview =
+    typeof body === 'string' && body.trim()
+      ? body.trim().slice(0, 100).replace(/\s+/g, ' ')
+      : '[Message]';
   const payload = {
     lastMessageAt: tsClientAt,
     lastMessageAtMs: useMs,
@@ -172,8 +178,9 @@ async function updateThreadLastMessageForOutbound(db, accountId, threadId, msg, 
   await ref.set(payload, { merge: true });
 
   // Schema guard: canonical "last activity" = lastMessageAt (+ lastMessageAtMs). Must be set inbound+outbound.
-  ref.get()
-    .then((snap) => {
+  ref
+    .get()
+    .then(snap => {
       if (!snap.exists) return;
       const d = snap.data() || {};
       if (d.lastMessageAt == null) {
@@ -2170,7 +2177,9 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
                     body: saved.messageBody || null,
                   });
                 } catch (e) {
-                  console.warn(`⚠️  [${hashForLog(accountId)}] Thread update after outbound save failed: ${e.message}`);
+                  console.warn(
+                    `⚠️  [${hashForLog(accountId)}] Thread update after outbound save failed: ${e.message}`
+                  );
                 }
               }
             } else {
@@ -2456,7 +2465,8 @@ function isConnectionClosedError(err) {
   const code = err.code;
   if (msg.includes('connection closed')) return true;
   if (code === 'ECONNRESET' || code === 'EPIPE' || code === 'ETIMEDOUT') return true;
-  if (msg.includes('socket hang up') || msg.includes('econnreset') || msg.includes('epipe')) return true;
+  if (msg.includes('socket hang up') || msg.includes('econnreset') || msg.includes('epipe'))
+    return true;
   return false;
 }
 
@@ -2469,8 +2479,12 @@ function triggerRecoveryOnConnectionClosed(accountId) {
   const last = lastRecoveryOnClosedAt.get(accountId) || 0;
   if (now - last < RECOVERY_ON_CLOSED_DEBOUNCE_MS) return;
   lastRecoveryOnClosedAt.set(accountId, now);
-  console.log(`🔌 [${accountId}] Connection closed detected (e.g. backfill), triggering auto-recovery...`);
-  recoverStaleConnection(accountId).catch(e => console.error(`❌ [${accountId}] Recovery on closed failed:`, e.message));
+  console.log(
+    `🔌 [${accountId}] Connection closed detected (e.g. backfill), triggering auto-recovery...`
+  );
+  recoverStaleConnection(accountId).catch(e =>
+    console.error(`❌ [${accountId}] Recovery on closed failed:`, e.message)
+  );
 }
 
 // Session stability tracking
@@ -2908,7 +2922,9 @@ const BOOT_TIMESTAMP = new Date().toISOString();
 const longrunJobsModule = require('./lib/longrun-jobs-v2');
 const { createAutoBackfill, getInstanceId } = require('./lib/wa-auto-backfill');
 const { createRecentSync } = require('./lib/wa-recent-sync');
-const { deriveLastActivityFromMessage: deriveLastActivityFromMessageLib } = require('./lib/wa-thread-repair');
+const {
+  deriveLastActivityFromMessage: deriveLastActivityFromMessageLib,
+} = require('./lib/wa-thread-repair');
 const longrunJobsInstance = null;
 
 // Long-run schema and evidence endpoints
@@ -2976,10 +2992,7 @@ const AUTO_REPAIR_THREADS_LIMIT_PER_RUN = parseInt(
   process.env.AUTO_REPAIR_THREADS_LIMIT_PER_RUN || '200',
   10
 );
-const AUTO_REPAIR_COOLDOWN_MINUTES = parseInt(
-  process.env.AUTO_REPAIR_COOLDOWN_MINUTES || '60',
-  10
-);
+const AUTO_REPAIR_COOLDOWN_MINUTES = parseInt(process.env.AUTO_REPAIR_COOLDOWN_MINUTES || '60', 10);
 console.log(
   `📚 History sync: ${SYNC_FULL_HISTORY ? 'enabled' : 'disabled'} (WHATSAPP_SYNC_FULL_HISTORY=${SYNC_FULL_HISTORY})`
 );
@@ -3616,14 +3629,18 @@ async function ensureThreadsFromHistoryChats(accountId, historyChats) {
         const ref = db.collection('threads').doc(threadId);
         const now = admin.firestore.Timestamp.now();
         const displayName = typeof c?.name === 'string' && c.name.trim() ? c.name.trim() : null;
-        batch.set(ref, {
-          accountId,
-          clientJid,
-          updatedAt: now,
-          lastMessageAt: now,
-          lastMessageAtMs: now.toMillis(),
-          ...(displayName ? { displayName } : {}),
-        }, { merge: true });
+        batch.set(
+          ref,
+          {
+            accountId,
+            clientJid,
+            updatedAt: now,
+            lastMessageAt: now,
+            lastMessageAtMs: now.toMillis(),
+            ...(displayName ? { displayName } : {}),
+          },
+          { merge: true }
+        );
         added++;
       } catch (e) {
         errors++;
@@ -3761,19 +3778,14 @@ async function saveMessagesBatch(accountId, messages, source = 'history') {
           }
         }
       }
-      await writeMessageIdempotent(
-        db,
-        { accountId, clientJid, threadId, direction },
-        msg,
-        {
-          extraFields: {
-            status: msg.key.fromMe ? 'sent' : 'delivered',
-            syncedAt: admin.firestore.FieldValue.serverTimestamp(),
-            syncSource: source,
-          },
-          threadOverrides,
-        }
-      );
+      await writeMessageIdempotent(db, { accountId, clientJid, threadId, direction }, msg, {
+        extraFields: {
+          status: msg.key.fromMe ? 'sent' : 'delivered',
+          syncedAt: admin.firestore.FieldValue.serverTimestamp(),
+          syncSource: source,
+        },
+        threadOverrides,
+      });
       saved++;
     } catch (error) {
       console.error(`❌ [${hashForLog(accountId)}] History save failed:`, error.message);
@@ -3975,11 +3987,12 @@ async function repairThreadLastMessageFromSubcollection(db, threadId) {
   }
   if (snap.empty) return { repaired: false };
   const d = snap.docs[0].data();
-  const ts = d.tsClient && typeof d.tsClient.toMillis === 'function'
-    ? d.tsClient
-    : d.createdAt && typeof d.createdAt.toMillis === 'function'
-      ? d.createdAt
-      : null;
+  const ts =
+    d.tsClient && typeof d.tsClient.toMillis === 'function'
+      ? d.tsClient
+      : d.createdAt && typeof d.createdAt.toMillis === 'function'
+        ? d.createdAt
+        : null;
   if (!ts) return { repaired: false };
   const tsMs = typeof ts.toMillis === 'function' ? ts.toMillis() : null;
   if (tsMs == null) return { repaired: false };
@@ -3987,8 +4000,10 @@ async function repairThreadLastMessageFromSubcollection(db, threadId) {
   const threadSnap = await threadRef.get();
   if (!threadSnap.exists) return { repaired: false };
   const threadData = threadSnap.data() || {};
-  const hasValidLastMessageAt = threadData.lastMessageAt && typeof threadData.lastMessageAt.toMillis === 'function';
-  const hasValidLastMessageAtMs = typeof threadData.lastMessageAtMs === 'number' && threadData.lastMessageAtMs > 0;
+  const hasValidLastMessageAt =
+    threadData.lastMessageAt && typeof threadData.lastMessageAt.toMillis === 'function';
+  const hasValidLastMessageAtMs =
+    typeof threadData.lastMessageAtMs === 'number' && threadData.lastMessageAtMs > 0;
   if (hasValidLastMessageAt && hasValidLastMessageAtMs) return { repaired: false };
   try {
     const update = {};
@@ -3998,7 +4013,9 @@ async function repairThreadLastMessageFromSubcollection(db, threadId) {
     await threadRef.set(update, { merge: true });
     return { repaired: true };
   } catch (e) {
-    console.warn(`[schema-guard] SchemaGuard missing lastMessageAt/lastMessageAtMs after backfill update: thread=${threadId} error=${e.message}`);
+    console.warn(
+      `[schema-guard] SchemaGuard missing lastMessageAt/lastMessageAtMs after backfill update: thread=${threadId} error=${e.message}`
+    );
     return { repaired: false, error: e.message };
   }
 }
@@ -4040,7 +4057,7 @@ async function repairThreadsLastActivityForAccount(db, accountId, opts = {}) {
   }
 
   const eligible = [];
-  snapshot.docs.forEach((doc) => {
+  snapshot.docs.forEach(doc => {
     scanned += 1;
     const d = doc.data() || {};
     const hasValidLastMessageAt = d.lastMessageAt && typeof d.lastMessageAt.toMillis === 'function';
@@ -4069,7 +4086,12 @@ async function repairThreadsLastActivityForAccount(db, accountId, opts = {}) {
     for (let i = 0; i < Math.min(staleSnapshot.docs.length, staleLimit); i++) {
       const doc = staleSnapshot.docs[i];
       const d = doc.data() || {};
-      const threadLastMs = typeof d.lastMessageAtMs === 'number' ? d.lastMessageAtMs : (d.lastMessageAt && typeof d.lastMessageAt.toMillis === 'function' ? d.lastMessageAt.toMillis() : 0);
+      const threadLastMs =
+        typeof d.lastMessageAtMs === 'number'
+          ? d.lastMessageAtMs
+          : d.lastMessageAt && typeof d.lastMessageAt.toMillis === 'function'
+            ? d.lastMessageAt.toMillis()
+            : 0;
       if (threadLastMs > 0) {
         toProcess.push({ threadId: doc.id, data: d, staleCheck: true, threadLastMs });
       }
@@ -4078,11 +4100,15 @@ async function repairThreadsLastActivityForAccount(db, accountId, opts = {}) {
 
   if (toProcess.length === 0) {
     const durationMs = Date.now() - start;
-    console.log(`[repair] end accountId=${hashForLog(accountId)} updatedThreads=0 scanned=${scanned} durationMs=${durationMs}`);
+    console.log(
+      `[repair] end accountId=${hashForLog(accountId)} updatedThreads=0 scanned=${scanned} durationMs=${durationMs}`
+    );
     return { updatedThreads: 0, scanned, errors: 0, durationMs };
   }
 
-  console.log(`[repair] start accountId=${hashForLog(accountId)} toProcess=${toProcess.length} limit=${limit}`);
+  console.log(
+    `[repair] start accountId=${hashForLog(accountId)} toProcess=${toProcess.length} limit=${limit}`
+  );
 
   for (const item of toProcess) {
     const { threadId, data: d, staleCheck, threadLastMs } = item;
@@ -4104,7 +4130,10 @@ async function repairThreadsLastActivityForAccount(db, accountId, opts = {}) {
       const msgData = msgSnap.docs[0].data();
       const derived = deriveLastActivityFromMessage(msgData, admin);
       if (!derived) continue;
-      const currentMs = (d && typeof d.lastMessageAtMs === 'number' && d.lastMessageAtMs > 0) ? d.lastMessageAtMs : (threadLastMs || 0);
+      const currentMs =
+        d && typeof d.lastMessageAtMs === 'number' && d.lastMessageAtMs > 0
+          ? d.lastMessageAtMs
+          : threadLastMs || 0;
       if (staleCheck && derived.lastMessageAtMs <= currentMs) continue;
       const threadRef = db.collection('threads').doc(threadIdOnly);
       await threadRef.set(
@@ -4123,7 +4152,9 @@ async function repairThreadsLastActivityForAccount(db, accountId, opts = {}) {
   }
 
   const durationMs = Date.now() - start;
-  console.log(`[repair] end accountId=${hashForLog(accountId)} updatedThreads=${updatedThreads} scanned=${scanned} durationMs=${durationMs}`);
+  console.log(
+    `[repair] end accountId=${hashForLog(accountId)} updatedThreads=${updatedThreads} scanned=${scanned} durationMs=${durationMs}`
+  );
   return { updatedThreads, scanned, errors, durationMs };
 }
 
@@ -4142,7 +4173,7 @@ async function backfillAccountMessages(accountId) {
   }
 
   try {
-    console.log(`📚 [${accountId}] Starting backfill for recent threads...`);
+    console.log(`📚 [${accountId}] Starting backfill (Dual Query strategy)...`);
 
     // [REQ] Double query strategy: 1. Recent active, 2. Empty placeholders
     const [threadsSnapshot, emptyThreadsSnapshot] = await Promise.all([
@@ -4211,9 +4242,11 @@ async function backfillAccountMessages(accountId) {
           }
 
           try {
+            // [REQ] fetchMessagesFromWA handles JID resolution, seeding, and recursion maxDepth=1
             const messages = await fetchMessagesFromWA(account.sock, clientJid, limitPerThread, {
               db,
               accountId,
+              maxDepth: 1,
             });
             let saved = 0;
             let errCount = 0;
@@ -4266,11 +4299,15 @@ async function backfillAccountMessages(accountId) {
         const out = await repairThreadLastMessageFromSubcollection(db, threadId);
         if (out.repaired) repairedCount += 1;
       } catch (e) {
-        console.warn(`[schema-guard] SchemaGuard missing lastMessageAt/lastMessageAtMs after backfill update: thread=${threadId} error=${e.message}`);
+        console.warn(
+          `[schema-guard] SchemaGuard missing lastMessageAt/lastMessageAtMs after backfill update: thread=${threadId} error=${e.message}`
+        );
       }
     }
     if (repairedCount > 0) {
-      console.log(`📚 [${accountId}] Repair step: updated lastMessageAt/lastMessageAtMs for ${repairedCount} threads`);
+      console.log(
+        `📚 [${accountId}] Repair step: updated lastMessageAt/lastMessageAtMs for ${repairedCount} threads`
+      );
     }
 
     // Update account metadata
@@ -4287,7 +4324,7 @@ async function backfillAccountMessages(accountId) {
     );
 
     console.log(
-      `✅ [${accountId}] Backfill complete: ${combinedDocs.length} threads, ${totalMessages} messages, ${totalErrors} errors`
+      `✅ [${accountId}] Backfill complete: ${combinedDocs.length} threads, ${totalMessages} messages`
     );
 
     // Enrich threads from contacts automatically (no manual sync)
@@ -4552,15 +4589,23 @@ function initAutoBackfill() {
     },
     runRepair: async (accountId, opts = {}) => {
       if (!AUTO_REPAIR_THREADS_ENABLED || !firestoreAvailable || !db) return;
-      const cooldownMs = (Number.isFinite(AUTO_REPAIR_COOLDOWN_MINUTES) && AUTO_REPAIR_COOLDOWN_MINUTES > 0
-        ? AUTO_REPAIR_COOLDOWN_MINUTES
-        : 60) * 60 * 1000;
+      const cooldownMs =
+        (Number.isFinite(AUTO_REPAIR_COOLDOWN_MINUTES) && AUTO_REPAIR_COOLDOWN_MINUTES > 0
+          ? AUTO_REPAIR_COOLDOWN_MINUTES
+          : 60) *
+        60 *
+        1000;
       try {
         const accSnap = await db.collection('accounts').doc(accountId).get();
         if (accSnap.exists) {
           const raw = accSnap.data() || {};
           const lastAt = raw.lastAutoRepairAt;
-          const lastMs = lastAt && typeof lastAt.toMillis === 'function' ? lastAt.toMillis() : (lastAt?._seconds != null ? lastAt._seconds * 1000 : null);
+          const lastMs =
+            lastAt && typeof lastAt.toMillis === 'function'
+              ? lastAt.toMillis()
+              : lastAt?._seconds != null
+                ? lastAt._seconds * 1000
+                : null;
           if (lastMs != null && Date.now() - lastMs < cooldownMs) return;
         }
         const limit = opts.limit ?? AUTO_REPAIR_THREADS_LIMIT_PER_RUN;
@@ -7661,7 +7706,9 @@ app.post('/admin/backfill-profile-photos', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -7680,7 +7727,8 @@ app.post('/admin/backfill-profile-photos', async (req, res) => {
 
     console.log(`🖼️  [ADMIN] Backfilling profile photos: accountId=${accountId}, limit=${limit}`);
 
-    const threadsSnapshot = await db.collection('threads')
+    const threadsSnapshot = await db
+      .collection('threads')
       .where('accountId', '==', accountId)
       .orderBy('lastMessageAt', 'desc')
       .limit(limit)
@@ -7706,7 +7754,9 @@ app.post('/admin/threads-order', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -7723,15 +7773,16 @@ app.post('/admin/threads-order', async (req, res) => {
       return res.status(500).json({ success: false, error: 'Firestore not available' });
     }
 
-    const snap = await db.collection('threads')
+    const snap = await db
+      .collection('threads')
       .where('accountId', '==', accountId)
       .orderBy('lastMessageAt', 'desc')
       .limit(limit)
       .get();
 
-    const items = snap.docs.map((doc) => {
+    const items = snap.docs.map(doc => {
       const d = doc.data() || {};
-      const lastMessageAtMs = d.lastMessageAtMs ?? (d.lastMessageAt?.toMillis?.() ?? null);
+      const lastMessageAtMs = d.lastMessageAtMs ?? d.lastMessageAt?.toMillis?.() ?? null;
       return {
         threadId: doc.id,
         displayName: d.displayName || null,
@@ -7758,7 +7809,9 @@ app.post('/admin/last-message', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -7777,7 +7830,8 @@ app.post('/admin/last-message', async (req, res) => {
 
     let effectiveThreadId = threadId;
     if (!effectiveThreadId) {
-      const snap = await db.collection('threads')
+      const snap = await db
+        .collection('threads')
         .where('accountId', '==', accountId)
         .orderBy('lastMessageAt', 'desc')
         .limit(1)
@@ -7788,7 +7842,8 @@ app.post('/admin/last-message', async (req, res) => {
       effectiveThreadId = snap.docs[0].id;
     }
 
-    const msgSnap = await db.collection('threads')
+    const msgSnap = await db
+      .collection('threads')
       .doc(effectiveThreadId)
       .collection('messages')
       .orderBy('tsClient', 'desc')
@@ -7823,7 +7878,9 @@ app.post('/admin/last-message-across-threads', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
 
     const token = authHeader.substring(7);
@@ -7840,7 +7897,8 @@ app.post('/admin/last-message-across-threads', async (req, res) => {
       return res.status(500).json({ success: false, error: 'Firestore not available' });
     }
 
-    const threadsSnap = await db.collection('threads')
+    const threadsSnap = await db
+      .collection('threads')
       .where('accountId', '==', accountId)
       .orderBy('lastMessageAt', 'desc')
       .limit(limit)
@@ -7850,7 +7908,8 @@ app.post('/admin/last-message-across-threads', async (req, res) => {
     for (const doc of threadsSnap.docs) {
       const threadId = doc.id;
       try {
-        const msgSnap = await db.collection('threads')
+        const msgSnap = await db
+          .collection('threads')
           .doc(threadId)
           .collection('messages')
           .orderBy('tsClient', 'desc')
@@ -7874,7 +7933,12 @@ app.post('/admin/last-message-across-threads', async (req, res) => {
     }
 
     if (candidates.length === 0) {
-      return res.json({ success: true, accountId, message: null, threadsChecked: threadsSnap.size });
+      return res.json({
+        success: true,
+        accountId,
+        message: null,
+        threadsChecked: threadsSnap.size,
+      });
     }
 
     candidates.sort((a, b) => (b.message.tsClientMs || 0) - (a.message.tsClientMs || 0));
@@ -7937,7 +8001,9 @@ app.post('/admin/sync-messages', async (req, res) => {
         }
         const data = doc.data();
         if (data?.accountId && data.accountId !== accountId) {
-          return res.status(403).json({ success: false, error: 'Thread does not belong to account' });
+          return res
+            .status(403)
+            .json({ success: false, error: 'Thread does not belong to account' });
         }
         threadDocs = [doc];
       } else {
@@ -7945,7 +8011,8 @@ app.post('/admin/sync-messages', async (req, res) => {
         if (!normalized) {
           return res.status(400).json({ success: false, error: 'Invalid clientJid' });
         }
-        const snap = await db.collection('threads')
+        const snap = await db
+          .collection('threads')
           .where('accountId', '==', accountId)
           .where('clientJid', '==', normalized)
           .limit(1)
@@ -7956,7 +8023,8 @@ app.post('/admin/sync-messages', async (req, res) => {
         threadDocs = snap.docs;
       }
     } else {
-      const threadsSnapshot = await db.collection('threads')
+      const threadsSnapshot = await db
+        .collection('threads')
         .where('accountId', '==', accountId)
         .orderBy('lastMessageAt', 'desc')
         .limit(limit)
@@ -8027,18 +8095,17 @@ app.post('/admin/sync-messages', async (req, res) => {
 // [REQ] Force sync a single thread tool (admin endpoint)
 // Supports both legacy path and the specifically requested path
 const syncThreadHandler = async (req, res) => {
+  const start = Date.now();
   try {
-    // Check admin token
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res
-        .status(401)
-        .json({ success: false, error: 'Missing or invalid authorization header' });
-    }
+    // Check admin token via x-admin-token or Authorization header
+    const adminToken =
+      req.headers['x-admin-token'] ||
+      (req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.substring(7)
+        : null);
 
-    const token = authHeader.substring(7);
-    if (token !== ADMIN_TOKEN) {
-      return res.status(403).json({ success: false, error: 'Invalid admin token' });
+    if (!adminToken || adminToken !== ADMIN_TOKEN) {
+      return res.status(403).json({ success: false, error: 'Invalid or missing admin token' });
     }
 
     const { threadId, accountId: paramAccountId } = req.params;
@@ -8076,7 +8143,7 @@ const syncThreadHandler = async (req, res) => {
       return res.status(400).json({ success: false, error: `Account ${accountId} not connected` });
     }
 
-    // Call fetchMessagesFromWA (which now handles JID resolution, seeding, and recursion maxDepth=1)
+    // Call fetchMessagesFromWA (now handles seeding & recursion)
     const messages = await fetchMessagesFromWA(account.sock, jid, parseInt(count, 10), {
       db,
       accountId,
@@ -8089,16 +8156,22 @@ const syncThreadHandler = async (req, res) => {
       savedCount = saveResult.saved || 0;
     }
 
+    const durationMs = Date.now() - start;
     return res.json({
       success: true,
-      threadId,
-      jid,
-      messagesFetched: messages?.length || 0,
-      messagesSaved: savedCount,
+      messagesWritten: savedCount,
+      durationMs,
+      errors: [],
     });
   } catch (error) {
+    const durationMs = Date.now() - start;
     console.error(`❌ [ADMIN] Sync thread failed for ${req.params.threadId}:`, error.message);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({
+      success: false,
+      messagesWritten: 0,
+      durationMs,
+      errors: [error.message],
+    });
   }
 };
 
@@ -8242,7 +8315,12 @@ app.post('/admin/fix-thread-summary/:accountId', async (req, res) => {
 
       if (ts) {
         update.lastMessageAt = ts;
-        const tsMs = typeof ts.toMillis === 'function' ? ts.toMillis() : (ts._seconds != null ? (ts._seconds || 0) * 1000 : null);
+        const tsMs =
+          typeof ts.toMillis === 'function'
+            ? ts.toMillis()
+            : ts._seconds != null
+              ? (ts._seconds || 0) * 1000
+              : null;
         if (tsMs != null) update.lastMessageAtMs = tsMs;
       }
 
@@ -8298,7 +8376,9 @@ app.post('/admin/repair-threads', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, error: 'Missing or invalid authorization header' });
+      return res
+        .status(401)
+        .json({ success: false, error: 'Missing or invalid authorization header' });
     }
     const token = (authHeader.substring(7) || '').trim();
     if (!token || token !== (ADMIN_TOKEN || '').trim()) {
@@ -8309,10 +8389,15 @@ app.post('/admin/repair-threads', async (req, res) => {
     }
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const accountId = body.accountId || req.query.accountId || null;
-    const limit = Math.min(500, Math.max(1, parseInt(body.limit || req.query.limit || '500', 10) || 500));
+    const limit = Math.min(
+      500,
+      Math.max(1, parseInt(body.limit || req.query.limit || '500', 10) || 500)
+    );
     const accountIds = accountId
       ? [accountId]
-      : [...connections.entries()].filter(([, a]) => a && a.status === 'connected').map(([id]) => id);
+      : [...connections.entries()]
+          .filter(([, a]) => a && a.status === 'connected')
+          .map(([id]) => id);
     if (accountIds.length === 0) {
       return res.status(200).json({
         success: true,
@@ -8325,7 +8410,10 @@ app.post('/admin/repair-threads', async (req, res) => {
       const result = await repairThreadsLastActivityForAccount(db, id, { limit });
       results.push({ accountId: id, ...result });
     }
-    console.log(`🔧 [ADMIN] repair-threads completed for ${accountIds.length} account(s):`, results);
+    console.log(
+      `🔧 [ADMIN] repair-threads completed for ${accountIds.length} account(s):`,
+      results
+    );
     return res.status(200).json({ success: true, results });
   } catch (error) {
     console.error('❌ [ADMIN] repair-threads failed:', error.message);
@@ -10351,16 +10439,31 @@ app.post('/api/admin/backfill/:accountId', requireAdmin, async (req, res) => {
     let account = connections.get(accountId);
     if (!account) {
       if (!firestoreAvailable || !db) {
-        return res.status(503).json({ success: false, error: 'firestore_unavailable', message: 'Firestore not available', accountId });
+        return res.status(503).json({
+          success: false,
+          error: 'firestore_unavailable',
+          message: 'Firestore not available',
+          accountId,
+        });
       }
       const snap = await db.collection('accounts').doc(accountId).get();
       if (!snap.exists) {
-        return res.status(404).json({ success: false, error: 'account_not_found', message: 'Account not found', accountId });
+        return res.status(404).json({
+          success: false,
+          error: 'account_not_found',
+          message: 'Account not found',
+          accountId,
+        });
       }
       await restoreAccount(accountId, snap.data());
       account = connections.get(accountId);
       if (!account) {
-        return res.status(409).json({ success: false, error: 'restore_failed', message: 'Account restore failed', accountId });
+        return res.status(409).json({
+          success: false,
+          error: 'restore_failed',
+          message: 'Account restore failed',
+          accountId,
+        });
       }
     }
     if (account.status !== 'connected') {
@@ -10372,9 +10475,9 @@ app.post('/api/admin/backfill/:accountId', requireAdmin, async (req, res) => {
         accountId,
       });
     }
-    autoBackfill.runAutoBackfillForAccount(accountId, { isInitial: true, trigger: 'connect' }).catch(err =>
-      console.error(`❌ [${accountId}] Admin backfill run error:`, err.message)
-    );
+    autoBackfill
+      .runAutoBackfillForAccount(accountId, { isInitial: true, trigger: 'connect' })
+      .catch(err => console.error(`❌ [${accountId}] Admin backfill run error:`, err.message));
     res.json({ success: true, message: 'Backfill enqueued', accountId });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -10393,7 +10496,7 @@ app.get('/api/admin/backfill/:accountId/status', requireAdmin, async (req, res) 
       return res.status(404).json({ success: false, error: 'account_not_found', accountId });
     }
     const d = snap.data() || {};
-    const toIso = (v) => {
+    const toIso = v => {
       if (!v) return null;
       if (typeof v.toDate === 'function') return v.toDate().toISOString();
       if (v._seconds != null) return new Date((v._seconds || 0) * 1000).toISOString();
@@ -10403,9 +10506,24 @@ app.get('/api/admin/backfill/:accountId/status', requireAdmin, async (req, res) 
       success: true,
       accountId,
       lastBackfillAt: toIso(d.lastBackfillAt || d.lastAutoBackfillSuccessAt),
-      lastBackfillStatus: d.lastBackfillStatus || (d.lastAutoBackfillStatus?.running ? 'running' : (d.lastAutoBackfillStatus?.ok ? 'success' : 'error')),
+      lastBackfillStatus:
+        d.lastBackfillStatus ||
+        (d.lastAutoBackfillStatus?.running
+          ? 'running'
+          : d.lastAutoBackfillStatus?.ok
+            ? 'success'
+            : 'error'),
       lastBackfillError: d.lastBackfillError || d.lastAutoBackfillStatus?.errorMessage || null,
-      lastBackfillStats: d.lastBackfillStats || (d.lastAutoBackfillStatus ? { threads: d.lastAutoBackfillStatus.threads, messages: d.lastAutoBackfillStatus.messages, errors: d.lastAutoBackfillStatus.errors, durationMs: d.lastAutoBackfillStatus.durationMs } : null),
+      lastBackfillStats:
+        d.lastBackfillStats ||
+        (d.lastAutoBackfillStatus
+          ? {
+              threads: d.lastAutoBackfillStatus.threads,
+              messages: d.lastAutoBackfillStatus.messages,
+              errors: d.lastAutoBackfillStatus.errors,
+              durationMs: d.lastAutoBackfillStatus.durationMs,
+            }
+          : null),
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

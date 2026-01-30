@@ -50,24 +50,28 @@ async function forceSync() {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${ADMIN_TOKEN}`,
+        'x-admin-token': ADMIN_TOKEN,
         'Content-Type': 'application/json',
       },
     });
 
     const result = await response.json();
 
-    if (response.ok) {
+    if (response.ok && result.success) {
       console.log('✅ Success!');
-      console.log(`   Messages fetched: ${result.messagesFetched}`);
-      console.log(`   Messages saved:   ${result.messagesSaved}`);
-      console.log(`   Thread JID:      ${result.jid}`);
+      console.log(`   Messages written: ${result.messagesWritten}`);
+      console.log(`   Duration:         ${result.durationMs}ms`);
+      if (result.errors && result.errors.length > 0) {
+        console.warn(`   Errors:           ${JSON.stringify(result.errors)}`);
+      }
     } else {
       console.error(`❌ Failed: ${response.status} ${response.statusText}`);
-      console.error(`   Error: ${result.error || JSON.stringify(result)}`);
+      console.error(`   Error: ${result.error || result.errors || JSON.stringify(result)}`);
+      process.exit(1);
     }
   } catch (error) {
     console.error(`❌ Network/Request error: ${error.message}`);
+    process.exit(1);
   }
 }
 
