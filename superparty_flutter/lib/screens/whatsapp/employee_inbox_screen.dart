@@ -42,6 +42,9 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
   bool _isBackfilling = false;
   bool _hasRunAutoBackfill = false; // Track if auto-backfill has run
 
+  // Auto-refresh timer: refresh threads every 10 seconds
+  Timer? _autoRefreshTimer;
+
   // Firestore thread streams (per account)
   final Map<String, StreamSubscription<QuerySnapshot>> _threadSubscriptions =
       {};
@@ -57,6 +60,8 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = null;
     for (final subscription in _threadSubscriptions.values) {
       subscription.cancel();
     }
@@ -107,6 +112,7 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
 
       await _loadAccountDetails();
       _startThreadListeners();
+      _startAutoRefreshTimer();
 
       // Auto-backfill: sync old messages on first load (only once per session)
       if (!_hasRunAutoBackfill && _employeeAccountIds.isNotEmpty) {
@@ -125,6 +131,44 @@ class _EmployeeInboxScreenState extends State<EmployeeInboxScreen>
         _errorMessage = 'Eroare la încărcarea conturilor: $e';
       });
     }
+  }
+
+  void _startAutoRefreshTimer() {
+    if (_autoRefreshTimer != null) return;
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (!mounted) return;
+      if (_employeeAccountIds.isEmpty) return;
+      // Force refresh from server so inbox updates without manual pull-to-refresh.
+      _refreshThreadsOnce().catchError((e) {
+        if (kDebugMode) {
+          debugPrint('[EmployeeInboxScreen] Auto-refresh failed: $e');
+        }
+      });
+    });
+  }
+
+  Future<void> _refreshThreadsOnce() async {
+    if (_employeeAccountIds.isEmpty) return;
+    final accountIds = List<String>.from(_employeeAccountIds);
+    for (final accountId in accountIds) {
+      try {
+        final snap = await buildThreadsQuery(accountId)
+            .get(const GetOptions(source: Source.server));
+        _threadsByAccount[accountId] = snap.docs.map((doc) {
+          logThreadSchemaAnomalies(doc);
+          return {
+            'id': doc.id,
+            ...doc.data(),
+            'accountId': accountId,
+          };
+        }).toList();
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[EmployeeInboxScreen] refreshThreadsOnce error: $e');
+        }
+      }
+    }
+    _rebuildThreads();
   }
 
   Future<void> _loadAccountDetails() async {
