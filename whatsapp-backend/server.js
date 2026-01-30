@@ -1015,7 +1015,13 @@ async function generateAutoReplyText(groqKey, messages, maxTokens = 500) {
     messages,
   });
   const raw = completion?.choices?.[0]?.message?.content || '';
-  if (typeof raw !== 'string') return '';
+
+  if (!raw || typeof raw !== 'string' || !raw.trim()) {
+    console.warn(
+      `[AutoReply][AI_DEBUG] Empty response from Groq. finish_reason=${completion?.choices?.[0]?.finish_reason} id=${completion?.id} model=${completion?.model}`
+    );
+    return '';
+  }
 
   const finishReason = completion?.choices?.[0]?.finish_reason || 'unknown';
   if (finishReason === 'length') {
