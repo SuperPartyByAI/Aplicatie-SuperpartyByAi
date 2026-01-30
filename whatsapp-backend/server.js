@@ -140,6 +140,21 @@ async function updateThreadLastMessageForOutbound(db, accountId, threadId, msg) 
   const tsMs = extractTimestampMs(msg?.messageTimestamp);
   const nowMs = Date.now();
   const useMs = tsMs ?? nowMs;
+  const ref = db.collection('threads').doc(threadId);
+  // Only update if this message is newer than (or equal to) existing – preserves "when they wrote" order.
+  let existingLastMs = null;
+  try {
+    const snap = await ref.get();
+    if (snap.exists) {
+      const d = snap.data() || {};
+      if (d.lastMessageAtMs != null && (typeof d.lastMessageAtMs === 'number' || typeof d.lastMessageAtMs === 'bigint')) {
+        existingLastMs = Number(d.lastMessageAtMs);
+      } else if (d.lastMessageAt && typeof d.lastMessageAt.toMillis === 'function') {
+        existingLastMs = d.lastMessageAt.toMillis();
+      }
+    }
+  } catch (_) {}
+  if (existingLastMs != null && useMs < existingLastMs) return;
   const tsClientAt = admin?.firestore?.Timestamp?.fromMillis?.(useMs) ?? null;
   const payload = {
     lastMessageAt: tsClientAt,
@@ -148,7 +163,6 @@ async function updateThreadLastMessageForOutbound(db, accountId, threadId, msg) 
     updatedAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
   };
   if (payload.updatedAt === null) delete payload.updatedAt;
-  const ref = db.collection('threads').doc(threadId);
   await ref.set(payload, { merge: true });
 
   // Schema guard: canonical "last activity" = lastMessageAt (+ lastMessageAtMs). Must be set inbound+outbound.
@@ -1951,6 +1965,11 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
 
           // Persist outbound (fromMe) too: when user sends FROM PHONE, message is not in Firestore yet.
           // When sent from app, outbox worker already wrote with msg.key.id – we write again with same id (idempotent, no duplicate).
+          if (isFromMe) {
+            console.log(
+              `📤 [${hashForLog(accountId)}] OUTBOUND (from phone/app): will persist to Firestore remoteJid=${hashForLog(remoteJid)} msgId=${hashForLog(messageId)} fromSafe=${fromSafe ? hashForLog(fromSafe) : 'null'}`
+            );
+          }
           if (isFromMe && firestoreAvailable && db && fromSafe) {
             try {
               await updateThreadLastMessageForOutbound(db, accountId, `${accountId}__${fromSafe}`, msg);
@@ -1968,11 +1987,11 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
             saved = await saveMessageToFirestore(accountId, msg, false, sock);
             if (saved) {
               console.log(
-                `✅ [${hashForLog(accountId)}] Message saved successfully: msgId=${hashForLog(saved.messageId)} threadId=${hashForLog(saved.threadId)}`
+                `✅ [${hashForLog(accountId)}] Message saved successfully: msgId=${hashForLog(saved.messageId)} threadId=${hashForLog(saved.threadId)}${isFromMe ? ' (OUTBOUND – from phone/app, will sync in app)' : ''}`
               );
             } else {
               console.warn(
-                `⚠️  [${hashForLog(accountId)}] saveMessageToFirestore returned null for msg=${hashForLog(messageId)} - message may be filtered or invalid`
+                `⚠️  [${hashForLog(accountId)}] saveMessageToFirestore returned null for msg=${hashForLog(messageId)} fromMe=${isFromMe} - message may be filtered or invalid`
               );
             }
           } catch (writeErr) {

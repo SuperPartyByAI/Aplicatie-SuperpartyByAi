@@ -244,6 +244,25 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
   // lastMessageText/lastMessagePreview are INBOUND-only (preserve last received for display).
   const isInbound = direction === 'inbound';
   if (shouldUpdateThread) {
+    // CRITICAL: Only update lastMessageAt if this message is newer than (or equal to) existing.
+    // Prevents older messages (e.g. processed after a newer one) from overwriting and breaking inbox order.
+    let existingLastMs = null;
+    try {
+      const threadSnap = await threadRef.get();
+      if (threadSnap.exists) {
+        const d = threadSnap.data() || {};
+        const ms = d.lastMessageAtMs;
+        if (ms != null && (typeof ms === 'number' || typeof ms === 'bigint')) {
+          existingLastMs = Number(ms);
+        } else if (d.lastMessageAt && typeof d.lastMessageAt.toMillis === 'function') {
+          existingLastMs = d.lastMessageAt.toMillis();
+        }
+      }
+    } catch (_) {
+      // Best-effort: if read fails, allow update (better than never updating)
+    }
+    const mayUpdateActivity = tsClientMs != null && (existingLastMs == null || tsClientMs >= existingLastMs);
+
     // CRITICAL FIX: Look up contact data from contacts collection to enrich thread with name and profile picture
     // This ensures Flutter Inbox displays correct names and profile pictures for all contacts
     let contactDisplayName = null;
@@ -278,24 +297,21 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
       // Only set clientJid if it's not already in threadOverrides (preserve existing)
       clientJid: threadOverrides.clientJid || resolvedClientJid || null,
       isLid: isLid || false, // Indexable field for filtering @lid threads in queries
-      // CRITICAL: Always set lastMessageAt/lastMessageAtMs for BOTH inbound and outbound.
-      // Inbox order = WhatsApp phone: thread with last message (inbound OR outbound) first.
+      // CRITICAL: Only set lastMessageAt/lastMessageAtMs if this message is newer than existing (preserves "when they wrote" order).
       // Inbox query uses orderBy('lastMessageAt'). Firestore excludes docs missing the orderBy field.
-      ...(tsClientAt ? { lastMessageAt: tsClientAt } : {}),
-      ...(tsClientMs != null ? { lastMessageAtMs: tsClientMs } : {}),
+      ...(mayUpdateActivity && tsClientAt ? { lastMessageAt: tsClientAt } : {}),
+      ...(mayUpdateActivity && tsClientMs != null ? { lastMessageAtMs: tsClientMs } : {}),
       // lastInboundAt / lastInboundAtMs (inbound only) for analytics; sort uses lastMessageAt.
-      ...(isInbound && tsClientMs != null ? { lastInboundAtMs: tsClientMs } : {}),
-      ...(isInbound && tsClientAt ? { lastInboundAt: tsClientAt } : {}),
-      // Only update lastMessageText/lastMessagePreview for INBOUND (preserve last received for display).
-      ...(isInbound ? { lastMessagePreview: preview } : {}), // Keep for backward compatibility
-      ...(isInbound ? { lastMessageText: preview } : {}), // New field name (preferred by frontend)
+      ...(mayUpdateActivity && isInbound && tsClientMs != null ? { lastInboundAtMs: tsClientMs } : {}),
+      ...(mayUpdateActivity && isInbound && tsClientAt ? { lastInboundAt: tsClientAt } : {}),
+      // Only update lastMessageText/lastMessagePreview for INBOUND when we update activity.
+      ...(mayUpdateActivity && isInbound ? { lastMessagePreview: preview } : {}), // Keep for backward compatibility
+      ...(mayUpdateActivity && isInbound ? { lastMessageText: preview } : {}), // New field name (preferred by frontend)
       // CRITICAL FIX: Set lastMessageDirection consistently for both inbound and outbound
-      // This ensures Flutter inbox can distinguish between received and sent messages
-      ...(isInbound ? { lastMessageDirection: 'inbound' } : { lastMessageDirection: 'outbound' }),
+      ...(mayUpdateActivity && isInbound ? { lastMessageDirection: 'inbound' } : mayUpdateActivity ? { lastMessageDirection: 'outbound' } : {}),
       // CRITICAL FIX: Set lastMessageSenderName for inbound messages (from extraFields or pushName)
-      // This helps Flutter display who sent the last message in group chats
-      ...(isInbound && extraFields?.senderName ? { lastMessageSenderName: extraFields.senderName } : {}),
-      ...(isInbound && extraFields?.lastSenderName && !extraFields?.senderName ? { lastMessageSenderName: extraFields.lastSenderName } : {}),
+      ...(mayUpdateActivity && isInbound && extraFields?.senderName ? { lastMessageSenderName: extraFields.senderName } : {}),
+      ...(mayUpdateActivity && isInbound && extraFields?.lastSenderName && !extraFields?.senderName ? { lastMessageSenderName: extraFields.lastSenderName } : {}),
       // Always update updatedAt to track thread activity
       updatedAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
       // Set phoneE164 if available and not already set in threadOverrides (only for 1:1, not groups)
@@ -316,17 +332,19 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
     if (threadUpdate.photoUpdatedAt === null) delete threadUpdate.photoUpdatedAt;
     await threadRef.set(threadUpdate, { merge: true });
     
-    // Log thread update for debugging (always log, even if preview is empty, to confirm thread update)
+    // Log thread update for debugging (only log activity update when mayUpdateActivity, to avoid noise)
     const accountIdShort = accountId ? accountId.substring(0, 8) : 'unknown';
     const threadIdShort = threadId ? threadId.substring(0, 8) : 'unknown';
-    if (isInbound) {
-      if (preview && preview.length > 0) {
-        console.log(`📥 [${accountIdShort}] Updated thread ${threadIdShort} (INBOUND): lastMessageAt=${tsClientAt ? 'Timestamp' : 'null'}, lastMessageText="${preview.substring(0, 50)}${preview.length > 50 ? '...' : ''}"`);
+    if (mayUpdateActivity) {
+      if (isInbound) {
+        if (preview && preview.length > 0) {
+          console.log(`📥 [${accountIdShort}] Updated thread ${threadIdShort} (INBOUND): lastMessageAt=${tsClientAt ? 'Timestamp' : 'null'}, lastMessageText="${preview.substring(0, 50)}${preview.length > 50 ? '...' : ''}"`);
+        } else {
+          console.log(`📥 [${accountIdShort}] Updated thread ${threadIdShort} (INBOUND): lastMessageAt=${tsClientAt ? 'Timestamp' : 'null'}, lastMessageText=null (no preview)`);
+        }
       } else {
-        console.log(`📥 [${accountIdShort}] Updated thread ${threadIdShort} (INBOUND): lastMessageAt=${tsClientAt ? 'Timestamp' : 'null'}, lastMessageText=null (no preview)`);
+        console.log(`📤 [${accountIdShort}] Thread ${threadIdShort} (OUTBOUND): lastMessageAt updated for sort; lastMessageText preserved (last received)`);
       }
-    } else {
-      console.log(`📤 [${accountIdShort}] Thread ${threadIdShort} (OUTBOUND): lastMessageAt updated for sort; lastMessageText preserved (last received)`);
     }
   } else {
     // No real content or protocol-only message - skip thread update but still log for debugging
