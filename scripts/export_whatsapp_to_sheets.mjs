@@ -147,7 +147,7 @@ async function main() {
         'direction',
         'senderName',
         'text',
-        'tsClientMs',
+        'timestamp', // Changed from tsClientMs
         'accountId',
         'threadId',
         'messageId',
@@ -163,7 +163,7 @@ async function main() {
     'direction',
     'senderName',
     'text',
-    'tsClientMs',
+    'timestamp',
     'accountId',
     'threadId',
     'messageId',
@@ -310,12 +310,28 @@ async function main() {
           : new Date(data.createdAt);
         if (createdAt < sinceDate) continue;
       }
+      const rawTs =
+        data.tsClientMs ||
+        (data.createdAt && data.createdAt.toDate
+          ? data.createdAt.toDate().getTime()
+          : data.createdAt);
+      let formattedDate = '';
+      if (rawTs) {
+        try {
+          formattedDate = new Date(rawTs).toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest' });
+        } catch (e) {
+          formattedDate = String(rawTs);
+        }
+      }
+
       const row = {
         phone: threadPhoneMap.get(threadId) || '',
-        direction: data.direction || '',
-        senderName: data.pushName || data.displayName || data.senderName || '',
+        direction: data.direction || (data.fromMe ? 'outbound' : 'inbound'),
+        senderName: data.fromMe
+          ? 'AI (SuperParty)'
+          : data.pushName || data.displayName || data.senderName || 'Client',
         text: data.body || data.text || '',
-        tsClientMs: data.tsClientMs || '',
+        timestamp: formattedDate,
         accountId: data.accountId || '',
         threadId: threadId,
         messageId: msgDoc.id,
