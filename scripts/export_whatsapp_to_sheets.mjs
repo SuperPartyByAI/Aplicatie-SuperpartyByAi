@@ -234,7 +234,7 @@ async function main() {
     }
 
     // Preserve manual notes if they exist in the map
-    const manualNote = phoneToManualNotes.get(cleanPhone) || '';
+    const manualNote = manualNotesMap.get(cleanPhone) || '';
 
     return {
       phone: phone,
