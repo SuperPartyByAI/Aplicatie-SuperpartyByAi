@@ -27,9 +27,9 @@ async function debugSheet() {
 
   console.log('✅ Connected to Sheet:', doc.title);
   console.log('📊 Total Rows (estimate):', sheet.rowCount);
-  console.log('📑 Headers (internal):', JSON.stringify(sheet.headerValues));
-
   const rows = await sheet.getRows();
+  // Header values are available on the sheet object after getRows or loadInfo
+  console.log('📑 Headers (internal):', JSON.stringify(sheet.headerValues));
   const target = '40731829063';
   const matches = rows.filter(r => (r.get('phone') || '').toString().includes(target));
 
