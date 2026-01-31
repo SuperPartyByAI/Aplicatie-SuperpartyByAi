@@ -258,9 +258,31 @@ async function main() {
     console.log(`✅ Exported ${threadRows.length} threads with preserved manual notes.`);
   }
 
-  // 2. Export Messages (Paginat)
+  // 2. Export Messages (Adună toate mesajele apoi scrie-le într-un singur batch)
   console.log('💬 Fetching messages...');
-  let messageCount = 0;
+  const allMessageRows = [];
+
+  // ROBUST TIMESTAMP PARSING HELPER
+  const extractDate = d => {
+    if (!d) return null;
+    // Fields order of priority
+    const val = d.tsServer || d.tsClient || d.messageTimestamp || d.createdAt || d.tsClientMs;
+    if (!val) return null;
+
+    let r = null;
+    if (typeof val.toDate === 'function') r = val.toDate();
+    else if (val._seconds) r = new Date(val._seconds * 1000);
+    else if (val.seconds) r = new Date(val.seconds * 1000);
+    else if (typeof val === 'number') {
+      r = val < 10000000000 ? new Date(val * 1000) : new Date(val);
+    } else if (typeof val === 'string' || val instanceof Date) {
+      r = new Date(val);
+    }
+    return r && !isNaN(r.getTime()) ? r : null;
+  };
+
+  const sinceDate = new Date();
+  sinceDate.setDate(sinceDate.getDate() - SINCE_DAYS);
 
   // Designated folder for media
   let mediaFolderId = null;
@@ -289,65 +311,38 @@ async function main() {
   // Iterate over threads to fetch messages (avoids collectionGroup memory issues if scale is high)
   for (const threadId of threadSnap.docs.map(d => d.id)) {
     console.log(`  🧵 Exporting thread: ${threadId}`);
-    let msgQuery = db
+    const msgQuery = db
       .collection('threads')
       .doc(threadId)
       .collection('messages')
-      .orderBy('tsSort', 'asc');
+      .orderBy('tsSort', 'desc')
+      .limit(500); // Mărim limita per thread pentru siguranță
 
     const msgSnap = await msgQuery.get();
-    const batchRows = [];
-
-    const sinceDate = new Date();
-    sinceDate.setDate(sinceDate.getDate() - SINCE_DAYS);
 
     for (const msgDoc of msgSnap.docs) {
       const data = msgDoc.data();
 
       // In-memory filter to avoid index requirement
-      if (SINCE_DAYS > 0 && data.createdAt) {
-        const createdAt = data.createdAt.toDate
-          ? data.createdAt.toDate()
-          : new Date(data.createdAt);
-        if (createdAt < sinceDate) continue;
-      }
-      // ULTRA-ROBUST TIMESTAMP & NAME PARSING
-      const extractDate = d => {
-        if (!d) return null;
-        let r = null;
-        // Priority fields
-        const val = d.tsServer || d.tsClient || d.messageTimestamp || d.createdAt || d.tsClientMs;
-        if (!val) return null;
+      const createdAt = extractDate(data);
+      if (SINCE_DAYS > 0 && createdAt && createdAt < sinceDate) continue;
 
-        if (typeof val.toDate === 'function') r = val.toDate();
-        else if (val._seconds) r = new Date(val._seconds * 1000);
-        else if (val.seconds) r = new Date(val.seconds * 1000);
-        else if (typeof val === 'number') {
-          // WhatsApp uses seconds (10 digits), JS uses ms (13 digits)
-          r = val < 10000000000 ? new Date(val * 1000) : new Date(val);
-        } else if (typeof val === 'string') {
-          r = new Date(val);
-        }
-        return r && !isNaN(r.getTime()) ? r : null;
-      };
-
-      const finalDate = extractDate(data);
       let formattedDate = 'Data Invalida';
-      if (finalDate) {
-        formattedDate = finalDate.toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest' });
+      if (createdAt) {
+        formattedDate = createdAt.toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest' });
       }
 
       const row = {
-        timestamp: formattedDate, // 1
-        phone: threadPhoneMap.get(threadId) || '', // 2
+        timestamp: formattedDate,
+        phone: threadPhoneMap.get(threadId) || '',
         senderName: data.fromMe
           ? 'AI (SuperParty)'
           : data.pushName ||
             data.displayName ||
             data.senderName ||
             threadDisplayNameMap.get(threadId) ||
-            'Client', // 3
-        text: data.body || data.text || '', // 4
+            'Client',
+        text: data.body || data.text || '',
         direction: data.direction || (data.fromMe ? 'outbound' : 'inbound'),
         accountId: data.accountId || '',
         threadId: threadId,
@@ -363,16 +358,30 @@ async function main() {
         row.driveUrl = await uploadToDrive(drive, data.mediaUrl, fileName, mediaFolderId);
       }
 
-      batchRows.push(row);
-      messageCount++;
-    }
-
-    if (batchRows.length > 0) {
-      await messagesSheet.addRows(batchRows);
+      allMessageRows.push(row);
     }
   }
 
-  console.log(`🏁 Export finished. Total messages: ${messageCount}`);
+  // Sortăm toate mesajele cronologic înainte de scriere
+  allMessageRows.sort((a, b) => {
+    try {
+      return new Date(a.timestamp) - new Date(b.timestamp);
+    } catch (e) {
+      return 0;
+    }
+  });
+
+  if (allMessageRows.length > 0) {
+    console.log(`📡 Adding ${allMessageRows.length} messages to sheet...`);
+    // Scriem în bucăți de 500 pentru a evita limitele de payload ale API-ului
+    for (let i = 0; i < allMessageRows.length; i += 500) {
+      const chunk = allMessageRows.slice(i, i + 500);
+      await messagesSheet.addRows(chunk);
+      console.log(`   ✅ Written chunk ${i / 500 + 1}`);
+    }
+  }
+
+  console.log(`🏁 Export finished. Total messages exported: ${allMessageRows.length}`);
 }
 
 main().catch(err => {
