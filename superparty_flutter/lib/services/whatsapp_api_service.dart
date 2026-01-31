@@ -1136,6 +1136,11 @@ class WhatsAppApiService {
     required String accountId,
     required bool enabled,
     required String prompt,
+    String? logic,
+    String? restrictions,
+    String? pricing,
+    String? faq,
+    String? extraction,
   }) async {
     final token = await _requireIdToken();
     final backendUrl = _requireBackendUrl();
@@ -1152,7 +1157,15 @@ class WhatsAppApiService {
             'Accept': 'application/json',
             'X-Request-ID': requestId,
           },
-          body: jsonEncode({'enabled': enabled, 'prompt': prompt}),
+          body: jsonEncode({
+            'enabled': enabled,
+            'prompt': prompt,
+            'logic': logic,
+            'restrictions': restrictions,
+            'pricing': pricing,
+            'faq': faq,
+            'extraction': extraction,
+          }),
         )
         .timeout(requestTimeout);
 

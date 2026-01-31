@@ -264,19 +264,24 @@ async function main() {
   // Designated folder for media
   let mediaFolderId = null;
   if (INCLUDE_MEDIA) {
-    const folderRes = await drive.files.list({
-      q: `name = 'WhatsApp_Export_Media' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
-    });
-    if (folderRes.data.files.length > 0) {
-      mediaFolderId = folderRes.data.files[0].id;
-    } else {
-      const folder = await drive.files.create({
-        requestBody: {
-          name: 'WhatsApp_Export_Media',
-          mimeType: 'application/vnd.google-apps.folder',
-        },
+    try {
+      const folderRes = await drive.files.list({
+        q: `name = 'WhatsApp_Export_Media' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
       });
-      mediaFolderId = folder.data.id;
+      if (folderRes.data.files.length > 0) {
+        mediaFolderId = folderRes.data.files[0].id;
+      } else {
+        const folder = await drive.files.create({
+          requestBody: {
+            name: 'WhatsApp_Export_Media',
+            mimeType: 'application/vnd.google-apps.folder',
+          },
+        });
+        mediaFolderId = folder.data.id;
+      }
+    } catch (driveErr) {
+      console.error(`  ⚠️  Google Drive API error: ${driveErr.message}. Disabling media upload.`);
+      // Continue without media folder if Drive API is not enabled or accessible
     }
   }
 

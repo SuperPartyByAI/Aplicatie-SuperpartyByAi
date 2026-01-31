@@ -186,7 +186,8 @@ class _StaffInboxScreenState extends State<StaffInboxScreen>
         debugPrint(
             '[StaffInboxScreen] Auto-refresh: rebuild list (10s interval)');
       }
-      _scheduleRebuild();
+      // _scheduleRebuild(); // TODO: implement or remove
+      if (mounted) setState(() {});
     });
   }
 
