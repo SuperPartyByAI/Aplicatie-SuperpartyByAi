@@ -2470,13 +2470,14 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
                 maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType: type })
                   .then(async () => {
                     // AFTER reply, update the brain (background task)
-                    // We fetch the last N messages + reply content?
-                    // Ideally we'd pass the new conversation context.
-                    // For simplicity, we trigger it independently.
-                    const groqKey = process.env.GROQ_API_KEY || ''; // Or fetch from account
-                    // We need to fetch the recent messages again to include the AI reply?
-                    // Actually, maybeHandleAiAutoReply handles the reply.
-                    // We'll trigger summarization here.
+                    // We need the same API key used for the reply
+                    const accountData = connections.get(accountId);
+                    const groqKey = accountData?.groqApiKey || process.env.GROQ_API_KEY;
+
+                    console.log(
+                      `[AutoReply][Summary] Triggering update for ${hashForLog(accountId)} (hasKey=${!!groqKey})`
+                    );
+
                     if (groqKey) {
                       // Fetch last few messages for summarization context
                       const recentMsgsSnap = await db
