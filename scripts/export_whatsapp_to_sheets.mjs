@@ -114,6 +114,7 @@ async function main() {
         'clientJid',
         'lastMessageAt',
         'lastMessageText',
+        'ai_summary', // <--- NEW COLUMN
       ],
     }));
   const messagesSheet =
@@ -158,6 +159,7 @@ async function main() {
       clientJid: data.clientJid || '',
       lastMessageAt: data.lastMessageAt ? data.lastMessageAt.toDate().toISOString() : '',
       lastMessageText: data.lastMessageText || '',
+      ai_summary: data.ai_summary || '', // <--- MAP DATA
     };
   });
 
