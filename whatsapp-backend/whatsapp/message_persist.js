@@ -430,6 +430,7 @@ async function writeMessageIdempotent(db, opts, msg, options = {}) {
     messageType: type || null, // Add message type (text, image, video, etc.)
     ...(mediaData ? { media: mediaData } : {}), // Add media data if present
     tsClient: tsClientAt,
+    tsSort: tsClientAt, // UNIFIED: Ensure every message has tsSort for ordering
     createdAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
     updatedAt: admin?.firestore?.FieldValue?.serverTimestamp?.() ?? null,
     ...(senderJid ? { senderId: senderJid, senderJid: senderJid } : {}), // Add senderId for group messages

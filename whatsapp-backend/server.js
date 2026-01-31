@@ -2129,7 +2129,8 @@ STIL
               type: 'conversation',
               fromMe: true,
               direction: 'outbound',
-              tsSort: admin.firestore.FieldValue.serverTimestamp(),
+              tsClient: admin.firestore.FieldValue.serverTimestamp(), // Match inbound schema
+              tsSort: admin.firestore.FieldValue.serverTimestamp(), // Ensure sortable
               createdAt: admin.firestore.FieldValue.serverTimestamp(),
               autoReply: true,
               autoReplyToMessageId: messageId,

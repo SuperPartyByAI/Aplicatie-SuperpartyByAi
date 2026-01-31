@@ -324,12 +324,7 @@ async function main() {
   // Iterate over threads to fetch messages (avoids collectionGroup memory issues if scale is high)
   for (const threadId of threadSnap.docs.map(d => d.id)) {
     console.log(`  🧵 Exporting thread: ${threadId}`);
-    const msgQuery = db
-      .collection('threads')
-      .doc(threadId)
-      .collection('messages')
-      .orderBy('tsSort', 'desc')
-      .limit(500); // Mărim limita per thread pentru siguranță
+    const msgQuery = db.collection('threads').doc(threadId).collection('messages').limit(1000); // Fetch enough recent messages, filter in-memory for zero index dependency
 
     const msgSnap = await msgQuery.get();
 
@@ -342,7 +337,17 @@ async function main() {
 
       let formattedDate = 'Data Invalida';
       if (createdAt) {
-        formattedDate = createdAt.toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest' });
+        // Strict 24h Romanian format: zi.luna.an, ora:min:sec (no AM/PM)
+        formattedDate = createdAt.toLocaleString('ro-RO', {
+          timeZone: 'Europe/Bucharest',
+          hour12: false,
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
       }
 
       const row = {
