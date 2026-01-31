@@ -200,17 +200,22 @@ async function main() {
       .collection('messages')
       .orderBy('tsSort', 'asc');
 
-    if (SINCE_DAYS > 0) {
-      const sinceDate = new Date();
-      sinceDate.setDate(sinceDate.getDate() - SINCE_DAYS);
-      msgQuery = msgQuery.where('createdAt', '>=', admin.firestore.Timestamp.fromDate(sinceDate));
-    }
-
     const msgSnap = await msgQuery.get();
     const batchRows = [];
 
+    const sinceDate = new Date();
+    sinceDate.setDate(sinceDate.getDate() - SINCE_DAYS);
+
     for (const msgDoc of msgSnap.docs) {
       const data = msgDoc.data();
+
+      // In-memory filter to avoid index requirement
+      if (SINCE_DAYS > 0 && data.createdAt) {
+        const createdAt = data.createdAt.toDate
+          ? data.createdAt.toDate()
+          : new Date(data.createdAt);
+        if (createdAt < sinceDate) continue;
+      }
       const row = {
         accountId: data.accountId || '',
         threadId: threadId,
