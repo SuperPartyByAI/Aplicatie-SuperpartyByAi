@@ -1064,23 +1064,35 @@ async function fetchClientDetailsFromSheets(phone) {
 
     const rows = await sheet.getRows();
     const cleanTarget = phone.toString().replace(/\D/g, '');
+    console.log(`[AutoReply][Sheets] Scanning ${rows.length} rows for cleanTarget=${cleanTarget}`);
 
     // Căutăm rândul corespunzător numărului de telefon
     const foundRow = rows.find(r => {
-      const rowPhone = (r.get('phone') || '').toString().replace(/\D/g, '');
-      return rowPhone && (rowPhone.includes(cleanTarget) || cleanTarget.includes(rowPhone));
+      const rawPhone = r.get('phone') || '';
+      const rowPhone = rawPhone.toString().replace(/\D/g, '');
+      const match = rowPhone && (rowPhone.includes(cleanTarget) || cleanTarget.includes(rowPhone));
+      if (match)
+        console.log(
+          `[AutoReply][Sheets] ✅ MATCH FOUND! rowPhone=${rowPhone} target=${cleanTarget}`
+        );
+      return match;
     });
 
     if (foundRow) {
-      return {
+      const details = {
         eventDate: foundRow.get('eventDate'),
         guestCount: foundRow.get('guestCount'),
         location: foundRow.get('location'),
-        manualNotes: foundRow.get('manualNotes'), // <--- Now using the dedicated column
+        manualNotes: foundRow.get('manualNotes'),
       };
+      console.log(`[AutoReply][Sheets] Found details:`, JSON.stringify(details));
+      return details;
+    } else {
+      console.log(`[AutoReply][Sheets] ❌ No row matched for target=${cleanTarget}`);
     }
   } catch (err) {
-    console.error(`[AutoReply][Sheets] Error fetching context for ${phone}: ${err.message}`);
+    console.error(`[AutoReply][Sheets] ❌ Error fetching context for ${phone}: ${err.message}`);
+    console.error(err.stack);
   }
   return null;
 }
