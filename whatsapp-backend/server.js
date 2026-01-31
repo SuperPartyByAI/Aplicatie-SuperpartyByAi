@@ -1070,6 +1070,11 @@ async function fetchClientDetailsFromSheets(phone) {
     const foundRow = rows.find(r => {
       const rawPhone = r.get('phone') || '';
       const rowPhone = rawPhone.toString().replace(/\D/g, '');
+
+      // Validăm că avem un număr de telefon valid în tabel înainte de comparare
+      // (evităm match fals pe string-uri goale care sunt conținute în orice target)
+      if (!rowPhone || rowPhone.length < 7) return false;
+
       const match = rowPhone && (rowPhone.includes(cleanTarget) || cleanTarget.includes(rowPhone));
       if (match)
         console.log(
