@@ -672,6 +672,9 @@ const messageDedupeInFlight = new Set();
 const immediateFetchInFlight = new Set(); // Track in-flight fetches per thread
 const immediateFetchTimestamps = new Map(); // Track last fetch time per thread (for debounce)
 
+const AI_DEBOUNCE_MS = 4000; // Wait 4s after last message before replying
+const aiDebounceTimers = new Map();
+
 function isDedupeHit(messageId) {
   if (!messageId) return true;
   const entry = aiReplyDedupe.get(messageId);
@@ -2361,19 +2364,31 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
                 console.warn(`[AutoReply] ⚠️  FCM failed (continuing): ${fcmError.message}`);
               }
 
-              // Trigger auto-reply (runs in parallel, doesn't block FCM)
-              // IMPORTANT: Verifică explicit că eventType este 'notify' (nu 'append' sau alte tipuri)
-              console.log(
-                `[AutoReply] 🚀 Triggering auto-reply: account=${hashForLog(accountId)} msg=${hashForLog(msg?.key?.id)} thread=${hashForLog(saved.threadId)} eventType=${type} fromMe=${isFromMe}`
-              );
-              maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType: type }).catch(
-                err => {
-                  console.error(
-                    `[AutoReply] ❌ Auto-reply error: account=${hashForLog(accountId)} msg=${hashForLog(msg?.key?.id)} error=${err.message}`
-                  );
-                  console.error(`[AutoReply] Stack:`, err.stack);
-                }
-              );
+              // Trigger auto-reply (DEBOUNCED)
+              const debounceKey = `${accountId}_${saved.threadId}`;
+              if (aiDebounceTimers.has(debounceKey)) {
+                clearTimeout(aiDebounceTimers.get(debounceKey));
+                console.log(
+                  `[AutoReply] ⏳ Debounce: Resetting timer for ${hashForLog(debounceKey)}`
+                );
+              }
+
+              const timer = setTimeout(() => {
+                aiDebounceTimers.delete(debounceKey);
+                console.log(
+                  `[AutoReply] 🚀 Triggering auto-reply (debounced): account=${hashForLog(accountId)} thread=${hashForLog(saved.threadId)}`
+                );
+                maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType: type }).catch(
+                  err => {
+                    console.error(
+                      `[AutoReply] ❌ Auto-reply error: account=${hashForLog(accountId)} msg=${hashForLog(msg?.key?.id)} error=${err.message}`
+                    );
+                    console.error(`[AutoReply] Stack:`, err.stack);
+                  }
+                );
+              }, AI_DEBOUNCE_MS);
+
+              aiDebounceTimers.set(debounceKey, timer);
             }
           } else {
             console.log(
