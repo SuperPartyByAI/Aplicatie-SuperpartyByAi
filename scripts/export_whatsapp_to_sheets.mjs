@@ -176,12 +176,17 @@ async function main() {
   // FETCH EXISTING DATA to preserve manual notes
   console.log('📖 Reading existing sheet data to preserve manual notes...');
   const existingRows = await contactsSheet.getRows();
-  const phoneToManualNotes = new Map();
+  const manualNotesMap = new Map();
   existingRows.forEach(row => {
-    const p = (row.get('phone') || '').toString().replace(/\D/g, '');
-    const note = row.get('manualNotes') || '';
-    if (p && note) {
-      phoneToManualNotes.set(p, note);
+    const rawPhone = row.get('phone') || '';
+    const phoneNum = rawPhone.toString().replace(/\D/g, '');
+    const notes = (row.get('manualNotes') || '').toString().trim();
+    if (phoneNum && notes) {
+      // Dacă avem mai multe rânduri, păstrăm nota cea mai lungă (cel mai probabil cea mai updatată)
+      const existing = manualNotesMap.get(phoneNum) || '';
+      if (notes.length >= existing.length) {
+        manualNotesMap.set(phoneNum, notes);
+      }
     }
   });
 

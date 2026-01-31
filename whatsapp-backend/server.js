@@ -1066,31 +1066,33 @@ async function fetchClientDetailsFromSheets(phone) {
     const cleanTarget = phone.toString().replace(/\D/g, '');
     console.log(`[AutoReply][Sheets] Scanning ${rows.length} rows for cleanTarget=${cleanTarget}`);
 
-    // Căutăm rândul corespunzător numărului de telefon
-    const foundRow = rows.find(r => {
+    // Găsim toate rândurile care se potrivesc (duplicate)
+    const matchingRows = rows.filter(r => {
       const rawPhone = r.get('phone') || '';
       const rowPhone = rawPhone.toString().replace(/\D/g, '');
-
-      // Validăm că avem un număr de telefon valid în tabel înainte de comparare
-      // (evităm match fals pe string-uri goale care sunt conținute în orice target)
       if (!rowPhone || rowPhone.length < 7) return false;
-
-      const match = rowPhone && (rowPhone.includes(cleanTarget) || cleanTarget.includes(rowPhone));
-      if (match)
-        console.log(
-          `[AutoReply][Sheets] ✅ MATCH FOUND! rowPhone=${rowPhone} target=${cleanTarget}`
-        );
-      return match;
+      return rowPhone.includes(cleanTarget) || cleanTarget.includes(rowPhone);
     });
 
-    if (foundRow) {
+    if (matchingRows.length > 0) {
+      // Prioritizăm rândul care are manualNotes completat.
+      // Căutăm de jos în sus pentru a-l lua pe cel mai recent dacă sunt mai multe.
+      const foundRow =
+        [...matchingRows]
+          .reverse()
+          .find(r => (r.get('manualNotes') || '').toString().trim() !== '') ||
+        matchingRows[matchingRows.length - 1];
+
       const details = {
         eventDate: foundRow.get('eventDate'),
         guestCount: foundRow.get('guestCount'),
         location: foundRow.get('location'),
         manualNotes: foundRow.get('manualNotes'),
       };
-      console.log(`[AutoReply][Sheets] Found details:`, JSON.stringify(details));
+      console.log(
+        `[AutoReply][Sheets] Found ${matchingRows.length} rows for ${cleanTarget}. Using row ${foundRow._rowNumber}. Details:`,
+        JSON.stringify(details)
+      );
       return details;
     } else {
       console.log(`[AutoReply][Sheets] ❌ No row matched for target=${cleanTarget}`);
