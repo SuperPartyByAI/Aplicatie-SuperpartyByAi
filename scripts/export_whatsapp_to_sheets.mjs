@@ -123,14 +123,15 @@ async function main() {
     (await doc.addSheet({
       title: 'Messages',
       headerValues: [
+        'phone', // <--- ADDED PHONE
+        'direction',
+        'senderName',
+        'text',
+        'tsClientMs',
         'accountId',
         'threadId',
         'messageId',
-        'tsClientMs',
-        'direction',
-        'senderName',
         'type',
-        'text',
         'mediaUrl',
         'driveUrl',
         'status',
@@ -150,8 +151,14 @@ async function main() {
   }
 
   const threadSnap = await threadsQuery.get();
+
+  // Map thread IDs to Phone numbers for fast lookup during message export
+  const threadPhoneMap = new Map();
   const threadRows = threadSnap.docs.map(d => {
     const data = d.data();
+    const phone = data.phone || data.phoneE164 || '';
+    threadPhoneMap.set(d.id, phone);
+
     const summary = data.ai_summary || '';
 
     // Simple intelligence: Try to extract a date from the summary if present
@@ -229,14 +236,15 @@ async function main() {
         if (createdAt < sinceDate) continue;
       }
       const row = {
+        phone: threadPhoneMap.get(threadId) || '',
+        direction: data.direction || '',
+        senderName: data.pushName || data.displayName || data.senderName || '',
+        text: data.body || data.text || '',
+        tsClientMs: data.tsClientMs || '',
         accountId: data.accountId || '',
         threadId: threadId,
         messageId: msgDoc.id,
-        tsClientMs: data.tsClientMs || '',
-        direction: data.direction || '',
-        senderName: data.pushName || data.displayName || '',
         type: data.type || 'text',
-        text: data.body || '',
         mediaUrl: data.mediaUrl || '',
         driveUrl: '',
         status: data.status || '',
