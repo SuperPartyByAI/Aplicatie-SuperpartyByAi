@@ -111,6 +111,7 @@ async function main() {
         'displayName', // Moved to front
         'eventDate', // <--- NEW: Dedicated date column
         'guestCount', // <--- NEW: Dedicated guest count column
+        'location', // <--- NEW: Dedicated location column
         'ai_summary',
         'lastMessageAt',
         'lastMessageText',
@@ -162,26 +163,31 @@ async function main() {
 
     const summary = data.ai_summary || '';
 
-    // Simple intelligence: Try to extract a date from the summary if present
-    // Looking for patterns like "Data: 15 August" or similar in the AI notes
+    // Simple intelligence: Try to extract data from the summary
     let extractedDate = '';
     const dateMatch = summary.match(/(?:Dată|Data|Eveniment|Când):\s*([^\n,.]+)/i);
     if (dateMatch) {
       extractedDate = dateMatch[1].trim();
     }
 
-    // NEW: Try to extract guest count (persoane/copii)
     let extractedGuests = '';
     const guestMatch = summary.match(/(?:Persoane|Copii|Invitați|Nr\.?\s*persoane):\s*([^\n,.]+)/i);
     if (guestMatch) {
       extractedGuests = guestMatch[1].trim();
     }
 
+    let extractedLocation = '';
+    const locationMatch = summary.match(/(?:Locație|Locatie|Adresă|Adresa):\s*([^\n,.]+)/i);
+    if (locationMatch) {
+      extractedLocation = locationMatch[1].trim();
+    }
+
     return {
       phone: phone,
       displayName: data.displayName || '',
       eventDate: extractedDate,
-      guestCount: extractedGuests, // <--- New field
+      guestCount: extractedGuests,
+      location: extractedLocation, // <--- New field
       ai_summary: summary,
       lastMessageAt: data.lastMessageAt ? data.lastMessageAt.toDate().toISOString() : '',
       lastMessageText: data.lastMessageText || '',
