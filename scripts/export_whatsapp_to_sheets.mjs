@@ -265,20 +265,33 @@ async function main() {
   // ROBUST TIMESTAMP PARSING HELPER
   const extractDate = d => {
     if (!d) return null;
-    // Fields order of priority
-    const val = d.tsServer || d.tsClient || d.messageTimestamp || d.createdAt || d.tsClientMs;
-    if (!val) return null;
 
-    let r = null;
-    if (typeof val.toDate === 'function') r = val.toDate();
-    else if (val._seconds) r = new Date(val._seconds * 1000);
-    else if (val.seconds) r = new Date(val.seconds * 1000);
-    else if (typeof val === 'number') {
-      r = val < 10000000000 ? new Date(val * 1000) : new Date(val);
-    } else if (typeof val === 'string' || val instanceof Date) {
-      r = new Date(val);
+    // Priority order: tsClient (client-side), messageTimestamp (WhatsApp), tsServer (Firestore receive), tsSort (internal), createdAt
+    const candidates = [
+      d.tsClient,
+      d.messageTimestamp,
+      d.tsServer,
+      d.tsSort,
+      d.createdAt,
+      d.tsClientMs,
+    ];
+
+    for (const val of candidates) {
+      if (!val || (typeof val === 'object' && Object.keys(val).length === 0)) continue;
+
+      let r = null;
+      if (typeof val.toDate === 'function') r = val.toDate();
+      else if (val._seconds) r = new Date(val._seconds * 1000);
+      else if (val.seconds) r = new Date(val.seconds * 1000);
+      else if (typeof val === 'number') {
+        r = val < 10000000000 ? new Date(val * 1000) : new Date(val);
+      } else if (typeof val === 'string' || val instanceof Date) {
+        r = new Date(val);
+      }
+
+      if (r && !isNaN(r.getTime())) return r;
     }
-    return r && !isNaN(r.getTime()) ? r : null;
+    return null;
   };
 
   const sinceDate = new Date();
@@ -358,24 +371,21 @@ async function main() {
         row.driveUrl = await uploadToDrive(drive, data.mediaUrl, fileName, mediaFolderId);
       }
 
-      allMessageRows.push(row);
+      allMessageRows.push({ ...row, _dateObj: createdAt });
     }
   }
 
-  // Sortăm toate mesajele cronologic înainte de scriere
-  allMessageRows.sort((a, b) => {
-    try {
-      return new Date(a.timestamp) - new Date(b.timestamp);
-    } catch (e) {
-      return 0;
-    }
-  });
+  // Sortăm toate mesajele cronologic folosind obiectul Date temporar
+  allMessageRows.sort((a, b) => (a._dateObj || 0) - (b._dateObj || 0));
 
   if (allMessageRows.length > 0) {
     console.log(`📡 Adding ${allMessageRows.length} messages to sheet...`);
-    // Scriem în bucăți de 500 pentru a evita limitele de payload ale API-ului
+    // Scriem în bucăți de 500, eliminând proprietatea temporară _dateObj
     for (let i = 0; i < allMessageRows.length; i += 500) {
-      const chunk = allMessageRows.slice(i, i + 500);
+      const chunk = allMessageRows.slice(i, i + 500).map(r => {
+        const { _dateObj, ...rest } = r;
+        return rest;
+      });
       await messagesSheet.addRows(chunk);
       console.log(`   ✅ Written chunk ${i / 500 + 1}`);
     }
