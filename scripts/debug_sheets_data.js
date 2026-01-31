@@ -43,15 +43,31 @@ async function debugSheet() {
     console.log('eventDate (get):', `"${m.get('eventDate')}"`);
   });
 
-  const withNotes = rows.filter(r => (r.get('manualNotes') || '').toString().trim() !== '');
-  console.log(`\n📝 Total rows globally with notes: ${withNotes.length}`);
-  if (withNotes.length > 0) {
+  console.log('\n🔎 Global scan for ANY non-empty manualNotes:');
+  let noteCount = 0;
+  rows.forEach(r => {
+    const n = (r.get('manualNotes') || '').toString().trim();
+    if (n.length > 0) {
+      noteCount++;
+      if (noteCount <= 10) {
+        console.log(`Row ${r._rowNumber} (${r.get('phone')}): "${n}"`);
+      }
+    }
+  });
+  console.log(`Summary: Total rows with notes: ${noteCount}`);
+
+  if (matches.length > 0) {
     console.log(
-      'Top match with notes:',
-      withNotes[0].get('phone'),
-      '->',
-      withNotes[0].get('manualNotes')
+      '\n📊 FULL COLUMN DUMP for your latest row:',
+      matches[matches.length - 1]._rowNumber
     );
+    const lastMatch = matches[matches.length - 1];
+    lastMatch._rawData.forEach((val, i) => {
+      const header = sheet.headerValues[i] || `Col_${i}`;
+      console.log(`${String.fromCharCode(65 + i)} [${header}]: "${val}"`);
+    });
+  } else {
+    console.log('\n❌ No matches found to dump columns.');
   }
 }
 
