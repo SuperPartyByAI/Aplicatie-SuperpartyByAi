@@ -311,23 +311,29 @@ async function main() {
           : new Date(data.createdAt);
         if (createdAt < sinceDate) continue;
       }
-      // ROBUST TIMESTAMP PARSING
-      let rawDate = null;
-      if (data.tsServer) rawDate = data.tsServer;
-      else if (data.tsClient) rawDate = data.tsClient;
-      else if (data.createdAt) rawDate = data.createdAt;
-      else if (data.tsClientMs) rawDate = data.tsClientMs;
+      // ULTRA-ROBUST TIMESTAMP & NAME PARSING
+      const extractDate = d => {
+        if (!d) return null;
+        let r = null;
+        // Priority fields
+        const val = d.tsServer || d.tsClient || d.messageTimestamp || d.createdAt || d.tsClientMs;
+        if (!val) return null;
 
-      let finalDate = null;
-      if (rawDate) {
-        if (typeof rawDate.toDate === 'function') finalDate = rawDate.toDate();
-        else if (rawDate._seconds) finalDate = new Date(rawDate._seconds * 1000);
-        else if (typeof rawDate === 'number') finalDate = new Date(rawDate);
-        else if (typeof rawDate === 'string') finalDate = new Date(rawDate);
-      }
+        if (typeof val.toDate === 'function') r = val.toDate();
+        else if (val._seconds) r = new Date(val._seconds * 1000);
+        else if (val.seconds) r = new Date(val.seconds * 1000);
+        else if (typeof val === 'number') {
+          // WhatsApp uses seconds (10 digits), JS uses ms (13 digits)
+          r = val < 10000000000 ? new Date(val * 1000) : new Date(val);
+        } else if (typeof val === 'string') {
+          r = new Date(val);
+        }
+        return r && !isNaN(r.getTime()) ? r : null;
+      };
 
+      const finalDate = extractDate(data);
       let formattedDate = 'Data Invalida';
-      if (finalDate && !isNaN(finalDate.getTime())) {
+      if (finalDate) {
         formattedDate = finalDate.toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest' });
       }
 
