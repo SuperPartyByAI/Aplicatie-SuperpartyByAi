@@ -956,7 +956,12 @@ function buildAiContextMessages(systemPrompt, history) {
 /**
  * Construiește promptul îmbunătățit cu informații despre contact și conversație
  */
-function buildEnrichedSystemPrompt(basePrompt, contactInfo, conversationMeta) {
+function buildEnrichedSystemPrompt(
+  basePrompt,
+  contactInfo,
+  conversationMeta,
+  threadSummary = null
+) {
   let enrichedPrompt = basePrompt;
 
   // Adaugă separator
@@ -1005,6 +1010,10 @@ function buildEnrichedSystemPrompt(basePrompt, contactInfo, conversationMeta) {
   enrichedPrompt += `- Total mesaje în conversație: ${conversationMeta.messageCount}\n`;
   enrichedPrompt += `- Context folosit: ultimele ${AI_CONTEXT_MESSAGE_LIMIT} mesaje\n`;
 
+  if (threadSummary) {
+    enrichedPrompt += `\n=== MEMORIE CLIENT (REZUMAT ANTERIOR) ===\n${threadSummary}\n`;
+  }
+
   return enrichedPrompt;
 }
 
@@ -1043,6 +1052,78 @@ async function generateAutoReplyText(groqKey, messages, maxTokens = 500) {
     .trim()
     .replace(/```[\s\S]*?```/g, '')
     .trim();
+}
+
+/**
+ * Generates a summary of the conversation using a specialized AI call.
+ */
+async function generateConversationSummary(groqKey, currentSummary, newMessages) {
+  const Groq = require('groq-sdk');
+  const groq = new Groq({ apiKey: groqKey });
+
+  // Filter messages to only include relevant text
+  const conversationText = newMessages
+    .map(m => `[${m.role === 'user' ? 'Client' : 'AI'}]: ${m.content}`)
+    .join('\n');
+
+  const systemPrompt = `
+Ești un asistent inteligent care gestionează memoria pe termen lung a unui business.
+Sarcina ta: Actualizează rezumatul despre acest client.
+
+REZUMAT ACTUAL:
+${currentSummary || '(Nu există încă)'}
+
+CONVERSAȚIE NOUĂ:
+${conversationText}
+
+INSTRUCȚIUNI:
+1. Extrage DOAR informații utile (Nume, Preferințe, Buget, Data evenimentului, Întrebări specifice).
+2. Ignoră saluturile și discuțiile banale.
+3. Actualizează rezumatul existent cu noile informații.
+4. Output-ul trebuie să fie doar noul rezumat (text clar, concis). 
+5. Scrie în limba Română.
+`;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
+      temperature: 0.1,
+      max_tokens: 300,
+      messages: [{ role: 'system', content: systemPrompt }],
+    });
+    return completion?.choices?.[0]?.message?.content?.trim() || null;
+  } catch (e) {
+    console.error(`[AutoReply][Summary] Error generating summary: ${e.message}`);
+    return null;
+  }
+}
+
+/**
+ * Updates the thread summary in Firestore.
+ */
+async function updateThreadSummary(accountId, threadId, groqKey, newMessages) {
+  try {
+    const threadRef = db.collection('accounts').doc(accountId).collection('threads').doc(threadId);
+
+    const threadSnap = await threadRef.get();
+    if (!threadSnap.exists) return;
+
+    const currentSummary = threadSnap.data().ai_summary || '';
+
+    // Summarize every time to capture data immediately
+
+    const newSummary = await generateConversationSummary(groqKey, currentSummary, newMessages);
+
+    if (newSummary && newSummary !== currentSummary) {
+      console.log(`[AutoReply][Summary] Updating summary for ${hashForLog(threadId)}`);
+      await threadRef.update({
+        ai_summary: newSummary,
+        ai_last_summary_ts: Date.now(),
+      });
+    }
+  } catch (e) {
+    console.error(`[AutoReply][Summary] Failed to update thread: ${e.message}`);
+  }
 }
 
 /**
@@ -1782,6 +1863,9 @@ STIL
       firstMessageDate: firstMessageDate,
     };
 
+    // Fetch AI Summary (Brain)
+    const threadSummary = threadData.ai_summary || null; // <--- NEW MEMORY FIELD
+
     // Prioritate prompt: thread > account > env default (fără hardcoded fallback)
     const basePrompt = threadPrompt || accountPrompt || process.env.AI_DEFAULT_SYSTEM_PROMPT;
 
@@ -1800,7 +1884,12 @@ STIL
     );
 
     // Construiește promptul îmbunătățit cu context despre contact și conversație
-    const systemPrompt = buildEnrichedSystemPrompt(basePrompt, contactInfo, conversationMeta);
+    const systemPrompt = buildEnrichedSystemPrompt(
+      basePrompt,
+      contactInfo,
+      conversationMeta,
+      threadSummary
+    );
 
     // Ensure current message is in history context
     // Firestore query might miss the just-saved message due to latency
@@ -2378,14 +2467,36 @@ async function handleMessagesUpsert({ accountId, sock, newMessages, type }) {
                 console.log(
                   `[AutoReply] 🚀 Triggering auto-reply (debounced): account=${hashForLog(accountId)} thread=${hashForLog(saved.threadId)}`
                 );
-                maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType: type }).catch(
-                  err => {
+                maybeHandleAiAutoReply({ accountId, sock, msg, saved, eventType: type })
+                  .then(async () => {
+                    // AFTER reply, update the brain (background task)
+                    // We fetch the last N messages + reply content?
+                    // Ideally we'd pass the new conversation context.
+                    // For simplicity, we trigger it independently.
+                    const groqKey = process.env.GROQ_API_KEY || ''; // Or fetch from account
+                    // We need to fetch the recent messages again to include the AI reply?
+                    // Actually, maybeHandleAiAutoReply handles the reply.
+                    // We'll trigger summarization here.
+                    if (groqKey) {
+                      // Fetch last few messages for summarization context
+                      const recentMsgsSnap = await db
+                        .collection('threads')
+                        .doc(saved.threadId)
+                        .collection('messages')
+                        .orderBy('tsSort', 'desc')
+                        .limit(10)
+                        .get();
+                      const recentMsgs = recentMsgsSnap.docs.map(d => d.data()).reverse();
+                      // Also include the current user msg? (it's in Firestore now)
+                      updateThreadSummary(accountId, saved.threadId, groqKey, recentMsgs);
+                    }
+                  })
+                  .catch(err => {
                     console.error(
                       `[AutoReply] ❌ Auto-reply error: account=${hashForLog(accountId)} msg=${hashForLog(msg?.key?.id)} error=${err.message}`
                     );
                     console.error(`[AutoReply] Stack:`, err.stack);
-                  }
-                );
+                  });
               }, AI_DEBOUNCE_MS);
 
               aiDebounceTimers.set(debounceKey, timer);
