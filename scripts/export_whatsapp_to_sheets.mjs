@@ -387,11 +387,13 @@ async function main() {
         return rest;
       });
       await messagesSheet.addRows(chunk);
-      console.log(`   ✅ Written chunk ${i / 500 + 1}`);
+      console.log(`   ✅ Written chunk ${i / 500 + 1}. Row count after Chunk: ${chunk.length}`);
     }
   }
 
   console.log(`🏁 Export finished. Total messages exported: ${allMessageRows.length}`);
+  // Scurtă pauză pentru a asigura flush-ul tuturor request-urilor
+  await new Promise(resolve => setTimeout(resolve, 3000));
 }
 
 main().catch(err => {
