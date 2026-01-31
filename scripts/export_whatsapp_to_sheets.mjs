@@ -112,6 +112,7 @@ async function main() {
         'eventDate', // <--- NEW: Dedicated date column
         'guestCount', // <--- NEW: Dedicated guest count column
         'location', // <--- NEW: Dedicated location column
+        'manualNotes', // <--- NEW: Persistent Manual Notes column
         'ai_summary',
         'lastMessageAt',
         'lastMessageText',
@@ -125,7 +126,7 @@ async function main() {
     (await doc.addSheet({
       title: 'Messages',
       headerValues: [
-        'phone', // <--- ADDED PHONE
+        'phone',
         'direction',
         'senderName',
         'text',
@@ -140,10 +141,22 @@ async function main() {
       ],
     }));
 
-  // Clear sheets before starting (optional, based on requirement "1 row per...")
-  // We'll append for now or clear if needed.
-  await contactsSheet.clearRows();
+  // FETCH EXISTING DATA to preserve manual notes
+  console.log('📖 Reading existing sheet data to preserve manual notes...');
+  const existingRows = await contactsSheet.getRows();
+  const phoneToManualNotes = new Map();
+  existingRows.forEach(row => {
+    const p = (row.get('phone') || '').toString().replace(/\D/g, '');
+    const note = row.get('manualNotes') || '';
+    if (p && note) {
+      phoneToManualNotes.set(p, note);
+    }
+  });
+
+  // Clear messages (safe to clear full history)
   await messagesSheet.clearRows();
+  // For Contacts, we will OVERWRITE but keep manual notes
+  await contactsSheet.clearRows();
 
   // 1. Export Contacts/Threads
   console.log('👥 Fetching threads...');
@@ -158,7 +171,8 @@ async function main() {
   const threadPhoneMap = new Map();
   const threadRows = threadSnap.docs.map(d => {
     const data = d.data();
-    const phone = data.phone || data.phoneE164 || '';
+    const phone = (data.phone || data.phoneE164 || '').toString();
+    const cleanPhone = phone.replace(/\D/g, '');
     threadPhoneMap.set(d.id, phone);
 
     const summary = data.ai_summary || '';
@@ -182,12 +196,16 @@ async function main() {
       extractedLocation = locationMatch[1].trim();
     }
 
+    // Preserve manual notes if they exist in the map
+    const manualNote = phoneToManualNotes.get(cleanPhone) || '';
+
     return {
       phone: phone,
       displayName: data.displayName || '',
       eventDate: extractedDate,
       guestCount: extractedGuests,
-      location: extractedLocation, // <--- New field
+      location: extractedLocation,
+      manualNotes: manualNote, // <--- PRESERVED
       ai_summary: summary,
       lastMessageAt: data.lastMessageAt ? data.lastMessageAt.toDate().toISOString() : '',
       lastMessageText: data.lastMessageText || '',
@@ -199,7 +217,7 @@ async function main() {
 
   if (threadRows.length > 0) {
     await contactsSheet.addRows(threadRows);
-    console.log(`✅ Exported ${threadRows.length} threads.`);
+    console.log(`✅ Exported ${threadRows.length} threads with preserved manual notes.`);
   }
 
   // 2. Export Messages (Paginat)

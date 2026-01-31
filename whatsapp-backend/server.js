@@ -1024,8 +1024,8 @@ function buildEnrichedSystemPrompt(
     if (sheetsInfo.location)
       enrichedPrompt += `- Locație (Confirmată în CRM): ${sheetsInfo.location}\n`;
     if (sheetsInfo.manualNotes)
-      enrichedPrompt += `- Observații Adiționale: ${sheetsInfo.manualNotes}\n`;
-    enrichedPrompt += `\nIMPORTANT: Dacă informațiile din CRM (de mai sus) diferă de restul conversației, acordă PRIORITATE celor din CRM, deoarece sunt validate de un om.\n`;
+      enrichedPrompt += `- NOTIȚE MANUALE IMPORTANTE: ${sheetsInfo.manualNotes}\n`;
+    enrichedPrompt += `\nIMPORTANT: Notițele manuale de mai sus sunt scrise de administrator. Respectă-le cu prioritate absolută față de orice altă informație.\n`;
   }
 
   return enrichedPrompt;
@@ -1076,7 +1076,7 @@ async function fetchClientDetailsFromSheets(phone) {
         eventDate: foundRow.get('eventDate'),
         guestCount: foundRow.get('guestCount'),
         location: foundRow.get('location'),
-        manualNotes: foundRow.get('ai_summary'),
+        manualNotes: foundRow.get('manualNotes'), // <--- Now using the dedicated column
       };
     }
   } catch (err) {
