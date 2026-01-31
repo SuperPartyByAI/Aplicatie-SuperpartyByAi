@@ -143,11 +143,11 @@ async function main() {
     (await doc.addSheet({
       title: 'Messages',
       headerValues: [
-        'phone',
+        'timestamp', // 1. Data și ora (as requested)
+        'phone', // 2. Număr telefon
+        'senderName', // 3. Nume
+        'text', // 4. Detalii/Mesaj
         'direction',
-        'senderName',
-        'text',
-        'timestamp', // Changed from tsClientMs
         'accountId',
         'threadId',
         'messageId',
@@ -159,11 +159,11 @@ async function main() {
     }));
 
   await messagesSheet.setHeaderRow([
+    'timestamp',
     'phone',
-    'direction',
     'senderName',
     'text',
-    'timestamp',
+    'direction',
     'accountId',
     'threadId',
     'messageId',
@@ -204,13 +204,14 @@ async function main() {
 
   const threadSnap = await threadsQuery.get();
 
-  // Map thread IDs to Phone numbers for fast lookup during message export
   const threadPhoneMap = new Map();
+  const threadDisplayNameMap = new Map();
   const threadRows = threadSnap.docs.map(d => {
     const data = d.data();
     const phone = (data.phone || data.phoneE164 || '').toString();
     const cleanPhone = phone.replace(/\D/g, '');
     threadPhoneMap.set(d.id, phone);
+    threadDisplayNameMap.set(d.id, data.displayName || '');
 
     const summary = data.ai_summary || '';
 
@@ -310,28 +311,38 @@ async function main() {
           : new Date(data.createdAt);
         if (createdAt < sinceDate) continue;
       }
-      const rawTs =
-        data.tsClientMs ||
-        (data.createdAt && data.createdAt.toDate
-          ? data.createdAt.toDate().getTime()
-          : data.createdAt);
-      let formattedDate = '';
-      if (rawTs) {
-        try {
-          formattedDate = new Date(rawTs).toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest' });
-        } catch (e) {
-          formattedDate = String(rawTs);
-        }
+      // ROBUST TIMESTAMP PARSING
+      let rawDate = null;
+      if (data.tsServer) rawDate = data.tsServer;
+      else if (data.tsClient) rawDate = data.tsClient;
+      else if (data.createdAt) rawDate = data.createdAt;
+      else if (data.tsClientMs) rawDate = data.tsClientMs;
+
+      let finalDate = null;
+      if (rawDate) {
+        if (typeof rawDate.toDate === 'function') finalDate = rawDate.toDate();
+        else if (rawDate._seconds) finalDate = new Date(rawDate._seconds * 1000);
+        else if (typeof rawDate === 'number') finalDate = new Date(rawDate);
+        else if (typeof rawDate === 'string') finalDate = new Date(rawDate);
+      }
+
+      let formattedDate = 'Data Invalida';
+      if (finalDate && !isNaN(finalDate.getTime())) {
+        formattedDate = finalDate.toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest' });
       }
 
       const row = {
-        phone: threadPhoneMap.get(threadId) || '',
-        direction: data.direction || (data.fromMe ? 'outbound' : 'inbound'),
+        timestamp: formattedDate, // 1
+        phone: threadPhoneMap.get(threadId) || '', // 2
         senderName: data.fromMe
           ? 'AI (SuperParty)'
-          : data.pushName || data.displayName || data.senderName || 'Client',
-        text: data.body || data.text || '',
-        timestamp: formattedDate,
+          : data.pushName ||
+            data.displayName ||
+            data.senderName ||
+            threadDisplayNameMap.get(threadId) ||
+            'Client', // 3
+        text: data.body || data.text || '', // 4
+        direction: data.direction || (data.fromMe ? 'outbound' : 'inbound'),
         accountId: data.accountId || '',
         threadId: threadId,
         messageId: msgDoc.id,
