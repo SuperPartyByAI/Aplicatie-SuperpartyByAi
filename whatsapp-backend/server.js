@@ -960,7 +960,8 @@ function buildEnrichedSystemPrompt(
   basePrompt,
   contactInfo,
   conversationMeta,
-  threadSummary = null
+  threadSummary = null,
+  sheetsInfo = null
 ) {
   let enrichedPrompt = basePrompt;
 
@@ -1014,7 +1015,74 @@ function buildEnrichedSystemPrompt(
     enrichedPrompt += `\n=== MEMORIE CLIENT (REZUMAT ANTERIOR) ===\n${threadSummary}\n`;
   }
 
+  if (sheetsInfo) {
+    enrichedPrompt += `\n=== NOTIȚE MANUALE / CRM (GOOGLE SHEETS) ===\n`;
+    if (sheetsInfo.eventDate)
+      enrichedPrompt += `- Data Eveniment (Confirmată în CRM): ${sheetsInfo.eventDate}\n`;
+    if (sheetsInfo.guestCount)
+      enrichedPrompt += `- Nr. Persoane (Confirmat în CRM): ${sheetsInfo.guestCount}\n`;
+    if (sheetsInfo.location)
+      enrichedPrompt += `- Locație (Confirmată în CRM): ${sheetsInfo.location}\n`;
+    if (sheetsInfo.manualNotes)
+      enrichedPrompt += `- Observații Adiționale: ${sheetsInfo.manualNotes}\n`;
+    enrichedPrompt += `\nIMPORTANT: Dacă informațiile din CRM (de mai sus) diferă de restul conversației, acordă PRIORITATE celor din CRM, deoarece sunt validate de un om.\n`;
+  }
+
   return enrichedPrompt;
+}
+
+/**
+ * Încarcă date manuale din Google Sheets (CRM) pentru a oferi context suplimentar AI-ului.
+ * Permite utilizatorului să corecteze date sau să adauge notițe în tabel pe care AI-ul să le respecte.
+ */
+async function fetchClientDetailsFromSheets(phone) {
+  const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
+  if (!spreadsheetId) {
+    return null;
+  }
+
+  try {
+    const { GoogleSpreadsheet } = require('google-spreadsheet');
+    const { JWT } = require('google-auth-library');
+
+    const saPath =
+      process.env.GOOGLE_APPLICATION_CREDENTIALS || '/etc/whatsapp-backend/firebase-sa.json';
+    if (!fs.existsSync(saPath)) return null;
+
+    const creds = JSON.parse(fs.readFileSync(saPath, 'utf8'));
+    const serviceAccountAuth = new JWT({
+      email: creds.client_email,
+      key: creds.private_key,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const doc = new GoogleSpreadsheet(spreadsheetId, serviceAccountAuth);
+    await doc.loadInfo();
+
+    const sheet = doc.sheetsByTitle['Contacts'];
+    if (!sheet) return null;
+
+    const rows = await sheet.getRows();
+    const cleanTarget = phone.toString().replace(/\D/g, '');
+
+    // Căutăm rândul corespunzător numărului de telefon
+    const foundRow = rows.find(r => {
+      const rowPhone = (r.get('phone') || '').toString().replace(/\D/g, '');
+      return rowPhone && (rowPhone.includes(cleanTarget) || cleanTarget.includes(rowPhone));
+    });
+
+    if (foundRow) {
+      return {
+        eventDate: foundRow.get('eventDate'),
+        guestCount: foundRow.get('guestCount'),
+        location: foundRow.get('location'),
+        manualNotes: foundRow.get('ai_summary'),
+      };
+    }
+  } catch (err) {
+    console.error(`[AutoReply][Sheets] Error fetching context for ${phone}: ${err.message}`);
+  }
+  return null;
 }
 
 async function generateAutoReplyText(groqKey, messages, maxTokens = 500) {
@@ -1886,12 +1954,22 @@ STIL
       `[AutoReply][Prompt] traceId=${traceId} promptSource=${promptSource} promptLength=${promptLength} promptHash=${promptHash} nameSource=${nameSource}`
     );
 
+    // OPTIONAL: Fetch extra context from Google Sheets (CRM)
+    let sheetsInfo = null;
+    if (process.env.GOOGLE_SPREADSHEET_ID) {
+      console.log(
+        `[AutoReply][Sheets] traceId=${traceId} Checking Sheets CRM for ${phoneDigits || phoneE164}`
+      );
+      sheetsInfo = await fetchClientDetailsFromSheets(phoneDigits || phoneE164 || clientJid);
+    }
+
     // Construiește promptul îmbunătățit cu context despre contact și conversație
     const systemPrompt = buildEnrichedSystemPrompt(
       basePrompt,
       contactInfo,
       conversationMeta,
-      threadSummary
+      threadSummary,
+      sheetsInfo
     );
 
     // Ensure current message is in history context
