@@ -1077,11 +1077,13 @@ CONVERSAȚIE NOUĂ:
 ${conversationText}
 
 INSTRUCȚIUNI:
-1. Extrage DOAR informații utile (Nume, Preferințe, Buget, Data evenimentului, Întrebări specifice).
-2. Ignoră saluturile și discuțiile banale.
-3. Actualizează rezumatul existent cu noile informații.
-4. Output-ul trebuie să fie doar noul rezumat (text clar, concis). 
-5. Scrie în limba Română.
+1. Extrage TOATE detaliile despre client (Nume, Telefon, Buget, Dată, Locație, Număr invitați, Preferințe culori/tematică, Întrebări specifice).
+2. Păstrează numerele exacte, datele și numele menționate.
+3. Dacă informatia există deja în REZUMAT ACTUAL, păstreaz-o (nu o șterge decât dacă e greșită).
+4. Adaugă informații noi din CONVERSAȚIE NOUĂ.
+5. Formatează clar, concis, preferabil cu liniuțe (-).
+6. Ignoră doar "bună", "mulțumesc" și discuțiile fără valoare informativă.
+7. Scrie în limba Română.
 `;
 
   try {
