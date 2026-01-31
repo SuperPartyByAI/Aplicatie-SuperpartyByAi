@@ -121,6 +121,23 @@ async function main() {
         'clientJid',
       ],
     }));
+
+  // FORCE UPDATE HEADERS (Ensures new columns exist if they didn't before)
+  await contactsSheet.setHeaderRow([
+    'phone',
+    'displayName',
+    'eventDate',
+    'guestCount',
+    'location',
+    'manualNotes',
+    'ai_summary',
+    'lastMessageAt',
+    'lastMessageText',
+    'accountId',
+    'threadId',
+    'clientJid',
+  ]);
+
   const messagesSheet =
     doc.sheetsByTitle['Messages'] ||
     (await doc.addSheet({
@@ -140,6 +157,21 @@ async function main() {
         'status',
       ],
     }));
+
+  await messagesSheet.setHeaderRow([
+    'phone',
+    'direction',
+    'senderName',
+    'text',
+    'tsClientMs',
+    'accountId',
+    'threadId',
+    'messageId',
+    'type',
+    'mediaUrl',
+    'driveUrl',
+    'status',
+  ]);
 
   // FETCH EXISTING DATA to preserve manual notes
   console.log('📖 Reading existing sheet data to preserve manual notes...');
