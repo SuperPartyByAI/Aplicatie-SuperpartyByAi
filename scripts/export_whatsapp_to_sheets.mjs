@@ -107,14 +107,15 @@ async function main() {
     (await doc.addSheet({
       title: 'Contacts',
       headerValues: [
-        'accountId',
-        'threadId',
-        'phone',
-        'displayName',
-        'clientJid',
+        'phone', // Moved to front
+        'displayName', // Moved to front
+        'eventDate', // <--- NEW: Dedicated date column
+        'ai_summary',
         'lastMessageAt',
         'lastMessageText',
-        'ai_summary', // <--- NEW COLUMN
+        'accountId',
+        'threadId',
+        'clientJid',
       ],
     }));
   const messagesSheet =
@@ -151,15 +152,26 @@ async function main() {
   const threadSnap = await threadsQuery.get();
   const threadRows = threadSnap.docs.map(d => {
     const data = d.data();
+    const summary = data.ai_summary || '';
+
+    // Simple intelligence: Try to extract a date from the summary if present
+    // Looking for patterns like "Data: 15 August" or similar in the AI notes
+    let extractedDate = '';
+    const dateMatch = summary.match(/(?:Dată|Data|Eveniment|Când):\s*([^\n,.]+)/i);
+    if (dateMatch) {
+      extractedDate = dateMatch[1].trim();
+    }
+
     return {
-      accountId: data.accountId || '',
-      threadId: d.id,
       phone: data.phone || data.phoneE164 || '',
       displayName: data.displayName || '',
-      clientJid: data.clientJid || '',
+      eventDate: extractedDate, // <--- New field
+      ai_summary: summary,
       lastMessageAt: data.lastMessageAt ? data.lastMessageAt.toDate().toISOString() : '',
       lastMessageText: data.lastMessageText || '',
-      ai_summary: data.ai_summary || '', // <--- MAP DATA
+      accountId: data.accountId || '',
+      threadId: d.id,
+      clientJid: data.clientJid || '',
     };
   });
 

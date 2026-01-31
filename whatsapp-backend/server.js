@@ -1081,9 +1081,10 @@ INSTRUCȚIUNI:
 2. Păstrează numerele exacte, datele și numele menționate.
 3. Dacă informatia există deja în REZUMAT ACTUAL, păstreaz-o (nu o șterge decât dacă e greșită).
 4. Adaugă informații noi din CONVERSAȚIE NOUĂ.
-5. Formatează clar, concis, preferabil cu liniuțe (-).
-6. Ignoră doar "bună", "mulțumesc" și discuțiile fără valoare informativă.
-7. Scrie în limba Română.
+5. Formatează clar, concis, cu liniuțe (-). 
+6. IMPORTANT: Scrie mereu data evenimentului pe un rând nou sub forma "Data: [valoare]" (ex: Data: 15 August 2024).
+7. Ignoră doar "bună", "mulțumesc" și discuțiile fără valoare informativă.
+8. Scrie în limba Română.
 `;
 
   try {
