@@ -110,6 +110,7 @@ async function main() {
         'phone', // Moved to front
         'displayName', // Moved to front
         'eventDate', // <--- NEW: Dedicated date column
+        'guestCount', // <--- NEW: Dedicated guest count column
         'ai_summary',
         'lastMessageAt',
         'lastMessageText',
@@ -169,10 +170,18 @@ async function main() {
       extractedDate = dateMatch[1].trim();
     }
 
+    // NEW: Try to extract guest count (persoane/copii)
+    let extractedGuests = '';
+    const guestMatch = summary.match(/(?:Persoane|Copii|Invitați|Nr\.?\s*persoane):\s*([^\n,.]+)/i);
+    if (guestMatch) {
+      extractedGuests = guestMatch[1].trim();
+    }
+
     return {
-      phone: data.phone || data.phoneE164 || '',
+      phone: phone,
       displayName: data.displayName || '',
-      eventDate: extractedDate, // <--- New field
+      eventDate: extractedDate,
+      guestCount: extractedGuests, // <--- New field
       ai_summary: summary,
       lastMessageAt: data.lastMessageAt ? data.lastMessageAt.toDate().toISOString() : '',
       lastMessageText: data.lastMessageText || '',
